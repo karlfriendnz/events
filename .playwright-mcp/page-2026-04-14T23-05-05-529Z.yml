@@ -1,0 +1,129 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e6]: 
+      - link " Events" [ref=e7] [cursor=pointer]:
+        - /url: /events
+        - generic [ref=e8]: 
+        - generic: Events
+      - link " Bookings" [ref=e9] [cursor=pointer]:
+        - /url: /bookings
+        - generic [ref=e10]: 
+        - generic: Bookings
+      - link " Bookables" [ref=e11] [cursor=pointer]:
+        - /url: /bookables
+        - generic [ref=e12]: 
+        - generic: Bookables
+      - link " Finances" [ref=e13] [cursor=pointer]:
+        - /url: /finances
+        - generic [ref=e14]: 
+        - generic: Finances
+      - link " Registration" [ref=e15] [cursor=pointer]:
+        - /url: /registration
+        - generic [ref=e16]: 
+        - generic: Registration
+      - link " Access Control" [ref=e17] [cursor=pointer]:
+        - /url: /access
+        - generic [ref=e18]: 
+        - generic: Access Control
+      - link " Reporting" [ref=e19] [cursor=pointer]:
+        - /url: /reporting
+        - generic [ref=e20]: 
+        - generic: Reporting
+      - link " Settings" [ref=e21] [cursor=pointer]:
+        - /url: /settings
+        - generic [ref=e22]: 
+        - generic: Settings
+      - generic [ref=e24] [cursor=pointer]: 
+    - generic [ref=e25]:
+      - banner [ref=e26]:
+        - heading "Events" [level=1] [ref=e28]
+        - generic [ref=e29]:
+          - generic [ref=e30]: 
+          - generic [ref=e31]: Demo Club
+      - main [ref=e32]:
+        - generic [ref=e33]:
+          - generic [ref=e34]:
+            - generic [ref=e35]:
+              - link " Events" [ref=e36] [cursor=pointer]:
+                - /url: /events
+                - generic [ref=e37]: 
+                - text: Events
+              - generic [ref=e38]: /
+              - generic [ref=e39]: Create Event
+            - generic [ref=e40]:
+              - button "Save Draft" [ref=e41] [cursor=pointer]:
+                - generic [ref=e42]: Save Draft
+              - button "Publish" [disabled] [ref=e43]:
+                - generic [ref=e44]: 
+                - generic [ref=e45]: Publish
+          - generic [ref=e47]:
+            - generic [ref=e48] [cursor=pointer]:
+              - generic [ref=e50]: "1"
+              - text: Event Details
+            - generic [ref=e52] [cursor=pointer]:
+              - generic [ref=e54]: "2"
+              - text: Date & Times
+            - generic [ref=e56] [cursor=pointer]:
+              - generic [ref=e58]: "3"
+              - text: Invitees
+            - generic [ref=e60] [cursor=pointer]:
+              - generic [ref=e62]: "4"
+              - text: Fees
+            - generic [ref=e64] [cursor=pointer]:
+              - generic [ref=e66]: "5"
+              - text: Forms
+            - generic [ref=e68] [cursor=pointer]:
+              - generic [ref=e70]: "6"
+              - text: Discounts
+            - generic [ref=e72] [cursor=pointer]:
+              - generic [ref=e74]: "7"
+              - text: Automation
+            - generic [ref=e76] [cursor=pointer]:
+              - generic [ref=e78]: "8"
+              - text: Settings
+          - generic [ref=e79]:
+            - generic [ref=e81]:
+              - generic [ref=e82]:
+                - generic [ref=e83]: 
+                - generic [ref=e84]: AI Event Builder
+              - textbox "Describe your event in plain English… e.g. A committee meeting that repeats on the second Wednesday of the month at 6pm" [ref=e85]
+              - button "Generate Event" [disabled] [ref=e87]:
+                - generic [ref=e88]: 
+                - generic [ref=e89]: Generate Event
+            - generic [ref=e90]:
+              - generic [ref=e91]:
+                - heading "Event Details" [level=2] [ref=e92]
+                - paragraph [ref=e93]: Give your event a name, type, and description.
+              - generic [ref=e94]:
+                - generic [ref=e95]:
+                  - generic [ref=e96]: Event Title *
+                  - textbox "e.g. Summer Swimming Carnival 2026" [ref=e97]
+                - generic [ref=e98]:
+                  - generic [ref=e99]: Category
+                  - generic [ref=e100]:
+                    - generic [ref=e101] [cursor=pointer]:
+                      - generic:
+                        - combobox "Select categories"
+                      - generic [ref=e103]: Select categories
+                      - img [ref=e105]
+                    - button "" [ref=e107] [cursor=pointer]:
+                      - generic [ref=e108]: 
+                - generic [ref=e109]:
+                  - generic [ref=e110]: Description
+                  - textbox "Describe your event…" [ref=e111]
+          - generic [ref=e113]:
+            - generic [ref=e114]: Step 1 of 8
+            - button "Next" [ref=e115] [cursor=pointer]:
+              - generic [ref=e116]: 
+              - generic [ref=e117]: Next
+  - generic:
+    - img
+  - generic [ref=e118]:
+    - button "Toggle Nuxt DevTools" [ref=e119] [cursor=pointer]:
+      - img [ref=e120]
+    - generic "Page load time" [ref=e123]:
+      - generic [ref=e124]: "26"
+      - generic [ref=e125]: ms
+    - button "Toggle Component Inspector" [ref=e127] [cursor=pointer]:
+      - img [ref=e128]

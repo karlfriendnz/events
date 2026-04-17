@@ -1,0 +1,81 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e8]: 
+      - generic [ref=e9]:
+        - paragraph [ref=e10]: FriendlyManager
+        - paragraph [ref=e11]: Events Platform
+    - generic [ref=e13]:
+      - text: Demo Club
+      - generic [ref=e14]: 
+    - navigation [ref=e15]:
+      - link " Events" [ref=e16] [cursor=pointer]:
+        - /url: /events
+        - generic [ref=e17]: 
+        - text: Events
+      - link " Bookings" [ref=e18] [cursor=pointer]:
+        - /url: /bookings
+        - generic [ref=e19]: 
+        - text: Bookings
+      - link " Bookables" [ref=e20] [cursor=pointer]:
+        - /url: /bookables
+        - generic [ref=e21]: 
+        - text: Bookables
+      - link " Finances" [ref=e22] [cursor=pointer]:
+        - /url: /finances
+        - generic [ref=e23]: 
+        - text: Finances
+      - link " Registration" [ref=e24] [cursor=pointer]:
+        - /url: /registration
+        - generic [ref=e25]: 
+        - text: Registration
+      - link " Access Control" [ref=e26] [cursor=pointer]:
+        - /url: /access
+        - generic [ref=e27]: 
+        - text: Access Control
+      - link " Reporting" [ref=e28] [cursor=pointer]:
+        - /url: /reporting
+        - generic [ref=e29]: 
+        - text: Reporting
+    - link " Settings" [ref=e31] [cursor=pointer]:
+      - /url: /settings
+      - generic [ref=e32]: 
+      - text: Settings
+  - main [ref=e33]:
+    - generic [ref=e34]:
+      - generic [ref=e35]:
+        - generic [ref=e36]:
+          - heading "Events" [level=1] [ref=e37]
+          - paragraph [ref=e38]: Manage events, sessions, invitees, and registrations.
+        - button "New Event" [ref=e39] [cursor=pointer]:
+          - generic [ref=e40]: 
+          - generic [ref=e41]: New Event
+      - generic [ref=e42]:
+        - generic [ref=e43]:
+          - generic [ref=e44]: 
+          - textbox "Search events…" [ref=e45]
+        - generic [ref=e46] [cursor=pointer]:
+          - combobox "All statuses" [ref=e47]
+          - img [ref=e49]
+      - generic [ref=e52]:
+        - img [ref=e54]
+        - table [ref=e57]:
+          - rowgroup [ref=e58]:
+            - row "Event Style Date Status Capacity" [ref=e59]:
+              - columnheader "Event" [ref=e60]:
+                - generic [ref=e62]: Event
+              - columnheader "Style" [ref=e63]:
+                - generic [ref=e65]: Style
+              - columnheader "Date" [ref=e66]:
+                - generic [ref=e68]: Date
+              - columnheader "Status" [ref=e69]:
+                - generic [ref=e71]: Status
+              - columnheader "Capacity" [ref=e72]:
+                - generic [ref=e74]: Capacity
+              - columnheader [ref=e75]
+          - rowgroup [ref=e76]:
+            - row " No events yet. Create your first event." [ref=e77]:
+              - cell " No events yet. Create your first event." [ref=e78]:
+                - generic [ref=e79]:
+                  - generic [ref=e80]: 
+                  - paragraph [ref=e81]: No events yet. Create your first event.

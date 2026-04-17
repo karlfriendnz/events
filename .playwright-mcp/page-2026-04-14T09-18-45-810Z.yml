@@ -1,0 +1,56 @@
+- generic [active]:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - generic [ref=e25]:
+            - generic [ref=e26]:
+              - region "Prototype controls": Skip to content Continue with Google
+              - generic [ref=e77]:
+                - generic [ref=e78]:
+                  - generic [ref=e79]:
+                    - main:
+                      - paragraph [ref=e80]: Screenreader support is currently disabled. To enable it, use the Accessibility settings from the Options menu.
+                  - generic:
+                    - navigation "Pages":
+                      - generic:
+                        - toolbar "Stepper":
+                          - generic:
+                            - generic:
+                              - button "Previous frame":
+                                - img
+                              - button "Next frame":
+                                - img
+                      - generic:
+                        - button "Restart":
+                          - img
+                          - text: Restart
+                          - generic: R
+                - text: Give feedback, ask a question, or just leave a note of appreciation. Click anywhere in the file to leave a comment.
+            - region "Consent Manager" [ref=e95]:
+              - generic [ref=e96]:
+                - text: This website uses cookies, pixel tags, and local storage for performance, personalization, and marketing purposes. Our use of some cookies may be considered a sale, sharing for behavioral advertising, or targeted advertising. For more, see our
+                - link "privacy policy" [ref=e97]:
+                  - /url: /privacy/
+                - text: . California Residents can learn how personal information is
+                - link "collected" [ref=e98]:
+                  - /url: /privacy/#ca-notice
+                - text: ", including how it is"
+                - link "used" [ref=e99]:
+                  - /url: /privacy/#purpose
+                - text: ", whether it is"
+                - link "“sold” or “shared”" [ref=e100]:
+                  - /url: /privacy/#ca-notice
+                - text: ", and how long it is"
+                - link "retained" [ref=e101]:
+                  - /url: /privacy/#retention
+                - text: .
+              - button "Opt out" [ref=e103]:
+                - generic:
+                  - generic:
+                    - generic: Opt out
+              - button [ref=e105]:
+                - img [ref=e107]
+          - group [ref=e20]:
+            - alert [ref=e22]
+            - alert [ref=e24]
