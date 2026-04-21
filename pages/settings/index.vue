@@ -1172,7 +1172,25 @@ async function resetDatabase() {
       'bookings', 'bookable_closures', 'availability_rules', 'bookables',
       'calendar_categories', 'calendars', 'categories',
     ]
-    for (const table of tables) {
+    // Tables with direct org_id can be scoped; child tables rely on cascade / RLS
+    const orgTables = [
+      'audit_log', 'lighting_profiles', 'tasks', 'communications',
+      'registrations', 'registration_forms',
+      'discounts', 'addons', 'fee_rules', 'fee_components',
+      'invitees', 'connection_groups',
+      'events', 'bookings', 'bookable_closures', 'availability_rules', 'bookables',
+      'calendars', 'categories',
+    ]
+    const childTables = [
+      'access_scans', 'physical_schedules',
+      'attendance', 'registration_ticket_items', 'registration_sessions', 'transactions',
+      'ticket_types', 'form_fields',
+      'connection_group_events', 'sessions', 'calendar_categories',
+    ]
+    for (const table of orgTables) {
+      await db.from(table as any).delete().eq('org_id', orgId.value)
+    }
+    for (const table of childTables) {
       await db.from(table as any).delete().neq('id', '00000000-0000-0000-0000-000000000000')
     }
     toast.add({ severity: 'success', summary: 'Database reset', detail: 'All data except people has been cleared.', life: 4000 })

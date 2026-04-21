@@ -349,6 +349,7 @@ async function load() {
 async function handleCreateDiscount() {
   creatingDiscount.value = true
   const { error } = await db.from('discounts').insert({
+    org_id: orgId.value,
     event_id: discountForm.value.event_id,
     name: discountForm.value.name,
     type: discountForm.value.type,
@@ -368,6 +369,7 @@ async function handleCreateDiscount() {
 async function handleCreateAddon() {
   creatingAddon.value = true
   const { error } = await db.from('addons').insert({
+    org_id: orgId.value,
     event_id: addonForm.value.event_id,
     name: addonForm.value.name,
     type: addonForm.value.type,
@@ -385,13 +387,13 @@ async function handleCreateAddon() {
 }
 
 async function deleteDiscount(id: string) {
-  await db.from('discounts').delete().eq('id', id)
+  await db.from('discounts').delete().eq('id', id).eq('org_id', orgId.value)
   toast.add({ severity: 'success', summary: 'Discount deleted', life: 3000 })
   load()
 }
 
 async function deleteAddon(id: string) {
-  await db.from('addons').delete().eq('id', id)
+  await db.from('addons').delete().eq('id', id).eq('org_id', orgId.value)
   toast.add({ severity: 'success', summary: 'Add-on deleted', life: 3000 })
   load()
 }

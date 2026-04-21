@@ -190,13 +190,11 @@ const filtered = computed(() => bookings.value.filter(b => {
 async function load() {
   loading.value = true
   const [{ data: bookingData }, { data: bookableData }, { data: eventData }] = await Promise.all([
-    db.from('bookings').select('*, bookable:bookables!bookable_id(id,name,type,org_id), event:events(id,title)').order('start_at'),
+    db.from('bookings').select('*, bookable:bookables!bookable_id(id,name,type), event:events(id,title)').eq('org_id', orgId.value).order('start_at'),
     db.from('bookables').select('id,name,type').eq('org_id', orgId.value).neq('status', 'DELETED').order('name'),
     db.from('events').select('id,title').eq('org_id', orgId.value).neq('status', 'ARCHIVED').order('title'),
   ])
-  // Scope to this org via the bookable relationship
-  const filtered_bookings = (bookingData ?? []).filter((b: any) => b.bookable?.org_id === orgId.value)
-  bookings.value = filtered_bookings
+  bookings.value = bookingData ?? []
   bookables.value = bookableData ?? []
   events.value = eventData ?? []
   loading.value = false
@@ -206,6 +204,7 @@ async function handleCreate() {
   if (!form.value.bookable_id) return
   creating.value = true
   const { error } = await db.from('bookings').insert({
+    org_id: orgId.value,
     bookable_id: form.value.bookable_id,
     event_id: form.value.event_id || null,
     purpose: form.value.purpose || null,
@@ -231,7 +230,7 @@ function openMenu(event: Event, row: any) {
       icon: row.status === 'CONFIRMED' ? 'pi pi-times' : 'pi pi-check',
       command: async () => {
         const newStatus = row.status === 'CONFIRMED' ? 'CANCELLED' : 'CONFIRMED'
-        await db.from('bookings').update({ status: newStatus }).eq('id', row.id)
+        await db.from('bookings').update({ status: newStatus }).eq('id', row.id).eq('org_id', orgId.value)
         toast.add({ severity: 'success', summary: `Booking ${newStatus.toLowerCase()}`, life: 3000 })
         load()
       }
@@ -242,7 +241,7 @@ function openMenu(event: Event, row: any) {
       icon: 'pi pi-trash',
       class: 'text-red-500',
       command: async () => {
-        await db.from('bookings').delete().eq('id', row.id)
+        await db.from('bookings').delete().eq('id', row.id).eq('org_id', orgId.value)
         toast.add({ severity: 'success', summary: 'Booking deleted', life: 3000 })
         load()
       }

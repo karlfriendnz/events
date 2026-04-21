@@ -260,7 +260,7 @@ function deleteCategory(cat: any) {
     icon: 'pi pi-exclamation-triangle',
     acceptClass: 'p-button-danger',
     accept: async () => {
-      await db.from('categories').delete().eq('id', cat.id)
+      await db.from('categories').delete().eq('id', cat.id).eq('org_id', orgId.value)
       toast.add({ severity: 'success', summary: 'Category deleted', life: 3000 })
       await loadCategories()
     },
@@ -342,7 +342,7 @@ function deleteCalendar(cal: any) {
     icon: 'pi pi-exclamation-triangle',
     acceptClass: 'p-button-danger',
     accept: async () => {
-      await (db.from as any)('calendars').delete().eq('id', cal.id)
+      await (db.from as any)('calendars').delete().eq('id', cal.id).eq('org_id', orgId.value)
       toast.add({ severity: 'success', summary: 'Calendar deleted', life: 3000 })
       await loadCalendars()
     },

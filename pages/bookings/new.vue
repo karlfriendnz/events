@@ -592,6 +592,7 @@ async function handleCreate() {
     }
 
     const { error } = await db.from('bookings').insert({
+      org_id: orgId.value,
       bookable_id: booking.bookableId,
       event_id: booking.eventId || null,
       type: 'ONE_OFF',
