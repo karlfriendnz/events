@@ -514,19 +514,24 @@ async function loadCalendars() {
     ...c,
     categoryIds: c.calendar_categories?.map((cc: any) => cc.category_id) ?? [],
   }))
-  if (calSettings.visibleCategoryIds.length === 0 && (cats ?? []).length) {
-    calSettings.visibleCategoryIds = (cats ?? []).map((c: any) => c.id)
-  }
+  // Apply the active calendar's categories (or all categories if none selected)
+  applyActiveCalendarFilter()
 }
 
-// When the active calendar changes, auto-apply its categories to the visibility filter
-watch(activeCalendar, (cal) => {
-  if (cal?.categoryIds?.length) {
-    calSettings.visibleCategoryIds = [...cal.categoryIds]
-  } else {
-    calSettings.visibleCategoryIds = allCategories.value.map((c: any) => c.id)
+function applyActiveCalendarFilter() {
+  const calId = route.query.calendar as string | undefined
+  if (calId) {
+    const cal = namedCalendars.value.find(c => c.id === calId)
+    if (cal?.categoryIds?.length) {
+      calSettings.visibleCategoryIds = [...cal.categoryIds]
+      return
+    }
   }
-})
+  calSettings.visibleCategoryIds = allCategories.value.map((c: any) => c.id)
+}
+
+// Re-apply when user clicks a different calendar in the sidebar
+watch(() => route.query.calendar, applyActiveCalendarFilter)
 
 function resetCalSettings() {
   calSettings.colorBy = 'category'
