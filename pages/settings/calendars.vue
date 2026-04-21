@@ -1,125 +1,172 @@
 <template>
-  <div class="p-6 max-w-3xl">
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h2 class="text-lg font-semibold text-gray-900">Calendars</h2>
-        <p class="text-sm text-gray-500 mt-0.5">Create named calendars to organise events into groups.</p>
-      </div>
-      <Button label="New Calendar" icon="pi pi-plus" size="small" @click="openCreate" style="background:#1E2157; border-color:#1E2157" />
-    </div>
+  <div class="p-6 max-w-4xl space-y-8">
 
-    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div v-if="loading" class="p-8 flex justify-center">
-        <i class="pi pi-spin pi-spinner text-2xl text-gray-400" />
-      </div>
-      <div v-else-if="!calendars.length" class="text-center py-12 text-gray-400">
-        <i class="pi pi-calendar text-3xl mb-3 block" />
-        <p class="text-sm">No calendars yet. Create one to start organising events.</p>
-      </div>
-      <div v-else class="divide-y divide-gray-100">
-        <div
-          v-for="cal in calendars"
-          :key="cal.id"
-          class="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 group"
-        >
-          <!-- Color dot + icon -->
-          <div
-            class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-            :style="{ background: cal.color ?? '#1E2157' }"
-          >
-            <i :class="`pi ${cal.icon ?? 'pi-calendar'} text-white text-sm`" />
-          </div>
-
-          <!-- Name + event count -->
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-semibold text-gray-900">{{ cal.name }}</p>
-            <p class="text-xs text-gray-400">{{ cal._count ?? 0 }} events</p>
-          </div>
-
-          <!-- Color preview -->
-          <div
-            class="w-4 h-4 rounded-full border border-gray-200"
-            :style="{ background: cal.color ?? '#94a3b8' }"
-          />
-
-          <!-- Actions -->
-          <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openEdit(cal)" />
-            <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="deleteCalendar(cal)" />
-          </div>
+    <!-- ── CATEGORIES ──────────────────────────────────────────── -->
+    <div>
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-lg font-semibold text-gray-900">Categories</h2>
+          <p class="text-sm text-gray-500 mt-0.5">Colour-coded labels assigned directly to events.</p>
         </div>
+        <Button label="New Category" icon="pi pi-plus" size="small"
+          @click="openCatCreate" style="background:#1E2157; border-color:#1E2157" />
       </div>
-    </div>
 
-    <!-- Create/Edit Dialog -->
-    <Dialog v-model:visible="showDialog" :header="editing ? 'Edit Calendar' : 'New Calendar'" modal style="width:400px">
-      <div class="flex flex-col gap-4 py-1">
-        <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Name</label>
-          <InputText v-model="form.name" autofocus placeholder="e.g. Training, Games, Social" />
+      <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div v-if="catsLoading" class="p-8 flex justify-center">
+          <i class="pi pi-spin pi-spinner text-2xl text-gray-400" />
         </div>
-
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-medium">Colour</label>
-          <div class="flex flex-wrap gap-2">
-            <button
-              v-for="color in colorPalette"
-              :key="color"
-              class="w-7 h-7 rounded-full border-2 transition-transform hover:scale-110"
-              :class="form.color === color ? 'border-gray-900 scale-110' : 'border-transparent'"
-              :style="{ background: color }"
-              @click="form.color = color"
-            />
-            <div class="flex items-center gap-1.5">
-              <input
-                type="color"
-                v-model="form.color"
-                class="w-7 h-7 rounded cursor-pointer border border-gray-200"
-              />
-              <span class="text-xs text-gray-500">Custom</span>
+        <div v-else-if="!categories.length" class="text-center py-10 text-gray-400">
+          <i class="pi pi-tag text-3xl mb-3 block" />
+          <p class="text-sm">No categories yet.</p>
+        </div>
+        <div v-else class="divide-y divide-gray-100">
+          <div v-for="cat in categories" :key="cat.id"
+            class="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 group">
+            <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+              :style="{ background: cat.color ?? '#1E2157' }">
+              <i :class="`${cat.icon ?? 'pi pi-tag'} text-white text-sm`" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold text-gray-900">{{ cat.name }}</p>
+              <p class="text-xs text-gray-400">{{ cat._eventCount ?? 0 }} events</p>
+            </div>
+            <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openCatEdit(cat)" />
+              <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="deleteCategory(cat)" />
             </div>
           </div>
         </div>
+      </div>
+    </div>
 
+    <!-- ── CALENDARS ───────────────────────────────────────────── -->
+    <div>
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-lg font-semibold text-gray-900">Calendars</h2>
+          <p class="text-sm text-gray-500 mt-0.5">Named groupings of categories for filtering the calendar view.</p>
+        </div>
+        <Button label="New Calendar" icon="pi pi-plus" size="small"
+          @click="openCalCreate" style="background:#1E2157; border-color:#1E2157" />
+      </div>
+
+      <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div v-if="calsLoading" class="p-8 flex justify-center">
+          <i class="pi pi-spin pi-spinner text-2xl text-gray-400" />
+        </div>
+        <div v-else-if="!calendars.length" class="text-center py-10 text-gray-400">
+          <i class="pi pi-calendar text-3xl mb-3 block" />
+          <p class="text-sm">No calendars yet. Create one to group categories for filtering.</p>
+        </div>
+        <div v-else class="divide-y divide-gray-100">
+          <div v-for="cal in calendars" :key="cal.id"
+            class="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 group">
+            <div class="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+              <i class="pi pi-calendar text-gray-500 text-sm" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold text-gray-900">{{ cal.name }}</p>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <template v-if="cal.categoryIds?.length">
+                  <span v-for="catId in cal.categoryIds.slice(0, 5)" :key="catId"
+                    class="flex items-center gap-1 text-xs text-gray-500">
+                    <span class="w-2 h-2 rounded-full shrink-0"
+                      :style="{ background: catById[catId]?.color ?? '#94a3b8' }" />
+                    {{ catById[catId]?.name ?? '?' }}
+                  </span>
+                  <span v-if="cal.categoryIds.length > 5" class="text-xs text-gray-400">
+                    +{{ cal.categoryIds.length - 5 }} more
+                  </span>
+                </template>
+                <span v-else class="text-xs text-gray-400 italic">No categories assigned</span>
+              </div>
+            </div>
+            <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openCalEdit(cal)" />
+              <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="deleteCalendar(cal)" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CATEGORY DIALOG ─────────────────────────────────────── -->
+    <Dialog v-model:visible="showCatDialog" :header="editingCat ? 'Edit Category' : 'New Category'" modal style="width:420px">
+      <div class="flex flex-col gap-4 py-1">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Name</label>
+          <InputText v-model="catForm.name" autofocus placeholder="e.g. Training, Competition, Social" />
+        </div>
+        <div class="flex flex-col gap-2">
+          <label class="text-sm font-medium">Colour</label>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="c in colorPalette" :key="c"
+              class="w-7 h-7 rounded-full border-2 transition-transform hover:scale-110"
+              :class="catForm.color === c ? 'border-gray-900 scale-110' : 'border-transparent'"
+              :style="{ background: c }"
+              @click="catForm.color = c" />
+            <input type="color" v-model="catForm.color" class="w-7 h-7 rounded cursor-pointer border border-gray-200" />
+          </div>
+        </div>
         <div class="flex flex-col gap-2">
           <label class="text-sm font-medium">Icon</label>
           <div class="flex flex-wrap gap-2">
-            <button
-              v-for="icon in iconOptions"
-              :key="icon"
+            <button v-for="icon in iconOptions" :key="icon"
               class="w-8 h-8 rounded-lg border flex items-center justify-center text-sm transition-colors"
-              :class="form.icon === icon
-                ? 'border-[#1E2157] bg-[#EFF6FF] text-[#1E2157]'
-                : 'border-gray-200 text-gray-500 hover:border-gray-400'"
-              :title="icon"
-              @click="form.icon = icon"
-            >
+              :class="catForm.icon === icon ? 'border-[#1E2157] bg-[#EFF6FF] text-[#1E2157]' : 'border-gray-200 text-gray-500 hover:border-gray-400'"
+              @click="catForm.icon = icon">
               <i :class="`pi pi-${icon}`" />
             </button>
           </div>
         </div>
-
-        <!-- Preview -->
         <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-          <div
-            class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-            :style="{ background: form.color || '#1E2157' }"
-          >
-            <i :class="`pi pi-${form.icon || 'calendar'} text-white text-sm`" />
+          <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" :style="{ background: catForm.color || '#1E2157' }">
+            <i :class="`pi pi-${catForm.icon || 'tag'} text-white text-sm`" />
           </div>
-          <span class="text-sm font-medium text-gray-700">{{ form.name || 'Calendar name' }}</span>
+          <span class="text-sm font-medium text-gray-700">{{ catForm.name || 'Category name' }}</span>
         </div>
       </div>
-
       <template #footer>
-        <Button label="Cancel" severity="secondary" text @click="showDialog = false" />
-        <Button
-          :label="editing ? 'Save' : 'Create'"
-          :loading="saving"
-          :disabled="!form.name.trim()"
-          @click="handleSave"
-          style="background:#1E2157; border-color:#1E2157"
-        />
+        <Button label="Cancel" severity="secondary" text @click="showCatDialog = false" />
+        <Button :label="editingCat ? 'Save' : 'Create'" :loading="catSaving"
+          :disabled="!catForm.name.trim()" @click="saveCat"
+          style="background:#1E2157; border-color:#1E2157" />
+      </template>
+    </Dialog>
+
+    <!-- ── CALENDAR DIALOG ─────────────────────────────────────── -->
+    <Dialog v-model:visible="showCalDialog" :header="editingCal ? 'Edit Calendar' : 'New Calendar'" modal style="width:440px">
+      <div class="flex flex-col gap-4 py-1">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Name</label>
+          <InputText v-model="calForm.name" autofocus placeholder="e.g. All Events, Juniors, Competitive Season" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Categories</label>
+          <MultiSelect
+            v-model="calForm.categoryIds"
+            :options="categories"
+            option-label="name"
+            option-value="id"
+            placeholder="Select categories to include…"
+            display="chip"
+            class="w-full"
+          >
+            <template #option="{ option }">
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: option.color ?? '#94a3b8' }" />
+                <span>{{ option.name }}</span>
+              </div>
+            </template>
+          </MultiSelect>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text @click="showCalDialog = false" />
+        <Button :label="editingCal ? 'Save' : 'Create'" :loading="calSaving"
+          :disabled="!calForm.name.trim()" @click="saveCal"
+          style="background:#1E2157; border-color:#1E2157" />
       </template>
     </Dialog>
 
@@ -129,108 +176,181 @@
 </template>
 
 <script setup lang="ts">
+const { orgId } = useOrg()
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 
 const db = useDb()
 const toast = useToast()
 const confirm = useConfirm()
-const DEFAULT_ORG_ID = '00000000-0000-0000-0000-000000000002'
 
-const calendars = ref<any[]>([])
-const loading = ref(true)
-const showDialog = ref(false)
-const saving = ref(false)
-const editing = ref<any>(null)
+// ── Categories ──────────────────────────────────────────────────
+const categories = ref<any[]>([])
+const catsLoading = ref(true)
+const showCatDialog = ref(false)
+const catSaving = ref(false)
+const editingCat = ref<any>(null)
+const catForm = reactive({ name: '', color: '#1E2157', icon: 'tag' })
 
-const form = reactive({
-  name: '',
-  color: '#1E2157',
-  icon: 'calendar',
-})
+const catById = computed(() => Object.fromEntries(categories.value.map(c => [c.id, c])))
 
 const colorPalette = [
   '#1E2157', '#3B82F6', '#8B5CF6', '#EC4899',
   '#EF4444', '#F59E0B', '#10B981', '#06B6D4',
   '#6B7280', '#1EA97C', '#F97316', '#84CC16',
 ]
-
 const iconOptions = [
   'calendar', 'users', 'trophy', 'bolt', 'flag',
   'star', 'heart', 'tag', 'briefcase', 'home',
   'map-marker', 'clock', 'shield', 'book', 'graduation-cap',
 ]
 
-async function load() {
-  loading.value = true
-  const { data } = await db
-    .from('categories')
+async function loadCategories() {
+  catsLoading.value = true
+  const { data } = await db.from('categories')
     .select('*, events:events(id)')
-    .eq('org_id', DEFAULT_ORG_ID)
+    .eq('org_id', orgId.value)
     .order('sort_order')
     .order('name')
-  calendars.value = (data ?? []).map((c: any) => ({
-    ...c,
-    _count: c.events?.length ?? 0,
-  }))
-  loading.value = false
+  categories.value = (data ?? []).map((c: any) => ({ ...c, _eventCount: c.events?.length ?? 0 }))
+  catsLoading.value = false
 }
 
-function openCreate() {
-  editing.value = null
-  form.name = ''
-  form.color = '#1E2157'
-  form.icon = 'calendar'
-  showDialog.value = true
+function openCatCreate() {
+  editingCat.value = null
+  catForm.name = ''
+  catForm.color = '#1E2157'
+  catForm.icon = 'tag'
+  showCatDialog.value = true
 }
 
-function openEdit(cal: any) {
-  editing.value = cal
-  form.name = cal.name
-  form.color = cal.color ?? '#1E2157'
-  form.icon = cal.icon ?? 'calendar'
-  showDialog.value = true
+function openCatEdit(cat: any) {
+  editingCat.value = cat
+  catForm.name = cat.name
+  catForm.color = cat.color ?? '#1E2157'
+  catForm.icon = (cat.icon ?? 'pi-tag').replace('pi-', '')
+  showCatDialog.value = true
 }
 
-async function handleSave() {
-  saving.value = true
+async function saveCat() {
+  catSaving.value = true
   try {
-    const payload = {
-      org_id: DEFAULT_ORG_ID,
-      name: form.name.trim(),
-      color: form.color,
-      icon: `pi-${form.icon}`,
-    }
-    if (editing.value) {
-      const { error } = await db.from('categories').update(payload).eq('id', editing.value.id)
+    const payload = { org_id: orgId.value, name: catForm.name.trim(), color: catForm.color, icon: `pi-${catForm.icon}` }
+    if (editingCat.value) {
+      const { error } = await db.from('categories').update(payload).eq('id', editingCat.value.id)
       if (error) throw error
-      toast.add({ severity: 'success', summary: 'Calendar updated', life: 3000 })
+      toast.add({ severity: 'success', summary: 'Category updated', life: 3000 })
     } else {
       const { error } = await db.from('categories').insert(payload)
       if (error) throw error
-      toast.add({ severity: 'success', summary: 'Calendar created', life: 3000 })
+      toast.add({ severity: 'success', summary: 'Category created', life: 3000 })
     }
-    showDialog.value = false
-    load()
+    showCatDialog.value = false
+    await loadCategories()
   } catch (err: any) {
     toast.add({ severity: 'error', summary: 'Failed to save', detail: err?.message, life: 4000 })
   }
-  saving.value = false
+  catSaving.value = false
 }
 
-function deleteCalendar(cal: any) {
+function deleteCategory(cat: any) {
   confirm.require({
-    message: `Delete "${cal.name}"? Events using this calendar won't be deleted, just unassigned.`,
-    header: 'Delete Calendar',
+    message: `Delete "${cat.name}"? Events using this category won't be deleted, just unassigned.`,
+    header: 'Delete Category',
     icon: 'pi pi-exclamation-triangle',
     acceptClass: 'p-button-danger',
     accept: async () => {
-      await db.from('categories').delete().eq('id', cal.id)
-      toast.add({ severity: 'success', summary: 'Calendar deleted', life: 3000 })
-      load()
+      await db.from('categories').delete().eq('id', cat.id)
+      toast.add({ severity: 'success', summary: 'Category deleted', life: 3000 })
+      await loadCategories()
     },
   })
 }
 
-onMounted(load)
+// ── Calendars ───────────────────────────────────────────────────
+const calendars = ref<any[]>([])
+const calsLoading = ref(true)
+const showCalDialog = ref(false)
+const calSaving = ref(false)
+const editingCal = ref<any>(null)
+const calForm = reactive({ name: '', categoryIds: [] as string[] })
+
+async function loadCalendars() {
+  calsLoading.value = true
+  const { data } = await (db.from as any)('calendars')
+    .select('id, name, sort_order, calendar_categories(category_id)')
+    .eq('org_id', orgId.value)
+    .order('sort_order')
+  calendars.value = (data ?? []).map((c: any) => ({
+    ...c,
+    categoryIds: c.calendar_categories?.map((cc: any) => cc.category_id) ?? [],
+  }))
+  calsLoading.value = false
+}
+
+function openCalCreate() {
+  editingCal.value = null
+  calForm.name = ''
+  calForm.categoryIds = []
+  showCalDialog.value = true
+}
+
+function openCalEdit(cal: any) {
+  editingCal.value = cal
+  calForm.name = cal.name
+  calForm.categoryIds = [...(cal.categoryIds ?? [])]
+  showCalDialog.value = true
+}
+
+async function saveCal() {
+  calSaving.value = true
+  try {
+    if (editingCal.value) {
+      const { error } = await (db.from as any)('calendars').update({ name: calForm.name.trim() }).eq('id', editingCal.value.id)
+      if (error) throw error
+      await (db.from as any)('calendar_categories').delete().eq('calendar_id', editingCal.value.id)
+      if (calForm.categoryIds.length) {
+        await (db.from as any)('calendar_categories').insert(
+          calForm.categoryIds.map((cid: string) => ({ calendar_id: editingCal.value.id, category_id: cid }))
+        )
+      }
+      toast.add({ severity: 'success', summary: 'Calendar updated', life: 3000 })
+    } else {
+      const { data, error } = await (db.from as any)('calendars')
+        .insert({ org_id: orgId.value, name: calForm.name.trim() })
+        .select('id').single()
+      if (error) throw error
+      if (data && calForm.categoryIds.length) {
+        await (db.from as any)('calendar_categories').insert(
+          calForm.categoryIds.map((cid: string) => ({ calendar_id: data.id, category_id: cid }))
+        )
+      }
+      toast.add({ severity: 'success', summary: 'Calendar created', life: 3000 })
+    }
+    showCalDialog.value = false
+    await loadCalendars()
+  } catch (err: any) {
+    toast.add({ severity: 'error', summary: 'Failed to save', detail: err?.message, life: 4000 })
+  }
+  calSaving.value = false
+}
+
+function deleteCalendar(cal: any) {
+  confirm.require({
+    message: `Delete "${cal.name}"? This only removes the calendar grouping — events and categories are unaffected.`,
+    header: 'Delete Calendar',
+    icon: 'pi pi-exclamation-triangle',
+    acceptClass: 'p-button-danger',
+    accept: async () => {
+      await (db.from as any)('calendars').delete().eq('id', cal.id)
+      toast.add({ severity: 'success', summary: 'Calendar deleted', life: 3000 })
+      await loadCalendars()
+    },
+  })
+}
+
+onMounted(async () => {
+  await loadCategories()
+  await loadCalendars()
+})
 </script>

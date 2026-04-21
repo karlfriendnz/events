@@ -1,65 +1,114 @@
 <template>
   <div class="grid grid-cols-2 gap-6">
 
-    <!-- LEFT: Group selector -->
+    <!-- LEFT: Group / Individual selector -->
     <div class="space-y-3">
       <p class="text-sm font-semibold text-gray-800">Choose Invitees</p>
-      <div class="flex gap-2">
-        <IconField class="flex-1">
-          <InputIcon class="pi pi-search" />
-          <InputText v-model="selectorSearch" placeholder="Search groups…" size="small" class="w-full" />
-        </IconField>
-        <div class="relative">
-          <Button label="Filter" icon="pi pi-filter" size="small" severity="secondary" outlined @click="showDemoFilter = true" />
-          <span v-if="demoFilterCount > 0" class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-[#1E2157] text-white text-[10px] font-bold flex items-center justify-center">{{ demoFilterCount }}</span>
-        </div>
+
+      <!-- Mode tabs -->
+      <div class="flex p-1 bg-gray-100 rounded-xl gap-1">
+        <button type="button"
+          class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+          :class="selectorMode === 'groups' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'"
+          @click="selectorMode = 'groups'">Groups</button>
+        <button type="button"
+          class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+          :class="selectorMode === 'individuals' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'"
+          @click="selectorMode = 'individuals'">Individuals</button>
       </div>
 
-      <!-- Group tree -->
-      <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <div v-if="groupsLoading" class="py-8 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-400" /></div>
-        <div v-else-if="filteredGroupTree.length === 0" class="py-6 text-center text-sm text-gray-400">No groups found</div>
-        <div v-else>
-          <template v-for="parent in filteredGroupTree" :key="parent.id">
-            <!-- Parent row -->
-            <div class="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 last:border-0 bg-gray-50 hover:bg-gray-100 transition-colors">
-              <button class="w-4 h-4 flex items-center justify-center text-gray-400 shrink-0" @click="toggleGroupExpand(parent.id)">
-                <i :class="`pi text-xs ${expandedGroups[parent.id] ? 'pi-chevron-down' : 'pi-chevron-right'}`" />
-              </button>
-              <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: parent.color ?? '#94a3b8' }" />
-              <span class="flex-1 text-sm font-semibold text-gray-800">{{ parent.name }}</span>
-              <span class="text-xs text-gray-400 mr-2">{{ parent._memberCount }} members</span>
-              <Button
-                :label="selectedInviteeGroups.includes(parent.id) ? 'Added' : 'Add all'"
-                :icon="addingGroupId === parent.id ? 'pi pi-spin pi-spinner' : selectedInviteeGroups.includes(parent.id) ? 'pi pi-check' : 'pi pi-plus'"
-                size="small"
-                :severity="selectedInviteeGroups.includes(parent.id) ? 'success' : 'secondary'"
-                :disabled="addingGroupId !== null"
-                outlined
-                @click="toggleSelectorGroup(parent.id)"
-              />
-            </div>
-            <!-- Child rows -->
-            <template v-if="expandedGroups[parent.id]">
-              <div v-for="child in parent._children" :key="child.id"
-                class="flex items-center gap-2 px-3 py-2 border-b border-gray-100 last:border-0 pl-9 hover:bg-gray-50 transition-colors">
-                <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: child.color ?? '#94a3b8' }" />
-                <span class="flex-1 text-sm text-gray-700">{{ child.name }}</span>
-                <span class="text-xs text-gray-400 mr-2">{{ child._memberCount }} members</span>
+      <!-- GROUPS mode -->
+      <template v-if="selectorMode === 'groups'">
+        <div class="flex gap-2">
+          <IconField class="flex-1">
+            <InputIcon class="pi pi-search" />
+            <InputText v-model="selectorSearch" placeholder="Search groups…" size="small" class="w-full" />
+          </IconField>
+          <div class="relative">
+            <Button label="Filter" icon="pi pi-filter" size="small" severity="secondary" outlined @click="showDemoFilter = true" />
+            <span v-if="demoFilterCount > 0" class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-[#1E2157] text-white text-[10px] font-bold flex items-center justify-center">{{ demoFilterCount }}</span>
+          </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div v-if="groupsLoading" class="py-8 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-400" /></div>
+          <div v-else-if="filteredGroups.length === 0" class="py-6 text-center text-sm text-gray-400">No groups found</div>
+          <div v-else>
+            <template v-for="group in filteredGroups" :key="group.id">
+              <div :class="['flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors', group.parent_id ? 'pl-8 bg-white' : 'bg-gray-50 hover:bg-gray-100']">
+                <button v-if="!group.parent_id && groupChildren(group.id).length" class="w-4 h-4 flex items-center justify-center text-gray-400 shrink-0" @click="toggleGroupExpand(group.id)">
+                  <i :class="`pi text-xs ${expandedGroups[group.id] ? 'pi-chevron-down' : 'pi-chevron-right'}`" />
+                </button>
+                <span v-else class="w-4 shrink-0" />
+                <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: group.color ?? '#94a3b8' }" />
+                <span class="flex-1 text-sm" :class="group.parent_id ? 'text-gray-700' : 'font-semibold text-gray-800'">{{ group.name }}</span>
+                <span class="text-xs text-gray-400 mr-2">{{ group._memberCount }} members</span>
                 <Button
-                  :label="selectedInviteeGroups.includes(child.id) ? 'Added' : 'Add'"
-                  :icon="addingGroupId === child.id ? 'pi pi-spin pi-spinner' : selectedInviteeGroups.includes(child.id) ? 'pi pi-check' : 'pi pi-plus'"
+                  :label="selectedInviteeGroups.includes(group.id) ? 'Added' : 'Add all'"
+                  :icon="addingGroupId === group.id ? 'pi pi-spin pi-spinner' : selectedInviteeGroups.includes(group.id) ? 'pi pi-check' : 'pi pi-plus'"
                   size="small"
-                  :severity="selectedInviteeGroups.includes(child.id) ? 'success' : 'secondary'"
+                  :severity="selectedInviteeGroups.includes(group.id) ? 'success' : 'secondary'"
                   :disabled="addingGroupId !== null"
                   outlined
-                  @click="toggleSelectorGroup(child.id)"
+                  @click="toggleSelectorGroup(group.id)"
                 />
               </div>
+              <template v-if="!group.parent_id && expandedGroups[group.id]">
+                <div v-for="child in groupChildren(group.id)" :key="child.id"
+                  class="flex items-center gap-2 px-3 py-2 border-b border-gray-100 last:border-0 pl-9 bg-white hover:bg-gray-50 transition-colors">
+                  <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: child.color ?? '#94a3b8' }" />
+                  <span class="flex-1 text-sm text-gray-700">{{ child.name }}</span>
+                  <span class="text-xs text-gray-400 mr-2">{{ child._memberCount }} members</span>
+                  <Button
+                    :label="selectedInviteeGroups.includes(child.id) ? 'Added' : 'Add'"
+                    :icon="addingGroupId === child.id ? 'pi pi-spin pi-spinner' : selectedInviteeGroups.includes(child.id) ? 'pi pi-check' : 'pi pi-plus'"
+                    size="small"
+                    :severity="selectedInviteeGroups.includes(child.id) ? 'success' : 'secondary'"
+                    :disabled="addingGroupId !== null"
+                    outlined
+                    @click="toggleSelectorGroup(child.id)"
+                  />
+                </div>
+              </template>
             </template>
-          </template>
+          </div>
         </div>
-      </div>
+      </template>
+
+      <!-- INDIVIDUALS mode -->
+      <template v-else>
+        <IconField>
+          <InputIcon class="pi pi-search" />
+          <InputText v-model="personSearch" placeholder="Search by name or email…" size="small" class="w-full" @input="onPersonSearchInput" />
+        </IconField>
+
+        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden min-h-[60px]">
+          <div v-if="personSearchLoading" class="py-8 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-400" /></div>
+          <div v-else-if="personSearch.length < 2" class="py-6 text-center text-sm text-gray-400">Type a name to search</div>
+          <div v-else-if="personSearchResults.length === 0" class="py-6 text-center text-sm text-gray-400">No people found</div>
+          <div v-else>
+            <div v-for="person in personSearchResults" :key="person.id"
+              class="flex items-center gap-2.5 px-3 py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
+              <div class="w-7 h-7 rounded-full bg-[#1E2157]/10 flex items-center justify-center shrink-0">
+                <span class="text-[10px] font-bold text-[#1E2157]">{{ person.first_name[0] }}{{ person.last_name[0] }}</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-800 truncate">{{ person.first_name }} {{ person.last_name }}</p>
+                <p v-if="person.email" class="text-xs text-gray-400 truncate">{{ person.email }}</p>
+              </div>
+              <Button
+                :label="isAlreadyInvited(person.id) ? 'Invited' : addingPersonId === person.id ? '' : 'Add'"
+                :icon="addingPersonId === person.id ? 'pi pi-spin pi-spinner' : isAlreadyInvited(person.id) ? 'pi pi-check' : 'pi pi-plus'"
+                size="small"
+                :severity="isAlreadyInvited(person.id) ? 'success' : 'secondary'"
+                :disabled="isAlreadyInvited(person.id) || addingPersonId !== null"
+                outlined
+                @click="addIndividual(person)"
+              />
+            </div>
+          </div>
+        </div>
+      </template>
     </div>
 
     <!-- RIGHT: Invitees grouped view -->
@@ -259,13 +308,13 @@
 </template>
 
 <script setup lang="ts">
+const { orgId } = useOrg()
 const props = defineProps<{
   eventId: string
 }>()
 
 const db = useDb()
 const toast = useToast()
-const { DEFAULT_ORG_ID } = await import('~/composables/useDb')
 
 // ---- Invitees ----
 const invitees = ref<any[]>([])
@@ -288,6 +337,52 @@ async function removeInvitee(inviteeId: string) {
   loadInvitees()
 }
 
+// ---- Selector mode ----
+const selectorMode = ref<'groups' | 'individuals'>('groups')
+
+// ---- Individual person search ----
+const personSearch = ref('')
+const personSearchResults = ref<any[]>([])
+const personSearchLoading = ref(false)
+const addingPersonId = ref<string | null>(null)
+let personSearchTimer: ReturnType<typeof setTimeout> | null = null
+
+function onPersonSearchInput() {
+  if (personSearchTimer) clearTimeout(personSearchTimer)
+  if (personSearch.value.length < 2) { personSearchResults.value = []; return }
+  personSearchTimer = setTimeout(searchPersons, 250)
+}
+
+async function searchPersons() {
+  personSearchLoading.value = true
+  const q = personSearch.value.trim()
+  const { data } = await db.from('persons')
+    .select('id, first_name, last_name, email')
+    .eq('org_id', orgId.value)
+    .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`)
+    .order('last_name')
+    .limit(20)
+  personSearchResults.value = data ?? []
+  personSearchLoading.value = false
+}
+
+function isAlreadyInvited(personId: string) {
+  return invitees.value.some(i => i.person_id === personId)
+}
+
+async function addIndividual(person: any) {
+  if (isAlreadyInvited(person.id)) return
+  addingPersonId.value = person.id
+  const { error } = await db.from('invitees').insert({ event_id: props.eventId, person_id: person.id, status: 'INVITED' })
+  if (error) {
+    toast.add({ severity: 'error', summary: 'Error', detail: error.message, life: 4000 })
+  } else {
+    await loadInvitees()
+    toast.add({ severity: 'success', summary: `${person.first_name} ${person.last_name} added`, life: 3000 })
+  }
+  addingPersonId.value = null
+}
+
 // ---- Group selector ----
 const selectorSearch = ref('')
 const selectedInviteeGroups = ref<string[]>([])
@@ -302,7 +397,7 @@ const GROUP_PREVIEW = 10
 
 async function loadMemberGroups() {
   groupsLoading.value = true
-  const { data: groups } = await db.from('member_groups').select('id, name, color, parent_id, sort_order').eq('org_id', DEFAULT_ORG_ID).order('sort_order')
+  const { data: groups } = await db.from('member_groups').select('id, name, color, parent_id, sort_order').eq('org_id', orgId.value).order('sort_order')
   const { data: memberships } = await db.from('member_group_memberships').select('group_id')
   const countMap: Record<string, number> = {}
   for (const m of memberships ?? []) {
@@ -312,16 +407,17 @@ async function loadMemberGroups() {
   groupsLoading.value = false
 }
 
-const filteredGroupTree = computed(() => {
+// Returns only top-level groups (no parent_id), filtered by search
+const filteredGroups = computed(() => {
   const q = selectorSearch.value.toLowerCase()
-  const parents = allMemberGroups.value.filter(g => !g.parent_id)
-  return parents
-    .map(p => ({
-      ...p,
-      _children: allMemberGroups.value.filter(g => g.parent_id === p.id && (!q || g.name.toLowerCase().includes(q))),
-    }))
-    .filter(p => !q || p.name.toLowerCase().includes(q) || p._children.length > 0)
+  return allMemberGroups.value
+    .filter(g => !g.parent_id)
+    .filter(g => !q || g.name.toLowerCase().includes(q) || groupChildren(g.id).some(c => c.name.toLowerCase().includes(q)))
 })
+
+function groupChildren(parentId: string) {
+  return allMemberGroups.value.filter(g => g.parent_id === parentId)
+}
 
 function toggleGroupExpand(id: string) {
   expandedGroups[id] = !expandedGroups[id]
@@ -354,17 +450,9 @@ async function toggleSelectorGroup(value: string) {
 async function addGroupInvitees(groupId: string) {
   addingGroupId.value = groupId
 
-  const group = allMemberGroups.value.find(g => g.id === groupId)
-  const isParent = !group?.parent_id
-  const groupIds = isParent
-    ? allMemberGroups.value.filter(g => g.parent_id === groupId).map(g => g.id)
-    : [groupId]
-
-  if (!groupIds.length) {
-    toast.add({ severity: 'info', summary: 'No sub-groups', detail: 'This group has no members yet.', life: 3000 })
-    addingGroupId.value = null
-    return
-  }
+  const children = allMemberGroups.value.filter(g => g.parent_id === groupId)
+  // If this group has children, pull memberships from children; otherwise use the group itself
+  const groupIds = children.length > 0 ? children.map(g => g.id) : [groupId]
 
   const { data: memberships } = await db.from('member_group_memberships').select('person_id').in('group_id', groupIds)
   const personIds = [...new Set((memberships ?? []).map(m => m.person_id))]

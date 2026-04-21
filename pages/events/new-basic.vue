@@ -351,6 +351,7 @@
 </template>
 
 <script setup lang="ts">
+const { orgId } = useOrg()
 import { useToast } from 'primevue/usetoast'
 
 definePageMeta({ layout: 'default' })
@@ -358,7 +359,6 @@ definePageMeta({ layout: 'default' })
 const db = useDb()
 const toast = useToast()
 const route = useRoute()
-const DEFAULT_ORG_ID = '00000000-0000-0000-0000-000000000002'
 
 const saving = ref(false)
 const draftEventId = ref<string | null>(null)
@@ -379,7 +379,7 @@ async function createCategory() {
   if (!newCategoryName.value.trim()) return
   savingCategory.value = true
   const { data, error } = await db.from('categories').insert({
-    org_id: DEFAULT_ORG_ID,
+    org_id: orgId.value,
     name: newCategoryName.value.trim(),
     color: newCategoryColor.value,
   }).select('id, name, color').single()
@@ -491,7 +491,7 @@ const formDateDisplay = computed(() => {
 })
 
 const form = reactive({
-  title: '',
+  title: (route.query.name as string) ?? '',
   description: '',
   category_ids: [] as string[],
   discipline: null as string | null,
@@ -595,7 +595,7 @@ async function saveEvent() {
       if (error) throw error
       evtId = draftEventId.value
     } else {
-      const { data, error } = await db.from('events').insert({ ...payload, org_id: DEFAULT_ORG_ID, style: 'BASIC' }).select('id').single()
+      const { data, error } = await db.from('events').insert({ ...payload, org_id: orgId.value, style: 'BASIC' }).select('id').single()
       if (error) throw error
       evtId = data.id
     }
@@ -622,8 +622,8 @@ async function saveEvent() {
 
 onMounted(async () => {
   const [{ data: catData }, { data: bookableData }] = await Promise.all([
-    db.from('categories').select('id, name').eq('org_id', DEFAULT_ORG_ID).order('name'),
-    db.from('bookables').select('id, name, parent_id').eq('org_id', DEFAULT_ORG_ID).order('name'),
+    db.from('categories').select('id, name').eq('org_id', orgId.value).order('name'),
+    db.from('bookables').select('id, name, parent_id').eq('org_id', orgId.value).order('name'),
   ])
   categories.value = catData ?? []
   allBookables.value = bookableData ?? []
@@ -631,7 +631,7 @@ onMounted(async () => {
 
   // Create a draft event so EventInviteeManager has an ID to work with
   const { data } = await db.from('events').insert({
-    org_id: DEFAULT_ORG_ID,
+    org_id: orgId.value,
     title: '(draft)',
     style: 'BASIC',
     status: 'DRAFT',

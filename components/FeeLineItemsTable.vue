@@ -25,12 +25,26 @@
             </div>
           </td>
           <td class="p-0">
-            <input
-              :value="fee.name"
-              type="text"
-              placeholder="Enter fee name"
-              class="w-full h-10 px-4 text-sm text-gray-800 placeholder-gray-400 bg-transparent border-0 outline-none focus:bg-blue-50/40 transition-colors"
-              @input="setField(fee, 'name', ($event.target as HTMLInputElement).value)" />
+            <div class="relative flex items-center">
+              <input
+                :ref="el => nameInputs[fee.id] = el as HTMLInputElement"
+                :value="fee.name"
+                type="text"
+                placeholder="Enter fee name"
+                class="w-full h-10 px-4 text-sm text-gray-800 placeholder-gray-400 bg-transparent border-0 outline-none focus:bg-blue-50/40 transition-colors"
+                @input="setField(fee, 'name', ($event.target as HTMLInputElement).value)" />
+              <!-- Token insert button -->
+              <button
+                v-if="tokens?.length"
+                type="button"
+                tabindex="-1"
+                class="shrink-0 mr-1 w-6 h-6 flex items-center justify-center rounded transition-colors"
+                :class="activeTokenMenu === fee.id ? 'text-[#1E2157] bg-gray-100' : 'text-gray-300 hover:text-[#1E2157] hover:bg-gray-100'"
+                @mousedown.prevent
+                @click="toggleTokenMenu(fee, $event.currentTarget as HTMLElement)">
+                <span class="text-[10px] font-bold font-mono">{·}</span>
+              </button>
+            </div>
           </td>
           <td class="p-0 border-l border-gray-100">
             <input
@@ -44,13 +58,23 @@
             <div class="flex items-center h-10 px-3 gap-1 focus-within:bg-blue-50/40 transition-colors">
               <span class="text-gray-400 shrink-0 text-sm">$</span>
               <input
-                :value="fee.amount != null ? fee.amount : ''"
+                :value="amountDisplay[fee.id] ?? (fee.amount != null ? fee.amount.toFixed(2) : '')"
                 type="text"
                 inputmode="decimal"
                 placeholder="0.00"
                 class="flex-1 min-w-0 text-right text-sm text-gray-800 placeholder-gray-400 bg-transparent border-0 outline-none"
-                @change="(e) => { const v = parseFloat((e.target as HTMLInputElement).value); setField(fee, 'amount', isNaN(v) ? null : Math.round(v * 100) / 100) }"
-                @blur="(e) => { const el = e.target as HTMLInputElement; if (fee.amount != null) el.value = fee.amount.toFixed(2) }" />
+                @input="(e) => {
+                  const raw = (e.target as HTMLInputElement).value
+                  amountDisplay[fee.id] = raw
+                  const v = parseFloat(raw)
+                  if (!isNaN(v)) setField(fee, 'amount', Math.round(v * 100) / 100)
+                }"
+                @blur="(e) => {
+                  const v = parseFloat((e.target as HTMLInputElement).value)
+                  const val = isNaN(v) ? null : Math.round(v * 100) / 100
+                  setField(fee, 'amount', val)
+                  amountDisplay[fee.id] = val != null ? val.toFixed(2) : ''
+                }" />
             </div>
           </td>
           <td class="p-0 border-l border-gray-100 text-center">
@@ -85,6 +109,25 @@
       </button>
     </div>
   </div>
+
+  <!-- Token menu — teleported to body to escape overflow:hidden -->
+  <Teleport to="body">
+    <div
+      v-if="activeTokenMenu && tokens?.length"
+      class="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[160px]"
+      :style="{ top: menuPos.top + 'px', right: menuPos.right + 'px' }">
+      <button
+        v-for="token in tokens"
+        :key="token.value"
+        type="button"
+        class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2 transition-colors"
+        @mousedown.prevent
+        @click="insertToken(token.value)">
+        <code class="text-[#1E2157] bg-blue-50 px-1 py-0.5 rounded text-[10px]">{{ token.value }}</code>
+        <span class="text-gray-500">{{ token.label }}</span>
+      </button>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -92,8 +135,14 @@ import Sortable from 'sortablejs'
 import type { FeeLineItem } from '~/composables/useFeeGroups'
 import { feeTotal } from '~/composables/useFeeGroups'
 
+export interface FeeToken {
+  label: string
+  value: string
+}
+
 const props = defineProps<{
   modelValue: FeeLineItem[]
+  tokens?: FeeToken[]
 }>()
 
 const emit = defineEmits<{
@@ -102,8 +151,31 @@ const emit = defineEmits<{
 
 const total = computed(() => feeTotal(props.modelValue))
 const tbodyEl = ref<HTMLElement | null>(null)
+const amountDisplay = reactive<Record<string, string>>({})
+const activeTokenMenu = ref<string | null>(null)
+const nameInputs = reactive<Record<string, HTMLInputElement>>({})
+const menuPos = reactive({ top: 0, right: 0 })
+
+function toggleTokenMenu(fee: FeeLineItem, btn: HTMLElement) {
+  if (activeTokenMenu.value === fee.id) {
+    activeTokenMenu.value = null
+    return
+  }
+  const rect = btn.getBoundingClientRect()
+  menuPos.top = rect.bottom + 4
+  menuPos.right = window.innerWidth - rect.right
+  activeTokenMenu.value = fee.id
+}
+
+function closeOnOutsideClick(e: MouseEvent) {
+  if (activeTokenMenu.value && !(e.target as HTMLElement).closest?.('[data-token-btn]')) {
+    activeTokenMenu.value = null
+  }
+}
 
 onMounted(() => {
+  document.addEventListener('click', closeOnOutsideClick)
+
   if (!props.modelValue.length) addFee()
 
   if (tbodyEl.value) {
@@ -121,6 +193,30 @@ onMounted(() => {
     })
   }
 })
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeOnOutsideClick)
+})
+
+function insertToken(token: string) {
+  const feeId = activeTokenMenu.value
+  if (!feeId) return
+  const fee = props.modelValue.find(f => f.id === feeId)
+  if (!fee) return
+  const input = nameInputs[feeId]
+  const start = input?.selectionStart ?? fee.name.length
+  const end = input?.selectionEnd ?? fee.name.length
+  const newName = fee.name.slice(0, start) + token + fee.name.slice(end)
+  setField(fee, 'name', newName)
+  activeTokenMenu.value = null
+  nextTick(() => {
+    if (input) {
+      input.focus()
+      const pos = start + token.length
+      input.setSelectionRange(pos, pos)
+    }
+  })
+}
 
 function addFee() {
   emit('update:modelValue', [

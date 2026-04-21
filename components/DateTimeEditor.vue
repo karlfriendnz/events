@@ -5,10 +5,12 @@
       <span class="text-sm text-gray-500 shrink-0" :class="labelWidth">Date</span>
       <DatePicker :model-value="startDate" :manual-input="false" show-icon date-format="dd/mm/yy" placeholder="Start date" class="flex-1"
         :min-date="minStartDate"
+        :max-date="maxDate ?? undefined"
         @update:model-value="onStartDate" />
       <span class="text-sm text-gray-300 shrink-0">→</span>
       <DatePicker :model-value="endDate" :manual-input="false" show-icon date-format="dd/mm/yy" placeholder="End date" class="flex-1"
         :min-date="minEndDate ?? startDate ?? undefined"
+        :max-date="maxDate ?? undefined"
         @update:model-value="onEndDate" />
     </div>
     <!-- Time -->
@@ -57,6 +59,7 @@ const props = withDefaults(defineProps<{
   outsideEventDates?: boolean
   minStartDate?: Date
   minEndDate?: Date
+  maxDate?: Date | null
   rowPadding?: string
   labelWidth?: string
 }>(), {

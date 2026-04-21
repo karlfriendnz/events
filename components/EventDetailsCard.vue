@@ -35,6 +35,30 @@
         </div>
       </div>
 
+      <!-- Sign Up row (accordion) -->
+      <div>
+        <div class="flex items-center px-6 py-4 gap-6 group hover:bg-gray-50/50 transition-colors cursor-pointer"
+          @click="open !== 'signup' && (open = 'signup')">
+          <span class="text-sm font-semibold text-gray-700 w-28 shrink-0">Sign Up</span>
+          <span class="text-sm flex-1" :class="signupDisplay ? 'text-gray-700' : 'text-gray-400'">{{ signupDisplay || '—' }}</span>
+          <i v-if="open !== 'signup'" class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" />
+        </div>
+        <div v-if="open === 'signup'" class="border-t border-gray-100 px-6 py-3" @click.stop>
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="text-sm font-medium text-gray-600 w-28 shrink-0">Opens</span>
+            <DatePicker :modelValue="regOpenAt" showTime hourFormat="12" dateFormat="dd/mm/yy" placeholder="No open date"
+              class="w-44 shrink-0" @update:modelValue="$emit('update:regOpenAt', $event)" />
+            <span class="text-gray-300 shrink-0">→</span>
+            <span class="text-sm font-medium text-gray-600 shrink-0">Closes</span>
+            <DatePicker :modelValue="regCloseAt" showTime hourFormat="12" dateFormat="dd/mm/yy" placeholder="No close date"
+              class="w-44 shrink-0" @update:modelValue="$emit('update:regCloseAt', $event)" />
+            <Button label="Cancel" size="small" severity="secondary" text class="ml-auto shrink-0" @click.stop="open = null" />
+            <Button label="Save" icon="pi pi-check" size="small" :loading="savingField === 'signup'" class="shrink-0"
+              @click.stop="save('signup')" style="background:#1E2157;border-color:#1E2157" />
+          </div>
+        </div>
+      </div>
+
       <!-- Location row (accordion) -->
       <div v-if="showLocation">
         <div class="flex items-center px-6 py-4 gap-6 group hover:bg-gray-50/50 transition-colors cursor-pointer"
@@ -44,7 +68,13 @@
           <i v-if="open !== 'location'" class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" />
         </div>
         <div v-if="open === 'location'" class="border-t border-gray-100 pl-40 pr-6 pb-5 pt-4 space-y-3" @click.stop>
-          <LocationEditor :modelValue="locations" @update:modelValue="$emit('update:locations', $event)" @update:summary="locationSummary = $event" />
+          <LocationEditor
+            :modelValue="locations"
+            :startAt="locationStartAt"
+            :endAt="locationEndAt"
+            :excludeEventId="eventId"
+            @update:modelValue="$emit('update:locations', $event)"
+            @update:summary="locationSummary = $event" />
           <div class="flex justify-end gap-2">
             <Button label="Cancel" size="small" severity="secondary" text @click.stop="open = null" />
             <Button label="Save" icon="pi pi-check" size="small" :loading="savingField === 'location'"
@@ -53,13 +83,15 @@
         </div>
       </div>
 
-      <!-- Category row (inline) -->
-      <div class="px-6 py-4 flex items-start gap-6">
-        <span class="text-sm font-semibold text-gray-700 w-28 shrink-0 pt-2">Category</span>
-        <div class="flex-1 flex gap-2 min-w-0">
+      <!-- Category row (inline edit) -->
+      <div class="flex items-center px-6 py-4 gap-6 group hover:bg-gray-50/50 transition-colors"
+        :class="open !== 'category' && 'cursor-pointer'"
+        @click="open !== 'category' && (open = 'category')">
+        <span class="text-sm font-semibold text-gray-700 w-28 shrink-0">Category</span>
+        <template v-if="open === 'category'">
           <MultiSelect :modelValue="categoryIds" :options="categories" option-label="name" option-value="id"
             placeholder="Select categories" class="flex-1" display="chip"
-            @update:modelValue="$emit('update:categoryIds', $event)">
+            @update:modelValue="$emit('update:categoryIds', $event)" @click.stop>
             <template #chip="{ value }">
               <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-white"
                 :style="{ background: categories.find(c => c.id === value)?.color ?? '#1E2157' }">
@@ -67,31 +99,52 @@
               </div>
             </template>
           </MultiSelect>
-          <Button icon="pi pi-plus" size="small" severity="secondary" outlined v-tooltip.top="'New category'" @click="$emit('new-category')" />
-        </div>
-        <Button v-if="savingField !== undefined" label="Save" icon="pi pi-check" size="small"
-          :loading="savingField === 'category'"
-          @click="save('category')" style="background:#1E2157;border-color:#1E2157" />
+          <Button icon="pi pi-plus" size="small" severity="secondary" outlined v-tooltip.top="'New category'" @click.stop="$emit('new-category')" />
+          <Button label="Save" icon="pi pi-check" size="small" :loading="savingField === 'category'"
+            @click.stop="save('category')" style="background:#1E2157;border-color:#1E2157" />
+        </template>
+        <template v-else>
+          <div class="flex-1 flex flex-wrap gap-1.5 min-w-0">
+            <span v-if="categoryIds?.length" v-for="id in categoryIds" :key="id"
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-white"
+              :style="{ background: categories.find(c => c.id === id)?.color ?? '#1E2157' }">
+              {{ categories.find(c => c.id === id)?.name }}
+            </span>
+            <span v-else class="text-sm text-gray-400">—</span>
+          </div>
+          <i class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" />
+        </template>
       </div>
 
-      <!-- Description row (inline) -->
-      <div class="px-6 py-4 flex items-start gap-6">
+      <!-- Description row (inline edit) -->
+      <div class="flex items-start px-6 py-4 gap-6 group hover:bg-gray-50/50 transition-colors"
+        :class="open !== 'description' && 'cursor-pointer'"
+        @click="open !== 'description' && (open = 'description')">
         <span class="text-sm font-semibold text-gray-700 w-28 shrink-0 pt-1">Description</span>
-        <div class="flex-1 flex flex-col gap-3 min-w-0">
-          <Textarea :modelValue="description" placeholder="Add a description…" auto-resize rows="3" class="w-full text-sm"
-            @update:modelValue="$emit('update:description', $event)" />
-          <div v-if="savingField !== undefined" class="flex justify-end">
-            <Button label="Save" icon="pi pi-check" size="small" :loading="savingField === 'description'"
-              @click="save('description')" style="background:#1E2157;border-color:#1E2157" />
+        <template v-if="open === 'description'">
+          <div class="flex-1 flex flex-col gap-3 min-w-0" @click.stop>
+            <Textarea :modelValue="description" placeholder="Add a description…" auto-resize rows="3" class="w-full text-sm"
+              @update:modelValue="$emit('update:description', $event)" />
+            <div class="flex justify-end">
+              <Button label="Save" icon="pi pi-check" size="small" :loading="savingField === 'description'"
+                @click.stop="save('description')" style="background:#1E2157;border-color:#1E2157" />
+            </div>
           </div>
-        </div>
+        </template>
+        <template v-else>
+          <span class="text-sm flex-1 line-clamp-2" :class="description ? 'text-gray-700' : 'text-gray-400'">{{ description || '—' }}</span>
+          <i class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0 mt-1" />
+        </template>
       </div>
 
     </div>
 
     <!-- Fees -->
     <div>
-      <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Fees</h2>
+      <div class="mb-3">
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Base Fees</h2>
+        <p class="text-xs text-gray-400 mt-0.5">Optional. Applied to everyone regardless of session. Any session-specific fees are charged on top of this.</p>
+      </div>
       <div v-if="feesLoading" class="py-4 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-400" /></div>
       <FeeLineItemsTable v-else :modelValue="feeLineItems"
         @update:modelValue="v => { $emit('update:feeLineItems', v); $emit('fees-change', v) }" />
@@ -120,11 +173,15 @@ const props = withDefaults(defineProps<{
   savingField?: string | null
   feesLoading?: boolean
   showLocation?: boolean
+  regOpenAt?: Date | null
+  regCloseAt?: Date | null
+  eventId?: string | null
 }>(), {
   startDate: null, endDate: null, startTime: null, endTime: null,
   isAllDay: false, repeat: '', locations: () => [], categoryIds: () => [],
   categories: () => [], description: '', feeLineItems: () => [],
   savingField: null, feesLoading: false, showLocation: true,
+  regOpenAt: null, regCloseAt: null, eventId: null,
 })
 
 const emit = defineEmits<{
@@ -138,6 +195,8 @@ const emit = defineEmits<{
   'update:categoryIds': [string[]]
   'update:description': [string]
   'update:feeLineItems': [FeeLineItem[]]
+  'update:regOpenAt': [Date | null]
+  'update:regCloseAt': [Date | null]
   'save': [field: string]
   'fees-change': [FeeLineItem[]]
   'new-category': []
@@ -145,6 +204,17 @@ const emit = defineEmits<{
 
 const open = ref<string | null>(null)
 const locationSummary = ref('')
+
+function buildDateTimeISO(date: Date | null | undefined, time: Date | null | undefined): string | null {
+  if (!date) return null
+  const d = new Date(date)
+  if (time) { d.setHours(time.getHours(), time.getMinutes(), 0, 0) }
+  else { d.setHours(0, 0, 0, 0) }
+  return d.toISOString()
+}
+
+const locationStartAt = computed(() => buildDateTimeISO(props.startDate, props.startTime))
+const locationEndAt = computed(() => buildDateTimeISO(props.endDate ?? props.startDate, props.endTime))
 
 const twoWeeksAgo = new Date()
 twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
@@ -162,6 +232,14 @@ const dateDisplay = computed(() => {
     if (!props.isAllDay && props.endTime) s += `, ${fmtTime(props.endTime as Date)}`
   }
   return s
+})
+
+const signupDisplay = computed(() => {
+  const fmt = (d: Date) => d.toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+  if (props.regOpenAt && props.regCloseAt) return `${fmt(props.regOpenAt)} → ${fmt(props.regCloseAt)}`
+  if (props.regOpenAt) return `Opens ${fmt(props.regOpenAt)}`
+  if (props.regCloseAt) return `Closes ${fmt(props.regCloseAt)}`
+  return ''
 })
 
 function save(field: string) {

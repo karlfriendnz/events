@@ -121,6 +121,7 @@
 </template>
 
 <script setup lang="ts">
+const { orgId } = useOrg()
 import { useToast } from 'primevue/usetoast'
 
 const db = useDb()
@@ -145,10 +146,9 @@ const lightingMenuItems = ref<any[]>([])
 async function load() {
   loading.value = true
   lightingLoading.value = true
-  const { DEFAULT_ORG_ID } = await import('~/composables/useDb')
   const [{ data: access }, { data: lighting }] = await Promise.all([
-    db.from('access_profiles').select('*').eq('org_id', DEFAULT_ORG_ID).order('name'),
-    db.from('lighting_profiles').select('*').eq('org_id', DEFAULT_ORG_ID).order('name'),
+    db.from('access_profiles').select('*').eq('org_id', orgId.value).order('name'),
+    db.from('lighting_profiles').select('*').eq('org_id', orgId.value).order('name'),
   ])
   accessProfiles.value = access ?? []
   lightingProfiles.value = lighting ?? []
@@ -158,10 +158,9 @@ async function load() {
 
 async function handleCreate() {
   creating.value = true
-  const { DEFAULT_ORG_ID } = await import('~/composables/useDb')
   const table = newProfile.value.type === 'ACCESS' ? 'access_profiles' : 'lighting_profiles'
   const payload: any = {
-    org_id: DEFAULT_ORG_ID,
+    org_id: orgId.value,
     name: newProfile.value.name.trim(),
     description: newProfile.value.description || null,
   }

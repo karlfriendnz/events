@@ -51,40 +51,30 @@
         <!-- New calendar / edit calendar -->
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between">
-            <label class="text-sm font-semibold text-gray-700">{{ editingCalendarId ? 'Edit Category' : 'New Category' }}</label>
+            <label class="text-sm font-semibold text-gray-700">{{ editingCalendarId ? 'Edit Calendar' : 'New Calendar' }}</label>
             <button
               v-if="editingCalendarId"
               class="text-xs text-red-500 hover:text-red-700 hover:underline"
               @click="deleteCalendar"
             >Delete</button>
           </div>
-          <div class="flex gap-2">
-            <InputText v-model="newCalendarName" placeholder="Calendar name" class="flex-1" />
-          </div>
-          <div class="flex items-center gap-1.5">
-            <button
-              v-for="c in categoryColorPalette"
-              :key="c"
-              class="w-6 h-6 rounded-full border-2 shrink-0 transition-transform hover:scale-110"
-              :class="newCalendarColor === c ? 'border-gray-800 scale-110' : 'border-transparent'"
-              :style="{ background: c }"
-              @click="newCalendarColor = c"
-            />
-            <!-- Custom colour picker -->
-            <label
-              class="w-6 h-6 rounded-full border-2 shrink-0 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform overflow-hidden"
-              :class="!categoryColorPalette.includes(newCalendarColor) ? 'border-gray-800 scale-110' : 'border-dashed border-gray-400'"
-              :style="!categoryColorPalette.includes(newCalendarColor) ? { background: newCalendarColor } : {}"
-              title="Custom colour"
-            >
-              <input
-                type="color"
-                v-model="newCalendarColor"
-                class="opacity-0 absolute w-px h-px"
-              />
-              <i v-if="categoryColorPalette.includes(newCalendarColor)" class="pi pi-palette text-gray-400" style="font-size:10px" />
-            </label>
-          </div>
+          <InputText v-model="newCalendarName" placeholder="Calendar name" class="w-full" />
+          <MultiSelect
+            v-model="newCalendarCategoryIds"
+            :options="allCategories"
+            option-label="name"
+            option-value="id"
+            placeholder="Assign categories…"
+            display="chip"
+            class="w-full"
+          >
+            <template #option="{ option }">
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: option.color ?? '#94a3b8' }" />
+                <span>{{ option.name }}</span>
+              </div>
+            </template>
+          </MultiSelect>
         </div>
 
         <div class="border-t border-gray-100" />
@@ -134,34 +124,28 @@
           <ToggleSwitch v-model="calSettings.showWeekends" />
         </div>
 
-        <!-- Calendars / categories -->
+        <!-- Categories visibility -->
         <div class="flex flex-col gap-2">
-          <div class="flex items-center justify-between">
-            <label class="text-sm font-semibold text-gray-700">Event Categories</label>
-            <button class="text-xs text-[#1E2157] hover:underline" @click="navigateTo('/settings/calendars')">Manage</button>
+          <label class="text-sm font-semibold text-gray-700">Categories</label>
+          <div v-if="!allCategories.length" class="text-xs text-gray-400 py-2">
+            No categories yet.
           </div>
-          <div v-if="!namedCalendars.length" class="text-xs text-gray-400 py-2">
-            No named calendars yet. <button class="text-[#1E2157] hover:underline" @click="navigateTo('/settings/calendars')">Create one</button>
-          </div>
-          <div class="flex flex-col gap-1.5">
+          <div class="flex flex-col gap-1">
             <div
-              v-for="cal in namedCalendars"
-              :key="cal.id"
-              class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50"
+              v-for="cat in allCategories"
+              :key="cat.id"
+              class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer"
+              @click="(() => { const idx = calSettings.visibleCategoryIds.indexOf(cat.id); idx >= 0 ? calSettings.visibleCategoryIds.splice(idx, 1) : calSettings.visibleCategoryIds.push(cat.id) })()"
             >
-              <Checkbox v-model="calSettings.visibleCategoryIds" :value="cal.id" :binary="false" />
-              <span
-                class="w-3 h-3 rounded-full shrink-0"
-                :style="{ background: cal.color ?? '#94a3b8' }"
-              />
-              <span class="text-sm text-gray-700">{{ cal.name }}</span>
+              <Checkbox v-model="calSettings.visibleCategoryIds" :value="cat.id" :binary="false" @click.stop />
+              <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: cat.color ?? '#94a3b8' }" />
+              <span class="text-sm text-gray-700 flex-1">{{ cat.name }}</span>
             </div>
           </div>
           <div class="border-t border-gray-100 pt-2 mt-1">
-            <p class="text-xs text-gray-500 mb-1.5">Show events without a calendar</p>
-            <div class="flex items-center gap-2">
-              <Checkbox v-model="calSettings.showUncategorised" :binary="true" />
-              <span class="text-sm text-gray-600">Uncategorised events</span>
+            <div class="flex items-center gap-2 cursor-pointer" @click="calSettings.showUncategorised = !calSettings.showUncategorised">
+              <Checkbox v-model="calSettings.showUncategorised" :binary="true" @click.stop />
+              <span class="text-sm text-gray-600">Show uncategorised events</span>
             </div>
           </div>
         </div>
@@ -173,7 +157,8 @@
     </Dialog>
 
     <!-- Calendar view -->
-    <div v-if="viewMode === 'calendar'" class="bg-white rounded-xl border border-gray-200 overflow-hidden flex-1" style="min-height:0">
+    <div v-if="viewMode === 'calendar'" class="bg-white rounded-xl border border-gray-200 overflow-hidden flex-1" style="min-height:0"
+      @wheel.passive="handleCalendarWheel">
       <FullCalendar ref="calendarRef" :options="calendarOptions" style="height:100%" />
     </div>
 
@@ -182,9 +167,14 @@
     <Teleport to="body">
       <div v-if="tooltip.visible" class="fixed z-50 pointer-events-none"
         :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px' }">
-        <div class="bg-white rounded-xl shadow-xl border border-gray-200 p-4 w-72">
-          <!-- Category colour bar -->
-          <div class="h-1 rounded-full mb-3" :style="{ background: tooltip.event?.category?.color ?? '#1E2157' }" />
+        <div class="bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden w-72">
+          <!-- Banner image -->
+          <div v-if="tooltip.event?.banner_url" class="h-32 overflow-hidden">
+            <img :src="tooltip.event.banner_url" class="w-full h-full object-cover" />
+          </div>
+          <!-- Category colour bar (only when no banner) -->
+          <div v-else class="h-1 rounded-full mx-4 mt-4" :style="{ background: tooltip.event?.category?.color ?? '#1E2157' }" />
+          <div class="p-4">
           <p class="font-semibold text-gray-900 text-sm leading-snug mb-2">{{ tooltip.event?.title }}</p>
           <div class="space-y-1.5 text-xs text-gray-500">
             <div v-if="tooltip.event?.start_at" class="flex items-center gap-2">
@@ -214,6 +204,7 @@
               {{ tooltip.event?.status }}
             </span>
             <span class="text-xs text-gray-400">Click to open</span>
+          </div>
           </div>
         </div>
       </div>
@@ -283,8 +274,29 @@
     <!-- Row menu -->
     <Menu ref="rowMenu" :model="menuItems" :popup="true" />
 
+    <!-- Event name modal (step 1) -->
+    <Dialog v-model:visible="showEventNameModal" header="New event" modal style="width:420px" @keydown.enter.prevent="submitEventName">
+      <div class="space-y-4 pt-1">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Event name</label>
+          <InputText
+            ref="eventNameInput"
+            v-model="newEventName"
+            placeholder="e.g. Saturday Training"
+            class="w-full"
+            autofocus
+            @keydown.enter="submitEventName"
+          />
+        </div>
+        <div class="flex justify-end gap-2">
+          <Button label="Cancel" size="small" severity="secondary" text @click="showEventNameModal = false" />
+          <Button label="Next" icon="pi pi-arrow-right" icon-pos="right" size="small" :disabled="!newEventName.trim()" @click="submitEventName" style="background:#1E2157;border-color:#1E2157" />
+        </div>
+      </div>
+    </Dialog>
+
     <!-- Event type picker modal -->
-    <Dialog v-model:visible="showEventTypeModal" header="Create new event" modal style="width:540px">
+    <Dialog v-model:visible="showEventTypeModal" header="Create new event" modal style="width:680px">
       <!-- AI builder -->
       <div class="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-white p-4 mb-5 space-y-3">
         <div class="flex items-center gap-2">
@@ -319,7 +331,7 @@
         <div class="flex-1 h-px bg-gray-200" />
       </div>
 
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-3 gap-4">
         <div
           class="border-2 rounded-xl p-5 cursor-pointer hover:border-[#1E2157] hover:bg-[#F0F4FF] transition-colors group"
           @click="createBasicEvent"
@@ -329,6 +341,16 @@
           </div>
           <h3 class="font-semibold text-gray-900 mb-1">Basic Event</h3>
           <p class="text-xs text-gray-500 leading-relaxed">Simple single-page setup. Covers all essentials without the wizard steps.</p>
+        </div>
+        <div
+          class="border-2 rounded-xl p-5 cursor-pointer hover:border-[#1E2157] hover:bg-[#F0F4FF] transition-colors group"
+          @click="createMultiSessionEvent"
+        >
+          <div class="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center mb-3">
+            <i class="pi pi-clone text-green-700 text-lg" />
+          </div>
+          <h3 class="font-semibold text-gray-900 mb-1">Multi Session</h3>
+          <p class="text-xs text-gray-500 leading-relaxed">Ideal for holiday programmes. Multiple sessions under one event with shared registration.</p>
         </div>
         <div
           class="border-2 rounded-xl p-5 cursor-pointer hover:border-[#1E2157] hover:bg-[#F0F4FF] transition-colors group"
@@ -349,6 +371,7 @@
 </template>
 
 <script setup lang="ts">
+const { orgId } = useOrg()
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import FullCalendar from '@fullcalendar/vue3'
@@ -360,14 +383,15 @@ const toast = useToast()
 const confirm = useConfirm()
 const route = useRoute()
 
-const DEFAULT_ORG_ID = '00000000-0000-0000-0000-000000000002'
 
 const events = ref<any[]>([])
 const separateSessions = ref<any[]>([])
 const loading = ref(true)
 const search = ref('')
 const showCalSettings = useCalendarSettingsOpen()
+const showEventNameModal = ref(false)
 const showEventTypeModal = ref(false)
+const newEventName = ref('')
 const clickedDate = ref<string | null>(null)
 const clickedEndDate = ref<string | null>(null)
 const aiPrompt = ref('')
@@ -404,6 +428,13 @@ const calendarRef = ref()
 function openEventTypeModal(date?: string, endDate?: string) {
   clickedDate.value = date ?? null
   clickedEndDate.value = endDate ?? null
+  newEventName.value = ''
+  showEventNameModal.value = true
+}
+
+function submitEventName() {
+  if (!newEventName.value.trim()) return
+  showEventNameModal.value = false
   showEventTypeModal.value = true
 }
 
@@ -412,8 +443,19 @@ function createBasicEvent() {
   const params = new URLSearchParams()
   if (clickedDate.value) params.set('date', clickedDate.value)
   if (clickedEndDate.value) params.set('endDate', clickedEndDate.value)
+  if (newEventName.value.trim()) params.set('name', newEventName.value.trim())
   const q = params.size ? `?${params}` : ''
-  navigateTo(`/events/new${q}`)
+  navigateTo(`/events/new-basic${q}`)
+}
+
+function createMultiSessionEvent() {
+  showEventTypeModal.value = false
+  const params = new URLSearchParams()
+  if (clickedDate.value) params.set('date', clickedDate.value)
+  if (clickedEndDate.value) params.set('endDate', clickedEndDate.value)
+  if (newEventName.value.trim()) params.set('name', newEventName.value.trim())
+  const q = params.size ? `?${params}` : ''
+  navigateTo(`/events/new-multi${q}`)
 }
 
 function createAdvancedEvent() {
@@ -421,6 +463,7 @@ function createAdvancedEvent() {
   const params = new URLSearchParams()
   if (clickedDate.value) params.set('date', clickedDate.value)
   if (clickedEndDate.value) params.set('endDate', clickedEndDate.value)
+  if (newEventName.value.trim()) params.set('name', newEventName.value.trim())
   const q = params.size ? `?${params}` : ''
   navigateTo(`/events/new${q}`)
 }
@@ -442,13 +485,27 @@ const colorByOptions = [
 ]
 
 const namedCalendars = ref<any[]>([])
+const allCategories = ref<any[]>([])
+const categoriesById = computed(() => Object.fromEntries(allCategories.value.map((c: any) => [c.id, c])))
 
 async function loadCalendars() {
-  const { data } = await db.from('categories').select('id, name, color, icon').eq('org_id', DEFAULT_ORG_ID).order('name')
-  namedCalendars.value = data ?? []
-  // Default: all visible
-  if (calSettings.visibleCategoryIds.length === 0 && data?.length) {
-    calSettings.visibleCategoryIds = data.map((c: any) => c.id)
+  const [{ data: cals }, { data: cats }] = await Promise.all([
+    (db.from as any)('calendars')
+      .select('id, name, sort_order, calendar_categories(category_id)')
+      .eq('org_id', orgId.value)
+      .order('sort_order'),
+    db.from('categories')
+      .select('id, name, color, icon')
+      .eq('org_id', orgId.value)
+      .order('name'),
+  ])
+  allCategories.value = cats ?? []
+  namedCalendars.value = (cals ?? []).map((c: any) => ({
+    ...c,
+    categoryIds: c.calendar_categories?.map((cc: any) => cc.category_id) ?? [],
+  }))
+  if (calSettings.visibleCategoryIds.length === 0 && (cats ?? []).length) {
+    calSettings.visibleCategoryIds = (cats ?? []).map((c: any) => c.id)
   }
 }
 
@@ -457,7 +514,7 @@ function resetCalSettings() {
   calSettings.defaultView = 'dayGridMonth'
   calSettings.weekStart = 1
   calSettings.showWeekends = true
-  calSettings.visibleCategoryIds = namedCalendars.value.map(c => c.id)
+  calSettings.visibleCategoryIds = allCategories.value.map(c => c.id)
   calSettings.showUncategorised = true
 }
 
@@ -476,12 +533,8 @@ async function applyCalSettings() {
 }
 
 // New calendar creation / editing (inside cal settings dialog)
-const categoryColorPalette = [
-  '#1E2157', '#3b82f6', '#10b981', '#f59e0b',
-  '#ef4444', '#8b5cf6', '#ec4899', '#6b7280',
-]
 const newCalendarName = ref('')
-const newCalendarColor = ref('#1E2157')
+const newCalendarCategoryIds = ref<string[]>([])
 const creatingCalendar = ref(false)
 const editingCalendarId = ref<string | null>(null)
 
@@ -491,15 +544,21 @@ function openCalSettings() {
     const cal = namedCalendars.value.find(c => c.id === calId)
     if (cal) {
       newCalendarName.value = cal.name
-      newCalendarColor.value = cal.color ?? '#1E2157'
+      newCalendarCategoryIds.value = [...(cal.categoryIds ?? [])]
       editingCalendarId.value = cal.id
     }
   } else {
     newCalendarName.value = ''
-    newCalendarColor.value = '#1E2157'
+    newCalendarCategoryIds.value = []
     editingCalendarId.value = null
   }
   showCalSettings.value = true
+}
+
+function selectCalendarForEdit(cal: any) {
+  newCalendarName.value = cal.name
+  newCalendarCategoryIds.value = [...(cal.categoryIds ?? [])]
+  editingCalendarId.value = cal.id
 }
 
 async function createNewCalendar() {
@@ -508,34 +567,40 @@ async function createNewCalendar() {
   const name = newCalendarName.value.trim()
 
   if (editingCalendarId.value) {
-    // Rename / recolour existing calendar
-    const { error } = await db.from('categories').update({
-      name,
-      color: newCalendarColor.value,
-    }).eq('id', editingCalendarId.value)
-    creatingCalendar.value = false
+    const { error } = await (db.from as any)('calendars').update({ name }).eq('id', editingCalendarId.value)
     if (error) {
+      creatingCalendar.value = false
       toast.add({ severity: 'error', summary: 'Failed to update calendar', detail: error.message, life: 3000 })
       return
     }
-    toast.add({ severity: 'success', summary: `Calendar updated`, life: 2000 })
+    await (db.from as any)('calendar_categories').delete().eq('calendar_id', editingCalendarId.value)
+    if (newCalendarCategoryIds.value.length) {
+      await (db.from as any)('calendar_categories').insert(
+        newCalendarCategoryIds.value.map(cid => ({ calendar_id: editingCalendarId.value, category_id: cid }))
+      )
+    }
+    toast.add({ severity: 'success', summary: 'Calendar updated', life: 2000 })
   } else {
-    // Create new calendar
-    const { error } = await db.from('categories').insert({
-      org_id: DEFAULT_ORG_ID,
+    const { data, error } = await (db.from as any)('calendars').insert({
+      org_id: orgId.value,
       name,
-      color: newCalendarColor.value,
-    })
-    creatingCalendar.value = false
+    }).select('id').single()
     if (error) {
+      creatingCalendar.value = false
       toast.add({ severity: 'error', summary: 'Failed to create calendar', detail: error.message, life: 3000 })
       return
+    }
+    if (data && newCalendarCategoryIds.value.length) {
+      await (db.from as any)('calendar_categories').insert(
+        newCalendarCategoryIds.value.map(cid => ({ calendar_id: (data as any).id, category_id: cid }))
+      )
     }
     toast.add({ severity: 'success', summary: `Calendar "${name}" created`, life: 2000 })
   }
 
+  creatingCalendar.value = false
   newCalendarName.value = ''
-  newCalendarColor.value = '#1E2157'
+  newCalendarCategoryIds.value = []
   editingCalendarId.value = null
   await loadCalendars()
 }
@@ -550,7 +615,7 @@ function deleteCalendar() {
     acceptLabel: 'Delete',
     acceptClass: 'p-button-danger',
     accept: async () => {
-      const { error } = await db.from('categories').delete().eq('id', editingCalendarId.value!)
+      const { error } = await (db.from as any)('calendars').delete().eq('id', editingCalendarId.value!)
       if (error) {
         toast.add({ severity: 'error', summary: 'Failed to delete calendar', detail: error.message, life: 3000 })
         return
@@ -558,7 +623,7 @@ function deleteCalendar() {
       toast.add({ severity: 'success', summary: 'Calendar deleted', life: 2000 })
       showCalSettings.value = false
       newCalendarName.value = ''
-      newCalendarColor.value = '#1E2157'
+      newCalendarCategoryIds.value = []
       editingCalendarId.value = null
       await navigateTo('/events')
       await loadCalendars()
@@ -647,30 +712,37 @@ function eventColor(e: any) {
 
 const calendarEvents = computed(() => {
   const categoryFilter = (categoryId: string | null) => {
-    if (namedCalendars.value.length === 0 || calSettings.visibleCategoryIds.length === 0) return true
+    if (allCategories.value.length === 0) return true
     if (categoryId) return calSettings.visibleCategoryIds.includes(categoryId)
     return calSettings.showUncategorised
   }
 
+  const q = search.value.trim().toLowerCase()
+
   const eventItems = events.value
     .filter(e => categoryFilter(e.category_id))
-    .map(e => ({
-      id: e.id,
-      title: e.title,
-      start: e.start_at ?? new Date().toISOString(),
-      end: e.end_at ?? undefined,
-      allDay: e.is_all_day ?? false,
-      backgroundColor: eventColor(e),
-      borderColor: 'transparent',
-      textColor: '#ffffff',
-      extendedProps: e,
-    }))
+    .map(e => {
+      const matches = !q || e.title.toLowerCase().includes(q)
+      return {
+        id: e.id,
+        title: e.title,
+        start: e.start_at ?? new Date().toISOString(),
+        end: e.end_at ?? undefined,
+        allDay: e.is_all_day ?? false,
+        backgroundColor: eventColor(e),
+        borderColor: 'transparent',
+        textColor: '#ffffff',
+        classNames: q && !matches ? ['fc-event-dimmed'] : [],
+        extendedProps: e,
+      }
+    })
 
   const sessionItems = separateSessions.value
     .filter(s => categoryFilter(s.event?.category_id ?? null))
     .map(s => {
-      const categoryColor = namedCalendars.value.find(c => c.id === s.event?.category_id)?.color ?? '#1E2157'
-      const category = namedCalendars.value.find(c => c.id === s.event?.category_id) ?? null
+      const categoryColor = categoriesById.value[s.event?.category_id]?.color ?? '#1E2157'
+      const category = categoriesById.value[s.event?.category_id] ?? null
+      const matches = !q || (s.title || '').toLowerCase().includes(q) || (s.event?.title || '').toLowerCase().includes(q)
       return {
         id: `session-${s.id}`,
         title: s.title || 'Untitled Session',
@@ -680,6 +752,7 @@ const calendarEvents = computed(() => {
         backgroundColor: categoryColor,
         borderColor: 'transparent',
         textColor: '#ffffff',
+        classNames: q && !matches ? ['fc-event-dimmed'] : [],
         extendedProps: {
           ...s,
           _isSession: true,
@@ -713,7 +786,7 @@ const calendarOptions = ref({
   eventClick: (info: any) => {
     const props = info.event.extendedProps
     if (props._isSession) {
-      navigateTo(`/events/${props._eventId}?tab=sessions`)
+      navigateTo(`/events/${props._eventId}?tab=sessions&sessionId=${props.id}`)
     } else {
       navigateTo(`/events/${info.event.id}`)
     }
@@ -739,6 +812,25 @@ function goToday() {
   calendarRef.value?.getApi()?.today()
 }
 
+let wheelTimer: ReturnType<typeof setTimeout> | null = null
+let wheelAccum = 0
+function handleCalendarWheel(e: WheelEvent) {
+  const api = calendarRef.value?.getApi()
+  if (!api) return
+  const view = api.view.type
+  if (view !== 'dayGridMonth') return
+  wheelAccum += e.deltaY
+  if (wheelTimer) clearTimeout(wheelTimer)
+  wheelTimer = setTimeout(() => {
+    if (Math.abs(wheelAccum) >= 50) {
+      if (wheelAccum > 0) api.incrementDate({ weeks: 1 })
+      else api.incrementDate({ weeks: -1 })
+    }
+    wheelAccum = 0
+    wheelTimer = null
+  }, 50)
+}
+
 const filtered = computed(() => events.value.filter(e =>
   e.title.toLowerCase().includes(search.value.toLowerCase())
 ))
@@ -748,7 +840,7 @@ async function load() {
   const [{ data, error }, { data: sessionData, error: sessionError }] = await Promise.all([
     db.from('events')
       .select('*, category:categories!category_id(id, name, color, icon)')
-      .eq('org_id', DEFAULT_ORG_ID)
+      .eq('org_id', orgId.value)
       .neq('status', 'ARCHIVED')
       .order('start_at', { ascending: true, nullsFirst: false }),
     db.from('sessions')
@@ -762,7 +854,7 @@ async function load() {
   events.value = data ?? []
   separateSessions.value = (sessionData ?? []).filter((s: any) => {
     const ev = s.event
-    return ev && ev.status !== 'ARCHIVED' && ev.org_id === DEFAULT_ORG_ID
+    return ev && ev.status !== 'ARCHIVED' && ev.org_id === orgId.value
   })
   loading.value = false
 }
@@ -813,4 +905,6 @@ onMounted(async () => {
 .fc .fc-day-today .fc-daygrid-day-number { color: #1E2157; font-weight: 700; }
 .fc-theme-standard td, .fc-theme-standard th { border-color: #e5e7eb; }
 .fc-theme-standard .fc-scrollgrid { border-color: transparent; }
+.fc .fc-event-dimmed { opacity: 0.15; transition: opacity 0.15s; }
+.fc .fc-event-dimmed:hover { opacity: 0.5; }
 </style>

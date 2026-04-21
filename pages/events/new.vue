@@ -5,13 +5,13 @@
 </template>
 
 <script setup lang="ts">
+const { orgId } = useOrg()
 const db = useDb()
 const route = useRoute()
-const { DEFAULT_ORG_ID } = await import('~/composables/useDb')
 
 const { data } = await db.from('events').insert({
-  org_id: DEFAULT_ORG_ID,
-  title: '',
+  org_id: orgId.value,
+  title: (route.query.name as string) ?? '',
   style: 'ADVANCED',
   status: 'DRAFT',
 }).select('id').single()

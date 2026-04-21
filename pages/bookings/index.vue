@@ -5,7 +5,7 @@
         <h1 class="text-xl font-semibold text-surface-900">Bookings</h1>
         <p class="text-sm text-surface-500 mt-0.5">Manage bookable resource reservations.</p>
       </div>
-      <Button label="New Booking" icon="pi pi-plus" size="small" @click="showCreate = true" />
+      <Button label="New Booking" icon="pi pi-plus" size="small" @click="navigateTo('/bookings/new')" />
     </div>
 
     <!-- Filters -->
@@ -55,15 +55,15 @@
           </template>
         </Column>
 
-        <Column field="starts_at" header="Start" style="width:160px">
+        <Column field="start_at" header="Start" style="width:160px">
           <template #body="{ data }">
-            <span class="text-sm text-surface-600">{{ data.starts_at ? formatDateTime(data.starts_at) : '—' }}</span>
+            <span class="text-sm text-surface-600">{{ data.start_at ? formatDateTime(data.start_at) : '—' }}</span>
           </template>
         </Column>
 
-        <Column field="ends_at" header="End" style="width:160px">
+        <Column field="end_at" header="End" style="width:160px">
           <template #body="{ data }">
-            <span class="text-sm text-surface-600">{{ data.ends_at ? formatDateTime(data.ends_at) : '—' }}</span>
+            <span class="text-sm text-surface-600">{{ data.end_at ? formatDateTime(data.end_at) : '—' }}</span>
           </template>
         </Column>
 
@@ -125,11 +125,11 @@
         <div class="grid grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium">Start</label>
-            <DatePicker v-model="form.starts_at" show-time hour-format="12" class="w-full" />
+            <DatePicker v-model="form.start_at" show-time hour-format="12" class="w-full" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium">End</label>
-            <DatePicker v-model="form.ends_at" show-time hour-format="12" class="w-full" />
+            <DatePicker v-model="form.end_at" show-time hour-format="12" class="w-full" />
           </div>
         </div>
       </div>
@@ -144,6 +144,7 @@
 </template>
 
 <script setup lang="ts">
+const { orgId } = useOrg()
 import { useToast } from 'primevue/usetoast'
 
 const db = useDb()
@@ -160,7 +161,7 @@ const creating = ref(false)
 const rowMenu = ref()
 const menuItems = ref<any[]>([])
 
-const form = ref<any>({ bookable_id: '', event_id: null, purpose: '', starts_at: null, ends_at: null })
+const form = ref<any>({ bookable_id: '', event_id: null, purpose: '', start_at: null, end_at: null })
 
 const statusOptions = [
   { label: 'All statuses', value: '' },
@@ -188,13 +189,14 @@ const filtered = computed(() => bookings.value.filter(b => {
 
 async function load() {
   loading.value = true
-  const { DEFAULT_ORG_ID } = await import('~/composables/useDb')
   const [{ data: bookingData }, { data: bookableData }, { data: eventData }] = await Promise.all([
-    db.from('bookings').select('*, bookable:bookables(id,name,type), event:events(id,title)').eq('org_id', DEFAULT_ORG_ID).order('starts_at'),
-    db.from('bookables').select('id,name,type').eq('org_id', DEFAULT_ORG_ID).neq('status', 'DELETED').order('name'),
-    db.from('events').select('id,title').eq('org_id', DEFAULT_ORG_ID).neq('status', 'ARCHIVED').order('title'),
+    db.from('bookings').select('*, bookable:bookables!bookable_id(id,name,type,org_id), event:events(id,title)').order('start_at'),
+    db.from('bookables').select('id,name,type').eq('org_id', orgId.value).neq('status', 'DELETED').order('name'),
+    db.from('events').select('id,title').eq('org_id', orgId.value).neq('status', 'ARCHIVED').order('title'),
   ])
-  bookings.value = bookingData ?? []
+  // Scope to this org via the bookable relationship
+  const filtered_bookings = (bookingData ?? []).filter((b: any) => b.bookable?.org_id === orgId.value)
+  bookings.value = filtered_bookings
   bookables.value = bookableData ?? []
   events.value = eventData ?? []
   loading.value = false
@@ -203,20 +205,18 @@ async function load() {
 async function handleCreate() {
   if (!form.value.bookable_id) return
   creating.value = true
-  const { DEFAULT_ORG_ID } = await import('~/composables/useDb')
   const { error } = await db.from('bookings').insert({
-    org_id: DEFAULT_ORG_ID,
     bookable_id: form.value.bookable_id,
     event_id: form.value.event_id || null,
     purpose: form.value.purpose || null,
-    starts_at: form.value.starts_at?.toISOString(),
-    ends_at: form.value.ends_at?.toISOString(),
+    start_at: form.value.start_at?.toISOString(),
+    end_at: form.value.end_at?.toISOString(),
     status: 'CONFIRMED',
   })
   if (!error) {
     toast.add({ severity: 'success', summary: 'Booking created', life: 3000 })
     showCreate.value = false
-    form.value = { bookable_id: '', event_id: null, purpose: '', starts_at: null, ends_at: null }
+    form.value = { bookable_id: '', event_id: null, purpose: '', start_at: null, end_at: null }
     load()
   } else {
     toast.add({ severity: 'error', summary: 'Failed to create booking', life: 3000 })

@@ -85,6 +85,7 @@
 </template>
 
 <script setup lang="ts">
+const { orgId } = useOrg()
 const props = defineProps<{
   modelValue: string[]
 }>()
@@ -100,9 +101,8 @@ const allGroupTree = ref<any[]>([])
 const expandedIds = reactive<Record<string, boolean>>({})
 
 onMounted(async () => {
-  const { DEFAULT_ORG_ID } = await import('~/composables/useDb')
   const [{ data: groupData }, { data: membershipData }] = await Promise.all([
-    db.from('member_groups').select('id, name, color, parent_id, sort_order').eq('org_id', DEFAULT_ORG_ID).order('sort_order'),
+    db.from('member_groups').select('id, name, color, parent_id, sort_order').eq('org_id', orgId.value).order('sort_order'),
     db.from('member_group_memberships').select('group_id'),
   ])
   const countMap: Record<string, number> = {}

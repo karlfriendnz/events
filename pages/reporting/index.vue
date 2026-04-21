@@ -143,6 +143,7 @@
 </template>
 
 <script setup lang="ts">
+const { orgId } = useOrg()
 import { useToast } from 'primevue/usetoast'
 
 const db = useDb()
@@ -219,12 +220,11 @@ function exportAll() {
 
 async function load() {
   loading.value = true
-  const { DEFAULT_ORG_ID } = await import('~/composables/useDb')
 
   const [{ data: eventData }, { data: invData }] = await Promise.all([
     db.from('events')
       .select('*, category:categories(name, color)')
-      .eq('org_id', DEFAULT_ORG_ID)
+      .eq('org_id', orgId.value)
       .order('start_at'),
     db.from('invitees').select('event_id, status'),
   ])

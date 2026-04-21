@@ -41,6 +41,9 @@
       <!-- BOOKABLE -->
       <div v-else-if="loc.type === 'BOOKABLE'" class="border border-gray-200 rounded-xl overflow-hidden">
         <slot name="bookable-header" />
+        <div v-if="checkingAvailability" class="px-3 py-1.5 border-b border-gray-100 bg-gray-50 flex items-center gap-1.5 text-xs text-gray-400">
+          <i class="pi pi-spin pi-spinner text-[10px]" /> Checking availability…
+        </div>
         <div v-if="bookablesLoading" class="py-6 flex justify-center">
           <i class="pi pi-spin pi-spinner text-gray-400" />
         </div>
@@ -48,35 +51,59 @@
           No venues yet.
         </div>
         <div v-else>
-          <div v-for="node in flatVenueTree" :key="node.id"
-            class="flex items-center gap-2 py-2.5 border-b border-gray-100 last:border-0 cursor-pointer transition-colors"
-            :class="availabilityMap?.[node.id] === 'booked' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'"
-            :style="{ paddingLeft: `${12 + node._depth * 20}px`, paddingRight: '12px' }"
-            @click="availabilityMap?.[node.id] !== 'booked' && toggleVenue(locIdx, node.id)">
-            <button v-if="node._hasChildren"
-              class="w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-700 shrink-0"
-              @click.stop="toggleExpand(node.id)">
-              <i :class="`pi text-xs ${expandedIds[node.id] ? 'pi-chevron-down' : 'pi-chevron-right'}`" />
-            </button>
-            <div v-else class="w-4 shrink-0" />
-            <span
-              class="inline-flex items-center justify-center w-[18px] h-[18px] rounded border-2 shrink-0 transition-colors cursor-pointer"
-              :class="loc.bookable_ids.includes(node.id) || isPartial(loc, node.id)
-                ? 'bg-[#1E2157] border-[#1E2157]'
-                : 'border-gray-400 bg-white hover:border-[#1E2157]'"
-              @click.stop="availabilityMap?.[node.id] !== 'booked' && toggleVenue(locIdx, node.id)">
-              <i v-if="loc.bookable_ids.includes(node.id)" class="pi pi-check text-white" style="font-size:10px" />
-              <span v-else-if="isPartial(loc, node.id)" class="block w-2 h-0.5 bg-white rounded-full" />
-            </span>
-            <span class="flex-1 text-sm"
-              :class="node._depth === 0 ? 'font-semibold text-gray-800' : 'text-gray-700'"
-              @click.stop="availabilityMap?.[node.id] !== 'booked' && toggleVenue(locIdx, node.id)">{{ node.name }}</span>
-            <span v-if="availabilityMap?.[node.id]"
-              class="text-xs px-2 py-0.5 rounded-full font-medium shrink-0"
-              :class="availabilityMap[node.id] === 'available' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'">
-              {{ availabilityMap[node.id] === 'available' ? 'Available' : 'Booked' }}
-            </span>
-          </div>
+          <template v-for="node in flatVenueTree" :key="node.id">
+            <!-- Venue row -->
+            <div
+              class="flex items-center gap-2 py-2.5 border-b border-gray-100 cursor-pointer transition-colors"
+              :class="effectiveAvailabilityMap[node.id] === 'booked' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'"
+              :style="{ paddingLeft: `${12 + node._depth * 20}px`, paddingRight: '12px' }"
+              @click="effectiveAvailabilityMap[node.id] !== 'booked' && toggleVenue(locIdx, node.id)">
+              <button v-if="node._hasChildren"
+                class="w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-700 shrink-0"
+                @click.stop="toggleExpand(node.id)">
+                <i :class="`pi text-xs ${expandedIds[node.id] ? 'pi-chevron-down' : 'pi-chevron-right'}`" />
+              </button>
+              <div v-else class="w-4 shrink-0" />
+              <span
+                class="inline-flex items-center justify-center w-[18px] h-[18px] rounded border-2 shrink-0 transition-colors cursor-pointer"
+                :class="loc.bookable_ids.includes(node.id) || isPartial(loc, node.id)
+                  ? 'bg-[#1E2157] border-[#1E2157]'
+                  : 'border-gray-400 bg-white hover:border-[#1E2157]'"
+                @click.stop="effectiveAvailabilityMap[node.id] !== 'booked' && toggleVenue(locIdx, node.id)">
+                <i v-if="loc.bookable_ids.includes(node.id)" class="pi pi-check text-white" style="font-size:10px" />
+                <span v-else-if="isPartial(loc, node.id)" class="block w-2 h-0.5 bg-white rounded-full" />
+              </span>
+              <span class="flex-1 text-sm"
+                :class="node._depth === 0 ? 'font-semibold text-gray-800' : 'text-gray-700'"
+                @click.stop="effectiveAvailabilityMap[node.id] !== 'booked' && toggleVenue(locIdx, node.id)">{{ node.name }}</span>
+              <span v-if="effectiveAvailabilityMap[node.id]"
+                class="text-xs px-2 py-0.5 rounded-full font-medium shrink-0"
+                :class="effectiveAvailabilityMap[node.id] === 'available' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'">
+                {{ effectiveAvailabilityMap[node.id] === 'available' ? 'Available' : 'Booked' }}
+              </span>
+            </div>
+            <!-- Layout radio rows (shown when node is selected and has layouts) -->
+            <template v-if="loc.bookable_ids.includes(node.id) && node.layouts?.length">
+              <div v-for="layout in node.layouts" :key="layout"
+                class="flex items-center gap-2.5 py-2 border-b border-gray-100 bg-gray-50/60 cursor-pointer hover:bg-blue-50/40 transition-colors"
+                :style="{ paddingLeft: `${12 + (node._depth + 1) * 20}px`, paddingRight: '12px' }"
+                @click="setLayout(locIdx, node.id, layout)">
+                <!-- Radio button -->
+                <span class="w-[18px] h-[18px] rounded-full border-2 shrink-0 flex items-center justify-center transition-colors"
+                  :class="(loc.bookable_layouts ?? {})[node.id] === layout
+                    ? 'border-[#1E2157] bg-[#1E2157]'
+                    : 'border-gray-400 bg-white'">
+                  <span v-if="(loc.bookable_layouts ?? {})[node.id] === layout" class="w-2 h-2 rounded-full bg-white" />
+                </span>
+                <span class="text-sm text-gray-700">{{ layout }}</span>
+                <span v-if="effectiveAvailabilityMap[node.id]"
+                  class="ml-auto text-xs px-2 py-0.5 rounded-full font-medium shrink-0"
+                  :class="effectiveAvailabilityMap[node.id] === 'available' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'">
+                  {{ effectiveAvailabilityMap[node.id] === 'available' ? 'Available' : 'Booked' }}
+                </span>
+              </div>
+            </template>
+          </template>
         </div>
       </div>
     </div>
@@ -86,14 +113,21 @@
 </template>
 
 <script setup lang="ts">
+const { orgId } = useOrg()
 import type { LocationEntry } from '~/composables/useLocation'
 
 const props = withDefaults(defineProps<{
   modelValue: LocationEntry[]
   multi?: boolean
   availabilityMap?: Record<string, 'available' | 'booked'>
+  startAt?: string | null
+  endAt?: string | null
+  excludeEventId?: string | null
 }>(), {
   multi: true,
+  startAt: null,
+  endAt: null,
+  excludeEventId: null,
 })
 
 const emit = defineEmits<{
@@ -114,16 +148,84 @@ const bookablesLoading = ref(false)
 const expandedIds = reactive<Record<string, boolean>>({})
 
 onMounted(async () => {
-  const { DEFAULT_ORG_ID } = await import('~/composables/useDb')
   bookablesLoading.value = true
-  const { data } = await db.from('bookables')
-    .select('id, name, location, parent_id')
-    .eq('org_id', DEFAULT_ORG_ID)
+  const { data, error } = await db.from('bookables')
+    .select('id, name, location, parent_id, layouts')
+    .eq('org_id', orgId.value)
     .eq('type', 'VENUE')
     .eq('status', 'ACTIVE')
     .order('name')
-  allBookables.value = data ?? []
+  if (error) {
+    const { data: fallback } = await db.from('bookables')
+      .select('id, name, location, parent_id')
+      .eq('org_id', orgId.value)
+      .eq('type', 'VENUE')
+      .eq('status', 'ACTIVE')
+      .order('name')
+    allBookables.value = fallback ?? []
+  } else {
+    allBookables.value = data ?? []
+  }
   bookablesLoading.value = false
+  initExpanded()
+  if (hasBookableLocation.value) fetchAvailability()
+})
+
+function initExpanded() {
+  const selectedIds = props.modelValue
+    .filter(l => l.type === 'BOOKABLE')
+    .flatMap(l => l.bookable_ids ?? [])
+  for (const sid of selectedIds) {
+    let node = allBookables.value.find(b => b.id === sid)
+    while (node?.parent_id) {
+      expandedIds[node.parent_id] = true
+      node = allBookables.value.find(b => b.id === node.parent_id)
+    }
+  }
+}
+
+watch(() => props.modelValue, initExpanded, { deep: false })
+
+// ---- Availability ----
+const internalAvailabilityMap = ref<Record<string, 'available' | 'booked'>>({})
+const checkingAvailability = ref(false)
+
+const hasBookableLocation = computed(() =>
+  props.modelValue.some(l => l.type === 'BOOKABLE')
+)
+
+const effectiveAvailabilityMap = computed(() =>
+  props.availabilityMap ?? internalAvailabilityMap.value
+)
+
+async function fetchAvailability() {
+  if (!props.startAt || !props.endAt) return
+  checkingAvailability.value = true
+  try {
+    let q = db.from('bookings')
+      .select('bookable_id')
+      .eq('status', 'CONFIRMED')
+      .lt('start_at', props.endAt)
+      .gt('end_at', props.startAt)
+    if (props.excludeEventId) q = q.neq('event_id', props.excludeEventId)
+    const { data } = await q
+    const bookedIds = new Set((data ?? []).map((b: any) => b.bookable_id))
+    const map: Record<string, 'available' | 'booked'> = {}
+    for (const b of allBookables.value) {
+      map[b.id] = bookedIds.has(b.id) ? 'booked' : 'available'
+    }
+    internalAvailabilityMap.value = map
+  } finally {
+    checkingAvailability.value = false
+  }
+}
+
+watch([() => props.startAt, () => props.endAt], () => {
+  if (hasBookableLocation.value) fetchAvailability()
+})
+
+watch(hasBookableLocation, (val) => {
+  if (val && Object.keys(internalAvailabilityMap.value).length === 0) fetchAvailability()
 })
 
 function buildVenueNodes(parentId: string | null, depth: number): any[] {
@@ -212,13 +314,22 @@ function toggleVenue(locIdx: number, nodeId: string) {
   } else {
     loc.bookable_ids.splice(i, 1)
     removeDescendants(loc.bookable_ids, nodeId)
+    // Clear layout selection when deselected
+    if (loc.bookable_layouts) delete loc.bookable_layouts[nodeId]
   }
   emit('update:modelValue', locs)
 }
 
 // ---- Mutations ----
 function cloneLocations(): LocationEntry[] {
-  return props.modelValue.map(l => ({ ...l, bookable_ids: [...l.bookable_ids] }))
+  return props.modelValue.map(l => ({ ...l, bookable_ids: [...l.bookable_ids], bookable_layouts: { ...(l.bookable_layouts ?? {}) } }))
+}
+
+function setLayout(locIdx: number, bookableId: string, layout: string) {
+  const locs = cloneLocations()
+  if (!locs[locIdx].bookable_layouts) locs[locIdx].bookable_layouts = {}
+  locs[locIdx].bookable_layouts![bookableId] = layout
+  emit('update:modelValue', locs)
 }
 
 function setType(locIdx: number, type: LocationEntry['type']) {

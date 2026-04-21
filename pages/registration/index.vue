@@ -122,6 +122,7 @@
 </template>
 
 <script setup lang="ts">
+const { orgId } = useOrg()
 import { useToast } from 'primevue/usetoast'
 
 const db = useDb()
@@ -152,8 +153,7 @@ watch(selectedForm, async (form) => {
 
 async function load() {
   loading.value = true
-  const { DEFAULT_ORG_ID } = await import('~/composables/useDb')
-  const { data } = await db.from('registration_forms').select('*').eq('org_id', DEFAULT_ORG_ID).order('updated_at', { ascending: false })
+  const { data } = await db.from('registration_forms').select('*').eq('org_id', orgId.value).order('updated_at', { ascending: false })
   forms.value = (data ?? []).map(f => ({ ...f, field_count: 0 }))
   loading.value = false
 }
@@ -161,9 +161,8 @@ async function load() {
 async function handleCreate() {
   if (!newFormName.value.trim()) return
   creating.value = true
-  const { DEFAULT_ORG_ID } = await import('~/composables/useDb')
   const { error } = await db.from('registration_forms').insert({
-    org_id: DEFAULT_ORG_ID,
+    org_id: orgId.value,
     name: newFormName.value.trim(),
     status: 'DRAFT',
     schema: [],
