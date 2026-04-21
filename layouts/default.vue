@@ -192,6 +192,9 @@
       <!-- Page content -->
       <main class="flex-1 overflow-y-auto">
         <slot v-if="orgReady" />
+        <div v-else class="flex items-center justify-center h-full">
+          <i class="pi pi-spin pi-spinner text-2xl text-surface-400" />
+        </div>
       </main>
       <Toast />
     </div>

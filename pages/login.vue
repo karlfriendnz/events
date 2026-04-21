@@ -80,13 +80,22 @@ function switchMode(m: 'login' | 'register') {
   success.value = ''
 }
 
+const { orgId, orgReady } = useOrg()
+
+async function prefetchOrg(userId: string) {
+  const { data } = await db.from('org_members').select('org_id').eq('user_id', userId).single()
+  orgId.value = data?.org_id ?? null
+  orgReady.value = true
+}
+
 async function handleLogin() {
   error.value = ''
   if (!email.value || !password.value) { error.value = 'Please enter your email and password.'; return }
   loading.value = true
-  const { error: authError } = await db.auth.signInWithPassword({ email: email.value, password: password.value })
-  if (authError) { error.value = authError.message; loading.value = false }
-  else await navigateTo('/events')
+  const { data, error: authError } = await db.auth.signInWithPassword({ email: email.value, password: password.value })
+  if (authError) { error.value = authError.message; loading.value = false; return }
+  if (data.user?.id) await prefetchOrg(data.user.id)
+  await navigateTo('/events')
 }
 
 async function handleRegister() {
@@ -103,8 +112,9 @@ async function handleRegister() {
   loading.value = false
   if (authError) {
     error.value = authError.message
-  } else if (data.session) {
-    window.location.href = '/events'
+  } else if (data.user?.id) {
+    await prefetchOrg(data.user.id)
+    await navigateTo('/events')
   } else {
     success.value = 'Account created! Check your email to confirm your address.'
   }
