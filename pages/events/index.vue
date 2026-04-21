@@ -365,6 +365,25 @@
       </div>
     </Dialog>
 
+    <!-- Demo Data Prompt -->
+    <Dialog v-model:visible="showDemoPrompt" header="Welcome to FriendlyManager!" modal :closable="false" style="width:460px">
+      <div class="py-2 space-y-4">
+        <div class="flex items-start gap-3">
+          <div class="w-10 h-10 rounded-full bg-[#1E2157]/10 flex items-center justify-center shrink-0 mt-0.5">
+            <i class="pi pi-sparkles text-[#1E2157]" />
+          </div>
+          <div>
+            <p class="text-sm font-medium text-gray-800 mb-1">Your calendar is empty.</p>
+            <p class="text-sm text-gray-500">Would you like to load some sample events and categories so you can explore the app, or start with a blank slate?</p>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Start Fresh" severity="secondary" text :loading="installingDemo" @click="dismissDemoPrompt" />
+        <Button label="Install Demo Data" icon="pi pi-download" :loading="installingDemo" @click="installDemoData" style="background:#1E2157; border-color:#1E2157" />
+      </template>
+    </Dialog>
+
     <Toast />
     <ConfirmDialog />
   </div>
@@ -888,10 +907,88 @@ watch(calendarEvents, (evts) => {
   calendarOptions.value.events = evts
 }, { immediate: true })
 
+// ---- Demo data prompt ----
+const DEMO_PROMPTED_KEY = 'fm_demo_data_prompted_v1'
+const showDemoPrompt = ref(false)
+const installingDemo = ref(false)
+
+function dismissDemoPrompt() {
+  localStorage.setItem(DEMO_PROMPTED_KEY, '1')
+  showDemoPrompt.value = false
+}
+
+async function installDemoData() {
+  installingDemo.value = true
+  try {
+    const now = new Date()
+    const addDays = (n: number) => {
+      const d = new Date(now); d.setDate(d.getDate() + n); return d
+    }
+    const iso = (d: Date, h: number, m = 0) => {
+      const x = new Date(d); x.setHours(h, m, 0, 0); return x.toISOString()
+    }
+
+    // Categories
+    const { data: cats } = await db.from('categories').insert([
+      { org_id: orgId.value, name: 'Swim Training', color: '#3B82F6' },
+      { org_id: orgId.value, name: 'Competitions', color: '#8B5CF6' },
+      { org_id: orgId.value, name: 'Social Events', color: '#10B981' },
+    ]).select('id, name')
+
+    const catByName = Object.fromEntries((cats ?? []).map((c: any) => [c.name, c.id]))
+
+    // Events
+    await db.from('events').insert([
+      {
+        org_id: orgId.value, style: 'BASIC', status: 'PUBLISHED',
+        title: 'Swim Squad Training',
+        category_id: catByName['Swim Training'],
+        start_at: iso(addDays(2), 7), end_at: iso(addDays(2), 8),
+        is_all_day: false,
+      },
+      {
+        org_id: orgId.value, style: 'BASIC', status: 'PUBLISHED',
+        title: 'Junior Development Training',
+        category_id: catByName['Swim Training'],
+        start_at: iso(addDays(5), 16), end_at: iso(addDays(5), 17, 30),
+        is_all_day: false,
+      },
+      {
+        org_id: orgId.value, style: 'BASIC', status: 'PUBLISHED',
+        title: 'Regional Championships',
+        category_id: catByName['Competitions'],
+        start_at: iso(addDays(14), 8), end_at: iso(addDays(15), 17),
+        is_all_day: false,
+      },
+      {
+        org_id: orgId.value, style: 'BASIC', status: 'DRAFT',
+        title: 'End of Season Dinner',
+        category_id: catByName['Social Events'],
+        start_at: iso(addDays(21), 18, 30), end_at: iso(addDays(21), 22),
+        is_all_day: false,
+      },
+    ])
+
+    await Promise.all([load(), loadCalendars()])
+    localStorage.setItem(DEMO_PROMPTED_KEY, '1')
+    showDemoPrompt.value = false
+    toast.add({ severity: 'success', summary: 'Demo data installed', detail: '4 sample events and 3 categories added.', life: 4000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not install demo data', detail: e?.message, life: 4000 })
+  } finally {
+    installingDemo.value = false
+  }
+}
+
 // Set initial calendar title
 onMounted(async () => {
   await Promise.all([load(), loadCalendars()])
   calendarTitle.value = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
+
+  // Show demo data prompt only if no events and not previously dismissed
+  if (events.value.length === 0 && !localStorage.getItem(DEMO_PROMPTED_KEY)) {
+    showDemoPrompt.value = true
+  }
 })
 </script>
 

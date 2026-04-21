@@ -106,6 +106,24 @@
           </div>
         </div>
 
+        <!-- Sign Up Window -->
+        <div>
+          <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Sign Up Window</h2>
+          <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <p class="text-xs text-gray-500 mb-4">Optionally set when sign-ups open and close. Leave blank to allow sign-ups at any time.</p>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium text-gray-700">Opens</label>
+                <DatePicker v-model="form.reg_open_at" show-icon show-time hour-format="12" date-format="dd/mm/yy" class="w-full" placeholder="No open date" />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium text-gray-700">Closes</label>
+                <DatePicker v-model="form.reg_close_at" show-icon show-time hour-format="12" date-format="dd/mm/yy" class="w-full" placeholder="No close date" />
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Location -->
         <div>
           <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Location</h2>
@@ -514,6 +532,9 @@ const form = reactive({
   allow_interest: false,
   hold_spot_enabled: false,
   has_waitlist: false,
+  // Sign-up window
+  reg_open_at: null as Date | null,
+  reg_close_at: null as Date | null,
   // Fees
   is_paid: false,
   fees: [] as { name: string; account: string; amount: number | null }[],
@@ -585,6 +606,8 @@ async function saveEvent() {
       show_attendee_count: form.show_attendee_count,
       allow_interest: form.allow_interest,
       hold_spot_enabled: form.hold_spot_enabled,
+      reg_open_at: form.reg_open_at ?? null,
+      reg_close_at: form.reg_close_at ?? null,
       status: 'DRAFT',
     }
 

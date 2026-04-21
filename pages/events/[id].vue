@@ -2581,6 +2581,22 @@
           </div>
         </div>
 
+        <!-- Sign Up Window -->
+        <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+          <h3 class="text-sm font-semibold text-gray-700">Sign Up Window</h3>
+          <p class="text-xs text-gray-500 -mt-2">Set when sign-ups open and close for this event.</p>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="flex flex-col gap-1.5">
+              <label class="text-sm font-medium text-gray-700">Opens</label>
+              <DatePicker v-model="editForm.reg_open_at" show-icon show-time hour-format="12" date-format="dd/mm/yy" class="w-full" placeholder="No open date" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label class="text-sm font-medium text-gray-700">Closes</label>
+              <DatePicker v-model="editForm.reg_close_at" show-icon show-time hour-format="12" date-format="dd/mm/yy" class="w-full" placeholder="No close date" />
+            </div>
+          </div>
+        </div>
+
         <!-- Registration Window -->
         <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
           <h3 class="text-sm font-semibold text-gray-700">Registration Window</h3>
@@ -7733,6 +7749,8 @@ async function saveEdit() {
     phased_registration: editForm.value.phased_registration,
     member_window_days: editForm.value.member_window_days,
     public_opens_at: editForm.value.public_opens_at ?? null,
+    reg_open_at: editForm.value.reg_open_at ?? null,
+    reg_close_at: editForm.value.reg_close_at ?? null,
     capacity_max: editForm.value.has_capacity ? (editForm.value.capacity_max ?? null) : null,
     tc_content: editForm.value.custom_terms.filter((t: string) => t.trim()).length
       ? JSON.stringify(editForm.value.custom_terms.filter((t: string) => t.trim()))
