@@ -135,7 +135,7 @@
               v-for="cat in sidebarCategories"
               :key="cat.id"
               class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer"
-              @click="(() => { const idx = calSettings.visibleCategoryIds.indexOf(cat.id); idx >= 0 ? calSettings.visibleCategoryIds.splice(idx, 1) : calSettings.visibleCategoryIds.push(cat.id) })()"
+              @click="(() => { const idx = calSettings.visibleCategoryIds.indexOf(cat.id); idx >= 0 ? calSettings.visibleCategoryIds.splice(idx, 1) : calSettings.visibleCategoryIds.push(cat.id); saveCalPrefs() })()"
             >
               <Checkbox v-model="calSettings.visibleCategoryIds" :value="cat.id" :binary="false" @click.stop />
               <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: cat.color ?? '#94a3b8' }" />
@@ -143,7 +143,7 @@
             </div>
           </div>
           <div class="border-t border-gray-100 pt-2 mt-1">
-            <div class="flex items-center gap-2 cursor-pointer" @click="calSettings.showUncategorised = !calSettings.showUncategorised">
+            <div class="flex items-center gap-2 cursor-pointer" @click="calSettings.showUncategorised = !calSettings.showUncategorised; saveCalPrefs()">
               <Checkbox v-model="calSettings.showUncategorised" :binary="true" @click.stop />
               <span class="text-sm text-gray-600">Show uncategorised events</span>
             </div>
@@ -518,16 +518,57 @@ async function loadCalendars() {
   applyActiveCalendarFilter()
 }
 
-function applyActiveCalendarFilter() {
-  const calId = route.query.calendar as string | undefined
-  if (calId) {
-    const cal = namedCalendars.value.find(c => c.id === calId)
-    if (cal?.categoryIds?.length) {
-      calSettings.visibleCategoryIds = [...cal.categoryIds]
-      return
+const CAL_PREFS_KEY = 'fm_cal_prefs_v1'
+
+function saveCalPrefs() {
+  const calId = (route.query.calendar as string) ?? 'all'
+  const all = JSON.parse(localStorage.getItem(CAL_PREFS_KEY) ?? '{}')
+  all[calId] = {
+    colorBy: calSettings.colorBy,
+    defaultView: calSettings.defaultView,
+    weekStart: calSettings.weekStart,
+    showWeekends: calSettings.showWeekends,
+    showUncategorised: calSettings.showUncategorised,
+    visibleCategoryIds: [...calSettings.visibleCategoryIds],
+  }
+  localStorage.setItem(CAL_PREFS_KEY, JSON.stringify(all))
+}
+
+function restoreCalPrefs(calId: string | undefined) {
+  const key = calId ?? 'all'
+  const all = JSON.parse(localStorage.getItem(CAL_PREFS_KEY) ?? '{}')
+  const saved = all[key]
+  if (saved) {
+    calSettings.colorBy = saved.colorBy ?? 'category'
+    calSettings.defaultView = saved.defaultView ?? 'dayGridMonth'
+    calSettings.weekStart = saved.weekStart ?? 1
+    calSettings.showWeekends = saved.showWeekends ?? true
+    calSettings.showUncategorised = saved.showUncategorised ?? true
+    if (saved.visibleCategoryIds?.length) {
+      calSettings.visibleCategoryIds = saved.visibleCategoryIds
+      return true
     }
   }
-  calSettings.visibleCategoryIds = allCategories.value.map((c: any) => c.id)
+  return false
+}
+
+function applyActiveCalendarFilter() {
+  const calId = route.query.calendar as string | undefined
+  // Restore saved prefs first (covers view settings + category visibility)
+  const hadSaved = restoreCalPrefs(calId)
+  if (!hadSaved) {
+    // First visit — default to the calendar's assigned categories
+    if (calId) {
+      const cal = namedCalendars.value.find(c => c.id === calId)
+      if (cal?.categoryIds?.length) {
+        calSettings.visibleCategoryIds = [...cal.categoryIds]
+      } else {
+        calSettings.visibleCategoryIds = allCategories.value.map((c: any) => c.id)
+      }
+    } else {
+      calSettings.visibleCategoryIds = allCategories.value.map((c: any) => c.id)
+    }
+  }
 }
 
 // Re-apply when user clicks a different calendar in the sidebar
@@ -540,14 +581,20 @@ function resetCalSettings() {
   calSettings.showWeekends = true
   calSettings.visibleCategoryIds = allCategories.value.map(c => c.id)
   calSettings.showUncategorised = true
+  // Clear saved prefs for this calendar so defaults are used next time
+  const calId = (route.query.calendar as string) ?? 'all'
+  const all = JSON.parse(localStorage.getItem(CAL_PREFS_KEY) ?? '{}')
+  delete all[calId]
+  localStorage.setItem(CAL_PREFS_KEY, JSON.stringify(all))
 }
 
 async function applyCalSettings() {
   if (newCalendarName.value.trim()) {
     await createNewCalendar()
   }
+  saveCalPrefs()
   showCalSettings.value = false
-  // Reload calendar with new settings
+  // Apply view settings to FullCalendar
   const api = calendarRef.value?.getApi()
   if (api) {
     api.setOption('weekends', calSettings.showWeekends)
