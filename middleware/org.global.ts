@@ -7,8 +7,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const { orgId, orgReady } = useOrg()
   if (orgReady.value) return
 
+  const userId = user.value?.id
+  if (!userId) return
+
   const db = useSupabaseClient()
-  const { data } = await db.from('org_members').select('org_id').eq('user_id', user.value.id).single()
+  const { data } = await db.from('org_members').select('org_id').eq('user_id', userId).single()
   orgId.value = data?.org_id ?? null
   orgReady.value = true
 })
