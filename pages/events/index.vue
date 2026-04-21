@@ -127,12 +127,12 @@
         <!-- Categories visibility -->
         <div class="flex flex-col gap-2">
           <label class="text-sm font-semibold text-gray-700">Categories</label>
-          <div v-if="!allCategories.length" class="text-xs text-gray-400 py-2">
+          <div v-if="!sidebarCategories.length" class="text-xs text-gray-400 py-2">
             No categories yet.
           </div>
           <div class="flex flex-col gap-1">
             <div
-              v-for="cat in allCategories"
+              v-for="cat in sidebarCategories"
               :key="cat.id"
               class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer"
               @click="(() => { const idx = calSettings.visibleCategoryIds.indexOf(cat.id); idx >= 0 ? calSettings.visibleCategoryIds.splice(idx, 1) : calSettings.visibleCategoryIds.push(cat.id) })()"
@@ -484,6 +484,20 @@ const namedCalendars = ref<any[]>([])
 const allCategories = ref<any[]>([])
 const categoriesById = computed(() => Object.fromEntries(allCategories.value.map((c: any) => [c.id, c])))
 
+const activeCalendar = computed(() => {
+  const calId = route.query.calendar as string | undefined
+  if (!calId) return null
+  return namedCalendars.value.find(c => c.id === calId) ?? null
+})
+
+// Categories shown in the sidebar filter — scoped to active calendar if one is selected
+const sidebarCategories = computed(() => {
+  if (activeCalendar.value?.categoryIds?.length) {
+    return allCategories.value.filter((c: any) => activeCalendar.value!.categoryIds.includes(c.id))
+  }
+  return allCategories.value
+})
+
 async function loadCalendars() {
   const [{ data: cals }, { data: cats }] = await Promise.all([
     (db.from as any)('calendars')
@@ -504,6 +518,15 @@ async function loadCalendars() {
     calSettings.visibleCategoryIds = (cats ?? []).map((c: any) => c.id)
   }
 }
+
+// When the active calendar changes, auto-apply its categories to the visibility filter
+watch(activeCalendar, (cal) => {
+  if (cal?.categoryIds?.length) {
+    calSettings.visibleCategoryIds = [...cal.categoryIds]
+  } else {
+    calSettings.visibleCategoryIds = allCategories.value.map((c: any) => c.id)
+  }
+})
 
 function resetCalSettings() {
   calSettings.colorBy = 'category'
