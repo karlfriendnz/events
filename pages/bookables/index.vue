@@ -438,7 +438,7 @@ const timeSlots = Array.from({ length: 34 }, (_, i) => {
 const availFilterActive = computed(() => !!availDate.value)
 
 async function checkAvailability() {
-  if (!availDate.value) { bookedIds.value = new Set(); return }
+  if (!availDate.value || !orgId.value) { bookedIds.value = new Set(); return }
   availLoading.value = true
   const d = availDate.value
   const [sh, sm] = availStart.value ? availStart.value.split(':').map(Number) : [0, 0]

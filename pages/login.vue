@@ -86,7 +86,7 @@ async function handleLogin() {
   loading.value = true
   const { error: authError } = await db.auth.signInWithPassword({ email: email.value, password: password.value })
   if (authError) { error.value = authError.message; loading.value = false }
-  else await navigateTo('/events')
+  else window.location.href = '/events'
 }
 
 async function handleRegister() {
@@ -104,7 +104,7 @@ async function handleRegister() {
   if (authError) {
     error.value = authError.message
   } else if (data.session) {
-    await navigateTo('/events')
+    window.location.href = '/events'
   } else {
     success.value = 'Account created! Check your email to confirm your address.'
   }

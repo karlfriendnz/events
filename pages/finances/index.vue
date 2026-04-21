@@ -334,9 +334,9 @@ function formatDate(d: string) {
 async function load() {
   feesLoading.value = true
   const [{ data: fees }, { data: disc }, { data: adds }, { data: evts }] = await Promise.all([
-    db.from('fee_components').select('*, event:events(id,title)').order('sort_order'),
-    db.from('discounts').select('*, event:events(id,title)').order('created_at', { ascending: false }),
-    db.from('addons').select('*, event:events(id,title)').order('sort_order'),
+    db.from('fee_components').select('*, event:events(id,title)').eq('org_id', orgId.value).order('sort_order'),
+    db.from('discounts').select('*, event:events(id,title)').eq('org_id', orgId.value).order('created_at', { ascending: false }),
+    db.from('addons').select('*, event:events(id,title)').eq('org_id', orgId.value).order('sort_order'),
     db.from('events').select('id,title').eq('org_id', orgId.value).neq('status', 'ARCHIVED').order('title'),
   ])
   feeComponents.value = fees ?? []

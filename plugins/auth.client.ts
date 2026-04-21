@@ -9,16 +9,18 @@ export default defineNuxtPlugin(async () => {
     orgReady.value = true
   }
 
+  // Handle initial load when session is already in localStorage
   if (user.value?.id) {
     await fetchOrg(user.value.id)
   }
 
+  // Handle auth state changes (login/logout)
   watch(user, async (u) => {
     if (u?.id) {
       await fetchOrg(u.id)
     } else if (u === null) {
       orgId.value = null
-      orgReady.value = true
+      orgReady.value = false
     }
   })
 })
