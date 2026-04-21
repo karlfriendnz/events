@@ -2181,6 +2181,10 @@
             <ToggleSwitch v-model="evtAutomation[auto.key]" />
           </div>
         </div>
+        <div class="flex justify-end">
+          <Button label="Save Automation" icon="pi pi-check" size="small" :loading="automationSaving" @click="saveAutomation"
+            style="background:#1E2157; border-color:#1E2157" />
+        </div>
       </div>
 
       <!-- SESSIONS TAB -->
@@ -4083,7 +4087,16 @@
             </div>
             <InputText v-if="editingSubSession.location_type === 'ADDRESS'" v-model="editingSubSession.address" placeholder="Enter address…" class="w-full" />
             <InputText v-else-if="editingSubSession.location_type === 'ONLINE'" v-model="editingSubSession.meeting_link" placeholder="https://zoom.us/j/…" class="w-full" />
-            <p v-else class="text-sm text-gray-500 italic">Bookable venue selector coming soon</p>
+            <Select v-else
+              v-model="editingSubSession.bookable_id"
+              :options="allBookables"
+              option-label="name"
+              option-value="id"
+              placeholder="Select a venue…"
+              filter
+              show-clear
+              class="w-full"
+            />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Description</label>
@@ -6103,6 +6116,15 @@ const automations = [
 const evtAutomation = reactive<Record<string, boolean>>({
   confirmation: true, reminder_24h: false, reminder_1h: false, follow_up: false, waitlist_notify: false,
 })
+const automationSaving = ref(false)
+
+async function saveAutomation() {
+  automationSaving.value = true
+  const { error } = await db.from('events').update({ automation: { ...evtAutomation } }).eq('id', id)
+  if (error) toast.add({ severity: 'error', summary: 'Failed to save', detail: error.message, life: 4000 })
+  else toast.add({ severity: 'success', summary: 'Automation saved', life: 3000 })
+  automationSaving.value = false
+}
 
 // ---- Reporting tab ----
 const reportingLoaded = ref(false)
@@ -7500,6 +7522,10 @@ async function loadEvent() {
       reg_open_at: data.reg_open_at ? new Date(data.reg_open_at) : null,
       reg_close_at: data.reg_close_at ? new Date(data.reg_close_at) : null,
       repeat: data.recurrence_rule ?? '',
+    }
+    // Load automation settings
+    if (data.automation && typeof data.automation === 'object') {
+      Object.assign(evtAutomation, data.automation)
     }
     // Load sub-groups
     subGroups.value = Array.isArray(data.sub_groups) ? data.sub_groups : []

@@ -283,6 +283,9 @@ function openNewCalendarModal() {
 const navItems = [
   { href: '/bookables', label: 'Bookables', icon: 'pi-building' },
   { href: '/bookings', label: 'Bookings', icon: 'pi-book' },
+  { href: '/registration', label: 'Registration', icon: 'pi-clipboard' },
+  { href: '/finances', label: 'Finances', icon: 'pi-dollar' },
+  { href: '/reporting', label: 'Reporting', icon: 'pi-chart-bar' },
   { href: '/access', label: 'Access Control', icon: 'pi-shield' },
 ]
 
