@@ -64,12 +64,13 @@ export default defineNuxtConfig({
     key: process.env.SUPABASE_KEY,
     redirect: false,
     types: false,
-    useSsrCookies: false,
+    cookieOptions: {
+      secure: process.env.NODE_ENV === 'production',
+    },
     clientOptions: {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: false,
       },
     },
   },
