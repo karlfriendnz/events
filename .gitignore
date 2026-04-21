@@ -27,3 +27,6 @@ logs
 .claude/
 .playwright-mcp/
 .vercel
+
+# Supabase local temp files (contain project refs and connection strings)
+supabase/.temp/

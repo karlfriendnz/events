@@ -1,8 +1,8 @@
 import { test, expect, Page } from '@playwright/test'
 
-const BASE = 'http://localhost:3002'
-const EMAIL = 'testbot@fm-events.test'
-const PASSWORD = 'TestBot123!'
+const BASE = process.env.TEST_BASE_URL ?? 'http://localhost:3002'
+const EMAIL = process.env.TEST_EMAIL ?? ''
+const PASSWORD = process.env.TEST_PASSWORD ?? ''
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
