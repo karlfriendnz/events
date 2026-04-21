@@ -95,7 +95,7 @@ async function handleRegister() {
   if (!name.value || !email.value || !password.value) { error.value = 'Please fill in all fields.'; return }
   if (password.value.length < 6) { error.value = 'Password must be at least 6 characters.'; return }
   loading.value = true
-  const { error: authError } = await db.auth.signUp({
+  const { data, error: authError } = await db.auth.signUp({
     email: email.value,
     password: password.value,
     options: { data: { full_name: name.value } },
@@ -103,11 +103,10 @@ async function handleRegister() {
   loading.value = false
   if (authError) {
     error.value = authError.message
+  } else if (data.session) {
+    await navigateTo('/events')
   } else {
-    success.value = 'Account created! Check your email to confirm, or sign in if confirmation is disabled.'
-    name.value = ''
-    email.value = ''
-    password.value = ''
+    success.value = 'Account created! Check your email to confirm your address.'
   }
 }
 </script>
