@@ -660,6 +660,7 @@ function openCreate() {
 
 async function handleCreate() {
   if (!form.value.name.trim()) return
+  if (!orgId.value) { toast.add({ severity: 'error', summary: 'Not ready', detail: 'Organisation not loaded yet. Please try again.', life: 4000 }); return }
   creating.value = true
   const { error } = await db.from('bookables').insert({
     org_id: orgId.value,

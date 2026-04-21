@@ -94,6 +94,10 @@ async function handleLogin() {
   loading.value = true
   const { data, error: authError } = await db.auth.signInWithPassword({ email: email.value, password: password.value })
   if (authError) { error.value = authError.message; loading.value = false; return }
+  // Set user immediately so auth middleware doesn't redirect back to login
+  // before onAuthStateChange fires
+  const supabaseUser = useSupabaseUser()
+  if (data.user) supabaseUser.value = data.user as any
   if (data.user?.id) await prefetchOrg(data.user.id)
   await navigateTo('/events')
 }
