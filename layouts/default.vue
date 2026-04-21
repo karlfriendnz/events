@@ -191,7 +191,7 @@
 
       <!-- Page content -->
       <main class="flex-1 overflow-y-auto">
-        <slot />
+        <slot v-if="orgReady" />
       </main>
       <Toast />
     </div>
@@ -204,7 +204,7 @@ const route = useRoute()
 const db = useSupabaseClient()
 const user = useSupabaseUser()
 const breadcrumbs = useBreadcrumbs()
-const { orgId } = useOrg()
+const { orgId, orgReady } = useOrg()
 
 const orgName = ref('FriendlyManager')
 const userInitials = computed(() => {

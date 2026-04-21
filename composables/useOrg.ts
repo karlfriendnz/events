@@ -1,4 +1,5 @@
 export function useOrg() {
   const orgId = useState<string | null>('orgId', () => null)
-  return { orgId }
+  const orgReady = useState<boolean>('orgReady', () => false)
+  return { orgId, orgReady }
 }
