@@ -65,6 +65,7 @@ export default defineNuxtConfig({
     redirect: false,
     types: false,
     cookieOptions: {
+      maxAge: 60 * 60 * 24 * 7, // 1 week
       secure: process.env.NODE_ENV === 'production',
     },
     clientOptions: {
