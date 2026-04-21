@@ -86,7 +86,7 @@ async function handleLogin() {
   loading.value = true
   const { error: authError } = await db.auth.signInWithPassword({ email: email.value, password: password.value })
   if (authError) { error.value = authError.message; loading.value = false }
-  else window.location.href = '/events'
+  else await navigateTo('/events')
 }
 
 async function handleRegister() {

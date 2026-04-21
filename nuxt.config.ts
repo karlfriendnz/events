@@ -64,6 +64,17 @@ export default defineNuxtConfig({
     key: process.env.SUPABASE_KEY,
     redirect: false,
     types: false,
+    cookieOptions: {
+      secure: process.env.NODE_ENV === 'production',
+    },
+    clientOptions: {
+      auth: {
+        flowType: 'pkce',
+        detectSessionInUrl: true,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    },
   },
 
   css: ['~/assets/css/main.css', 'primeicons/primeicons.css'],
