@@ -26,3 +26,4 @@ logs
 # Claude / Playwright session files
 .claude/
 .playwright-mcp/
+.vercel
