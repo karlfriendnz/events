@@ -1,7 +1,33 @@
 <template>
   <div class="flex flex-col" style="height: calc(100vh - 3.5rem)">
-    <!-- Header -->
-    <div class="bg-white border-b border-gray-200 px-6 py-3.5 flex items-center justify-between shrink-0">
+
+    <!-- ── Mobile header (step nav + progress bar) ── -->
+    <div v-if="isMobile" class="bg-white border-b border-gray-200 shrink-0">
+      <div class="flex items-center gap-3 px-4 py-3">
+        <button
+          class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition-colors"
+          @click="mobileBack">
+          <i class="pi pi-chevron-left text-sm text-gray-600" />
+        </button>
+        <div class="flex-1 text-center">
+          <p class="text-[11px] text-gray-400 font-medium uppercase tracking-wide">Step {{ mobileStep + 1 }} of {{ mobileSteps.length }}</p>
+          <p class="text-sm font-semibold text-gray-800 leading-tight">{{ mobileSteps[mobileStep].label }}</p>
+        </div>
+        <button
+          class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition-colors"
+          @click="navigateTo('/events')">
+          <i class="pi pi-times text-sm text-gray-500" />
+        </button>
+      </div>
+      <!-- Progress bar -->
+      <div class="h-1 bg-gray-100">
+        <div class="h-full bg-[#1E2157] transition-all duration-300"
+          :style="{ width: `${((mobileStep + 1) / mobileSteps.length) * 100}%` }" />
+      </div>
+    </div>
+
+    <!-- ── Desktop header ── -->
+    <div v-else class="bg-white border-b border-gray-200 px-6 py-3.5 flex items-center justify-between shrink-0">
       <div class="flex items-center gap-3">
         <NuxtLink to="/events" class="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1">
           <i class="pi pi-chevron-left text-xs" /> Events
@@ -15,31 +41,31 @@
       </div>
     </div>
 
-    <!-- Scrollable content -->
+    <!-- ── Scrollable content ── -->
     <div class="flex-1 overflow-y-auto bg-[#F5F8FA]">
-      <div class="max-w-[1140px] mx-auto px-6 py-6 space-y-8">
+      <div :class="isMobile ? 'h-full' : 'max-w-[1140px] mx-auto px-6 py-6 space-y-8'">
 
-        <!-- Event Info -->
-        <div>
-          <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Event Info</h2>
+        <!-- ─ Event Info ─ -->
+        <div :class="isMobile ? (mobileStep === 0 ? 'px-4 py-5 space-y-4' : 'hidden') : ''">
+          <h2 v-if="!isMobile" class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Event Info</h2>
           <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <!-- Title -->
             <div class="px-5 py-4 border-b border-gray-100">
-              <div class="grid grid-cols-[120px_1fr] items-center gap-4">
-                <label class="text-sm font-medium text-gray-700">Event Title</label>
+              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] items-center gap-4'">
+                <label class="text-sm font-medium text-gray-700">Event Title <span class="text-red-400">*</span></label>
                 <InputText v-model="form.title" placeholder="Enter the name of your event" class="w-full" autofocus />
               </div>
             </div>
             <!-- Description -->
             <div class="px-5 py-4 border-b border-gray-100">
-              <div class="grid grid-cols-[120px_1fr] gap-4">
-                <label class="text-sm font-medium text-gray-700 pt-1">Event Description</label>
+              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
+                <label class="text-sm font-medium text-gray-700 pt-1">Description</label>
                 <RichTextEditor v-model="form.description" placeholder="Describe your event here…" />
               </div>
             </div>
             <!-- Category + Discipline -->
             <div class="px-5 py-4 space-y-4">
-              <div class="grid grid-cols-[120px_1fr] items-center gap-4">
+              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] items-center gap-4'">
                 <label class="text-sm font-medium text-gray-700">Category</label>
                 <div class="flex items-center gap-2">
                   <MultiSelect
@@ -61,71 +87,78 @@
                   <Button icon="pi pi-plus" size="small" severity="secondary" outlined v-tooltip.top="'New calendar'" @click="showNewCategoryDialog = true" />
                 </div>
               </div>
-              <div class="grid grid-cols-[120px_1fr] items-center gap-4">
+              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] items-center gap-4'">
                 <label class="text-sm font-medium text-gray-700">Discipline</label>
-                <Select v-model="form.discipline" :options="disciplines" option-label="label" option-value="value" placeholder="Choose Discipline" show-clear />
+                <Select v-model="form.discipline" :options="disciplines" option-label="label" option-value="value" placeholder="Choose Discipline" show-clear class="w-full" />
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Date -->
-        <div>
-          <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Date <span class="text-red-400 normal-case font-normal ml-1">required</span></h2>
-          <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <!-- Collapsible header row -->
-            <div class="flex items-center gap-4 px-5 py-3 cursor-pointer hover:bg-gray-50 transition-colors group"
-              :class="dateOpen ? 'border-b border-gray-100 bg-gray-50' : ''"
-              @click="dateOpen = !dateOpen">
-              <span class="text-sm text-gray-700 flex items-center flex-1">
-                <template v-if="formDateDisplay.start">
-                  {{ formDateDisplay.start }}
-                  <template v-if="formDateDisplay.end">
-                    <span class="mx-[10px] text-gray-400">→</span>{{ formDateDisplay.end }}
+        <!-- ─ Date & Sign Up ─ -->
+        <div :class="isMobile ? (mobileStep === 1 ? 'px-4 py-5 space-y-5' : 'hidden') : 'space-y-8'">
+
+          <!-- Date -->
+          <div>
+            <h2 v-if="!isMobile" class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Date <span class="text-red-400 normal-case font-normal ml-1">required</span></h2>
+            <h2 v-else class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Date</h2>
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <!-- Collapsible toggle (desktop only) -->
+              <div v-if="!isMobile"
+                class="flex items-center gap-4 px-5 py-3 cursor-pointer hover:bg-gray-50 transition-colors group"
+                :class="dateOpen ? 'border-b border-gray-100 bg-gray-50' : ''"
+                @click="dateOpen = !dateOpen">
+                <span class="text-sm text-gray-700 flex items-center flex-1">
+                  <template v-if="formDateDisplay.start">
+                    {{ formDateDisplay.start }}
+                    <template v-if="formDateDisplay.end">
+                      <span class="mx-[10px] text-gray-400">→</span>{{ formDateDisplay.end }}
+                    </template>
                   </template>
-                </template>
-                <span v-else class="text-gray-400 italic">No date set</span>
-              </span>
-              <span v-if="formDateDisplay.days !== null"
-                class="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#1E2157]/10 text-[#1E2157]">
-                {{ formDateDisplay.days }} {{ formDateDisplay.days === 1 ? 'day' : 'days' }}
-              </span>
-              <i class="pi text-sm text-gray-300 group-hover:text-gray-500 transition-colors shrink-0"
-                :class="dateOpen ? 'pi-chevron-up' : 'pi-chevron-down'" />
+                  <span v-else class="text-gray-400 italic">No date set</span>
+                </span>
+                <span v-if="formDateDisplay.days !== null"
+                  class="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#1E2157]/10 text-[#1E2157]">
+                  {{ formDateDisplay.days }} {{ formDateDisplay.days === 1 ? 'day' : 'days' }}
+                </span>
+                <i class="pi text-sm text-gray-300 group-hover:text-gray-500 transition-colors shrink-0"
+                  :class="dateOpen ? 'pi-chevron-up' : 'pi-chevron-down'" />
+              </div>
+              <DateTimeEditor
+                v-if="isMobile || dateOpen"
+                v-model:startDate="form.start_date"
+                v-model:endDate="form.end_date"
+                v-model:startTime="form.start_time"
+                v-model:endTime="form.end_time"
+                v-model:isAllDay="form.is_all_day"
+                v-model:repeat="form.repeat"
+                :minStartDate="twoWeeksAgo"
+                :minEndDate="form.start_date ?? twoWeeksAgo"
+              />
             </div>
-            <DateTimeEditor v-if="dateOpen"
-              v-model:startDate="form.start_date"
-              v-model:endDate="form.end_date"
-              v-model:startTime="form.start_time"
-              v-model:endTime="form.end_time"
-              v-model:isAllDay="form.is_all_day"
-              v-model:repeat="form.repeat"
-              :minStartDate="twoWeeksAgo"
-              :minEndDate="form.start_date ?? twoWeeksAgo"
-            />
+          </div>
+
+          <!-- Sign Up Window -->
+          <div>
+            <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Sign Up Window</h2>
+            <div class="bg-white rounded-xl border border-gray-200 p-5">
+              <p class="text-xs text-gray-500 mb-4">Optionally set when sign-ups open and close. Leave blank to allow sign-ups at any time.</p>
+              <div :class="isMobile ? 'space-y-3' : 'grid grid-cols-2 gap-4'">
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-sm font-medium text-gray-700">Opens</label>
+                  <DatePicker v-model="form.reg_open_at" show-icon show-time hour-format="12" date-format="dd/mm/yy" class="w-full" placeholder="No open date" />
+                </div>
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-sm font-medium text-gray-700">Closes</label>
+                  <DatePicker v-model="form.reg_close_at" show-icon show-time hour-format="12" date-format="dd/mm/yy" class="w-full" placeholder="No close date" />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Sign Up Window -->
-        <div>
-          <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Sign Up Window</h2>
-          <div class="bg-white rounded-xl border border-gray-200 p-5">
-            <p class="text-xs text-gray-500 mb-4">Optionally set when sign-ups open and close. Leave blank to allow sign-ups at any time.</p>
-            <div class="grid grid-cols-2 gap-4">
-              <div class="flex flex-col gap-1.5">
-                <label class="text-sm font-medium text-gray-700">Opens</label>
-                <DatePicker v-model="form.reg_open_at" show-icon show-time hour-format="12" date-format="dd/mm/yy" class="w-full" placeholder="No open date" />
-              </div>
-              <div class="flex flex-col gap-1.5">
-                <label class="text-sm font-medium text-gray-700">Closes</label>
-                <DatePicker v-model="form.reg_close_at" show-icon show-time hour-format="12" date-format="dd/mm/yy" class="w-full" placeholder="No close date" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Location -->
-        <div>
+        <!-- ─ Location ─ -->
+        <div :class="isMobile ? (mobileStep === 2 ? 'px-4 py-5' : 'hidden') : ''">
           <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Location</h2>
           <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
             <LocationEditor v-model="form.locations" :availabilityMap="availabilityMap">
@@ -142,8 +175,8 @@
           </div>
         </div>
 
-        <!-- Invitees -->
-        <div>
+        <!-- ─ Invitees ─ -->
+        <div :class="isMobile ? (mobileStep === 3 ? 'px-4 py-5' : 'hidden') : ''">
           <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Invitees</h2>
           <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
             <i class="pi pi-spin pi-spinner text-xl text-gray-300 block mb-2" />
@@ -152,11 +185,11 @@
           <EventInviteeManager v-else :event-id="draftEventId" />
         </div>
 
-        <!-- Visibility -->
-        <div>
+        <!-- ─ Visibility ─ -->
+        <div :class="isMobile ? (mobileStep === 4 ? 'px-4 py-5' : 'hidden') : ''">
           <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Visibility</h2>
           <div class="bg-white rounded-xl border border-gray-200 p-5">
-            <div class="grid grid-cols-2 gap-4">
+            <div :class="isMobile ? 'space-y-3' : 'grid grid-cols-2 gap-4'">
               <div v-for="vis in visibilityOptions" :key="vis.key" class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
                 <div>
                   <p class="text-sm font-medium text-gray-700">{{ vis.label }}</p>
@@ -165,7 +198,7 @@
                 <ToggleSwitch v-model="form[vis.key]" />
               </div>
             </div>
-            <div class="flex gap-4 mt-4">
+            <div :class="isMobile ? 'space-y-3 mt-3' : 'flex gap-4 mt-4'">
               <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg flex-1">
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-medium text-gray-700">Limit capacity</p>
@@ -190,8 +223,8 @@
           </div>
         </div>
 
-        <!-- Fees -->
-        <div>
+        <!-- ─ Fees ─ -->
+        <div :class="isMobile ? (mobileStep === 5 ? 'px-4 py-5' : 'hidden') : ''">
           <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Fees</h2>
           <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
             <div class="flex items-center justify-between">
@@ -224,8 +257,8 @@
           </div>
         </div>
 
-        <!-- Settings -->
-        <div>
+        <!-- ─ Settings ─ -->
+        <div :class="isMobile ? (mobileStep === 6 ? 'px-4 py-5' : 'hidden') : ''">
           <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Settings</h2>
           <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-6">
 
@@ -298,9 +331,33 @@
           </div>
         </div>
 
-        <!-- Bottom spacer -->
-        <div class="h-4" />
+        <!-- Desktop bottom spacer -->
+        <div v-if="!isMobile" class="h-4" />
       </div>
+    </div>
+
+    <!-- ── Mobile bottom navigation ── -->
+    <div v-if="isMobile" class="bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-3 shrink-0">
+      <Button
+        v-if="mobileStep > 0"
+        label="Back"
+        icon="pi pi-chevron-left"
+        severity="secondary"
+        outlined
+        class="flex-1"
+        @click="mobileBack"
+      />
+      <div v-else class="flex-1" />
+      <Button
+        :label="mobileStep === mobileSteps.length - 1 ? 'Save Event' : 'Next'"
+        :icon="mobileStep === mobileSteps.length - 1 ? 'pi pi-check' : 'pi pi-chevron-right'"
+        icon-pos="right"
+        :disabled="mobileStep === 0 && !form.title.trim()"
+        :loading="saving && mobileStep === mobileSteps.length - 1"
+        class="flex-1"
+        style="background:#1E2157; border-color:#1E2157"
+        @click="mobileNext"
+      />
     </div>
   </div>
 
@@ -387,6 +444,45 @@ const newCategoryName = ref('')
 const newCategoryColor = ref('#1E2157')
 const savingCategory = ref(false)
 
+// ── Mobile wizard ──────────────────────────────────────────────────────────
+const forceWizard = route.query.wizard === '1'
+const isMobile = ref(false)
+const mobileStep = ref(0)
+const mobileSteps = [
+  { label: 'Event Info' },
+  { label: 'Date & Sign Up' },
+  { label: 'Location' },
+  { label: 'Invitees' },
+  { label: 'Visibility' },
+  { label: 'Fees' },
+  { label: 'Settings' },
+]
+
+function mobileNext() {
+  if (mobileStep.value < mobileSteps.length - 1) {
+    mobileStep.value++
+    // Scroll content area back to top on step change
+    nextTick(() => {
+      document.querySelector('.overflow-y-auto')?.scrollTo(0, 0)
+    })
+  } else {
+    saveEvent()
+  }
+}
+
+function mobileBack() {
+  if (mobileStep.value > 0) {
+    mobileStep.value--
+    nextTick(() => {
+      document.querySelector('.overflow-y-auto')?.scrollTo(0, 0)
+    })
+  } else {
+    navigateTo('/events')
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+
 const categoryColorPalette = [
   '#1E2157', '#3B82F6', '#8B5CF6', '#EC4899',
   '#EF4444', '#F59E0B', '#10B981', '#06B6D4',
@@ -446,7 +542,6 @@ const disciplines = [
   { label: 'Gymnastics', value: 'gymnastics' },
   { label: 'Other', value: 'other' },
 ]
-
 
 const visibilityOptions = [
   { key: 'is_public',           label: 'Public event',          desc: 'Visible to anyone' },
@@ -562,9 +657,7 @@ function triggerBannerUpload() {
 async function handleBannerUpload(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
-  // Show preview immediately
   form.banner_url = URL.createObjectURL(file)
-  // Upload in background
   uploadingBanner.value = true
   try {
     form.banner_url = await uploadFile(file)
@@ -613,7 +706,6 @@ async function saveEvent() {
 
     let evtId: string
     if (draftEventId.value) {
-      // Update the existing draft (invitees already saved against this ID)
       const { error } = await db.from('events').update(payload).eq('id', draftEventId.value)
       if (error) throw error
       evtId = draftEventId.value
@@ -623,7 +715,6 @@ async function saveEvent() {
       evtId = data.id
     }
 
-    // Fee components
     if (form.is_paid && form.fees.length) {
       const feeRows = form.fees.filter(f => f.name.trim()).map(f => ({
         event_id: evtId,
@@ -644,8 +735,14 @@ async function saveEvent() {
 }
 
 onMounted(async () => {
+  // Detect mobile — wizard also forced via ?wizard=1 query param
+  isMobile.value = forceWizard || window.innerWidth < 768
+  const onResize = () => { if (!forceWizard) isMobile.value = window.innerWidth < 768 }
+  window.addEventListener('resize', onResize)
+  onUnmounted(() => window.removeEventListener('resize', onResize))
+
   const [{ data: catData }, { data: bookableData }] = await Promise.all([
-    db.from('categories').select('id, name').eq('org_id', orgId.value).order('name'),
+    db.from('categories').select('id, name, color').eq('org_id', orgId.value).order('name'),
     db.from('bookables').select('id, name, parent_id').eq('org_id', orgId.value).order('name'),
   ])
   categories.value = catData ?? []

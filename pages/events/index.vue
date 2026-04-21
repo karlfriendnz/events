@@ -363,6 +363,14 @@
           <p class="text-xs text-gray-500 leading-relaxed">Full wizard with fees, forms, discounts, automation and more.</p>
         </div>
       </div>
+
+      <div class="flex items-center gap-2 mt-5 pt-4 border-t border-gray-100">
+        <Checkbox v-model="useWizard" :binary="true" inputId="use-wizard" />
+        <label for="use-wizard" class="text-sm text-gray-600 cursor-pointer select-none">
+          Use step-by-step wizard
+        </label>
+        <span class="text-xs text-gray-400 ml-1">(guides you through one section at a time)</span>
+      </div>
     </Dialog>
 
     <!-- Demo Data Prompt -->
@@ -410,6 +418,7 @@ const search = ref('')
 const showCalSettings = useCalendarSettingsOpen()
 const showEventNameModal = ref(false)
 const showEventTypeModal = ref(false)
+const useWizard = ref(true)
 const newEventName = ref('')
 const clickedDate = ref<string | null>(null)
 const clickedEndDate = ref<string | null>(null)
@@ -463,6 +472,7 @@ function createBasicEvent() {
   if (clickedDate.value) params.set('date', clickedDate.value)
   if (clickedEndDate.value) params.set('endDate', clickedEndDate.value)
   if (newEventName.value.trim()) params.set('name', newEventName.value.trim())
+  if (useWizard.value) params.set('wizard', '1')
   const q = params.size ? `?${params}` : ''
   navigateTo(`/events/new-basic${q}`)
 }
@@ -484,7 +494,7 @@ function createAdvancedEvent() {
   if (clickedEndDate.value) params.set('endDate', clickedEndDate.value)
   if (newEventName.value.trim()) params.set('name', newEventName.value.trim())
   const q = params.size ? `?${params}` : ''
-  navigateTo(`/events/new${q}`)
+  navigateTo(useWizard.value ? `/events/new-advanced${q}` : `/events/new${q}`)
 }
 
 // Calendar settings
