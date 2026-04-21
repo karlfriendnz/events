@@ -297,39 +297,6 @@
 
     <!-- Event type picker modal -->
     <Dialog v-model:visible="showEventTypeModal" header="Create new event" modal style="width:680px">
-      <!-- AI builder -->
-      <div class="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-white p-4 mb-5 space-y-3">
-        <div class="flex items-center gap-2">
-          <i class="pi pi-sparkles text-indigo-500" />
-          <span class="text-sm font-semibold text-indigo-800">Describe your event and AI will set it up</span>
-        </div>
-        <Textarea
-          v-model="aiPrompt"
-          placeholder="e.g. A committee meeting that repeats on the second Wednesday of the month at 6pm"
-          rows="2"
-          auto-resize
-          class="w-full text-sm"
-          :disabled="aiLoading"
-        />
-        <div class="flex items-center gap-3">
-          <Button
-            label="Generate Event"
-            icon="pi pi-sparkles"
-            size="small"
-            :loading="aiLoading"
-            :disabled="!aiPrompt.trim()"
-            @click="createWithAi"
-            style="background:#4F46E5; border-color:#4F46E5"
-          />
-          <span v-if="aiError" class="text-xs text-red-500">{{ aiError }}</span>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-3 mb-4">
-        <div class="flex-1 h-px bg-gray-200" />
-        <span class="text-xs text-gray-400 font-medium">or choose manually</span>
-        <div class="flex-1 h-px bg-gray-200" />
-      </div>
 
       <div class="grid grid-cols-3 gap-4">
         <div
