@@ -25,10 +25,6 @@ export default defineNuxtConfig({
   ssr: false,
   devtools: { enabled: true },
 
-  nitro: {
-    preset: process.env.VERCEL ? 'vercel' : 'node-server',
-  },
-
   vite: {
     server: {
       hmr: {
