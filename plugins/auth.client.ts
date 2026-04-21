@@ -11,14 +11,12 @@ export default defineNuxtPlugin(async () => {
 
   if (user.value?.id) {
     await fetchOrg(user.value.id)
-  } else {
-    orgReady.value = !user.value
   }
 
   watch(user, async (u) => {
     if (u?.id) {
       await fetchOrg(u.id)
-    } else {
+    } else if (u === null) {
       orgId.value = null
       orgReady.value = true
     }
