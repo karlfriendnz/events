@@ -603,11 +603,12 @@ async function seedDemoEvents() {
       }
     }
 
-    await db.from('bookables').insert({
+    const { data: hall } = await db.from('bookables').insert({
       org_id: orgId.value, name: 'Hall', type: 'VENUE', status: 'ACTIVE',
       is_public: true, description: 'Multi-purpose hall for indoor sports, classes, and large events.',
       parent_id: clubRoomsId, sort_order: 4, max_concurrent: 1, allow_multiple_layouts: false,
-    })
+    }).select('id').single()
+    const hallId = hall?.id as string | undefined
 
     const { data: cricketNets } = await db.from('bookables').insert({
       org_id: orgId.value, name: 'Cricket Nets', type: 'VENUE', status: 'ACTIVE',
@@ -744,6 +745,89 @@ async function seedDemoEvents() {
         { form_id: leaderForm.id, field_type: 'SHORT_TEXT', label: 'Emergency Contact Phone', is_required: true, sort_order: 1, page_number: 1 },
         { form_id: leaderForm.id, field_type: 'SINGLE_SELECT', label: 'Dietary Requirements', is_required: false, sort_order: 2, page_number: 1, options: JSON.stringify(['None','Vegetarian','Vegan','Gluten Free','Halal','Other']) },
         { form_id: leaderForm.id, field_type: 'LONG_TEXT', label: 'What do you hope to get from this course?', is_required: false, sort_order: 3, page_number: 1 },
+      ])
+    }
+
+    // ── Booking form (used by activity modes — e.g. Birthdays Boys) ─────
+    const { data: bookingForm } = await db.from('registration_forms')
+      .insert({
+        org_id: orgId.value,
+        name: 'Booking form',
+        config: {
+          settings: { layout: 'single', formHeading: 'Fill in the form to register', submitLabel: 'Submit', confirmMessage: '' },
+          fieldMeta: {
+            'First Name':       { core: 'first_name', col_span: 1, has_helper_text: false },
+            'Last Name':        { core: 'last_name',  col_span: 1, has_helper_text: false },
+            'Email Address':    { core: 'email',      col_span: 2, has_helper_text: false },
+            'Phone Number':     { core: 'phone',      col_span: 1, has_helper_text: false },
+            'People Attending': { core: 'attendees',  col_span: 1, has_helper_text: true },
+            'Notes':            { core: 'notes',      col_span: 2, has_helper_text: false },
+            'Medical Notes':    { col_span: 2, has_helper_text: false },
+          },
+          terms: [],
+          sectionSaved: { settings: true, fields: true, terms: true, payment: false },
+        },
+      })
+      .select('id').single()
+    if (bookingForm?.id) {
+      await db.from('form_fields').insert([
+        { form_id: bookingForm.id, field_type: 'SHORT_TEXT', label: 'First Name',       placeholder: 'John',            is_required: true,  is_event_only: true, sort_order: 0, page_number: 1 },
+        { form_id: bookingForm.id, field_type: 'SHORT_TEXT', label: 'Last Name',        placeholder: 'Smith',           is_required: true,  is_event_only: true, sort_order: 1, page_number: 1 },
+        { form_id: bookingForm.id, field_type: 'SHORT_TEXT', label: 'Email Address',    placeholder: 'you@example.com', is_required: true,  is_event_only: true, sort_order: 2, page_number: 1 },
+        { form_id: bookingForm.id, field_type: 'NUMBER',     label: 'People Attending', placeholder: '1', help_text: 'How many people are attending?', is_required: false, is_event_only: true, sort_order: 3, page_number: 1 },
+        { form_id: bookingForm.id, field_type: 'SHORT_TEXT', label: 'Phone Number',     placeholder: '+64…',            is_required: false, is_event_only: true, sort_order: 4, page_number: 1 },
+        { form_id: bookingForm.id, field_type: 'LONG_TEXT',  label: 'Medical Notes',                                    is_required: false, is_event_only: true, sort_order: 5, page_number: 1 },
+      ])
+    }
+
+    // ── Activities + modes (mirrors live setup: Birthdays, Tennis) ─────
+    const { data: birthdaysAct } = await db.from('activities').insert({
+      org_id: orgId.value, name: 'Birthdays', color: '#F59E0B', icon: 'pi-bolt',
+      status: 'ACTIVE', bookings_enabled: true, approval_mode: 'auto',
+    }).select('id').single()
+    const { data: tennisAct } = await db.from('activities').insert({
+      org_id: orgId.value, name: 'Tennis', color: '#84CC16', icon: 'pi-bolt',
+      status: 'ACTIVE', bookings_enabled: true, approval_mode: 'auto',
+    }).select('id').single()
+
+    if (hallId && birthdaysAct?.id && tennisAct?.id) {
+      await db.from('activity_bookables').insert([
+        { activity_id: birthdaysAct.id, bookable_id: hallId },
+        { activity_id: tennisAct.id,    bookable_id: hallId },
+      ])
+    }
+
+    if (birthdaysAct?.id) {
+      await db.from('activity_modes').insert([
+        {
+          activity_id: birthdaysAct.id, name: 'Boys', color: '#3B82F6', sort_order: 0,
+          allow_visitors: false, approval_mode: 'INSTANT',
+          form_id: bookingForm?.id ?? null,
+          default_booking_view: 'listWeek',
+          payment_options: { bank: true, card: true, cash: true, coupon: false, invoice: true, credit_card: true, payment_plan: false },
+          pricing: { base: [], tiers: [], per_hour: [], per_person: [] },
+          addons: [
+            { id: crypto.randomUUID(), name: 'Cake Small',   type: 'fee_base',       description: '', qty_available: null,
+              fees: [{ id: crypto.randomUUID(), name: 'Small Cake', amount: 180, xero_code: '' }] },
+            { id: crypto.randomUUID(), name: 'Cake Large',   type: 'fee_base',       description: '', qty_available: null,
+              fees: [{ id: crypto.randomUUID(), name: 'Large Cake', amount: 250, xero_code: '' }] },
+            { id: crypto.randomUUID(), name: 'Food Package', type: 'fee_per_person', description: '', qty_available: null,
+              fees: [{ id: crypto.randomUUID(), name: 'Food Package - small', amount: 10, xero_code: '' }] },
+          ],
+        },
+        {
+          activity_id: birthdaysAct.id, name: 'Girls', color: '#EC4899', sort_order: 1,
+          allow_visitors: false, approval_mode: 'INSTANT',
+          pricing: { base: [], tiers: [], per_hour: [], per_person: [] }, addons: [],
+        },
+      ])
+    }
+
+    if (tennisAct?.id) {
+      await db.from('activity_modes').insert([
+        { activity_id: tennisAct.id, name: 'Play',       color: '#F97316', sort_order: 0, allow_visitors: false, approval_mode: 'INSTANT', pricing: { base: [], tiers: [], per_hour: [], per_person: [] }, addons: [] },
+        { activity_id: tennisAct.id, name: 'Practice',   color: '#3B82F6', sort_order: 1, allow_visitors: false, approval_mode: 'INSTANT', pricing: { base: [], tiers: [], per_hour: [], per_person: [] }, addons: [] },
+        { activity_id: tennisAct.id, name: 'Tournament', color: '#14B8A6', sort_order: 2, allow_visitors: false, approval_mode: 'INSTANT', pricing: { base: [], tiers: [], per_hour: [], per_person: [] }, addons: [] },
       ])
     }
 
