@@ -3,8 +3,9 @@
 
     <!-- Pill tab navigation -->
     <div class="bg-white border-b border-gray-200 px-6 py-3 shrink-0 flex justify-center">
-      <div class="flex gap-2">
-        <button v-for="tab in tabs" :key="tab.key"
+      <div class="flex gap-2 items-center">
+        <!-- Primary single tabs -->
+        <button v-for="tab in primaryTabs" :key="tab.key"
           class="flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-medium transition-colors"
           :class="activeTab === tab.key
             ? 'bg-[#1E2157] text-white shadow-sm'
@@ -13,6 +14,33 @@
           <i :class="`pi ${tab.icon} text-xs`" />
           {{ tab.label }}
         </button>
+        <!-- Group dropdown pills -->
+        <template v-for="group in moreTabGroups" :key="group.label">
+        <div v-if="group.tabs.length"
+          class="relative tab-group-anchor">
+          <button
+            class="flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-medium transition-colors"
+            :class="group.tabs.some(t => t.key === activeTab)
+              ? 'bg-[#1E2157] text-white shadow-sm'
+              : 'bg-[rgba(30,33,90,0.06)] text-gray-600 hover:bg-[rgba(30,33,90,0.1)]'"
+            @click="openTabGroup = openTabGroup === group.label ? null : group.label">
+            <span v-if="group.tabs.some(t => t.key === activeTab)">
+              {{ group.tabs.find(t => t.key === activeTab)?.label }}
+            </span>
+            <span v-else>{{ group.label }}</span>
+            <i class="pi pi-chevron-down text-[10px]" />
+          </button>
+          <div v-if="openTabGroup === group.label" class="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-xl shadow-lg py-1.5 z-50 min-w-[160px]">
+            <button v-for="tab in group.tabs" :key="tab.key"
+              class="w-full flex items-center gap-2.5 px-4 py-2 text-sm transition-colors text-left"
+              :class="activeTab === tab.key ? 'text-[#1E2157] font-semibold bg-[rgba(30,33,90,0.05)]' : 'text-gray-600 hover:bg-gray-50'"
+              @click="activeTab = tab.key; openTabGroup = null">
+              <i :class="`pi ${tab.icon} text-xs w-4`" />
+              {{ tab.label }}
+            </button>
+          </div>
+        </div>
+        </template>
       </div>
     </div>
 
@@ -34,13 +62,35 @@
 
       <!-- OVERVIEW TAB -->
       <div v-if="activeTab === 'overview'" class="overflow-y-auto flex-1">
-        <!-- Hero banner (always visible, always inline-editable) -->
-        <div class="max-w-[1140px] mx-auto relative overflow-hidden group/banner" style="height:300px">
+        <!-- Compact title row (only when no banner image and not actively editing) -->
+        <div v-if="!event?.banner_url && !bannerEditing"
+          class="max-w-[1140px] mx-auto px-6 py-5 flex items-center gap-4 border-b border-gray-100">
+          <h1 class="flex-1 text-2xl font-semibold text-gray-900 truncate cursor-text"
+            @click="bannerEditing = true">
+            {{ editForm.title || 'Untitled event' }}
+          </h1>
+          <button type="button"
+            class="text-xs text-gray-500 hover:text-[#1E2157] inline-flex items-center gap-1.5"
+            @click="bannerEditing = true; bannerInput?.click()">
+            <i class="pi pi-image text-xs" />
+            Add banner
+          </button>
+        </div>
+
+        <!-- Hero banner (shown when there's an image OR when actively editing) -->
+        <div v-else class="max-w-[1140px] mx-auto relative overflow-hidden group/banner" style="height:300px">
           <!-- Background: image or gradient -->
           <div class="absolute inset-0">
-            <img v-if="event?.banner_url" :src="event.banner_url" class="w-full h-full object-cover" />
+            <img v-if="event?.banner_url && !editForm.hide_banner" :src="event.banner_url" class="w-full h-full object-cover" />
             <div v-else class="w-full h-full bg-gradient-to-br from-[#1E2157] to-[#2e38a8]" />
           </div>
+          <!-- Hide/show image toggle (always visible, top-right) -->
+          <button v-if="event?.banner_url" type="button"
+            class="absolute top-3 right-3 z-10 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium bg-black/40 text-white hover:bg-black/60 backdrop-blur-sm transition-colors"
+            @click.stop="toggleHideBanner">
+            <i :class="`pi ${editForm.hide_banner ? 'pi-eye' : 'pi-eye-slash'} text-[10px]`" />
+            {{ editForm.hide_banner ? 'Show image' : 'Hide image' }}
+          </button>
           <!-- Change banner overlay (hover) -->
           <div class="absolute inset-0 bg-black/0 group-hover/banner:bg-black/25 transition-colors flex items-center justify-center cursor-pointer"
             @click="bannerInput?.click()">
@@ -123,6 +173,7 @@
             v-model:endTime="editForm.end_time"
             v-model:isAllDay="editForm.is_all_day"
             v-model:repeat="editForm.repeat"
+            v-model:exdates="editForm.exdates"
             v-model:locations="editForm.locations"
             v-model:categoryIds="editForm.category_ids"
             v-model:description="editForm.description"
@@ -138,6 +189,15 @@
             @fees-change="syncFees"
             @new-category="showNewCategoryDialog = true"
           />
+
+          <!-- Child-of-series banner -->
+          <div v-if="event?.recurrence_parent_id"
+            class="bg-[#EFF6FF] rounded-xl border border-[#1E2157]/20 px-6 py-3 flex items-center gap-3">
+            <i class="pi pi-sync text-[#1E2157] text-sm" />
+            <p class="text-sm text-[#1E2157] flex-1">This event is part of a recurring series.</p>
+            <Button label="Open series" icon="pi pi-external-link" size="small" severity="secondary"
+              outlined @click="navigateTo(`/events/${event.recurrence_parent_id}`)" />
+          </div>
 
           <!-- Ticketed event toggle (ADVANCED only) -->
           <div v-if="event?.style === 'ADVANCED'" class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
@@ -195,16 +255,20 @@
                     :class="group.noRegistrations ? 'pi-ban text-orange-400' : group.complete ? 'pi-check text-green-500' : group.notSetUp ? 'pi-plus-circle text-gray-400' : 'pi-exclamation-circle text-red-400'" />
                 </div>
                 <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-1.5">
+                  <div class="flex items-center gap-1.5 flex-wrap">
                     <input
                       :value="evtFormGroupsList.find(g => g.id === group.id)?.name"
                       class="text-sm font-semibold text-gray-800 bg-transparent border-0 outline-none min-w-0 truncate p-0 focus:ring-0 cursor-pointer focus:cursor-text"
                       @click.stop
                       @input="e => { const g = evtFormGroupsList.find(x => x.id === group.id); if (g) g.name = (e.target as HTMLInputElement).value }"
                     />
-                    <span class="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0"
-                      :class="evtFormGroupsList.find(g => g.id === group.id)?.person_type === 'member' ? 'bg-[#1E2157]/10 text-[#1E2157]' : evtFormGroupsList.find(g => g.id === group.id)?.person_type === 'guest' ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'">
-                      {{ evtFormGroupsList.find(g => g.id === group.id)?.person_type ?? 'public' }}
+                    <span class="text-[10px] font-medium px-1.5 py-0.5 rounded-full shrink-0"
+                      :class="{
+                        'bg-[#1E2157]/10 text-[#1E2157]': (evtFormGroupsList.find(g => g.id === group.id)?.audience ?? 'all') === 'members',
+                        'bg-green-50 text-green-700': (evtFormGroupsList.find(g => g.id === group.id)?.audience ?? 'all') === 'public',
+                        'bg-gray-100 text-gray-500': (evtFormGroupsList.find(g => g.id === group.id)?.audience ?? 'all') === 'all',
+                      }">
+                      {{ { all: 'Everyone', members: 'Members', public: 'Public' }[evtFormGroupsList.find(g => g.id === group.id)?.audience ?? 'all'] }}
                     </span>
                   </div>
                   <p class="text-xs mt-0.5" :class="group.noRegistrations ? 'text-orange-400' : group.complete ? 'text-green-500' : group.notSetUp ? 'text-gray-400' : 'text-gray-500'">
@@ -241,18 +305,12 @@
                   All Forms
                 </button>
                 <div class="flex items-start justify-between gap-2">
-                  <div>
-                    <div class="flex items-center gap-2">
-                      <input
-                        :value="currentEvtFormGroupName"
-                        class="text-base font-bold text-gray-900 bg-transparent border-0 outline-none p-0 focus:ring-0"
-                        @input="e => { const g = evtFormGroupsList.find(x => x.id === selectedFormGroupId); if (g) g.name = (e.target as HTMLInputElement).value }"
-                      />
-                      <span class="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0"
-                        :class="currentFormPersonType === 'member' ? 'bg-[#1E2157]/10 text-[#1E2157]' : currentFormPersonType === 'guest' ? 'bg-amber-100 text-amber-700' : 'bg-green-50 text-green-700'">
-                        {{ currentFormPersonType }}
-                      </span>
-                    </div>
+                  <div class="flex-1 min-w-0">
+                    <input
+                      :value="currentEvtFormGroupName"
+                      class="text-base font-bold text-gray-900 bg-transparent border-0 outline-none p-0 focus:ring-0 w-full"
+                      @input="e => { const g = evtFormGroupsList.find(x => x.id === selectedFormGroupId); if (g) g.name = (e.target as HTMLInputElement).value }"
+                    />
                     <p class="text-xs text-gray-400 mt-0.5">{{ evtFormSectionCompletedCount }} of {{ evtFormSections.length }} sections complete</p>
                   </div>
                   <div class="shrink-0 mt-1">
@@ -262,24 +320,7 @@
                   </div>
                 </div>
               </div>
-              <div class="flex-1 overflow-y-auto px-3 py-3 space-y-1">
-                <button
-                  v-for="s in evtFormSections" :key="s.id"
-                  type="button"
-                  class="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl border transition-all text-left group"
-                  :class="s.complete ? 'border-green-100 bg-green-50/30 hover:bg-green-50/60' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50/60'"
-                  @click="evtSelectedFormSection = s.id">
-                  <div class="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center"
-                    :class="s.complete ? 'bg-green-100' : 'bg-gray-100 group-hover:bg-gray-200'">
-                    <i class="pi text-sm" :class="[s.icon, s.complete ? 'text-green-600' : 'text-gray-500']" />
-                  </div>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-semibold text-gray-800">{{ s.label }}</p>
-                    <p class="text-xs mt-0.5" :class="s.complete ? 'text-green-500' : 'text-gray-400'">{{ s.subtitle ?? (s.complete ? 'Saved' : 'Not configured') }}</p>
-                  </div>
-                  <i class="pi text-sm shrink-0" :class="s.complete ? 'pi-check-circle text-green-500' : 'pi-chevron-right text-gray-300'" />
-                </button>
-              </div>
+              <FormSectionList :sections="evtFormSections" @select="(id: string) => evtSelectedFormSection = id" />
               <div class="px-4 py-4 border-t border-gray-100 space-y-2 shrink-0">
                 <button type="button" class="w-full py-2.5 rounded-xl bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors" @click="evtFormShowSections = false">Done</button>
                 <div class="flex items-center justify-between pt-1">
@@ -289,141 +330,15 @@
               </div>
             </template>
 
-            <!-- DESIGN section settings -->
+            <!-- DESIGN/SETTINGS section settings -->
             <template v-else-if="evtSelectedFormSection === 'design'">
-              <div class="flex items-center gap-3 px-4 py-4 border-b border-gray-100 shrink-0">
-                <button type="button" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-500" @click="evtSelectedFormSection = ''">
-                  <i class="pi pi-chevron-left text-sm" />
-                </button>
-                <div class="flex-1">
-                  <p class="text-sm font-bold text-gray-900">Design</p>
-                  <p class="text-xs text-gray-400">Customise the look of your form</p>
-                </div>
-                <button type="button" class="px-3 py-1.5 bg-[#1ab4e8] hover:bg-[#16a0d0] text-white text-xs font-semibold rounded-lg transition-colors" @click="saveEvtFormSection('design')">Save</button>
-              </div>
-              <div class="px-4 py-4 space-y-5 overflow-y-auto flex-1">
-                <!-- Form Style -->
-                <div>
-                  <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Form Style</p>
-                  <div class="flex p-1 bg-gray-100 rounded-xl gap-1">
-                    <button type="button" class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors" :class="currentEvtFormDesign.style === 'single' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'" @click="currentEvtFormDesign.style = 'single'">Single Page</button>
-                    <button type="button" class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors" :class="currentEvtFormDesign.style === 'tabs' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'" @click="currentEvtFormDesign.style = 'tabs'">Tabs</button>
-                  </div>
-                </div>
-
-                <!-- Header -->
-                <div>
-                  <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Header Image</p>
-                  <div class="flex p-1 bg-gray-100 rounded-xl gap-1 mb-2">
-                    <button type="button" class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors" :class="currentEvtFormDesign.header === 'event' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'" @click="currentEvtFormDesign.header = 'event'">Use Event Image</button>
-                    <button type="button" class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors" :class="currentEvtFormDesign.header === 'custom' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'" @click="currentEvtFormDesign.header = 'custom'">Custom Upload</button>
-                  </div>
-                  <div v-if="currentEvtFormDesign.header === 'custom'">
-                    <label class="flex items-center gap-3 border border-dashed border-gray-200 rounded-xl p-3 cursor-pointer hover:border-[#0e43a3] hover:bg-blue-50/30 transition-colors">
-                      <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                        <i class="pi pi-upload text-gray-400 text-sm" />
-                      </div>
-                      <div>
-                        <p class="text-xs font-semibold text-gray-700">Upload header image</p>
-                        <p class="text-[11px] text-gray-400">PNG, JPG up to 5MB</p>
-                      </div>
-                      <input type="file" accept="image/*" class="hidden" @change="handleEvtFormImageUpload('headerImage', $event)" />
-                    </label>
-                    <img v-if="currentEvtFormDesign.headerImage" :src="currentEvtFormDesign.headerImage" class="w-full h-20 object-cover rounded-xl mt-2" />
-                  </div>
-                </div>
-
-                <!-- Top Icons -->
-                <div>
-                  <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Event Info Icons</p>
-                  <div class="grid grid-cols-2 gap-y-1 gap-x-2">
-                    <label v-for="icon in ['date','time','cost','location','criteria']" :key="icon"
-                      class="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors">
-                      <Checkbox v-model="currentEvtFormDesign.icons[icon]" binary />
-                      <span class="text-sm text-gray-700 capitalize">{{ icon }}</span>
-                    </label>
-                  </div>
-                </div>
-
-                <!-- Description -->
-                <div>
-                  <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Description</p>
-                  <div class="flex p-1 bg-gray-100 rounded-xl gap-1">
-                    <button type="button" class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors" :class="currentEvtFormDesign.description === 'event' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'" @click="currentEvtFormDesign.description = 'event'">From Event</button>
-                    <button type="button" class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors" :class="currentEvtFormDesign.description === 'custom' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'" @click="currentEvtFormDesign.description = 'custom'">Custom</button>
-                  </div>
-                  <p v-if="currentEvtFormDesign.description === 'custom'" class="mt-2 text-xs text-gray-400 flex items-center gap-1.5">
-                    <i class="pi pi-arrow-right text-[10px]" />Edit the text directly in the preview →
-                  </p>
-                </div>
-
-                <!-- Form Heading -->
-                <div>
-                  <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Form Heading</p>
-                  <input v-model="currentEvtFormDesign.formHeading" type="text" placeholder="Fill in the form to register" class="w-full h-9 px-3 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
-                </div>
-
-                <!-- Add Person Button -->
-                <div>
-                  <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Add Person Button</p>
-                  <div class="flex items-center gap-2 p-2 border border-gray-200 rounded-xl">
-                    <input type="color" v-model="currentEvtFormDesign.addPersonColor" class="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white" />
-                    <span class="text-xs text-gray-500 font-mono flex-1">{{ currentEvtFormDesign.addPersonColor }}</span>
-                    <button type="button" class="text-xs text-gray-400 hover:text-gray-600 transition-colors" @click="currentEvtFormDesign.addPersonColor = '#0e43a3'">Reset</button>
-                  </div>
-                </div>
-
-                <!-- Background -->
-                <div>
-                  <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Page Background</p>
-                  <FormsSegmentedControl
-                    v-model="currentEvtFormDesign.background"
-                    :options="[{ label: 'Default', value: 'default' }, { label: 'Colour', value: 'colour' }, { label: 'Image', value: 'custom' }]"
-                    class="mb-2" />
-
-                  <!-- Colour picker -->
-                  <div v-if="currentEvtFormDesign.background === 'colour'" class="flex items-center gap-2 p-2 border border-gray-200 rounded-xl">
-                    <input
-                      type="color"
-                      v-model="currentEvtFormDesign.backgroundColor"
-                      class="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white" />
-                    <span class="text-xs text-gray-500 font-mono flex-1">{{ currentEvtFormDesign.backgroundColor }}</span>
-                    <button type="button" class="text-xs text-gray-400 hover:text-gray-600 transition-colors" @click="currentEvtFormDesign.backgroundColor = '#f0f2f5'">Reset</button>
-                  </div>
-
-                  <!-- Image upload + controls -->
-                  <template v-if="currentEvtFormDesign.background === 'custom'">
-                    <FormsImageUploadField
-                      v-model="currentEvtFormDesign.backgroundImage"
-                      placeholder="Upload background image"
-                      class="mb-3" />
-                    <div v-if="currentEvtFormDesign.backgroundImage" class="space-y-3">
-                      <!-- Fade Overlay -->
-                      <div>
-                        <div class="flex items-center justify-between mb-1.5">
-                          <p class="text-xs font-semibold text-gray-600">Fade Overlay</p>
-                          <span class="text-xs text-gray-400 font-mono">{{ Math.round(currentEvtFormDesign.backgroundOverlay * 100) }}%</span>
-                        </div>
-                        <input
-                          type="range" min="0" max="1" step="0.05"
-                          v-model.number="currentEvtFormDesign.backgroundOverlay"
-                          class="w-full accent-[#1E2157]" />
-                      </div>
-                    </div>
-                  </template>
-                </div>
-
-                <!-- Sponsors -->
-                <div>
-                  <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Sponsors</p>
-                  <div class="flex p-1 bg-gray-100 rounded-xl gap-1">
-                    <button type="button" class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors" :class="currentEvtFormDesign.sponsors === 'show' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'" @click="currentEvtFormDesign.sponsors = 'show'">Show</button>
-                    <button type="button" class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors" :class="currentEvtFormDesign.sponsors === 'hide' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'" @click="currentEvtFormDesign.sponsors = 'hide'">Hide</button>
-                  </div>
-                </div>
-
-                <button type="button" class="w-full py-2.5 rounded-xl bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors" @click="saveEvtFormSection('design')">Save Design</button>
-              </div>
+              <EventFormDesignPanel
+                :design="currentEvtFormDesign"
+                :audience="(evtFormGroupsList.find(g => g.id === selectedFormGroupId)?.audience ?? 'all')"
+                @back="evtSelectedFormSection = ''"
+                @save="saveEvtFormSection('design')"
+                @update:audience="v => { const g = evtFormGroupsList.find(x => x.id === selectedFormGroupId); if (g) { g.audience = v as any; persistEvtFormConfig() } }"
+                @image-upload="(key, e) => handleEvtFormImageUpload(key, e)" />
             </template>
 
             <!-- FIELDS section settings -->
@@ -562,94 +477,9 @@
                 </div>
 
                 <!-- Advanced tab -->
-                <div v-else class="overflow-y-auto flex-1 px-4 py-4 space-y-5">
-                  <!-- Visibility Conditions -->
-                  <div class="space-y-3">
-                    <div class="flex items-center justify-between">
-                      <span class="text-sm font-semibold text-gray-800">Visibility Conditions</span>
-                      <ToggleSwitch v-model="evtEditingField.has_visibility_conditions" @update:modelValue="v => { if (v) addEvtVisibilityCondition(evtEditingField) }" />
-                    </div>
-                    <template v-if="evtEditingField.has_visibility_conditions">
-                      <div v-for="(cond, idx) in (evtEditingField.visibility_conditions ?? [])" :key="cond.id" class="space-y-2">
-                        <p class="text-xs font-semibold text-gray-500">{{ idx === 0 ? 'When' : 'and when' }}</p>
-                        <div class="flex items-center gap-2">
-                          <select v-model="cond.field" class="flex-1 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700">
-                            <option value="" disabled>Select field…</option>
-                            <option v-for="f in evtConditionFieldOptions.filter(x => x.id !== evtEditingField.id && x.label !== evtEditingField.label)" :key="f.id" :value="f.label">{{ f.label }}</option>
-                          </select>
-                          <button type="button" class="w-6 h-6 flex items-center justify-center rounded text-gray-300 hover:text-red-500 transition-colors shrink-0" @click="removeEvtVisibilityCondition(evtEditingField, cond.id)">
-                            <i class="pi pi-times text-xs" />
-                          </button>
-                        </div>
-                        <div class="flex items-center gap-2">
-                          <select v-model="cond.operator" class="w-28 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700 shrink-0">
-                            <option v-for="op in evtConditionOperators" :key="op" :value="op">{{ op }}</option>
-                          </select>
-                          <input v-if="!['Is Empty','Is Not Empty'].includes(cond.operator)" v-model="cond.value" type="text" placeholder="Value" class="flex-1 h-9 px-3 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
-                        </div>
-                      </div>
-                      <button type="button" class="w-full py-2.5 rounded-xl bg-[#1E2157] hover:bg-[#161a45] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2" @click="addEvtVisibilityCondition(evtEditingField)">
-                        <i class="pi pi-plus text-xs" />Add Condition
-                      </button>
-                    </template>
-                  </div>
-
-                  <!-- Financial Increase -->
-                  <div class="space-y-3 pb-2">
-                    <div class="flex items-center justify-between">
-                      <span class="text-sm font-semibold text-gray-800">Financial Increase</span>
-                      <ToggleSwitch v-model="evtEditingField.has_financial_increase" @update:modelValue="v => { if (v) addEvtFinancialRule(evtEditingField) }" />
-                    </div>
-                    <template v-if="evtEditingField.has_financial_increase">
-                      <div v-for="rule in (evtEditingField.financial_rules ?? [])" :key="rule.id" class="border border-gray-200 rounded-xl p-3 space-y-2.5 bg-gray-50/60">
-                        <div v-for="(cond, idx) in rule.conditions" :key="cond.id" class="space-y-2">
-                          <p class="text-xs font-semibold text-gray-500">{{ idx === 0 ? 'When' : 'and when' }}</p>
-                          <div class="flex items-center gap-2">
-                            <select v-model="cond.field" class="flex-1 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700">
-                              <option value="" disabled>Select field…</option>
-                              <option v-for="f in evtConditionFieldOptions.filter(x => x.id !== evtEditingField.id && x.label !== evtEditingField.label)" :key="f.id" :value="f.label">{{ f.label }}</option>
-                            </select>
-                            <button type="button" class="w-6 h-6 flex items-center justify-center rounded text-gray-300 hover:text-red-500 transition-colors shrink-0" @click="removeEvtFinancialCondition(rule, cond.id)">
-                              <i class="pi pi-times text-xs" />
-                            </button>
-                          </div>
-                          <div class="flex items-center gap-2">
-                            <select v-model="cond.operator" class="w-28 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700 shrink-0">
-                              <option v-for="op in evtConditionOperators" :key="op" :value="op">{{ op }}</option>
-                            </select>
-                            <input v-if="!['Is Empty','Is Not Empty'].includes(cond.operator)" v-model="cond.value" type="text" placeholder="Value" class="flex-1 h-9 px-3 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
-                          </div>
-                        </div>
-                        <button type="button" class="text-xs text-[#0e43a3] font-semibold flex items-center gap-1 hover:underline" @click="addEvtFinancialCondition(rule)">
-                          <i class="pi pi-plus text-[10px]" />and when
-                        </button>
-                        <div class="border-t border-gray-200 pt-2.5 space-y-2">
-                          <select v-model="rule.account_code" class="w-full h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700">
-                            <option value="" disabled>Account Code</option>
-                            <option v-for="ac in evtAccountCodes" :key="ac" :value="ac">{{ ac }}</option>
-                          </select>
-                          <input v-model="rule.fee_name" type="text" placeholder="Name of fee" class="w-full h-9 px-3 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
-                          <div class="flex items-center gap-2">
-                            <select v-model="rule.fee_type" class="w-32 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700 shrink-0">
-                              <option value="increase">Increase Fee</option>
-                              <option value="discount">Discount</option>
-                            </select>
-                            <div class="flex-1 relative">
-                              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
-                              <input v-model="rule.amount" type="number" min="0" step="0.01" placeholder="0.00" class="w-full h-9 pl-6 pr-3 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
-                            </div>
-                          </div>
-                        </div>
-                        <button type="button" class="text-xs text-red-400 hover:text-red-600 font-medium flex items-center gap-1" @click="removeEvtFinancialRule(evtEditingField, rule.id)">
-                          <i class="pi pi-trash text-[10px]" />Remove rule
-                        </button>
-                      </div>
-                      <button type="button" class="w-full py-2.5 rounded-xl bg-[#1E2157] hover:bg-[#161a45] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2" @click="addEvtFinancialRule(evtEditingField)">
-                        <i class="pi pi-dollar text-xs" />Add Financial Rule
-                      </button>
-                    </template>
-                  </div>
-                </div>
+                <FormFieldAdvancedEditor v-else
+                  :field="evtEditingField"
+                  :condition-field-options="evtConditionFieldOptions" />
               </template>
 
               <!-- ── FIELD LIBRARY: shown when no field is selected ── -->
@@ -1073,18 +903,16 @@
                 @keydown.enter="confirmAddEvtFormGroup" @keydown.esc="showAddFormDialog = false" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1.5">Form type</label>
-              <div class="flex rounded-lg border border-gray-200 overflow-hidden text-sm font-medium">
-                <button v-for="pt in [{ value: 'member', label: 'Member' }, { value: 'guest', label: 'Guest' }, { value: 'public', label: 'Public' }]"
-                  :key="pt.value"
-                  type="button"
-                  class="flex-1 px-4 py-2 transition-colors border-r border-gray-200 last:border-r-0"
-                  :class="newFormPersonType === pt.value ? 'bg-[#1E2157] text-white' : 'text-gray-500 bg-white hover:bg-gray-50'"
-                  @click="newFormPersonType = pt.value">
-                  {{ pt.label }}
+              <label class="block text-sm font-medium text-gray-700 mb-1.5">Who is this form for?</label>
+              <div class="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+                <button v-for="opt in [{ value: 'all', label: 'Everyone' }, { value: 'members', label: 'Members only' }, { value: 'public', label: 'Public only' }]"
+                  :key="opt.value" type="button"
+                  class="flex-1 px-3 py-2 transition-colors border-r border-gray-200 last:border-r-0"
+                  :class="newFormAudience === opt.value ? 'bg-[#1E2157] text-white font-medium' : 'text-gray-500 bg-white hover:bg-gray-50'"
+                  @click="newFormAudience = opt.value as any">
+                  {{ opt.label }}
                 </button>
               </div>
-              <p class="text-xs text-gray-400 mt-1.5">Controls which session fees are shown on this form</p>
             </div>
           </div>
           <template #footer>
@@ -1161,62 +989,9 @@
           <!-- Rich form preview (simple + scratch) -->
           <div v-else class="relative z-10 max-w-[1000px] mx-auto my-6 bg-white rounded-lg shadow-lg overflow-hidden">
 
-            <!-- Event header: image or colour banner -->
-            <div class="relative overflow-hidden" style="height:220px">
-              <template v-if="currentEvtFormDesign.header === 'custom'">
-                <div v-if="!currentEvtFormDesign.headerImage" class="absolute inset-0 bg-gray-200 flex flex-col items-center justify-center gap-2">
-                  <i class="pi pi-image text-gray-400 text-sm" />
-                  <span class="text-sm text-gray-400">Custom header image</span>
-                </div>
-                <img v-else :src="currentEvtFormDesign.headerImage" class="absolute inset-0 w-full h-full object-cover" />
-              </template>
-              <template v-else>
-                <div class="absolute inset-0 bg-gradient-to-br from-[#1E2157] to-[#2e38a8]" />
-                <img v-if="event?.banner_url" :src="event.banner_url" class="absolute inset-0 w-full h-full object-cover" />
-              </template>
-              <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-              <div class="absolute bottom-5 left-6 right-6">
-                <p class="text-white text-sm font-bold drop-shadow">{{ event?.title || 'Event Title' }}</p>
-              </div>
-            </div>
-
-            <!-- Event details row -->
-            <div class="px-6 pt-7 pb-5">
-              <div class="grid grid-cols-3 gap-3">
-                <div v-if="currentEvtFormDesign.icons.date" class="flex items-start gap-2">
-                  <i class="pi pi-calendar text-gray-400 text-sm mt-0.5 shrink-0" />
-                  <div class="text-sm"><p class="font-semibold text-gray-600">Date:</p><p class="text-gray-500">{{ event?.start_at ? new Date(event.start_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' }) : '19th July 2025' }}</p></div>
-                </div>
-                <div v-if="currentEvtFormDesign.icons.time" class="flex items-start gap-2">
-                  <i class="pi pi-clock text-gray-400 text-sm mt-0.5 shrink-0" />
-                  <div class="text-sm"><p class="font-semibold text-gray-600">Time:</p><p class="text-gray-500">{{ event?.start_at ? new Date(event.start_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true }) : '1:34 pm' }}</p></div>
-                </div>
-                <div v-if="currentEvtFormDesign.icons.cost" class="flex items-start gap-2">
-                  <i class="pi pi-dollar text-gray-400 text-sm mt-0.5 shrink-0" />
-                  <div class="text-sm"><p class="font-semibold text-gray-600">Cost:</p><p class="text-gray-500">{{ event?.is_paid ? 'Paid' : '$25.00' }}</p></div>
-                </div>
-                <div v-if="currentEvtFormDesign.icons.location" class="flex items-start gap-2">
-                  <i class="pi pi-map-marker text-gray-400 text-sm mt-0.5 shrink-0" />
-                  <div class="text-sm"><p class="font-semibold text-gray-600">Location:</p><p class="text-gray-500">{{ event?.location || 'Bay park › Conference room 1' }}</p></div>
-                </div>
-                <div v-if="currentEvtFormDesign.icons.criteria" class="flex items-start gap-2">
-                  <i class="pi pi-user text-gray-400 text-sm mt-0.5 shrink-0" />
-                  <div class="text-sm"><p class="font-semibold text-gray-600">Invitee Restrictions:</p><p class="text-gray-500">18+ invite</p></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Description: event mode -->
-            <div v-if="currentEvtFormDesign.description === 'event'" class="px-6 py-5">
-              <p class="text-sm text-gray-600 leading-relaxed">{{ event?.description || 'Event description will appear here once added in event details.' }}</p>
-            </div>
-
-            <!-- Description: custom mode (editable inline) -->
-            <div v-else-if="currentEvtFormDesign.description === 'custom'" class="px-6 py-5">
-              <RichTextEditor
-                v-model="currentEvtFormDesign.customDescription"
-                placeholder="Enter a custom description for this registration form..." />
-            </div>
+            <FormPreviewBanner :design="currentEvtFormDesign" :event="event" />
+            <FormPreviewInfoIcons :design="currentEvtFormDesign" :event="event" />
+            <FormPreviewDescription :design="currentEvtFormDesign" :event="event" />
 
             <!-- Ticket picker (shown when event has tickets enabled) -->
             <div v-if="hasTickets && ticketTypes.length" class="px-6 pt-6 pb-2">
@@ -1321,17 +1096,25 @@
                       <template v-for="field in currentEvtFormFields" :key="field.id">
                         <!-- Section header block -->
                         <div v-if="field.field_type === 'section'"
+                          :data-field-key="field.id"
                           class="col-span-2 pt-2 pb-1 group relative cursor-pointer rounded-lg px-2 -mx-2 hover:bg-blue-50/40 transition-colors"
                           @click="openEvtFieldEditor(field.id)">
+                          <span class="field-drag-handle absolute right-0 top-0 w-5 h-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-[#1E2157] opacity-0 group-hover:opacity-100 transition-opacity z-10" v-tooltip.top="'Drag to reorder'" @click.stop @mousedown.stop>
+                            <i class="pi pi-arrows-alt text-[11px]" />
+                          </span>
                           <p class="text-sm font-bold text-gray-800">{{ field.label }}</p>
                           <p v-if="field.placeholder" class="text-sm text-gray-400 mt-0.5">{{ field.placeholder }}</p>
                           <i class="pi pi-pencil absolute top-2 right-2 text-[10px] text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
                         <!-- Image block -->
                         <div v-else-if="field.field_type === 'image'"
+                          :data-field-key="field.id"
                           class="col-span-2 group relative cursor-pointer rounded-lg hover:ring-2 hover:ring-[#0e43a3]/30 transition-all"
                           :class="'text-' + (field.options?.[2] ?? 'center')"
                           @click="openEvtFieldEditor(field.id)">
+                          <span class="field-drag-handle absolute right-0 top-0 w-5 h-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-[#1E2157] opacity-0 group-hover:opacity-100 transition-opacity z-10" v-tooltip.top="'Drag to reorder'" @click.stop @mousedown.stop>
+                            <i class="pi pi-arrows-alt text-[11px]" />
+                          </span>
                           <img v-if="field.options?.[0]" :src="field.options[0]" :alt="field.options[1]" class="max-w-full rounded-lg inline-block" />
                           <div v-else class="w-full h-24 bg-gray-100 rounded-lg flex items-center justify-center text-gray-300">
                             <i class="pi pi-image text-sm" />
@@ -1340,15 +1123,23 @@
                         </div>
                         <!-- Text block -->
                         <div v-else-if="field.field_type === 'text'"
+                          :data-field-key="field.id"
                           class="col-span-2 group relative cursor-pointer rounded-lg px-2 -mx-2 hover:bg-blue-50/40 transition-colors"
                           @click="openEvtFieldEditor(field.id)">
+                          <span class="field-drag-handle absolute right-0 top-0 w-5 h-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-[#1E2157] opacity-0 group-hover:opacity-100 transition-opacity z-10" v-tooltip.top="'Drag to reorder'" @click.stop @mousedown.stop>
+                            <i class="pi pi-arrows-alt text-[11px]" />
+                          </span>
                           <p class="text-gray-600 whitespace-pre-wrap" :class="'text-' + (field.options?.[1] ?? 'base')">{{ field.options?.[0] || 'Text block' }}</p>
                           <i class="pi pi-pencil absolute top-1 right-2 text-[10px] text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </div>
                         <!-- Button block -->
                         <div v-else-if="field.field_type === 'button'"
+                          :data-field-key="field.id"
                           class="col-span-2 group relative cursor-pointer"
                           @click="openEvtFieldEditor(field.id)">
+                          <span class="field-drag-handle absolute right-0 top-0 w-5 h-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-[#1E2157] opacity-0 group-hover:opacity-100 transition-opacity z-10" v-tooltip.top="'Drag to reorder'" @click.stop @mousedown.stop>
+                            <i class="pi pi-arrows-alt text-[11px]" />
+                          </span>
                           <span
                             class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors pointer-events-none"
                             :class="field.options?.[2] === 'secondary' ? 'border border-[#1E2157] text-[#1E2157]' : field.options?.[2] === 'link' ? 'text-[#0e43a3] underline' : 'bg-[#1E2157] text-white'">
@@ -1359,9 +1150,13 @@
                         </div>
                         <!-- Regular form field -->
                         <div v-else
+                          :data-field-key="field.id"
                           :class="field.col_span === 2 ? 'col-span-2' : ''"
-                          class="space-y-1 group cursor-pointer rounded-lg px-2 -mx-2 hover:ring-2 hover:ring-[#0e43a3]/20 hover:bg-blue-50/20 transition-all"
+                          class="space-y-1 group cursor-pointer rounded-lg px-2 -mx-2 hover:ring-2 hover:ring-[#0e43a3]/20 hover:bg-blue-50/20 transition-all relative"
                           @click="openEvtFieldEditor(field.id)">
+                          <span class="field-drag-handle absolute right-0 top-0 w-5 h-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-[#1E2157] opacity-0 group-hover:opacity-100 transition-opacity z-10" v-tooltip.top="'Drag to reorder'" @click.stop @mousedown.stop>
+                            <i class="pi pi-arrows-alt text-[11px]" />
+                          </span>
                           <!-- Label: click opens editor (hidden for checkboxes — text is inline) -->
                           <div v-if="field.field_type !== 'checkbox'" class="flex items-center gap-1 cursor-pointer" @click="openEvtFieldEditor(field.id)">
                             <label class="text-sm font-semibold text-gray-600 cursor-pointer">
@@ -1596,8 +1391,8 @@
                                   <p class="text-sm font-bold text-[#1E2157]">${{ (s._feesConfig.base_fees ?? []).reduce((sum: number, f: any) => sum + (f.amount ?? 0), 0).toFixed(2) }}</p>
                                 </template>
                                 <template v-else>
-                                  <template v-if="s._feesConfig.groups?.find((g: any) => g.person_type === currentFormPersonType)">
-                                    <p class="text-sm font-bold text-[#1E2157]">${{ (s._feesConfig.groups.find((g: any) => g.person_type === currentFormPersonType)?.fees ?? []).reduce((sum: number, f: any) => sum + (f.amount ?? 0), 0).toFixed(2) }}</p>
+                                  <template v-if="s._feesConfig.groups?.[0]">
+                                    <p class="text-sm font-bold text-[#1E2157]">${{ (s._feesConfig.groups[0]?.fees ?? []).reduce((sum: number, f: any) => sum + (f.amount ?? 0), 0).toFixed(2) }}</p>
                                   </template>
                                   <p v-else class="text-xs text-gray-400 italic">No fee set</p>
                                 </template>
@@ -1834,13 +1629,7 @@
               </template>
 
               <!-- Payment options (simple mode) -->
-              <div v-if="evtFormPayment.plan.enabled || evtFormPayment.credit_card.enabled || evtFormPayment.invoice.enabled || evtFormPayment.coupon.enabled" class="px-6 pb-6 space-y-2">
-                <h3 class="text-sm font-bold text-gray-800 mb-3">Payment</h3>
-                <FormsPaymentOptionCard v-if="evtFormPayment.plan.enabled" icon="pi-calendar" title="Payment Plan" :selected="evtPreviewPayment === 'plan'" @click="evtPreviewPayment = 'plan'" />
-                <FormsPaymentOptionCard v-if="evtFormPayment.credit_card.enabled" icon="pi-credit-card" title="Pay by Credit Card" :selected="evtPreviewPayment === 'credit_card'" @click="evtPreviewPayment = 'credit_card'" />
-                <FormsPaymentOptionCard v-if="evtFormPayment.invoice.enabled" icon="pi-file-edit" title="Pay by Invoice" :selected="evtPreviewPayment === 'invoice'" @click="evtPreviewPayment = 'invoice'" />
-                <FormsPaymentOptionCard v-if="evtFormPayment.coupon.enabled" icon="pi-tag" :title="`Pay by Coupon (${evtFormPayment.coupon.quantity} coupon${evtFormPayment.coupon.quantity !== 1 ? 's' : ''} required)`" :selected="evtPreviewPayment === 'coupon'" @click="evtPreviewPayment = 'coupon'" />
-              </div>
+              <FormPreviewPayment :payment="evtFormPayment" v-model:selected="evtPreviewPayment" />
 
               <!-- Response -->
               <div class="px-6 pb-6 space-y-2">
@@ -2014,7 +1803,7 @@
       </div>
 
       <!-- TICKETS TAB -->
-      <div v-else-if="activeTab === 'tickets'" class="max-w-4xl mx-auto px-6 py-6 space-y-4 overflow-y-auto flex-1">
+      <div v-else-if="activeTab === 'tickets'" class="max-w-[1140px] mx-auto px-6 py-6 space-y-4 overflow-y-auto flex-1">
 
         <!-- Header + enable toggle -->
         <div class="flex items-center justify-between">
@@ -2173,7 +1962,7 @@
       </div>
 
       <!-- AUTOMATION TAB -->
-      <div v-else-if="activeTab === 'automation'" class="max-w-2xl mx-auto px-6 py-6 space-y-5 overflow-y-auto flex-1">
+      <div v-else-if="activeTab === 'automation'" class="max-w-[1140px] mx-auto px-6 py-6 space-y-5 overflow-y-auto flex-1">
         <div><h2 class="text-base font-semibold text-gray-900">Automation</h2><p class="text-sm text-gray-500 mt-0.5">Set up automated communications.</p></div>
         <div class="bg-white rounded-xl border border-gray-200 p-5">
           <div v-for="auto in automations" :key="auto.key" class="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
@@ -2521,12 +2310,20 @@
               </div>
             </template>
 
+            <template #tab-addons>
+              <div class="p-6">
+                <SessionAddonsEditor
+                  :modelValue="viewingSession.addons ?? []"
+                  @update:modelValue="v => { viewingSession.addons = v }" />
+              </div>
+            </template>
+
           </SessionEditor>
         </div>
       </div>
 
       <!-- SETTINGS TAB -->
-      <div v-else-if="activeTab === 'settings'" class="max-w-2xl mx-auto px-6 py-6 space-y-5 overflow-y-auto flex-1">
+      <div v-else-if="activeTab === 'settings'" class="max-w-[1140px] mx-auto px-6 py-6 space-y-5 overflow-y-auto flex-1">
         <div><h2 class="text-base font-semibold text-gray-900">Settings &amp; Permissions</h2><p class="text-sm text-gray-500 mt-0.5">Control access, capacity, and registration windows.</p></div>
 
         <!-- Capacity -->
@@ -2549,10 +2346,6 @@
           <div class="flex items-center gap-3">
             <ToggleSwitch v-model="editForm.is_public" />
             <div><p class="text-sm font-medium text-gray-700">Public event</p><p class="text-xs text-gray-500">Visible to anyone, not just members</p></div>
-          </div>
-          <div class="flex items-center gap-3">
-            <ToggleSwitch v-model="editForm.allow_guests" />
-            <div><p class="text-sm font-medium text-gray-700">Allow guests</p><p class="text-xs text-gray-500">Non-members can register</p></div>
           </div>
           <div class="flex items-center gap-3">
             <ToggleSwitch v-model="editForm.is_featured" />
@@ -2623,7 +2416,7 @@
       </div>
 
       <!-- COMMUNICATION TAB -->
-      <div v-else-if="activeTab === 'communication'" class="max-w-5xl mx-auto px-6 py-6 space-y-8 overflow-y-auto flex-1">
+      <div v-else-if="activeTab === 'communication'" class="max-w-[1140px] mx-auto px-6 py-6 space-y-8 overflow-y-auto flex-1">
 
         <!-- Header -->
         <div class="flex items-start justify-between">
@@ -3040,7 +2833,7 @@
       </div>
 
       <!-- Reporting tab -->
-      <div v-else-if="activeTab === 'reporting'" class="max-w-4xl mx-auto px-6 py-6 space-y-5 overflow-y-auto flex-1">
+      <div v-else-if="activeTab === 'reporting'" class="max-w-[1140px] mx-auto px-6 py-6 space-y-5 overflow-y-auto flex-1">
 
         <!-- Loading state -->
         <div v-if="reportingLoading && !reportingLoaded" class="flex items-center justify-center py-20">
@@ -3156,34 +2949,11 @@
       </div>
 
       <!-- NOTES & TASKS TAB -->
-      <div v-else-if="activeTab === 'notes'" class="flex-1 overflow-y-auto px-6 py-6 max-w-3xl mx-auto w-full space-y-6">
+      <div v-else-if="activeTab === 'notes'" class="flex-1 overflow-y-auto px-6 py-6 w-full">
+        <div class="flex gap-6 items-start">
 
-        <!-- Notes -->
-        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <p class="text-sm font-semibold text-gray-800">Notes</p>
-            <button v-if="!editingNotes" class="text-xs text-[#1E2157] hover:underline" @click="startEditNotes">Edit</button>
-            <div v-else class="flex gap-2">
-              <button class="text-xs text-gray-400 hover:text-gray-600" @click="cancelEditNotes">Cancel</button>
-              <button class="text-xs font-semibold text-[#1E2157] hover:underline" :disabled="savingNotes" @click="saveNotes">
-                {{ savingNotes ? 'Saving…' : 'Save' }}
-              </button>
-            </div>
-          </div>
-          <div class="px-5 py-4">
-            <textarea v-if="editingNotes"
-              v-model="notesText"
-              rows="8"
-              placeholder="Add notes about this event…"
-              class="w-full text-sm text-gray-700 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-[#1E2157] resize-none transition-colors"
-            />
-            <div v-else-if="event?.notes" class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{{ event.notes }}</div>
-            <p v-else class="text-sm text-gray-400 italic">No notes yet. Click Edit to add some.</p>
-          </div>
-        </div>
-
-        <!-- Tasks -->
-        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <!-- Tasks (left, 50%) -->
+        <div class="w-1/2 min-w-0 bg-white rounded-xl border border-gray-200">
           <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <div class="flex items-center gap-2">
               <p class="text-sm font-semibold text-gray-800">Tasks</p>
@@ -3192,35 +2962,166 @@
           </div>
 
           <!-- Task list -->
-          <div v-if="eventTasks.length" class="divide-y divide-gray-50">
+          <div v-if="eventTasks.length" class="p-3 space-y-2">
             <div v-for="task in eventTasks" :key="task.id"
-              class="flex items-start gap-3 px-5 py-3 hover:bg-gray-50 group transition-colors">
-              <button class="mt-0.5 shrink-0" @click="toggleTask(task)">
-                <span class="w-4.5 h-4.5 flex items-center justify-center">
-                  <i :class="`pi text-base ${task.done ? 'pi-check-circle text-green-500' : 'pi-circle text-gray-300 group-hover:text-gray-400'}`" />
-                </span>
-              </button>
-              <div class="flex-1 min-w-0">
-                <input
-                  v-if="editingTaskId === task.id"
-                  v-model="editingTaskText"
-                  class="w-full text-sm text-gray-800 border-0 outline-none bg-transparent p-0 focus:ring-0"
-                  @keydown.enter="saveTaskEdit(task)"
-                  @keydown.escape="editingTaskId = null"
-                  @blur="saveTaskEdit(task)"
-                  autofocus
-                />
-                <p v-else
-                  class="text-sm cursor-text"
-                  :class="task.done ? 'line-through text-gray-400' : 'text-gray-800'"
-                  @click="startEditTask(task)">
-                  {{ task.text }}
-                </p>
-                <p v-if="task.due_date" class="text-xs text-gray-400 mt-0.5">Due {{ formatTaskDate(task.due_date) }}</p>
+              class="rounded-lg border border-gray-200 bg-white">
+
+              <!-- Title row -->
+              <div class="flex items-start gap-3 px-4 py-3">
+                <button class="shrink-0 mt-0.5" @click="toggleTask(task)">
+                  <i :class="`pi text-base ${task.done ? 'pi-check-circle text-green-500' : 'pi-circle text-gray-300 hover:text-gray-400'}`" />
+                </button>
+                <div class="flex-1 min-w-0">
+                  <input
+                    v-if="editingTaskId === task.id"
+                    v-model="editingTaskText"
+                    class="w-full text-sm text-gray-800 border-0 outline-none bg-transparent p-0 focus:ring-0"
+                    @keydown.enter="saveTaskEdit(task)"
+                    @keydown.escape="editingTaskId = null"
+                    @blur="saveTaskEdit(task)"
+                    autofocus
+                  />
+                  <p v-else
+                    class="text-sm cursor-text"
+                    :class="task.done ? 'line-through text-gray-400' : 'text-gray-800 font-medium'"
+                    @click="startEditTask(task)">
+                    {{ task.text }}
+                  </p>
+                  <p v-if="task.due_date" class="text-xs text-gray-400 mt-0.5">Due {{ formatTaskDate(task.due_date) }}</p>
+                </div>
+                <button class="shrink-0 text-gray-300 hover:text-red-400 transition-colors mt-0.5" @click="deleteTask(task.id)">
+                  <i class="pi pi-trash text-xs" />
+                </button>
               </div>
-              <button class="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-colors shrink-0" @click="deleteTask(task.id)">
-                <i class="pi pi-trash text-xs" />
-              </button>
+
+              <!-- Properties strip -->
+              <div class="border-t border-gray-100 bg-gray-50 px-4 py-2.5 flex items-center gap-4 flex-wrap"
+                :class="!task.is_role && !task.assignee_ids.length ? 'rounded-b-lg' : ''">
+
+                <!-- Volunteer role toggle -->
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                  <div class="relative w-7 h-4 shrink-0" @click="toggleTaskRole(task)">
+                    <div class="w-7 h-4 rounded-full transition-colors"
+                      :class="task.is_role ? 'bg-[#1E2157]' : 'bg-gray-300'" />
+                    <div class="absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform"
+                      :class="task.is_role ? 'translate-x-3' : 'translate-x-0'" />
+                  </div>
+                  <span class="text-xs text-gray-600">Volunteer role</span>
+                </label>
+
+                <template v-if="task.is_role">
+                  <!-- Divider -->
+                  <span class="w-px h-4 bg-gray-200 shrink-0" />
+
+                  <!-- Slots stepper -->
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-xs text-gray-500">Slots needed</span>
+                    <div class="flex items-center gap-1 bg-white border border-gray-200 rounded-md px-1.5 py-0.5">
+                      <button class="text-gray-400 hover:text-gray-700 w-4 h-4 flex items-center justify-center transition-colors"
+                        @click="updateTaskCapacity(task, -1)">
+                        <i class="pi pi-minus" style="font-size:8px" />
+                      </button>
+                      <span class="text-xs text-gray-700 font-medium tabular-nums w-4 text-center">{{ task.role_capacity }}</span>
+                      <button class="text-gray-400 hover:text-gray-700 w-4 h-4 flex items-center justify-center transition-colors"
+                        @click="updateTaskCapacity(task, 1)">
+                        <i class="pi pi-plus" style="font-size:8px" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Status -->
+                  <span class="text-xs font-medium"
+                    :class="taskFillStatus(task).isFilled ? 'text-green-600' : 'text-amber-600'">
+                    <i :class="`pi mr-1 ${taskFillStatus(task).isFilled ? 'pi-check-circle' : 'pi-exclamation-circle'}`" style="font-size:10px" />
+                    {{ taskFillStatus(task).label }}
+                  </span>
+                </template>
+              </div>
+
+              <!-- People row (role or has assignees) -->
+              <div v-if="task.is_role || task.assignee_ids.length"
+                class="border-t border-gray-100 px-4 py-2.5 flex items-center gap-2 flex-wrap rounded-b-lg">
+                <span class="text-xs text-gray-400 shrink-0">{{ task.is_role ? 'Volunteers' : 'Assigned to' }}</span>
+
+                <!-- Named chips -->
+                <span v-for="pid in task.assignee_ids" :key="pid"
+                  class="inline-flex items-center gap-1.5 bg-[#1E2157]/5 border border-[#1E2157]/15 rounded-full pl-1.5 pr-2 py-0.5">
+                  <span class="w-4 h-4 rounded-full bg-[#1E2157] text-white flex items-center justify-center shrink-0"
+                    style="font-size:8px;font-weight:700">{{ personInitials(pid) }}</span>
+                  <span class="text-xs text-gray-700">{{ personName(pid) }}</span>
+                  <button class="text-gray-300 hover:text-red-400 transition-colors ml-0.5" @click="toggleTaskAssignee(task, pid)">
+                    <i class="pi pi-times" style="font-size:8px" />
+                  </button>
+                </span>
+
+                <!-- Empty slot indicators (role only) -->
+                <span v-if="task.is_role" v-for="n in emptySlotArray(task)" :key="`e${n}`"
+                  class="inline-flex items-center gap-1 border border-dashed border-gray-300 rounded-full px-2 py-0.5">
+                  <span class="text-xs text-gray-300">Empty slot</span>
+                </span>
+
+                <!-- Add button + picker -->
+                <div class="relative">
+                  <button
+                    class="inline-flex items-center gap-1 text-xs text-[#1E2157] hover:text-[#1E2157]/70 font-medium transition-colors"
+                    @click.stop="toggleTaskPersonPicker(task.id)">
+                    <i class="pi pi-plus-circle" style="font-size:11px" />
+                    {{ task.is_role ? 'Add volunteer' : 'Add person' }}
+                  </button>
+                  <div v-if="taskPersonPickerOpen === task.id"
+                    class="absolute left-0 top-6 z-50 bg-white rounded-lg shadow-lg border border-gray-200 w-52"
+                    @click.stop>
+                    <div class="px-2.5 py-2 border-b border-gray-100">
+                      <input v-model="taskPersonSearch" placeholder="Search people…" autofocus
+                        class="w-full text-xs border-0 outline-none bg-transparent p-0 focus:ring-0 placeholder-gray-300" />
+                    </div>
+                    <div class="max-h-48 overflow-y-auto py-1">
+                      <div v-if="!filteredTaskPersons.length" class="px-3 py-2 text-xs text-gray-400 italic">No people found</div>
+                      <button v-for="person in filteredTaskPersons" :key="person.id"
+                        class="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs hover:bg-gray-50 text-left transition-colors"
+                        @click.stop="toggleTaskAssignee(task, person.id)">
+                        <span class="w-5 h-5 rounded-full bg-[#1E2157] text-white flex items-center justify-center shrink-0"
+                          style="font-size:9px;font-weight:700">
+                          {{ person.first_name[0] }}{{ person.last_name[0] }}
+                        </span>
+                        <span class="flex-1 truncate text-gray-700">{{ person.first_name }} {{ person.last_name }}</span>
+                        <i v-if="task.assignee_ids.includes(person.id)" class="pi pi-check text-[#1E2157]" style="font-size:10px" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Add people row trigger (no role, no assignees) -->
+              <div v-else class="border-t border-gray-100 px-4 py-2 relative rounded-b-lg">
+                <button
+                  class="text-xs text-gray-400 hover:text-[#1E2157] transition-colors"
+                  @click.stop="toggleTaskPersonPicker(task.id)">
+                  <i class="pi pi-user-plus mr-1" style="font-size:10px" />Assign someone
+                </button>
+                <div v-if="taskPersonPickerOpen === task.id"
+                  class="absolute left-4 top-8 z-50 bg-white rounded-lg shadow-lg border border-gray-200 w-52"
+                  @click.stop>
+                  <div class="px-2.5 py-2 border-b border-gray-100">
+                    <input v-model="taskPersonSearch" placeholder="Search people…" autofocus
+                      class="w-full text-xs border-0 outline-none bg-transparent p-0 focus:ring-0 placeholder-gray-300" />
+                  </div>
+                  <div class="max-h-48 overflow-y-auto py-1">
+                    <div v-if="!filteredTaskPersons.length" class="px-3 py-2 text-xs text-gray-400 italic">No people found</div>
+                    <button v-for="person in filteredTaskPersons" :key="person.id"
+                      class="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs hover:bg-gray-50 text-left transition-colors"
+                      @click.stop="toggleTaskAssignee(task, person.id)">
+                      <span class="w-5 h-5 rounded-full bg-[#1E2157] text-white flex items-center justify-center shrink-0"
+                        style="font-size:9px;font-weight:700">
+                        {{ person.first_name[0] }}{{ person.last_name[0] }}
+                      </span>
+                      <span class="flex-1 truncate text-gray-700">{{ person.first_name }} {{ person.last_name }}</span>
+                      <i v-if="task.assignee_ids.includes(person.id)" class="pi pi-check text-[#1E2157]" style="font-size:10px" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
           <div v-else class="px-5 py-6 text-center text-sm text-gray-400">No tasks yet</div>
@@ -3238,11 +3139,113 @@
               <button v-if="newTaskText.trim()" class="text-xs font-semibold text-[#1E2157] hover:underline shrink-0" @click="addTask">Add</button>
             </div>
           </div>
-        </div>
+        </div><!-- /tasks -->
+
+        <!-- Notes (right, 50%) -->
+        <div class="w-1/2 min-w-0 bg-white rounded-xl border border-gray-200">
+          <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <p class="text-sm font-semibold text-gray-800">Notes</p>
+            <button
+              class="inline-flex items-center gap-1 text-xs font-medium text-[#1E2157] hover:underline"
+              @click="startNewNote">
+              <i class="pi pi-plus" style="font-size:10px" /> Add note
+            </button>
+          </div>
+
+          <!-- New note form -->
+          <div v-if="newNoteMode" class="p-4 border-b border-gray-100 space-y-3">
+            <input v-model="editingNoteTitle" placeholder="Title (optional)"
+              class="w-full text-sm font-semibold text-gray-800 border-0 outline-none bg-transparent p-0 placeholder-gray-300 focus:ring-0" />
+            <RichTextEditor v-model="editingNoteContent" placeholder="Write your note…" />
+            <div class="flex items-center gap-3 pt-1">
+              <button class="text-xs text-gray-400 hover:text-gray-600" @click="cancelNoteEdit">Cancel</button>
+              <button class="text-xs font-semibold text-[#1E2157] hover:underline" :disabled="savingNote" @click="saveNewNote">
+                {{ savingNote ? 'Saving…' : 'Save note' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Existing notes -->
+          <div v-if="eventNotes.length" class="divide-y divide-gray-100">
+            <div v-for="note in eventNotes" :key="note.id" class="p-4">
+
+              <!-- Editing -->
+              <template v-if="editingNoteId === note.id">
+                <input v-model="editingNoteTitle" placeholder="Title (optional)"
+                  class="w-full text-sm font-semibold text-gray-800 border-0 outline-none bg-transparent p-0 mb-3 placeholder-gray-300 focus:ring-0" />
+                <RichTextEditor v-model="editingNoteContent" placeholder="Write your note…" />
+                <div class="flex items-center gap-3 mt-3">
+                  <button class="text-xs text-gray-400 hover:text-gray-600" @click="cancelNoteEdit">Cancel</button>
+                  <button class="text-xs font-semibold text-[#1E2157] hover:underline" :disabled="savingNote" @click="saveNoteEdit">
+                    {{ savingNote ? 'Saving…' : 'Save' }}
+                  </button>
+                </div>
+              </template>
+
+              <!-- Viewing -->
+              <template v-else>
+                <div class="flex items-start justify-between gap-2 mb-2">
+                  <p v-if="note.title" class="text-sm font-semibold text-gray-800">{{ note.title }}</p>
+                  <div class="flex items-center gap-2 ml-auto shrink-0">
+                    <button class="text-xs text-[#1E2157] hover:underline" @click="startEditNote(note)">Edit</button>
+                    <button class="text-gray-300 hover:text-red-400 transition-colors" @click="deleteEventNote(note.id)">
+                      <i class="pi pi-trash text-xs" />
+                    </button>
+                  </div>
+                </div>
+                <div v-if="note.content" class="prose prose-sm max-w-none text-gray-700" v-html="note.content" />
+                <p v-else class="text-sm text-gray-400 italic">Empty note</p>
+              </template>
+
+            </div>
+          </div>
+
+          <div v-else-if="!newNoteMode" class="py-12 text-center text-sm text-gray-400">
+            <i class="pi pi-file-edit text-3xl mb-3 block text-gray-300" />
+            No notes yet
+          </div>
+        </div><!-- /notes -->
+
+        </div><!-- /flex row -->
       </div>
 
     </div>
   </div>
+
+  <!-- Series Archive Dialog (recurring) -->
+  <Dialog v-model:visible="seriesArchiveOpen" modal header="Archive recurring event" :style="{ width: '440px' }">
+    <div class="flex flex-col gap-3 py-2">
+      <p class="text-sm text-gray-700">This event is part of a recurring series. What would you like to archive?</p>
+      <label class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors"
+        :class="seriesArchiveScope === 'this' ? 'border-[#1E2157] bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
+        <RadioButton v-model="seriesArchiveScope" value="this" />
+        <div>
+          <p class="text-sm font-medium text-gray-800">Just this event</p>
+          <p class="text-xs text-gray-500">Only this single occurrence is archived.</p>
+        </div>
+      </label>
+      <label class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors"
+        :class="seriesArchiveScope === 'following' ? 'border-[#1E2157] bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
+        <RadioButton v-model="seriesArchiveScope" value="following" />
+        <div>
+          <p class="text-sm font-medium text-gray-800">This and all following</p>
+          <p class="text-xs text-gray-500">Archive this event and every occurrence after it.</p>
+        </div>
+      </label>
+      <label class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors"
+        :class="seriesArchiveScope === 'all' ? 'border-[#1E2157] bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
+        <RadioButton v-model="seriesArchiveScope" value="all" />
+        <div>
+          <p class="text-sm font-medium text-gray-800">All events in the series</p>
+          <p class="text-xs text-gray-500">Archive every event in the recurring series.</p>
+        </div>
+      </label>
+    </div>
+    <template #footer>
+      <Button label="Cancel" severity="secondary" text size="small" @click="seriesArchiveOpen = false" />
+      <Button label="Archive" icon="pi pi-trash" severity="danger" size="small" @click="performSeriesArchive" />
+    </template>
+  </Dialog>
 
   <!-- Publish Confirm Dialog -->
   <Dialog v-model:visible="showPublishDialog" header="Publish event" modal style="width:460px" @show="onPublishDialogOpen">
@@ -4355,49 +4358,137 @@ const tabs = computed(() => {
   }
   return allTabs.filter(t => t.key !== 'tickets' || hasTickets.value)
 })
+
+const primaryTabKeys = ['overview', 'sessions', 'invitees', 'attendance', 'notes']
+const moreGroupDefs = [
+  { label: 'Set up',  keys: ['forms', 'tickets', 'discounts'] },
+  { label: 'Comms',   keys: ['communication', 'automation'] },
+  { label: 'Data',    keys: ['reporting'] },
+]
+
+const primaryTabs = computed(() => tabs.value.filter(t => primaryTabKeys.includes(t.key)))
+const moreTabGroups = computed(() =>
+  moreGroupDefs.map(g => ({ label: g.label, tabs: tabs.value.filter(t => g.keys.includes(t.key)) }))
+)
+
+const openTabGroup = ref<string | null>(null)
+
+function handleTabGroupClickOutside(e: MouseEvent) {
+  if (!(e.target as HTMLElement).closest('.tab-group-anchor')) openTabGroup.value = null
+}
+onMounted(() => document.addEventListener('click', handleTabGroupClickOutside, true))
+onBeforeUnmount(() => document.removeEventListener('click', handleTabGroupClickOutside, true))
+
 const activeTab = ref((useRoute().query.tab as string) || 'overview')
 const overviewEditing = ref(false)
 
 // ── Notes ────────────────────────────────────────────────────────────
-const editingNotes = ref(false)
-const notesText = ref('')
-const savingNotes = ref(false)
+const eventNotes = ref<{ id: string; title: string | null; content: string; created_at: string }[]>([])
+const editingNoteId = ref<string | null>(null)
+const newNoteMode = ref(false)
+const editingNoteTitle = ref('')
+const editingNoteContent = ref('')
+const savingNote = ref(false)
 
-function startEditNotes() {
-  notesText.value = event.value?.notes ?? ''
-  editingNotes.value = true
+async function loadEventNotes() {
+  const { data } = await db.from('event_notes').select('*').eq('event_id', id).order('created_at')
+  eventNotes.value = data ?? []
 }
-function cancelEditNotes() {
-  editingNotes.value = false
+
+function startNewNote() {
+  editingNoteId.value = null
+  editingNoteTitle.value = ''
+  editingNoteContent.value = ''
+  newNoteMode.value = true
 }
-async function saveNotes() {
-  savingNotes.value = true
-  const { error } = await db.from('events').update({ notes: notesText.value }).eq('id', id)
-  if (error) {
-    toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 3000 })
-  } else {
-    if (event.value) event.value.notes = notesText.value
-    editingNotes.value = false
-  }
-  savingNotes.value = false
+
+function cancelNoteEdit() {
+  editingNoteId.value = null
+  newNoteMode.value = false
+}
+
+async function saveNewNote() {
+  savingNote.value = true
+  const { data } = await db.from('event_notes').insert({
+    event_id: id,
+    title: editingNoteTitle.value.trim() || null,
+    content: editingNoteContent.value,
+  }).select('*').single()
+  if (data) eventNotes.value.push(data)
+  newNoteMode.value = false
+  savingNote.value = false
+}
+
+function startEditNote(note: any) {
+  editingNoteId.value = note.id
+  editingNoteTitle.value = note.title ?? ''
+  editingNoteContent.value = note.content
+  newNoteMode.value = false
+}
+
+async function saveNoteEdit() {
+  if (!editingNoteId.value) return
+  savingNote.value = true
+  const updated_at = new Date().toISOString()
+  await db.from('event_notes').update({
+    title: editingNoteTitle.value.trim() || null,
+    content: editingNoteContent.value,
+    updated_at,
+  }).eq('id', editingNoteId.value)
+  const note = eventNotes.value.find(n => n.id === editingNoteId.value)
+  if (note) { note.title = editingNoteTitle.value.trim() || null; note.content = editingNoteContent.value }
+  editingNoteId.value = null
+  savingNote.value = false
+}
+
+async function deleteEventNote(noteId: string) {
+  await db.from('event_notes').delete().eq('id', noteId)
+  eventNotes.value = eventNotes.value.filter(n => n.id !== noteId)
 }
 
 // ── Tasks ────────────────────────────────────────────────────────────
-const eventTasks = ref<{ id: string; text: string; done: boolean; due_date: string | null }[]>([])
+const eventTasks = ref<{ id: string; text: string; done: boolean; due_date: string | null; assignee_ids: string[]; is_role: boolean; role_capacity: number }[]>([])
 const newTaskText = ref('')
 const editingTaskId = ref<string | null>(null)
 const editingTaskText = ref('')
+const taskPersonPickerOpen = ref<string | null>(null)
+const taskPersonSearch = ref('')
+const orgPersons = ref<{ id: string; first_name: string; last_name: string }[]>([])
+const orgPersonsLoaded = ref(false)
+
+const filteredTaskPersons = computed(() => {
+  const q = taskPersonSearch.value.toLowerCase()
+  return q ? orgPersons.value.filter(p => `${p.first_name} ${p.last_name}`.toLowerCase().includes(q)) : orgPersons.value
+})
+
+function personInitials(personId: string) {
+  const p = orgPersons.value.find(x => x.id === personId)
+  return p ? `${p.first_name[0]}${p.last_name[0]}`.toUpperCase() : '?'
+}
+
+function personName(personId: string) {
+  const p = orgPersons.value.find(x => x.id === personId)
+  return p ? `${p.first_name} ${p.last_name}` : ''
+}
+
+async function loadOrgPersons() {
+  if (orgPersonsLoaded.value || !orgId.value) return
+  orgPersonsLoaded.value = true
+  const { data } = await db.from('persons').select('id, first_name, last_name').eq('org_id', orgId.value).order('first_name')
+  orgPersons.value = data ?? []
+}
 
 async function loadTasks() {
   const { data } = await db.from('event_tasks').select('*').eq('event_id', id).order('created_at')
-  eventTasks.value = data ?? []
+  eventTasks.value = (data ?? []).map(t => ({ ...t, assignee_ids: t.assignee_ids ?? [], is_role: t.is_role ?? false, role_capacity: t.role_capacity ?? 1 }))
+  loadOrgPersons()
 }
 
 async function addTask() {
   const text = newTaskText.value.trim()
   if (!text) return
-  const { data } = await db.from('event_tasks').insert({ event_id: id, text, done: false }).select('*').single()
-  if (data) eventTasks.value.push(data)
+  const { data } = await db.from('event_tasks').insert({ event_id: id, text, done: false, assignee_ids: [], is_role: false, role_capacity: 1 }).select('*').single()
+  if (data) eventTasks.value.push({ ...data, assignee_ids: data.assignee_ids ?? [], is_role: false, role_capacity: 1 })
   newTaskText.value = ''
 }
 
@@ -4427,6 +4518,51 @@ async function deleteTask(taskId: string) {
 
 function formatTaskDate(date: string) {
   return new Date(date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+async function toggleTaskAssignee(task: any, personId: string) {
+  const ids: string[] = task.assignee_ids ?? []
+  const newIds = ids.includes(personId) ? ids.filter((id: string) => id !== personId) : [...ids, personId]
+  await db.from('event_tasks').update({ assignee_ids: newIds }).eq('id', task.id)
+  task.assignee_ids = newIds
+}
+
+function toggleTaskPersonPicker(taskId: string) {
+  if (taskPersonPickerOpen.value === taskId) {
+    taskPersonPickerOpen.value = null
+  } else {
+    taskPersonSearch.value = ''
+    taskPersonPickerOpen.value = taskId
+    loadOrgPersons()
+  }
+}
+
+function closeTaskPersonPicker() {
+  taskPersonPickerOpen.value = null
+}
+
+async function toggleTaskRole(task: any) {
+  const is_role = !task.is_role
+  await db.from('event_tasks').update({ is_role }).eq('id', task.id)
+  task.is_role = is_role
+}
+
+async function updateTaskCapacity(task: any, delta: number) {
+  const newCap = Math.max(1, (task.role_capacity ?? 1) + delta)
+  await db.from('event_tasks').update({ role_capacity: newCap }).eq('id', task.id)
+  task.role_capacity = newCap
+}
+
+function taskFillStatus(task: any) {
+  const filled = (task.assignee_ids ?? []).length
+  const cap = task.role_capacity ?? 1
+  return { isFilled: filled >= cap, label: filled >= cap ? 'Filled' : `${filled}/${cap} filled` }
+}
+
+function emptySlotArray(task: any): number[] {
+  const filled = (task.assignee_ids ?? []).length
+  const cap = task.role_capacity ?? 1
+  return Array.from({ length: Math.min(4, Math.max(0, cap - filled)) }, (_, i) => i)
 }
 
 // ---- Per-field inline editing (overview card) ----
@@ -4532,6 +4668,7 @@ async function saveField(field: string) {
     update.start_at = buildDateTime(editForm.value.start_date, isAllDay ? null : editForm.value.start_time)
     update.end_at = buildDateTime(editForm.value.end_date, isAllDay ? null : editForm.value.end_time)
     update.recurrence_rule = editForm.value.repeat || null
+    update.exdates = editForm.value.exdates ?? []
   }
   if (field === 'signup') {
     update.reg_open_at = editForm.value.reg_open_at ?? null
@@ -4557,7 +4694,15 @@ async function saveField(field: string) {
     if (event.value) Object.assign(event.value, update)
     toast.add({ severity: 'success', summary: 'Saved', life: 2000 })
     if (field === 'location') await syncVenueBookings()
-    if (field === 'date') await updateVenueBookingTimes()
+    if (field === 'date') {
+      await updateVenueBookingTimes()
+      // Auto-generate occurrences when a recurrence rule is set on the master.
+      const rule = editForm.value.repeat
+      const isMaster = !event.value?.recurrence_parent_id
+      if (isMaster && rule && rule !== 'NONE' && editForm.value.start_date) {
+        await generateOccurrences()
+      }
+    }
   }
   fieldEditing[field] = false
   savingField.value = null
@@ -4653,6 +4798,8 @@ const editForm = ref<any>({
   end_date: null as Date | null,
   end_time: null as Date | null,
   repeat: '' as string,
+  exdates: [] as string[],
+  hide_banner: false,
   locations: [{ type: 'ADDRESS', venue_name: '', address: '', meeting_link: '', bookable_ids: [] as string[] }] as LocationEntry[],
   is_public: false,
   is_featured: false,
@@ -4726,18 +4873,15 @@ function addFormField() {
   evtForm.selectedFieldType = null
 }
 
-const evtFormGroupsList = ref<{ id: string; name: string; person_type: string }[]>([
-  { id: 'member-general', name: 'Member Registration', person_type: 'member' },
-  { id: 'public-general', name: 'Public Registration', person_type: 'public' },
+const evtFormGroupsList = ref<{ id: string; name: string; person_type: string; audience: 'all' | 'members' | 'public' }[]>([
+  { id: 'general', name: 'Registration Form', person_type: 'all', audience: 'all' },
 ])
 const evtFormGroupModes = reactive<Record<string, string>>({
-  'member-general': '',
-  'public-general': '',
+  'general': '',
 })
 type SessionDisplayMode = 'select' | 'info' | 'hidden'
 const evtFormGroupSessions = reactive<Record<string, Record<string, SessionDisplayMode>>>({
-  'member-general': {},
-  'public-general': {},
+  'general': {},
 })
 const currentFormGroupSessions = computed(() => evtFormGroupSessions[selectedFormGroupId.value] ?? {})
 
@@ -4758,7 +4902,7 @@ function evtSelectAllFormSessions() {
   evtFormGroupSessions[selectedFormGroupId.value] = map
 }
 
-const selectedFormGroupId = ref('member-general')
+const selectedFormGroupId = ref('general')
 const evtFormShowSections = ref(false)
 const evtSelectedFormSection = ref('')
 watch(
@@ -4829,7 +4973,7 @@ function sessionFeeAmount(s: any): number | null {
   if (s._feesConfig.all_charged_equally) {
     return (s._feesConfig.base_fees ?? []).reduce((sum: number, f: any) => sum + (f.amount ?? 0), 0)
   }
-  const grp = s._feesConfig.groups?.find((g: any) => g.person_type === currentFormPersonType.value)
+  const grp = s._feesConfig.groups?.[0]
   if (grp) return (grp.fees ?? []).reduce((sum: number, f: any) => sum + (f.amount ?? 0), 0)
   return null
 }
@@ -5137,6 +5281,31 @@ function onDropField(e: DragEvent) {
   dropZoneActive.value = false
 }
 
+// ── Sortable wiring for the events-form field canvas ────────
+import Sortable from 'sortablejs'
+const fieldListEl = ref<HTMLElement | null>(null)
+let evtFieldSortable: any = null
+function destroyEvtFieldSortable() {
+  if (evtFieldSortable) { evtFieldSortable.destroy(); evtFieldSortable = null }
+}
+watch(fieldListEl, (el) => {
+  destroyEvtFieldSortable()
+  if (!el) return
+  evtFieldSortable = Sortable.create(el, {
+    handle: '.field-drag-handle',
+    animation: 150,
+    onEnd: () => {
+      const ids = Array.from(el.querySelectorAll<HTMLElement>('[data-field-key]'))
+        .map(n => n.dataset.fieldKey!)
+      const list = evtFormGroupFields[selectedFormGroupId.value]
+      if (!list) return
+      list.sort((a: any, b: any) => ids.indexOf(a.id) - ids.indexOf(b.id))
+      persistEvtFormConfig?.()
+    },
+  })
+})
+onBeforeUnmount(destroyEvtFieldSortable)
+
 const evtNewFieldDraft = reactive({ label: '', field_type: 'text', placeholder: '' })
 const customFieldTypes = [
   { value: 'text',     label: 'Short Text' },
@@ -5211,43 +5380,6 @@ const connectionOptions = [
 
 // ── Field Editor Tab ─────────────────────────────────────────────────────────
 const evtFieldEditorTab = ref<'details' | 'advanced'>('details')
-
-// ── Condition / Rule helpers ──────────────────────────────────────────────────
-const evtConditionFields = ['Attendee type', 'Gender', 'Age', 'Member type', 'Club', 'Division', 'Grade', 'Session']
-const evtConditionOperators = ['Equals', 'Is Not', 'Contains', 'Is Empty', 'Is Not Empty']
-const evtAccountCodes = ['ACC-001', 'ACC-002', 'ACC-003', 'ACC-004', 'ACC-005']
-
-function makeEvtCondition(): FieldCondition {
-  return { id: crypto.randomUUID(), field: '', operator: 'Equals', value: '' }
-}
-function makeEvtFinancialRule(): FinancialRule {
-  return { id: crypto.randomUUID(), conditions: [makeEvtCondition()], account_code: '', fee_name: '', fee_type: 'increase', amount: '' }
-}
-function addEvtVisibilityCondition(field: FormField | null) {
-  if (!field) return
-  field.visibility_conditions.push(makeEvtCondition())
-}
-function removeEvtVisibilityCondition(field: FormField | null, id: string) {
-  if (!field) return
-  const idx = field.visibility_conditions.findIndex(c => c.id === id)
-  if (idx >= 0) field.visibility_conditions.splice(idx, 1)
-}
-function addEvtFinancialRule(field: FormField | null) {
-  if (!field) return
-  field.financial_rules.push(makeEvtFinancialRule())
-}
-function removeEvtFinancialRule(field: FormField | null, id: string) {
-  if (!field) return
-  const idx = field.financial_rules.findIndex(r => r.id === id)
-  if (idx >= 0) field.financial_rules.splice(idx, 1)
-}
-function addEvtFinancialCondition(rule: FinancialRule) {
-  rule.conditions.push(makeEvtCondition())
-}
-function removeEvtFinancialCondition(rule: FinancialRule, id: string) {
-  const idx = rule.conditions.findIndex(c => c.id === id)
-  if (idx >= 0) rule.conditions.splice(idx, 1)
-}
 
 // ── Block state (Create New panel) ────────────────────────────────────────────
 const evtNewBlockType = ref<'section' | 'image' | 'text' | 'button' | 'field' | null>(null)
@@ -5535,10 +5667,9 @@ function toggleEvtTerms(label: string) {
   else evtFormTermsSelections.value.splice(idx, 1)
 }
 const evtFormGroupDesigns = reactive<Record<string, any>>({
-  'member-general': { style: 'single', header: 'event', headerImage: '', icons: { date: true, time: true, cost: true, location: true, criteria: true }, description: 'event', customDescription: '', background: 'default', backgroundImage: '', backgroundColor: '#fefefe', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', backgroundOverlay: 1, sponsors: 'show', showSessions: true, sessionsHeading: 'Sessions', sessionsLayout: 'list', sessionsGroupLabel: '', formHeading: 'Fill in the form to register', addPersonColor: '#0e43a3' },
-  'public-general': { style: 'single', header: 'event', headerImage: '', icons: { date: true, time: true, cost: true, location: true, criteria: true }, description: 'event', customDescription: '', background: 'default', backgroundImage: '', backgroundColor: '#fefefe', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', backgroundOverlay: 1, sponsors: 'show', showSessions: true, sessionsHeading: 'Sessions', sessionsLayout: 'list', sessionsGroupLabel: '', formHeading: 'Fill in the form to register', addPersonColor: '#0e43a3' },
+  'general': { style: 'single', header: 'event', headerImage: '', icons: { date: true, time: true, cost: true, location: true, criteria: true }, description: 'event', customDescription: '', background: 'default', backgroundImage: '', backgroundColor: '#fefefe', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', backgroundOverlay: 1, sponsors: 'show', showSessions: true, sessionsHeading: 'Sessions', sessionsLayout: 'list', sessionsGroupLabel: '', formHeading: 'Fill in the form to register', addPersonColor: '#0e43a3' },
 })
-const currentEvtFormDesign = computed(() => evtFormGroupDesigns[selectedFormGroupId.value] ?? evtFormGroupDesigns['member-general'])
+const currentEvtFormDesign = computed(() => evtFormGroupDesigns[selectedFormGroupId.value] ?? evtFormGroupDesigns['general'])
 
 function handleEvtFormImageUpload(field: 'headerImage' | 'backgroundImage', e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
@@ -5569,21 +5700,21 @@ const evtFormGroups = computed(() =>
 
 const showAddFormDialog = ref(false)
 const newFormName = ref('')
-const newFormPersonType = ref('member')
+const newFormAudience = ref<'all' | 'members' | 'public'>('all')
 
 function openAddFormDialog() {
   newFormName.value = ''
-  newFormPersonType.value = 'member'
+  newFormAudience.value = 'all'
   showAddFormDialog.value = true
 }
 
 function confirmAddEvtFormGroup() {
   const name = newFormName.value.trim() || `Form ${evtFormGroupsList.value.length + 1}`
   const newId = crypto.randomUUID()
-  evtFormGroupsList.value.push({ id: newId, name, person_type: newFormPersonType.value })
+  evtFormGroupsList.value.push({ id: newId, name, person_type: 'all', audience: newFormAudience.value })
   evtFormGroupModes[newId] = ''
   evtFormGroupSessions[newId] = {}
-  evtFormGroupDesigns[newId] = { ...evtFormGroupDesigns['member-general'] }
+  evtFormGroupDesigns[newId] = { ...evtFormGroupDesigns['general'] }
   showAddFormDialog.value = false
   selectEvtFormGroup(newId)
 }
@@ -5595,7 +5726,7 @@ function removeEvtFormGroup(id: string) {
   if (idx === -1) return
   evtFormGroupsList.value.splice(idx, 1)
   if (selectedFormGroupId.value === id) {
-    selectedFormGroupId.value = evtFormGroupsList.value[0]?.id ?? 'member-general'
+    selectedFormGroupId.value = evtFormGroupsList.value[0]?.id ?? 'general'
     evtFormShowSections.value = false
   }
   formToDelete.value = null
@@ -5605,16 +5736,8 @@ const currentEvtFormGroupName = computed(() =>
   evtFormGroupsList.value.find(g => g.id === selectedFormGroupId.value)?.name ?? ''
 )
 
-const currentFormPersonType = computed(() =>
-  evtFormGroupsList.value.find(g => g.id === selectedFormGroupId.value)?.person_type ?? 'public'
-)
 
-function sessionVisibleOnForm(s: any): boolean {
-  const modes: string[] = s._inviteeModes ?? ['all_members']
-  const pt = currentFormPersonType.value
-  if (pt === 'public')  return modes.includes('public')
-  if (pt === 'member')  return modes.includes('all_members') || modes.includes('groups')
-  if (pt === 'guest')   return modes.includes('invitees')
+function sessionVisibleOnForm(_s: any): boolean {
   return true
 }
 
@@ -5662,7 +5785,7 @@ async function loadEvtFormConfig() {
     evtFormGroupsList.value = c.groups
     c.groups.forEach((g: any) => {
       if (!(g.id in evtFormGroupModes)) evtFormGroupModes[g.id] = ''
-      if (!(g.id in evtFormGroupDesigns)) evtFormGroupDesigns[g.id] = { ...evtFormGroupDesigns['member-general'] }
+      if (!(g.id in evtFormGroupDesigns)) evtFormGroupDesigns[g.id] = { ...evtFormGroupDesigns['general'] }
     })
   }
   if (c.modes) Object.assign(evtFormGroupModes, c.modes)
@@ -5708,14 +5831,14 @@ const evtFormSections = computed(() => {
   if (infoCount) parts.push(`${infoCount} info`)
   const sessionsSubtitle = hasSessions ? (parts.length ? parts.join(', ') : `${eligibleSessions.length} selectable`) : 'Not configured'
   if (mode === 'simple') return [
-    ...(hasSessions ? [{ id: 'sessions', index: 1, label: 'Sessions', icon: 'pi-calendar', complete: sessionsComplete, subtitle: sessionsSubtitle }] : []),
-    { id: 'design', index: hasSessions ? 2 : 1, label: 'Design', icon: 'pi-pencil', complete: !!saved.design, subtitle: null },
+    { id: 'design', index: 1, label: 'Settings', icon: 'pi-cog', complete: !!saved.design, subtitle: null },
+    ...(hasSessions ? [{ id: 'sessions', index: 2, label: 'Sessions', icon: 'pi-calendar', complete: sessionsComplete, subtitle: sessionsSubtitle }] : []),
     { id: 'terms', index: hasSessions ? 3 : 2, label: 'Terms & Conditions', icon: 'pi-file', complete: !!saved.terms, subtitle: null },
     { id: 'payment', index: hasSessions ? 4 : 3, label: 'Payment Options', icon: 'pi-credit-card', complete: !!saved.payment, subtitle: null },
   ]
   return [
-    ...(hasSessions ? [{ id: 'sessions', index: 1, label: 'Sessions', icon: 'pi-calendar', complete: sessionsComplete, subtitle: sessionsSubtitle }] : []),
-    { id: 'design', index: hasSessions ? 2 : 1, label: 'Design', icon: 'pi-pencil', complete: !!saved.design, subtitle: null },
+    { id: 'design', index: 1, label: 'Settings', icon: 'pi-cog', complete: !!saved.design, subtitle: null },
+    ...(hasSessions ? [{ id: 'sessions', index: 2, label: 'Sessions', icon: 'pi-calendar', complete: sessionsComplete, subtitle: sessionsSubtitle }] : []),
     { id: 'fields', index: hasSessions ? 3 : 2, label: 'Form', icon: 'pi-list', complete: !!saved.fields, subtitle: null },
     { id: 'terms', index: hasSessions ? 4 : 3, label: 'Terms & Conditions', icon: 'pi-file', complete: !!saved.terms, subtitle: null },
     { id: 'payment', index: hasSessions ? 5 : 4, label: 'Payment Options', icon: 'pi-credit-card', complete: !!saved.payment, subtitle: null },
@@ -7028,6 +7151,7 @@ const sessionTabs = [
   { key: 'overview',  label: 'Overview',  icon: 'pi-info-circle' },
   { key: 'invitees',  label: 'Invitees',  icon: 'pi-users' },
   { key: 'fees',      label: 'Fees',      icon: 'pi-dollar' },
+  { key: 'addons',    label: 'Add-ons',   icon: 'pi-tag' },
   { key: 'settings',  label: 'Settings',  icon: 'pi-cog' },
 ]
 
@@ -7217,6 +7341,7 @@ async function loadSessions() {
       _endTime: s.end_at ? new Date(s.end_at) : null,
       _hasCapacity: !!s.capacity_max,
       repeat: s.recurrence_rule ?? '',
+      exdates: s.exdates ?? [],
       _locations: makeSessionLocations(s),
       _inviteeModes: s.invitee_modes ?? ['all_members'],
       _inviteeGroups: s.invitee_groups ?? [],
@@ -7282,6 +7407,10 @@ function buildSessionPayload(s: any, idx: number) {
     is_master: s.is_master ?? false,
     master_id: s.master_id ?? null,
     admins: s.admins ?? [],
+    exdates: s.exdates ?? [],
+    addons: (s.addons ?? [])
+      .filter((a: any) => a.name?.trim())
+      .map((a: any) => ({ ...a, fees: (a.fees ?? []).filter((f: any) => f.name?.trim() || f.amount != null) })),
   }
 }
 
@@ -7421,7 +7550,14 @@ function addNote() {
 // ---- Banner upload ----
 const { uploadFile } = useUpload()
 const bannerInput = ref<HTMLInputElement | null>(null)
+const bannerEditing = ref(false)
 const uploadingBanner = ref(false)
+
+async function toggleHideBanner() {
+  editForm.value.hide_banner = !editForm.value.hide_banner
+  await db.from('events').update({ hide_banner: editForm.value.hide_banner }).eq('id', id)
+  if (event.value) event.value.hide_banner = editForm.value.hide_banner
+}
 
 async function handleBannerUpload(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
@@ -7538,6 +7674,8 @@ async function loadEvent() {
       reg_open_at: data.reg_open_at ? new Date(data.reg_open_at) : null,
       reg_close_at: data.reg_close_at ? new Date(data.reg_close_at) : null,
       repeat: data.recurrence_rule ?? '',
+      exdates: data.exdates ?? [],
+      hide_banner: data.hide_banner ?? false,
     }
     // Load automation settings
     if (data.automation && typeof data.automation === 'object') {
@@ -7571,14 +7709,7 @@ async function loadInvitees() {
 async function loadFees() {
   feesLoading.value = true
   const { data } = await db.from('fee_components').select('*').eq('event_id', id).is('session_id', null).order('sort_order')
-  if (data && data.length) {
-    feeLineItems.value = data.map((f: any) => ({ id: f.id, name: f.name, xero_code: f.xero_code ?? '', amount: f.amount }))
-  } else {
-    // Seed a default fee line item named after the event
-    const defaultFee = { id: crypto.randomUUID(), name: event.value?.title ?? '', xero_code: '', amount: null }
-    feeLineItems.value = [defaultFee]
-    await db.from('fee_components').insert({ id: defaultFee.id, event_id: id, name: defaultFee.name, xero_code: null, amount: 0, sort_order: 0, session_id: null })
-  }
+  feeLineItems.value = (data ?? []).map((f: any) => ({ id: f.id, name: f.name, xero_code: f.xero_code ?? '', amount: f.amount }))
   feesLoading.value = false
 }
 
@@ -7692,9 +7823,130 @@ async function unpublishEvent() {
   loadEvent()
 }
 
+// ── Recurring series management ──────────────────────────
+const seriesChildrenCount = ref(0)
+const generatingSeries = ref(false)
+const seriesArchiveOpen = ref(false)
+const seriesArchiveScope = ref<'this' | 'following' | 'all'>('this')
+
+async function loadSeriesChildrenCount() {
+  const { count } = await (db.from as any)('events')
+    .select('id', { count: 'exact', head: true })
+    .eq('recurrence_parent_id', id)
+  seriesChildrenCount.value = count ?? 0
+}
+
+async function generateOccurrences() {
+  const rule = editForm.value.repeat
+  if (!rule || rule === 'NONE') return
+  if (!editForm.value.start_date) {
+    toast.add({ severity: 'warn', summary: 'Start date required', life: 3000 })
+    return
+  }
+  generatingSeries.value = true
+  try {
+    const { expandRrule, dateKey } = await import('~/composables/useRecurrence')
+
+    const masterStart = buildDateTime(editForm.value.start_date, editForm.value.is_all_day ? null : editForm.value.start_time)
+    const masterEnd = buildDateTime(editForm.value.end_date, editForm.value.is_all_day ? null : editForm.value.end_time)
+    const startDt = new Date(masterStart!)
+    const duration = masterEnd ? (new Date(masterEnd).getTime() - startDt.getTime()) : 0
+
+    // Cap window at 12 months ahead unless rule has UNTIL/COUNT
+    const windowEnd = new Date(startDt)
+    windowEnd.setFullYear(windowEnd.getFullYear() + 1)
+    const occurrences = expandRrule(rule, startDt, windowEnd, 200)
+
+    const exdateSet = new Set(editForm.value.exdates ?? [])
+    const masterKey = dateKey(startDt)
+
+    // Fetch master event row to clone
+    const { data: master } = await db.from('events').select('*').eq('id', id).single()
+    if (!master) throw new Error('Could not load master event')
+
+    // Strip fields that should not be cloned
+    const { id: _id, created_at, updated_at, recurrence_rule, recurrence_parent_id, exdates, ...cloneable } = master as any
+
+    const childRows = occurrences
+      .filter(d => {
+        const key = dateKey(d)
+        if (key === masterKey) return false
+        if (exdateSet.has(key)) return false
+        return true
+      })
+      .map(d => {
+        const childStart = new Date(d)
+        childStart.setHours(startDt.getHours(), startDt.getMinutes(), 0, 0)
+        const childEnd = new Date(childStart.getTime() + duration)
+        return {
+          ...cloneable,
+          recurrence_parent_id: id,
+          recurrence_rule: null,
+          exdates: [],
+          start_at: childStart.toISOString(),
+          end_at: childEnd.toISOString(),
+        }
+      })
+
+    // Replace any existing children
+    await db.from('events').delete().eq('recurrence_parent_id', id)
+    if (childRows.length) {
+      const { error } = await db.from('events').insert(childRows)
+      if (error) throw error
+    }
+    await loadSeriesChildrenCount()
+    toast.add({
+      severity: 'success',
+      summary: 'Series generated',
+      detail: `${childRows.length} occurrence${childRows.length === 1 ? '' : 's'} created.`,
+      life: 3000,
+    })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Generation failed', detail: e?.message ?? '', life: 5000 })
+  } finally {
+    generatingSeries.value = false
+  }
+}
+
 async function archiveEvent() {
+  // If part of a series (parent or child), prompt for scope
+  const isParent = seriesChildrenCount.value > 0
+  const isChild = !!event.value?.recurrence_parent_id
+  if (isParent || isChild) {
+    seriesArchiveScope.value = 'this'
+    seriesArchiveOpen.value = true
+    return
+  }
   await db.from('events').update({ status: 'ARCHIVED' }).eq('id', id)
   toast.add({ severity: 'success', summary: 'Event archived', life: 3000 })
+  navigateTo('/events')
+}
+
+async function performSeriesArchive() {
+  const scope = seriesArchiveScope.value
+  const parentId = event.value?.recurrence_parent_id ?? id
+  const thisStart = event.value?.start_at
+
+  if (scope === 'this') {
+    await db.from('events').update({ status: 'ARCHIVED' }).eq('id', id)
+  } else if (scope === 'following') {
+    if (thisStart) {
+      // Archive this and any siblings (or children) starting on/after this event
+      const ids = new Set<string>([id])
+      const { data: siblings } = await db.from('events')
+        .select('id, start_at')
+        .or(`id.eq.${parentId},recurrence_parent_id.eq.${parentId}`)
+        .gte('start_at', thisStart)
+      for (const s of siblings ?? []) ids.add(s.id)
+      await db.from('events').update({ status: 'ARCHIVED' }).in('id', [...ids])
+    }
+  } else if (scope === 'all') {
+    await db.from('events').update({ status: 'ARCHIVED' })
+      .or(`id.eq.${parentId},recurrence_parent_id.eq.${parentId}`)
+  }
+
+  seriesArchiveOpen.value = false
+  toast.add({ severity: 'success', summary: 'Archived', life: 3000 })
   navigateTo('/events')
 }
 
@@ -7854,7 +8106,7 @@ watch(activeTab, (tab, oldTab) => {
   if (tab === 'communication') loadComms()
   if (tab === 'discounts') loadDiscounts()
   if (tab === 'reporting') { if (!sessions.value.length) loadSessions().then(loadReporting); else loadReporting() }
-  if (tab === 'notes') loadTasks()
+  if (tab === 'notes') { loadTasks(); loadEventNotes() }
 })
 
 function triggerSessionAutoSave(session: any) {
@@ -7899,7 +8151,24 @@ onBeforeRouteLeave(() => {
 })
 
 onMounted(async () => {
-  await loadEvent()
+  document.addEventListener('click', closeTaskPersonPicker)
+
+  // Kick off all independent queries in parallel with the main event load
+  const [, bookablesResult, categoriesResult] = await Promise.all([
+    loadEvent(),
+    db.from('bookables').select('id, name, parent_id').eq('org_id', orgId.value).eq('type', 'VENUE').eq('status', 'ACTIVE'),
+    db.from('categories').select('id, name, color').eq('org_id', orgId.value).order('name'),
+  ])
+  allBookables.value = bookablesResult.data ?? []
+  allCategories.value = categoriesResult.data ?? []
+
+  // Fire remaining loads without blocking (they populate as they arrive)
+  loadInvitees()
+  loadFees()
+  loadSeriesChildrenCount()
+  if (activeTab.value === 'sessions' || activeTab.value === 'forms') loadSessions()
+  if (activeTab.value === 'discounts' || activeTab.value === 'forms') loadDiscounts()
+  if (activeTab.value === 'forms') loadEvtFormConfig()
 
   // Apply query-param date prefill and persist to DB
   if (route.query.date) {
@@ -7954,23 +8223,16 @@ onMounted(async () => {
     }
   }
 
-  if (activeTab.value === 'sessions' || activeTab.value === 'forms') loadSessions()
-  if (activeTab.value === 'discounts' || activeTab.value === 'forms') loadDiscounts()
-  if (activeTab.value === 'forms') loadEvtFormConfig()
-  loadInvitees()
-  loadCategories()
-  loadFees()
-  // Load bookables for locationSummary venue-name resolution
-  const { data } = await db.from('bookables').select('id, name, parent_id').eq('org_id', orgId.value).eq('type', 'VENUE').eq('status', 'ACTIVE')
-  allBookables.value = data ?? []
-
   // Auto-focus the title for new events without a title
   if (!event.value?.title && event.value?.style !== 'ADVANCED') {
     startFieldEdit('title')
   }
 })
 
-onUnmounted(() => { breadcrumbs.value = [] })
+onUnmounted(() => {
+  breadcrumbs.value = []
+  document.removeEventListener('click', closeTaskPersonPicker)
+})
 </script>
 
 <style scoped>

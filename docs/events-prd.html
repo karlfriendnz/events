@@ -1,0 +1,3378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FriendlyManager Events Module — PRD</title>
+  <style>
+    :root {
+      --navy: #1E2157;
+      --navy-light: #f0f4ff;
+      --green: #34B66D;
+      --red: #ef4444;
+      --amber: #F59E0B;
+      --blue: #2494D2;
+      --border: #e5e7eb;
+      --text: #111827;
+      --muted: #6b7280;
+      --bg: #F5F8FA;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    /* ── Page shell ── */
+    .shell {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar TOC ── */
+    .sidebar {
+      width: 260px;
+      min-width: 260px;
+      background: white;
+      border-right: 1px solid var(--border);
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      overflow-y: auto;
+      padding: 0 0 32px;
+      z-index: 10;
+    }
+
+    .sidebar-header {
+      padding: 20px 18px 14px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: white;
+      z-index: 1;
+    }
+
+    .sidebar-header .product-name {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--navy);
+    }
+
+    .sidebar-header .doc-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-top: 2px;
+    }
+
+    .sidebar-header .meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+
+    .toc { padding: 12px 0; }
+
+    .toc a {
+      display: block;
+      padding: 5px 18px;
+      font-size: 12.5px;
+      color: var(--muted);
+      text-decoration: none;
+      transition: color .15s, background .15s;
+      line-height: 1.4;
+    }
+
+    .toc a:hover, .toc a.active {
+      color: var(--navy);
+      background: var(--navy-light);
+    }
+
+    .toc .toc-section-label {
+      padding: 14px 18px 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+
+    /* ── Main content ── */
+    .content {
+      margin-left: 260px;
+      flex: 1;
+      padding: 48px 56px 80px;
+      max-width: 960px;
+    }
+
+    /* ── Cover ── */
+    .cover {
+      background: linear-gradient(135deg, var(--navy) 0%, #2e38a8 100%);
+      color: white;
+      border-radius: 16px;
+      padding: 48px;
+      margin-bottom: 48px;
+    }
+
+    .cover .badge {
+      display: inline-block;
+      background: rgba(255,255,255,.15);
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 3px 12px;
+      margin-bottom: 16px;
+    }
+
+    .cover h1 {
+      font-size: 32px;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 12px;
+      border: none;
+      color: white;
+    }
+
+    .cover .subtitle {
+      font-size: 15px;
+      color: rgba(255,255,255,.75);
+      margin-bottom: 28px;
+    }
+
+    .cover-meta {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .cover-meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .cover-meta-item .label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.5);
+    }
+
+    .cover-meta-item .value {
+      font-size: 13px;
+      font-weight: 600;
+      color: white;
+    }
+
+    /* ── Typography ── */
+    h1 {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--navy);
+      margin: 48px 0 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid var(--border);
+      scroll-margin-top: 24px;
+    }
+
+    h1:first-of-type { margin-top: 0; }
+
+    h2 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      margin: 32px 0 12px;
+      scroll-margin-top: 24px;
+    }
+
+    h3 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--navy);
+      margin: 24px 0 8px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      scroll-margin-top: 24px;
+    }
+
+    h4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 20px 0 6px;
+    }
+
+    p { margin: 0 0 12px; }
+
+    a { color: var(--navy); }
+
+    ul, ol {
+      padding-left: 20px;
+      margin: 0 0 14px;
+    }
+
+    li { margin-bottom: 4px; }
+
+    strong { font-weight: 600; }
+
+    code {
+      background: var(--navy-light);
+      color: var(--navy);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 12.5px;
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+    }
+
+    pre {
+      background: #111827;
+      color: #e5e7eb;
+      border-radius: 10px;
+      padding: 18px 20px;
+      overflow-x: auto;
+      font-size: 12.5px;
+      font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace;
+      margin: 0 0 16px;
+    }
+
+    pre code {
+      background: none;
+      color: inherit;
+      padding: 0;
+      border-radius: 0;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 36px 0;
+    }
+
+    /* ── Tables ── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 0 20px;
+      font-size: 13px;
+    }
+
+    thead tr {
+      background: var(--navy);
+      color: white;
+    }
+
+    thead th {
+      padding: 9px 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 11.5px;
+      letter-spacing: .03em;
+      white-space: nowrap;
+    }
+
+    thead th:first-child { border-radius: 6px 0 0 0; }
+    thead th:last-child  { border-radius: 0 6px 0 0; }
+
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody tr:hover { background: var(--navy-light); }
+    tbody tr:last-child { border-bottom: none; }
+
+    td {
+      padding: 8px 12px;
+      vertical-align: top;
+    }
+
+    td code { font-size: 11.5px; }
+
+    /* ── Callout cards ── */
+    blockquote {
+      border-left: 3px solid var(--navy);
+      background: var(--navy-light);
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      margin: 0 0 16px;
+      color: var(--text);
+    }
+
+    /* ── Section headers ── */
+    .section-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--navy);
+      color: white;
+      border-radius: 100px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      margin-bottom: 8px;
+    }
+
+    /* ── Print ── */
+    @media print {
+      .sidebar { display: none; }
+      .content { margin-left: 0; padding: 24px; max-width: 100%; }
+      h1 { page-break-before: always; }
+      h1:first-of-type { page-break-before: avoid; }
+      table, pre, blockquote { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <div class="product-name">FriendlyManager</div>
+      <div class="doc-name">Events Module PRD</div>
+      <div class="meta">v1.0 · 2026-04-23</div>
+    </div>
+    <div class="toc">
+      <div class="toc-section-label">Overview</div>
+      <a href="#1-product-overview">1. Product Overview</a>
+      <a href="#2-users--personas">2. Users & Personas</a>
+      <a href="#3-event-styles">3. Event Styles</a>
+      <a href="#4-screen-map--urls">4. Screen Map & URLs</a>
+
+      <div class="toc-section-label">Creation Flows</div>
+      <a href="#5-feature-event-list--calendar">5. Event List & Calendar</a>
+      <a href="#6-feature-create-basic-event">6. Create Basic Event</a>
+      <a href="#7-feature-create-advanced-event">7. Create Advanced Event</a>
+      <a href="#8-feature-create-multi-session-event">8. Create Multi-Session Event</a>
+
+      <div class="toc-section-label">Event Detail Tabs</div>
+      <a href="#9-feature-event-detail--overview-tab">9. Overview Tab</a>
+      <a href="#10-feature-event-detail--sessions-tab">10. Sessions Tab</a>
+      <a href="#11-feature-event-detail--invitees-tab">11. Invitees Tab</a>
+      <a href="#12-feature-event-detail--forms-tab">12. Forms Tab</a>
+      <a href="#13-feature-event-detail--discounts-tab">13. Discounts Tab</a>
+      <a href="#14-feature-event-detail--tickets-tab">14. Tickets Tab</a>
+      <a href="#15-feature-event-detail--communication-tab">15. Communication Tab</a>
+      <a href="#16-feature-event-detail--automation-tab">16. Automation Tab</a>
+      <a href="#17-feature-event-detail--attendance-tab">17. Attendance Tab</a>
+      <a href="#18-feature-event-detail--reporting-tab">18. Reporting Tab</a>
+      <a href="#19-feature-event-detail--notes--tasks-tab">19. Notes & Tasks Tab</a>
+      <a href="#20-feature-event-settings-tab">20. Settings Tab</a>
+
+      <div class="toc-section-label">Reference</div>
+      <a href="#21-feature-categories">21. Categories</a>
+      <a href="#22-feature-named-calendars">22. Named Calendars</a>
+      <a href="#23-data-model-reference">23. Data Model</a>
+      <a href="#24-business-rules-reference">24. Business Rules</a>
+      <a href="#25-out-of-scope--v1">25. Out of Scope</a>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="content">
+
+    <!-- Cover -->
+    <div class="cover">
+      <div class="badge">Product Requirements Document</div>
+      <h1>Events Module</h1>
+      <p class="subtitle">FriendlyManager Events Platform — complete specification for the event lifecycle management system including authoring, registration, attendance, and reporting.</p>
+      <div class="cover-meta">
+        <div class="cover-meta-item">
+          <span class="label">Version</span>
+          <span class="value">1.0</span>
+        </div>
+        <div class="cover-meta-item">
+          <span class="label">Date</span>
+          <span class="value">2026-04-23</span>
+        </div>
+        <div class="cover-meta-item">
+          <span class="label">Status</span>
+          <span class="value">In Development</span>
+        </div>
+        <div class="cover-meta-item">
+          <span class="label">Sections</span>
+          <span class="value">25</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Body (generated from markdown) -->
+    <h1>FriendlyManager Events Module — Product Requirements Document</h1>
+<p><strong>Version:</strong> 1.0<br><strong>Date:</strong> 2026-04-23<br><strong>Status:</strong> In Development<br><strong>Author:</strong> FriendlyManager Product Team</p>
+<hr>
+<h2>Table of Contents</h2>
+<ol>
+<li><a href="#1-product-overview">Product Overview</a></li>
+<li><a href="#2-users--personas">Users &amp; Personas</a></li>
+<li><a href="#3-event-styles">Event Styles</a></li>
+<li><a href="#4-screen-map--urls">Screen Map &amp; URLs</a></li>
+<li><a href="#5-feature-event-list--calendar">Feature: Event List &amp; Calendar</a></li>
+<li><a href="#6-feature-create-basic-event">Feature: Create Basic Event</a></li>
+<li><a href="#7-feature-create-advanced-event">Feature: Create Advanced Event</a></li>
+<li><a href="#8-feature-create-multi-session-event">Feature: Create Multi-Session Event</a></li>
+<li><a href="#9-feature-event-detail--overview-tab">Feature: Event Detail — Overview Tab</a></li>
+<li><a href="#10-feature-event-detail--sessions-tab">Feature: Event Detail — Sessions Tab</a></li>
+<li><a href="#11-feature-event-detail--invitees-tab">Feature: Event Detail — Invitees Tab</a></li>
+<li><a href="#12-feature-event-detail--forms-tab">Feature: Event Detail — Forms Tab</a></li>
+<li><a href="#13-feature-event-detail--discounts-tab">Feature: Event Detail — Discounts Tab</a></li>
+<li><a href="#14-feature-event-detail--tickets-tab">Feature: Event Detail — Tickets Tab</a></li>
+<li><a href="#15-feature-event-detail--communication-tab">Feature: Event Detail — Communication Tab</a></li>
+<li><a href="#16-feature-event-detail--automation-tab">Feature: Event Detail — Automation Tab</a></li>
+<li><a href="#17-feature-event-detail--attendance-tab">Feature: Event Detail — Attendance Tab</a></li>
+<li><a href="#18-feature-event-detail--reporting-tab">Feature: Event Detail — Reporting Tab</a></li>
+<li><a href="#19-feature-event-detail--notes--tasks-tab">Feature: Event Detail — Notes &amp; Tasks Tab</a></li>
+<li><a href="#20-feature-event-settings-tab">Feature: Event Settings Tab</a></li>
+<li><a href="#21-feature-categories">Feature: Categories</a></li>
+<li><a href="#22-feature-named-calendars">Feature: Named Calendars</a></li>
+<li><a href="#23-data-model-reference">Data Model Reference</a></li>
+<li><a href="#24-business-rules-reference">Business Rules Reference</a></li>
+<li><a href="#25-out-of-scope--v1">Out of Scope — v1</a></li>
+</ol>
+<hr>
+<h2>1. Product Overview</h2>
+<p>FriendlyManager Events is the core event lifecycle management module for National Sports Organisations (NSOs) and their affiliated clubs. It covers the full journey from authoring an event through to post-event reporting: scheduling, invitee management, registration forms, fees, discounts, attendance, and communications.</p>
+<h3>Problem Statement</h3>
+<p>Sports organisations currently manage events across disconnected tools — spreadsheets, third-party ticketing platforms, physical booking logs, and accounting software. This creates manual reconciliation overhead, data silos, and a fragmented experience for participants.</p>
+<p>The Events module replaces this patchwork with a single, integrated flow that handles every event type a sports club runs, from a 15-minute committee meeting to a week-long holiday camp.</p>
+<h3>Design Principles</h3>
+<ol>
+<li><strong>Inheritance over repetition</strong> — defaults cascade NSO → Category → Event → Session; users configure exceptions, not rules.</li>
+<li><strong>Guard rails, not gates</strong> — warn before blocking; allow admin overrides with intentional friction (password confirmation), not hard locks.</li>
+<li><strong>Real-time state</strong> — capacity counts, waitlist positions, and payment statuses always reflect live data.</li>
+<li><strong>Audit everything</strong> — every state change is logged with full context.</li>
+<li><strong>Mobile where it matters</strong> — attendance, scan, and basic-event authoring are first-class on mobile; complex wizard authoring is desktop-only.</li>
+</ol>
+<h3>Success Criteria</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Criterion</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>NSO admin can author a master event and share it to 10+ clubs in under 15 minutes, with Xero-code compliance enforced before any club can publish.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Club member can complete the full registration flow — session selection, sibling registration, discount application, payment — without contacting staff.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Zero double-bookings reach published state without an explicit admin password override.</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Attendance reports are available in real time during a session, with bulk-action toolbar.</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Public registrant with no FM account can complete registration and payment in under 5 minutes.</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>2. Users &amp; Personas</h2>
+<h3>NSO Admin</h3>
+<p>National Sports Organisation administrator. Authors master events, sets financial defaults, distributes events to affiliated clubs, requires consolidated cross-club reporting.</p>
+<ul>
+<li><strong>Goals:</strong> Author once, distribute to many. Enforce fee compliance. See rolled-up data.</li>
+<li><strong>Pain points:</strong> Clubs override pricing incorrectly. Xero codes are inconsistent. No single cross-club view.</li>
+</ul>
+<h3>Club Admin / Event Coordinator</h3>
+<p>Runs day-to-day event operations for a single club. Accepts shared events, creates club-specific events, manages attendees and finances.</p>
+<ul>
+<li><strong>Goals:</strong> Fast event setup. Override what needs overriding without breaking NSO defaults. Mobile access for simple events.</li>
+<li><strong>Pain points:</strong> Multi-step fee config is complex. Conflict detection on venues is manual. Registration status scattered.</li>
+</ul>
+<h3>Coach / Session Lead</h3>
+<p>Runs individual sessions, takes attendance.</p>
+<ul>
+<li><strong>Goals:</strong> Fast attendance capture on mobile. Clear view of who should be at each session.</li>
+<li><strong>Pain points:</strong> Attendee lists don&#39;t update when group membership changes. No mobile-friendly attendance UI.</li>
+</ul>
+<h3>Member (Parent / Player)</h3>
+<p>Registers self or children for events, pays fees, tracks attendance.</p>
+<ul>
+<li><strong>Goals:</strong> Clear pricing upfront. Stable registration link. Visible waitlist position. Single flow for multiple family members.</li>
+<li><strong>Pain points:</strong> Surprise fees at checkout. Unclear hold-spot expiry. No auto-applied sibling discount.</li>
+</ul>
+<h3>Public Registrant</h3>
+<p>Non-member registering via a public URL.</p>
+<ul>
+<li><strong>Goals:</strong> Complete registration without creating an account. Clear pricing. Confirmation on payment.</li>
+<li><strong>Pain points:</strong> Forced account creation before seeing pricing. No live capacity indicator.</li>
+</ul>
+<h3>Finance Admin</h3>
+<p>Reconciles payments, manages refunds, maps fee components to Xero codes.</p>
+<ul>
+<li><strong>Goals:</strong> Accurate Xero codes per fee component. Automated invoice sync. Clear refund audit trail.</li>
+<li><strong>Pain points:</strong> Clubs publish events with unmapped fees. Out-of-system refunds break reconciliation.</li>
+</ul>
+<hr>
+<h2>3. Event Styles</h2>
+<p>The system supports seven event styles. All share the same <code>events</code> database table; style drives which creation flow and which detail-page tabs are available.</p>
+<table>
+<thead>
+<tr>
+<th>Style</th>
+<th>Code</th>
+<th>Creation Flow</th>
+<th>Description</th>
+<th>Mobile Authoring</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Basic</td>
+<td><code>BASIC</code></td>
+<td>Single-page form</td>
+<td>Quick events — training sessions, committee meetings</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Advanced</td>
+<td><code>ADVANCED</code></td>
+<td>6-step wizard</td>
+<td>Complex events with fees, forms, tickets, discounts</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Multi-Session</td>
+<td><code>MULTI_SESSION</code></td>
+<td>Dedicated multi-session creator</td>
+<td>Holiday programmes — sessions generated from templates across a date range</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Sports Competition</td>
+<td><code>SPORTS_COMPETITION</code></td>
+<td>Advanced wizard</td>
+<td>Competition entries with heats and draws</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Holiday Program / Camp</td>
+<td><code>HOLIDAY_PROGRAM</code></td>
+<td>Advanced wizard + day/session grid</td>
+<td>Multi-day programs with electives and sub-sessions</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Attendance / Class</td>
+<td><code>ATTENDANCE</code></td>
+<td>Basic flow</td>
+<td>Regular classes with recurring attendance tracking</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Competition</td>
+<td><code>COMPETITION</code></td>
+<td>Advanced wizard</td>
+<td>League/tournament structures</td>
+<td>No</td>
+</tr>
+</tbody></table>
+<h3>Event Status Lifecycle</h3>
+<pre><code>DRAFT → PUBLISHED → CANCELLED
+  ↓                    ↓
+ARCHIVED           ARCHIVED
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Badge colour</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>DRAFT</code></td>
+<td>Grey</td>
+<td>Created but not visible to members. Can be edited freely.</td>
+</tr>
+<tr>
+<td><code>PUBLISHED</code></td>
+<td>Green</td>
+<td>Live — visible to invited members. Can be scheduled for future publication.</td>
+</tr>
+<tr>
+<td><code>CANCELLED</code></td>
+<td>Red</td>
+<td>No new registrations. Existing registrants notified.</td>
+</tr>
+<tr>
+<td><code>ARCHIVED</code></td>
+<td>Amber</td>
+<td>Hidden from all views. Data retained.</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>4. Screen Map &amp; URLs</h2>
+<p>All routes are under <code>/events</code>. The app is a Nuxt 3 SPA with Supabase as the backend.</p>
+<h3>List &amp; Creation Routes</h3>
+<table>
+<thead>
+<tr>
+<th>Screen</th>
+<th>URL</th>
+<th>Auth Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Event list / calendar</td>
+<td><code>/events</code></td>
+<td>Yes</td>
+<td>Default view is calendar</td>
+</tr>
+<tr>
+<td>Create Basic Event</td>
+<td><code>/events/new-basic</code></td>
+<td>Yes</td>
+<td>Query params: <code>?name=</code>, <code>?date=</code>, <code>?endDate=</code>, <code>?wizard=1</code></td>
+</tr>
+<tr>
+<td>Create Advanced Event (wizard)</td>
+<td><code>/events/new-advanced</code></td>
+<td>Yes</td>
+<td>Query params: <code>?name=</code>, <code>?date=</code>, <code>?endDate=</code></td>
+</tr>
+<tr>
+<td>Create Multi-Session Event</td>
+<td><code>/events/new-multi</code></td>
+<td>Yes</td>
+<td>Query params: <code>?name=</code>, <code>?date=</code>, <code>?endDate=</code></td>
+</tr>
+<tr>
+<td>Create event (simple form)</td>
+<td><code>/events/new</code></td>
+<td>Yes</td>
+<td>Legacy/non-wizard path; also used with <code>?prefill=1</code> for AI-prefilled</td>
+</tr>
+</tbody></table>
+<h3>Event Detail Routes</h3>
+<p>All detail routes follow <code>/events/[id]</code>. Tab is selected via <code>?tab=</code> query param.</p>
+<table>
+<thead>
+<tr>
+<th>Tab</th>
+<th>URL</th>
+<th>Available For</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Overview</td>
+<td><code>/events/[id]</code> or <code>/events/[id]?tab=overview</code></td>
+<td>All styles</td>
+</tr>
+<tr>
+<td>Sessions</td>
+<td><code>/events/[id]?tab=sessions</code></td>
+<td>Advanced, Multi-Session, Holiday Program</td>
+</tr>
+<tr>
+<td>Discounts</td>
+<td><code>/events/[id]?tab=discounts</code></td>
+<td>Advanced, Multi-Session</td>
+</tr>
+<tr>
+<td>Tickets</td>
+<td><code>/events/[id]?tab=tickets</code></td>
+<td>Advanced (only when Tickets toggle is on)</td>
+</tr>
+<tr>
+<td>Forms</td>
+<td><code>/events/[id]?tab=forms</code></td>
+<td>Advanced, Multi-Session</td>
+</tr>
+<tr>
+<td>Invitees</td>
+<td><code>/events/[id]?tab=invitees</code></td>
+<td>All styles</td>
+</tr>
+<tr>
+<td>Communication</td>
+<td><code>/events/[id]?tab=communication</code></td>
+<td>All styles</td>
+</tr>
+<tr>
+<td>Automation</td>
+<td><code>/events/[id]?tab=automation</code></td>
+<td>Advanced, Multi-Session</td>
+</tr>
+<tr>
+<td>Attendance</td>
+<td><code>/events/[id]?tab=attendance</code></td>
+<td>All styles</td>
+</tr>
+<tr>
+<td>Reporting</td>
+<td><code>/events/[id]?tab=reporting</code></td>
+<td>Advanced, Multi-Session</td>
+</tr>
+<tr>
+<td>Notes &amp; Tasks</td>
+<td><code>/events/[id]?tab=notes</code></td>
+<td>All styles</td>
+</tr>
+<tr>
+<td>Settings</td>
+<td><code>/events/[id]?tab=settings</code></td>
+<td>Basic (capacity, visibility, permissions, sign-up window)</td>
+</tr>
+</tbody></table>
+<p><strong>Tab availability by style:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Tab</th>
+<th>BASIC</th>
+<th>ADVANCED</th>
+<th>MULTI_SESSION</th>
+<th>Other</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Overview</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Sessions</td>
+<td>—</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Discounts</td>
+<td>—</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Tickets</td>
+<td>—</td>
+<td>✓ (toggle)</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Forms</td>
+<td>—</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Invitees</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Communication</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Automation</td>
+<td>—</td>
+<td>✓</td>
+<td>✓</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Attendance</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Reporting</td>
+<td>—</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Notes &amp; Tasks</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+<td>✓</td>
+</tr>
+<tr>
+<td>Settings</td>
+<td>✓</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>5. Feature: Event List &amp; Calendar</h2>
+<p><strong>URL:</strong> <code>/events</code></p>
+<h3>Description</h3>
+<p>The Events index is the home screen for all event management. It supports two view modes: Calendar (FullCalendar) and List (data table).</p>
+<h3>Views</h3>
+<h4>Calendar View (default)</h4>
+<ul>
+<li>Powered by <strong>FullCalendar</strong> (day-grid and time-grid plugins).</li>
+<li>Header toolbar is hidden — navigation is handled by custom prev/next/today buttons in the page header.</li>
+<li>Clicking a date or dragging across a date range opens the &quot;Create new event&quot; flow pre-filled with those dates.</li>
+<li>Events are coloured by one of three modes: <strong>Category colour</strong> (default), <strong>Status</strong>, or <strong>Style</strong> — user-configurable in Calendar Settings.</li>
+<li>Sessions with <code>show_as_separate_event = true</code> are displayed as individual calendar entries (not nested under their parent event pill).</li>
+<li><strong>Hover tooltip:</strong> Hovering an event pill after a 200ms delay shows a rich popup card (300ms dismissal debounce) containing: banner image or category colour bar, title, date/time range, location/meeting link, category badge, description excerpt, and status badge. The card flips left if near the right edge.</li>
+<li><strong>Scroll to navigate:</strong> Mouse wheel on the month view nudges the calendar forward/back by one week (50ms debounce, minimum 50px scroll delta).</li>
+<li><strong>Search:</strong> Text field in the header dims non-matching events to 15% opacity; hovering a dimmed event brings it to 50%.</li>
+<li><strong>Day max events:</strong> 3 events shown per day cell; &quot;+N more&quot; overflow link expands.</li>
+</ul>
+<h4>List View</h4>
+<ul>
+<li>DataTable with columns: Event (title + category chip), Style (Tag), Date (formatted with time), Status (coloured Tag).</li>
+<li>Row click navigates to the event detail page.</li>
+<li>Row ellipsis menu: View, Publish (if DRAFT), Archive.</li>
+<li>Sorted by <code>start_at</code> ascending, nulls last.</li>
+</ul>
+<h3>Header Controls</h3>
+<table>
+<thead>
+<tr>
+<th>Control</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>View toggle (Calendar / List)</td>
+<td>SelectButton; switches view mode</td>
+</tr>
+<tr>
+<td>Prev / Next / Today</td>
+<td>Navigate the calendar; hidden in list view</td>
+</tr>
+<tr>
+<td>Month label</td>
+<td>Shows current month/year; auto-updates on navigation</td>
+</tr>
+<tr>
+<td>Search</td>
+<td>Filters both calendar and list views</td>
+</tr>
+<tr>
+<td>Calendar Settings (sliders icon)</td>
+<td>Opens Calendar Settings dialog</td>
+</tr>
+<tr>
+<td>New Event (blue button)</td>
+<td>Opens the event name prompt, then the event type picker</td>
+</tr>
+</tbody></table>
+<h3>Event Type Picker Flow</h3>
+<ol>
+<li><strong>Step 1 — Event Name modal:</strong> User types the event name and presses Enter or &quot;Next&quot;. The name pre-fills the creation form.</li>
+<li><strong>Step 2 — Event Type picker:</strong> Three cards: Basic Event, Multi Session, Advanced Event.<ul>
+<li>Optional &quot;Use step-by-step wizard&quot; checkbox (default: checked). When unchecked, Advanced goes to <code>/events/new</code> instead of <code>/events/new-advanced</code>.</li>
+</ul>
+</li>
+<li>Clicking a card navigates to the appropriate creation route with name and date query params.</li>
+</ol>
+<h3>Calendar Settings Dialog</h3>
+<p>Opens at: <code>/events</code> with the Calendar Settings dialog visible.</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Options</th>
+<th>Persisted</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Colour events by</td>
+<td>Category / Status / Style</td>
+<td>Yes, per calendar</td>
+</tr>
+<tr>
+<td>Default view</td>
+<td>Month / Week / Day</td>
+<td>Yes, per calendar</td>
+</tr>
+<tr>
+<td>Week starts on</td>
+<td>Sunday / Monday</td>
+<td>Yes, per calendar</td>
+</tr>
+<tr>
+<td>Show weekends</td>
+<td>Toggle</td>
+<td>Yes, per calendar</td>
+</tr>
+<tr>
+<td>Categories (visibility checkboxes)</td>
+<td>One per category with colour dot</td>
+<td>Yes, per calendar</td>
+</tr>
+<tr>
+<td>Show uncategorised events</td>
+<td>Toggle</td>
+<td>Yes, per calendar</td>
+</tr>
+</tbody></table>
+<p><strong>Persistence:</strong> Settings are saved to <code>localStorage</code> under key <code>fm_cal_prefs_v1</code>, keyed by calendar ID (or <code>&quot;all&quot;</code> when no named calendar is active). Each named calendar has independent settings. Reset clears the stored prefs for the current calendar.</p>
+<p><strong>Calendar editing:</strong> When viewing a named calendar (<code>?calendar=&lt;id&gt;</code>), the settings dialog loads that calendar&#39;s name and assigned categories for editing. Save updates the calendar record and its category assignments via the <code>calendar_categories</code> join table. Delete prompts for confirmation, then removes the calendar record and redirects to <code>/events</code>.</p>
+<h3>Named Calendars (Sidebar)</h3>
+<p>Named calendars group events by category. When a named calendar is active (selected in the sidebar), the Calendar Settings dialog shows only the categories assigned to that calendar. On first visit to a named calendar, the visible category filter is pre-seeded from the calendar&#39;s assigned categories.</p>
+<h3>Demo Data Prompt</h3>
+<p>On first load when no events exist and the user hasn&#39;t previously dismissed the prompt, a &quot;Welcome to FriendlyManager!&quot; dialog offers to install demo data:</p>
+<ul>
+<li><strong>Install Demo Data:</strong> Creates 3 categories (Swim Training, Competitions, Social Events) and 4 events (Swim Squad Training, Junior Development Training, Regional Championships, End of Season Dinner).</li>
+<li><strong>Start Fresh:</strong> Dismisses and stores <code>fm_demo_data_prompted_v1</code> in localStorage to prevent re-prompting.</li>
+</ul>
+<h3>User Stories</h3>
+<p><strong>EVENTS-001</strong> — As a Club Admin, I want to view all events in a monthly calendar so that I can see at a glance what&#39;s scheduled and when.</p>
+<p><strong>Acceptance criteria:</strong></p>
+<ul>
+<li>Events display in their category colour by default.</li>
+<li>Hovering an event shows a tooltip with title, date, time, location, category, and status.</li>
+<li>Clicking an event navigates to its detail page.</li>
+<li>Navigation controls (prev/next/today) are visible at all times.</li>
+<li>The month label updates as I navigate.</li>
+</ul>
+<p><strong>EVENTS-002</strong> — As a Club Admin, I want to switch between calendar and list views so that I can choose the format that suits my current task.</p>
+<p><strong>Acceptance criteria:</strong></p>
+<ul>
+<li>A toggle in the header switches between Calendar and List views instantly.</li>
+<li>Both views apply the same search filter.</li>
+<li>The list view is sortable and shows event style, date range, and status.</li>
+</ul>
+<hr>
+<h2>6. Feature: Create Basic Event</h2>
+<p><strong>URL:</strong> <code>/events/new-basic</code><br><strong>Query params:</strong> <code>?name=&lt;prefilled title&gt;</code>, <code>?date=&lt;YYYY-MM-DD&gt;</code>, <code>?endDate=&lt;YYYY-MM-DD&gt;</code>, <code>?wizard=1</code></p>
+<h3>Description</h3>
+<p>A single-page form for quickly creating simple events. Available on mobile and desktop. When <code>?wizard=1</code>, the desktop layout shows all sections at once; the mobile layout steps through them one at a time with a progress bar.</p>
+<h3>Sections</h3>
+<h4>Event Info</h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Event Title</td>
+<td>Text</td>
+<td>Yes</td>
+<td>Pre-fills from <code>?name=</code> query param</td>
+</tr>
+<tr>
+<td>Description</td>
+<td>Rich text (TipTap)</td>
+<td>No</td>
+<td>Supports headings, bullets, links</td>
+</tr>
+<tr>
+<td>Category</td>
+<td>MultiSelect with colour chips</td>
+<td>No</td>
+<td>Can add new category inline</td>
+</tr>
+<tr>
+<td>Discipline</td>
+<td>Select</td>
+<td>No</td>
+<td>Clear-able</td>
+</tr>
+</tbody></table>
+<h4>Date &amp; Sign Up</h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Start date</td>
+<td>DatePicker</td>
+<td>No</td>
+<td>Pre-fills from <code>?date=</code></td>
+</tr>
+<tr>
+<td>End date</td>
+<td>DatePicker</td>
+<td>No</td>
+<td>Pre-fills from <code>?endDate=</code></td>
+</tr>
+<tr>
+<td>Start time / End time</td>
+<td>TimePicker</td>
+<td>No</td>
+<td>Hidden when All Day is on</td>
+</tr>
+<tr>
+<td>All Day</td>
+<td>Toggle</td>
+<td>No</td>
+<td>Hides time fields</td>
+</tr>
+<tr>
+<td>Repeat</td>
+<td>Select</td>
+<td>No</td>
+<td>None / Daily / Weekly / Monthly / Custom</td>
+</tr>
+<tr>
+<td>Sign-up opens</td>
+<td>DateTimePicker</td>
+<td>No</td>
+<td></td>
+</tr>
+<tr>
+<td>Sign-up closes</td>
+<td>DateTimePicker</td>
+<td>No</td>
+<td></td>
+</tr>
+</tbody></table>
+<h4>Location</h4>
+<p>Three mutually exclusive modes:</p>
+<ol>
+<li><strong>FM Bookable</strong> — selector for registered venue bookables.</li>
+<li><strong>Address</strong> — free-text with Google Places autocomplete; shows venue name + address fields.</li>
+<li><strong>Online</strong> — reveals meeting link field.</li>
+</ol>
+<p>Multiple locations can be added (e.g., different rooms).</p>
+<h4>Invitees</h4>
+<p>Inline invitee selector. Supports: individuals, system groups, roles, tags, disciplines, and dynamic filter expressions.</p>
+<h3>Mobile Wizard Steps</h3>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Label</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>Event Info</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Date &amp; Sign Up</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Location</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Invitees</td>
+</tr>
+</tbody></table>
+<p>Progress bar across the top reflects current step. Back button on step 0 returns to <code>/events</code>.</p>
+<h3>Actions</h3>
+<table>
+<thead>
+<tr>
+<th>Button</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Cancel</td>
+<td>Navigates back to <code>/events</code></td>
+</tr>
+<tr>
+<td>Save Event</td>
+<td>Validates title is non-empty, saves with <code>status: DRAFT</code>, navigates to event detail</td>
+</tr>
+</tbody></table>
+<h3>Rules</h3>
+<ul>
+<li>Event is created in <code>DRAFT</code> state; admin must publish explicitly.</li>
+<li>Title is the only required field; form cannot submit without it.</li>
+<li>If no category is selected, the event is treated as uncategorised.</li>
+<li>Date params passed via query string pre-fill the date fields but do not prevent editing.</li>
+</ul>
+<h3>User Stories</h3>
+<p><strong>EVENTS-003</strong> — As a Club Admin, I want to create a basic event using a minimal form so that I can quickly set up simple events like training sessions.</p>
+<p><strong>Acceptance criteria:</strong></p>
+<ul>
+<li>Single-page creation form (or stepped on mobile) with: title, description, category, dates, location, and invitees.</li>
+<li>Location supports FM Bookable, free-text address, and Online modes.</li>
+<li>Event is saved in Draft state.</li>
+<li>Basic Event authoring works on mobile with a step-by-step wizard.</li>
+<li>Created event appears in the event list and calendar immediately.</li>
+</ul>
+<hr>
+<h2>7. Feature: Create Advanced Event</h2>
+<p><strong>URL:</strong> <code>/events/new-advanced</code><br><strong>Query params:</strong> <code>?name=</code>, <code>?date=</code>, <code>?endDate=</code></p>
+<h3>Description</h3>
+<p>A 6-step wizard for creating complex events with full configuration: fees, registration forms, capacity rules, public visibility, and phased access. Desktop-only (not responsive for mobile authoring).</p>
+<h3>Wizard Steps</h3>
+<h4>Step 1 — Event Info</h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Event Title</td>
+<td>Text</td>
+<td>Yes</td>
+<td></td>
+</tr>
+<tr>
+<td>Description</td>
+<td>Rich text</td>
+<td>No</td>
+<td></td>
+</tr>
+<tr>
+<td>Category</td>
+<td>MultiSelect + Add button</td>
+<td>No</td>
+<td></td>
+</tr>
+<tr>
+<td>Discipline</td>
+<td>Select</td>
+<td>No</td>
+<td></td>
+</tr>
+<tr>
+<td>Banner Image</td>
+<td>Image upload</td>
+<td>No</td>
+<td>1200×350 recommended; uploaded to Supabase Storage</td>
+</tr>
+</tbody></table>
+<h4>Step 2 — Date &amp; Time</h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Start date + time</td>
+<td>DatePicker + TimePicker</td>
+<td></td>
+</tr>
+<tr>
+<td>End date + time</td>
+<td>DatePicker + TimePicker</td>
+<td></td>
+</tr>
+<tr>
+<td>All Day toggle</td>
+<td>Toggle</td>
+<td>Hides time pickers</td>
+</tr>
+<tr>
+<td>Recurrence</td>
+<td>Select (None / Weekly / Monthly / Annual / Custom)</td>
+<td>Custom opens a rule builder</td>
+</tr>
+</tbody></table>
+<h4>Step 3 — Location</h4>
+<p>Same three-mode location selector as Basic Event. Multiple locations supported.</p>
+<h4>Step 4 — Capacity &amp; Sign Up</h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Capacity limit toggle</td>
+<td>Toggle</td>
+<td>Off = unlimited</td>
+</tr>
+<tr>
+<td>Max attendees</td>
+<td>Number</td>
+<td>Shown when capacity is on</td>
+</tr>
+<tr>
+<td>Waitlist</td>
+<td>Toggle</td>
+<td>Auto-promotes when a spot opens</td>
+</tr>
+<tr>
+<td>Sign-up opens</td>
+<td>DateTimePicker</td>
+<td></td>
+</tr>
+<tr>
+<td>Sign-up closes</td>
+<td>DateTimePicker</td>
+<td></td>
+</tr>
+<tr>
+<td>Hold-spot</td>
+<td>Toggle</td>
+<td>Reserves spots pending parent confirmation (24h window)</td>
+</tr>
+<tr>
+<td>Phased registration</td>
+<td>Toggle</td>
+<td>Members get early access; public opens at configured date</td>
+</tr>
+<tr>
+<td>Member window days</td>
+<td>Number</td>
+<td>Days before event that members get access (default: 40)</td>
+</tr>
+<tr>
+<td>Public opens at</td>
+<td>DateTimePicker</td>
+<td>Optional override</td>
+</tr>
+</tbody></table>
+<h4>Step 5 — Visibility</h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Public event</td>
+<td>Toggle</td>
+<td>Generates a public URL; visible to non-members</td>
+</tr>
+<tr>
+<td>Featured event</td>
+<td>Toggle</td>
+<td>Highlighted in event list and member dashboard</td>
+</tr>
+<tr>
+<td>Show attendee list</td>
+<td>Toggle</td>
+<td>Members can see the full attendee list</td>
+</tr>
+<tr>
+<td>Show attendee count</td>
+<td>Toggle</td>
+<td>Members can see total registrant count</td>
+</tr>
+<tr>
+<td>Allow expressions of interest</td>
+<td>Toggle</td>
+<td>Members can indicate interest before registration opens</td>
+</tr>
+</tbody></table>
+<h4>Step 6 — Fees</h4>
+<p>Fee components (Kit, Qualification, NSO, Club), each with:</p>
+<ul>
+<li>Amount</li>
+<li>Xero code</li>
+<li>Lock/editable flag (for NSO-shared events)</li>
+</ul>
+<h3>Navigation Rules</h3>
+<ul>
+<li>User can click back to any previously completed step.</li>
+<li>Clicking forward requires the current step to have a valid state (at minimum, title on step 1).</li>
+<li>&quot;Save draft&quot; button in the header is always available; saves the event in DRAFT state and navigates to the event detail page.</li>
+<li>Completing the final step shows a &quot;Publish&quot; / &quot;Save as Draft&quot; option.</li>
+</ul>
+<h3>User Stories</h3>
+<p><strong>EVENTS-004</strong> — As a Club Admin, I want to create an Advanced Event using a multi-step wizard so that I can configure complex rules, fees, and public visibility.</p>
+<p><strong>Acceptance criteria:</strong></p>
+<ul>
+<li>Multi-step wizard with clearly labelled steps: Event Info → Date &amp; Time → Location → Capacity &amp; Sign Up → Visibility → Fees.</li>
+<li>Each step validates before advancing; user can navigate back without losing progress.</li>
+<li>Rich-text description editor supports headings, bullets, and links.</li>
+<li>Banner image upload supported; image is stored and displayed in the event detail hero.</li>
+<li>Advanced Event authoring is desktop-only.</li>
+<li>&quot;Save draft&quot; is available at all times.</li>
+</ul>
+<hr>
+<h2>8. Feature: Create Multi-Session Event</h2>
+<p><strong>URL:</strong> <code>/events/new-multi</code><br><strong>Query params:</strong> <code>?name=</code>, <code>?date=</code>, <code>?endDate=</code></p>
+<h3>Description</h3>
+<p>Creates a Multi-Session Event by defining session templates that are automatically expanded into individual session records across a date range. Ideal for holiday programmes where the same schedule repeats each day.</p>
+<h3>Sections</h3>
+<h4>Event Details</h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Event Name</td>
+<td>Yes</td>
+<td></td>
+</tr>
+<tr>
+<td>Age Limit (min, max)</td>
+<td>No</td>
+<td>In years</td>
+</tr>
+</tbody></table>
+<h4>Dates</h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Programme start date</td>
+<td>Yes</td>
+<td></td>
+</tr>
+<tr>
+<td>Programme end date</td>
+<td>Yes</td>
+<td></td>
+</tr>
+<tr>
+<td>Include weekends</td>
+<td>No</td>
+<td>Default: unchecked</td>
+</tr>
+<tr>
+<td>Exclude public holidays</td>
+<td>No</td>
+<td>Default: unchecked</td>
+</tr>
+</tbody></table>
+<p>After selecting dates, a preview shows the total number of session days generated.</p>
+<h4>Session Templates</h4>
+<p>Each template defines a session type (e.g., &quot;Morning Session&quot;, &quot;Afternoon Session&quot;) that repeats on every selected day. Per template:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Name</td>
+<td>Session type label</td>
+</tr>
+<tr>
+<td>Start time</td>
+<td>Shared across all days</td>
+</tr>
+<tr>
+<td>End time</td>
+<td></td>
+</tr>
+<tr>
+<td>Location</td>
+<td>FM Bookable or address</td>
+</tr>
+<tr>
+<td>Capacity (max)</td>
+<td>Per-session capacity</td>
+</tr>
+<tr>
+<td>Fee</td>
+<td>Per-session fee</td>
+</tr>
+<tr>
+<td>Eligible invitee rules</td>
+<td>JSON expression</td>
+</tr>
+<tr>
+<td>Required / Optional</td>
+<td>Required = all registrants; Optional = selected at registration</td>
+</tr>
+</tbody></table>
+<p>Multiple templates can be added to one event.</p>
+<h3>Session Generation Logic</h3>
+<p>When the event is saved, the system generates one <code>sessions</code> record per template per day in the date range, respecting:</p>
+<ul>
+<li>Weekend inclusion/exclusion</li>
+<li>Public holiday exclusion</li>
+<li><code>parent_session_id</code> is null (top-level sessions)</li>
+<li>Sessions are ordered by day then by template sort order</li>
+</ul>
+<h3>Rules</h3>
+<ul>
+<li>At least one session template is required to create the event.</li>
+<li>The date range must have at least one valid day after applying weekend/holiday exclusions.</li>
+<li>The day count preview updates reactively as dates and options change.</li>
+</ul>
+<h3>User Stories</h3>
+<p><strong>EVENTS-005</strong> — As a Club Admin, I want to create a Multi-Session Event so that I can run programmes where sessions repeat across multiple days.</p>
+<p><strong>Acceptance criteria:</strong></p>
+<ul>
+<li>Wizard includes a date range selector with weekend/holiday exclusion options.</li>
+<li>A preview shows the number of session days before saving.</li>
+<li>Session templates define a repeating schedule; saving generates individual session records.</li>
+<li>Sessions can be marked Required or Optional.</li>
+<li>Parent event and session capacities are tracked independently.</li>
+</ul>
+<hr>
+<h2>9. Feature: Event Detail — Overview Tab</h2>
+<p><strong>URL:</strong> <code>/events/[id]?tab=overview</code></p>
+<h3>Description</h3>
+<p>The primary view for an event. Shows all key event details with inline editing. Serves as both the admin view and the template for the member-facing event page.</p>
+<h3>Layout</h3>
+<h4>Tab Navigation Bar</h4>
+<p>Pill-shaped navigation buttons across the top of the page. Active tab has dark navy (<code>#1E2157</code>) fill. Tabs available depend on event style (see Section 4).</p>
+<h4>Actions Row (below tab bar)</h4>
+<table>
+<thead>
+<tr>
+<th>Element</th>
+<th>Behaviour</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Status Tag</td>
+<td>Coloured badge showing current status</td>
+</tr>
+<tr>
+<td>Publish button</td>
+<td>Green &quot;Publish&quot; button for DRAFT events; opens Publish dialog</td>
+</tr>
+<tr>
+<td>Scheduled button</td>
+<td>Amber &quot;Scheduled&quot; button if <code>publish_at</code> is set</td>
+</tr>
+<tr>
+<td>Ellipsis menu</td>
+<td>Duplicate, Archive, Delete, and other event-level actions</td>
+</tr>
+</tbody></table>
+<h4>Hero Banner</h4>
+<ul>
+<li><strong>Height:</strong> 300px</li>
+<li><strong>Background:</strong> Banner image if uploaded; otherwise a navy-to-blue gradient.</li>
+<li><strong>Inline edit:</strong> Clicking the banner triggers a file picker. Upload progress is shown as an overlay. Image is stored in Supabase Storage and the URL is saved to <code>events.banner_url</code>.</li>
+<li><strong>Title bar:</strong> Overlaid at the bottom of the banner (dark translucent strip). Title is an inline-editable <code>&lt;input&gt;</code> — clicking focuses it; blurring saves the change to the database. Pressing Enter blurs.</li>
+<li><strong>Date badge:</strong> Floating white card in the bottom-right showing day abbreviation, day number, and month abbreviation of the event start date.</li>
+</ul>
+<h4>Attendee Summary Row</h4>
+<p>Shows: Confirmed count (green badge), Interested count, Waitlisted count (if waitlist enabled), capacity indicator (&quot;of X capacity&quot;). &quot;Take Attendance&quot; button navigates to the Attendance tab.</p>
+<h4>Info Card (Inline-Editable Fields)</h4>
+<p>Each field row follows the pattern: label (fixed 112px width) | value | edit pencil icon on hover. Clicking any row opens an inline edit form beneath it; clicking &quot;Save&quot; or pressing Enter commits; &quot;Cancel&quot; reverts.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Inline editable</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Name</td>
+<td>Yes</td>
+<td>Hidden for ADVANCED style (title lives in the banner)</td>
+</tr>
+<tr>
+<td>Date</td>
+<td>Yes (via EventDetailsCard component)</td>
+<td>Start/end date, start/end time, all-day toggle</td>
+</tr>
+<tr>
+<td>Repeat</td>
+<td>Yes</td>
+<td>Recurrence rule</td>
+</tr>
+<tr>
+<td>Location</td>
+<td>Yes</td>
+<td>All three location modes</td>
+</tr>
+<tr>
+<td>Category</td>
+<td>Yes</td>
+<td>MultiSelect with colour chips</td>
+</tr>
+<tr>
+<td>Description</td>
+<td>Yes</td>
+<td>Rich text</td>
+</tr>
+<tr>
+<td>Fee / Registration</td>
+<td>Yes</td>
+<td>Fee line items and registration open/close dates</td>
+</tr>
+</tbody></table>
+<h4>Ticketed Event Toggle (Advanced only)</h4>
+<p>A toggle row that enables/disables the Tickets tab. When on: &quot;Tickets enabled — Tickets tab is active.&quot; When off: &quot;No tickets for this event.&quot;</p>
+<h3>Publish Dialog</h3>
+<p>Opened via the Publish button. Contains:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Send invitation to invitees</td>
+<td>Checkbox</td>
+<td>Triggers email send on publish</td>
+</tr>
+<tr>
+<td>Post to website / public URL</td>
+<td>Checkbox</td>
+<td>Makes the event externally visible</td>
+</tr>
+<tr>
+<td>Schedule for later</td>
+<td>Checkbox</td>
+<td>Reveals date + time pickers for <code>publish_at</code></td>
+</tr>
+</tbody></table>
+<p>Confirming sets <code>status = PUBLISHED</code> (or saves <code>publish_at</code> for scheduled publishing) and optionally sends invitations.</p>
+<hr>
+<h2>10. Feature: Event Detail — Sessions Tab</h2>
+<p><strong>URL:</strong> <code>/events/[id]?tab=sessions</code></p>
+<h3>Description</h3>
+<p>Lists and manages all sessions and sub-sessions for Advanced and Multi-Session events. Sessions are edited in a split-pane layout: session list on the left, session editor on the right.</p>
+<h3>Session List</h3>
+<ul>
+<li>Flat list for events with few sessions; grouped by day for Multi-Session events.</li>
+<li>Each row shows: session title, date/time, location summary, capacity indicator, status chip.</li>
+<li>Clicking a session opens it in the Session Editor pane.</li>
+<li>&quot;Add session&quot; button creates a blank session.</li>
+</ul>
+<h3>Session Editor (<code>&lt;SessionEditor&gt;</code> component)</h3>
+<p>Per-session configuration with its own tab bar:</p>
+<table>
+<thead>
+<tr>
+<th>Sub-tab</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Details</td>
+<td>Title, start/end, location, description, bookable assignment</td>
+</tr>
+<tr>
+<td>Invitees</td>
+<td>Per-session invitee overrides and eligibility rules</td>
+</tr>
+<tr>
+<td>Capacity</td>
+<td>Per-session capacity min/max, waitlist</td>
+</tr>
+<tr>
+<td>Attendance</td>
+<td>Session-level attendance list (also accessible from the Attendance tab)</td>
+</tr>
+</tbody></table>
+<h3>Direct Navigation to a Session</h3>
+<p>URL: <code>/events/[id]?tab=sessions&amp;sessionId=&lt;sessionId&gt;</code> — opens the Sessions tab with the specified session pre-selected in the editor.</p>
+<h3>Session Fields</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Inherited from Event</th>
+<th>Can Override</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Title</td>
+<td>No</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Start / End</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Location</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Capacity</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Invitee eligibility</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Access profile</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Lighting profile</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Required / Optional</td>
+<td>No (default: Required)</td>
+<td>—</td>
+</tr>
+</tbody></table>
+<h3>Clicking &quot;Take Attendance&quot; in the Session Editor</h3>
+<p>Navigates to <code>/events/[id]?tab=attendance</code> and pre-selects that session in the attendance panel.</p>
+<hr>
+<h2>11. Feature: Event Detail — Invitees Tab</h2>
+<p><strong>URL:</strong> <code>/events/[id]?tab=invitees</code></p>
+<h3>Description</h3>
+<p>Full invitee management. Rendered by the <code>&lt;EventInviteeManager&gt;</code> component.</p>
+<h3>Invitee Statuses</h3>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Description</th>
+<th>Auto-set</th>
+<th>Admin-settable</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>INVITED</code></td>
+<td>Person has been added to the event</td>
+<td>On add</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>CONFIRMED</code></td>
+<td>Person has confirmed attendance or completed registration</td>
+<td>On registration</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>DECLINED</code></td>
+<td>Person has declined</td>
+<td>On decline</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>EXCLUDED</code></td>
+<td>Removed from the event</td>
+<td>—</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>INTERESTED</code></td>
+<td>Expressed interest before registration opens</td>
+<td>On interest click</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>HOLD</code></td>
+<td>Spot reserved pending parent/guardian confirmation (24h)</td>
+<td>On child registration</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>WAITLISTED</code></td>
+<td>Confirmed list is full; queued for promotion</td>
+<td>When capacity is reached</td>
+<td>Yes</td>
+</tr>
+</tbody></table>
+<h3>Invitee Controls</h3>
+<p>Configurable toggles (also in Settings tab):</p>
+<table>
+<thead>
+<tr>
+<th>Toggle</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Allow members to see full attendee list</td>
+<td>Members can see names</td>
+</tr>
+<tr>
+<td>Allow members to see attendee count only</td>
+<td>Members see a count but not names</td>
+</tr>
+<tr>
+<td>Allow Interested / Going responses</td>
+<td>Members can mark interest</td>
+</tr>
+<tr>
+<td>Allow guests</td>
+<td>Enables a max-guests-per-invitee field</td>
+</tr>
+</tbody></table>
+<h3>Adding Invitees (FM Selector)</h3>
+<p>A modal/drawer that supports selecting invitees by:</p>
+<ul>
+<li>Individual person lookup</li>
+<li>System group (team, class)</li>
+<li>Permission role</li>
+<li>Job</li>
+<li>Tag</li>
+<li>Discipline</li>
+<li>Dynamic filter expression (e.g. <code>Gender = Female AND Age BETWEEN 12 AND 18</code>)</li>
+</ul>
+<p>When attaching a group:</p>
+<ul>
+<li><strong>Live link:</strong> Group membership changes are auto-reflected (new members are auto-invited).</li>
+<li><strong>Snapshot:</strong> Point-in-time copy; group changes do not affect the invitee list.</li>
+</ul>
+<h3>Bulk Actions</h3>
+<p>Multi-select checkboxes on invitee rows. Bulk action toolbar appears when rows are selected:</p>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Set Status</td>
+<td>Bulk-set all selected to a chosen status</td>
+</tr>
+<tr>
+<td>Send Message</td>
+<td>Trigger a communication to selected invitees</td>
+</tr>
+<tr>
+<td>Remove</td>
+<td>Remove selected invitees</td>
+</tr>
+</tbody></table>
+<h3>Status History</h3>
+<p>Each invitee record has a status history log. Clicking an invitee row opens a detail panel showing: current status, status history with timestamps and actor, registration date, fee paid, sessions confirmed.</p>
+<hr>
+<h2>12. Feature: Event Detail — Forms Tab</h2>
+<p><strong>URL:</strong> <code>/events/[id]?tab=forms</code></p>
+<h3>Description</h3>
+<p>Drag-and-drop registration form builder. Forms are configured per invitee group, allowing different audiences to see different fields.</p>
+<h3>Layout</h3>
+<p>Split-pane: left panel (form group list / section nav) | right panel (form preview / field editor).</p>
+<h3>Form Groups</h3>
+<p>Each invitee group can have its own registration form. The group list shows:</p>
+<table>
+<thead>
+<tr>
+<th>Indicator</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Green check</td>
+<td>All sections complete</td>
+</tr>
+<tr>
+<td>Red exclamation</td>
+<td>Some sections incomplete</td>
+</tr>
+<tr>
+<td>Grey plus circle</td>
+<td>Not set up yet</td>
+</tr>
+<tr>
+<td>Orange ban</td>
+<td>Group has no registrations (form not needed)</td>
+</tr>
+</tbody></table>
+<p>A progress fraction (<code>N of M sections saved</code>) is shown for in-progress forms.</p>
+<h3>Form Sections</h3>
+<p>After selecting a group, the left panel switches to a section navigator. Standard sections include:</p>
+<ul>
+<li><strong>Details</strong> — core personal fields (name, DOB, email, phone, emergency contact)</li>
+<li><strong>Advanced</strong> — custom fields, dietary requirements, medical notes</li>
+<li><strong>Existing Fields</strong> — reuse fields already configured on another form in the org</li>
+<li><strong>Create New</strong> — block picker to add new field types</li>
+</ul>
+<h3>Field Types (Block Picker)</h3>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Field types</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Text</td>
+<td>Short text, Long text, Rich text</td>
+</tr>
+<tr>
+<td>Choice</td>
+<td>Single select, Multi select, Checkbox, Radio</td>
+</tr>
+<tr>
+<td>Date/Time</td>
+<td>Date, Time, Date range</td>
+</tr>
+<tr>
+<td>Personal</td>
+<td>Name, DOB, Gender, Address, Phone, Email</td>
+</tr>
+<tr>
+<td>Media</td>
+<td>File upload, Signature</td>
+</tr>
+<tr>
+<td>Payment</td>
+<td>Fee summary, Discount code entry</td>
+</tr>
+<tr>
+<td>Sessions</td>
+<td>Session picker (date-table or grouped layout)</td>
+</tr>
+</tbody></table>
+<h3>Session Picker Layouts</h3>
+<p>For multi-session events, the session selection field can be displayed as:</p>
+<ul>
+<li><strong>Date Table</strong> — sessions grouped by date (rows) and session type (columns); ideal for multi-day programmes.</li>
+<li><strong>Grouped by Date</strong> — clickable date headers expand to show sessions beneath.</li>
+</ul>
+<h3>Form Design Settings</h3>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Options</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Layout style</td>
+<td>Tabs / Single page</td>
+</tr>
+<tr>
+<td>Sessions layout</td>
+<td>Date Table / Grouped by date</td>
+</tr>
+<tr>
+<td>Custom CSS</td>
+<td>(Advanced)</td>
+</tr>
+</tbody></table>
+<h3>Order Preview</h3>
+<p>The right panel shows a live preview of the registration order as it would appear to a registrant, including:</p>
+<ul>
+<li>Per-person fee rows</li>
+<li>Session selections</li>
+<li>Discount rows</li>
+<li>Total amount</li>
+</ul>
+<hr>
+<h2>13. Feature: Event Detail — Discounts Tab</h2>
+<p><strong>URL:</strong> <code>/events/[id]?tab=discounts</code></p>
+<h3>Description</h3>
+<p>Manage discount codes and automatic discount rules for the event.</p>
+<h3>Discount Table Columns</h3>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Name</td>
+<td>Discount label shown to registrants</td>
+</tr>
+<tr>
+<td>Type</td>
+<td>Code-based / Sibling / Role-based / Training-linked</td>
+</tr>
+<tr>
+<td>Amount</td>
+<td>Flat or percentage</td>
+</tr>
+<tr>
+<td>Conditions</td>
+<td>Rule expression (e.g. <code>Role = Coach</code>)</td>
+</tr>
+<tr>
+<td>Redeemed</td>
+<td>Count of successful redemptions</td>
+</tr>
+<tr>
+<td>Cap</td>
+<td>Max redemptions (blank = unlimited)</td>
+</tr>
+<tr>
+<td>Expiry</td>
+<td>Date after which the code is inactive</td>
+</tr>
+<tr>
+<td>Actions</td>
+<td>Edit / Delete</td>
+</tr>
+</tbody></table>
+<h3>Discount Types</h3>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Code-based</strong></td>
+<td>Registrant enters a promo code at checkout. Cap and expiry configurable.</td>
+</tr>
+<tr>
+<td><strong>Sibling</strong></td>
+<td>Auto-applied when multiple family members register for the same event.</td>
+</tr>
+<tr>
+<td><strong>Role-based</strong></td>
+<td>Auto-applied based on the registrant&#39;s FM role (e.g., Coach, Volunteer).</td>
+</tr>
+<tr>
+<td><strong>Training-linked</strong></td>
+<td>Auto-applied when the registrant has a linked training record or qualification.</td>
+</tr>
+</tbody></table>
+<h3>Rules</h3>
+<ul>
+<li>Multiple discounts can be active simultaneously.</li>
+<li>Evaluation order is configurable (drag to reorder).</li>
+<li>A discount that reduces total to below $0 is capped at $0.</li>
+<li>Code-based discounts track <code>redeem_count</code> in real time.</li>
+</ul>
+<hr>
+<h2>14. Feature: Event Detail — Tickets Tab</h2>
+<p><strong>URL:</strong> <code>/events/[id]?tab=tickets</code><br><strong>Availability:</strong> Advanced events only, when the &quot;Ticketed Event&quot; toggle on the Overview tab is enabled.</p>
+<h3>Description</h3>
+<p>Manages ticket types, quantities, and pricing tiers for events that sell tickets to the public.</p>
+<h3>Ticket Fields</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Ticket name</td>
+<td>e.g., &quot;General Admission&quot;, &quot;VIP&quot;</td>
+</tr>
+<tr>
+<td>Description</td>
+<td>Short description shown at checkout</td>
+</tr>
+<tr>
+<td>Price</td>
+<td>Per-ticket amount</td>
+</tr>
+<tr>
+<td>Quantity available</td>
+<td>Capacity for this ticket type</td>
+</tr>
+<tr>
+<td>Sale opens / closes</td>
+<td>Date range for this ticket type</td>
+</tr>
+<tr>
+<td>Visibility</td>
+<td>Public / Members only</td>
+</tr>
+<tr>
+<td>Linked fee component</td>
+<td>Maps to a Xero code</td>
+</tr>
+</tbody></table>
+<h3>Rules</h3>
+<ul>
+<li>Tickets are independent of the invitee registration flow — a person can purchase a ticket without being on the invitee list.</li>
+<li>When tickets are enabled, the registration form gains a ticket-selection step.</li>
+<li>Ticket sales and registration statuses are tracked separately.</li>
+</ul>
+<hr>
+<h2>15. Feature: Event Detail — Communication Tab</h2>
+<p><strong>URL:</strong> <code>/events/[id]?tab=communication</code></p>
+<h3>Description</h3>
+<p>Send and track communications (emails) to invitee subsets from within the event.</p>
+<h3>Layout</h3>
+<p>Two tables on the Communication tab:</p>
+<ol>
+<li><strong>Sent communications</strong> — log of all manual sends with: date, subject, audience, sent count, delivery status summary.</li>
+<li><strong>Automated communications</strong> — list of trigger-based messages configured in the Automation tab.</li>
+</ol>
+<h3>Audience Selector</h3>
+<p>When composing a new communication, the audience can be sliced by:</p>
+<ul>
+<li>Invitee group</li>
+<li>Invitee status (e.g., only Confirmed)</li>
+<li>Sub-group</li>
+<li>Session attendance</li>
+<li>Boolean combinations (e.g., Confirmed AND Session = Morning)</li>
+</ul>
+<h3>Compose Flow</h3>
+<ol>
+<li>Select audience.</li>
+<li>Choose or create a template (FM Mailer).</li>
+<li>Preview the rendered email with live data.</li>
+<li>Send immediately or schedule.</li>
+</ol>
+<h3>Delivery Tracking</h3>
+<p>Each send logs: recipient, sent timestamp, opened (boolean), failed (boolean). Viewable per-send from the sent log.</p>
+<hr>
+<h2>16. Feature: Event Detail — Automation Tab</h2>
+<p><strong>URL:</strong> <code>/events/[id]?tab=automation</code></p>
+<h3>Description</h3>
+<p>Configure event-triggered automations — primarily automated communications at key registration milestones.</p>
+<h3>Built-in Automation Triggers</h3>
+<table>
+<thead>
+<tr>
+<th>Trigger</th>
+<th>Default action</th>
+<th>Configurable</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Registrant added (Invited)</td>
+<td>Send invitation email</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Hold created</td>
+<td>Send hold confirmation to registrant</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Hold expiring soon (e.g., 2h before 24h deadline)</td>
+<td>Send reminder to parent/guardian</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Hold expired without confirmation</td>
+<td>Notify registrant; release spot</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Payment due</td>
+<td>Send payment reminder</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Waitlist position available</td>
+<td>Notify waitlisted registrant</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Refund window closing</td>
+<td>Notify confirmed registrants</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Attendance confirmed</td>
+<td>Send &quot;See you there&quot; email</td>
+<td>Yes</td>
+</tr>
+</tbody></table>
+<h3>Automation Record Fields</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Trigger</td>
+<td>From the list above</td>
+</tr>
+<tr>
+<td>Delay</td>
+<td>e.g., &quot;2 hours before&quot;, &quot;Immediately&quot;</td>
+</tr>
+<tr>
+<td>Audience filter</td>
+<td>Status, group, session</td>
+</tr>
+<tr>
+<td>Template</td>
+<td>FM Mailer template</td>
+</tr>
+<tr>
+<td>Active toggle</td>
+<td>Enable/disable without deleting</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>17. Feature: Event Detail — Attendance Tab</h2>
+<p><strong>URL:</strong> <code>/events/[id]?tab=attendance</code></p>
+<h3>Description</h3>
+<p>Record actual physical attendance per session. Designed to be fast and fully functional on mobile.</p>
+<h3>Layout</h3>
+<p>Split view (collapsible on mobile):</p>
+<ul>
+<li><strong>Left panel:</strong> Session selector. Lists all sessions for the event. Clicking a session loads its attendance list. Can be pre-selected via query param <code>?tab=attendance&amp;sessionId=&lt;id&gt;</code>.</li>
+<li><strong>Right panel:</strong> Attendance table for the selected session.</li>
+</ul>
+<h3>Attendance Table Columns</h3>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Name</td>
+<td>Person&#39;s full name</td>
+</tr>
+<tr>
+<td>Registration status</td>
+<td>Their invitee status (Confirmed, etc.)</td>
+</tr>
+<tr>
+<td>Attended</td>
+<td>Toggle (Yes / No) — large touch target for mobile</td>
+</tr>
+<tr>
+<td>Notes</td>
+<td>Optional per-person attendance note</td>
+</tr>
+</tbody></table>
+<h3>Bulk Actions</h3>
+<ul>
+<li><strong>Mark all present</strong> — sets all rows to Attended = Yes.</li>
+<li><strong>Multi-select</strong> — select subset, then: Message, Add to Waitlist, Refund, Tag.</li>
+</ul>
+<h3>Required Minimum Logic</h3>
+<p>For events with a minimum attendance requirement (e.g., &quot;must attend 4 of 5 days&quot;), the system:</p>
+<ul>
+<li>Tracks the count of attended sessions per person across the event.</li>
+<li>Flags registrants at the end of the event who haven&#39;t met the minimum.</li>
+<li>Shows a warning indicator next to flagged registrants in the Attendance tab.</li>
+</ul>
+<h3>Rules</h3>
+<ul>
+<li>Attendance is tracked separately from registration intention (&quot;is coming?&quot; vs. physically present).</li>
+<li>Attendance data is available in real time during a session.</li>
+<li>The Coach / Session Lead role has access to this tab even without broader admin permissions.</li>
+</ul>
+<hr>
+<h2>18. Feature: Event Detail — Reporting Tab</h2>
+<p><strong>URL:</strong> <code>/events/[id]?tab=reporting</code></p>
+<h3>Description</h3>
+<p>Event-specific reports without navigating to the main Reporting module.</p>
+<h3>Reports Available</h3>
+<table>
+<thead>
+<tr>
+<th>Report</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Attendance by session</td>
+<td>Attended count and % per session</td>
+</tr>
+<tr>
+<td>Attendance by person</td>
+<td>Each registrant&#39;s session attendance record</td>
+</tr>
+<tr>
+<td>Attendance by group</td>
+<td>Aggregate by invitee group</td>
+</tr>
+<tr>
+<td>Attendance by category</td>
+<td>Cross-event comparison by category</td>
+</tr>
+<tr>
+<td>Registration funnel</td>
+<td>Views → Interest → Hold → Confirmed → Paid → Attended (with drop-off % at each step)</td>
+</tr>
+<tr>
+<td>Waitlist conversion rate</td>
+<td>% of waitlisted who converted to Confirmed</td>
+</tr>
+<tr>
+<td>Drop-off rate</td>
+<td>% who dropped between stages</td>
+</tr>
+<tr>
+<td>Refund rate</td>
+<td>Refunds issued as % of total registrations</td>
+</tr>
+</tbody></table>
+<h3>Export</h3>
+<p>All report data is exportable to CSV and XLSX from the tab toolbar.</p>
+<h3>Scheduled Reports</h3>
+<p>Reports can be scheduled for email delivery. Clicking &quot;Schedule&quot; on a report opens the Reporting module scheduler.</p>
+<hr>
+<h2>19. Feature: Event Detail — Notes &amp; Tasks Tab</h2>
+<p><strong>URL:</strong> <code>/events/[id]?tab=notes</code></p>
+<h3>Description</h3>
+<p>Internal notes and action items attached to the event. Visible only to admins.</p>
+<h3>Notes</h3>
+<p>Free-form notes with an optional title and rich-text content. Stored in the <code>event_notes</code> table.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Title</td>
+<td>Optional</td>
+</tr>
+<tr>
+<td>Content</td>
+<td>Rich text</td>
+</tr>
+<tr>
+<td>Created at</td>
+<td>Auto-set; displayed in the note list</td>
+</tr>
+</tbody></table>
+<p>Notes are listed chronologically. Clicking a note opens it for inline editing. Delete is available on each note.</p>
+<h3>Tasks</h3>
+<p>Tasks linked to the event. Each task has:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Title</td>
+<td>Required</td>
+</tr>
+<tr>
+<td>Description</td>
+<td>Optional</td>
+</tr>
+<tr>
+<td>Due date</td>
+<td>Shown with overdue warning if past</td>
+</tr>
+<tr>
+<td>Assignee</td>
+<td>FM user (picks from org members)</td>
+</tr>
+<tr>
+<td>Linked person</td>
+<td>Optional — links task to a specific registrant</td>
+</tr>
+<tr>
+<td>Status</td>
+<td>Open / In Progress / Done</td>
+</tr>
+<tr>
+<td>Role</td>
+<td>Optional role tag for the task</td>
+</tr>
+</tbody></table>
+<p>Tasks appear on the assignee&#39;s FM dashboard. Overdue tasks are visually flagged in the tab. Tasks can be filtered by status and assignee.</p>
+<hr>
+<h2>20. Feature: Event Settings Tab</h2>
+<p><strong>URL:</strong> <code>/events/[id]?tab=settings</code><br><strong>Availability:</strong> Basic events only</p>
+<h3>Description</h3>
+<p>For Basic events, the Settings tab surfaces configuration options that Advanced events expose inline via dedicated tabs. It is the equivalent of a lightweight admin panel for simple events.</p>
+<h3>Sections</h3>
+<h4>Capacity</h4>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Capacity limit</td>
+<td>Toggle</td>
+<td>Off = unlimited</td>
+</tr>
+<tr>
+<td>Max attendees</td>
+<td>Number</td>
+<td>Visible when capacity is on</td>
+</tr>
+<tr>
+<td>Waitlist</td>
+<td>Toggle</td>
+<td>Auto-promotes when a spot opens</td>
+</tr>
+</tbody></table>
+<h4>Visibility &amp; Access</h4>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Public event</td>
+<td>Toggle</td>
+<td>Visible to anyone, not just members</td>
+</tr>
+<tr>
+<td>Featured event</td>
+<td>Toggle</td>
+<td>Highlighted in event list</td>
+</tr>
+</tbody></table>
+<h4>Permissions</h4>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Show attendee list</td>
+<td>Toggle</td>
+<td>Registered members can see who else is attending</td>
+</tr>
+<tr>
+<td>Show attendee count</td>
+<td>Toggle</td>
+<td>Display total registration count publicly</td>
+</tr>
+<tr>
+<td>Allow expressions of interest</td>
+<td>Toggle</td>
+<td>Members can mark interest before registration</td>
+</tr>
+<tr>
+<td>Hold-spot registration</td>
+<td>Toggle</td>
+<td>Members can hold a spot pending confirmation</td>
+</tr>
+</tbody></table>
+<h4>Sign Up Window</h4>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Opens</td>
+<td>DateTimePicker</td>
+<td>Optional; no restriction if blank</td>
+</tr>
+<tr>
+<td>Closes</td>
+<td>DateTimePicker</td>
+<td>Optional; no restriction if blank</td>
+</tr>
+</tbody></table>
+<h4>Registration Window</h4>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Phased registration</td>
+<td>Toggle</td>
+<td>Members get early access before public</td>
+</tr>
+<tr>
+<td>Member window (days before)</td>
+<td>Number</td>
+<td>How many days before the event members get access (default: 40)</td>
+</tr>
+<tr>
+<td>Public opens at</td>
+<td>DateTimePicker</td>
+<td>Optional override of the calculated public date</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>21. Feature: Categories</h2>
+<p><strong>URL (managed from):</strong> <code>/settings</code> (Categories section)</p>
+<h3>Description</h3>
+<p>Hierarchical taxonomy that carries default configuration for events. Categories provide the colour and icon shown on the calendar and in list views.</p>
+<h3>Category Fields</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Name</td>
+<td>Display name</td>
+</tr>
+<tr>
+<td>Colour</td>
+<td>Hex colour for calendar and chips</td>
+</tr>
+<tr>
+<td>Icon</td>
+<td>PrimeIcons icon class</td>
+</tr>
+<tr>
+<td>Parent category</td>
+<td>For subcategories; inherits parent defaults unless overridden</td>
+</tr>
+<tr>
+<td>Default T&amp;Cs</td>
+<td>Text block inherited by new events in this category</td>
+</tr>
+<tr>
+<td>Default Xero codes</td>
+<td>JSON map of fee component → Xero code</td>
+</tr>
+<tr>
+<td>Default registration form</td>
+<td>Form template applied to new events</td>
+</tr>
+<tr>
+<td>Sort order</td>
+<td>Display order in selectors and calendar settings</td>
+</tr>
+</tbody></table>
+<h3>Rules</h3>
+<ul>
+<li>Primary and secondary category can be assigned per event.</li>
+<li>Editing a category&#39;s defaults does not retroactively change existing events — only new events inherit updated defaults.</li>
+<li>A category can be used in the Named Calendar system to scope calendar views.</li>
+</ul>
+<hr>
+<h2>22. Feature: Named Calendars</h2>
+<p><strong>URL:</strong> <code>/events?calendar=&lt;id&gt;</code><br><strong>Managed in:</strong> Calendar Settings dialog (sliders icon in the event list header)</p>
+<h3>Description</h3>
+<p>Admins can create named calendars that group events by category. Named calendars appear in the left sidebar of the Events page.</p>
+<h3>Calendar Fields</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Name</td>
+<td>Display name (e.g., &quot;Competition Season&quot;)</td>
+</tr>
+<tr>
+<td>Assigned categories</td>
+<td>MultiSelect; filters which events appear in this calendar</td>
+</tr>
+<tr>
+<td>Sort order</td>
+<td>Position in the sidebar</td>
+</tr>
+</tbody></table>
+<h3>Rules</h3>
+<ul>
+<li>When a named calendar is active, Calendar Settings shows only the categories in that calendar.</li>
+<li>Unassigning all categories from a calendar makes it behave like the &quot;All Events&quot; view.</li>
+<li>Each named calendar has independent settings in localStorage (colour mode, default view, week start, weekends, visible categories).</li>
+<li>Deleting a named calendar does not delete its events — it only removes the grouping.</li>
+</ul>
+<hr>
+<h2>23. Data Model Reference</h2>
+<h3>Core Tables</h3>
+<h4><code>organisations</code></h4>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>id</td>
+<td>UUID</td>
+<td>PK</td>
+</tr>
+<tr>
+<td>name</td>
+<td>text</td>
+<td></td>
+</tr>
+<tr>
+<td>type</td>
+<td>text</td>
+<td><code>NSO</code> or <code>CLUB</code></td>
+</tr>
+<tr>
+<td>parent_id</td>
+<td>UUID</td>
+<td>Self-referential; Club&#39;s parent is the NSO</td>
+</tr>
+<tr>
+<td>slug</td>
+<td>text</td>
+<td>Unique URL slug</td>
+</tr>
+<tr>
+<td>logo_url</td>
+<td>text</td>
+<td></td>
+</tr>
+<tr>
+<td>currency</td>
+<td>text</td>
+<td>Default: AUD</td>
+</tr>
+<tr>
+<td>locale</td>
+<td>text</td>
+<td>Default: en-AU</td>
+</tr>
+</tbody></table>
+<h4><code>categories</code></h4>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>id</td>
+<td>UUID</td>
+<td>PK</td>
+</tr>
+<tr>
+<td>org_id</td>
+<td>UUID</td>
+<td>FK → organisations</td>
+</tr>
+<tr>
+<td>parent_id</td>
+<td>UUID</td>
+<td>Self-referential for subcategories</td>
+</tr>
+<tr>
+<td>name</td>
+<td>text</td>
+<td></td>
+</tr>
+<tr>
+<td>color</td>
+<td>text</td>
+<td>Hex</td>
+</tr>
+<tr>
+<td>icon</td>
+<td>text</td>
+<td>PrimeIcons class</td>
+</tr>
+<tr>
+<td>default_tc</td>
+<td>text</td>
+<td>Default T&amp;Cs text</td>
+</tr>
+<tr>
+<td>default_form_id</td>
+<td>UUID</td>
+<td>FK → forms</td>
+</tr>
+<tr>
+<td>default_xero_codes</td>
+<td>jsonb</td>
+<td>Map of component → Xero code</td>
+</tr>
+<tr>
+<td>sort_order</td>
+<td>integer</td>
+<td></td>
+</tr>
+</tbody></table>
+<h4><code>events</code></h4>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>id</td>
+<td>UUID</td>
+<td>PK</td>
+</tr>
+<tr>
+<td>org_id</td>
+<td>UUID</td>
+<td>FK → organisations</td>
+</tr>
+<tr>
+<td>title</td>
+<td>text</td>
+<td>Required</td>
+</tr>
+<tr>
+<td>description</td>
+<td>text</td>
+<td>Rich text (HTML)</td>
+</tr>
+<tr>
+<td>style</td>
+<td>text</td>
+<td><code>BASIC</code>, <code>ADVANCED</code>, <code>MULTI_SESSION</code>, <code>SPORTS_COMPETITION</code>, <code>HOLIDAY_PROGRAM</code>, <code>ATTENDANCE</code>, <code>COMPETITION</code></td>
+</tr>
+<tr>
+<td>status</td>
+<td>text</td>
+<td><code>DRAFT</code>, <code>PUBLISHED</code>, <code>CANCELLED</code>, <code>ARCHIVED</code></td>
+</tr>
+<tr>
+<td>category_id</td>
+<td>UUID</td>
+<td>FK → categories (primary)</td>
+</tr>
+<tr>
+<td>secondary_category_id</td>
+<td>UUID</td>
+<td>FK → categories</td>
+</tr>
+<tr>
+<td>start_at</td>
+<td>timestamptz</td>
+<td></td>
+</tr>
+<tr>
+<td>end_at</td>
+<td>timestamptz</td>
+<td></td>
+</tr>
+<tr>
+<td>is_all_day</td>
+<td>boolean</td>
+<td></td>
+</tr>
+<tr>
+<td>recurrence_rule</td>
+<td>text</td>
+<td>iCal RRULE string</td>
+</tr>
+<tr>
+<td>recurrence_parent_id</td>
+<td>UUID</td>
+<td>FK → events (parent of recurring series)</td>
+</tr>
+<tr>
+<td>location_type</td>
+<td>text</td>
+<td><code>BOOKABLE</code>, <code>ADDRESS</code>, <code>ONLINE</code></td>
+</tr>
+<tr>
+<td>bookable_id</td>
+<td>UUID</td>
+<td>FK → bookables</td>
+</tr>
+<tr>
+<td>address</td>
+<td>text</td>
+<td></td>
+</tr>
+<tr>
+<td>meeting_link</td>
+<td>text</td>
+<td></td>
+</tr>
+<tr>
+<td>capacity_min</td>
+<td>integer</td>
+<td></td>
+</tr>
+<tr>
+<td>capacity_max</td>
+<td>integer</td>
+<td></td>
+</tr>
+<tr>
+<td>show_attendee_list</td>
+<td>boolean</td>
+<td>Default: false</td>
+</tr>
+<tr>
+<td>show_attendee_count</td>
+<td>boolean</td>
+<td>Default: true</td>
+</tr>
+<tr>
+<td>allow_interest</td>
+<td>boolean</td>
+<td>Default: false</td>
+</tr>
+<tr>
+<td>allow_guests</td>
+<td>boolean</td>
+<td>Default: false</td>
+</tr>
+<tr>
+<td>max_guests_per_invitee</td>
+<td>integer</td>
+<td></td>
+</tr>
+<tr>
+<td>hold_spot_enabled</td>
+<td>boolean</td>
+<td>Default: false</td>
+</tr>
+<tr>
+<td>hold_spot_age_max</td>
+<td>integer</td>
+<td>Min age to trigger hold-spot flow</td>
+</tr>
+<tr>
+<td>phased_registration</td>
+<td>boolean</td>
+<td>Default: false</td>
+</tr>
+<tr>
+<td>member_window_days</td>
+<td>integer</td>
+<td>Default: 40</td>
+</tr>
+<tr>
+<td>public_opens_at</td>
+<td>timestamptz</td>
+<td></td>
+</tr>
+<tr>
+<td>master_event_id</td>
+<td>UUID</td>
+<td>FK → events (NSO master)</td>
+</tr>
+<tr>
+<td>sharing_config</td>
+<td>jsonb</td>
+<td>Per-component lock/editable flags</td>
+</tr>
+<tr>
+<td>banner_url</td>
+<td>text</td>
+<td></td>
+</tr>
+<tr>
+<td>attachments</td>
+<td>jsonb</td>
+<td>Array of file metadata</td>
+</tr>
+<tr>
+<td>tc_content</td>
+<td>text</td>
+<td>Terms &amp; conditions (overrides category default)</td>
+</tr>
+<tr>
+<td>is_featured</td>
+<td>boolean</td>
+<td>Default: false</td>
+</tr>
+<tr>
+<td>is_public</td>
+<td>boolean</td>
+<td>Default: false</td>
+</tr>
+<tr>
+<td>public_url_slug</td>
+<td>text</td>
+<td>Unique slug for public URL</td>
+</tr>
+<tr>
+<td>form_id</td>
+<td>UUID</td>
+<td>FK → forms</td>
+</tr>
+<tr>
+<td>xero_codes_locked</td>
+<td>boolean</td>
+<td>Default: false</td>
+</tr>
+<tr>
+<td>publish_at</td>
+<td>timestamptz</td>
+<td>Scheduled publish time</td>
+</tr>
+<tr>
+<td>reg_open_at</td>
+<td>timestamptz</td>
+<td>Sign-up window open</td>
+</tr>
+<tr>
+<td>reg_close_at</td>
+<td>timestamptz</td>
+<td>Sign-up window close</td>
+</tr>
+<tr>
+<td>has_waitlist</td>
+<td>boolean</td>
+<td></td>
+</tr>
+<tr>
+<td>has_capacity</td>
+<td>boolean</td>
+<td></td>
+</tr>
+<tr>
+<td>has_tickets</td>
+<td>boolean</td>
+<td></td>
+</tr>
+<tr>
+<td>created_by</td>
+<td>UUID</td>
+<td>FK → persons</td>
+</tr>
+</tbody></table>
+<h4><code>sessions</code></h4>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>id</td>
+<td>UUID</td>
+<td>PK</td>
+</tr>
+<tr>
+<td>event_id</td>
+<td>UUID</td>
+<td>FK → events</td>
+</tr>
+<tr>
+<td>parent_session_id</td>
+<td>UUID</td>
+<td>Self-referential; null = top-level session</td>
+</tr>
+<tr>
+<td>title</td>
+<td>text</td>
+<td></td>
+</tr>
+<tr>
+<td>description</td>
+<td>text</td>
+<td></td>
+</tr>
+<tr>
+<td>start_at</td>
+<td>timestamptz</td>
+<td></td>
+</tr>
+<tr>
+<td>end_at</td>
+<td>timestamptz</td>
+<td></td>
+</tr>
+<tr>
+<td>is_all_day</td>
+<td>boolean</td>
+<td></td>
+</tr>
+<tr>
+<td>location_type</td>
+<td>text</td>
+<td><code>BOOKABLE</code>, <code>ADDRESS</code>, <code>ONLINE</code></td>
+</tr>
+<tr>
+<td>bookable_id</td>
+<td>UUID</td>
+<td>FK → bookables</td>
+</tr>
+<tr>
+<td>address</td>
+<td>text</td>
+<td></td>
+</tr>
+<tr>
+<td>meeting_link</td>
+<td>text</td>
+<td></td>
+</tr>
+<tr>
+<td>is_required</td>
+<td>boolean</td>
+<td>Default: true</td>
+</tr>
+<tr>
+<td>capacity_min</td>
+<td>integer</td>
+<td></td>
+</tr>
+<tr>
+<td>capacity_max</td>
+<td>integer</td>
+<td></td>
+</tr>
+<tr>
+<td>visibility_rule</td>
+<td>jsonb</td>
+<td>Eligibility expression</td>
+</tr>
+<tr>
+<td>restrictions</td>
+<td>jsonb</td>
+<td>Additional restrictions</td>
+</tr>
+<tr>
+<td>access_profile_id</td>
+<td>UUID</td>
+<td></td>
+</tr>
+<tr>
+<td>lighting_profile_id</td>
+<td>UUID</td>
+<td></td>
+</tr>
+<tr>
+<td>sort_order</td>
+<td>integer</td>
+<td></td>
+</tr>
+<tr>
+<td>show_as_separate_event</td>
+<td>boolean</td>
+<td>Display as own calendar entry</td>
+</tr>
+</tbody></table>
+<h4><code>invitees</code></h4>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>id</td>
+<td>UUID</td>
+<td>PK</td>
+</tr>
+<tr>
+<td>event_id</td>
+<td>UUID</td>
+<td>FK → events</td>
+</tr>
+<tr>
+<td>person_id</td>
+<td>UUID</td>
+<td>FK → persons</td>
+</tr>
+<tr>
+<td>session_id</td>
+<td>UUID</td>
+<td>FK → sessions (null = event-level)</td>
+</tr>
+<tr>
+<td>group_id</td>
+<td>UUID</td>
+<td>FK → invitee group</td>
+</tr>
+<tr>
+<td>status</td>
+<td>text</td>
+<td><code>INVITED</code>, <code>CONFIRMED</code>, <code>DECLINED</code>, <code>EXCLUDED</code>, <code>INTERESTED</code>, <code>HOLD</code>, <code>WAITLISTED</code></td>
+</tr>
+<tr>
+<td>hold_expires_at</td>
+<td>timestamptz</td>
+<td>24h after hold was set</td>
+</tr>
+<tr>
+<td>registered_at</td>
+<td>timestamptz</td>
+<td></td>
+</tr>
+<tr>
+<td>notes</td>
+<td>text</td>
+<td></td>
+</tr>
+</tbody></table>
+<h4><code>connection_groups</code></h4>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>id</td>
+<td>UUID</td>
+<td>PK</td>
+</tr>
+<tr>
+<td>org_id</td>
+<td>UUID</td>
+<td>FK → organisations</td>
+</tr>
+<tr>
+<td>name</td>
+<td>text</td>
+<td></td>
+</tr>
+</tbody></table>
+<h4><code>connection_group_events</code></h4>
+<p>Join table: <code>group_id</code> × <code>event_id</code>.</p>
+<h4><code>calendars</code></h4>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>id</td>
+<td>UUID</td>
+<td>PK</td>
+</tr>
+<tr>
+<td>org_id</td>
+<td>UUID</td>
+<td>FK → organisations</td>
+</tr>
+<tr>
+<td>name</td>
+<td>text</td>
+<td></td>
+</tr>
+<tr>
+<td>sort_order</td>
+<td>integer</td>
+<td></td>
+</tr>
+</tbody></table>
+<h4><code>calendar_categories</code></h4>
+<p>Join table: <code>calendar_id</code> × <code>category_id</code>.</p>
+<h4><code>event_notes</code></h4>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>id</td>
+<td>UUID</td>
+<td>PK</td>
+</tr>
+<tr>
+<td>event_id</td>
+<td>UUID</td>
+<td>FK → events</td>
+</tr>
+<tr>
+<td>title</td>
+<td>text</td>
+<td>Optional</td>
+</tr>
+<tr>
+<td>content</td>
+<td>text</td>
+<td>Rich text</td>
+</tr>
+<tr>
+<td>created_at</td>
+<td>timestamptz</td>
+<td></td>
+</tr>
+</tbody></table>
+<hr>
+<h2>24. Business Rules Reference</h2>
+<h3>Creation &amp; Status</h3>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>BR-001</td>
+<td>All events are created in <code>DRAFT</code> status.</td>
+</tr>
+<tr>
+<td>BR-002</td>
+<td>Publishing requires at minimum: title set, category set (for Advanced events).</td>
+</tr>
+<tr>
+<td>BR-003</td>
+<td>Archiving soft-deletes — events are hidden from all views but data is retained.</td>
+</tr>
+<tr>
+<td>BR-004</td>
+<td>Recurring event edits prompt scope selection: This occurrence / All future / All.</td>
+</tr>
+<tr>
+<td>BR-005</td>
+<td>Events with <code>publish_at</code> set transition to PUBLISHED automatically at that timestamp.</td>
+</tr>
+</tbody></table>
+<h3>Capacity &amp; Waitlist</h3>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>BR-010</td>
+<td>When <code>capacity_max</code> is reached, new registrants are placed in <code>WAITLISTED</code> status automatically.</td>
+</tr>
+<tr>
+<td>BR-011</td>
+<td>When a CONFIRMED registrant cancels, the first WAITLISTED person is auto-promoted and notified.</td>
+</tr>
+<tr>
+<td>BR-012</td>
+<td>Session capacity is tracked independently of event capacity.</td>
+</tr>
+<tr>
+<td>BR-013</td>
+<td>The live capacity counter (&quot;X of Y spots left&quot;) reflects real-time data.</td>
+</tr>
+<tr>
+<td>BR-014</td>
+<td>Waitlist position is visible to the waitlisted registrant on the registration form.</td>
+</tr>
+</tbody></table>
+<h3>Hold-Spot Flow</h3>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>BR-020</td>
+<td>Hold-spot must be explicitly enabled per event (default: off).</td>
+</tr>
+<tr>
+<td>BR-021</td>
+<td>When a registrant under <code>hold_spot_age_max</code> registers, status is set to <code>HOLD</code> and <code>hold_expires_at = now() + 24h</code>.</td>
+</tr>
+<tr>
+<td>BR-022</td>
+<td>Parent/guardian email captured at registration receives a branded confirmation link.</td>
+</tr>
+<tr>
+<td>BR-023</td>
+<td>If confirmed within 24h: status → CONFIRMED; payment flow triggered.</td>
+</tr>
+<tr>
+<td>BR-024</td>
+<td>If not confirmed within 24h: spot released; status → WAITLISTED if event is full; registrant notified.</td>
+</tr>
+<tr>
+<td>BR-025</td>
+<td>Admin can manually extend or cancel a hold from the invitee panel.</td>
+</tr>
+</tbody></table>
+<h3>Phased Registration</h3>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>BR-030</td>
+<td>Member-exclusive phase opens <code>member_window_days</code> before <code>start_at</code> (default: 40 days).</td>
+</tr>
+<tr>
+<td>BR-031</td>
+<td>Public phase opens at <code>public_opens_at</code> or after the member window ends (whichever is later).</td>
+</tr>
+<tr>
+<td>BR-032</td>
+<td>Non-qualifying registrants see a message explaining when they can register.</td>
+</tr>
+</tbody></table>
+<h3>NSO → Club Sharing</h3>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>BR-040</td>
+<td>NSO creates a master event; shares to selected clubs.</td>
+</tr>
+<tr>
+<td>BR-041</td>
+<td>Club receives the event in &quot;Pending Acceptance&quot; state.</td>
+</tr>
+<tr>
+<td>BR-042</td>
+<td>Club can override only fields the NSO has marked editable in <code>sharing_config</code>.</td>
+</tr>
+<tr>
+<td>BR-043</td>
+<td>All fee components must have mapped Xero codes before a shared event can be published.</td>
+</tr>
+<tr>
+<td>BR-044</td>
+<td>NSO reporting rolls up registrations and revenue across all club versions.</td>
+</tr>
+</tbody></table>
+<h3>Invitee Management</h3>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>BR-050</td>
+<td>Admin can manually set any invitee to any status (with confirmation for irreversible transitions).</td>
+</tr>
+<tr>
+<td>BR-051</td>
+<td>When a group is attached as a live link, new group members are auto-invited.</td>
+</tr>
+<tr>
+<td>BR-052</td>
+<td>When a group is attached as a snapshot, group changes do not affect the invitee list.</td>
+</tr>
+<tr>
+<td>BR-053</td>
+<td>Invitees receive a notification on status change where a template exists for that transition.</td>
+</tr>
+</tbody></table>
+<h3>Category Inheritance</h3>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>BR-060</td>
+<td>New events inherit T&amp;Cs, registration form, and Xero codes from their primary category.</td>
+</tr>
+<tr>
+<td>BR-061</td>
+<td>Editing a category&#39;s defaults does not retroactively update existing events.</td>
+</tr>
+</tbody></table>
+<h3>Location Conflict Detection</h3>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>BR-070</td>
+<td>Hard conflict: same Bookable already booked for the same time — blocks booking by default.</td>
+</tr>
+<tr>
+<td>BR-071</td>
+<td>Admin can override a conflict with a password confirmation (override is logged).</td>
+</tr>
+<tr>
+<td>BR-072</td>
+<td>Soft conflict: sibling bookings exhausting a shared capacity pool — shows warning but allows booking.</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>25. Out of Scope — v1</h2>
+<p>The following are explicitly out of scope for the initial release:</p>
+<ul>
+<li>Full social-media auto-publishing (Facebook, Instagram, LinkedIn).</li>
+<li>Bi-directional Google / Apple / Microsoft calendar sync.</li>
+<li>Mobile-app authoring for Advanced, Multi-Session, Holiday Program, and Competition event styles.</li>
+<li>Survey automation triggered by attendance.</li>
+<li>AI-assisted natural-language event setup.</li>
+<li>Dynamic demand-based pricing.</li>
+<li>Live-streaming integration and paywalls.</li>
+<li>Public Bookable Network (cross-club venue discovery).</li>
+<li>Sponsor/advertising marketplace on public event pages.</li>
+</ul>
+
+
+  </main>
+</div>
+
+<script>
+  // Active TOC link on scroll
+  const links = document.querySelectorAll('.toc a');
+  const headings = Array.from(document.querySelectorAll('h1, h2')).filter(h => h.id);
+
+  function updateActive() {
+    const scrollY = window.scrollY + 80;
+    let current = headings[0];
+    for (const h of headings) {
+      if (h.offsetTop <= scrollY) current = h;
+    }
+    links.forEach(l => {
+      l.classList.toggle('active', l.getAttribute('href') === '#' + (current?.id ?? ''));
+    });
+  }
+
+  window.addEventListener('scroll', updateActive, { passive: true });
+  updateActive();
+</script>
+</body>
+</html>

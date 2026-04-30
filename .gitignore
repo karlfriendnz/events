@@ -30,3 +30,10 @@ logs
 
 # Supabase local temp files (contain project refs and connection strings)
 supabase/.temp/
+
+# Ad-hoc dev screenshots dropped at repo root (real screenshots live in docs/screenshots/)
+/*.png
+
+# Playwright test artifacts
+test-results/
+/snap.yml

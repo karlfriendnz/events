@@ -4,6 +4,7 @@
     :options="options"
     option-label="label"
     option-value="value"
+    scroll-height="400px"
     class="flex-1"
     @update:model-value="onChange"
   />

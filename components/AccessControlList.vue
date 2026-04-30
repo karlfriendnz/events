@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6">
+  <div>
     <div class="flex items-center justify-between mb-6">
       <div>
         <h1 class="text-xl font-semibold text-surface-900">Access Control</h1>
@@ -18,14 +18,20 @@
         <!-- ACCESS PROFILES -->
         <TabPanel value="access">
           <div class="mt-4">
-            <div class="card">
+            <div v-if="!loading && !accessProfiles.length"
+              class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-[#1E2157]/20">
+              <div class="w-16 h-16 mx-auto rounded-full bg-[#EFF6FF] flex items-center justify-center mb-4">
+                <i class="pi pi-shield text-2xl text-[#1E2157]" />
+              </div>
+              <h3 class="text-base font-semibold text-gray-900 mb-1">Create your first access profile</h3>
+              <p class="text-sm text-gray-500 mb-5 max-w-sm mx-auto">
+                Access profiles control who can enter venues — members, the public, or specific groups.
+              </p>
+              <Button label="New Access Profile" icon="pi pi-plus"
+                style="background:#1E2157;border-color:#1E2157" @click="openCreate('ACCESS')" />
+            </div>
+            <div v-else class="card">
               <DataTable :value="accessProfiles" :loading="loading" size="small" striped-rows row-hover>
-                <template #empty>
-                  <div class="text-center py-12 text-surface-400">
-                    <i class="pi pi-shield text-3xl mb-3 block" />
-                    <p>No access profiles yet.</p>
-                  </div>
-                </template>
                 <Column field="name" header="Profile Name" />
                 <Column field="description" header="Description">
                   <template #body="{ data }">
@@ -51,14 +57,20 @@
         <!-- LIGHTING PROFILES -->
         <TabPanel value="lighting">
           <div class="mt-4">
-            <div class="card">
+            <div v-if="!lightingLoading && !lightingProfiles.length"
+              class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-[#1E2157]/20">
+              <div class="w-16 h-16 mx-auto rounded-full bg-[#EFF6FF] flex items-center justify-center mb-4">
+                <i class="pi pi-sun text-2xl text-[#1E2157]" />
+              </div>
+              <h3 class="text-base font-semibold text-gray-900 mb-1">Create your first lighting profile</h3>
+              <p class="text-sm text-gray-500 mb-5 max-w-sm mx-auto">
+                Lighting profiles control LED zones and schedules for your venues.
+              </p>
+              <Button label="New Lighting Profile" icon="pi pi-plus"
+                style="background:#1E2157;border-color:#1E2157" @click="openCreate('LIGHTING')" />
+            </div>
+            <div v-else class="card">
               <DataTable :value="lightingProfiles" :loading="lightingLoading" size="small" striped-rows row-hover>
-                <template #empty>
-                  <div class="text-center py-12 text-surface-400">
-                    <i class="pi pi-sun text-3xl mb-3 block" />
-                    <p>No lighting profiles yet.</p>
-                  </div>
-                </template>
                 <Column field="name" header="Profile Name" />
                 <Column field="description" header="Description">
                   <template #body="{ data }">
@@ -137,6 +149,11 @@ const accessProfiles = ref<any[]>([])
 const lightingProfiles = ref<any[]>([])
 
 const newProfile = ref({ type: 'ACCESS', name: '', description: '', is_default: false, schedule: '' })
+
+function openCreate(type: 'ACCESS' | 'LIGHTING') {
+  newProfile.value = { type, name: '', description: '', is_default: false, schedule: '' }
+  showCreate.value = true
+}
 
 const accessMenu = ref()
 const lightingMenu = ref()

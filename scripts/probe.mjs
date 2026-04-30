@@ -1,0 +1,21 @@
+import { chromium } from 'playwright'
+const b = await chromium.launch({ headless: true })
+const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } })
+const p = await ctx.newPage()
+await p.goto('http://localhost:3002/login')
+await p.fill('input[type="email"]', 'karl@getfrello.com')
+await p.fill('input[type="password"]', 'Welcome1!')
+await p.click('button[type="submit"]')
+await p.waitForTimeout(2000)
+await p.goto('http://localhost:3002/settings')
+await p.waitForTimeout(3000)
+const info = await p.evaluate(() => {
+  const all = Array.from(document.querySelectorAll('*'))
+  const tabbish = all.filter(el => /tab/i.test(String(el.className ?? '')))
+    .slice(0, 20).map(el => `${el.tagName}.${String(el.className).slice(0,80)}`)
+  const buttons = Array.from(document.querySelectorAll('button')).slice(0, 30)
+    .map(b => `[${String(b.className).slice(0,40)}] ${(b.textContent ?? '').trim().slice(0,40)}`)
+  return { url: location.pathname, h1: document.querySelector('h1')?.textContent, tabbish, buttons }
+})
+console.log(JSON.stringify(info, null, 2))
+await b.close()

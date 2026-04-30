@@ -33,10 +33,18 @@
         <ToggleSwitch :model-value="outsideEventDates" @update:model-value="emit('update:outsideEventDates', $event)" />
       </div>
     </div>
-    <!-- Repeat -->
-    <div class="flex items-center gap-4" :class="rowPadding">
-      <span class="text-sm text-gray-500 shrink-0" :class="labelWidth">Repeat</span>
-      <RepeatSelect :model-value="repeat" :date="startDate" :showCustom="showCustomRepeat" @update:model-value="emit('update:repeat', $event)" @customRepeat="emit('customRepeat')" />
+    <!-- Repeat (dropdown + exclusions calendar) -->
+    <div class="flex items-start gap-4" :class="rowPadding">
+      <span class="text-sm text-gray-500 shrink-0 pt-2" :class="labelWidth">Repeat</span>
+      <RepeatField
+        :model-value="repeat"
+        :exdates="exdates"
+        :base-date="startDate"
+        :range-end="maxDate ?? null"
+        :show-custom="showCustomRepeat"
+        @update:model-value="emit('update:repeat', $event)"
+        @update:exdates="emit('update:exdates', $event)"
+        @customRepeat="emit('customRepeat')" />
     </div>
     <!-- Outside dates warning -->
     <div v-if="showOutsideEventDates && outsideEventDates" class="flex items-center gap-2 mx-5 my-3 rounded-lg bg-orange-50 border border-orange-200 px-3 py-2">
@@ -54,6 +62,7 @@ const props = withDefaults(defineProps<{
   endTime: Date | null
   isAllDay: boolean
   repeat: string
+  exdates?: string[]
   showCustomRepeat?: boolean
   showOutsideEventDates?: boolean
   outsideEventDates?: boolean
@@ -76,6 +85,7 @@ const emit = defineEmits<{
   (e: 'update:endTime', v: Date | null): void
   (e: 'update:isAllDay', v: boolean): void
   (e: 'update:repeat', v: string): void
+  (e: 'update:exdates', v: string[]): void
   (e: 'update:outsideEventDates', v: boolean): void
   (e: 'change'): void
   (e: 'customRepeat'): void

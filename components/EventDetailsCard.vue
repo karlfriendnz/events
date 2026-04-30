@@ -8,7 +8,20 @@
         <div class="flex items-center px-6 py-4 gap-6 group hover:bg-gray-50/50 transition-colors cursor-pointer"
           @click="open !== 'date' && (open = 'date')">
           <span class="text-sm font-semibold text-gray-700 w-28 shrink-0">Date</span>
-          <span class="text-sm flex-1" :class="dateDisplay ? 'text-gray-700' : 'text-gray-400'">{{ dateDisplay || '—' }}</span>
+          <div class="flex items-center gap-2 flex-1 min-w-0">
+            <span class="text-sm" :class="dateDisplay ? 'text-gray-700' : 'text-gray-400'">{{ dateDisplay || '—' }}</span>
+            <span v-if="repeatBadge"
+              class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1E2157] border border-[#1E2157]/15 shrink-0">
+              <i class="pi pi-sync text-[9px]" />
+              {{ repeatBadge }}
+            </span>
+            <span v-if="(exdates?.length ?? 0) > 0"
+              v-tooltip.top="{ value: skippedTooltip, escape: false }"
+              class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 shrink-0 cursor-help">
+              <i class="pi pi-calendar-times text-[9px]" />
+              {{ exdates!.length }} skipped
+            </span>
+          </div>
           <i v-if="open !== 'date'" class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" />
         </div>
         <div v-if="open === 'date'" class="border-t border-gray-100" @click.stop>
@@ -16,6 +29,7 @@
             :startDate="startDate" :endDate="endDate"
             :startTime="startTime" :endTime="endTime"
             :isAllDay="isAllDay" :repeat="repeat"
+            :exdates="exdates"
             :minStartDate="twoWeeksAgo"
             :minEndDate="startDate ?? twoWeeksAgo"
             rowPadding="px-6 py-4"
@@ -26,6 +40,7 @@
             @update:endTime="$emit('update:endTime', $event)"
             @update:isAllDay="$emit('update:isAllDay', $event)"
             @update:repeat="$emit('update:repeat', $event)"
+            @update:exdates="$emit('update:exdates', $event)"
           />
           <div class="flex justify-end gap-2 px-5 py-3 border-t border-gray-100">
             <Button label="Cancel" size="small" severity="secondary" text @click.stop="open = null" />
@@ -154,6 +169,7 @@
 
 <script setup lang="ts">
 import type { FeeLineItem } from '~/composables/useFeeGroups'
+import { rruleToSummary } from '~/composables/useRepeatOptions'
 
 interface Category { id: string; name: string; color?: string }
 interface Location { [key: string]: any }
@@ -165,6 +181,7 @@ const props = withDefaults(defineProps<{
   endTime?: Date | null
   isAllDay?: boolean
   repeat?: string
+  exdates?: string[]
   locations?: Location[]
   categoryIds?: string[]
   categories?: Category[]
@@ -191,6 +208,7 @@ const emit = defineEmits<{
   'update:endTime': [Date | null]
   'update:isAllDay': [boolean]
   'update:repeat': [string]
+  'update:exdates': [string[]]
   'update:locations': [Location[]]
   'update:categoryIds': [string[]]
   'update:description': [string]
@@ -232,6 +250,21 @@ const dateDisplay = computed(() => {
     if (!props.isAllDay && props.endTime) s += `, ${fmtTime(props.endTime as Date)}`
   }
   return s
+})
+
+const repeatBadge = computed(() => {
+  if (!props.repeat || props.repeat === 'NONE') return ''
+  const fmtDate = (d: Date) => d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+  return rruleToSummary(props.repeat, fmtDate).replace(/^Repeats /, '')
+})
+
+const skippedTooltip = computed(() => {
+  const list = (props.exdates ?? []).slice().sort()
+  if (!list.length) return ''
+  return list.map(key => {
+    const [y, m, d] = key.split('-').map(Number)
+    return new Date(y, m - 1, d).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })
+  }).join('<br>')
 })
 
 const signupDisplay = computed(() => {

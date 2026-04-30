@@ -1,5 +1,5 @@
 <template>
-  <div class="rounded-xl border border-gray-200 overflow-hidden bg-white">
+  <div :class="flush ? '' : 'rounded-xl border border-gray-200 overflow-hidden bg-white'">
     <table class="w-full text-sm table-fixed">
       <colgroup>
         <col class="w-8" />
@@ -25,19 +25,22 @@
             </div>
           </td>
           <td class="p-0">
-            <div class="relative flex items-center">
-              <input
-                :ref="el => nameInputs[fee.id] = el as HTMLInputElement"
+            <div class="relative flex items-start">
+              <textarea
+                :ref="el => nameInputs[fee.id] = el as HTMLTextAreaElement"
                 :value="fee.name"
-                type="text"
+                rows="1"
                 placeholder="Enter fee name"
-                class="w-full h-10 px-4 text-sm text-gray-800 placeholder-gray-400 bg-transparent border-0 outline-none focus:bg-blue-50/40 transition-colors"
-                @input="setField(fee, 'name', ($event.target as HTMLInputElement).value)" />
+                class="w-full min-h-10 px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 bg-transparent border-0 outline-none focus:bg-blue-50/40 transition-colors resize-none leading-5 overflow-hidden"
+                @input="(e) => { setField(fee, 'name', (e.target as HTMLTextAreaElement).value); autoGrow(e.target as HTMLTextAreaElement) }"
+                @keydown.enter.exact.prevent
+                @focus="(e) => autoGrow(e.target as HTMLTextAreaElement)" />
               <!-- Token insert button -->
               <button
                 v-if="tokens?.length"
                 type="button"
                 tabindex="-1"
+                data-token-btn
                 class="shrink-0 mr-1 w-6 h-6 flex items-center justify-center rounded transition-colors"
                 :class="activeTokenMenu === fee.id ? 'text-[#1E2157] bg-gray-100' : 'text-gray-300 hover:text-[#1E2157] hover:bg-gray-100'"
                 @mousedown.prevent
@@ -114,6 +117,7 @@
   <Teleport to="body">
     <div
       v-if="activeTokenMenu && tokens?.length"
+      data-token-btn
       class="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[160px]"
       :style="{ top: menuPos.top + 'px', right: menuPos.right + 'px' }">
       <button
@@ -143,6 +147,7 @@ export interface FeeToken {
 const props = defineProps<{
   modelValue: FeeLineItem[]
   tokens?: FeeToken[]
+  flush?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -153,7 +158,12 @@ const total = computed(() => feeTotal(props.modelValue))
 const tbodyEl = ref<HTMLElement | null>(null)
 const amountDisplay = reactive<Record<string, string>>({})
 const activeTokenMenu = ref<string | null>(null)
-const nameInputs = reactive<Record<string, HTMLInputElement>>({})
+const nameInputs = reactive<Record<string, HTMLTextAreaElement>>({})
+
+function autoGrow(el: HTMLTextAreaElement) {
+  el.style.height = 'auto'
+  el.style.height = el.scrollHeight + 'px'
+}
 const menuPos = reactive({ top: 0, right: 0 })
 
 function toggleTokenMenu(fee: FeeLineItem, btn: HTMLElement) {
@@ -177,6 +187,10 @@ onMounted(() => {
   document.addEventListener('click', closeOnOutsideClick)
 
   if (!props.modelValue.length) addFee()
+
+  nextTick(() => {
+    for (const el of Object.values(nameInputs)) if (el) autoGrow(el)
+  })
 
   if (tbodyEl.value) {
     Sortable.create(tbodyEl.value, {
@@ -214,6 +228,7 @@ function insertToken(token: string) {
       input.focus()
       const pos = start + token.length
       input.setSelectionRange(pos, pos)
+      autoGrow(input)
     }
   })
 }

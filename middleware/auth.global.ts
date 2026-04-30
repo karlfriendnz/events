@@ -12,7 +12,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     }
   }
 
-  if (!user.value && to.path !== '/login') {
+  if (!user.value && to.path !== '/login' && !to.path.startsWith('/book')) {
     return navigateTo('/login')
   }
   if (user.value && to.path === '/login') {

@@ -152,6 +152,7 @@
               v-model:endTime="session._endTime"
               v-model:isAllDay="session.is_all_day"
               v-model:repeat="session.repeat"
+              v-model:exdates="session.exdates"
               :showCustomRepeat="showCustomRepeat"
               :showOutsideEventDates="showOutsideEventDates"
               :outsideEventDates="session.session_kind !== 'regular'"

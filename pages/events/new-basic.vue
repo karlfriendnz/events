@@ -132,6 +132,7 @@
                 v-model:endTime="form.end_time"
                 v-model:isAllDay="form.is_all_day"
                 v-model:repeat="form.repeat"
+                v-model:exdates="form.exdates"
                 :minStartDate="twoWeeksAgo"
                 :minEndDate="form.start_date ?? twoWeeksAgo"
               />
@@ -615,6 +616,7 @@ const form = reactive({
   end_date: parseDateParam(route.query.date as string ?? null),
   end_time: null as Date | null,
   repeat: '',
+  exdates: [] as string[],
   // Locations (multi)
   locations: [{ type: 'ADDRESS', venue_name: '', address: '', meeting_link: '', bookable_ids: [] as string[] }] as LocationEntry[],
   has_capacity: false,
@@ -687,6 +689,7 @@ async function saveEvent() {
       start_at: buildDateTime(form.start_date, form.is_all_day ? null : form.start_time),
       end_at: buildDateTime(form.end_date, form.is_all_day ? null : form.end_time),
       recurrence_rule: form.repeat || null,
+      exdates: form.exdates ?? [],
       locations: form.locations,
       location_type: (form.locations[0]?.type ?? 'ADDRESS') as 'ADDRESS' | 'ONLINE' | 'BOOKABLE',
       address: form.locations[0]?.type === 'ADDRESS' ? (form.locations[0].address || null) : null,
@@ -723,6 +726,28 @@ async function saveEvent() {
         xero_code: f.account || null,
       }))
       if (feeRows.length) await db.from('fee_components').insert(feeRows)
+    }
+
+    // Sync venue bookings — create EVENT_DRIVEN booking rows so the event
+    // shows up on each linked venue's bookings calendar.
+    const bookableIds: string[] = (form.locations ?? [])
+      .filter((l: any) => l.type === 'BOOKABLE')
+      .flatMap((l: any) => l.bookable_ids ?? [])
+    if (bookableIds.length && payload.start_at && payload.end_at) {
+      // Replace any existing event-driven bookings for this event
+      await db.from('bookings').delete().eq('event_id', evtId).eq('type', 'EVENT_DRIVEN')
+      await db.from('bookings').insert(
+        bookableIds.map(bid => ({
+          bookable_id: bid,
+          event_id: evtId,
+          type: 'EVENT_DRIVEN',
+          status: 'CONFIRMED',
+          start_at: payload.start_at,
+          end_at: payload.end_at,
+          purpose: payload.title,
+          is_all_day: payload.is_all_day,
+        })),
+      )
     }
 
     toast.add({ severity: 'success', summary: 'Event saved!', life: 3000 })

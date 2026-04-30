@@ -13,7 +13,7 @@ export function buildRepeatOptions(date: Date | null): RepeatOption[] {
     { label: 'Monthly', value: 'FREQ=MONTHLY' },
     { label: 'Annually', value: 'FREQ=YEARLY' },
     { label: 'Every weekday (Monday to Friday)', value: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR' },
-    { label: 'Custom...', value: 'CUSTOM' },
+    { label: 'Custom…', value: 'CUSTOM' },
   ]
 
   const d = new Date(date)

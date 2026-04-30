@@ -45,7 +45,7 @@
 
     <!-- Step content (scrollable) -->
     <div class="flex-1 overflow-y-auto bg-[#F5F8FA]">
-      <div class="max-w-2xl mx-auto px-4 md:px-6 py-6 md:py-8 space-y-6">
+      <div class="max-w-[1140px] mx-auto px-6 py-6 space-y-6">
 
         <!-- Step 0: Event Info -->
         <template v-if="currentStep === 0">
@@ -103,25 +103,83 @@
               <input ref="bannerInput" type="file" accept="image/*" class="hidden" @change="handleBannerUpload" />
             </div>
           </div>
+
+          <!-- Event Dates -->
+          <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-2 mb-3">Event Dates</h3>
+          <div class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
+            <div class="px-5 py-4 flex items-center gap-3">
+              <ToggleSwitch v-model="form.is_all_day" />
+              <span class="text-sm text-gray-700">All day event</span>
+            </div>
+            <div class="px-5 py-4 flex items-center gap-6 flex-wrap">
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium text-gray-700">Start</label>
+                <div class="flex items-center gap-2">
+                  <DatePicker v-model="form.start_date" dateFormat="dd/mm/yy" placeholder="Start date" :minDate="twoWeeksAgo" class="w-40" :manualInput="false" />
+                  <DatePicker v-if="!form.is_all_day" v-model="form.start_time" timeOnly hourFormat="12" placeholder="Start time" class="w-36" />
+                </div>
+              </div>
+              <span class="text-gray-300 text-lg pt-5">→</span>
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium text-gray-700">End</label>
+                <div class="flex items-center gap-2">
+                  <DatePicker v-model="form.end_date" dateFormat="dd/mm/yy" placeholder="End date" :minDate="form.start_date ?? twoWeeksAgo" class="w-40" :manualInput="false" />
+                  <DatePicker v-if="!form.is_all_day" v-model="form.end_time" timeOnly hourFormat="12" placeholder="End time" class="w-36" />
+                </div>
+              </div>
+            </div>
+          </div>
         </template>
 
-        <!-- Step 1: Date & Time -->
+        <!-- Step 1: Sessions -->
         <template v-if="currentStep === 1">
           <div>
-            <h2 class="text-lg font-bold text-gray-900 mb-1">Date &amp; Time</h2>
-            <p class="text-sm text-gray-500">When does your event start and end?</p>
+            <h2 class="text-lg font-bold text-gray-900 mb-1">Sessions</h2>
+            <p class="text-sm text-gray-500">Define session templates and we'll generate a session for each day in the programme — all under one event with shared registration.</p>
           </div>
+
+          <!-- Programme days -->
           <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-            <DateTimeEditor
-              v-model:startDate="form.start_date"
-              v-model:endDate="form.end_date"
-              v-model:startTime="form.start_time"
-              v-model:endTime="form.end_time"
-              v-model:isAllDay="form.is_all_day"
-              v-model:repeat="form.repeat"
-              :minStartDate="twoWeeksAgo"
-              :minEndDate="form.start_date ?? twoWeeksAgo"
-            />
+            <div class="px-5 py-3 border-b border-gray-100 bg-gray-50">
+              <h3 class="text-sm font-semibold text-gray-700">Programme Days</h3>
+            </div>
+            <div class="px-5 py-4 space-y-3">
+              <div v-if="!form.start_date || !form.end_date" class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                <i class="pi pi-exclamation-triangle mr-1.5" />
+                Set the event start and end dates on the previous step to generate sessions.
+              </div>
+              <div class="flex items-center gap-4 flex-wrap">
+                <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                  <Checkbox v-model="sessionOptions.includeWeekends" :binary="true" />
+                  Include weekends
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                  <Checkbox v-model="sessionOptions.excludePublicHolidays" :binary="true" />
+                  Exclude public holidays
+                </label>
+              </div>
+              <p v-if="sessionDays.length > 0" class="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 inline-block">
+                <i class="pi pi-calendar-clock mr-1.5" />
+                <strong>{{ sessionDays.length }}</strong> day{{ sessionDays.length !== 1 ? 's' : '' }} in programme
+                <span v-if="!sessionOptions.includeWeekends" class="text-green-600"> (weekdays only)</span>
+                <span v-if="sessionOptions.excludePublicHolidays" class="text-green-600"> (excl. public holidays)</span>
+              </p>
+            </div>
+          </div>
+
+          <!-- Session templates -->
+          <BulkSessionTemplates
+            :modelValue="templates"
+            :daysCount="sessionDays.length"
+            @update:modelValue="v => { templates.splice(0, templates.length, ...v) }" />
+
+          <!-- Preview -->
+          <div v-if="sessionDays.length > 0 && namedTemplates.length > 0" class="bg-[#1E2157]/5 border border-[#1E2157]/20 rounded-xl px-5 py-4">
+            <p class="text-sm font-semibold text-[#1E2157] mb-2">Sessions to be created</p>
+            <ul class="text-sm text-gray-600 space-y-1">
+              <li><i class="pi pi-clock text-[#1E2157] mr-2 text-xs" />{{ sessionDays.length }} day{{ sessionDays.length !== 1 ? 's' : '' }} · {{ namedTemplates.length }} template{{ namedTemplates.length !== 1 ? 's' : '' }} per day</li>
+              <li><i class="pi pi-list text-[#1E2157] mr-2 text-xs" /><strong>{{ totalSessions }}</strong> sessions will be generated</li>
+            </ul>
           </div>
         </template>
 
@@ -381,7 +439,7 @@ const currentStep = ref(0)
 
 const steps = [
   { label: 'Event Info' },
-  { label: 'Date & Time' },
+  { label: 'Sessions' },
   { label: 'Location' },
   { label: 'Capacity & Sign Up' },
   { label: 'Visibility' },
@@ -416,6 +474,7 @@ const form = reactive({
   end_date: parseDateParam(route.query.date as string ?? null),
   end_time: null as Date | null,
   repeat: '',
+  exdates: [] as string[],
   // Location
   locations: [{ type: 'ADDRESS', venue_name: '', address: '', meeting_link: '', bookable_ids: [] as string[] }] as LocationEntry[],
   // Capacity
@@ -467,6 +526,58 @@ const totalFees = computed(() => form.fees.reduce((sum, f) => sum + (f.amount ??
 
 function addFee() {
   form.fees.push({ name: '', account: '', amount: null })
+}
+
+// ── Sessions (bulk-template mode) ─────────────────────────────────────────
+const NZ_PUBLIC_HOLIDAYS_2025_2026 = [
+  '2025-04-18','2025-04-19','2025-04-20','2025-04-21','2025-04-25',
+  '2025-06-02','2025-10-27','2025-12-25','2025-12-26',
+  '2026-01-01','2026-01-02','2026-02-06','2026-04-03','2026-04-04',
+  '2026-04-05','2026-04-06','2026-04-27','2026-06-01','2026-10-26',
+  '2026-12-25','2026-12-26',
+]
+
+const sessionOptions = reactive({
+  includeWeekends: true,
+  excludePublicHolidays: false,
+})
+
+function makeTime(h: number, m = 0) {
+  const d = new Date(); d.setHours(h, m, 0, 0); return d
+}
+
+const templates = reactive([
+  { name: 'Morning',   cost: null as number | null, startTime: makeTime(9),  endTime: makeTime(12), limit: null as number | null },
+  { name: 'Afternoon', cost: null as number | null, startTime: makeTime(13), endTime: makeTime(17), limit: null as number | null },
+])
+
+const sessionDays = computed(() => {
+  if (!form.start_date || !form.end_date) return []
+  const days: Date[] = []
+  const cur = new Date(form.start_date)
+  cur.setHours(0, 0, 0, 0)
+  const end = new Date(form.end_date)
+  end.setHours(23, 59, 59, 999)
+  while (cur <= end) {
+    const dow = cur.getDay()
+    const iso = cur.toISOString().slice(0, 10)
+    const isWeekend = dow === 0 || dow === 6
+    const isHoliday = sessionOptions.excludePublicHolidays && NZ_PUBLIC_HOLIDAYS_2025_2026.includes(iso)
+    if (!isHoliday && (sessionOptions.includeWeekends || !isWeekend)) days.push(new Date(cur))
+    cur.setDate(cur.getDate() + 1)
+  }
+  return days
+})
+
+const namedTemplates = computed(() => templates.filter(t => t.name.trim()))
+
+const totalSessions = computed(() => sessionDays.value.length * namedTemplates.value.length)
+
+function buildSessionDatetime(date: Date, time: Date | null, fallbackHour = 0): string {
+  const d = new Date(date)
+  if (time) d.setHours(time.getHours(), time.getMinutes(), 0, 0)
+  else d.setHours(fallbackHour, 0, 0, 0)
+  return d.toISOString()
 }
 
 // ── Categories ────────────────────────────────────────────────────────────
@@ -535,6 +646,7 @@ async function saveEvent() {
       start_at: buildDateTime(form.start_date, form.is_all_day ? null : form.start_time),
       end_at: buildDateTime(form.end_date, form.is_all_day ? null : form.end_time),
       recurrence_rule: form.repeat || null,
+      exdates: form.exdates ?? [],
       locations: form.locations,
       location_type: (form.locations[0]?.type ?? 'ADDRESS') as 'ADDRESS' | 'ONLINE' | 'BOOKABLE',
       address: form.locations[0]?.type === 'ADDRESS' ? (form.locations[0].address || null) : null,
@@ -557,11 +669,71 @@ async function saveEvent() {
     }).select('id').single()
     if (error) throw error
 
+    const days = sessionDays.value
+    if (days.length && namedTemplates.value.length) {
+      let sortOrder = 0
+      for (const tpl of namedTemplates.value) {
+        const { data: master, error: masterErr } = await db.from('sessions').insert({
+          event_id: data.id,
+          title: tpl.name.trim(),
+          start_at: buildSessionDatetime(days[0], tpl.startTime, 9),
+          end_at: buildSessionDatetime(days[0], tpl.endTime, 17),
+          capacity_max: tpl.limit ?? null,
+          is_required: false,
+          is_public: form.is_public,
+          display_on_form: true,
+          is_master: true,
+          master_id: null,
+          sort_order: sortOrder++,
+        }).select('id').single()
+        if (masterErr || !master?.id) throw masterErr ?? new Error('Failed to create master session')
+
+        if (days.length > 1) {
+          const linked = days.slice(1).map(day => ({
+            event_id: data.id,
+            title: tpl.name.trim(),
+            start_at: buildSessionDatetime(day, tpl.startTime, 9),
+            end_at: buildSessionDatetime(day, tpl.endTime, 17),
+            capacity_max: tpl.limit ?? null,
+            is_required: false,
+            is_public: form.is_public,
+            display_on_form: true,
+            is_master: false,
+            master_id: master.id,
+            sort_order: sortOrder++,
+          }))
+          const { error: linkedErr } = await db.from('sessions').insert(linked)
+          if (linkedErr) throw linkedErr
+        }
+      }
+    }
+
     if (form.is_paid && form.fees.length) {
       const rows = form.fees.filter(f => f.name.trim()).map(f => ({
         event_id: data.id, name: f.name.trim(), amount: f.amount ?? 0, xero_code: f.account || null,
       }))
       if (rows.length) await db.from('fee_components').insert(rows)
+    }
+
+    // Sync venue bookings — surface this event on each linked venue's calendar.
+    const bookableIds: string[] = (form.locations ?? [])
+      .filter((l: any) => l.type === 'BOOKABLE')
+      .flatMap((l: any) => l.bookable_ids ?? [])
+    const eventStart = buildDateTime(form.start_date, form.is_all_day ? null : form.start_time)
+    const eventEnd = buildDateTime(form.end_date, form.is_all_day ? null : form.end_time)
+    if (bookableIds.length && eventStart && eventEnd) {
+      await db.from('bookings').insert(
+        bookableIds.map((bid: string) => ({
+          bookable_id: bid,
+          event_id: data.id,
+          type: 'EVENT_DRIVEN',
+          status: 'CONFIRMED',
+          start_at: eventStart,
+          end_at: eventEnd,
+          purpose: form.title.trim(),
+          is_all_day: form.is_all_day,
+        })),
+      )
     }
 
     toast.add({ severity: 'success', summary: 'Event created!', life: 3000 })

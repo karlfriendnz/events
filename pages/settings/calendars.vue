@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6 max-w-4xl space-y-8">
+  <div class="p-6 max-w-[1140px] mx-auto space-y-8">
 
     <!-- ── CATEGORIES ──────────────────────────────────────────── -->
     <div>

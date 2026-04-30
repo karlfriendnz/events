@@ -61,10 +61,16 @@
             <template v-for="booking in bookingsForChild(child.id)" :key="booking.id">
               <div
                 class="absolute left-1 right-1 rounded-md px-2 py-1 overflow-hidden cursor-pointer transition-opacity hover:opacity-90 shadow-sm"
+                :class="[
+                  statusClass(booking.status),
+                  booking.status === 'PENDING' ? 'booking-pending ring-1 ring-amber-300/70' : '',
+                ]"
                 :style="bookingStyle(booking)"
-                :class="statusClass(booking.status)"
                 @click.stop="$emit('booking-click', booking)">
-                <p class="text-[11px] font-semibold leading-tight truncate">{{ bookingLabel(booking) }}</p>
+                <p class="text-[11px] font-semibold leading-tight truncate flex items-center gap-1">
+                  <i v-if="booking.status === 'PENDING'" class="pi pi-clock text-[9px] shrink-0 booking-pending-icon" />
+                  <span class="truncate">{{ bookingLabel(booking) }}</span>
+                </p>
                 <p class="text-[10px] opacity-80 leading-tight truncate">{{ bookingTimeRange(booking) }}</p>
               </div>
             </template>
@@ -213,3 +219,22 @@ async function loadBookings() {
 
 watch([() => props.date, () => props.children], loadBookings, { immediate: true })
 </script>
+
+<style scoped>
+.booking-pending {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0,
+    transparent 6px,
+    rgba(255, 255, 255, 0.22) 6px,
+    rgba(255, 255, 255, 0.22) 12px
+  );
+}
+.booking-pending-icon {
+  animation: pending-pulse 2s ease-in-out infinite;
+}
+@keyframes pending-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+</style>

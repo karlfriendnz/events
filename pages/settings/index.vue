@@ -5,177 +5,264 @@
       <p class="text-sm text-surface-500 mt-0.5">Organisation configuration and preferences.</p>
     </div>
 
-    <div class="grid grid-cols-3 gap-6">
-      <!-- Org settings -->
-      <div class="col-span-2 space-y-4">
-        <div class="card p-5">
-          <h2 class="text-sm font-semibold text-surface-700 mb-4">Organisation</h2>
-          <div class="flex flex-col gap-4">
-            <div class="flex flex-col gap-1.5">
-              <label class="text-sm font-medium">Organisation Name</label>
-              <InputText v-model="org.name" />
-            </div>
-            <div class="grid grid-cols-2 gap-3">
+    <Tabs value="general">
+      <TabList>
+        <Tab value="general"><i class="pi pi-cog mr-2 text-xs" />General</Tab>
+        <Tab value="bookings"><i class="pi pi-calendar mr-2 text-xs" />Bookings</Tab>
+        <Tab value="events"><i class="pi pi-megaphone mr-2 text-xs" />Events</Tab>
+        <Tab value="people"><i class="pi pi-users mr-2 text-xs" />People</Tab>
+        <Tab value="resources"><i class="pi pi-building mr-2 text-xs" />Resources</Tab>
+        <Tab value="advanced"><i class="pi pi-wrench mr-2 text-xs" />Advanced</Tab>
+      </TabList>
+      <TabPanels>
+
+        <!-- ── GENERAL ── -->
+        <TabPanel value="general" class="space-y-4 max-w-2xl">
+          <div class="card p-5">
+            <h2 class="text-sm font-semibold text-surface-700 mb-4">Organisation</h2>
+            <div class="flex flex-col gap-4">
               <div class="flex flex-col gap-1.5">
-                <label class="text-sm font-medium">Currency</label>
-                <Select v-model="org.currency" :options="['AUD', 'NZD', 'USD', 'GBP', 'EUR']" class="w-full" />
+                <label class="text-sm font-medium">Organisation Name</label>
+                <InputText v-model="org.name" />
               </div>
-              <div class="flex flex-col gap-1.5">
-                <label class="text-sm font-medium">Locale</label>
-                <Select v-model="org.locale" :options="['en-AU', 'en-NZ', 'en-US', 'en-GB']" class="w-full" />
-              </div>
-            </div>
-          </div>
-          <div class="mt-4 flex justify-end">
-            <Button label="Save Organisation" :loading="savingOrg" @click="saveOrg" size="small" />
-          </div>
-        </div>
-
-        <div class="card p-5">
-          <h2 class="text-sm font-semibold text-surface-700 mb-4">Event Defaults</h2>
-          <div class="space-y-3">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm font-medium">Default to phased registration</p>
-                <p class="text-xs text-surface-500">New events start with member-only window enabled</p>
-              </div>
-              <ToggleSwitch v-model="defaults.phased_registration" />
-            </div>
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm font-medium">Default hold-spot flow</p>
-                <p class="text-xs text-surface-500">Enable 24h parent confirmation for all new events</p>
-              </div>
-              <ToggleSwitch v-model="defaults.hold_spot_enabled" />
-            </div>
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm font-medium">Show attendee list to members</p>
-                <p class="text-xs text-surface-500">Members can see who else is attending</p>
-              </div>
-              <ToggleSwitch v-model="defaults.show_attendee_list" />
-            </div>
-            <div class="flex flex-col gap-1.5 pt-1">
-              <label class="text-sm font-medium">Default member window (days)</label>
-              <InputNumber v-model="defaults.member_window_days" :min="0" class="w-32" />
-            </div>
-          </div>
-          <div class="mt-4 flex justify-end">
-            <Button label="Save Defaults" size="small" @click="toast.add({ severity: 'success', summary: 'Defaults saved', life: 3000 })" />
-          </div>
-        </div>
-      </div>
-
-      <!-- Right panel -->
-      <div class="space-y-4">
-        <div class="card p-4">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-surface-700">Categories</h3>
-            <Button label="Manage" icon="pi pi-arrow-right" icon-pos="right" text size="small" @click="navigateTo('/settings/calendars')" />
-          </div>
-          <div class="space-y-1">
-            <div v-for="cat in categories" :key="cat.id"
-              class="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-surface-50">
-              <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: cat.color || '#94a3b8' }" />
-              <span class="text-sm flex-1 truncate">{{ cat.name }}</span>
-            </div>
-            <p v-if="!categories.length" class="text-sm text-surface-400 py-2">No categories yet.</p>
-          </div>
-        </div>
-
-        <div class="card p-4">
-          <div class="flex items-center justify-between mb-2">
-            <h3 class="text-sm font-semibold text-surface-700">Calendars</h3>
-            <Button label="Manage" icon="pi pi-arrow-right" icon-pos="right" text size="small" @click="navigateTo('/settings/calendars')" />
-          </div>
-          <p class="text-sm text-surface-500">Named groupings of categories for calendar filtering.</p>
-        </div>
-
-        <div class="card p-4">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="text-sm font-semibold text-surface-700">Venues</h3>
-            <Button label="Manage" icon="pi pi-arrow-right" icon-pos="right" text size="small" @click="navigateTo('/settings/venues')" />
-          </div>
-          <p class="text-sm text-surface-500">Manage bookable venues, fields, and spaces.</p>
-        </div>
-
-        <div class="card p-4">
-          <h3 class="text-sm font-semibold text-surface-700 mb-3">Members (Persons)</h3>
-          <p class="text-sm text-surface-500 mb-3">{{ personCount }} members in this organisation.</p>
-          <Button label="Add Member" icon="pi pi-user-plus" size="small" severity="secondary" @click="showAddPerson = true" class="w-full" />
-        </div>
-
-        <div class="card p-4">
-          <h3 class="text-sm font-semibold text-surface-700 mb-3">Member Groups</h3>
-          <div v-if="groupsLoading" class="py-4 flex justify-center">
-            <i class="pi pi-spin pi-spinner text-gray-300" />
-          </div>
-          <div v-else-if="!topLevelGroups.length" class="text-sm text-surface-400 py-1">No groups yet.</div>
-          <div v-else class="space-y-1">
-            <div v-for="group in topLevelGroups" :key="group.id">
-              <!-- Top-level group -->
-              <div class="flex items-center gap-2 py-1.5 px-1 rounded hover:bg-surface-50 cursor-pointer"
-                @click="groupChildren(group.id).length && toggleExpand(group.id)">
-                <button class="w-4 h-4 flex items-center justify-center shrink-0">
-                  <i v-if="groupChildren(group.id).length"
-                    :class="`pi text-[10px] text-gray-400 ${expandedGroupIds[group.id] ? 'pi-chevron-down' : 'pi-chevron-right'}`" />
-                </button>
-                <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: group.color ?? '#94a3b8' }" />
-                <span class="text-sm font-semibold text-gray-800 flex-1 truncate">{{ group.name }}</span>
-                <span class="text-xs text-gray-400">{{ groupMemberCount(group.id) }}</span>
-              </div>
-              <!-- Children -->
-              <template v-if="expandedGroupIds[group.id]">
-                <div v-for="child in groupChildren(group.id)" :key="child.id"
-                  class="flex items-center gap-2 py-1.5 pl-7 pr-1 rounded hover:bg-surface-50">
-                  <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: child.color ?? '#94a3b8' }" />
-                  <span class="text-sm text-gray-700 flex-1 truncate">{{ child.name }}</span>
-                  <span class="text-xs text-gray-400">{{ groupMemberCount(child.id) }}</span>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-sm font-medium">Currency</label>
+                  <Select v-model="org.currency" :options="['AUD', 'NZD', 'USD', 'GBP', 'EUR']" class="w-full" />
                 </div>
-              </template>
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-sm font-medium">Locale</label>
+                  <Select v-model="org.locale" :options="['en-AU', 'en-NZ', 'en-US', 'en-GB']" class="w-full" />
+                </div>
+              </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+              <Button label="Save Organisation" :loading="savingOrg" @click="saveOrg" size="small" />
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+        </TabPanel>
 
-    <!-- Demo Data -->
-    <div class="mt-6 rounded-xl border border-gray-200 bg-white p-5">
-      <div class="flex items-center justify-between">
-        <div>
-          <h2 class="text-sm font-semibold text-gray-700">Demo Events</h2>
-          <p class="text-xs text-gray-500 mt-0.5">Seed 11 realistic sample events spread across the next month — training weeks, comps, meetings, a ticketed show, and more.</p>
-        </div>
-        <Button label="Seed Demo Events" icon="pi pi-magic-wand" size="small" severity="secondary" outlined
-          :loading="seedingEvents" class="ml-6 shrink-0" @click="seedDemoEvents" />
-      </div>
-      <div class="flex items-center justify-between">
-        <div>
-          <h2 class="text-sm font-semibold text-gray-700">Demo Bookings</h2>
-          <p class="text-xs text-gray-500 mt-0.5">Seed realistic venue bookings across courts, pool lanes, cricket nets and more. Requires demo events to be seeded first.</p>
-        </div>
-        <Button label="Seed Demo Bookings" icon="pi pi-calendar-plus" size="small" severity="secondary" outlined
-          :loading="seedingBookings" class="ml-6 shrink-0" @click="seedDemoBookings" />
-      </div>
-    </div>
+        <!-- ── BOOKINGS ── -->
+        <TabPanel value="bookings" class="space-y-4 max-w-2xl">
+          <div class="card p-5">
+            <h2 class="text-sm font-semibold text-surface-700 mb-1">Default booking form</h2>
+            <p class="text-xs text-surface-500 mb-3">Form used by every activity mode unless the mode picks its own. Holds the fields, terms &amp; conditions, and confirmation copy customers see at the Details step.</p>
+            <div class="flex items-center gap-2">
+              <Select v-model="org.default_form_id" :options="formOptions" option-label="label" option-value="value"
+                placeholder="No default form (use built-in fields)" filter show-clear class="flex-1" />
+              <Button v-if="org.default_form_id" label="Edit form" icon="pi pi-pencil" size="small" severity="secondary" outlined
+                @click="navigateTo(`/forms/${org.default_form_id}?return=${encodeURIComponent($route.fullPath)}`)" />
+              <Button label="New form" icon="pi pi-plus" size="small"
+                style="background:#1E2157;border-color:#1E2157"
+                @click="navigateTo(`/forms/new?return=${encodeURIComponent($route.fullPath)}`)" />
+            </div>
+            <div class="mt-4 flex justify-end">
+              <Button label="Save default form" :loading="savingDefaultForm" @click="saveDefaultForm" size="small" />
+            </div>
+          </div>
 
-    <!-- Danger Zone -->
-    <div class="mt-6 rounded-xl border border-red-200 bg-white p-5 space-y-4">
-      <h2 class="text-sm font-semibold text-red-600">Danger Zone</h2>
-      <div class="flex items-center justify-between">
-        <div>
-          <p class="text-sm font-medium text-gray-700">Reset database</p>
-          <p class="text-xs text-gray-500">Deletes all events, venues, bookings, registrations, fees, discounts, forms, and related data. People and member groups are preserved.</p>
+          <div class="card p-5">
+            <h2 class="text-sm font-semibold text-surface-700 mb-1">Payment Options for bookings</h2>
+            <p class="text-xs text-surface-500 mb-4">Methods offered by default on activity-mode bookings. Modes can override.</p>
+            <PaymentOptionsEditor
+              v-model="defaultPaymentOptions"
+              :default-model="org.default_payment_method"
+              @update:defaultModel="org.default_payment_method = $event"
+              :bank-accounts="bankAccounts"
+              :bank-account-id="org.default_bank_account_id"
+              @update:bankAccountId="org.default_bank_account_id = $event"
+              allow-default
+              manage-bank-accounts
+              @manage-bank-accounts="showBankAccounts = true" />
+            <div class="mt-4 flex justify-end">
+              <Button label="Save Payment Options" :loading="savingPayments" @click="saveDefaultPayments" size="small" />
+            </div>
+          </div>
+        </TabPanel>
+
+        <!-- ── EVENTS ── -->
+        <TabPanel value="events" class="space-y-4 max-w-2xl">
+          <div class="card p-5">
+            <h2 class="text-sm font-semibold text-surface-700 mb-4">Event Defaults</h2>
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-medium">Default to phased registration</p>
+                  <p class="text-xs text-surface-500">New events start with member-only window enabled</p>
+                </div>
+                <ToggleSwitch v-model="defaults.phased_registration" />
+              </div>
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-medium">Default hold-spot flow</p>
+                  <p class="text-xs text-surface-500">Enable 24h parent confirmation for all new events</p>
+                </div>
+                <ToggleSwitch v-model="defaults.hold_spot_enabled" />
+              </div>
+              <div class="flex items-center justify-between">
+                <div>
+                  <p class="text-sm font-medium">Show attendee list to members</p>
+                  <p class="text-xs text-surface-500">Members can see who else is attending</p>
+                </div>
+                <ToggleSwitch v-model="defaults.show_attendee_list" />
+              </div>
+              <div class="flex flex-col gap-1.5 pt-1">
+                <label class="text-sm font-medium">Default member window (days)</label>
+                <InputNumber v-model="defaults.member_window_days" :min="0" class="w-32" />
+              </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+              <Button label="Save Defaults" size="small" @click="toast.add({ severity: 'success', summary: 'Defaults saved', life: 3000 })" />
+            </div>
+          </div>
+
+          <div class="card p-5">
+            <h2 class="text-sm font-semibold text-surface-700 mb-1">Payment Options for events</h2>
+            <p class="text-xs text-surface-500 mb-4">Methods offered by default on event registration forms. Individual events can override.</p>
+            <PaymentOptionsEditor
+              v-model="eventsPaymentOptions"
+              :default-model="org.events_default_payment_method"
+              @update:defaultModel="org.events_default_payment_method = $event"
+              :bank-accounts="bankAccounts"
+              :bank-account-id="org.events_default_bank_account_id"
+              @update:bankAccountId="org.events_default_bank_account_id = $event"
+              allow-default
+              manage-bank-accounts
+              @manage-bank-accounts="showBankAccounts = true" />
+            <div class="mt-4 flex justify-end">
+              <Button label="Save Payment Options" :loading="savingEventsPayments" @click="saveEventsPayments" size="small" />
+            </div>
+          </div>
+        </TabPanel>
+
+        <!-- ── PEOPLE ── -->
+        <TabPanel value="people" class="grid grid-cols-2 gap-4 max-w-4xl">
+          <div class="card p-4">
+            <h3 class="text-sm font-semibold text-surface-700 mb-3">Members</h3>
+            <p class="text-sm text-surface-500 mb-3">{{ personCount }} members in this organisation.</p>
+            <Button label="Add Member" icon="pi pi-user-plus" size="small" severity="secondary" @click="showAddPerson = true" class="w-full" />
+          </div>
+          <div class="card p-4">
+            <h3 class="text-sm font-semibold text-surface-700 mb-3">Member Groups</h3>
+            <div v-if="groupsLoading" class="py-4 flex justify-center">
+              <i class="pi pi-spin pi-spinner text-gray-300" />
+            </div>
+            <div v-else-if="!topLevelGroups.length" class="text-sm text-surface-400 py-1">No groups yet.</div>
+            <div v-else class="space-y-1">
+              <div v-for="group in topLevelGroups" :key="group.id">
+                <div class="flex items-center gap-2 py-1.5 px-1 rounded hover:bg-surface-50 cursor-pointer"
+                  @click="groupChildren(group.id).length && toggleExpand(group.id)">
+                  <button class="w-4 h-4 flex items-center justify-center shrink-0">
+                    <i v-if="groupChildren(group.id).length"
+                      :class="`pi text-[10px] text-gray-400 ${expandedGroupIds[group.id] ? 'pi-chevron-down' : 'pi-chevron-right'}`" />
+                  </button>
+                  <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: group.color ?? '#94a3b8' }" />
+                  <span class="text-sm font-semibold text-gray-800 flex-1 truncate">{{ group.name }}</span>
+                  <span class="text-xs text-gray-400">{{ groupMemberCount(group.id) }}</span>
+                </div>
+                <template v-if="expandedGroupIds[group.id]">
+                  <div v-for="child in groupChildren(group.id)" :key="child.id"
+                    class="flex items-center gap-2 py-1.5 pl-7 pr-1 rounded hover:bg-surface-50">
+                    <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: child.color ?? '#94a3b8' }" />
+                    <span class="text-sm text-gray-700 flex-1 truncate">{{ child.name }}</span>
+                    <span class="text-xs text-gray-400">{{ groupMemberCount(child.id) }}</span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </TabPanel>
+
+        <!-- ── RESOURCES ── -->
+        <TabPanel value="resources" class="grid grid-cols-3 gap-4 max-w-4xl">
+          <div class="card p-4">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-semibold text-surface-700">Categories</h3>
+              <Button label="Manage" icon="pi pi-arrow-right" icon-pos="right" text size="small" @click="navigateTo('/settings/calendars')" />
+            </div>
+            <div class="space-y-1">
+              <div v-for="cat in categories" :key="cat.id"
+                class="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-surface-50">
+                <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: cat.color || '#94a3b8' }" />
+                <span class="text-sm flex-1 truncate">{{ cat.name }}</span>
+              </div>
+              <p v-if="!categories.length" class="text-sm text-surface-400 py-2">No categories yet.</p>
+            </div>
+          </div>
+          <div class="card p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-sm font-semibold text-surface-700">Calendars</h3>
+              <Button label="Manage" icon="pi pi-arrow-right" icon-pos="right" text size="small" @click="navigateTo('/settings/calendars')" />
+            </div>
+            <p class="text-sm text-surface-500">Named groupings of categories for calendar filtering.</p>
+          </div>
+          <div class="card p-4">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-semibold text-surface-700">Venues</h3>
+              <Button label="Manage" icon="pi pi-arrow-right" icon-pos="right" text size="small" @click="navigateTo('/settings/venues')" />
+            </div>
+            <p class="text-sm text-surface-500">Manage bookable venues, fields, and spaces.</p>
+          </div>
+        </TabPanel>
+
+        <!-- ── ADVANCED ── -->
+        <TabPanel value="advanced" class="space-y-4 max-w-2xl">
+          <div class="rounded-xl border border-gray-200 bg-white p-5">
+            <div class="flex items-center justify-between">
+              <div>
+                <h2 class="text-sm font-semibold text-gray-700">Demo Events</h2>
+                <p class="text-xs text-gray-500 mt-0.5">Seed 11 realistic sample events spread across the next month — training weeks, comps, meetings, a ticketed show, and more.</p>
+              </div>
+              <Button label="Seed Demo Events" icon="pi pi-magic-wand" size="small" severity="secondary" outlined
+                :loading="seedingEvents" class="ml-6 shrink-0" @click="seedDemoEvents" />
+            </div>
+          </div>
+
+          <div class="rounded-xl border border-red-200 bg-white p-5 space-y-4">
+            <h2 class="text-sm font-semibold text-red-600">Danger Zone</h2>
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-gray-700">Reset database</p>
+                <p class="text-xs text-gray-500">Deletes all events, venues, bookings, registrations, fees, discounts, forms, and related data. People and member groups are preserved.</p>
+              </div>
+              <Button
+                label="Reset Database"
+                severity="danger"
+                size="small"
+                :loading="resetting"
+                class="ml-6 shrink-0"
+                @click="resetDatabase" />
+            </div>
+          </div>
+        </TabPanel>
+
+      </TabPanels>
+    </Tabs>
+
+    <!-- Bank Accounts Dialog -->
+    <Dialog v-model:visible="showBankAccounts" header="Bank Accounts" modal style="width: 540px">
+      <div class="space-y-3">
+        <div v-if="!bankAccounts.length" class="text-sm text-gray-400 italic py-3 text-center">No bank accounts yet.</div>
+        <div v-for="b in bankAccounts" :key="b.id"
+          class="border border-gray-200 rounded-xl p-3 space-y-2 bg-gray-50/40">
+          <div class="flex items-center gap-2">
+            <InputText v-model="b.name" placeholder="Account name (e.g. Main Account)" class="flex-1" />
+            <button type="button" class="w-8 h-8 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+              @click="removeBankAccount(b.id)">
+              <i class="pi pi-trash text-xs" />
+            </button>
+          </div>
+          <Textarea v-model="b.details" rows="2" auto-resize placeholder="Account details (BSB, number, reference, etc.)" class="w-full text-sm bg-white" />
         </div>
-        <Button
-          label="Reset Database"
-          severity="danger"
-          size="small"
-          :loading="resetting"
-          class="ml-6 shrink-0"
-          @click="resetDatabase" />
+        <Button label="Add bank account" icon="pi pi-plus" size="small" severity="secondary" outlined
+          class="w-full" @click="addBankAccount" />
       </div>
-    </div>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text @click="cancelBankAccounts" />
+        <Button label="Save" :loading="savingBankAccounts" @click="saveBankAccounts"
+          style="background:#1E2157;border-color:#1E2157" />
+      </template>
+    </Dialog>
 
     <!-- Add Person Dialog -->
     <Dialog v-model:visible="showAddPerson" header="Add Member" modal style="width: 400px">
@@ -216,9 +303,116 @@ import { useToast } from 'primevue/usetoast'
 const db = useDb()
 const toast = useToast()
 
-const org = ref({ name: 'Demo Club', currency: 'AUD', locale: 'en-AU' })
+const org = ref<{
+  name: string
+  currency: string
+  locale: string
+  default_form_id: string | null
+  default_payment_method: string | null
+  default_bank_account_id: string | null
+  events_default_payment_method: string | null
+  events_default_bank_account_id: string | null
+}>({
+  name: 'Demo Club', currency: 'AUD', locale: 'en-AU',
+  default_form_id: null, default_payment_method: null, default_bank_account_id: null,
+  events_default_payment_method: null, events_default_bank_account_id: null,
+})
+
+// Bank accounts
+const bankAccounts = ref<{ id: string; name: string; details: string | null; _new?: boolean }[]>([])
+const showBankAccounts = ref(false)
+const savingBankAccounts = ref(false)
+let bankAccountsBackup: any[] = []
+function addBankAccount() {
+  bankAccounts.value.push({ id: crypto.randomUUID(), name: '', details: '', _new: true })
+}
+function removeBankAccount(id: string) {
+  bankAccounts.value = bankAccounts.value.filter(b => b.id !== id)
+}
+function cancelBankAccounts() {
+  bankAccounts.value = JSON.parse(JSON.stringify(bankAccountsBackup))
+  showBankAccounts.value = false
+}
+async function loadBankAccounts() {
+  const { data } = await (db.from as any)('bank_accounts')
+    .select('id, name, details')
+    .eq('org_id', orgId.value)
+    .order('sort_order').order('created_at')
+  bankAccounts.value = (data ?? []) as any[]
+}
+async function saveBankAccounts() {
+  savingBankAccounts.value = true
+  try {
+    const existingIds = (bankAccountsBackup as any[]).map(b => b.id)
+    const currentIds = bankAccounts.value.map(b => b.id)
+    const toDelete = existingIds.filter(id => !currentIds.includes(id))
+    if (toDelete.length) await (db.from as any)('bank_accounts').delete().in('id', toDelete)
+    for (const b of bankAccounts.value) {
+      if (!b.name?.trim()) continue
+      if (b._new) {
+        await (db.from as any)('bank_accounts').insert({
+          id: b.id, org_id: orgId.value, name: b.name.trim(), details: b.details || null,
+        })
+      } else {
+        await (db.from as any)('bank_accounts').update({
+          name: b.name.trim(), details: b.details || null,
+        }).eq('id', b.id)
+      }
+    }
+    await loadBankAccounts()
+    bankAccountsBackup = JSON.parse(JSON.stringify(bankAccounts.value))
+    showBankAccounts.value = false
+    toast.add({ severity: 'success', summary: 'Bank accounts saved', life: 2500 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not save', detail: e?.message, life: 4000 })
+  }
+  savingBankAccounts.value = false
+}
+watch(showBankAccounts, (open) => {
+  if (open) bankAccountsBackup = JSON.parse(JSON.stringify(bankAccounts.value))
+})
 const defaults = ref({ phased_registration: false, hold_spot_enabled: false, show_attendee_list: false, member_window_days: 40 })
 const savingOrg = ref(false)
+const savingDefaultForm = ref(false)
+const allForms = ref<{ id: string; name: string }[]>([])
+const formOptions = computed(() => allForms.value.map(f => ({ value: f.id, label: f.name })))
+async function saveDefaultForm() {
+  savingDefaultForm.value = true
+  await (db.from as any)('organisations')
+    .update({ default_form_id: org.value.default_form_id || null })
+    .eq('id', orgId.value)
+  toast.add({ severity: 'success', summary: 'Default form saved', life: 2500 })
+  savingDefaultForm.value = false
+}
+
+const defaultPaymentOptions = ref<Record<string, boolean>>({ invoice: false, credit_card: false, payment_plan: false, coupon: false })
+const eventsPaymentOptions = ref<Record<string, boolean>>({ invoice: false, credit_card: false, payment_plan: false, coupon: false })
+const savingPayments = ref(false)
+const savingEventsPayments = ref(false)
+async function saveDefaultPayments() {
+  savingPayments.value = true
+  await (db.from as any)('organisations')
+    .update({
+      default_payment_options: { ...defaultPaymentOptions.value },
+      default_payment_method: org.value.default_payment_method || null,
+      default_bank_account_id: org.value.default_bank_account_id || null,
+    })
+    .eq('id', orgId.value)
+  toast.add({ severity: 'success', summary: 'Booking payments saved', life: 2500 })
+  savingPayments.value = false
+}
+async function saveEventsPayments() {
+  savingEventsPayments.value = true
+  await (db.from as any)('organisations')
+    .update({
+      events_default_payment_options: { ...eventsPaymentOptions.value },
+      events_default_payment_method: org.value.events_default_payment_method || null,
+      events_default_bank_account_id: org.value.events_default_bank_account_id || null,
+    })
+    .eq('id', orgId.value)
+  toast.add({ severity: 'success', summary: 'Event payments saved', life: 2500 })
+  savingEventsPayments.value = false
+}
 const categories = ref<any[]>([])
 const personCount = ref(0)
 
@@ -240,14 +434,36 @@ const addingPerson = ref(false)
 const personForm = ref({ first_name: '', last_name: '', email: '', phone: '' })
 
 async function load() {
-  const [{ data: orgData }, { data: catData }, { count }, { data: groupData }, { data: memberships }] = await Promise.all([
+  const [{ data: orgData }, { data: catData }, { count }, { data: groupData }, { data: memberships }, { data: forms }] = await Promise.all([
     db.from('organisations').select('*').eq('id', orgId.value).single(),
     db.from('categories').select('*').eq('org_id', orgId.value).order('name'),
     db.from('persons').select('*', { count: 'exact', head: true }).eq('org_id', orgId.value),
     db.from('member_groups').select('id, name, color, parent_id, sort_order').eq('org_id', orgId.value).order('sort_order'),
     db.from('member_group_memberships').select('group_id'),
+    (db.from as any)('registration_forms').select('id, name').eq('org_id', orgId.value).order('name'),
   ])
-  if (orgData) org.value = { name: orgData.name, currency: orgData.currency, locale: orgData.locale }
+  if (orgData) {
+    org.value = {
+      name: orgData.name,
+      currency: orgData.currency,
+      locale: orgData.locale,
+      default_form_id: orgData.default_form_id ?? null,
+      default_payment_method: orgData.default_payment_method ?? null,
+      default_bank_account_id: orgData.default_bank_account_id ?? null,
+      events_default_payment_method: orgData.events_default_payment_method ?? null,
+      events_default_bank_account_id: orgData.events_default_bank_account_id ?? null,
+    }
+    defaultPaymentOptions.value = {
+      invoice: false, credit_card: false, payment_plan: false, coupon: false,
+      ...(orgData.default_payment_options ?? {}),
+    }
+    eventsPaymentOptions.value = {
+      invoice: false, credit_card: false, payment_plan: false, coupon: false,
+      ...(orgData.events_default_payment_options ?? {}),
+    }
+  }
+  await loadBankAccounts()
+  allForms.value = (forms ?? []) as any[]
   categories.value = catData ?? []
   personCount.value = count ?? 0
   memberGroups.value = groupData ?? []
@@ -386,6 +602,12 @@ async function seedDemoEvents() {
         )
       }
     }
+
+    await db.from('bookables').insert({
+      org_id: orgId.value, name: 'Hall', type: 'VENUE', status: 'ACTIVE',
+      is_public: true, description: 'Multi-purpose hall for indoor sports, classes, and large events.',
+      parent_id: clubRoomsId, sort_order: 4, max_concurrent: 1, allow_multiple_layouts: false,
+    })
 
     const { data: cricketNets } = await db.from('bookables').insert({
       org_id: orgId.value, name: 'Cricket Nets', type: 'VENUE', status: 'ACTIVE',
@@ -939,10 +1161,12 @@ async function seedDemoEvents() {
     if (awardsEvt?.id) await inviteAll(awardsEvt.id, allPersonIds)
 
     // ── Calendars ───────────────────────────────────────────────
+    const allCategoryNames = categoryDefs.map(c => c.name)
     const calendarDefs = [
-      { name: 'Club Events', sort_order: 0, categories: ['Social', 'Community', 'Administration'] },
-      { name: 'Committee',   sort_order: 1, categories: ['Administration'] },
-      { name: 'Sport',       sort_order: 2, categories: ['Training', 'Competition', 'Development'] },
+      { name: 'Main Calendar', sort_order: 0, categories: allCategoryNames },
+      { name: 'Club Events',   sort_order: 1, categories: ['Social', 'Community', 'Administration'] },
+      { name: 'Committee',     sort_order: 2, categories: ['Administration'] },
+      { name: 'Sport',         sort_order: 3, categories: ['Training', 'Competition', 'Development'] },
     ]
     for (const calDef of calendarDefs) {
       const { data: calRow } = await (db.from as any)('calendars')
@@ -958,7 +1182,100 @@ async function seedDemoEvents() {
       }
     }
 
-    toast.add({ severity: 'success', summary: 'Demo events created', detail: '11 events seeded with invitees, attendance, forms, discounts & bookables.', life: 4000 })
+    // ── Availability rules for venues and staff ──
+    // Each venue/court/lane/net/field gets opening hours; coaches get working hours.
+    const { data: allBookables } = await db.from('bookables')
+      .select('id, name, type, parent_id')
+      .eq('org_id', orgId.value)
+      .in('type', ['VENUE', 'PERSON'])
+
+    const availabilityRows: any[] = []
+    const allDays = [0, 1, 2, 3, 4, 5, 6]
+    const weekdays = [0, 1, 2, 3, 4]
+
+    function rule(bookable_id: string, name: string, days: number[], from: string, to: string) {
+      return {
+        bookable_id,
+        name,
+        rule_type: 'OPEN',
+        days_of_week: days,
+        time_slots: [{ from, to }],
+        is_active: true,
+      }
+    }
+
+    for (const b of allBookables ?? []) {
+      const n = (b.name || '').toLowerCase()
+      if (b.type === 'PERSON') {
+        availabilityRows.push(rule(b.id, 'After-school coaching', weekdays, '17:00', '20:00'))
+        availabilityRows.push(rule(b.id, 'Saturday morning', [5], '09:00', '13:00'))
+      } else if (n.startsWith('court ')) {
+        availabilityRows.push(rule(b.id, 'Open hours', allDays, '07:00', '22:00'))
+      } else if (n.startsWith('lane ')) {
+        availabilityRows.push(rule(b.id, 'Open hours', allDays, '05:30', '21:00'))
+      } else if (n.startsWith('net ')) {
+        availabilityRows.push(rule(b.id, 'Open hours', allDays, '09:00', '21:00'))
+      } else if (n.startsWith('field ')) {
+        availabilityRows.push(rule(b.id, 'Open hours', allDays, '08:00', '21:00'))
+      } else if (n === 'club rooms' || n === 'hall') {
+        availabilityRows.push(rule(b.id, 'Open hours', allDays, '08:00', '22:00'))
+      } else if (n === 'tennis courts' || n === 'cricket nets' || n === 'football fields' || n === 'swimming pool' || n === 'competition pool') {
+        availabilityRows.push(rule(b.id, 'Open hours', allDays, '07:00', '22:00'))
+      }
+    }
+
+    if (availabilityRows.length) {
+      const arChunk = 200
+      for (let i = 0; i < availabilityRows.length; i += arChunk) {
+        await db.from('availability_rules').insert(availabilityRows.slice(i, i + arChunk))
+      }
+    }
+
+    // ── Backfill EVENT_DRIVEN bookings for every event/session tied to a venue ──
+    // This makes the venue calendars show the events that were just created.
+    const { data: allEvents } = await db.from('events')
+      .select('id, start_at, end_at, title, is_all_day, locations, location_type, bookable_id')
+      .eq('org_id', orgId.value)
+      .not('start_at', 'is', null)
+    const { data: allSessions } = await db.from('sessions')
+      .select('id, event_id, start_at, end_at, title, location_type, bookable_id')
+      .in('event_id', (allEvents ?? []).map((e: any) => e.id))
+      .not('start_at', 'is', null)
+
+    const bookingRows: any[] = []
+    for (const evt of allEvents ?? []) {
+      const ids: string[] = []
+      if (evt.locations?.length) {
+        for (const loc of evt.locations) {
+          if (loc.type === 'BOOKABLE') ids.push(...(loc.bookable_ids ?? []))
+        }
+      } else if (evt.location_type === 'BOOKABLE' && evt.bookable_id) {
+        ids.push(evt.bookable_id)
+      }
+      for (const bid of ids) {
+        bookingRows.push({
+          bookable_id: bid, event_id: evt.id, type: 'EVENT_DRIVEN', status: 'CONFIRMED',
+          start_at: evt.start_at, end_at: evt.end_at,
+          purpose: evt.title, is_all_day: evt.is_all_day ?? false,
+        })
+      }
+    }
+    for (const s of allSessions ?? []) {
+      if (s.location_type === 'BOOKABLE' && s.bookable_id) {
+        bookingRows.push({
+          bookable_id: s.bookable_id, event_id: s.event_id, session_id: s.id,
+          type: 'EVENT_DRIVEN', status: 'CONFIRMED',
+          start_at: s.start_at, end_at: s.end_at,
+          purpose: s.title, is_all_day: false,
+        })
+      }
+    }
+    const bookingChunk = 200
+    for (let i = 0; i < bookingRows.length; i += bookingChunk) {
+      await db.from('bookings').insert(bookingRows.slice(i, i + bookingChunk))
+    }
+
+    toast.add({ severity: 'success', summary: 'Demo events created', detail: `11 events, ${availabilityRows.length} availability rules & ${bookingRows.length} venue bookings seeded.`, life: 4000 })
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Seed failed', detail: e?.message ?? 'Unknown error', life: 5000 })
   } finally {
@@ -966,233 +1283,94 @@ async function seedDemoEvents() {
   }
 }
 
-const seedingBookings = ref(false)
-
-async function seedDemoBookings() {
-  seedingBookings.value = true
-
-  function d(offsetDays: number, hour = 9, minute = 0) {
-    const dt = new Date()
-    dt.setDate(dt.getDate() + offsetDays)
-    dt.setHours(hour, minute, 0, 0)
-    return dt.toISOString()
-  }
-
-  try {
-    // Load or create venues
-    const { data: existing } = await db.from('bookables')
-      .select('id, name')
-      .eq('org_id', orgId.value)
-      .eq('type', 'VENUE')
-      .eq('status', 'ACTIVE')
-
-    const venueMap: Record<string, string> = Object.fromEntries((existing ?? []).map((b: any) => [b.name, b.id]))
-
-    async function ensureVenue(name: string, extra: Record<string, any> = {}, parentId?: string): Promise<string> {
-      if (venueMap[name]) return venueMap[name]
-      const { data } = await db.from('bookables').insert({
-        org_id: orgId.value, name, type: 'VENUE', status: 'ACTIVE',
-        is_public: true, allow_multiple_layouts: false,
-        ...(parentId ? { parent_id: parentId } : {}),
-        ...extra,
-      }).select('id').single()
-      venueMap[name] = data!.id
-      return data!.id
-    }
-
-    const clubRoomsId   = await ensureVenue('Club Rooms',      { description: 'Function space for meetings, presentations, and social events.', sort_order: 0 })
-    const footballFieldsId = await ensureVenue('Football Fields', { description: 'Two full-size football fields for training and match play.', sort_order: 1 }, clubRoomsId)
-    const field1Id      = await ensureVenue('Field 1',   {}, footballFieldsId)
-    const field2Id      = await ensureVenue('Field 2',   {}, footballFieldsId)
-    const swimmingPoolId = await ensureVenue('Swimming Pool', { description: '25m heated pool with 6 lanes.', sort_order: 2 }, clubRoomsId)
-    const compPoolId    = await ensureVenue('Competition Pool', { default_booking_view: 'scheduler', show_in_menu: true, sort_order: 0 }, swimmingPoolId)
-    const lane1Id       = await ensureVenue('Lane 1', { is_master: true, sort_order: 0 }, compPoolId)
-    const lane2Id       = await ensureVenue('Lane 2', { sort_order: 1 }, compPoolId)
-    const lane3Id       = await ensureVenue('Lane 3', { sort_order: 2 }, compPoolId)
-    const lane4Id       = await ensureVenue('Lane 4', { sort_order: 3 }, compPoolId)
-    const tennisCourtsId = await ensureVenue('Tennis Courts', { description: '4 hard-court tennis courts with floodlighting.', default_booking_view: 'scheduler', show_in_menu: true, sort_order: 3 }, clubRoomsId)
-    const court1Id      = await ensureVenue('Court 1', { is_master: true, sort_order: 0 }, tennisCourtsId)
-    const court2Id      = await ensureVenue('Court 2', { sort_order: 1 }, tennisCourtsId)
-    const court3Id      = await ensureVenue('Court 3', { sort_order: 2 }, tennisCourtsId)
-    const court4Id      = await ensureVenue('Court 4', { sort_order: 3 }, tennisCourtsId)
-    const cricketNetsId = await ensureVenue('Cricket Nets', { description: '4 practice nets for batting and bowling drills.', default_booking_view: 'scheduler', show_in_menu: true, sort_order: 5 })
-    const net1Id        = await ensureVenue('Net 1', { is_master: true, sort_order: 0 }, cricketNetsId)
-    const net2Id        = await ensureVenue('Net 2', { sort_order: 1 }, cricketNetsId)
-    const net3Id        = await ensureVenue('Net 3', { sort_order: 2 }, cricketNetsId)
-    const net4Id = await ensureVenue('Net 4', { sort_order: 3 }, cricketNetsId)
-
-    const rows: any[] = []
-
-    const purposes = {
-      tennis: ['Club Competition', 'Coaching Session', 'Social Match', 'Junior Training', 'Ladies Group', 'Mixed Doubles'],
-      pool: ['Squad Training', 'Masters Swim', 'Learn to Swim', 'Fitness Swim', 'School Group', 'Club Carnival'],
-      cricket: ['Net Practice', 'Batting Drill', 'Bowling Session', 'Warm-up', 'Youth Squad', 'Club Practice'],
-      club: ['Board Meeting', 'Team Briefing', 'Social Event', 'First Aid Course', 'Coaching Workshop', 'Volunteer Training'],
-      football: ['Seniors Training', 'Juniors Training', 'Pre-Match Warm-up', 'Skills Clinic', 'School Program', 'Academy Session'],
-    }
-
-    function pick(arr: string[]) { return arr[Math.floor(Math.random() * arr.length)] }
-
-    // Tennis courts — morning and afternoon slots over next 14 days
-    for (let day = 0; day < 14; day++) {
-      const slots = [[7, 0, 8, 30], [9, 0, 10, 30], [11, 0, 12, 30], [14, 0, 15, 30], [16, 0, 17, 30], [18, 0, 19, 30]]
-      const courts = [court1Id, court2Id, court3Id, court4Id].filter(Boolean)
-      for (const courtId of courts) {
-        for (const [sh, sm, eh, em] of slots) {
-          if (Math.random() < 0.55) {
-            rows.push({
-              bookable_id: courtId, type: 'STANDALONE', status: 'CONFIRMED',
-              start_at: d(day, sh, sm), end_at: d(day, eh, em),
-              purpose: pick(purposes.tennis), is_all_day: false,
-            })
-          }
-        }
-      }
-    }
-
-    // Pool lanes — early morning and evening lap swims
-    for (let day = 0; day < 14; day++) {
-      const slots = [[5, 30, 7, 0], [7, 0, 8, 30], [12, 0, 13, 0], [17, 30, 19, 0], [19, 0, 20, 30]]
-      const lanes = [lane1Id, lane2Id, lane3Id, lane4Id].filter(Boolean)
-      for (const laneId of lanes) {
-        for (const [sh, sm, eh, em] of slots) {
-          if (Math.random() < 0.60) {
-            rows.push({
-              bookable_id: laneId, type: 'STANDALONE', status: 'CONFIRMED',
-              start_at: d(day, sh, sm), end_at: d(day, eh, em),
-              purpose: pick(purposes.pool), is_all_day: false,
-            })
-          }
-        }
-      }
-    }
-
-    // Cricket nets — afternoon and evening sessions
-    for (let day = 0; day < 14; day++) {
-      const slots = [[15, 0, 16, 30], [16, 30, 18, 0], [18, 0, 19, 30]]
-      const nets = [net1Id, net2Id, net3Id, net4Id].filter(Boolean)
-      for (const netId of nets) {
-        for (const [sh, sm, eh, em] of slots) {
-          if (Math.random() < 0.50) {
-            rows.push({
-              bookable_id: netId, type: 'STANDALONE', status: 'CONFIRMED',
-              start_at: d(day, sh, sm), end_at: d(day, eh, em),
-              purpose: pick(purposes.cricket), is_all_day: false,
-            })
-          }
-        }
-      }
-    }
-
-    // Football fields
-    for (let day = 0; day < 14; day++) {
-      const slots = [[8, 0, 10, 0], [10, 30, 12, 0], [15, 0, 17, 0], [17, 30, 19, 30]]
-      const fields = [field1Id, field2Id].filter(Boolean)
-      for (const fieldId of fields) {
-        for (const [sh, sm, eh, em] of slots) {
-          if (Math.random() < 0.45) {
-            rows.push({
-              bookable_id: fieldId, type: 'STANDALONE', status: 'CONFIRMED',
-              start_at: d(day, sh, sm), end_at: d(day, eh, em),
-              purpose: pick(purposes.football), is_all_day: false,
-            })
-          }
-        }
-      }
-    }
-
-    // Club Rooms — occasional meetings and workshops
-    if (clubRoomsId) {
-      for (let day = 0; day < 14; day++) {
-        if (Math.random() < 0.35) {
-          const hour = [9, 13, 17, 18][Math.floor(Math.random() * 4)]
-          rows.push({
-            bookable_id: clubRoomsId, type: 'STANDALONE', status: 'CONFIRMED',
-            start_at: d(day, hour, 0), end_at: d(day, hour + 2, 0),
-            purpose: pick(purposes.club), is_all_day: false,
-          })
-        }
-      }
-    }
-
-    // Also backfill EVENT_DRIVEN bookings from existing events
-    const { data: events } = await db.from('events')
-      .select('id, start_at, end_at, title, is_all_day, locations, location_type, bookable_id')
-      .eq('org_id', orgId.value)
-      .not('start_at', 'is', null)
-    for (const evt of events ?? []) {
-      const bookableIds: string[] = []
-      if (evt.locations?.length) {
-        for (const loc of evt.locations) {
-          if (loc.type === 'BOOKABLE') bookableIds.push(...(loc.bookable_ids ?? []))
-        }
-      } else if (evt.location_type === 'BOOKABLE' && evt.bookable_id) {
-        bookableIds.push(evt.bookable_id)
-      }
-      for (const bid of bookableIds) {
-        rows.push({
-          bookable_id: bid, event_id: evt.id, type: 'EVENT_DRIVEN', status: 'CONFIRMED',
-          start_at: evt.start_at, end_at: evt.end_at,
-          purpose: evt.title, is_all_day: evt.is_all_day ?? false,
-        })
-      }
-    }
-
-    // Insert in chunks to avoid payload limits
-    const chunk = 200
-    for (let i = 0; i < rows.length; i += chunk) {
-      await db.from('bookings').insert(rows.slice(i, i + chunk))
-    }
-
-    toast.add({ severity: 'success', summary: 'Demo bookings created', detail: `${rows.length} bookings seeded across all venues.`, life: 4000 })
-  } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Seed failed', detail: e?.message ?? 'Unknown error', life: 5000 })
-  } finally {
-    seedingBookings.value = false
-  }
-}
-
 const resetting = ref(false)
 
 async function resetDatabase() {
-  const ok = confirm('Reset the database? This will delete all events, venues, bookings, registrations, forms, fees, discounts, and related data. People and member groups will be kept. This cannot be undone.')
+  const ok = confirm('Reset the database? This will delete all events, venues, bookings, activities, booking discounts, registrations, forms, fees, event discounts, and related data for your organisation. People and member groups will be kept. This cannot be undone.')
   if (!ok) return
   resetting.value = true
   try {
-    // Delete in dependency order (children before parents)
-    const tables = [
-      'audit_log', 'access_scans', 'physical_schedules', 'lighting_profiles',
-      'tasks', 'attendance', 'communications',
-      'registration_ticket_items', 'registration_sessions', 'transactions', 'registrations',
-      'ticket_types',
-      'form_fields', 'registration_forms',
-      'discounts', 'addons', 'fee_rules', 'fee_components',
-      'invitees', 'connection_group_events', 'connection_groups',
-      'sessions', 'events',
-      'bookings', 'bookable_closures', 'availability_rules', 'bookables',
-      'calendar_categories', 'calendars', 'categories',
-    ]
-    // Tables with direct org_id can be scoped; child tables rely on cascade / RLS
-    const orgTables = [
+    const oid = orgId.value
+    const db2 = (table: string) => (db.from as any)(table)
+
+    // Helper: skip delete when no parent IDs exist (avoids deleting unrelated rows)
+    const del = async (table: string, col: string, ids: string[]) => {
+      if (!ids.length) return
+      await db2(table).delete().in(col, ids)
+    }
+
+    // 1. Fetch parent IDs for this org so children can be scoped
+    const [evRes, regRes, formRes, cgRes, calRes, bRes] = await Promise.all([
+      db2('events').select('id').eq('org_id', oid),
+      db2('registrations').select('id').eq('org_id', oid),
+      db2('registration_forms').select('id').eq('org_id', oid),
+      db2('connection_groups').select('id').eq('org_id', oid),
+      db2('calendars').select('id').eq('org_id', oid),
+      db2('bookables').select('id').eq('org_id', oid),
+    ])
+    const eIds  = (evRes.data   ?? []).map((r: any) => r.id)
+    const rIds  = (regRes.data  ?? []).map((r: any) => r.id)
+    const fIds  = (formRes.data ?? []).map((r: any) => r.id)
+    const cgIds = (cgRes.data   ?? []).map((r: any) => r.id)
+    const calIds= (calRes.data  ?? []).map((r: any) => r.id)
+    const bIds  = (bRes.data    ?? []).map((r: any) => r.id)
+
+    // Fetch session & layout IDs (needed to scope their children)
+    const [sessRes, layoutRes] = await Promise.all([
+      eIds.length  ? db2('sessions').select('id').in('event_id', eIds) : { data: [] },
+      bIds.length  ? db2('bookable_layouts').select('id').in('bookable_id', bIds) : { data: [] },
+    ])
+    const sessIds  = (sessRes.data   ?? []).map((r: any) => r.id)
+    const layoutIds= (layoutRes.data ?? []).map((r: any) => r.id)
+
+    // 2. Delete deepest children first, all scoped to this org's data
+    await Promise.all([
+      // Layout tree
+      del('bookable_layout_modes', 'layout_id', layoutIds),
+      del('bookable_modes', 'bookable_id', bIds),
+      // Event children
+      del('access_scans',       'event_id',       eIds),
+      del('physical_schedules', 'event_id',       eIds),
+      del('ticket_types',       'event_id',       eIds),
+      del('connection_group_events', 'event_id',  eIds),
+      // Session children
+      del('attendance', 'session_id', sessIds),
+      // Registration children
+      del('registration_ticket_items', 'registration_id', rIds),
+      del('registration_sessions',     'registration_id', rIds),
+      del('transactions',              'registration_id', rIds),
+      // Form children
+      del('form_fields', 'form_id', fIds),
+      // Connection group children
+      del('connection_group_events', 'connection_group_id', cgIds),
+      // Calendar children
+      del('calendar_categories', 'calendar_id', calIds),
+      // Bookable-scoped (no org_id column — must be deleted before bookables)
+      del('bookings',            'bookable_id', bIds),
+      del('availability_rules',  'bookable_id', bIds),
+      del('bookable_closures',   'bookable_id', bIds),
+    ])
+
+    // 3. Delete mid-level children
+    await Promise.all([
+      del('bookable_layouts', 'bookable_id', bIds),
+      del('sessions',         'event_id',    eIds),
+    ])
+
+    // 4. Delete all org-scoped tables in dependency order
+    const orgScoped = [
       'audit_log', 'lighting_profiles', 'tasks', 'communications',
       'registrations', 'registration_forms',
       'discounts', 'addons', 'fee_rules', 'fee_components',
       'invitees', 'connection_groups',
-      'events', 'bookings', 'bookable_closures', 'availability_rules', 'bookables',
+      'booking_discounts', 'activities',
+      'events', 'bookables',
       'calendars', 'categories',
     ]
-    const childTables = [
-      'access_scans', 'physical_schedules',
-      'attendance', 'registration_ticket_items', 'registration_sessions', 'transactions',
-      'ticket_types', 'form_fields',
-      'connection_group_events', 'sessions', 'calendar_categories',
-    ]
-    for (const table of orgTables) {
-      await db.from(table as any).delete().eq('org_id', orgId.value)
+    for (const table of orgScoped) {
+      await db2(table).delete().eq('org_id', oid)
     }
-    for (const table of childTables) {
-      await db.from(table as any).delete().neq('id', '00000000-0000-0000-0000-000000000000')
-    }
+
     toast.add({ severity: 'success', summary: 'Database reset', detail: 'All data except people has been cleared.', life: 4000 })
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Reset failed', detail: e?.message ?? 'Unknown error', life: 5000 })
@@ -1201,5 +1379,13 @@ async function resetDatabase() {
   }
 }
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  // Returning from /forms with ?form_id=… — apply it as the default and save.
+  const returningId = (useRoute().query.form_id as string | undefined) ?? null
+  if (returningId && returningId !== org.value.default_form_id) {
+    org.value.default_form_id = returningId
+    await saveDefaultForm()
+  }
+})
 </script>

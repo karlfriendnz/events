@@ -3,17 +3,14 @@
     <!-- Header -->
     <div class="flex items-center justify-between mb-5">
       <div class="flex items-center gap-3">
-        <SelectButton
-          v-model="viewMode"
-          :options="viewOptions"
+        <Select
+          :model-value="calSettings.defaultView"
+          :options="calViews"
           option-label="label"
           option-value="value"
           size="small"
-        >
-          <template #option="{ option }">
-            <i :class="`pi ${option.icon} text-sm`" />
-          </template>
-        </SelectButton>
+          class="w-32"
+          @update:model-value="setCalView" />
         <div class="flex items-center gap-1">
           <Button icon="pi pi-chevron-left" severity="secondary" text size="small" @click="prev" />
           <span class="text-sm font-semibold text-gray-800 min-w-36 text-center">{{ calendarTitle }}</span>
@@ -45,13 +42,15 @@
     </div>
 
     <!-- Calendar Settings Dialog -->
-    <Dialog v-model:visible="showCalSettings" header="Calendar Settings" modal style="width:460px">
+    <Dialog v-model:visible="showCalSettings" :header="activeCalendar ? `Calendar Settings — ${activeCalendar.name}` : 'Calendar Settings'" modal style="width:460px">
       <div class="flex flex-col gap-5 py-1">
 
         <!-- New calendar / edit calendar -->
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between">
-            <label class="text-sm font-semibold text-gray-700">{{ editingCalendarId ? 'Edit Calendar' : 'New Calendar' }}</label>
+            <label class="text-sm font-semibold text-gray-700">
+              {{ editingCalendarId ? `Edit "${newCalendarName || 'calendar'}"` : 'New Calendar' }}
+            </label>
             <button
               v-if="editingCalendarId"
               class="text-xs text-red-500 hover:text-red-700 hover:underline"
@@ -96,7 +95,7 @@
           <label class="text-sm font-semibold text-gray-700">Default view</label>
           <SelectButton
             v-model="calSettings.defaultView"
-            :options="[{ label: 'Month', value: 'dayGridMonth' }, { label: 'Week', value: 'timeGridWeek' }, { label: 'Day', value: 'timeGridDay' }]"
+            :options="[{ label: 'Month', value: 'dayGridMonth' }, { label: 'Week', value: 'timeGridWeek' }, { label: 'Day', value: 'timeGridDay' }, { label: 'List', value: 'listWeek' }]"
             option-label="label"
             option-value="value"
             size="small"
@@ -124,31 +123,43 @@
           <ToggleSwitch v-model="calSettings.showWeekends" />
         </div>
 
-        <!-- Categories visibility -->
+        <!-- Venue filter -->
         <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-gray-700">Categories</label>
-          <div v-if="!sidebarCategories.length" class="text-xs text-gray-400 py-2">
-            No categories yet.
-          </div>
-          <div class="flex flex-col gap-1">
-            <div
-              v-for="cat in sidebarCategories"
-              :key="cat.id"
-              class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer"
-              @click="(() => { const idx = calSettings.visibleCategoryIds.indexOf(cat.id); idx >= 0 ? calSettings.visibleCategoryIds.splice(idx, 1) : calSettings.visibleCategoryIds.push(cat.id); saveCalPrefs() })()"
-            >
-              <Checkbox v-model="calSettings.visibleCategoryIds" :value="cat.id" :binary="false" @click.stop />
-              <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: cat.color ?? '#94a3b8' }" />
-              <span class="text-sm text-gray-700 flex-1">{{ cat.name }}</span>
-            </div>
-          </div>
-          <div class="border-t border-gray-100 pt-2 mt-1">
-            <div class="flex items-center gap-2 cursor-pointer" @click="calSettings.showUncategorised = !calSettings.showUncategorised; saveCalPrefs()">
-              <Checkbox v-model="calSettings.showUncategorised" :binary="true" @click.stop />
-              <span class="text-sm text-gray-600">Show uncategorised events</span>
-            </div>
-          </div>
+          <label class="text-sm font-semibold text-gray-700">Filter by venue</label>
+          <MultiSelect
+            v-model="calSettings.visibleBookableIds"
+            :options="allBookables"
+            option-label="name"
+            option-value="id"
+            placeholder="All venues"
+            display="chip"
+            filter
+            class="w-full" />
+          <p class="text-xs text-gray-500">Leave empty to show all venues.</p>
         </div>
+
+        <!-- Category filter -->
+        <div class="flex flex-col gap-2">
+          <label class="text-sm font-semibold text-gray-700">Filter by category</label>
+          <MultiSelect
+            v-model="calSettings.visibleCategoryIds"
+            :options="allCategories"
+            option-label="name"
+            option-value="id"
+            placeholder="All categories"
+            display="chip"
+            filter
+            class="w-full">
+            <template #option="{ option }">
+              <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: option.color ?? '#94a3b8' }" />
+                <span>{{ option.name }}</span>
+              </div>
+            </template>
+          </MultiSelect>
+          <p class="text-xs text-gray-500">Leave empty to show all categories.</p>
+        </div>
+
       </div>
       <template #footer>
         <Button label="Reset to defaults" severity="secondary" text @click="resetCalSettings" />
@@ -156,10 +167,61 @@
       </template>
     </Dialog>
 
+    <!-- Move-recurring dialog -->
+    <Dialog v-model:visible="dropDialog.open" modal header="Move recurring event" :style="{ width: '480px' }">
+      <div class="flex flex-col gap-3 py-2">
+        <p class="text-sm text-gray-700">This event is part of a recurring series. What do you want to move?</p>
+        <label class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors"
+          :class="dropDialog.scope === 'this' ? 'border-[#1E2157] bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
+          <RadioButton v-model="dropDialog.scope" value="this" />
+          <div>
+            <p class="text-sm font-medium text-gray-800">Just this event</p>
+            <p class="text-xs text-gray-500">Only this single occurrence is moved.</p>
+          </div>
+        </label>
+        <label class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors"
+          :class="dropDialog.scope === 'following' ? 'border-[#1E2157] bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
+          <RadioButton v-model="dropDialog.scope" value="following" />
+          <div>
+            <p class="text-sm font-medium text-gray-800">This and all following</p>
+            <p class="text-xs text-gray-500">Move this event and every occurrence after it by the same offset.</p>
+          </div>
+        </label>
+        <label class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors"
+          :class="dropDialog.scope === 'all' ? 'border-[#1E2157] bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
+          <RadioButton v-model="dropDialog.scope" value="all" />
+          <div>
+            <p class="text-sm font-medium text-gray-800">All events in the series</p>
+            <p class="text-xs text-gray-500">Shift every occurrence (including past ones) by the same offset.</p>
+          </div>
+        </label>
+        <div v-if="dropDialog.pending?.conflicts?.length"
+          class="flex items-start gap-2 mt-1 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+          <i class="pi pi-exclamation-triangle text-amber-500 text-xs mt-0.5" />
+          <div class="text-xs text-amber-700">
+            Heads up — there's already an event in this series on the new date: <strong>{{ dropDialog.pending.conflicts.join(', ') }}</strong>.
+            Moving "this" only will create a duplicate.
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text size="small" @click="dropDialog.open = false; dropDialog.pending = null" />
+        <Button label="Move" icon="pi pi-arrow-right" size="small" @click="performDropMove" style="background:#1E2157;border-color:#1E2157" />
+      </template>
+    </Dialog>
+
     <!-- Calendar view -->
-    <div v-if="viewMode === 'calendar'" class="bg-white rounded-xl border border-gray-200 overflow-hidden flex-1" style="min-height:0"
-      @wheel.passive="handleCalendarWheel">
-      <FullCalendar ref="calendarRef" :options="calendarOptions" style="height:100%" />
+    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden flex-1" style="min-height:0">
+      <BookingsCalendar
+        :cal-date="calDate"
+        :cal-view="bookingsCalView"
+        :custom-events="bookingsCalEvents"
+        @booking-click="onCalendarEventClick"
+        @booking-drop="onCalendarEventDrop"
+        @booking-hover="onCalendarEventHover"
+        @booking-leave="hideTooltip"
+        @slot-click="onCalendarSlotClick"
+      />
     </div>
 
     <!-- Event hover tooltip -->
@@ -211,66 +273,6 @@
     </Teleport>
     </ClientOnly>
 
-    <!-- List view -->
-    <div v-if="viewMode !== 'calendar'" class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <DataTable
-        :value="filtered"
-        :loading="loading"
-        row-hover
-        size="small"
-        @row-click="e => navigateTo(`/events/${e.data.id}`)"
-        class="cursor-pointer"
-      >
-        <template #empty>
-          <div class="text-center py-12 text-gray-400">
-            <i class="pi pi-calendar text-3xl mb-3 block" />
-            <p>No events yet. Create your first event.</p>
-          </div>
-        </template>
-
-        <Column field="title" header="Event">
-          <template #body="{ data }">
-            <div>
-              <p class="font-medium text-gray-900">{{ data.title }}</p>
-              <p v-if="data.category" class="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
-                <span class="w-2 h-2 rounded-full inline-block" :style="{ background: data.category?.color ?? '#94a3b8' }" />
-                {{ data.category.name }}
-              </p>
-            </div>
-          </template>
-        </Column>
-
-        <Column field="style" header="Style" style="width:160px">
-          <template #body="{ data }">
-            <Tag :value="STYLE_LABELS[data.style]" severity="secondary" />
-          </template>
-        </Column>
-
-        <Column field="start_at" header="Date" style="width:200px">
-          <template #body="{ data }">
-            <span class="text-gray-600 text-sm">
-              {{ data.start_at ? formatDate(data.start_at) : '—' }}<span v-if="data.end_at && data.start_at !== data.end_at" class="text-gray-400"> – {{ formatDate(data.end_at) }}</span>
-            </span>
-            <span v-if="data.start_at && !data.is_all_day" class="block text-xs text-gray-400">
-              {{ formatTime(data.start_at) }}<span v-if="data.end_at"> – {{ formatTime(data.end_at) }}</span>
-            </span>
-          </template>
-        </Column>
-
-        <Column field="status" header="Status" style="width:110px">
-          <template #body="{ data }">
-            <Tag :value="data.status" :severity="statusSeverity(data.status)" />
-          </template>
-        </Column>
-
-        <Column style="width:60px">
-          <template #body="{ data }">
-            <Button icon="pi pi-ellipsis-v" severity="secondary" text rounded size="small" @click.stop="openMenu($event, data)" />
-          </template>
-        </Column>
-      </DataTable>
-    </div>
-
     <!-- Row menu -->
     <Menu ref="rowMenu" :model="menuItems" :popup="true" />
 
@@ -306,7 +308,7 @@
           <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center mb-3">
             <i class="pi pi-calendar text-[#1E2157] text-lg" />
           </div>
-          <h3 class="font-semibold text-gray-900 mb-1">Basic Event</h3>
+          <h3 class="font-semibold text-gray-900 mb-1">Invite Only</h3>
           <p class="text-xs text-gray-500 leading-relaxed">Simple single-page setup. Covers all essentials without the wizard steps.</p>
         </div>
         <div
@@ -370,6 +372,8 @@ import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
+import timeGridPlugin from '@fullcalendar/timegrid'
+import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
 
 const db = useDb()
@@ -472,6 +476,7 @@ const calSettings = reactive({
   showWeekends: true,
   visibleCategoryIds: [] as string[],
   showUncategorised: true,
+  visibleBookableIds: [] as string[], // empty = all venues
 })
 
 const colorByOptions = [
@@ -482,6 +487,7 @@ const colorByOptions = [
 
 const namedCalendars = ref<any[]>([])
 const allCategories = ref<any[]>([])
+const allBookables = ref<any[]>([])
 const categoriesById = computed(() => Object.fromEntries(allCategories.value.map((c: any) => [c.id, c])))
 
 const activeCalendar = computed(() => {
@@ -499,7 +505,7 @@ const sidebarCategories = computed(() => {
 })
 
 async function loadCalendars() {
-  const [{ data: cals }, { data: cats }] = await Promise.all([
+  const [{ data: cals }, { data: cats }, { data: books }] = await Promise.all([
     (db.from as any)('calendars')
       .select('id, name, sort_order, calendar_categories(category_id)')
       .eq('org_id', orgId.value)
@@ -508,8 +514,16 @@ async function loadCalendars() {
       .select('id, name, color, icon')
       .eq('org_id', orgId.value)
       .order('name'),
+    (db.from as any)('bookables')
+      .select('id, name, type')
+      .eq('org_id', orgId.value)
+      .eq('type', 'VENUE')
+      .neq('status', 'ARCHIVED')
+      .neq('status', 'DELETED')
+      .order('name'),
   ])
   allCategories.value = cats ?? []
+  allBookables.value = books ?? []
   namedCalendars.value = (cals ?? []).map((c: any) => ({
     ...c,
     categoryIds: c.calendar_categories?.map((cc: any) => cc.category_id) ?? [],
@@ -530,6 +544,7 @@ function saveCalPrefs() {
     showWeekends: calSettings.showWeekends,
     showUncategorised: calSettings.showUncategorised,
     visibleCategoryIds: [...calSettings.visibleCategoryIds],
+    visibleBookableIds: [...calSettings.visibleBookableIds],
   }
   localStorage.setItem(CAL_PREFS_KEY, JSON.stringify(all))
 }
@@ -544,9 +559,24 @@ function restoreCalPrefs(calId: string | undefined) {
     calSettings.weekStart = saved.weekStart ?? 1
     calSettings.showWeekends = saved.showWeekends ?? true
     calSettings.showUncategorised = saved.showUncategorised ?? true
+    // Restore venue filter (drop any stale IDs that no longer exist)
+    if (saved.visibleBookableIds?.length) {
+      calSettings.visibleBookableIds = saved.visibleBookableIds.filter((id: string) =>
+        allBookables.value.some((b: any) => b.id === id),
+      )
+    } else {
+      calSettings.visibleBookableIds = []
+    }
     if (saved.visibleCategoryIds?.length) {
-      calSettings.visibleCategoryIds = saved.visibleCategoryIds
-      return true
+      // Drop any stale category IDs that no longer exist (e.g. after a DB reset).
+      // If none remain valid, fall through to defaults.
+      const valid = saved.visibleCategoryIds.filter((id: string) =>
+        allCategories.value.some((c: any) => c.id === id),
+      )
+      if (valid.length) {
+        calSettings.visibleCategoryIds = valid
+        return true
+      }
     }
   }
   return false
@@ -594,13 +624,8 @@ async function applyCalSettings() {
   }
   saveCalPrefs()
   showCalSettings.value = false
-  // Apply view settings to FullCalendar
-  const api = calendarRef.value?.getApi()
-  if (api) {
-    api.setOption('weekends', calSettings.showWeekends)
-    api.setOption('firstDay', calSettings.weekStart)
-    api.changeView(calSettings.defaultView)
-  }
+  // The view, weekStart, showWeekends are reactive props on BookingsCalendar,
+  // so calSettings updates flow through automatically.
 }
 
 // New calendar creation / editing (inside cal settings dialog)
@@ -744,6 +769,178 @@ function formatTime(d: string) {
 
 const calendarTitle = ref('')
 
+const calViews = [
+  { label: 'Day',   value: 'timeGridDay' },
+  { label: 'Week',  value: 'timeGridWeek' },
+  { label: 'Month', value: 'dayGridMonth' },
+  { label: 'List',  value: 'listWeek' },
+]
+
+// Map FullCalendar view names → BookingsCalendar's view set
+const VIEW_MAP: Record<string, 'day' | 'week' | 'month' | 'list'> = {
+  timeGridDay: 'day',
+  timeGridWeek: 'week',
+  dayGridMonth: 'month',
+  listWeek: 'list',
+}
+
+const calDate = ref(new Date())
+const bookingsCalView = computed<'day' | 'week' | 'month' | 'list'>(() =>
+  VIEW_MAP[calSettings.defaultView] ?? 'month',
+)
+
+// Map our events into the shape BookingsCalendar expects
+const bookingsCalEvents = computed(() => {
+  return (calendarEvents.value as any[]).map((e: any) => ({
+    id: e.id,
+    start_at: e.start,
+    end_at: e.end,
+    is_all_day: e.allDay ?? false,
+    status: 'CONFIRMED',
+    notes: e.title,
+    color: e.backgroundColor,
+    event: { id: e.extendedProps?.id, title: e.title },
+    contact_name: null,
+    activity_mode: null,
+    extendedProps: e.extendedProps,
+  }))
+})
+
+function onCalendarEventClick(item: any) {
+  const ext = item.extendedProps
+  if (ext?._isSession) {
+    navigateTo(`/events/${ext._eventId}?tab=sessions`)
+  } else if (ext?.id) {
+    navigateTo(`/events/${ext.id}`)
+  }
+}
+
+function onCalendarSlotClick(date: Date, endDate?: Date) {
+  // Format as YYYY-MM-DD using local components (no timezone shift).
+  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const startStr = fmt(date)
+  const endStr = endDate ? fmt(endDate) : undefined
+  openEventTypeModal(startStr, endStr && endStr !== startStr ? endStr : undefined)
+}
+
+// ── Drag-and-drop event move ───────────────────────────────
+const dropDialog = reactive({
+  open: false,
+  scope: 'this' as 'this' | 'following' | 'all',
+  pending: null as null | { eventRow: any; newStart: Date; newEnd: Date; conflicts: string[] },
+})
+
+async function detectConflicts(targetEventId: string, parentId: string | null, newStart: Date) {
+  if (!parentId) return []
+  const dayKey = newStart.toISOString().slice(0, 10)
+  const { data: siblings } = await db.from('events')
+    .select('id, title, start_at')
+    .or(`id.eq.${parentId},recurrence_parent_id.eq.${parentId}`)
+    .neq('id', targetEventId)
+  return (siblings ?? [])
+    .filter((s: any) => s.start_at?.slice(0, 10) === dayKey)
+    .map((s: any) => s.title || 'Untitled')
+}
+
+async function onCalendarEventDrop(item: any, newStart: Date, newEnd: Date) {
+  const ext = item.extendedProps
+  if (ext?._isSession) {
+    toast.add({ severity: 'warn', summary: 'Sessions cannot be moved here', detail: 'Open the event to edit individual sessions.', life: 4000 })
+    return
+  }
+  const eventId = ext?.id ?? item.id
+  if (!eventId) return
+
+  const { data: eventRow } = await db.from('events').select('id, title, start_at, end_at, recurrence_parent_id').eq('id', eventId).single()
+  if (!eventRow) return
+
+  const parentId = eventRow.recurrence_parent_id ?? eventId
+  const conflicts = await detectConflicts(eventId, eventRow.recurrence_parent_id ? parentId : null, newStart)
+
+  // Check if this event is part of a series (has parent OR has children)
+  const { count: childCount } = await (db.from as any)('events')
+    .select('id', { count: 'exact', head: true })
+    .eq('recurrence_parent_id', eventId)
+  const inSeries = !!eventRow.recurrence_parent_id || (childCount ?? 0) > 0
+
+  if (inSeries) {
+    dropDialog.scope = 'this'
+    dropDialog.pending = { eventRow, newStart, newEnd, conflicts }
+    dropDialog.open = true
+  } else {
+    if (conflicts.length) {
+      toast.add({ severity: 'warn', summary: 'Conflict', detail: `Already an event on this date: ${conflicts.join(', ')}`, life: 5000 })
+    }
+    await applyDateMove(eventRow, newStart, newEnd)
+  }
+}
+
+async function applyDateMove(eventRow: any, newStart: Date, newEnd: Date) {
+  await db.from('events').update({
+    start_at: newStart.toISOString(),
+    end_at: newEnd.toISOString(),
+  }).eq('id', eventRow.id)
+  await load()
+}
+
+async function performDropMove() {
+  if (!dropDialog.pending) return
+  const { eventRow, newStart, newEnd, conflicts } = dropDialog.pending
+  const oldStart = new Date(eventRow.start_at)
+  const oldEnd = new Date(eventRow.end_at ?? eventRow.start_at)
+  const dayDelta = Math.round((newStart.getTime() - oldStart.getTime()) / 86_400_000)
+  const parentId = eventRow.recurrence_parent_id ?? eventRow.id
+
+  if (dropDialog.scope === 'this') {
+    if (conflicts.length) {
+      toast.add({ severity: 'warn', summary: 'Conflict', detail: `Already an event on this date: ${conflicts.join(', ')}`, life: 5000 })
+    }
+    await applyDateMove(eventRow, newStart, newEnd)
+  } else {
+    // Get all related events (the parent + every child)
+    const { data: family } = await db.from('events')
+      .select('id, start_at, end_at')
+      .or(`id.eq.${parentId},recurrence_parent_id.eq.${parentId}`)
+    const targets = (family ?? []).filter((e: any) => {
+      if (dropDialog.scope === 'all') return true
+      // 'following' = events at or after the dragged event's original start
+      return e.start_at >= eventRow.start_at
+    })
+    for (const t of targets) {
+      const ts = new Date(t.start_at); ts.setDate(ts.getDate() + dayDelta)
+      const te = new Date(t.end_at ?? t.start_at); te.setDate(te.getDate() + dayDelta)
+      await db.from('events').update({
+        start_at: ts.toISOString(),
+        end_at: te.toISOString(),
+      }).eq('id', t.id)
+    }
+  }
+
+  dropDialog.open = false
+  dropDialog.pending = null
+  await load()
+  toast.add({ severity: 'success', summary: 'Event moved', life: 2500 })
+}
+
+function updateCalendarTitle() {
+  const v = bookingsCalView.value
+  if (v === 'day') {
+    calendarTitle.value = calDate.value.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  } else if (v === 'week') {
+    const monday = new Date(calDate.value); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6)
+    calendarTitle.value = `${monday.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} – ${sunday.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}`
+  } else {
+    calendarTitle.value = calDate.value.toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
+  }
+}
+watch([calDate, bookingsCalView], updateCalendarTitle, { immediate: true })
+
+function setCalView(view: string) {
+  calSettings.defaultView = view
+  saveCalPrefs()
+}
+
 // Hover tooltip
 const tooltip = reactive({ visible: false, x: 0, y: 0, event: null as any })
 let tooltipTimer: ReturnType<typeof setTimeout> | null = null
@@ -767,6 +964,20 @@ function hideTooltip() {
   tooltip.visible = false
 }
 
+// Hover handler for BookingsCalendar event bars/blocks
+function onCalendarEventHover(item: any, ev: MouseEvent) {
+  if (tooltipTimer) clearTimeout(tooltipTimer)
+  const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect()
+  let x = rect.right + 10
+  let y = rect.top
+  if (x + 290 > window.innerWidth) x = rect.left - 300
+  if (y + 280 > window.innerHeight) y = window.innerHeight - 290
+  tooltip.event = item.extendedProps ?? item
+  tooltip.x = x
+  tooltip.y = y
+  tooltipTimer = setTimeout(() => { tooltip.visible = true }, 200)
+}
+
 function eventColor(e: any) {
   if (calSettings.colorBy === 'category') {
     return e.category?.color ?? '#1E2157'
@@ -783,15 +994,27 @@ function eventColor(e: any) {
 
 const calendarEvents = computed(() => {
   const categoryFilter = (categoryId: string | null) => {
-    if (allCategories.value.length === 0) return true
+    // Empty selection = show everything (same as the venue filter).
+    if (!calSettings.visibleCategoryIds.length) return true
     if (categoryId) return calSettings.visibleCategoryIds.includes(categoryId)
     return calSettings.showUncategorised
+  }
+
+  const venueFilter = (e: any) => {
+    if (!calSettings.visibleBookableIds.length) return true
+    const ids: string[] = []
+    if (e.bookable_id) ids.push(e.bookable_id)
+    for (const loc of e.locations ?? []) {
+      if (loc?.bookable_ids?.length) ids.push(...loc.bookable_ids)
+    }
+    return ids.some((id: string) => calSettings.visibleBookableIds.includes(id))
   }
 
   const q = search.value.trim().toLowerCase()
 
   const eventItems = events.value
     .filter(e => categoryFilter(e.category_id))
+    .filter(venueFilter)
     .map(e => {
       const matches = !q || e.title.toLowerCase().includes(q)
       return {
@@ -838,7 +1061,7 @@ const calendarEvents = computed(() => {
 })
 
 const calendarOptions = ref({
-  plugins: [dayGridPlugin, interactionPlugin],
+  plugins: [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin],
   initialView: 'dayGridMonth',
   headerToolbar: false,
   events: [] as any[],
@@ -874,13 +1097,23 @@ const calendarOptions = ref({
 })
 
 function prev() {
-  calendarRef.value?.getApi()?.prev()
+  const v = bookingsCalView.value
+  const d = new Date(calDate.value)
+  if (v === 'day') d.setDate(d.getDate() - 1)
+  else if (v === 'week') d.setDate(d.getDate() - 7)
+  else d.setMonth(d.getMonth() - 1)
+  calDate.value = d
 }
 function next() {
-  calendarRef.value?.getApi()?.next()
+  const v = bookingsCalView.value
+  const d = new Date(calDate.value)
+  if (v === 'day') d.setDate(d.getDate() + 1)
+  else if (v === 'week') d.setDate(d.getDate() + 7)
+  else d.setMonth(d.getMonth() + 1)
+  calDate.value = d
 }
 function goToday() {
-  calendarRef.value?.getApi()?.today()
+  calDate.value = new Date()
 }
 
 let wheelTimer: ReturnType<typeof setTimeout> | null = null

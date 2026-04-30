@@ -11,7 +11,15 @@ export default <Config>{
   ],
   darkMode: 'class',
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        primary: {
+          DEFAULT: '#1E2157',
+          hover:   '#2a2f6e',
+          light:   'rgba(30,33,87,0.06)',
+        },
+      },
+    },
   },
   plugins: [primeui],
 } satisfies Config

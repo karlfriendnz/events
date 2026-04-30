@@ -17,7 +17,7 @@
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto bg-[#F5F8FA]">
-      <div class="max-w-[860px] mx-auto px-6 py-8 space-y-6">
+      <div class="max-w-[1140px] mx-auto px-6 py-8 space-y-6">
 
         <!-- Banner -->
         <div class="bg-green-50 border border-green-200 rounded-xl px-5 py-4 flex items-start gap-3">
