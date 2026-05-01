@@ -335,3 +335,4 @@ Recent migrations worth knowing:
 - `109_bookable_configurations.sql` — `bookable_configurations` + `bookable_configuration_children` + `activity_modes.configuration_key`
 - `110_configuration_slots.sql` — `slot_index` + `slot_name` on configuration children (multi-member slots like "Half A = Q1+Q2")
 - `111_booking_parent_link.sql` — `bookings.parent_booking_id` (atomic multi-bookable slot reservations)
+- `112_booking_indexes.sql` — `(bookable_id, start_at)` compound index hot-pathed by every availability check + conflict pre-flight; activity_id index; partial index on active statuses

@@ -886,6 +886,59 @@ async function submit() {
     const attendeeCount = form.attendees ?? null
     const addons = selectedAddonsPayload.value
 
+    // Resolve every member sub-venue we'd write — used both for the
+    // pre-flight conflict check and the actual inserts below.
+    function membersFor(s: PendingSlot): string[] {
+      if (!activeConfigKey.value) return [s.bookableId]
+      const child = allBookables.value.find(b => b.id === s.bookableId)
+      const parentId = child?.parent_id
+      if (!parentId) return [s.bookableId]
+      const slot = resolveSlotForChild(parentId, s.bookableId)
+      return slot && slot.memberIds.length ? slot.memberIds : [s.bookableId]
+    }
+
+    // Pre-flight conflict check. The slot view of the calendar doesn't yet
+    // cross-block sub-venues that share a slot (Q1 isn't visually busy when
+    // Q2 has a booking), so we re-check every member here before writing.
+    // Without this, picking Q1 when Q2 is taken would silently create an
+    // overlapping row on Q2.
+    const allMemberIds = new Set<string>()
+    for (const s of selectedSlots.value) for (const id of membersFor(s)) allMemberIds.add(id)
+    if (allMemberIds.size && selectedSlots.value.length) {
+      const earliest = selectedSlots.value.reduce((min, s) => s.start < min ? s.start : min, selectedSlots.value[0].start)
+      const latest = selectedSlots.value.reduce((max, s) => s.end > max ? s.end : max, selectedSlots.value[0].end)
+      const { data: clashes } = await (db.from as any)('bookings')
+        .select('id, bookable_id, start_at, end_at, status')
+        .in('bookable_id', Array.from(allMemberIds))
+        .lt('start_at', latest.toISOString())
+        .gt('end_at', earliest.toISOString())
+        .neq('status', 'CANCELLED')
+      const conflicts = (clashes ?? []) as { bookable_id: string; start_at: string; end_at: string }[]
+      if (conflicts.length) {
+        const overlapping = selectedSlots.value.filter(s => {
+          const members = membersFor(s)
+          return conflicts.some(c =>
+            members.includes(c.bookable_id) &&
+            new Date(c.start_at) < s.end &&
+            new Date(c.end_at) > s.start,
+          )
+        })
+        if (overlapping.length) {
+          const venueNames = Array.from(new Set(
+            conflicts.map(c => allBookables.value.find(b => b.id === c.bookable_id)?.name).filter(Boolean),
+          )).join(', ')
+          toast.add({
+            severity: 'error',
+            summary: 'Slot already booked',
+            detail: `Picked slot${overlapping.length === 1 ? '' : 's'} overlap an existing booking on ${venueNames || 'a related sub-venue'}. Pick a different time.`,
+            life: 6000,
+          })
+          submitting.value = false
+          return
+        }
+      }
+    }
+
     if (props.staff) {
       // Staff path. When the active mode requires a configuration, each
       // picked slot is expanded to every member of the matching slot —
@@ -910,17 +963,7 @@ async function submit() {
 
       const primaryIds: string[] = []
       for (const s of selectedSlots.value) {
-        // Resolve members: configured slot → every sub-venue in it;
-        // otherwise just the single picked bookable.
-        let memberIds: string[] = [s.bookableId]
-        if (activeConfigKey.value) {
-          const child = allBookables.value.find(b => b.id === s.bookableId)
-          const parentId = child?.parent_id
-          if (parentId) {
-            const slot = resolveSlotForChild(parentId, s.bookableId)
-            if (slot && slot.memberIds.length) memberIds = slot.memberIds
-          }
-        }
+        const memberIds = membersFor(s)
         const base = baseFor(s)
         const { data: primary, error: pErr } = await (db.from as any)('bookings')
           .insert({ ...base, bookable_id: memberIds[0] })
