@@ -373,17 +373,49 @@
 
             <!-- Modes panel -->
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-semibold text-gray-800">Modes</p>
-                  <p class="text-xs text-gray-400 mt-0.5">Sub-types for this activity, e.g. "Boys Birthday"</p>
+              <div class="px-5 py-4 border-b border-gray-100">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-gray-800">{{ form.mode_label || 'Modes' }}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">Sub-types for this activity, e.g. "Boys Birthday"</p>
+                  </div>
+                  <label class="flex items-center gap-2 cursor-pointer shrink-0">
+                    <span class="text-xs text-gray-500">Require {{ (form.mode_label || 'mode').toLowerCase() }}</span>
+                    <ToggleSwitch v-model="form.require_mode" @change="save" />
+                  </label>
+                  <Button label="Add" icon="pi pi-plus" size="small" severity="secondary" outlined
+                    @click="navigateTo(`/activities/${route.params.id}/modes/new`)" />
                 </div>
-                <label class="flex items-center gap-2 cursor-pointer shrink-0">
-                  <span class="text-xs text-gray-500">Require mode</span>
-                  <ToggleSwitch v-model="form.require_mode" @change="save" />
-                </label>
-                <Button label="Add" icon="pi pi-plus" size="small" severity="secondary" outlined
-                  @click="navigateTo(`/activities/${route.params.id}/modes/new`)" />
+                <!-- Booker-facing display options. These flow through to
+                     the wizard's Mode step + BookingScheduler labels. -->
+                <div class="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
+                  <div class="flex items-center gap-2 flex-1 min-w-0">
+                    <span class="text-[11px] text-gray-500 shrink-0">Booker label</span>
+                    <input v-model="form.mode_label" type="text" placeholder="Mode" maxlength="32"
+                      class="h-7 px-2 text-xs border border-gray-200 rounded outline-none focus:border-[#1E2157] focus:ring-2 focus:ring-[#1E2157]/15 w-40 transition-shadow"
+                      @change="save" />
+                    <span class="text-[11px] text-gray-400 shrink-0 hidden sm:inline">e.g. Format, Theme, Style</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <span class="text-[11px] text-gray-500">Display</span>
+                    <div class="flex border border-gray-200 rounded-lg overflow-hidden">
+                      <button type="button"
+                        class="w-8 h-7 flex items-center justify-center transition-colors"
+                        :class="form.mode_display === 'list' ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50'"
+                        title="List — image on left"
+                        @click="form.mode_display = 'list'; save()">
+                        <i class="pi pi-list text-xs" />
+                      </button>
+                      <button type="button"
+                        class="w-8 h-7 flex items-center justify-center border-l border-gray-200 transition-colors"
+                        :class="form.mode_display === 'grid' ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50'"
+                        title="Grid — image on top"
+                        @click="form.mode_display = 'grid'; save()">
+                        <i class="pi pi-th-large text-xs" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
               <table class="w-full text-sm">
                 <thead>
@@ -417,6 +449,12 @@
                       <div class="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
                         <button type="button" class="text-xs text-gray-400 hover:text-gray-700"
                           @click="navigateTo(`/activities/${route.params.id}/modes/${mode.id}`)">Edit</button>
+                        <button type="button" class="text-xs text-gray-400 hover:text-gray-700"
+                          :disabled="cloningModeId === mode.id"
+                          @click="cloneMode(mode)">
+                          <span v-if="cloningModeId === mode.id">…</span>
+                          <span v-else>Clone</span>
+                        </button>
                         <button type="button" class="text-gray-300 hover:text-red-400"
                           @click="deleteMode(mode.id)">
                           <i class="pi pi-times text-xs" />
@@ -438,9 +476,12 @@
 </template>
 
 <script setup lang="ts">
+import { useToast } from 'primevue/usetoast'
+
 const route = useRoute()
 const db = useDb()
 const { orgId } = useOrg()
+const toast = useToast()
 
 const actionsMenu = ref()
 const actionsMenuItems = computed(() => [
@@ -499,6 +540,8 @@ const form = reactive({
   hide_member_names: false,
   approval_mode: 'auto' as 'auto' | 'manual',
   booking_flow: 'wizard' as 'wizard' | 'scheduler',
+  mode_label: 'Mode',
+  mode_display: 'grid' as 'grid' | 'list',
   booking_window_days: null as number | null,
   min_notice_hours: null as number | null,
   cancellation_window_hours: null as number | null,
@@ -619,6 +662,8 @@ async function load() {
       form.hide_member_names = act.hide_member_names ?? false
       form.approval_mode = act.approval_mode ?? 'auto'
       form.booking_flow = act.booking_flow ?? 'wizard'
+      form.mode_label = act.mode_label ?? 'Mode'
+      form.mode_display = (act.mode_display ?? 'grid') as 'grid' | 'list'
       form.booking_window_days = act.booking_window_days ?? null
       form.min_notice_hours = act.min_notice_hours ?? null
       form.cancellation_window_hours = act.cancellation_window_hours ?? null
@@ -659,6 +704,8 @@ async function save() {
         hide_member_names: form.hide_member_names,
         approval_mode: form.approval_mode,
         booking_flow: form.booking_flow,
+        mode_label: form.mode_label.trim() || 'Mode',
+        mode_display: form.mode_display,
         booking_window_days: form.booking_window_days,
         min_notice_hours: form.min_notice_hours,
         cancellation_window_hours: form.cancellation_window_hours,
@@ -677,6 +724,47 @@ async function deleteMode(id: string) {
   if (!confirm('Delete this mode?')) return
   await (db.from as any)('activity_modes').delete().eq('id', id)
   modes.value = modes.value.filter(m => m.id !== id)
+}
+
+// Tracks the mode being cloned so the Clone button can show a brief
+// "…" while we copy the row + its bookable scope.
+const cloningModeId = ref<string | null>(null)
+
+async function cloneMode(source: any) {
+  if (!source?.id) return
+  cloningModeId.value = source.id
+  try {
+    // Drop server-managed columns and the original id; everything else
+    // (pricing, addons, configuration_key, payment_options, allow_visitors,
+    // approval_mode, form_id, etc.) carries over to the duplicate.
+    const { id: _id, created_at: _ca, updated_at: _ua, ...rest } = source
+    const cloneName = `${source.name} (copy)`
+    const nextSortOrder = (modes.value.reduce((max, m) => Math.max(max, m.sort_order ?? 0), 0)) + 1
+    const { data: created, error } = await (db.from as any)('activity_modes')
+      .insert({ ...rest, name: cloneName, sort_order: nextSortOrder })
+      .select('*')
+      .single()
+    if (error || !created?.id) throw error ?? new Error('Could not clone mode')
+
+    // Copy per-mode bookable scope so the clone is bookable on the same
+    // venues as the source. activity_mode_bookables is the join table.
+    const { data: scopeRows } = await (db.from as any)('activity_mode_bookables')
+      .select('bookable_id')
+      .eq('mode_id', source.id)
+    const scopeIds = ((scopeRows ?? []) as { bookable_id: string }[]).map(r => r.bookable_id)
+    if (scopeIds.length) {
+      await (db.from as any)('activity_mode_bookables').insert(
+        scopeIds.map(bid => ({ mode_id: created.id, bookable_id: bid })),
+      )
+    }
+
+    modes.value = [...modes.value, created]
+    toast.add({ severity: 'success', summary: 'Mode cloned', detail: `"${cloneName}" created.`, life: 3000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not clone mode', detail: e?.message ?? 'Unknown error', life: 4000 })
+  } finally {
+    cloningModeId.value = null
+  }
 }
 
 async function saveVenueLinks() {

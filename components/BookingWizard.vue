@@ -56,7 +56,7 @@
               <p class="text-sm font-medium text-gray-900">{{ booking.activity.name }}</p>
             </div>
             <div v-if="booking.modeName">
-              <p class="text-xs text-gray-400 mb-1">Mode</p>
+              <p class="text-xs text-gray-400 mb-1">{{ modeLabel }}</p>
               <p class="text-sm font-medium text-gray-900">{{ booking.modeName }}</p>
             </div>
             <div v-if="booking.bookable">
@@ -103,33 +103,59 @@
       </div>
 
       <!-- Booking flow -->
-      <div v-else class="max-w-6xl mx-auto px-6 py-8 flex gap-8">
+      <div v-else class="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col lg:flex-row gap-6 lg:gap-8">
 
         <!-- Main form -->
         <div class="flex-1 min-w-0">
 
-          <!-- Step indicator -->
-          <div class="flex items-center gap-0 mb-8">
-            <template v-for="(s, vi) in visibleSteps" :key="s.key">
-              <div class="flex items-center gap-2 cursor-pointer"
-                @click="step > stepIndex[s.key] ? step = stepIndex[s.key] : null">
-                <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 transition-colors"
-                  :class="step === stepIndex[s.key] ? 'bg-[#1E2157] text-white'
-                    : step > stepIndex[s.key] ? 'bg-green-500 text-white'
-                    : 'bg-gray-200 text-gray-500'">
-                  <i v-if="step > stepIndex[s.key]" class="pi pi-check text-xs" />
-                  <span v-else>{{ vi + 1 }}</span>
-                </div>
-                <span class="text-sm font-medium"
-                  :class="step === stepIndex[s.key] ? 'text-[#1E2157]'
-                    : step > stepIndex[s.key] ? 'text-green-600'
-                    : 'text-gray-400'">
-                  {{ s.label }}
-                </span>
+          <!-- Step indicator. Mobile shows a compact "Step X of N — Label"
+               line + a thin progress bar; lg+ shows the full chip strip
+               with labels and connectors. The Cancel link sits to the
+               right of the indicator on both layouts so it's reachable
+               at any point in the flow. -->
+          <div class="lg:hidden mb-6">
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                Step {{ currentStepNumber }} of {{ visibleSteps.length }}
+              </p>
+              <div class="flex items-center gap-3">
+                <p class="text-sm font-bold text-[#1E2157] truncate max-w-[140px]">{{ currentStepLabel }}</p>
+                <button type="button"
+                  class="text-xs font-semibold text-gray-400 hover:text-red-500 transition-colors"
+                  @click="onCancel">Cancel</button>
               </div>
-              <div v-if="vi < visibleSteps.length - 1" class="flex-1 h-px mx-3"
-                :class="step > stepIndex[s.key] ? 'bg-green-400' : 'bg-gray-200'" />
-            </template>
+            </div>
+            <div class="h-1 rounded-full bg-gray-100 overflow-hidden">
+              <div class="h-full bg-[#1E2157] transition-all duration-300"
+                :style="{ width: `${(currentStepNumber / visibleSteps.length) * 100}%` }" />
+            </div>
+          </div>
+          <div class="hidden lg:flex items-center gap-3 mb-8">
+            <div class="flex-1 flex items-center gap-0">
+              <template v-for="(s, vi) in visibleSteps" :key="s.key">
+                <div class="flex items-center gap-2 cursor-pointer"
+                  @click="step > stepIndex[s.key] ? step = stepIndex[s.key] : null">
+                  <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 transition-colors"
+                    :class="step === stepIndex[s.key] ? 'bg-[#1E2157] text-white'
+                      : step > stepIndex[s.key] ? 'bg-green-500 text-white'
+                      : 'bg-gray-200 text-gray-500'">
+                    <i v-if="step > stepIndex[s.key]" class="pi pi-check text-xs" />
+                    <span v-else>{{ vi + 1 }}</span>
+                  </div>
+                  <span class="text-sm font-medium"
+                    :class="step === stepIndex[s.key] ? 'text-[#1E2157]'
+                      : step > stepIndex[s.key] ? 'text-green-600'
+                      : 'text-gray-400'">
+                    {{ stepLabel(s.key, s.label) }}
+                  </span>
+                </div>
+                <div v-if="vi < visibleSteps.length - 1" class="flex-1 h-px mx-3"
+                  :class="step > stepIndex[s.key] ? 'bg-green-400' : 'bg-gray-200'" />
+              </template>
+            </div>
+            <button type="button"
+              class="text-sm font-semibold text-gray-400 hover:text-red-500 transition-colors shrink-0"
+              @click="onCancel">Cancel</button>
           </div>
 
           <!-- ── STEP 0: Activity ── -->
@@ -143,7 +169,7 @@
               <i class="pi pi-spin pi-spinner text-2xl text-gray-400" />
             </div>
 
-            <div v-else class="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
               <div v-for="act in activities" :key="act.id"
                 class="bg-white rounded-xl border-2 overflow-hidden cursor-pointer transition-all hover:shadow-md"
                 :class="booking.activityId === act.id ? 'shadow-sm' : 'border-gray-200 hover:border-gray-300'"
@@ -211,68 +237,121 @@
           <!-- ── STEP 1: Mode ── -->
           <div v-if="step === 1" class="space-y-5">
             <div>
-              <h2 class="text-lg font-semibold text-gray-900">How do you need the space?</h2>
+              <h2 class="text-xl font-bold text-gray-900 tracking-tight">Choose a {{ modeLabel.toLowerCase() }}</h2>
               <p class="text-sm text-gray-500 mt-1">
-                <template v-if="booking.activity">Choose a mode for <span class="font-medium text-gray-700">{{ booking.activity.name }}</span>.</template>
-                <template v-else>Choose a booking mode, or continue without one.</template>
+                <template v-if="booking.activity">Pick how you'd like to use <span class="font-medium text-gray-700">{{ booking.activity.name }}</span>.</template>
+                <template v-else>Pick an option below to continue.</template>
               </p>
             </div>
 
             <div v-if="!availableModes.length" class="py-10 text-center">
               <i class="pi pi-sliders-h text-3xl text-gray-300 mb-3 block" />
-              <p class="text-sm text-gray-500">No modes configured. Proceeding to resource selection.</p>
+              <p class="text-sm text-gray-500">No {{ modeLabel.toLowerCase() }}s configured. Proceeding to resource selection.</p>
             </div>
 
-            <div v-else class="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <div v-for="mode in availableModes" :key="mode.id"
-                class="bg-white rounded-xl border-2 overflow-hidden cursor-pointer transition-all hover:shadow-md"
-                :class="booking.activityModeId === mode.id ? 'shadow-sm' : 'border-gray-200 hover:border-gray-300'"
-                :style="booking.activityModeId === mode.id ? `border-color: ${mode.color || '#1E2157'}` : ''"
+            <!-- GRID layout — image on top, generous padding below. -->
+            <div v-else-if="modeDisplay === 'grid'" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <button v-for="mode in availableModes" :key="mode.id" type="button"
+                class="group relative text-left bg-white rounded-xl border-2 overflow-hidden transition-all hover:shadow-md hover:-translate-y-0.5"
+                :class="booking.activityModeId === mode.id ? 'shadow-md ring-2 ring-offset-2' : 'border-gray-100 hover:border-gray-200'"
+                :style="booking.activityModeId === mode.id
+                  ? `border-color: ${mode.color || '#1E2157'}; --tw-ring-color: ${mode.color || '#1E2157'}33`
+                  : ''"
                 @click="selectMode(mode)">
-                <div v-if="mode.image_url" class="relative">
-                  <img :src="mode.image_url" class="w-full h-32 object-cover" />
+                <div v-if="mode.image_url" class="relative aspect-[4/3] overflow-hidden bg-gray-100">
+                  <img :src="mode.image_url" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
                 </div>
-                <div v-else class="h-1.5 w-full" :style="{ backgroundColor: mode.color || '#6366f1' }" />
-                <div class="p-4 flex flex-col gap-2">
-                  <div v-if="!mode.image_url" class="flex items-start justify-between">
-                    <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                      :style="{ backgroundColor: (mode.color || '#6366f1') + '20' }">
-                      <i class="pi pi-sliders-h text-sm" :style="{ color: mode.color || '#6366f1' }" />
+                <div v-else class="aspect-[4/3] flex items-center justify-center"
+                  :style="{ background: `linear-gradient(135deg, ${(mode.color || '#6366f1')}1A 0%, ${(mode.color || '#6366f1')}33 100%)` }">
+                  <i class="pi pi-sliders-h text-3xl" :style="{ color: mode.color || '#6366f1' }" />
+                </div>
+                <div class="p-4">
+                  <div class="flex items-start gap-2">
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-bold text-gray-900">{{ mode.name }}</p>
+                      <p v-if="mode.description" class="text-xs text-gray-500 mt-1 leading-relaxed whitespace-pre-line">{{ mode.description }}</p>
                     </div>
                     <div v-if="booking.activityModeId === mode.id"
-                      class="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
-                      :style="{ backgroundColor: mode.color || '#6366f1' }">
-                      <i class="pi pi-check text-white text-xs" />
+                      class="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+                      :style="{ backgroundColor: mode.color || '#1E2157' }">
+                      <i class="pi pi-check text-white text-[10px]" />
                     </div>
                   </div>
-                  <div>
-                    <p class="text-sm font-semibold text-gray-900">{{ mode.name }}</p>
-                    <p v-if="mode.description" class="text-xs text-gray-400 mt-0.5 line-clamp-2">{{ mode.description }}</p>
-                  </div>
                 </div>
-              </div>
+              </button>
 
-              <div v-if="!booking.activity?.require_mode"
-                class="bg-white rounded-xl border-2 overflow-hidden cursor-pointer transition-all hover:shadow-md"
-                :class="modeChosen && !booking.activityModeId ? 'border-gray-400 shadow-sm' : 'border-gray-200 border-dashed hover:border-gray-300'"
+              <button v-if="!booking.activity?.require_mode" type="button"
+                class="text-left bg-white rounded-xl border-2 border-dashed overflow-hidden transition-all hover:shadow-sm hover:-translate-y-0.5"
+                :class="modeChosen && !booking.activityModeId ? 'border-gray-500 shadow-sm' : 'border-gray-200 hover:border-gray-300'"
                 @click="selectMode(null)">
-                <div class="h-1.5 w-full bg-gray-200" />
-                <div class="p-4 flex flex-col gap-2">
-                  <div class="flex items-start justify-between">
-                    <div class="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-                      <i class="pi pi-minus text-gray-400 text-sm" />
+                <div class="aspect-[4/3] flex items-center justify-center bg-gray-50">
+                  <i class="pi pi-minus text-2xl text-gray-300" />
+                </div>
+                <div class="p-4">
+                  <div class="flex items-start gap-2">
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-bold text-gray-700">No specific {{ modeLabel.toLowerCase() }}</p>
+                      <p class="text-xs text-gray-400 mt-1">Show all available resources</p>
                     </div>
                     <div v-if="modeChosen && !booking.activityModeId"
-                      class="w-5 h-5 rounded-full bg-gray-500 flex items-center justify-center shrink-0">
-                      <i class="pi pi-check text-white text-xs" />
+                      class="w-6 h-6 rounded-full bg-gray-500 flex items-center justify-center shrink-0">
+                      <i class="pi pi-check text-white text-[10px]" />
                     </div>
                   </div>
-                  <div>
-                    <p class="text-sm font-semibold text-gray-700">No specific mode</p>
-                    <p class="text-xs text-gray-400 mt-0.5">Show all available resources</p>
+                </div>
+              </button>
+            </div>
+
+            <!-- LIST layout — image on the left at sm+ breakpoints; on
+                 mobile the card stacks with the image on top and the
+                 text below so the image isn't squashed into a thumbnail. -->
+            <div v-else class="space-y-2">
+              <button v-for="mode in availableModes" :key="mode.id" type="button"
+                class="group w-full flex flex-col sm:flex-row sm:items-stretch text-left bg-white rounded-xl border-2 overflow-hidden transition-all hover:shadow-md hover:-translate-y-0.5"
+                :class="booking.activityModeId === mode.id ? 'shadow-md ring-2 ring-offset-1' : 'border-gray-100 hover:border-gray-200'"
+                :style="booking.activityModeId === mode.id
+                  ? `border-color: ${mode.color || '#1E2157'}; --tw-ring-color: ${mode.color || '#1E2157'}33`
+                  : ''"
+                @click="selectMode(mode)">
+                <div v-if="mode.image_url" class="w-full sm:w-64 h-[200px] shrink-0 relative overflow-hidden bg-gray-100">
+                  <img :src="mode.image_url" class="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                </div>
+                <div v-else class="w-full sm:w-64 h-[200px] shrink-0 flex items-center justify-center"
+                  :style="{ background: `linear-gradient(135deg, ${(mode.color || '#6366f1')}1A 0%, ${(mode.color || '#6366f1')}33 100%)` }">
+                  <i class="pi pi-sliders-h text-3xl" :style="{ color: mode.color || '#6366f1' }" />
+                </div>
+                <div class="flex-1 min-w-0 p-4 sm:p-5 flex items-start gap-3">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-base font-bold text-gray-900">{{ mode.name }}</p>
+                    <p v-if="mode.description" class="text-sm text-gray-500 mt-1 leading-relaxed whitespace-pre-line">{{ mode.description }}</p>
+                  </div>
+                  <div v-if="booking.activityModeId === mode.id"
+                    class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-1"
+                    :style="{ backgroundColor: mode.color || '#1E2157' }">
+                    <i class="pi pi-check text-white text-[10px]" />
                   </div>
                 </div>
-              </div>
+              </button>
+
+              <button v-if="!booking.activity?.require_mode" type="button"
+                class="w-full flex flex-col sm:flex-row sm:items-stretch text-left bg-white rounded-xl border-2 border-dashed overflow-hidden transition-all hover:shadow-sm"
+                :class="modeChosen && !booking.activityModeId ? 'border-gray-500 shadow-sm' : 'border-gray-200 hover:border-gray-300'"
+                @click="selectMode(null)">
+                <div class="w-full sm:w-64 h-[200px] shrink-0 flex items-center justify-center bg-gray-50">
+                  <i class="pi pi-minus text-3xl text-gray-300" />
+                </div>
+                <div class="flex-1 min-w-0 p-4 sm:p-5 flex items-start gap-3">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-base font-bold text-gray-700">No specific {{ modeLabel.toLowerCase() }}</p>
+                    <p class="text-sm text-gray-400 mt-1">Show all available resources</p>
+                  </div>
+                  <div v-if="modeChosen && !booking.activityModeId"
+                    class="w-6 h-6 rounded-full bg-gray-500 flex items-center justify-center shrink-0 mt-1">
+                    <i class="pi pi-check text-white text-[10px]" />
+                  </div>
+                </div>
+              </button>
             </div>
 
             <div class="flex justify-between pt-2">
@@ -642,7 +721,7 @@
                   <i class="pi pi-sliders-h text-base" :style="{ color: booking.modeColor || '#6366f1' }" />
                 </div>
                 <div class="flex-1">
-                  <p class="text-xs text-gray-400 uppercase tracking-wide font-medium">Mode</p>
+                  <p class="text-xs text-gray-400 uppercase tracking-wide font-medium">{{ modeLabel }}</p>
                   <p class="text-sm font-semibold text-gray-900">{{ booking.modeName }}</p>
                 </div>
                 <button v-if="!skipModeStep" class="text-xs text-[#1E2157] underline" @click="step = 1">Change</button>
@@ -785,8 +864,10 @@
 
         </div>
 
-        <!-- Sticky summary sidebar -->
-        <div class="w-72 shrink-0">
+        <!-- Sticky summary sidebar — hidden on mobile (the Review step
+             gives the user the same recap, and a 288px column eats the
+             whole viewport on a phone). -->
+        <div class="hidden lg:block w-72 shrink-0">
           <div class="sticky top-8 bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div class="px-4 py-3 border-b border-gray-100 bg-gray-50">
               <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Booking summary</p>
@@ -874,6 +955,10 @@ const emit = defineEmits<{
    *  preset-activity mode — lets the parent (e.g. /book) take them back
    *  to its own activity picker rather than re-show the wizard's. */
   (e: 'back'): void
+  /** Fired when the user hits the Cancel link in the wizard header.
+   *  Parent decides what to do — /book resets to its activity picker,
+   *  staff path can navigate back to a list, etc. */
+  (e: 'cancel'): void
 }>()
 
 const route = useRoute()
@@ -930,6 +1015,9 @@ const bookableModesByBookable = ref<Record<string, any[]>>({})
 
 const step = ref(0)
 
+// Step strip labels. The 'mode' label is overridden at render time with
+// the activity's custom mode_label so a Birthdays activity reads
+// "Theme" instead of "Mode" in the step strip.
 const ALL_STEPS = [
   { key: 'activity', label: 'Booking' },
   { key: 'mode',     label: 'Mode' },
@@ -939,6 +1027,37 @@ const ALL_STEPS = [
   { key: 'details',  label: 'Details' },
   { key: 'review',   label: 'Review' },
 ]
+function stepLabel(key: string, fallback: string): string {
+  if (key === 'mode') return modeLabel.value
+  return fallback
+}
+
+// Cancel — wipes the in-progress booking and emits to the parent so
+// /book can re-show its activity picker (or a staff caller can navigate
+// elsewhere). Confirms only when the user has actually picked something
+// so a no-progress click doesn't trigger a confirm dialog.
+function onCancel() {
+  const hasProgress = !!(
+    booking.activityId || booking.activityModeId || booking.bookableId ||
+    booking.startAt || booking.contactName || booking.contactEmail
+  )
+  if (hasProgress && !confirm('Cancel this booking? Anything you\'ve filled in will be lost.')) return
+  resetFlow()
+  emit('cancel')
+}
+
+// Compact mobile step strip needs the current step's index inside
+// `visibleSteps` (1-based) and its display label. The wizard's `step`
+// is an index into the full ALL_STEPS list, so we map it back.
+const currentVisibleIndex = computed(() => {
+  const i = visibleSteps.value.findIndex(s => stepIndex[s.key] === step.value)
+  return i < 0 ? 0 : i
+})
+const currentStepNumber = computed(() => currentVisibleIndex.value + 1)
+const currentStepLabel = computed(() => {
+  const s = visibleSteps.value[currentVisibleIndex.value]
+  return s ? stepLabel(s.key, s.label) : ''
+})
 
 const stepIndex: Record<string, number> = {
   activity: 0, mode: 1, resource: 2, datetime: 3, addons: 4, details: 5, review: 6,
@@ -1416,6 +1535,17 @@ const availableModes = computed(() => {
   return activityModesByActivity.value[booking.activityId] ?? []
 })
 
+// Per-activity customisation. Each activity decides what to call its
+// modes ("Mode" / "Format" / "Theme") and how to lay them out (grid =
+// image-on-top tile, list = image-on-left row).
+const modeLabel = computed<string>(() => {
+  const raw = (booking.activity?.mode_label as string | null | undefined) ?? 'Mode'
+  return raw.trim() || 'Mode'
+})
+const modeDisplay = computed<'grid' | 'list'>(() => {
+  return ((booking.activity?.mode_display as string | null | undefined) ?? 'grid') === 'list' ? 'list' : 'grid'
+})
+
 const calendarModeId = computed<string | null>(() => {
   if (!booking.bookableId || !booking.modeName) return null
   const modes = bookableModesByBookable.value[booking.bookableId] ?? []
@@ -1670,7 +1800,7 @@ async function load() {
 
   const [{ data: aData }, { data: bData }] = await Promise.all([
     (db.from as any)('activities')
-      .select('id, name, description, color, image_url, require_mode')
+      .select('id, name, description, color, image_url, require_mode, mode_label, mode_display')
       .eq('org_id', queryOrgId.value)
       .eq('status', 'ACTIVE')
       .order('name'),

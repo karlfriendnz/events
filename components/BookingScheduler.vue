@@ -141,7 +141,7 @@
 
             <!-- Mode -->
             <div>
-              <label class="text-xs font-semibold text-gray-600 mb-2 block">Mode</label>
+              <label class="text-xs font-semibold text-gray-600 mb-2 block">{{ modeLabel }}</label>
               <div v-if="!modes.length" class="text-xs text-gray-400 italic">No modes configured for this activity yet.</div>
               <div v-else class="grid grid-cols-2 gap-2">
                 <button v-for="m in modes" :key="m.id" type="button"
@@ -304,6 +304,8 @@ interface ConfigEntry { name: string; slots: ConfigSlot[]; childIds: string[] }
 const configurationsByParent = ref<Record<string, Record<string, ConfigEntry>>>({})
 const loadingBookables = ref(true)
 const activityName = ref<string | null>(null)
+const activityModeLabel = ref<string>('Mode')
+const modeLabel = computed(() => activityModeLabel.value)
 
 async function load() {
   if (!orgId.value || !props.activityId) return
@@ -373,11 +375,12 @@ async function load() {
   // can pick multiple slots before submitting — and the display name we
   // show in the header).
   const { data: act } = await (db.from as any)('activities')
-    .select('allow_multi_slot, name')
+    .select('allow_multi_slot, name, mode_label')
     .eq('id', props.activityId)
     .maybeSingle()
   allowMultiSlot.value = !!act?.allow_multi_slot
   activityName.value = (act?.name as string | null) ?? null
+  activityModeLabel.value = ((act?.mode_label as string | null | undefined) ?? 'Mode').trim() || 'Mode'
 
   // Activity modes (incl. addons jsonb so the dialog can render them, plus
   // configuration_key for the "any half / any quarter" pool resolution).

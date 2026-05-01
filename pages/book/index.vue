@@ -8,7 +8,8 @@
   <BookingScheduler v-else-if="picked && picked.booking_flow === 'scheduler'"
     :activity-id="picked.id"
     :show-back-to-picker="!cameFromDeepLink"
-    @back="picked = null" />
+    @back="picked = null"
+    @cancel="picked = null" />
 
   <!-- Picked a wizard activity (Birthdays etc.) — pre-select so the
        wizard skips its own activity-picker step. Back on the first
@@ -16,7 +17,8 @@
   <BookingWizard v-else-if="picked"
     :activity-id="picked.id"
     :show-back-to-picker="!cameFromDeepLink"
-    @back="picked = null" />
+    @back="picked = null"
+    @cancel="picked = null" />
 
   <!-- No activity yet — show the picker. No wizard step strip here
        because we haven't entered any flow yet; the user is choosing
