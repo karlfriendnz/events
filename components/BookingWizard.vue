@@ -103,7 +103,7 @@
       </div>
 
       <!-- Booking flow -->
-      <div v-else class="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col lg:flex-row gap-6 lg:gap-8">
+      <div v-else class="px-4 sm:px-6 py-6 sm:py-8 flex flex-col lg:flex-row gap-6 lg:gap-8">
 
         <!-- Main form -->
         <div class="flex-1 min-w-0">
@@ -130,32 +130,27 @@
                 :style="{ width: `${(currentStepNumber / visibleSteps.length) * 100}%` }" />
             </div>
           </div>
-          <div class="hidden lg:flex items-center gap-3 mb-8">
-            <div class="flex-1 flex items-center gap-0">
-              <template v-for="(s, vi) in visibleSteps" :key="s.key">
-                <div class="flex items-center gap-2 cursor-pointer"
-                  @click="step > stepIndex[s.key] ? step = stepIndex[s.key] : null">
-                  <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 transition-colors"
-                    :class="step === stepIndex[s.key] ? 'bg-[#1E2157] text-white'
-                      : step > stepIndex[s.key] ? 'bg-green-500 text-white'
-                      : 'bg-gray-200 text-gray-500'">
-                    <i v-if="step > stepIndex[s.key]" class="pi pi-check text-xs" />
-                    <span v-else>{{ vi + 1 }}</span>
-                  </div>
-                  <span class="text-sm font-medium"
-                    :class="step === stepIndex[s.key] ? 'text-[#1E2157]'
-                      : step > stepIndex[s.key] ? 'text-green-600'
-                      : 'text-gray-400'">
-                    {{ stepLabel(s.key, s.label) }}
-                  </span>
+          <div class="hidden lg:flex items-center gap-0 mb-8">
+            <template v-for="(s, vi) in visibleSteps" :key="s.key">
+              <div class="flex items-center gap-2 cursor-pointer"
+                @click="step > stepIndex[s.key] ? step = stepIndex[s.key] : null">
+                <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 transition-colors"
+                  :class="step === stepIndex[s.key] ? 'bg-[#1E2157] text-white'
+                    : step > stepIndex[s.key] ? 'bg-green-500 text-white'
+                    : 'bg-gray-200 text-gray-500'">
+                  <i v-if="step > stepIndex[s.key]" class="pi pi-check text-xs" />
+                  <span v-else>{{ vi + 1 }}</span>
                 </div>
-                <div v-if="vi < visibleSteps.length - 1" class="flex-1 h-px mx-3"
-                  :class="step > stepIndex[s.key] ? 'bg-green-400' : 'bg-gray-200'" />
-              </template>
-            </div>
-            <button type="button"
-              class="text-sm font-semibold text-gray-400 hover:text-red-500 transition-colors shrink-0"
-              @click="onCancel">Cancel</button>
+                <span class="text-sm font-medium"
+                  :class="step === stepIndex[s.key] ? 'text-[#1E2157]'
+                    : step > stepIndex[s.key] ? 'text-green-600'
+                    : 'text-gray-400'">
+                  {{ stepLabel(s.key, s.label) }}
+                </span>
+              </div>
+              <div v-if="vi < visibleSteps.length - 1" class="flex-1 h-px mx-3"
+                :class="step > stepIndex[s.key] ? 'bg-green-400' : 'bg-gray-200'" />
+            </template>
           </div>
 
           <!-- ── STEP 0: Activity ── -->

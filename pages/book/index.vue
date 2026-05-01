@@ -24,7 +24,7 @@
        because we haven't entered any flow yet; the user is choosing
        between completely different booking journeys. -->
   <div v-else class="min-h-screen bg-gray-50 px-4 py-10 sm:py-16">
-    <div class="max-w-3xl mx-auto">
+    <div>
       <header class="text-center mb-8">
         <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">What would you like to book?</h1>
         <p class="text-sm text-gray-500 mt-1.5">Pick an option below to start.</p>
