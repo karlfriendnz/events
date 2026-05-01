@@ -21,8 +21,29 @@
     </div>
 
     <!-- ── SCHEDULE: grid on the left, booking summary panel on the right ── -->
-    <div v-else class="h-full flex flex-col lg:flex-row gap-4 p-4 lg:p-6 min-h-0">
+    <div v-else class="h-full flex flex-col p-4 lg:p-6 min-h-0">
 
+      <!-- Header: optional back button + page title. The back button only
+           shows when the parent (the /book picker) is wiring an @back
+           handler — direct embeds skip it. -->
+      <div class="flex items-center gap-3 mb-4 shrink-0">
+        <button v-if="showBackToPicker" type="button"
+          class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+          aria-label="Back to picker"
+          @click="emit('back')">
+          <i class="pi pi-arrow-left text-sm" />
+        </button>
+        <div class="flex-1 min-w-0">
+          <h1 class="text-lg sm:text-xl font-bold text-gray-900 leading-tight tracking-tight">
+            Book {{ activityName || 'a slot' }}
+          </h1>
+          <p class="text-xs text-gray-500 mt-0.5">
+            Click an empty slot on the schedule, pick a mode on the right, and confirm.
+          </p>
+        </div>
+      </div>
+
+      <div class="flex-1 flex flex-col lg:flex-row gap-4 min-h-0">
       <!-- LEFT: schedule grid -->
       <div class="flex-1 min-w-0 min-h-0 flex flex-col">
         <div v-if="loadingBookables" class="text-sm text-gray-400 py-8 text-center">Loading venue…</div>
@@ -210,6 +231,7 @@
             style="background:#1E2157; border-color:#1E2157" />
         </div>
       </aside>
+      </div>
     </div>
   </div>
 </template>
@@ -224,8 +246,16 @@ const props = defineProps<{
   /** ISO start of the slot the user clicked — opens the mode dialog. */
   presetStart?: string | null
   presetEnd?: string | null
+  /** Show a back button in the header that emits `back`. Set true when
+   *  the parent (e.g. /book) is going to take the user back to its own
+   *  activity picker. Direct embeds (deep-linked ?activityId=...) leave
+   *  this off so there's nowhere irrelevant to navigate to. */
+  showBackToPicker?: boolean
 }>()
-defineEmits<{ (e: 'done'): void }>()
+const emit = defineEmits<{
+  (e: 'done'): void
+  (e: 'back'): void
+}>()
 
 const db = useDb()
 const route = useRoute()
@@ -273,6 +303,7 @@ interface ConfigSlot { index: number; name: string; memberIds: string[] }
 interface ConfigEntry { name: string; slots: ConfigSlot[]; childIds: string[] }
 const configurationsByParent = ref<Record<string, Record<string, ConfigEntry>>>({})
 const loadingBookables = ref(true)
+const activityName = ref<string | null>(null)
 
 async function load() {
   if (!orgId.value || !props.activityId) return
@@ -339,12 +370,14 @@ async function load() {
   }
 
   // Activity (for the allow_multi_slot flag — controls whether the user
-  // can pick multiple slots before submitting).
+  // can pick multiple slots before submitting — and the display name we
+  // show in the header).
   const { data: act } = await (db.from as any)('activities')
-    .select('allow_multi_slot')
+    .select('allow_multi_slot, name')
     .eq('id', props.activityId)
     .maybeSingle()
   allowMultiSlot.value = !!act?.allow_multi_slot
+  activityName.value = (act?.name as string | null) ?? null
 
   // Activity modes (incl. addons jsonb so the dialog can render them, plus
   // configuration_key for the "any half / any quarter" pool resolution).

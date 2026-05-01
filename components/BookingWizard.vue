@@ -276,7 +276,10 @@
             </div>
 
             <div class="flex justify-between pt-2">
-              <Button label="Back" severity="secondary" outlined icon="pi pi-arrow-left" @click="step = 0" />
+              <Button v-if="!props.activityId || props.showBackToPicker"
+                label="Back" severity="secondary" outlined icon="pi pi-arrow-left"
+                @click="props.activityId ? emit('back') : step = 0" />
+              <span v-else />
               <Button label="Next" icon="pi pi-arrow-right" icon-pos="right"
                 :disabled="availableModes.length > 0 && (!modeChosen || (booking.activity?.require_mode && !booking.activityModeId))"
                 @click="proceedToResource"
@@ -389,7 +392,9 @@
             </div>
 
             <div class="flex justify-between pt-2">
-              <Button label="Back" severity="secondary" outlined icon="pi pi-arrow-left" @click="step = 1" />
+              <Button v-if="showResourceBack" label="Back" severity="secondary" outlined icon="pi pi-arrow-left"
+                @click="onResourceBack" />
+              <span v-else />
               <Button label="Next" icon="pi pi-arrow-right" icon-pos="right"
                 :disabled="!booking.bookableId" @click="step = 3"
                 style="background:#1E2157; border-color:#1E2157" />
@@ -444,7 +449,9 @@
             </div>
 
             <div class="flex justify-between pt-2">
-              <Button label="Back" severity="secondary" outlined icon="pi pi-arrow-left" @click="step = 2" />
+              <Button v-if="showDatetimeBack" label="Back" severity="secondary" outlined icon="pi pi-arrow-left"
+                @click="onDatetimeBack" />
+              <span v-else />
               <Button icon="pi pi-arrow-right" icon-pos="right"
                 :label="hasAddons ? 'Next: Add-ons' : 'Next: Details'"
                 :disabled="!booking.startAt || !booking.endAt"
@@ -638,7 +645,7 @@
                   <p class="text-xs text-gray-400 uppercase tracking-wide font-medium">Mode</p>
                   <p class="text-sm font-semibold text-gray-900">{{ booking.modeName }}</p>
                 </div>
-                <button class="text-xs text-[#1E2157] underline" @click="step = 1">Change</button>
+                <button v-if="!skipModeStep" class="text-xs text-[#1E2157] underline" @click="step = 1">Change</button>
               </div>
               <div class="flex items-center gap-4 px-5 py-4">
                 <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
@@ -651,7 +658,7 @@
                   <p class="text-sm font-semibold text-gray-900">{{ booking.bookable?.name }}</p>
                   <p v-if="booking.bookable?.location" class="text-xs text-gray-400">{{ booking.bookable.location }}</p>
                 </div>
-                <button class="text-xs text-[#1E2157] underline" @click="step = 2">Change</button>
+                <button v-if="!skipResourceStep" class="text-xs text-[#1E2157] underline" @click="step = 2">Change</button>
               </div>
               <div class="flex items-center gap-4 px-5 py-4">
                 <div class="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center shrink-0">
@@ -857,6 +864,16 @@ const props = defineProps<{
   staff?: boolean
   /** When set, skip the activity-picker step and pre-select this activity. */
   activityId?: string | null
+  /** Show a back button on the first visible step that emits `back`.
+   *  /book sets this true so the user can return to its activity picker.
+   *  Direct embeds (deep-linked ?activityId=...) leave it off. */
+  showBackToPicker?: boolean
+}>()
+const emit = defineEmits<{
+  /** Fired when the user hits Back from the first visible step in the
+   *  preset-activity mode — lets the parent (e.g. /book) take them back
+   *  to its own activity picker rather than re-show the wizard's. */
+  (e: 'back'): void
 }>()
 
 const route = useRoute()
@@ -1326,9 +1343,20 @@ const matchedDiscount = computed(() => {
 
 const invoiceTotal = computed(() => invoiceSubtotal.value - (matchedDiscount.value?.amount ?? 0))
 
-const visibleSteps = computed(() =>
-  hasAddons.value ? ALL_STEPS : ALL_STEPS.filter(s => s.key !== 'addons')
-)
+const visibleSteps = computed(() => {
+  let steps = hasAddons.value ? ALL_STEPS : ALL_STEPS.filter(s => s.key !== 'addons')
+  // When a parent (the /book embed) has already picked an activity, the
+  // activity step is meaningless — hide it from the strip.
+  if (props.activityId) steps = steps.filter(s => s.key !== 'activity')
+  // Same for Mode when there's at most one mode — afterActivity()
+  // auto-handles it, so showing a step the user can't interact with
+  // would be confusing.
+  if (skipModeStep.value) steps = steps.filter(s => s.key !== 'mode')
+  // Resource step is auto-skipped by proceedToResource() when there's
+  // only one bookable; drop it from the strip too.
+  if (skipResourceStep.value) steps = steps.filter(s => s.key !== 'resource')
+  return steps
+})
 
 function isAddonSelected(id: string) {
   return booking.selectedAddons.some((a: any) => a.id === id)
@@ -1533,9 +1561,61 @@ function selectActivity(act: any) {
   booking.selectedAddons = []
 }
 
+// True when there's nothing meaningful for the user to choose at the
+// Mode step — either zero modes (skip entirely) or exactly one mode
+// (auto-select it). Both cases bypass step 1 in afterActivity().
+const skipModeStep = computed(() => availableModes.value.length <= 1)
+
+// Same idea for Resource — proceedToResource() already auto-selects and
+// jumps when there's only one bookable. This lets the step strip drop
+// the column and lets the Back button chain skip past it.
+const skipResourceStep = computed(() => filteredBookables.value.length <= 1)
+
 function afterActivity() {
-  availableModes.value.length > 0 ? step.value = 1 : proceedToResource()
+  if (skipModeStep.value) {
+    if (availableModes.value.length === 1) selectMode(availableModes.value[0])
+    proceedToResource()
+  } else {
+    step.value = 1
+  }
 }
+
+// Back from the Resource step. Normally returns to the Mode step (1).
+// When the Mode step was skipped (zero or one mode) going back there
+// would dead-end on an empty / pointless page — bubble back to the
+// parent when there's a picker, otherwise stay put.
+function onResourceBack() {
+  if (props.activityId && skipModeStep.value) {
+    if (props.showBackToPicker) emit('back')
+    return
+  }
+  step.value = 1
+}
+// Hide the Resource step's Back button when there's nowhere useful to
+// go: deep-linked embed + Mode skipped.
+const showResourceBack = computed(() => {
+  if (!props.activityId) return true
+  if (!skipModeStep.value) return true
+  return !!props.showBackToPicker
+})
+
+// Back from the Date & time step. Walks back through skipped Resource
+// and Mode steps; emits to the parent if everything earlier is also
+// skipped and the embed is picker-driven.
+function onDatetimeBack() {
+  if (!skipResourceStep.value) { step.value = 2; return }
+  if (!skipModeStep.value) { step.value = 1; return }
+  if (props.activityId) {
+    if (props.showBackToPicker) emit('back')
+    return
+  }
+  step.value = 0
+}
+const showDatetimeBack = computed(() => {
+  if (!skipResourceStep.value || !skipModeStep.value) return true
+  if (!props.activityId) return true
+  return !!props.showBackToPicker
+})
 
 function selectMode(mode: any) {
   booking.activityModeId = mode?.id ?? null

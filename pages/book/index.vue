@@ -1,14 +1,22 @@
 <template>
   <div v-if="loading" class="flex items-center justify-center h-screen text-sm text-gray-400">Loading…</div>
 
-  <!-- Picked a scheduler activity (Tennis, Football, Swimming) -->
+  <!-- Picked a scheduler activity (Tennis, Football, Swimming).
+       showBackToPicker only when the user came in via the picker —
+       deep-linked embeds (?activityId=…) skip it so the host page
+       isn't offering a "back" that goes nowhere meaningful. -->
   <BookingScheduler v-else-if="picked && picked.booking_flow === 'scheduler'"
-    :activity-id="picked.id" />
+    :activity-id="picked.id"
+    :show-back-to-picker="!cameFromDeepLink"
+    @back="picked = null" />
 
   <!-- Picked a wizard activity (Birthdays etc.) — pre-select so the
-       wizard skips its own activity-picker step. -->
+       wizard skips its own activity-picker step. Back on the first
+       visible step bubbles here so we can re-show the picker. -->
   <BookingWizard v-else-if="picked"
-    :activity-id="picked.id" />
+    :activity-id="picked.id"
+    :show-back-to-picker="!cameFromDeepLink"
+    @back="picked = null" />
 
   <!-- No activity yet — show the picker. No wizard step strip here
        because we haven't entered any flow yet; the user is choosing
@@ -66,6 +74,11 @@ const db = useDb()
 const activities = ref<Activity[]>([])
 const picked = ref<Activity | null>(null)
 const loading = ref(true)
+// True when the embed was deep-linked straight at an activity (the host
+// site has its own "Book Tennis" button, no picker on this page). When
+// true, we don't render a back button inside BookingScheduler /
+// BookingWizard — there's nowhere to go back to inside this iframe.
+const cameFromDeepLink = ref(false)
 
 // Friendly subtitle when an activity has no description set.
 function activitySubtitle(a: Activity): string {
@@ -88,10 +101,15 @@ async function load() {
 
   // Honour ?activityId= so the embed can deep-link straight into one
   // activity's flow (e.g. a "Book Tennis" button on the marketing site).
+  // Track the deep-link case so the inner views know not to render a
+  // back button — there's no picker to return to.
   const presetId = route.query.activityId as string | undefined
   if (presetId) {
     const match = activities.value.find(a => a.id === presetId)
-    if (match) picked.value = match
+    if (match) {
+      picked.value = match
+      cameFromDeepLink.value = true
+    }
   }
   loading.value = false
 }

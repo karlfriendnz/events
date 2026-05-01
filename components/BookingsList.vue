@@ -12,64 +12,62 @@
       </div>
 
       <Popover ref="sharePopover">
-        <div class="w-80">
-          <!-- Org-level page -->
-          <div class="flex items-center justify-between gap-2 px-2 py-2 rounded-lg bg-indigo-50 mb-3">
-            <div class="min-w-0">
-              <p class="text-sm font-semibold text-indigo-800">All resources page</p>
-              <p class="text-[11px] text-indigo-400">/book?org={{ orgId }}</p>
-            </div>
+        <div class="w-96">
+          <!-- Picker page — shows every active activity, then routes to
+               the right flow (scheduler or wizard) based on the activity. -->
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Picker page</p>
+          <div class="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-indigo-50 mb-4">
+            <p class="text-sm font-semibold text-indigo-800 truncate">All activities</p>
             <div class="shrink-0 flex items-center gap-2">
               <a :href="`/book?org=${orgId}`" target="_blank"
                 class="flex items-center gap-1 text-xs text-indigo-700 hover:underline font-medium">
-                <i class="pi pi-external-link text-xs" />
+                <i class="pi pi-external-link text-[10px]" />
                 Open
               </a>
-              <button
-                class="flex items-center gap-1 text-xs text-indigo-700 hover:underline font-medium"
+              <button class="flex items-center gap-1 text-xs text-indigo-700 hover:underline font-medium"
                 @click="copyOrgLink">
-                <i class="pi pi-copy text-xs" />
+                <i class="pi pi-copy text-[10px]" />
                 Copy
+              </button>
+              <button class="flex items-center gap-1 text-xs text-indigo-700 hover:underline font-medium"
+                @click="copyEmbedFor()">
+                <i class="pi pi-code text-[10px]" />
+                Embed
               </button>
             </div>
           </div>
 
-          <!-- Embed code -->
-          <div class="mb-3">
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Embed on your website</p>
-            <div class="bg-gray-900 rounded-lg px-3 py-2 font-mono text-[10px] text-gray-300 leading-relaxed break-all">
-              {{ embedCode }}
-            </div>
-            <button
-              class="mt-1.5 flex items-center gap-1 text-xs text-[#1E2157] hover:underline font-medium"
-              @click="copyEmbedCode">
-              <i class="pi pi-copy text-xs" />
-              Copy embed code
-            </button>
+          <!-- Direct activity links — skip the picker, drop the user
+               straight into one activity's flow. Use these for "Book
+               Tennis" buttons on the host site. -->
+          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Direct activity links</p>
+          <p class="text-[11px] text-gray-400 mb-2">Skip the picker — the booker lands straight in this activity's flow.</p>
+          <div v-if="!publicActivities.length" class="text-sm text-gray-400 py-2">
+            No active activities with bookings enabled.
           </div>
-
-          <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Individual resources</p>
-          <div v-if="!publicBookables.length" class="text-sm text-gray-400 py-2">
-            No public bookables yet. Enable public booking on a bookable's Details tab.
-          </div>
-          <div v-else class="space-y-1 max-h-48 overflow-y-auto">
-            <div v-for="b in publicBookables" :key="b.id"
-              class="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50">
-              <div class="min-w-0">
-                <p class="text-sm font-medium text-gray-800 truncate">{{ b.name }}</p>
-                <p class="text-[11px] text-gray-400 truncate">/book?org={{ orgId }}</p>
+          <div v-else class="space-y-1 max-h-64 overflow-y-auto">
+            <div v-for="a in publicActivities" :key="a.id"
+              class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg hover:bg-gray-50">
+              <div class="min-w-0 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full shrink-0"
+                  :style="{ background: a.color || '#1E2157' }" />
+                <p class="text-sm font-semibold text-gray-800 truncate">{{ a.name }}</p>
               </div>
               <div class="shrink-0 flex items-center gap-2">
-                <a :href="`/book?org=${orgId}`" target="_blank"
+                <a :href="activityUrl(a.id)" target="_blank"
                   class="flex items-center gap-1 text-xs text-[#1E2157] hover:underline font-medium">
-                  <i class="pi pi-external-link text-xs" />
+                  <i class="pi pi-external-link text-[10px]" />
                   Open
                 </a>
-                <button
-                  class="flex items-center gap-1 text-xs text-[#1E2157] hover:underline font-medium"
-                  @click="copyOrgLink">
-                  <i class="pi pi-copy text-xs" />
+                <button class="flex items-center gap-1 text-xs text-[#1E2157] hover:underline font-medium"
+                  @click="copyActivityLink(a.id)">
+                  <i class="pi pi-copy text-[10px]" />
                   Copy
+                </button>
+                <button class="flex items-center gap-1 text-xs text-[#1E2157] hover:underline font-medium"
+                  @click="copyEmbedFor(a.id)">
+                  <i class="pi pi-code text-[10px]" />
+                  Embed
                 </button>
               </div>
             </div>
@@ -374,10 +372,28 @@ const dateFilters = [
 
 const publicBookables = computed(() => bookables.value.filter(b => b.is_public))
 
-const embedCode = computed(() => {
-  const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/book?org=${orgId.value}`
+interface PublicActivity {
+  id: string
+  name: string
+  color: string | null
+  booking_flow: 'wizard' | 'scheduler'
+}
+const publicActivities = ref<PublicActivity[]>([])
+
+function activityUrl(activityId: string): string {
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  return `${origin}/book?org=${orgId.value}&activityId=${activityId}`
+}
+function orgUrl(): string {
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  return `${origin}/book?org=${orgId.value}`
+}
+function embedSnippet(activityId?: string): string {
+  const url = activityId ? activityUrl(activityId) : orgUrl()
   return `<iframe src="${url}" width="100%" height="700" frameborder="0" style="border:none;border-radius:8px"></iframe>`
-})
+}
+
+const embedCode = computed(() => embedSnippet())
 
 const allModes = computed(() => {
   const seen = new Set<string>()
@@ -599,14 +615,22 @@ const rowsForTable = computed(() => {
 // ── Data load ────────────────────────────────────────────────
 async function load() {
   loading.value = true
-  const [{ data: bookingData }, { data: bookableData }, { data: eventData }] = await Promise.all([
+  const [{ data: bookingData }, { data: bookableData }, { data: eventData }, { data: activityData }] = await Promise.all([
     db.from('bookings').select('*, bookable:bookables!bookable_id(id,name,type), event:events(id,title), mode:activity_modes(id,name,color)').order('start_at'),
     db.from('bookables').select('id,name,type,is_public').eq('org_id', orgId.value).neq('status', 'DELETED').order('name'),
     db.from('events').select('id,title').eq('org_id', orgId.value).neq('status', 'ARCHIVED').order('title'),
+    (db.from as any)('activities')
+      .select('id, name, color, booking_flow, status, bookings_enabled, sort_order')
+      .eq('org_id', orgId.value)
+      .eq('status', 'ACTIVE')
+      .neq('bookings_enabled', false)
+      .order('sort_order')
+      .order('name'),
   ])
   bookings.value = bookingData ?? []
   bookables.value = bookableData ?? []
   events.value = eventData ?? []
+  publicActivities.value = ((activityData ?? []) as PublicActivity[])
   loading.value = false
 }
 
@@ -676,9 +700,26 @@ async function copyEmbedCode() {
 }
 
 async function copyOrgLink() {
-  const url = `${window.location.origin}/book?org=${orgId.value}`
+  const url = orgUrl()
   await navigator.clipboard.writeText(url)
   toast.add({ severity: 'success', summary: 'Link copied!', detail: url, life: 3000 })
+  sharePopover.value.hide()
+}
+
+async function copyActivityLink(activityId: string) {
+  const url = activityUrl(activityId)
+  await navigator.clipboard.writeText(url)
+  toast.add({ severity: 'success', summary: 'Link copied!', detail: url, life: 3000 })
+  sharePopover.value.hide()
+}
+
+async function copyEmbedFor(activityId?: string) {
+  await navigator.clipboard.writeText(embedSnippet(activityId))
+  toast.add({
+    severity: 'success',
+    summary: activityId ? 'Activity embed copied!' : 'Picker embed copied!',
+    life: 3000,
+  })
   sharePopover.value.hide()
 }
 
