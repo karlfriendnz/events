@@ -1,13 +1,6 @@
 <template>
   <div class="flex flex-col h-full">
 
-    <VenueTemplateDialog
-      v-model="showTemplateDialog"
-      :current-sections="form.sections"
-      :current-layouts="layouts"
-      @apply="onTemplateApply"
-    />
-
     <!-- Mode add/edit dialog -->
     <Dialog v-model:visible="showModeDialog" modal :header="editingMode?.id ? 'Edit mode' : 'Add mode'"
       :style="{ width: '520px' }" :content-style="{ padding: 0 }">
@@ -215,24 +208,8 @@
 
           <!-- Card 2: Layouts -->
           <div>
-            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 px-1">Layouts</p>
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 px-1">Structure</p>
             <div class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-
-              <div class="flex items-center justify-between px-5 py-4">
-                <div>
-                  <p class="text-sm font-semibold text-gray-800">Split venue</p>
-                  <p class="text-xs text-gray-500 mt-0.5">Divide this space into sections and bookable layouts</p>
-                </div>
-                <ToggleSwitch v-model="isSplitVenue" @update:modelValue="v => { save(); if (v) emit('navigate-tab', 'layouts') }" />
-              </div>
-
-              <div class="flex items-center justify-between px-5 py-4">
-                <div>
-                  <p class="text-sm font-semibold text-gray-800">Multiple layouts</p>
-                  <p class="text-xs text-gray-500 mt-0.5">Allow this venue to have more than one layout</p>
-                </div>
-                <ToggleSwitch v-model="form.allow_multiple_layouts" @update:modelValue="save" />
-              </div>
 
               <div class="flex items-center justify-between px-5 py-4">
                 <div>
@@ -346,237 +323,6 @@
         </div><!-- end single col -->
       </div>
 
-      <!-- Layouts tab -->
-      <div v-else-if="activeTab === 'layouts'" class="flex flex-col h-full">
-
-        <!-- Top bar: template + quick divide -->
-        <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-3 shrink-0 bg-white">
-          <button type="button"
-            class="flex items-center gap-2 px-3 py-1.5 rounded-lg border-2 border-dashed border-indigo-300 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors text-xs font-medium"
-            @click="showTemplateDialog = true">
-            <i class="pi pi-th-large text-xs" />
-            Venue library
-          </button>
-          <div class="flex items-center gap-1.5 text-xs text-gray-400">
-            <span>Quick divide:</span>
-            <button v-for="n in [2, 3, 4, 6]" :key="n" type="button"
-              class="px-2 py-1 rounded border border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600 bg-white transition-colors"
-              @click="quickDivide(n)">{{ n }}</button>
-          </div>
-          <div class="flex-1" />
-          <Button label="Save layouts" icon="pi pi-check" size="small" :loading="savingLayouts"
-            @click="saveLayouts" style="background:#1E2157;border-color:#1E2157" />
-        </div>
-
-        <!-- Sections bar -->
-        <div class="px-6 py-3 border-b border-gray-100 flex items-center gap-3 shrink-0 bg-gray-50">
-          <span class="text-xs font-semibold text-gray-500 shrink-0">Sections</span>
-          <div class="flex flex-wrap items-center gap-2 flex-1">
-            <div v-for="(sec, i) in form.sections" :key="i" class="flex items-center gap-1 bg-indigo-100 text-indigo-700 rounded-full px-3 py-1 text-xs">
-              <span>{{ sec }}</span>
-              <button type="button" class="text-indigo-400 hover:text-red-500" @click="form.sections.splice(i, 1); save()">
-                <i class="pi pi-times text-[9px]" />
-              </button>
-            </div>
-            <input v-model="newSection" type="text" placeholder="Add section…"
-              class="text-xs text-gray-700 bg-transparent border-0 outline-none placeholder-gray-400 min-w-28"
-              @keydown.enter.prevent="addSection(); save()"
-              @keydown.comma.prevent="addSection(); save()" />
-          </div>
-        </div>
-
-        <div v-if="loadingLayouts" class="flex-1 flex items-center justify-center text-gray-400 text-sm">Loading…</div>
-
-        <div v-else class="flex flex-1 min-h-0">
-
-          <!-- Left: layout list (1/4) -->
-          <div class="w-1/4 shrink-0 border-r border-gray-100 flex flex-col bg-gray-50">
-
-            <!-- Layout rows (grouped) -->
-            <div class="flex-1 overflow-y-auto py-2">
-              <template v-for="item in groupedLayoutList"
-                :key="item.index === -1 ? 'g-' + item.groupName : 'l-' + layouts[item.index]._key">
-                <!-- Group header -->
-                <div v-if="item.index === -1"
-                  class="px-4 pt-3 pb-1 flex items-center gap-1.5">
-                  <i class="pi pi-folder text-[9px] text-gray-300" />
-                  <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{{ item.groupName }}</p>
-                </div>
-                <!-- Layout row -->
-                <button v-else
-                  type="button"
-                  class="w-full flex items-center gap-2.5 py-2.5 text-left transition-colors"
-                  :class="[
-                    layouts[item.index].group?.trim() ? 'pl-6 pr-3' : 'px-3',
-                    activeLayoutIndex === item.index
-                      ? 'bg-white border-r-2 border-[#1E2157] text-[#1E2157]'
-                      : 'text-gray-600 hover:bg-white/70'
-                  ]"
-                  @click="activeLayoutIndex = item.index">
-                  <i class="pi pi-th-large text-xs shrink-0"
-                    :class="activeLayoutIndex === item.index ? 'text-[#1E2157]' : 'text-gray-300'" />
-                  <span class="flex-1 text-sm font-medium truncate">{{ layouts[item.index].name || 'Unnamed' }}</span>
-                  <span v-if="layouts[item.index].sections.length" class="text-[10px] shrink-0"
-                    :class="activeLayoutIndex === item.index ? 'text-indigo-400' : 'text-gray-300'">
-                    {{ layouts[item.index].sections.length }}×
-                  </span>
-                </button>
-              </template>
-            </div>
-
-            <!-- Add layout -->
-            <div class="p-3 border-t border-gray-100">
-              <button type="button"
-                class="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-dashed border-gray-300 text-xs text-gray-400 hover:border-[#1E2157] hover:text-[#1E2157] transition-colors"
-                @click="addLayout">
-                <i class="pi pi-plus text-xs" /> Add layout
-              </button>
-            </div>
-          </div>
-
-          <!-- Middle: layout details -->
-          <div class="flex-1 border-r border-gray-100 overflow-y-auto">
-            <div v-if="!layouts.length" class="flex items-center justify-center h-full text-gray-400 text-sm">
-              <div class="text-center">
-                <i class="pi pi-th-large text-3xl block mb-2 text-gray-300" />
-                No layouts yet — add one
-              </div>
-            </div>
-
-            <div v-else-if="activeLayout" class="p-6 space-y-5">
-
-              <!-- Name -->
-              <div class="flex items-center gap-4">
-                <label class="text-sm font-semibold text-gray-700 w-28 shrink-0">Name</label>
-                <InputText v-model="activeLayout.name" placeholder="e.g. Full Court, Half 1" class="flex-1" />
-                <button type="button" class="text-gray-300 hover:text-red-500 transition-colors"
-                  @click="removeLayout(activeLayoutIndex!)">
-                  <i class="pi pi-trash" />
-                </button>
-              </div>
-
-              <!-- Group -->
-              <div class="flex items-center gap-4">
-                <div class="w-28 shrink-0">
-                  <label class="text-sm font-semibold text-gray-700">Group</label>
-                  <p class="text-xs text-gray-400 mt-0.5">Optional — groups like "Halves"</p>
-                </div>
-                <InputText v-model="activeLayout.group" placeholder="e.g. Halves, Thirds" class="flex-1" />
-              </div>
-
-              <!-- Sections -->
-              <div v-if="form.sections.length" class="flex items-start gap-4">
-                <label class="text-sm font-semibold text-gray-700 w-28 shrink-0 pt-1">Uses sections</label>
-                <div class="flex flex-wrap gap-1.5">
-                  <button v-for="sec in form.sections" :key="sec"
-                    type="button"
-                    class="px-2.5 py-1 rounded-full text-xs border transition-colors"
-                    :class="activeLayout.sections.includes(sec)
-                      ? 'bg-indigo-600 border-indigo-600 text-white'
-                      : 'border-gray-200 text-gray-500 hover:border-indigo-400 hover:text-indigo-600'"
-                    @click="toggleLayoutSection(activeLayout, sec)">
-                    {{ sec }}
-                  </button>
-                  <button v-if="form.sections.length > 1" type="button"
-                    class="px-2.5 py-1 rounded-full text-xs border border-dashed border-gray-300 text-gray-400 hover:border-indigo-400 hover:text-indigo-500 transition-colors"
-                    @click="activeLayout.sections = activeLayout.sections.length === form.sections.length ? [] : [...form.sections]">
-                    {{ activeLayout.sections.length === form.sections.length ? 'None' : 'All' }}
-                  </button>
-                </div>
-              </div>
-
-              <!-- Space diagram -->
-              <div class="rounded-xl overflow-hidden border border-gray-200">
-                <SpaceDiagram
-                  :sections="form.sections"
-                  :space-type="form.space_type"
-                  :hovered-sections="activeLayout.sections"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- Right: modes -->
-          <div class="w-1/3 shrink-0 overflow-y-auto">
-            <div v-if="!activeLayout" class="flex items-center justify-center h-full text-gray-400 text-sm">
-              <div class="text-center">
-                <i class="pi pi-bolt text-3xl block mb-2 text-gray-300" />
-                Select a layout
-              </div>
-            </div>
-            <div v-else class="p-4 space-y-3">
-              <div class="flex items-center justify-between">
-                <p class="text-sm font-semibold text-gray-700">Modes</p>
-                <div class="flex items-center gap-2">
-                  <Select v-if="modes.length"
-                    :model-value="null"
-                    :options="modes"
-                    option-label="name"
-                    placeholder="Add existing…"
-                    size="small"
-                    class="w-36 text-xs"
-                    @update:modelValue="addModeFromExisting" />
-                  <button type="button"
-                    class="flex items-center gap-1 text-xs text-[#1E2157] hover:underline whitespace-nowrap"
-                    @click="addCustomMode">
-                    <i class="pi pi-plus text-[10px]" /> New
-                  </button>
-                </div>
-              </div>
-              <div v-if="!activeLayout.modes.length" class="text-xs text-gray-400 italic py-2">
-                No modes yet — e.g. Playing, Practicing, Tournament
-              </div>
-              <div class="space-y-3">
-                <div v-for="(mode, mi) in activeLayout.modes" :key="mi"
-                  class="bg-white rounded-xl border border-gray-200 p-4 flex flex-col gap-3">
-                  <div class="flex items-center gap-2">
-                    <div class="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
-                      <i class="pi pi-tag text-[9px] text-indigo-600" />
-                    </div>
-                    <InputText v-model="mode.name" placeholder="Mode name"
-                      class="flex-1 text-sm font-medium" size="small" />
-                    <button type="button" class="text-gray-300 hover:text-red-500 transition-colors"
-                      @click="activeLayout.modes.splice(mi, 1)">
-                      <i class="pi pi-times text-xs" />
-                    </button>
-                  </div>
-                  <div class="grid grid-cols-2 gap-2">
-                    <div class="flex flex-col gap-1">
-                      <label class="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Min players</label>
-                      <InputNumber v-model="mode.min_players" :min="0" placeholder="—" class="w-full" size="small" />
-                    </div>
-                    <div class="flex flex-col gap-1">
-                      <label class="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Max players</label>
-                      <InputNumber v-model="mode.max_players" :min="0" placeholder="—" class="w-full" size="small" />
-                    </div>
-                    <div class="flex flex-col gap-1">
-                      <label class="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Pricing</label>
-                      <Select v-model="mode.price_type" :options="layoutModesPriceTypes" option-label="label" option-value="value"
-                        class="w-full text-sm" size="small" />
-                    </div>
-                    <div class="flex flex-col gap-1">
-                      <label class="text-[11px] font-medium text-gray-400 uppercase tracking-wide">
-                        {{ mode.price_type === 'PER_HOUR' ? 'Per hour' : mode.price_type === 'PER_PERSON' ? 'Per person' : 'Amount' }}
-                      </label>
-                      <InputNumber v-if="!['FREE','INCLUDED'].includes(mode.price_type)"
-                        v-model="mode.price" mode="currency" currency="GBP" locale="en-GB"
-                        class="w-full text-sm" size="small" />
-                      <span v-else class="text-xs text-gray-400 italic pt-2">
-                        {{ mode.price_type === 'FREE' ? 'No charge' : 'Uses layout price' }}
-                      </span>
-                    </div>
-                    <div class="col-span-2 flex flex-col gap-1">
-                      <label class="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Description</label>
-                      <InputText v-model="mode.description" placeholder="Short description…"
-                        class="w-full text-sm" size="small" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <!-- Modes tab -->
       <div v-else-if="activeTab === 'modes'" class="p-6">
@@ -746,7 +492,6 @@ const db = useDb()
 
 const tabs = [
   { key: 'details', label: 'Details', icon: 'pi-info-circle' },
-  { key: 'layouts', label: 'Layouts', icon: 'pi-th-large' },
   { key: 'rules',   label: 'Rules',   icon: 'pi-file-edit' },
 ]
 
@@ -761,10 +506,11 @@ const masterOptions = computed(() =>
 )
 
 const bookingViewOptions = [
-  { label: 'Month', value: 'dayGridMonth' },
-  { label: 'Week',  value: 'timeGridWeek' },
-  { label: 'Day',   value: 'timeGridDay' },
-  { label: 'List',  value: 'listWeek' },
+  { label: 'Month',     value: 'dayGridMonth' },
+  { label: 'Week',      value: 'timeGridWeek' },
+  { label: 'Day',       value: 'timeGridDay' },
+  { label: 'List',      value: 'listWeek' },
+  { label: 'Scheduler', value: 'scheduler' },
 ]
 
 const activeTab = ref(props.initialTab ?? 'details')
@@ -773,12 +519,6 @@ const localLinked = ref(!!props.bookable?.master_id)
 const newSport = ref('')
 const newFeature = ref('')
 const newSection = ref('')
-const isSplitVenue = ref(false)
-const hoveredLayout = ref<{ _key: string; sections: string[] } | null>(null)
-const activeLayoutIndex = ref<number | null>(null)
-const activeLayout = computed(() =>
-  activeLayoutIndex.value !== null ? layouts.value[activeLayoutIndex.value] ?? null : null
-)
 
 
 const spaceTypes = [
@@ -790,7 +530,6 @@ const spaceTypes = [
 ]
 
 
-type LayoutMode = { name: string; description: string; min_players: number | null; max_players: number | null; price: number; price_type: string }
 
 type VenueMode = {
   _key: string; id?: string; name: string; description: string; color: string
@@ -838,173 +577,6 @@ async function deleteMode() {
   showModeDialog.value = false
   await saveModes()
 }
-const layouts = ref<Array<{
-  _key: string; id?: string; name: string
-  group: string
-  sections: string[]
-  modes: LayoutMode[]
-}>>([])
-
-// Flat list for the left column: group headers (index -1) interleaved with layout rows
-const groupedLayoutList = computed(() => {
-  const result: Array<{ groupName: string; index: number }> = []
-  const seenGroups = new Set<string>()
-  const ungrouped: number[] = []
-  for (let i = 0; i < layouts.value.length; i++) {
-    const g = layouts.value[i].group?.trim() || ''
-    if (g) {
-      if (!seenGroups.has(g)) { seenGroups.add(g); result.push({ groupName: g, index: -1 }) }
-      result.push({ groupName: '', index: i })
-    } else {
-      ungrouped.push(i)
-    }
-  }
-  for (const i of ungrouped) result.push({ groupName: '', index: i })
-  return result
-})
-
-const loadingLayouts = ref(false)
-const savingLayouts = ref(false)
-
-
-const layoutModesPriceTypes = [
-  { label: 'Included in layout', value: 'INCLUDED' },
-  { label: 'Fixed price',        value: 'FIXED' },
-  { label: 'Per hour',           value: 'PER_HOUR' },
-  { label: 'Per person',         value: 'PER_PERSON' },
-  { label: 'Free',               value: 'FREE' },
-]
-
-const showTemplateDialog = ref(false)
-
-function addModeFromExisting(mode: VenueMode) {
-  activeLayout.value?.modes.push({
-    name: mode.name,
-    description: mode.description ?? '',
-    min_players: mode.min_players ?? null,
-    max_players: mode.max_players ?? null,
-    price: 0,
-    price_type: 'INCLUDED',
-  })
-}
-
-function addCustomMode() {
-  activeLayout.value?.modes.push({ name: '', description: '', min_players: null, max_players: null, price: 0, price_type: 'INCLUDED' })
-}
-
-async function onTemplateApply(result: { space_type: string; sections: string[]; layouts: { name: string; sections: string[] }[] }) {
-  form.space_type = result.space_type
-  form.sections = result.sections
-  layouts.value = result.layouts.map(l => ({
-    _key: crypto.randomUUID(),
-    name: l.name,
-    group: l.group ?? '',
-    sections: l.sections,
-    modes: [] as LayoutMode[],
-  }))
-  activeLayoutIndex.value = layouts.value.length ? 0 : null
-  // Persist sections to the bookable and layouts to the DB in one go
-  await save()
-  await saveLayouts()
-}
-
-function addLayout() {
-  layouts.value.push({ _key: crypto.randomUUID(), name: '', group: '', sections: [], modes: [] as LayoutMode[] })
-  activeLayoutIndex.value = layouts.value.length - 1
-}
-
-function quickDivide(n: number) {
-  if (layouts.value.length || form.sections.length) {
-    if (!confirm(`This will replace existing sections and layouts. Continue?`)) return
-  }
-  const parts = Array.from({ length: n }, (_, i) => String(i + 1))
-  form.sections = parts
-  const generated = generateLayouts(parts)
-  layouts.value = generated.map(l => ({ _key: crypto.randomUUID(), name: l.name, group: '', sections: l.sections, modes: [] as LayoutMode[] }))
-  activeLayoutIndex.value = layouts.value.length ? 0 : null
-}
-
-function toggleLayoutSection(layout: typeof layouts.value[0], section: string) {
-  const idx = layout.sections.indexOf(section)
-  if (idx === -1) layout.sections.push(section)
-  else layout.sections.splice(idx, 1)
-}
-
-function removeLayout(i: number) {
-  layouts.value.splice(i, 1)
-  if (layouts.value.length === 0) activeLayoutIndex.value = null
-  else activeLayoutIndex.value = Math.min(i, layouts.value.length - 1)
-}
-
-async function loadLayouts() {
-  if (!props.bookable?.id) return
-  loadingLayouts.value = true
-  try {
-    const layoutIdRows = (await (db.from as any)('bookable_layouts').select('id').eq('bookable_id', props.bookable.id)).data?.map((r: any) => r.id) ?? []
-    const [{ data: layoutRows }, { data: modeRows }] = await Promise.all([
-      (db.from as any)('bookable_layouts').select('*').eq('bookable_id', props.bookable.id).order('sort_order'),
-      layoutIdRows.length ? (db.from as any)('bookable_layout_modes').select('*').in('layout_id', layoutIdRows).order('sort_order') : Promise.resolve({ data: [] }),
-    ])
-    layouts.value = (layoutRows ?? []).map((l: any) => {
-      const modes: LayoutMode[] = (modeRows ?? []).filter((m: any) => m.layout_id === l.id).map((m: any) => ({
-        name: m.name,
-        description: m.description ?? '',
-        min_players: m.min_players ?? null,
-        max_players: m.max_players ?? null,
-        price: Number(m.price ?? 0),
-        price_type: m.price_type ?? 'INCLUDED',
-      }))
-      return { _key: l.id, id: l.id, name: l.name, group: l.group ?? '', sections: l.sections ?? [], modes }
-    })
-    if (layouts.value.length && activeLayoutIndex.value === null) {
-      activeLayoutIndex.value = 0
-    }
-  } finally {
-    loadingLayouts.value = false
-  }
-}
-
-async function saveLayouts() {
-  if (!props.bookable?.id) return
-  savingLayouts.value = true
-  try {
-    // Replace all layouts for this bookable
-    await (db.from as any)('bookable_layouts').delete().eq('bookable_id', props.bookable.id)
-    if (!layouts.value.length) return
-    const { data: inserted } = await (db.from as any)('bookable_layouts')
-      .insert(layouts.value.filter(l => l.name.trim()).map((l, i) => ({
-        bookable_id: props.bookable!.id,
-        name: l.name.trim(),
-        group: l.group?.trim() || null,
-        sections: l.sections?.length ? l.sections : null,
-        sort_order: i,
-      })))
-      .select()
-    if (!inserted) return
-    const modeRows: any[] = []
-    inserted.forEach((row: any, i: number) => {
-      const src = layouts.value.filter(l => l.name.trim())[i]
-      ;(src.modes ?? []).filter((m: LayoutMode) => m.name?.trim()).forEach((m: LayoutMode, mi: number) => {
-        modeRows.push({
-          layout_id: row.id,
-          name: m.name.trim(),
-          description: m.description?.trim() || null,
-          min_players: m.min_players ?? null,
-          max_players: m.max_players ?? null,
-          price: m.price ?? 0,
-          price_type: m.price_type ?? 'INCLUDED',
-          sort_order: mi,
-        })
-      })
-    })
-    if (modeRows.length) await (db.from as any)('bookable_layout_modes').insert(modeRows)
-    // Refresh so ids are accurate
-    await loadLayouts()
-  } finally {
-    savingLayouts.value = false
-  }
-}
-
 async function loadModes() {
   if (!props.bookable?.id) return
   loadingModes.value = true
@@ -1055,16 +627,7 @@ async function saveModes() {
 }
 
 watch(activeTab, async (tab) => {
-  if (tab === 'layouts') {
-    await Promise.all([loadLayouts(), loadModes()])
-    if (form.allow_multiple_layouts && !layouts.value.length && !form.sections.length) {
-      showTemplateDialog.value = true
-    }
-  } else if (tab === 'modes') {
-    await loadModes()
-  } else {
-    activeLayoutIndex.value = null
-  }
+  if (tab === 'modes') await loadModes()
 })
 
 const form = reactive({
@@ -1088,7 +651,6 @@ const form = reactive({
   show_in_menu: false,
   show_location: true,
   default_booking_view: 'dayGridMonth',
-  allow_multiple_layouts: true,
   allow_sub_venues: false,
   master_id: null as string | null,
   images: [] as string[],
@@ -1114,7 +676,6 @@ watch(() => form.booking_limit_type, (t) => {
 const uploadingPhoto = ref(false)
 
 watch(() => props.bookable, (b) => {
-  if (b && activeTab.value === 'layouts') loadLayouts()
   if (b && activeTab.value === 'modes') loadModes()
   if (b) loadActivities()
   if (b) localLinked.value = !!b.master_id
@@ -1126,8 +687,7 @@ watch(() => props.bookable, (b) => {
     form.sports = [...(b.sports ?? [])]
     form.features = [...(b.features ?? [])]
     form.sections = [...(b.sections ?? [])]
-    isSplitVenue.value = (b.sections?.length ?? 0) > 0
-      form.space_type = b.space_type ?? 'generic'
+    form.space_type = b.space_type ?? 'generic'
     form.max_concurrent = b.max_concurrent ?? 1
     form.rules = b.rules ?? ''
     form.booking_limit_type = b.booking_limit_type ?? 'none'
@@ -1140,7 +700,6 @@ watch(() => props.bookable, (b) => {
     form.show_in_menu = b.show_in_menu ?? false
     form.show_location = b.show_location ?? true
     form.default_booking_view = b.default_booking_view ?? 'dayGridMonth'
-    form.allow_multiple_layouts = b.allow_multiple_layouts ?? true
     form.allow_sub_venues = b.allow_sub_venues ?? false
     form.master_id = b.master_id ?? null
     form.images = Array.isArray(b.images) ? [...b.images] : []
@@ -1154,7 +713,6 @@ watch(() => props.bookable, (b) => {
     form.sports = []
     form.features = []
     form.sections = []
-    isSplitVenue.value = false
     form.space_type = 'generic'
     form.max_concurrent = 1
     form.rules = ''
@@ -1168,7 +726,6 @@ watch(() => props.bookable, (b) => {
     form.show_in_menu = false
     form.show_location = true
     form.default_booking_view = 'dayGridMonth'
-    form.allow_multiple_layouts = true
     form.allow_sub_venues = false
     form.master_id = null
     form.images = []
@@ -1265,7 +822,6 @@ async function save() {
     show_in_menu: form.show_in_menu,
     show_location: form.show_location,
     default_booking_view: form.default_booking_view,
-    allow_multiple_layouts: form.allow_multiple_layouts,
     allow_sub_venues: form.allow_sub_venues,
     master_id: form.master_id || null,
     images: form.images,

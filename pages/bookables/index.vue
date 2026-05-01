@@ -73,9 +73,10 @@ async function loadCounts() {
       .select('id', { count: 'exact', head: true })
       .eq('org_id', orgId.value)
       .not('status', 'in', '("DELETED","ARCHIVED")'),
+    // bookings has no org_id — scope through the bookable's org with an inner join.
     (db.from as any)('bookings')
-      .select('id', { count: 'exact', head: true })
-      .eq('org_id', orgId.value),
+      .select('id, bookable:bookables!inner(org_id)', { count: 'exact', head: true })
+      .eq('bookable.org_id', orgId.value),
   ])
   activeCount.value = bookablesCount ?? 0
   bookingsCount.value = bkCount ?? 0

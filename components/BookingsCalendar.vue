@@ -303,14 +303,23 @@
             :style="{ top: `${Math.max(dropPreview.startMins - GRID_START_MINS, 0) / 60 * HOUR_PX}px`, height: `${dropPreview.durationMins / 60 * HOUR_PX}px` }" />
           <template v-for="rule in rulesForDate(calDate)" :key="rule.id">
             <div v-for="(slot, si) in ruleSlots(rule)" :key="si"
-              class="absolute rounded-lg z-10 group overflow-hidden"
+              class="absolute rounded-lg z-10 group overflow-hidden transition-shadow"
               style="left: 8px; right: 8px"
-              :class="slotRemainingCapacity(rule, slot, calDate) === 0 ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'"
-              :style="{ borderLeft: `4px solid ${ruleColor(rule)}`, border: `1px solid ${ruleColor(rule)}40`, backgroundColor: ruleColor(rule) + '18', top: slotTop(slot.from), height: slotHeight(slot.from, slot.to) }"
+              :class="[
+                slotRemainingCapacity(rule, slot, calDate) === 0 ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
+                isSlotSelected(calDate, slot) ? 'ring-2 ring-[#1E2157]/40 ring-offset-1 shadow-md' : '',
+              ]"
+              :style="isSlotSelected(calDate, slot)
+                ? { borderLeft: `4px solid #1E2157`, border: `2px solid #1E2157`, backgroundColor: '#1E2157', top: slotTop(slot.from), height: slotHeight(slot.from, slot.to) }
+                : { borderLeft: `4px solid ${ruleColor(rule)}`, border: `1px solid ${ruleColor(rule)}40`, backgroundColor: ruleColor(rule) + '18', top: slotTop(slot.from), height: slotHeight(slot.from, slot.to) }"
               @click.stop="slotRemainingCapacity(rule, slot, calDate) !== 0 && emitSlotClick(calDate, slot, rule)">
               <div class="px-3 py-2">
-                <p class="text-xs font-semibold" :style="{ color: ruleColor(rule) }">{{ rule.name }}</p>
-                <p class="text-[10px] text-gray-500 mt-0.5">{{ formatTime(slot.from) }} – {{ formatTime(slot.to) }}</p>
+                <p class="text-xs font-semibold flex items-center gap-1.5"
+                  :style="isSlotSelected(calDate, slot) ? { color: '#fff' } : { color: ruleColor(rule) }">
+                  <i v-if="isSlotSelected(calDate, slot)" class="pi pi-check text-[10px]" />
+                  <span>{{ rule.name }}</span>
+                </p>
+                <p class="text-[10px] mt-0.5" :class="isSlotSelected(calDate, slot) ? 'text-white/80' : 'text-gray-500'">{{ formatTime(slot.from) }} – {{ formatTime(slot.to) }}</p>
               </div>
               <div v-if="wizardMode && slotRemainingCapacity(rule, slot, calDate) === 0"
                 class="px-3 py-2">
@@ -382,6 +391,14 @@ const props = defineProps<{
   // When set, only show rules whose activity_mode_ids include this id
   // (or rules with no activity_mode_ids restriction).
   activityModeId?: string | null
+  // Used by the scheduler flow: the user hasn't picked a mode yet, but the
+  // calendar must still show rules scoped to *any* of this activity's modes.
+  // When non-empty, a scoped rule is visible if its activity_mode_ids overlap
+  // with this list.
+  activityModeIds?: string[]
+  // Set of `${bookableId}|${startISO}|${endISO}` keys for slots the parent
+  // (BookingScheduler) has marked as selected. Drives the visual highlight.
+  selectedSlotKeys?: Set<string>
   bookableModes?: { id: string; name: string; color: string | null }[]
   activityModes?: { id: string; name: string; color: string | null }[]
   wizardMode?: boolean
@@ -824,8 +841,16 @@ function rulesForDate(date: Date): any[] {
     //  • Rule with explicit activity_mode_ids → only applies when the booker has picked
     //    one of those modes. Hidden in the wizard otherwise.
     if (r.activity_mode_ids?.length) {
-      if (!props.activityModeId) return !props.wizardMode // admin views still see scoped rules
-      if (!r.activity_mode_ids.includes(props.activityModeId)) return false
+      // Scheduler-flow path: caller passed every mode id for the activity
+      // (mode is picked AFTER the user chooses a slot). Show the rule when
+      // any of those modes overlap with the rule's scope.
+      if ((props.activityModeIds?.length ?? 0) > 0) {
+        if (!r.activity_mode_ids.some((id: string) => props.activityModeIds!.includes(id))) return false
+      } else if (!props.activityModeId) {
+        return !props.wizardMode // admin views still see scoped rules
+      } else if (!r.activity_mode_ids.includes(props.activityModeId)) {
+        return false
+      }
     }
     return true
   })
@@ -1001,6 +1026,19 @@ function emitSlotClick(day: Date, slot: { from: string; to: string }, rule?: any
   emit('slot-click', start, end, rule)
 }
 
+// True when the parent has registered this exact (date, slot) tuple as
+// selected. Used by the scheduler's right-side panel flow.
+function isSlotSelected(day: Date, slot: { from: string; to: string }): boolean {
+  if (!props.selectedSlotKeys?.size || !props.bookableId) return false
+  const start = new Date(day)
+  const [fh, fm] = slot.from.split(':').map(Number)
+  start.setHours(fh, fm, 0, 0)
+  const end = new Date(day)
+  const [th, tm] = slot.to.split(':').map(Number)
+  end.setHours(th, tm, 0, 0)
+  return props.selectedSlotKeys.has(`${props.bookableId}|${start.toISOString()}|${end.toISOString()}`)
+}
+
 function modesForRule(rule: any): { id: string; name: string; color: string | null }[] {
   // Prefer activity_mode_ids on the rule (most specific)
   if (rule.activity_mode_ids?.length && props.activityModes?.length) {
@@ -1039,9 +1077,13 @@ async function loadBookings() {
     start = new Date(year, month, 1, 0, 0, 0, 0)
     end = new Date(year, month + 1, 0, 23, 59, 59, 999)
   }
+  // Parent-children mutual exclusion: bookings on this bookable's ancestors
+  // (e.g. the parent venue) or descendants (e.g. its sub-courts) consume the
+  // slot too, so include them in the query.
+  const treeIds = await resolveBookableTree(props.bookableId)
   const { data } = await (db.from as any)('bookings')
     .select('id, type, start_at, end_at, status, notes, contact_name, contact_email, contact_phone, attendee_count, custom_fields, activity_id, activity_mode_id, bookable_id, event:events(id, title), activity_mode:activity_modes(id, name, color)')
-    .eq('bookable_id', props.bookableId)
+    .in('bookable_id', treeIds)
     .neq('status', 'CANCELLED')
     .gte('start_at', start.toISOString())
     .lte('start_at', end.toISOString())
@@ -1049,11 +1091,50 @@ async function loadBookings() {
   loadedBookings.value = data ?? []
 }
 
+// Build the set of bookable ids whose bookings should block this bookable's
+// slots: itself + every ancestor (walking parent_id) + every descendant
+// (walking children). Cached per-bookable-id while the prop is stable.
+const treeCache = new Map<string, string[]>()
+async function resolveBookableTree(rootId: string): Promise<string[]> {
+  const cached = treeCache.get(rootId)
+  if (cached) return cached
+  const set = new Set<string>([rootId])
+  // Ancestors
+  let cursor: string | null = rootId
+  while (cursor) {
+    const { data } = await (db.from as any)('bookables').select('parent_id').eq('id', cursor).maybeSingle()
+    const next = data?.parent_id as string | null | undefined
+    if (!next || set.has(next)) break
+    set.add(next)
+    cursor = next
+  }
+  // Descendants — BFS to handle deeper trees.
+  const queue: string[] = [rootId]
+  while (queue.length) {
+    const id = queue.shift()!
+    const { data } = await (db.from as any)('bookables').select('id').eq('parent_id', id)
+    for (const row of (data ?? []) as { id: string }[]) {
+      if (!set.has(row.id)) { set.add(row.id); queue.push(row.id) }
+    }
+  }
+  const ids = [...set]
+  treeCache.set(rootId, ids)
+  return ids
+}
+
 async function loadRules() {
   if (!props.bookableId) { rules.value = []; return }
+  // Linked children (master_id set) inherit rules from their master — same
+  // model as pages/bookables/[id].vue's propagation. Resolve which bookable
+  // owns the rules first, then fetch from there.
+  const { data: bk } = await (db.from as any)('bookables')
+    .select('id, master_id')
+    .eq('id', props.bookableId)
+    .maybeSingle()
+  const ruleOwner = bk?.master_id ?? props.bookableId
   const { data } = await (db.from as any)('availability_rules')
     .select('*')
-    .eq('bookable_id', props.bookableId)
+    .eq('bookable_id', ruleOwner)
     .eq('is_active', true)
     .order('sort_order')
   rules.value = data ?? []

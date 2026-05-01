@@ -4713,10 +4713,6 @@ async function syncVenueBookings() {
   const bookableIds: string[] = locations
     .filter((l: any) => l.type === 'BOOKABLE')
     .flatMap((l: any) => l.bookable_ids ?? [])
-  const layouts: Record<string, string> = Object.assign(
-    {},
-    ...locations.filter((l: any) => l.type === 'BOOKABLE').map((l: any) => l.bookable_layouts ?? {})
-  )
 
   const { data: existing } = await db.from('bookings')
     .select('id, bookable_id, status')
@@ -4741,7 +4737,6 @@ async function syncVenueBookings() {
         status: 'CONFIRMED',
         start_at: startAt,
         end_at: endAt,
-        layout_name: layouts[bid] ?? null,
         purpose: event.value?.title ?? null,
         is_all_day: event.value?.is_all_day ?? false,
       }))
@@ -4752,12 +4747,6 @@ async function syncVenueBookings() {
     await db.from('bookings')
       .update({ status: 'CANCELLED' })
       .in('id', toCancel.map((b: any) => b.id))
-  }
-
-  // Update layout on still-active bookings if it changed
-  for (const b of existingActive.filter((b: any) => bookableIds.includes(b.bookable_id))) {
-    const newLayout = layouts[b.bookable_id] ?? null
-    await db.from('bookings').update({ layout_name: newLayout }).eq('id', b.id)
   }
 }
 

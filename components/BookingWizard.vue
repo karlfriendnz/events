@@ -302,6 +302,11 @@
             <div v-else-if="!filteredBookables.length" class="py-12 text-center text-gray-400">
               <i class="pi pi-building text-3xl mb-3 block" />
               <p class="text-sm">No resources available.</p>
+              <p v-if="!staff" class="text-xs mt-2 max-w-sm mx-auto">
+                If this activity has venues linked, make sure each one has
+                <span class="font-semibold text-gray-500">Public</span> turned on
+                in its settings — only public venues show on the public booking page.
+              </p>
             </div>
 
             <!-- Staff: collapsible accordion when items have categories -->
@@ -848,7 +853,11 @@
 import { useToast } from 'primevue/usetoast'
 import { substituteBookingTokens } from '~/composables/useBookingTokens'
 
-const props = defineProps<{ staff?: boolean }>()
+const props = defineProps<{
+  staff?: boolean
+  /** When set, skip the activity-picker step and pre-select this activity. */
+  activityId?: string | null
+}>()
 
 const route = useRoute()
 const db = useSupabaseClient()
@@ -1066,6 +1075,39 @@ function allConditionsPass(conds: any[], valuesByLabel: Record<string, any>): bo
   return (conds ?? []).every(c => evalCondition(c, valuesByLabel))
 }
 
+const hasPerPersonFees = computed(() => {
+  // Per-person pricing on the mode itself
+  const pp = selectedMode.value?.pricing?.per_person
+  const modePerPerson = pp
+    ? Array.isArray(pp)
+      ? pp.length > 0
+      : (pp.fees?.length > 0) || (pp.groups?.some((g: any) => g.fees?.length > 0))
+    : false
+  if (modePerPerson) return true
+  // Any selected addon priced per person
+  for (const a of booking.selectedAddons ?? []) {
+    if (a?.type === 'fee_per_person' && (a.qty ?? 1) > 0) return true
+  }
+  // Any addon AVAILABLE on the mode that's priced per person — flag so the
+  // staff know they'll likely need a head count even before the user picks it.
+  for (const a of selectedModeAddons.value) {
+    if (a?.type === 'fee_per_person') return true
+  }
+  return false
+})
+
+// Default form: used when the mode doesn't have a custom form_id.
+const defaultFormFields = computed(() => [
+  { id: '__core_first_name', label: 'First Name',       field_type: 'SHORT_TEXT', is_required: true,                   _core: 'first_name', _col_span: 1, placeholder: 'John' },
+  { id: '__core_last_name',  label: 'Last Name',        field_type: 'SHORT_TEXT', is_required: true,                   _core: 'last_name',  _col_span: 1, placeholder: 'Smith' },
+  { id: '__core_email',      label: 'Email Address',    field_type: 'SHORT_TEXT', is_required: true,                   _core: 'email',      _col_span: 2, placeholder: 'you@example.com' },
+  { id: '__core_phone',      label: 'Phone Number',     field_type: 'SHORT_TEXT', is_required: false,                  _core: 'phone',      _col_span: 2, placeholder: '+61 4xx xxx xxx' },
+  { id: '__core_attendees',  label: 'People Attending', field_type: 'NUMBER',     is_required: hasPerPersonFees.value, _core: 'attendees',  _col_span: 1, placeholder: 'e.g. 20', help_text: 'How many people are attending?' },
+  { id: '__core_notes',      label: 'Notes',            field_type: 'LONG_TEXT',  is_required: false,                  _core: 'notes',      _col_span: 2, placeholder: 'Any special requirements…' },
+])
+
+const effectiveFormFields = computed(() => modeFormFields.value.length ? modeFormFields.value : defaultFormFields.value)
+
 // Map the live formAnswers (keyed by field id) → { label: value } so rules
 // can reference fields by name.
 const formAnswersByLabel = computed(() => {
@@ -1122,38 +1164,9 @@ const financialAdjustments = computed(() => {
   return out
 })
 
-const hasPerPersonFees = computed(() => {
-  // Per-person pricing on the mode itself
-  const pp = selectedMode.value?.pricing?.per_person
-  const modePerPerson = pp
-    ? Array.isArray(pp)
-      ? pp.length > 0
-      : (pp.fees?.length > 0) || (pp.groups?.some((g: any) => g.fees?.length > 0))
-    : false
-  if (modePerPerson) return true
-  // Any selected addon priced per person
-  for (const a of booking.selectedAddons ?? []) {
-    if (a?.type === 'fee_per_person' && (a.qty ?? 1) > 0) return true
-  }
-  // Any addon AVAILABLE on the mode that's priced per person — flag so the
-  // staff know they'll likely need a head count even before the user picks it.
-  for (const a of selectedModeAddons.value) {
-    if (a?.type === 'fee_per_person') return true
-  }
-  return false
-})
-
-// Default form: used when the mode doesn't have a custom form_id.
-const defaultFormFields = computed(() => [
-  { id: '__core_first_name', label: 'First Name',       field_type: 'SHORT_TEXT', is_required: true,                   _core: 'first_name', _col_span: 1, placeholder: 'John' },
-  { id: '__core_last_name',  label: 'Last Name',        field_type: 'SHORT_TEXT', is_required: true,                   _core: 'last_name',  _col_span: 1, placeholder: 'Smith' },
-  { id: '__core_email',      label: 'Email Address',    field_type: 'SHORT_TEXT', is_required: true,                   _core: 'email',      _col_span: 2, placeholder: 'you@example.com' },
-  { id: '__core_phone',      label: 'Phone Number',     field_type: 'SHORT_TEXT', is_required: false,                  _core: 'phone',      _col_span: 2, placeholder: '+61 4xx xxx xxx' },
-  { id: '__core_attendees',  label: 'People Attending', field_type: 'NUMBER',     is_required: hasPerPersonFees.value, _core: 'attendees',  _col_span: 1, placeholder: 'e.g. 20', help_text: 'How many people are attending?' },
-  { id: '__core_notes',      label: 'Notes',            field_type: 'LONG_TEXT',  is_required: false,                  _core: 'notes',      _col_span: 2, placeholder: 'Any special requirements…' },
-])
-
-const effectiveFormFields = computed(() => modeFormFields.value.length ? modeFormFields.value : defaultFormFields.value)
+// (hasPerPersonFees, defaultFormFields, effectiveFormFields moved earlier
+// in setup so the conditional-field/financial-rule computeds + watches that
+// reference effectiveFormFields don't hit a temporal dead zone.)
 
 const coreFieldIds = computed(() => {
   const m: Record<string, string> = {}
@@ -1795,6 +1808,14 @@ function resetFlow() {
 
 onMounted(async () => {
   await load()
+  // Caller pre-selected an activity (e.g. /bookings/new fork) — skip the
+  // activity picker but still hit the proper branching: Mode if the activity
+  // has any modes, otherwise straight to the Resource picker (with auto-skip
+  // when there's exactly one linked venue).
+  if (props.activityId) {
+    const act = activities.value.find(a => a.id === props.activityId)
+    if (act) { selectActivity(act); afterActivity() }
+  }
   try { activeDiscounts.value = await loadActiveDiscounts() } catch { activeDiscounts.value = [] }
 })
 </script>

@@ -4,7 +4,6 @@ export interface LocationEntry {
   address: string
   meeting_link: string
   bookable_ids: string[]
-  bookable_layouts?: Record<string, string> // bookable_id → selected layout name
 }
 
 export function locationSummary(locs: LocationEntry[]): string {

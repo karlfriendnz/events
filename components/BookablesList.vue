@@ -19,8 +19,12 @@
           </span>
         </button>
       </div>
-      <Button v-if="activeTab !== 'ARCHIVED'" :label="newLabel" icon="pi pi-plus" size="small"
-        @click="openCreate" style="background:#1E2157; border-color:#1E2157" class="shrink-0" />
+      <div v-if="activeTab !== 'ARCHIVED'" class="flex items-center gap-2 shrink-0">
+        <Button v-if="activeTab === 'VENUE'" label="Set up a sport" icon="pi pi-bolt" size="small"
+          severity="secondary" outlined @click="setupWizardOpen = true" />
+        <Button :label="newLabel" icon="pi pi-plus" size="small"
+          @click="openCreate" style="background:#1E2157; border-color:#1E2157" />
+      </div>
     </div>
 
     <ArchivedBookablesList v-if="activeTab === 'ARCHIVED'" @changed="loadArchivedCount" />
@@ -81,14 +85,23 @@
           <p class="text-sm text-gray-500 mb-5 max-w-sm mx-auto">
             Venues are the spaces people book — halls, courts, rooms, ovals. Add one to get started.
           </p>
-          <Button label="New Venue" icon="pi pi-plus"
-            style="background:#1E2157; border-color:#1E2157" @click="openCreate" />
+          <div class="flex items-center justify-center gap-2">
+            <Button label="Set up a sport" icon="pi pi-bolt" severity="secondary" outlined
+              @click="setupWizardOpen = true" />
+            <Button label="New Venue" icon="pi pi-plus"
+              style="background:#1E2157; border-color:#1E2157" @click="openCreate" />
+          </div>
         </div>
-        <div v-else class="bg-white rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
-          <div v-for="{ item, depth, hasChildren } in flatVenueList" :key="item.id"
+        <div v-else class="space-y-3">
+          <div v-for="(grp, gi) in groupedVenueList" :key="gi"
+            class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div v-for="({ item, depth, hasChildren }, idx) in grp.rows" :key="item.id"
             class="flex items-center gap-3 pr-5 py-3 hover:bg-gray-50 group transition-colors"
             :style="{ paddingLeft: `${depth * 2 + 1.25}rem` }"
-            :class="{ 'bg-gray-50/40': depth > 0 }">
+            :class="[
+              depth > 0 ? 'bg-gray-50/40' : '',
+              idx > 0 ? 'border-t border-gray-100' : '',
+            ]">
             <!-- Expand toggle or spacer -->
             <button v-if="hasChildren"
               class="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 shrink-0"
@@ -124,10 +137,6 @@
                   class="text-xs font-medium px-2 py-0.5 rounded-full border bg-red-50 text-red-600 border-red-200">
                   Fully booked
                 </span>
-                <span v-else-if="partialIds.has(item.id)"
-                  class="text-xs font-medium px-2 py-0.5 rounded-full border bg-indigo-50 text-indigo-600 border-indigo-200">
-                  {{ layoutCounts.get(item.id)?.free }} of {{ layoutCounts.get(item.id)?.total }} free
-                </span>
                 <span v-else class="text-xs font-medium px-2 py-0.5 rounded-full border bg-green-50 text-green-700 border-green-200">
                   Available
                 </span>
@@ -144,6 +153,7 @@
                 style="background:#1E2157;border-color:#1E2157"
                 @click.stop="navigateTo(bookUrl(item.id))" />
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -162,8 +172,12 @@
           <p class="text-sm text-gray-500 mb-5 max-w-sm mx-auto">
             Venues are the spaces people book — halls, courts, rooms, ovals. Add one to get started.
           </p>
-          <Button label="New Venue" icon="pi pi-plus"
-            style="background:#1E2157; border-color:#1E2157" @click="openCreate" />
+          <div class="flex items-center justify-center gap-2">
+            <Button label="Set up a sport" icon="pi pi-bolt" severity="secondary" outlined
+              @click="setupWizardOpen = true" />
+            <Button label="New Venue" icon="pi pi-plus"
+              style="background:#1E2157; border-color:#1E2157" @click="openCreate" />
+          </div>
         </div>
         <div v-else class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
           <div v-for="item in filteredVenues" :key="item.id"
@@ -178,10 +192,6 @@
                 <span v-if="bookedIds.has(item.id)"
                   class="text-xs font-medium px-2 py-0.5 rounded-full border bg-red-50 text-red-600 border-red-200">
                   Fully booked
-                </span>
-                <span v-else-if="partialIds.has(item.id)"
-                  class="text-xs font-medium px-2 py-0.5 rounded-full border bg-indigo-50 text-indigo-600 border-indigo-200">
-                  {{ layoutCounts.get(item.id)?.free }} of {{ layoutCounts.get(item.id)?.total }} free
                 </span>
                 <span v-else class="text-xs font-medium px-2 py-0.5 rounded-full border bg-green-50 text-green-700 border-green-200">
                   Available
@@ -439,6 +449,9 @@
       </template>
     </Dialog>
 
+    <!-- One-shot sport setup: bookables + sub-venues + configurations + activity + modes -->
+    <SetupWizard v-model:visible="setupWizardOpen" @done="onSetupWizardDone" />
+
     <Toast />
   </div>
 </template>
@@ -455,14 +468,19 @@ const loading = ref(true)
 const search = ref('')
 const statusFilter = ref('')
 const activeTab = ref<'VENUE' | 'PERSON' | 'ITEM' | 'ARCHIVED'>('VENUE')
+const setupWizardOpen = ref(false)
+
+async function onSetupWizardDone() {
+  // Reload the list so the new venues + activity show up immediately.
+  await load()
+}
 
 // Availability filter
 const availDate = ref<Date | null>(new Date())
 const availStart = ref('')
 const availEnd = ref('')
-const bookedIds = ref<Set<string>>(new Set())      // fully booked — no layouts available
-const partialIds = ref<Set<string>>(new Set())     // some layouts still free
-const layoutCounts = ref<Map<string, { free: number; total: number }>>(new Map())
+const bookedIds = ref<Set<string>>(new Set())      // fully booked — no capacity left
+const partialIds = ref<Set<string>>(new Set())     // partially occupied (kept as a stub for compat)
 const availLoading = ref(false)
 
 const timeSlots = Array.from({ length: 34 }, (_, i) => {
@@ -478,7 +496,7 @@ const availFilterActive = computed(() => !!availDate.value)
 
 async function checkAvailability() {
   if (!availDate.value || !orgId.value) {
-    bookedIds.value = new Set(); partialIds.value = new Set(); layoutCounts.value = new Map(); return
+    bookedIds.value = new Set(); partialIds.value = new Set(); return
   }
   availLoading.value = true
   const d = availDate.value
@@ -487,61 +505,26 @@ async function checkAvailability() {
   const start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), sh, sm).toISOString()
   const end   = new Date(d.getFullYear(), d.getMonth(), d.getDate(), eh, em).toISOString()
 
-  // 1. Get all overlapping bookings
+  // Overlapping bookings → mark as fully booked when count >= max_concurrent.
   const { data: bookingData } = await db.from('bookings')
-    .select('bookable_id, layout_id')
+    .select('bookable_id')
     .lte('start_at', end)
     .gte('end_at', start)
     .neq('status', 'CANCELLED')
 
-  const affectedIds = [...new Set((bookingData ?? []).map((b: any) => b.bookable_id))]
-
-  if (!affectedIds.length) {
-    bookedIds.value = new Set(); partialIds.value = new Set(); layoutCounts.value = new Map()
-    availLoading.value = false; return
+  const counts = new Map<string, number>()
+  for (const b of (bookingData ?? []) as { bookable_id: string }[]) {
+    counts.set(b.bookable_id, (counts.get(b.bookable_id) ?? 0) + 1)
   }
 
-  // 2. Get all layouts for those venues (to know what's occupied vs free)
-  const { data: layoutData } = await (db.from as any)('bookable_layouts')
-    .select('id, bookable_id, sections')
-    .in('bookable_id', affectedIds)
-
   const fully = new Set<string>()
-  const partial = new Set<string>()
-  const counts = new Map<string, { free: number; total: number }>()
-
-  for (const bookableId of affectedIds) {
-    const allLayouts: any[] = (layoutData ?? []).filter((l: any) => l.bookable_id === bookableId)
-    const bookings: any[] = (bookingData ?? []).filter((b: any) => b.bookable_id === bookableId)
-
-    if (!allLayouts.length) {
-      // No layouts — treat as simple concurrent booking
-      const bookable = bookables.value.find(b => b.id === bookableId)
-      if ((bookable?.max_concurrent ?? 1) <= bookings.length) fully.add(bookableId)
-      continue
-    }
-
-    // Compute occupied sections from the bookings' layout sections
-    const occupied = new Set<string>()
-    for (const booking of bookings) {
-      const layout = allLayouts.find((l: any) => l.id === booking.layout_id)
-      for (const s of (layout?.sections ?? [])) occupied.add(s)
-    }
-
-    // A layout is unavailable if any of its sections is occupied
-    const freeLayouts = allLayouts.filter((l: any) =>
-      !(l.sections ?? []).some((s: string) => occupied.has(s))
-    )
-
-    counts.set(bookableId, { free: freeLayouts.length, total: allLayouts.length })
-
-    if (freeLayouts.length === 0) fully.add(bookableId)
-    else partial.add(bookableId)
+  for (const [bookableId, n] of counts) {
+    const bookable = bookables.value.find(b => b.id === bookableId)
+    if ((bookable?.max_concurrent ?? 1) <= n) fully.add(bookableId)
   }
 
   bookedIds.value = fully
-  partialIds.value = partial
-  layoutCounts.value = counts
+  partialIds.value = new Set()
   availLoading.value = false
 }
 
@@ -553,7 +536,6 @@ function clearAvailability() {
   availEnd.value = ''
   bookedIds.value = new Set()
   partialIds.value = new Set()
-  layoutCounts.value = new Map()
 }
 
 function bookUrl(itemId: string) {
@@ -573,11 +555,18 @@ watch(activeTab, (tab) => {
   viewMode.value = tab === 'VENUE' ? 'list' : 'grid'
 })
 
-// Accordion state — undefined/true = expanded, false = collapsed; all open by default
+// Accordion state — explicit true/false wins; otherwise top-level venues
+// default to expanded and any nested venue (a court inside a facility, a
+// quarter inside a court) defaults to collapsed. So a fresh "Tennis
+// Courts" tree shows the courts but hides the quarters until the user
+// drills in.
 const expandedVenues = ref<Record<string, boolean>>({})
 
 function isVenueExpanded(id: string) {
-  return expandedVenues.value[id] !== false
+  const explicit = expandedVenues.value[id]
+  if (explicit !== undefined) return explicit
+  const item = bookables.value.find(b => b.id === id)
+  return !item?.parent_id
 }
 function toggleVenueExpand(id: string) {
   expandedVenues.value[id] = !isVenueExpanded(id)
@@ -588,6 +577,19 @@ function childVenues(parentId: string) {
 function childItems(venueId: string) {
   return bookables.value.filter(b => b.type === 'ITEM' && b.parent_id === venueId)
 }
+
+// Group the flat list by top-level ancestor — each top-level venue (and
+// its expanded descendants) renders in its own card so the visual chunks
+// match the org structure rather than one big rolled-up table.
+const groupedVenueList = computed(() => {
+  type Row = { item: any; depth: number; hasChildren: boolean }
+  const groups: { rows: Row[] }[] = []
+  for (const row of flatVenueList.value) {
+    if (row.depth === 0) groups.push({ rows: [row] })
+    else if (groups.length) groups[groups.length - 1].rows.push(row)
+  }
+  return groups
+})
 
 // Flat recursive list of visible venue rows
 const flatVenueList = computed(() => {

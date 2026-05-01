@@ -88,7 +88,7 @@ const editingParent = computed(() =>
 async function load() {
   loading.value = true
   const { data } = await db.from('bookables')
-    .select('id, name, internal_name, description, location, sports, features, layouts, max_concurrent, rules, status, is_public, show_location, parent_id, sort_order, type, default_booking_view, allow_multiple_layouts, show_in_menu')
+    .select('id, name, internal_name, description, location, sports, features, max_concurrent, rules, status, is_public, show_location, parent_id, sort_order, type, default_booking_view, show_in_menu')
     .eq('org_id', orgId.value)
     .eq('type', 'VENUE')
     .neq('status', 'DELETED')

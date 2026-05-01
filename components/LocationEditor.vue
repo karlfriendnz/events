@@ -82,27 +82,6 @@
                 {{ effectiveAvailabilityMap[node.id] === 'available' ? 'Available' : 'Booked' }}
               </span>
             </div>
-            <!-- Layout radio rows (shown when node is selected and has layouts) -->
-            <template v-if="loc.bookable_ids.includes(node.id) && node.layouts?.length">
-              <div v-for="layout in node.layouts" :key="layout"
-                class="flex items-center gap-2.5 py-2 border-b border-gray-100 bg-gray-50/60 cursor-pointer hover:bg-blue-50/40 transition-colors"
-                :style="{ paddingLeft: `${12 + (node._depth + 1) * 20}px`, paddingRight: '12px' }"
-                @click="setLayout(locIdx, node.id, layout)">
-                <!-- Radio button -->
-                <span class="w-[18px] h-[18px] rounded-full border-2 shrink-0 flex items-center justify-center transition-colors"
-                  :class="(loc.bookable_layouts ?? {})[node.id] === layout
-                    ? 'border-[#1E2157] bg-[#1E2157]'
-                    : 'border-gray-400 bg-white'">
-                  <span v-if="(loc.bookable_layouts ?? {})[node.id] === layout" class="w-2 h-2 rounded-full bg-white" />
-                </span>
-                <span class="text-sm text-gray-700">{{ layout }}</span>
-                <span v-if="effectiveAvailabilityMap[node.id]"
-                  class="ml-auto text-xs px-2 py-0.5 rounded-full font-medium shrink-0"
-                  :class="effectiveAvailabilityMap[node.id] === 'available' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'">
-                  {{ effectiveAvailabilityMap[node.id] === 'available' ? 'Available' : 'Booked' }}
-                </span>
-              </div>
-            </template>
           </template>
         </div>
       </div>
@@ -150,7 +129,7 @@ const expandedIds = reactive<Record<string, boolean>>({})
 onMounted(async () => {
   bookablesLoading.value = true
   const { data, error } = await db.from('bookables')
-    .select('id, name, location, parent_id, layouts')
+    .select('id, name, location, parent_id')
     .eq('org_id', orgId.value)
     .eq('type', 'VENUE')
     .eq('status', 'ACTIVE')
@@ -314,22 +293,13 @@ function toggleVenue(locIdx: number, nodeId: string) {
   } else {
     loc.bookable_ids.splice(i, 1)
     removeDescendants(loc.bookable_ids, nodeId)
-    // Clear layout selection when deselected
-    if (loc.bookable_layouts) delete loc.bookable_layouts[nodeId]
   }
   emit('update:modelValue', locs)
 }
 
 // ---- Mutations ----
 function cloneLocations(): LocationEntry[] {
-  return props.modelValue.map(l => ({ ...l, bookable_ids: [...l.bookable_ids], bookable_layouts: { ...(l.bookable_layouts ?? {}) } }))
-}
-
-function setLayout(locIdx: number, bookableId: string, layout: string) {
-  const locs = cloneLocations()
-  if (!locs[locIdx].bookable_layouts) locs[locIdx].bookable_layouts = {}
-  locs[locIdx].bookable_layouts![bookableId] = layout
-  emit('update:modelValue', locs)
+  return props.modelValue.map(l => ({ ...l, bookable_ids: [...l.bookable_ids] }))
 }
 
 function setType(locIdx: number, type: LocationEntry['type']) {

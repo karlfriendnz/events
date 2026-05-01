@@ -537,7 +537,7 @@ async function seedDemoEvents() {
     // Top-level venue
     const { data: clubRooms } = await db.from('bookables').insert({
       org_id: orgId.value, name: 'Club Rooms', type: 'VENUE', status: 'ACTIVE',
-      is_public: true, description: 'Function space for meetings, presentations, and social events.', sort_order: 0, allow_multiple_layouts: false,
+      is_public: true, description: 'Function space for meetings, presentations, and social events.', sort_order: 0,
     }).select('id').single()
     const clubRoomsId = clubRooms?.id as string | undefined
 
@@ -545,59 +545,59 @@ async function seedDemoEvents() {
     const { data: footballFields } = await db.from('bookables').insert({
       org_id: orgId.value, name: 'Football Fields', type: 'VENUE', status: 'ACTIVE',
       is_public: true, description: 'Two full-size football fields for training and match play.',
-      parent_id: clubRoomsId, sort_order: 1, allow_multiple_layouts: false,
+      parent_id: clubRoomsId, sort_order: 1,
     }).select('id').single()
     if (footballFields?.id) {
       await db.from('bookables').insert([
-        { org_id: orgId.value, name: 'Field 1', type: 'VENUE', status: 'ACTIVE', is_public: true, parent_id: footballFields.id, sort_order: 0, allow_multiple_layouts: false },
-        { org_id: orgId.value, name: 'Field 2', type: 'VENUE', status: 'ACTIVE', is_public: true, parent_id: footballFields.id, sort_order: 1, allow_multiple_layouts: false },
+        { org_id: orgId.value, name: 'Field 1', type: 'VENUE', status: 'ACTIVE', is_public: true, parent_id: footballFields.id, sort_order: 0 },
+        { org_id: orgId.value, name: 'Field 2', type: 'VENUE', status: 'ACTIVE', is_public: true, parent_id: footballFields.id, sort_order: 1 },
       ])
     }
 
     const { data: swimmingPool } = await db.from('bookables').insert({
       org_id: orgId.value, name: 'Swimming Pool', type: 'VENUE', status: 'ACTIVE',
       is_public: true, description: '25m heated pool with 6 lanes. Available for squad sessions and public swim.',
-      parent_id: clubRoomsId, sort_order: 2, allow_multiple_layouts: false,
+      parent_id: clubRoomsId, sort_order: 2,
     }).select('id').single()
     if (swimmingPool?.id) {
       const { data: compPool } = await db.from('bookables').insert(
-        { org_id: orgId.value, name: 'Competition Pool', type: 'VENUE', status: 'ACTIVE', is_public: true, parent_id: swimmingPool.id, sort_order: 0, default_booking_view: 'scheduler', show_in_menu: true, allow_multiple_layouts: false }
+        { org_id: orgId.value, name: 'Competition Pool', type: 'VENUE', status: 'ACTIVE', is_public: true, parent_id: swimmingPool.id, sort_order: 0, default_booking_view: 'scheduler', show_in_menu: true }
       ).select('id').single()
       if (compPool?.id) {
         const { data: lane1 } = await db.from('bookables').insert({
           org_id: orgId.value, name: 'Lane 1', type: 'VENUE', status: 'ACTIVE',
-          is_public: true, is_master: true, parent_id: compPool.id, sort_order: 0, allow_multiple_layouts: false,
+          is_public: true, is_master: true, parent_id: compPool.id, sort_order: 0,
         }).select('id').single()
         if (lane1?.id) {
           await db.from('bookables').insert(
             [2, 3, 4].map((n, i) => ({
               org_id: orgId.value, name: `Lane ${n}`, type: 'VENUE', status: 'ACTIVE',
-              is_public: true, master_id: lane1.id, parent_id: compPool.id, sort_order: i + 1, allow_multiple_layouts: false,
+              is_public: true, master_id: lane1.id, parent_id: compPool.id, sort_order: i + 1,
             }))
           )
         }
       }
       await db.from('bookables').insert(
-        { org_id: orgId.value, name: 'Learn-to-Swim Area', type: 'VENUE', status: 'ACTIVE', is_public: true, parent_id: swimmingPool.id, sort_order: 1, allow_multiple_layouts: false }
+        { org_id: orgId.value, name: 'Learn-to-Swim Area', type: 'VENUE', status: 'ACTIVE', is_public: true, parent_id: swimmingPool.id, sort_order: 1 }
       )
     }
 
     const { data: tennisCourts } = await db.from('bookables').insert({
       org_id: orgId.value, name: 'Tennis Courts', type: 'VENUE', status: 'ACTIVE',
       is_public: true, description: '4 hard-court tennis courts with floodlighting.',
-      parent_id: clubRoomsId, sort_order: 3, default_booking_view: 'scheduler', show_in_menu: true, allow_multiple_layouts: false,
+      parent_id: clubRoomsId, sort_order: 3, default_booking_view: 'scheduler', show_in_menu: true,
     }).select('id').single()
     if (tennisCourts?.id) {
       // Court 1 is master; Courts 2–4 are linked to it
       const { data: court1 } = await db.from('bookables').insert({
         org_id: orgId.value, name: 'Court 1', type: 'VENUE', status: 'ACTIVE',
-        is_public: true, is_master: true, parent_id: tennisCourts.id, sort_order: 0, allow_multiple_layouts: false,
+        is_public: true, is_master: true, parent_id: tennisCourts.id, sort_order: 0,
       }).select('id').single()
       if (court1?.id) {
         await db.from('bookables').insert(
           [2, 3, 4].map((n, i) => ({
             org_id: orgId.value, name: `Court ${n}`, type: 'VENUE', status: 'ACTIVE',
-            is_public: true, master_id: court1.id, parent_id: tennisCourts.id, sort_order: i + 1, allow_multiple_layouts: false,
+            is_public: true, master_id: court1.id, parent_id: tennisCourts.id, sort_order: i + 1,
           }))
         )
       }
@@ -606,25 +606,25 @@ async function seedDemoEvents() {
     const { data: hall } = await db.from('bookables').insert({
       org_id: orgId.value, name: 'Hall', type: 'VENUE', status: 'ACTIVE',
       is_public: true, description: 'Multi-purpose hall for indoor sports, classes, and large events.',
-      parent_id: clubRoomsId, sort_order: 4, max_concurrent: 1, allow_multiple_layouts: false,
+      parent_id: clubRoomsId, sort_order: 4, max_concurrent: 1,
     }).select('id').single()
     const hallId = hall?.id as string | undefined
 
     const { data: cricketNets } = await db.from('bookables').insert({
       org_id: orgId.value, name: 'Cricket Nets', type: 'VENUE', status: 'ACTIVE',
       is_public: true, description: '4 practice nets for batting and bowling drills.',
-      sort_order: 5, default_booking_view: 'scheduler', show_in_menu: true, allow_multiple_layouts: false,
+      sort_order: 5, default_booking_view: 'scheduler', show_in_menu: true,
     }).select('id').single()
     if (cricketNets?.id) {
       const { data: net1 } = await db.from('bookables').insert({
         org_id: orgId.value, name: 'Net 1', type: 'VENUE', status: 'ACTIVE',
-        is_public: true, is_master: true, parent_id: cricketNets.id, sort_order: 0, allow_multiple_layouts: false,
+        is_public: true, is_master: true, parent_id: cricketNets.id, sort_order: 0,
       }).select('id').single()
       if (net1?.id) {
         await db.from('bookables').insert(
           [2, 3, 4].map((n, i) => ({
             org_id: orgId.value, name: `Net ${n}`, type: 'VENUE', status: 'ACTIVE',
-            is_public: true, master_id: net1.id, parent_id: cricketNets.id, sort_order: i + 1, allow_multiple_layouts: false,
+            is_public: true, master_id: net1.id, parent_id: cricketNets.id, sort_order: i + 1,
           }))
         )
       }
@@ -798,7 +798,7 @@ async function seedDemoEvents() {
     }
 
     if (birthdaysAct?.id) {
-      await db.from('activity_modes').insert([
+      const { error: bdayModesErr } = await db.from('activity_modes').insert([
         {
           activity_id: birthdaysAct.id, name: 'Boys', color: '#3B82F6', sort_order: 0,
           allow_visitors: false, approval_mode: 'INSTANT',
@@ -821,14 +821,16 @@ async function seedDemoEvents() {
           pricing: { base: [], tiers: [], per_hour: [], per_person: [] }, addons: [],
         },
       ])
+      if (bdayModesErr) throw new Error(`Birthdays modes seed failed: ${bdayModesErr.message}`)
     }
 
     if (tennisAct?.id) {
-      await db.from('activity_modes').insert([
+      const { error: tennisModesErr } = await db.from('activity_modes').insert([
         { activity_id: tennisAct.id, name: 'Play',       color: '#F97316', sort_order: 0, allow_visitors: false, approval_mode: 'INSTANT', pricing: { base: [], tiers: [], per_hour: [], per_person: [] }, addons: [] },
         { activity_id: tennisAct.id, name: 'Practice',   color: '#3B82F6', sort_order: 1, allow_visitors: false, approval_mode: 'INSTANT', pricing: { base: [], tiers: [], per_hour: [], per_person: [] }, addons: [] },
         { activity_id: tennisAct.id, name: 'Tournament', color: '#14B8A6', sort_order: 2, allow_visitors: false, approval_mode: 'INSTANT', pricing: { base: [], tiers: [], per_hour: [], per_person: [] }, addons: [] },
       ])
+      if (tennisModesErr) throw new Error(`Tennis modes seed failed: ${tennisModesErr.message}`)
     }
 
     const base = {
@@ -1305,6 +1307,10 @@ async function seedDemoEvents() {
         availabilityRows.push(rule(b.id, 'Open hours', allDays, '08:00', '22:00'))
       } else if (n === 'tennis courts' || n === 'cricket nets' || n === 'football fields' || n === 'swimming pool' || n === 'competition pool') {
         availabilityRows.push(rule(b.id, 'Open hours', allDays, '07:00', '22:00'))
+      } else if (b.type === 'VENUE') {
+        // Catch-all: any other VENUE gets sensible default open hours so the
+        // booking wizard always finds slots, even for venues we forgot to name-match.
+        availabilityRows.push(rule(b.id, 'Open hours', allDays, '08:00', '22:00'))
       }
     }
 
@@ -1399,18 +1405,14 @@ async function resetDatabase() {
     const calIds= (calRes.data  ?? []).map((r: any) => r.id)
     const bIds  = (bRes.data    ?? []).map((r: any) => r.id)
 
-    // Fetch session & layout IDs (needed to scope their children)
-    const [sessRes, layoutRes] = await Promise.all([
+    // Fetch session IDs (needed to scope their children)
+    const [sessRes] = await Promise.all([
       eIds.length  ? db2('sessions').select('id').in('event_id', eIds) : { data: [] },
-      bIds.length  ? db2('bookable_layouts').select('id').in('bookable_id', bIds) : { data: [] },
     ])
     const sessIds  = (sessRes.data   ?? []).map((r: any) => r.id)
-    const layoutIds= (layoutRes.data ?? []).map((r: any) => r.id)
 
     // 2. Delete deepest children first, all scoped to this org's data
     await Promise.all([
-      // Layout tree
-      del('bookable_layout_modes', 'layout_id', layoutIds),
       del('bookable_modes', 'bookable_id', bIds),
       // Event children
       del('access_scans',       'event_id',       eIds),
@@ -1437,8 +1439,7 @@ async function resetDatabase() {
 
     // 3. Delete mid-level children
     await Promise.all([
-      del('bookable_layouts', 'bookable_id', bIds),
-      del('sessions',         'event_id',    eIds),
+      del('sessions', 'event_id', eIds),
     ])
 
     // 4. Delete all org-scoped tables in dependency order

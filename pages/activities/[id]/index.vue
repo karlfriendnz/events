@@ -109,6 +109,20 @@
                   </div>
                   <div class="flex items-center justify-between px-5 py-3 gap-3">
                     <div>
+                      <p class="text-sm font-medium text-gray-700">Booking flow</p>
+                      <p class="text-xs text-gray-400">{{ form.booking_flow === 'scheduler' ? 'Scheduler grid: pick venue → click slot → mode → details' : 'Guided wizard: activity → mode → resource → date → details' }}</p>
+                    </div>
+                    <div class="flex items-center rounded-lg border border-gray-200 overflow-hidden text-xs font-medium shrink-0">
+                      <button type="button" class="px-3 py-1.5 transition-colors"
+                        :class="form.booking_flow === 'wizard' ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50'"
+                        @click="form.booking_flow = 'wizard'">Wizard</button>
+                      <button type="button" class="px-3 py-1.5 border-l border-gray-200 transition-colors"
+                        :class="form.booking_flow === 'scheduler' ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50'"
+                        @click="form.booking_flow = 'scheduler'">Scheduler</button>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between px-5 py-3 gap-3">
+                    <div>
                       <p class="text-sm font-medium text-gray-700">Approval</p>
                       <p class="text-xs text-gray-400">Who confirms bookings</p>
                     </div>
@@ -484,6 +498,7 @@ const form = reactive({
   require_visitor_names: false,
   hide_member_names: false,
   approval_mode: 'auto' as 'auto' | 'manual',
+  booking_flow: 'wizard' as 'wizard' | 'scheduler',
   booking_window_days: null as number | null,
   min_notice_hours: null as number | null,
   cancellation_window_hours: null as number | null,
@@ -603,6 +618,7 @@ async function load() {
       form.require_visitor_names = act.require_visitor_names ?? false
       form.hide_member_names = act.hide_member_names ?? false
       form.approval_mode = act.approval_mode ?? 'auto'
+      form.booking_flow = act.booking_flow ?? 'wizard'
       form.booking_window_days = act.booking_window_days ?? null
       form.min_notice_hours = act.min_notice_hours ?? null
       form.cancellation_window_hours = act.cancellation_window_hours ?? null
@@ -642,6 +658,7 @@ async function save() {
         require_visitor_names: form.require_visitor_names,
         hide_member_names: form.hide_member_names,
         approval_mode: form.approval_mode,
+        booking_flow: form.booking_flow,
         booking_window_days: form.booking_window_days,
         min_notice_hours: form.min_notice_hours,
         cancellation_window_hours: form.cancellation_window_hours,

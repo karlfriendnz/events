@@ -142,6 +142,66 @@
                 </div>
 
                 <div>
+                  <h2 class="text-sm font-bold text-gray-800 mb-1">Bookable scope</h2>
+                  <p class="text-xs text-gray-500 mb-3">
+                    Restrict this mode to specific bookables — e.g. <span class="font-medium text-gray-600">Singles</span>
+                    might only run on a full court, while <span class="font-medium text-gray-600">Junior coaching</span>
+                    only runs on the quarters. Leave empty to allow every bookable the activity is linked to.
+                  </p>
+                  <AppCard>
+                    <div class="p-5">
+                      <MultiSelect v-model="form.bookable_ids"
+                        :options="modeBookableOptions"
+                        option-label="name" option-value="id"
+                        placeholder="Any bookable on this activity" class="w-full"
+                        :show-toggle-all="false" filter>
+                        <template #option="{ option }">
+                          <div class="flex items-center gap-2">
+                            <i class="pi text-xs"
+                              :class="option.parent_id ? 'pi-sitemap text-emerald-600' : 'pi-building text-[#1E2157]'" />
+                            <span class="text-sm">{{ option.name }}</span>
+                          </div>
+                        </template>
+                      </MultiSelect>
+                      <p v-if="!modeBookableOptions.length" class="mt-2 text-xs text-amber-600">
+                        Link the activity to a venue first (Activities page → Venues card) so this picker has something to scope to.
+                      </p>
+                      <p v-else-if="form.bookable_ids.length" class="mt-2 text-xs text-gray-400">
+                        Booking this mode will only be possible on the {{ form.bookable_ids.length }} selected bookable{{ form.bookable_ids.length === 1 ? '' : 's' }}.
+                      </p>
+                    </div>
+                  </AppCard>
+                </div>
+
+                <div>
+                  <h2 class="text-sm font-bold text-gray-800 mb-1">Required configuration</h2>
+                  <p class="text-xs text-gray-500 mb-3">
+                    Tell the booker which layout this mode needs — e.g.
+                    <span class="font-medium text-gray-600">Half court</span> for doubles training,
+                    <span class="font-medium text-gray-600">Quarter</span> for kids coaching.
+                    The booking flow surfaces it as a single "any half" tile and auto-picks an available one
+                    across the scoped courts. Leave empty to book the whole bookable.
+                  </p>
+                  <AppCard>
+                    <div class="p-5">
+                      <Select v-model="form.configuration_key"
+                        :options="[{ key: null, name: 'No configuration — book the whole bookable' }, ...availableConfigurations]"
+                        option-label="name" option-value="key"
+                        placeholder="No configuration"
+                        class="w-full" show-clear />
+                      <p v-if="!availableConfigurations.length" class="mt-2 text-xs text-amber-600">
+                        None of the activity's linked bookables have configurations yet. Apply a configuration template on a venue's Sub-venues tab to populate this list.
+                      </p>
+                      <p v-else-if="form.configuration_key" class="mt-2 text-xs text-gray-400">
+                        Booking this mode will pick any free child under the
+                        <span class="font-medium text-gray-600">{{ availableConfigurations.find(c => c.key === form.configuration_key)?.name }}</span>
+                        configuration of the scoped bookables.
+                      </p>
+                    </div>
+                  </AppCard>
+                </div>
+
+                <div>
                   <h2 class="text-sm font-bold text-gray-800 mb-1">Capacity</h2>
                   <p class="text-xs text-gray-500 mb-3">How many people can book this mode at a time.</p>
                   <AppCard>
@@ -356,6 +416,26 @@ function cleanAddons(addons: any[]) {
     .map((a: any) => ({ ...a, fees: cleanFees(a.fees) }))
 }
 
+interface ActivityBookable { id: string; name: string; parent_id: string | null; type: string }
+interface ConfigurationOption { key: string; name: string }
+const activityBookables = ref<ActivityBookable[]>([])
+const activityBookableChildren = ref<ActivityBookable[]>([])
+// Configurations available across the activity's linked bookables — surfaced
+// in the mode editor so the user can require e.g. "Halves" without naming
+// individual sub-venues. Populated from bookable_configurations rows.
+const availableConfigurations = ref<ConfigurationOption[]>([])
+
+// Combined set: every bookable linked to the activity + their children. The
+// mode editor's bookable picker draws from this list so you can scope to a
+// court (linked to the activity) OR one of its quarters (a child of a linked
+// bookable, even if the quarter itself isn't on the activity link list).
+const modeBookableOptions = computed<ActivityBookable[]>(() => {
+  const seen = new Map<string, ActivityBookable>()
+  for (const b of activityBookables.value) seen.set(b.id, b)
+  for (const c of activityBookableChildren.value) if (!seen.has(c.id)) seen.set(c.id, c)
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name))
+})
+
 const form = reactive({
   name: '',
   description: '',
@@ -372,13 +452,20 @@ const form = reactive({
   default_booking_view: null as string | null,
   payment_options: { invoice: false, credit_card: false, payment_plan: false, coupon: false } as Record<string, boolean>,
   approval_mode: 'INSTANT' as 'INSTANT' | 'REQUIRES_APPROVAL',
+  // Bookable scope. Empty = applies to every bookable the activity is linked to.
+  bookable_ids: [] as string[],
+  // Required configuration. When set (e.g. 'halves'), the booking flow
+  // resolves scoped bookables → their children under that config and treats
+  // them as one interchangeable pool ("any half").
+  configuration_key: null as string | null,
 })
 
 const bookingViewOptions = [
-  { label: 'Month', value: 'dayGridMonth' },
-  { label: 'Week',  value: 'timeGridWeek' },
-  { label: 'Day',   value: 'timeGridDay' },
-  { label: 'List',  value: 'listWeek' },
+  { label: 'Month',     value: 'dayGridMonth' },
+  { label: 'Week',      value: 'timeGridWeek' },
+  { label: 'Day',       value: 'timeGridDay' },
+  { label: 'List',      value: 'listWeek' },
+  { label: 'Scheduler', value: 'scheduler' },
 ]
 
 const paymentMethodOptions = [
@@ -458,18 +545,53 @@ useBreadcrumbs([
 async function load() {
   loading.value = true
   try {
-    const [{ data: act }, { data: groups }, { data: orgRow }] = await Promise.all([
+    const [{ data: act }, { data: groups }, { data: orgRow }, { data: actBookables }] = await Promise.all([
       (db.from as any)('activities').select('name').eq('id', route.params.id).single(),
       (db.from as any)('member_groups').select('id, name, color').eq('org_id', orgId.value).order('name'),
       (db.from as any)('organisations').select('default_payment_options').eq('id', orgId.value).single(),
+      // Bookables linked to the parent activity — the candidate set for
+      // mode-level scoping (any descendant of these is also fair game).
+      (db.from as any)('activity_bookables')
+        .select('bookable:bookables(id, name, parent_id, type)')
+        .eq('activity_id', route.params.id),
     ])
     activityName.value = act?.name ?? ''
     allGroups.value = groups ?? []
     orgDefaultPaymentOptions.value = (orgRow?.default_payment_options as Record<string, boolean>) ?? {}
+    activityBookables.value = (actBookables ?? [])
+      .map((r: any) => r.bookable)
+      .filter(Boolean) as ActivityBookable[]
+    // Pull the children of every linked bookable so the user can scope to a
+    // specific quarter/court/etc. without having to link it to the activity.
+    const linkedIds = activityBookables.value.map(b => b.id)
+    if (linkedIds.length) {
+      const [{ data: kids }, { data: configs }] = await Promise.all([
+        (db.from as any)('bookables')
+          .select('id, name, parent_id, type')
+          .in('parent_id', linkedIds)
+          .neq('status', 'DELETED'),
+        (db.from as any)('bookable_configurations')
+          .select('key, name')
+          .in('parent_bookable_id', linkedIds),
+      ])
+      activityBookableChildren.value = (kids ?? []) as ActivityBookable[]
+      // De-dup by key — the same config (e.g. 'halves') typically exists on
+      // every linked court, but we surface it once.
+      const seen = new Map<string, ConfigurationOption>()
+      for (const c of (configs ?? []) as ConfigurationOption[]) {
+        if (!seen.has(c.key)) seen.set(c.key, c)
+      }
+      availableConfigurations.value = [...seen.values()]
+    } else {
+      activityBookableChildren.value = []
+      availableConfigurations.value = []
+    }
 
     if (!isNew.value) {
-      const { data: mode } = await (db.from as any)('activity_modes')
-        .select('*').eq('id', route.params.modeId).single()
+      const [{ data: mode }, { data: modeBookables }] = await Promise.all([
+        (db.from as any)('activity_modes').select('*').eq('id', route.params.modeId).single(),
+        (db.from as any)('activity_mode_bookables').select('bookable_id').eq('mode_id', route.params.modeId),
+      ])
       if (mode) {
         form.name = mode.name
         form.description = mode.description ?? ''
@@ -486,7 +608,9 @@ async function load() {
         form.default_booking_view = mode.default_booking_view ?? null
         Object.assign(form.payment_options, mode.payment_options ?? {})
         form.approval_mode = mode.approval_mode ?? 'INSTANT'
+        form.configuration_key = mode.configuration_key ?? null
       }
+      form.bookable_ids = (modeBookables ?? []).map((r: any) => r.bookable_id)
     }
     await loadForms()
 
@@ -533,19 +657,31 @@ async function save() {
       default_booking_view: form.default_booking_view || null,
       payment_options: { ...form.payment_options },
       approval_mode: form.approval_mode,
+      configuration_key: form.configuration_key,
     }
 
+    let modeId = route.params.modeId as string
     if (isNew.value) {
       const { data } = await (db.from as any)('activity_modes').insert({
         ...payload,
         activity_id: route.params.id,
         sort_order: 0,
       }).select().single()
-      if (data) navigateTo(`/activities/${route.params.id}`)
+      if (data) modeId = data.id
     } else {
       await (db.from as any)('activity_modes').update(payload).eq('id', route.params.modeId)
-      navigateTo(`/activities/${route.params.id}`)
     }
+
+    // Replace the bookable scope: wipe + re-insert. Empty array means
+    // "applies to every bookable the activity is linked to" (default).
+    await (db.from as any)('activity_mode_bookables').delete().eq('mode_id', modeId)
+    if (form.bookable_ids.length) {
+      await (db.from as any)('activity_mode_bookables').insert(
+        form.bookable_ids.map(bid => ({ mode_id: modeId, bookable_id: bid })),
+      )
+    }
+
+    navigateTo(`/activities/${route.params.id}`)
   } finally {
     saving.value = false
   }

@@ -58,11 +58,12 @@ Wraps `<BookableEditor>` plus extra tabs:
 | Tab key | What it shows | Key components / DB tables |
 |---|---|---|
 | `bookings` | Booking calendar for this venue | `<BookingsCalendar>` → `bookings` |
-| `details` | Venue info, modes, layouts | `<BookableEditor>` → `bookables`, `bookable_modes` |
+| `details` | Venue info, modes | `<BookableEditor>` → `bookables`, `bookable_modes` |
 | `availability` | Availability rules calendar | `<AvailabilityEditor>` → `availability_rules` |
-| `layouts` | Layout diagrams | `<SpaceDiagram>` → `bookable_layouts` |
-| `sub-venues` | Child venues/courts | `<SubVenueScheduler>` → `bookables` |
+| `sub-venues` | Visual venue map (click-to-select tiles) + **Configurations panel** below it | inline map → `bookables`; configurations → `bookable_configurations` + `bookable_configuration_children` |
 | `items` | Items/equipment | inline → `bookable_items` |
+
+**Layouts are gone** — the old `bookable_layouts` table was dropped (migration 107). Sub-divisions now live as actual sub-venue rows + `bookable_configurations` slot groups.
 
 ### `/bookables/:id` → `<BookableEditor>` internal tabs (in Details tab)
 
@@ -70,7 +71,6 @@ Wraps `<BookableEditor>` plus extra tabs:
 |---|---|---|
 | `details` | Name, description, location, features | `bookables.*` |
 | `modes` | Booking modes (e.g. "Singles", "Doubles") | `bookable_modes` |
-| `layouts` | Floor plan layouts | `bookable_layouts` |
 | `activities` | Linked activities | `activity_bookables` |
 | `rules` | Max concurrent, booking limits, options | `bookables.booking_limit_type`, `.disallow_concurrent`, etc. |
 | `images` | Photos | `bookables.images`, `.main_image` |
@@ -149,8 +149,9 @@ If the user says a section title, card heading, or tab name, look it up here to 
 | **"Visibility & Access"** | `pages/events/new-advanced.vue` or `[id].vue` | event settings section |
 | **"Bookings"** tab (venue/:id) | `pages/bookables/[id].vue` | `<BookingsCalendar>` |
 | **"Availability"** tab (venue/:id) | `pages/bookables/[id].vue` | `<AvailabilityEditor>` |
-| **"Sub-venues"** tab (venue/:id) | `pages/bookables/[id].vue` | `<SubVenueScheduler>` |
-| **"Layouts"** tab (venue/:id) | `pages/bookables/[id].vue` | layout grid / `<SpaceDiagram>` |
+| **"Sub-venues"** tab (venue/:id) | `pages/bookables/[id].vue` | venue map + Configurations panel |
+| **"Configurations"** panel (sub-venues tab) | `pages/bookables/[id].vue` | below the venue map; rows show `slot_name = child + child` chips; edit dialog manages slots |
+| **"Set up a sport"** button (toolbar + empty state) | `components/BookablesList.vue` | opens `<SetupWizard>` |
 | **"Eligibility"** / conditions | `components/ConditionEditor.vue` | full component |
 | **"Registration Window"** | `pages/settings/index.vue` | settings tab |
 | **"Calendars"** settings | `pages/settings/calendars.vue` | full page |
@@ -247,6 +248,10 @@ import type { Bookable, Activity, ActivityMode, Session, Booking, FMEvent } from
 | `<FormPreviewDescription design event>` | Switches between event-mode (read-only) and custom-mode (`<RichTextEditor v-model="design.customDescription">`) |
 | `<FormPreviewPayment payment v-model:selected>` | Shows enabled payment methods (plan / credit_card / invoice / coupon) using `<FormsPaymentOptionCard>`; emits `update:selected` |
 | `<PaymentOptionsEditor v-model defaultModel bankAccounts bankAccountId>` | Toggle-switch list of methods (Invoice / Credit Card / Payment Plan / Coupon) with optional "Default" badge + bank-account picker on Invoice. Used in `/settings` (org defaults for both bookings and events) and the activity-mode editor |
+| `<SetupWizard v-model:visible @done>` | One-shot sport setup. Pick sport → name the facility → count of courts → tick preset modes (Singles, Mini-tennis, Kids coaching…). Wizard creates a top-level facility venue, N child courts (master + linked siblings), the **finest** required division as actual sub-venues (Q1–Q4 only — coarser configs become slot groupings), `bookable_configurations` rows for every picked mode's `requires`, the activity, the activity modes wired to `configuration_key`, `activity_bookables` linking activity → courts, and explicit `activity_mode_bookables` per-mode scope. Catalogue (sports + presetModes) lives inside the component. Entry from `<BookablesList>` toolbar + empty states |
+| `<BookingScheduler activityId staff? presetBookableId presetStart presetEnd>` | Alternative to `<BookingWizard>` for activities with `booking_flow='scheduler'`. Single-screen: venue cards on left (auto-narrowed by mode scope + active configuration), SubVenueScheduler / BookingsCalendar grid, multi-slot drag select, sponsor strip; right pane builds the booking. Slot-aware: when a mode's `configuration_key` matches a configuration on the parent, picking a slot inserts one primary booking + N child bookings (linked via `parent_booking_id`) so every member sub-venue is blocked atomically. Initial `load()` and `venueGroups` watcher are wired in `onMounted` to avoid TDZ on `pendingModeId` / `allowMultiSlot` |
+| `<VenueLibraryDialog v-model:visible @apply>` | Sport-themed picker with "Multiple [type]s" + "Configurations" tabs. Emits `{ type, division, configKey, configName, children, count, baseName }`. Used by the sub-venues tab on a parent venue's first sub-venue add |
+| `<DivisionDiagram sections regions orientation courtType>` | SVG renderer for sport courts with section dividers — tennis lines, basketball keys, netball thirds, football pitch, cricket nets, pool lanes, sports hall badminton overlay. Falls back to plain emerald tiles when `courtType` is null. Used by `<VenueLibraryDialog>` |
 
 ---
 
@@ -254,15 +259,18 @@ import type { Bookable, Activity, ActivityMode, Session, Booking, FMEvent } from
 
 | Table | Important columns |
 |---|---|
-| `bookables` | `id, org_id, name, type, parent_id, master_id, max_concurrent, booking_limit_type, booking_limit_count, disallow_concurrent, disallow_consecutive, allow_modes_with_others, rules, status, is_public, sections (text[])` |
+| `bookables` | `id, org_id, name, type, parent_id, master_id, max_concurrent, booking_limit_type, booking_limit_count, disallow_concurrent, disallow_consecutive, allow_modes_with_others, allow_sub_venues, rules, status, is_public, sections (text[])` |
 | `bookable_modes` | `id, bookable_id, name, color, activity_mode_ids (uuid[])` |
+| `bookable_configurations` | `id, parent_bookable_id, key, name, sort_order` — named layouts owned by a parent venue (e.g. Court 1 → Halves / Quarters). `unique(parent_bookable_id, key)` |
+| `bookable_configuration_children` | `configuration_id, bookable_id, sort_order, slot_index, slot_name` — slot membership. A "Halves" config has two slot_indexes (0=Half A, 1=Half B); each slot can list multiple sub-venues (Half A = {Q1, Q2}). Booking the slot blocks every member atomically |
 | `availability_rules` | `id, bookable_id, name, type, days (int[]), start_time, end_time, valid_from, valid_until` |
-| `activities` | `id, org_id, name, description, color, icon, image_url, status, area_name_singular, area_name_plural, bookings_enabled, approval_mode, booking_window_days, min_notice_hours, cancellation_window_hours, min_duration_mins, max_duration_mins, buffer_mins, allow_multi_slot, allow_multi_slot_peak, allow_kiosk, allow_recurring, allow_member_changes, auto_remove_unpaid, require_visitor_names, hide_member_names` |
-| `activity_modes` | `id, activity_id, name, color, pricing (jsonb), addons (jsonb), allow_visitors, min_people, max_people, min_visitors, max_visitors` |
+| `activities` | `id, org_id, name, description, color, icon, image_url, status, area_name_singular, area_name_plural, bookings_enabled, booking_flow ('wizard' \| 'scheduler'), approval_mode, booking_window_days, min_notice_hours, cancellation_window_hours, min_duration_mins, max_duration_mins, buffer_mins, allow_multi_slot, allow_multi_slot_peak, allow_kiosk, allow_recurring, allow_member_changes, auto_remove_unpaid, require_visitor_names, hide_member_names` |
+| `activity_modes` | `id, activity_id, name, color, pricing (jsonb), addons (jsonb), allow_visitors, min_people, max_people, min_visitors, max_visitors, configuration_key, image_url, sort_order, approval_mode, form_id, default_booking_view, payment_options (jsonb)` — `configuration_key` (migration 109) is the configuration on the scoped/linked bookables that this mode requires |
 | `activity_bookables` | `activity_id, bookable_id` (join table) |
+| `activity_mode_bookables` | `mode_id, bookable_id` — per-mode scope (migration 108). Empty for a mode = "all activity bookables"; otherwise narrows the picker |
 | `activity_groups` | `activity_id, group_id` (join table) |
 | `sessions` | `id, event_id, start_at, end_at, status, fees (jsonb), addons (jsonb)` |
-| `bookings` | `id, org_id, bookable_id, activity_id, activity_mode_id, start_at, end_at, status` |
+| `bookings` | `id, org_id, bookable_id, activity_id, activity_mode_id, start_at, end_at, status, parent_booking_id` — `parent_booking_id` (migration 111) self-FK so multi-bookable slot reservations show as one logical booking with N atomic children |
 | `booking_discounts` | `id, org_id, name, form_text, modifier_type ('PERCENT'\|'FLAT'), modifier_value, apply_to, conditions (jsonb), valid_from, valid_until, max_uses, uses_count, is_active` |
 | `booking_discount_activities` | `discount_id, activity_id` (join; empty on both = all) |
 | `booking_discount_activity_modes` | `discount_id, activity_mode_id` (join; only used when scoping to specific modes within an activity) |
@@ -317,7 +325,13 @@ And handle the change event with a named method — no type annotations in the h
 ---
 
 ## Migrations
-Numbered sequentially in `/supabase/migrations/` (currently up to `080_`).
+Numbered sequentially in `/supabase/migrations/` (currently up to `111_`).
 ```bash
 npx supabase db push   # no Docker needed — pushes to remote project
 ```
+
+Recent migrations worth knowing:
+- `108_activity_mode_bookables.sql` — per-mode bookable scope
+- `109_bookable_configurations.sql` — `bookable_configurations` + `bookable_configuration_children` + `activity_modes.configuration_key`
+- `110_configuration_slots.sql` — `slot_index` + `slot_name` on configuration children (multi-member slots like "Half A = Q1+Q2")
+- `111_booking_parent_link.sql` — `bookings.parent_booking_id` (atomic multi-bookable slot reservations)

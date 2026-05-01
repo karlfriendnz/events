@@ -43,7 +43,7 @@
             </NuxtLink>
           </div>
 
-          <!-- Slot cells + bookings -->
+          <!-- Slot cells + availability rules + bookings -->
           <div class="relative select-none">
             <div v-for="slot in timeSlots" :key="slot.minutes"
               :style="`height:${slotHeight}px`"
@@ -58,18 +58,46 @@
               @mouseover="extendDrag(slot.minutes)"
               @mouseup="commitDrag(child)" />
 
-            <template v-for="booking in bookingsForChild(child.id)" :key="booking.id">
+            <!-- Availability slots from the bookable's rules — clickable cards
+                 that emit new-booking with the exact slot range. Selected
+                 slots get a strong indigo highlight so the user can see the
+                 booking they're building. Lower z-index than bookings so a
+                 confirmed booking still renders on top. -->
+            <div v-for="(slot, i) in slotsForChild(child.id)" :key="`${child.id}-rule-${i}`"
+              class="absolute left-1 right-1 rounded-md border-2 cursor-pointer transition-colors z-0 select-none"
+              :class="isSlotPicked(child, slot)
+                ? 'bg-[#1E2157] border-[#1E2157] shadow-md ring-2 ring-[#1E2157]/40 ring-offset-1'
+                : slot.ruleType === 'CLOSED'
+                  ? 'bg-red-50 border-red-200 hover:bg-red-100/70'
+                  : slot.ruleType === 'RESTRICTED'
+                    ? 'bg-blue-50 border-blue-200 hover:bg-blue-100/70'
+                    : 'bg-green-50 border-green-200 hover:bg-green-100/80'"
+              :style="slotStyle(slot)"
+              @mousedown.stop.prevent="startSlotDrag(child, slot)"
+              @mouseenter="extendSlotDrag(child, slot)">
+              <p class="px-1.5 pt-1 text-[10px] font-semibold leading-tight flex items-center gap-1"
+                :class="isSlotPicked(child, slot)
+                  ? 'text-white'
+                  : slot.ruleType === 'CLOSED' ? 'text-red-600' : slot.ruleType === 'RESTRICTED' ? 'text-blue-600' : 'text-green-700'">
+                <i v-if="isSlotPicked(child, slot)" class="pi pi-check text-[9px]" />
+                <span>{{ slot.from }}–{{ slot.to }}</span>
+              </p>
+            </div>
+
+            <template v-for="booking in bookingsForChild(child.id)" :key="`${child.id}-${booking.id}`">
               <div
-                class="absolute left-1 right-1 rounded-md px-2 py-1 overflow-hidden cursor-pointer transition-opacity hover:opacity-90 shadow-sm"
+                class="absolute left-1 right-1 rounded-md px-2 py-1 overflow-hidden cursor-pointer transition-opacity hover:opacity-90 shadow-sm z-10"
                 :class="[
                   statusClass(booking.status),
                   booking.status === 'PENDING' ? 'booking-pending ring-1 ring-amber-300/70' : '',
+                  booking._fromParent ? 'opacity-60 ring-1 ring-white/40 striped-parent' : '',
                 ]"
                 :style="bookingStyle(booking)"
                 @click.stop="$emit('booking-click', booking)">
                 <p class="text-[11px] font-semibold leading-tight truncate flex items-center gap-1">
-                  <i v-if="booking.status === 'PENDING'" class="pi pi-clock text-[9px] shrink-0 booking-pending-icon" />
-                  <span class="truncate">{{ bookingLabel(booking) }}</span>
+                  <i v-if="booking._fromParent" class="pi pi-lock text-[9px] shrink-0" />
+                  <i v-else-if="booking.status === 'PENDING'" class="pi pi-clock text-[9px] shrink-0 booking-pending-icon" />
+                  <span class="truncate">{{ booking._fromParent ? 'Whole venue' : bookingLabel(booking) }}</span>
                 </p>
                 <p class="text-[10px] opacity-80 leading-tight truncate">{{ bookingTimeRange(booking) }}</p>
               </div>
@@ -91,11 +119,22 @@
 const props = defineProps<{
   children: any[]
   date: Date
+  // Optional: restrict displayed rules to those whose activity_mode_ids
+  // overlap with this list (used by the BookingScheduler so the user sees
+  // slots applicable to the activity they're booking, before they pick a mode).
+  activityModeIds?: string[]
+  // Set of `${bookableId}|${startISO}|${endISO}` keys for slots the parent
+  // (BookingScheduler) has marked as selected. Drives the visual highlight.
+  selectedSlotKeys?: Set<string>
 }>()
 
 const emit = defineEmits<{
   'booking-click': [booking: any]
+  // Click on an availability slot — parent toggles it in/out of the selection.
   'new-booking': [child: any, start: Date, end: Date]
+  // Drag entered a new slot (mouse held down). Parent adds it idempotently
+  // — never removes — so dragging back over a slot won't unselect it.
+  'add-slot': [child: any, start: Date, end: Date]
 }>()
 
 const db = useDb()
@@ -131,7 +170,13 @@ function initials(name: string) {
 }
 
 function bookingsForChild(childId: string) {
-  return bookings.value.filter(b => b.bookable_id === childId)
+  // Child's own bookings + any parent-level bookings. Parent bookings render
+  // in every child column to make the "blocked across the venue" state
+  // visible. We tag them with _fromParent so the template can style them
+  // differently (semi-transparent + "Whole venue" label).
+  return bookings.value
+    .filter(b => b.bookable_id === childId || parentBookableIds.value.has(b.bookable_id))
+    .map(b => parentBookableIds.value.has(b.bookable_id) ? { ...b, _fromParent: true } : b)
 }
 
 function minutesFromDayStart(iso: string) {
@@ -207,9 +252,13 @@ async function loadBookings() {
   const dayStart = new Date(d); dayStart.setHours(0, 0, 0, 0)
   const dayEnd   = new Date(d); dayEnd.setHours(23, 59, 59, 999)
   const childIds = props.children.map((c: any) => c.id)
+  // Include the shared parent so parent-level bookings (e.g. someone booked
+  // the entire field) render as blocked across every child column.
+  const parentIds = Array.from(new Set(props.children.map((c: any) => c.parent_id).filter(Boolean) as string[]))
+  parentBookableIds.value = new Set(parentIds)
   const { data } = await db.from('bookings')
     .select('*, event:events(id, title)')
-    .in('bookable_id', childIds)
+    .in('bookable_id', [...childIds, ...parentIds])
     .gte('start_at', dayStart.toISOString())
     .lte('start_at', dayEnd.toISOString())
     .order('start_at')
@@ -217,7 +266,128 @@ async function loadBookings() {
   loading.value = false
 }
 
+// Bookings made on a parent venue block every child during that slot — the
+// SubVenueScheduler renders them in each child column with a distinct style.
+const parentBookableIds = ref<Set<string>>(new Set())
+
+// ── Availability rules per child ────────────────────────────────────────────
+const rules = ref<any[]>([])
+async function loadRules() {
+  if (!props.children.length) { rules.value = []; return }
+  // A linked child (master_id set) inherits its master's rules. Load the
+  // union of child ids + their masters so slotsForChild can resolve either.
+  const childIds = props.children.map((c: any) => c.id)
+  const masterIds = props.children
+    .map((c: any) => c.master_id)
+    .filter((id: string | null | undefined): id is string => !!id)
+  const ids = Array.from(new Set([...childIds, ...masterIds]))
+  const { data } = await (db.from as any)('availability_rules')
+    .select('id, bookable_id, name, rule_type, days_of_week, time_slots, time_from, time_to, activity_mode_ids, is_active, color, valid_from, valid_until, rrule')
+    .in('bookable_id', ids)
+    .eq('is_active', true)
+  rules.value = data ?? []
+}
+
+function timeToMins(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return h * 60 + m
+}
+
+function ruleAppliesOnDate(rule: any, date: Date): boolean {
+  if (rule.valid_from) {
+    const from = new Date(rule.valid_from); from.setHours(0, 0, 0, 0)
+    if (date < from) return false
+  }
+  if (rule.valid_until) {
+    const until = new Date(rule.valid_until); until.setHours(23, 59, 59, 999)
+    if (date > until) return false
+  }
+  const dow = (date.getDay() + 6) % 7
+  if (!rule.days_of_week?.includes(dow)) return false
+  return true
+}
+
+interface DisplaySlot { from: string; to: string; ruleType: string; color: string }
+
+function slotsForChild(childId: string): DisplaySlot[] {
+  const out: DisplaySlot[] = []
+  // Linked children (master_id set) display their master's rules — same model
+  // as pages/bookables/[id].vue's propagation logic. Otherwise fall back to
+  // the child's own rules.
+  const child = props.children.find((c: any) => c.id === childId)
+  const sourceId = child?.master_id ?? childId
+  for (const r of rules.value) {
+    if (r.bookable_id !== sourceId) continue
+    if (!ruleAppliesOnDate(r, props.date)) continue
+    // Mode scope: when caller passed activityModeIds, the rule must overlap;
+    // an empty rule scope ([]) means "applies to any mode".
+    if (r.activity_mode_ids?.length && (props.activityModeIds?.length ?? 0) > 0) {
+      if (!r.activity_mode_ids.some((id: string) => props.activityModeIds!.includes(id))) continue
+    }
+    const slots = r.time_slots?.length
+      ? r.time_slots.filter((s: any) => s?.from && s?.to)
+      : (r.time_from
+          ? [{ from: r.time_from.slice(0, 5), to: (r.time_to ?? '23:00').slice(0, 5) }]
+          : [])
+    for (const s of slots) {
+      out.push({
+        from: s.from.slice(0, 5),
+        to:   s.to.slice(0, 5),
+        ruleType: r.rule_type ?? 'OPEN',
+        color: r.color ?? '#22C55E',
+      })
+    }
+  }
+  return out
+}
+
+function slotStyle(slot: DisplaySlot) {
+  // SLOT_MINS-based vertical positioning matching the timeSlots grid.
+  const dayStart = DAY_START_HOUR * 60
+  const top    = ((timeToMins(slot.from) - dayStart) / SLOT_MINS) * slotHeight
+  const height = Math.max(((timeToMins(slot.to) - timeToMins(slot.from)) / SLOT_MINS) * slotHeight, slotHeight)
+  return { top: `${top}px`, height: `${height}px` }
+}
+
+function buildSlotDates(slot: DisplaySlot): { start: Date; end: Date } {
+  const start = new Date(props.date); start.setHours(...timeParts(slot.from), 0, 0)
+  const end   = new Date(props.date); end.setHours(...timeParts(slot.to),   0, 0)
+  return { start, end }
+}
+function timeParts(t: string): [number, number] {
+  const [h, m] = t.split(':').map(Number)
+  return [h, m]
+}
+
+// True when this exact (child, slot) tuple is in the parent's selection set.
+function isSlotPicked(child: any, slot: DisplaySlot): boolean {
+  if (!props.selectedSlotKeys?.size) return false
+  const { start, end } = buildSlotDates(slot)
+  return props.selectedSlotKeys.has(`${child.id}|${start.toISOString()}|${end.toISOString()}`)
+}
+
+// ── Click + drag to multi-select ────────────────────────────────────────────
+// Mousedown toggles (parent decides add/remove). While the mouse is held,
+// hovering over other slots emits `add-slot` so the parent only ever adds —
+// dragging back over an already-selected slot won't toggle it off.
+const isDragSelecting = ref(false)
+function startSlotDrag(child: any, slot: DisplaySlot) {
+  isDragSelecting.value = true
+  const { start, end } = buildSlotDates(slot)
+  emit('new-booking', child, start, end)
+}
+function extendSlotDrag(child: any, slot: DisplaySlot) {
+  if (!isDragSelecting.value) return
+  if (isSlotPicked(child, slot)) return
+  const { start, end } = buildSlotDates(slot)
+  emit('add-slot', child, start, end)
+}
+function endSlotDrag() { isDragSelecting.value = false }
+onMounted(() => window.addEventListener('mouseup', endSlotDrag))
+onBeforeUnmount(() => window.removeEventListener('mouseup', endSlotDrag))
+
 watch([() => props.date, () => props.children], loadBookings, { immediate: true })
+watch(() => props.children, loadRules, { immediate: true })
 </script>
 
 <style scoped>

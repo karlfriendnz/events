@@ -18,7 +18,7 @@
     </div>
 
     <!-- Row 2: Contextual actions (only when there's something to show) -->
-    <div v-if="activeTab === 'bookings' || ['details','layouts'].includes(activeTab)"
+    <div v-if="activeTab === 'bookings' || activeTab === 'details'"
       class="bg-white border-b border-gray-200 px-4 py-2 shrink-0 flex items-center justify-between gap-3">
       <template v-if="activeTab === 'bookings'">
         <div class="flex items-center gap-2">
@@ -52,7 +52,7 @@
           <Menu ref="moreMenu" :model="moreMenuItems" :popup="true" />
         </div>
       </template>
-      <template v-else-if="['details','layouts'].includes(activeTab)">
+      <template v-else-if="activeTab === 'details'">
         <div />
         <div class="flex items-center gap-2">
           <Button label="Save changes" icon="pi pi-check" size="small"
@@ -97,25 +97,8 @@
           @new-booking="openSchedulerBooking" />
       </div>
 
-      <!-- Editor tabs (Details / Layouts) -->
-      <div v-else-if="venue && ['details','layouts'].includes(activeTab)" class="h-full flex flex-col">
-
-        <!-- Layouts inheritance banner -->
-        <div v-if="activeTab === 'layouts' && venue?.master_id" class="mx-6 mt-6 mb-0 rounded-xl border overflow-hidden"
-          :class="sectionInherited('layouts') ? 'border-violet-200 bg-violet-50' : 'border-amber-200 bg-amber-50'">
-          <div class="flex items-center gap-3 px-4 py-3">
-            <i class="pi text-sm" :class="sectionInherited('layouts') ? 'pi-lock text-violet-500' : 'pi-lock-open text-amber-500'" />
-            <span class="text-sm flex-1" :class="sectionInherited('layouts') ? 'text-violet-700' : 'text-amber-700'">
-              <template v-if="sectionInherited('layouts')">Layouts inherited from <strong>{{ masterName }}</strong>.</template>
-              <template v-else>Layouts customised locally.</template>
-            </span>
-            <button class="text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors bg-white"
-              :class="sectionInherited('layouts') ? 'border-violet-300 text-violet-700 hover:bg-violet-100' : 'border-amber-300 text-amber-700 hover:bg-amber-100'"
-              @click="toggleSectionInheritance('layouts')">
-              {{ sectionInherited('layouts') ? 'Customise' : 'Reset to master' }}
-            </button>
-          </div>
-        </div>
+      <!-- Editor tab (Details) -->
+      <div v-else-if="venue && activeTab === 'details'" class="h-full flex flex-col">
         <BookableEditor
           ref="editorRef"
           :bookable="venue"
@@ -205,35 +188,149 @@
           <div class="flex justify-between mb-4">
             <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sub-venues</h3>
             <Button label="Add Sub-venue" icon="pi pi-plus" size="small"
-              @click="createChildBookable('VENUE')"
+              @click="onAddSubVenueClick"
               style="background:#1E2157; border-color:#1E2157" />
           </div>
           <div v-if="!children.length" class="text-center py-16 text-gray-400">
             <i class="pi pi-sitemap text-3xl mb-3 block text-gray-300" />
             <p class="text-sm">No sub-venues yet.</p>
+            <button type="button"
+              class="mt-3 text-xs font-semibold text-[#1E2157] hover:underline"
+              @click="venueLibraryOpen = true">
+              Pick from the venue library →
+            </button>
           </div>
-          <div v-else class="grid grid-cols-3 gap-4">
-            <div v-for="child in children" :key="child.id" class="relative group">
-              <NuxtLink :to="`/bookables/${child.id}`"
-                class="block bg-white border border-gray-200 rounded-xl p-4 hover:border-[#1E2157] hover:shadow-sm transition-all">
-                <div class="flex items-center gap-3 mb-2">
-                  <div class="w-8 h-8 rounded-lg bg-[#1E2157] flex items-center justify-center shrink-0">
-                    <i class="pi pi-building text-white text-xs" />
+          <!-- Visual map: parent footprint with children laid out in a grid
+               sized by count (2 = side-by-side, 4 = 2×2, 6 = 3×2, etc.). Each
+               cell is a tappable tile linking to its child venue page. -->
+          <div v-else class="space-y-4">
+            <!-- Parent banner -->
+            <div class="rounded-xl border border-gray-200 bg-white px-5 py-3 flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-[#1E2157]/10 flex items-center justify-center">
+                <i class="pi pi-building text-[#1E2157] text-sm" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate">{{ venue?.name }}</p>
+                <p class="text-xs text-gray-400">
+                  Whole-venue bookings live here · {{ children.length }} sub-{{ children.length === 1 ? 'venue' : 'venues' }} below
+                </p>
+              </div>
+            </div>
+
+            <!-- Venue map. CSS grid auto-sizes children proportionally.
+                 Click a tile to add it to the current selection — the
+                 "New configuration" button below picks up whatever's
+                 selected. The arrow icon (top-right) opens the child's
+                 page; duplicate stays on hover. -->
+            <div class="rounded-xl bg-emerald-100/50 border-2 border-emerald-200 p-3">
+              <div class="grid gap-3"
+                :style="{
+                  gridTemplateColumns: `repeat(${mapCols}, minmax(0, 1fr))`,
+                  gridTemplateRows: `repeat(${mapRows}, minmax(120px, 1fr))`,
+                }">
+                <button v-for="child in children" :key="child.id" type="button"
+                  class="relative group rounded-lg ring-1 transition-all flex flex-col items-center justify-center text-center p-3 overflow-hidden"
+                  :class="selectedMapIdSet.has(child.id)
+                    ? 'bg-emerald-500 ring-2 ring-emerald-700/70 shadow-md'
+                    : 'bg-emerald-300/70 ring-emerald-500/30 hover:bg-emerald-400/70 hover:ring-2 hover:ring-emerald-600/50'"
+                  @click="toggleMapSelection(child.id)">
+                  <i v-if="selectedMapIdSet.has(child.id)"
+                    class="pi pi-check-circle absolute top-1.5 left-1/2 -translate-x-1/2 text-white text-base drop-shadow" />
+                  <p class="text-sm font-bold leading-tight truncate max-w-full"
+                    :class="selectedMapIdSet.has(child.id) ? 'text-white' : 'text-emerald-900'">{{ child.name }}</p>
+                  <p class="text-[11px] mt-1"
+                    :class="selectedMapIdSet.has(child.id) ? 'text-white/85' : 'text-emerald-800/80'">
+                    <i class="pi pi-users text-[9px]" /> Capacity {{ child.max_concurrent || '—' }}
+                  </p>
+                  <p v-if="child.is_master" class="absolute top-1.5 left-1.5 text-[9px] font-bold uppercase tracking-wide bg-amber-400 text-white px-1.5 py-0.5 rounded">Master</p>
+                  <NuxtLink :to="`/bookables/${child.id}`" @click.stop
+                    class="absolute top-1.5 right-1.5 w-6 h-6 rounded-md bg-white/95 flex items-center justify-center hover:bg-white shadow-sm"
+                    title="Open page">
+                    <i class="pi pi-arrow-up-right text-[10px] text-gray-700" />
+                  </NuxtLink>
+                  <button class="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-md bg-white/95 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white shadow-sm"
+                    title="Duplicate" @click.stop="duplicateVenue(child)">
+                    <i class="pi pi-copy text-[10px] text-gray-600" />
+                  </button>
+                </button>
+              </div>
+              <!-- Selection action bar -->
+              <div v-if="selectedMapIds.length"
+                class="mt-3 flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-white border border-emerald-200">
+                <p class="text-xs text-gray-600">
+                  <span class="font-semibold text-gray-900">{{ selectedMapIds.length }}</span>
+                  sub-{{ selectedMapIds.length === 1 ? 'venue' : 'venues' }} selected
+                </p>
+                <div class="flex items-center gap-1.5">
+                  <button type="button" class="text-xs font-semibold text-gray-500 hover:text-gray-700 px-2"
+                    @click="clearMapSelection">Clear</button>
+                  <Button label="New configuration from selection" icon="pi pi-plus" size="small"
+                    @click="openCreateConfigFromSelection"
+                    style="background:#1E2157; border-color:#1E2157" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Configurations panel. Lets staff group sub-venues into named
+                 layouts (Halves, Quarters, …) that modes can require — the
+                 booking flow then surfaces a single "Any half" tile. -->
+            <div class="mt-6">
+              <div class="flex items-center justify-between mb-3">
+                <div>
+                  <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Configurations</h3>
+                  <p class="text-[11px] text-gray-400 mt-0.5">Group sub-venues into named layouts a mode can require — e.g. "Halves" for doubles training.</p>
+                </div>
+                <Button label="New configuration" icon="pi pi-plus" size="small" outlined
+                  @click="openCreateConfig" />
+              </div>
+              <div v-if="!configurations.length" class="rounded-xl border border-dashed border-gray-200 bg-white px-5 py-8 text-center">
+                <p class="text-sm text-gray-400">No configurations yet.</p>
+                <button type="button" class="mt-2 text-xs font-semibold text-[#1E2157] hover:underline"
+                  @click="openCreateConfig">+ Create one</button>
+              </div>
+              <div v-else class="space-y-2">
+                <div v-for="cfg in configurations" :key="cfg.id"
+                  class="rounded-xl border border-gray-200 bg-white px-4 py-3 flex items-start gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-[#1E2157]/10 flex items-center justify-center shrink-0">
+                    <i class="pi pi-th-large text-[#1E2157] text-xs" />
                   </div>
-                  <p class="font-medium text-gray-900 text-sm">{{ child.name }}</p>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-baseline gap-2 flex-wrap">
+                      <p class="text-sm font-bold text-gray-900">{{ cfg.name }}</p>
+                      <code class="text-[10px] text-gray-400 font-mono">{{ cfg.key }}</code>
+                      <span class="text-[11px] text-gray-400">· {{ cfg.slots.length }} slot{{ cfg.slots.length === 1 ? '' : 's' }}</span>
+                    </div>
+                    <!-- One row per slot — each slot lists the physical
+                         sub-venues that get booked atomically when that
+                         slot is picked. -->
+                    <div class="mt-2 space-y-1">
+                      <div v-for="slot in cfg.slots" :key="slot.index"
+                        class="flex items-center gap-2 flex-wrap">
+                        <span class="text-[11px] font-semibold text-gray-700 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-md">
+                          {{ slot.name }}
+                        </span>
+                        <span class="text-[11px] text-gray-300">=</span>
+                        <span v-for="(cid, i) in slot.childIds" :key="cid" class="flex items-center gap-1">
+                          <span v-if="i > 0" class="text-[11px] text-gray-300">+</span>
+                          <span class="px-2 py-0.5 rounded-full text-[11px] bg-gray-100 text-gray-700">
+                            {{ children.find(c => c.id === cid)?.name ?? '(removed)' }}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0">
+                    <button type="button" class="w-7 h-7 rounded hover:bg-gray-100 text-gray-500 flex items-center justify-center"
+                      title="Edit" @click="openEditConfig(cfg)">
+                      <i class="pi pi-pencil text-[11px]" />
+                    </button>
+                    <button type="button" class="w-7 h-7 rounded hover:bg-red-50 text-gray-400 hover:text-red-600 flex items-center justify-center"
+                      title="Delete" @click="deleteConfiguration(cfg)">
+                      <i class="pi pi-trash text-[11px]" />
+                    </button>
+                  </div>
                 </div>
-                <div class="flex items-center gap-2 text-xs text-gray-400">
-                  <i class="pi pi-users" />
-                  <span>Capacity {{ child.max_concurrent || '—' }}</span>
-                </div>
-                <div v-if="child.location" class="text-xs text-gray-400 mt-1">
-                  <i class="pi pi-map-marker mr-1" />{{ child.location }}
-                </div>
-              </NuxtLink>
-              <button class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-50"
-                title="Duplicate" @click.prevent="duplicateVenue(child)">
-                <i class="pi pi-copy text-xs text-gray-500" />
-              </button>
+              </div>
             </div>
           </div>
         </div>
@@ -605,6 +702,93 @@
         </div>
       </Teleport>
     </ClientOnly>
+
+    <!-- Venue library: shown when adding a sub-venue with no existing children. -->
+    <VenueLibraryDialog v-model:visible="venueLibraryOpen" @apply="applyVenueTemplate" />
+
+    <!-- Configuration create/edit dialog. A configuration is a list of
+         named slots; each slot picks the sub-venues that get booked
+         atomically when that slot is reserved. So Halves = [{ Half A: Q1+Q2 },
+         { Half B: Q3+Q4 }]. -->
+    <Dialog v-model:visible="configDialogOpen" modal
+      :header="configDialogMode === 'create' ? 'New configuration' : 'Edit configuration'"
+      style="width: 600px">
+      <div class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Name</label>
+            <InputText :modelValue="configDialogForm.name"
+              @update:modelValue="onConfigNameInput"
+              placeholder="e.g. Halves, Quarters" class="w-full" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Key</label>
+            <InputText v-model="configDialogForm.key"
+              :disabled="configDialogMode === 'edit'"
+              placeholder="e.g. halves" class="w-full font-mono text-sm" />
+          </div>
+        </div>
+        <p class="text-[11px] text-gray-400 -mt-2">
+          The key is the stable identifier modes reference. Locked once created.
+        </p>
+
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-xs font-semibold text-gray-600">Slots</label>
+            <button type="button" class="text-xs font-semibold text-[#1E2157] hover:underline"
+              @click="addDialogSlot">+ Add slot</button>
+          </div>
+          <p v-if="!children.length" class="text-xs text-gray-400 italic">No sub-venues on this venue to assign.</p>
+          <div v-else class="space-y-2">
+            <div v-for="(slot, si) in configDialogForm.slots" :key="slot.uid"
+              class="rounded-lg border border-gray-200 bg-gray-50/40 p-3">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Slot {{ si + 1 }}</span>
+                <InputText v-model="slot.name" placeholder="e.g. Half A"
+                  class="flex-1 !h-8 !text-sm" />
+                <button type="button" v-if="configDialogForm.slots.length > 1"
+                  class="w-7 h-7 rounded hover:bg-red-50 text-gray-400 hover:text-red-600 flex items-center justify-center"
+                  title="Remove slot" @click="removeDialogSlot(slot.uid)">
+                  <i class="pi pi-times text-[11px]" />
+                </button>
+              </div>
+              <div class="grid grid-cols-2 gap-1">
+                <button v-for="child in children" :key="child.id" type="button"
+                  class="flex items-center gap-2 px-2 py-1.5 rounded-md text-left hover:bg-white"
+                  @click="toggleSlotChild(slot.uid, child.id)">
+                  <div class="w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors"
+                    :class="isChildInSlot(slot.uid, child.id) ? 'bg-[#1E2157] border-[#1E2157]' : 'border-gray-300 bg-white'">
+                    <i v-if="isChildInSlot(slot.uid, child.id)" class="pi pi-check text-white text-[8px]" />
+                  </div>
+                  <span class="text-xs flex-1 truncate"
+                    :class="isChildInSlot(slot.uid, child.id) ? 'text-gray-900 font-semibold' : 'text-gray-700'">
+                    {{ child.name }}
+                  </span>
+                  <span v-if="slotForChild(child.id) && slotForChild(child.id)!.uid !== slot.uid"
+                    class="text-[9px] uppercase tracking-wide text-amber-600 font-semibold"
+                    :title="`Currently in ${slotForChild(child.id)?.name}`">in&nbsp;{{ slotForChild(child.id)?.name || 'other' }}</span>
+                </button>
+              </div>
+              <p class="text-[11px] text-gray-400 mt-1.5">
+                {{ slot.childIds.length }} sub-{{ slot.childIds.length === 1 ? 'venue' : 'venues' }} — booking this slot blocks all of them together.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <p v-if="venue?.is_master && linkedItems.length" class="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+          <i class="pi pi-info-circle mr-1" />
+          Saving will also sync this configuration to {{ linkedItems.length }} linked sibling{{ linkedItems.length === 1 ? '' : 's' }} (each slot mapped through master_id).
+        </p>
+      </div>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text @click="configDialogOpen = false" />
+        <Button :label="configDialogMode === 'create' ? 'Create' : 'Save'"
+          icon="pi pi-check" :disabled="!canSaveConfig"
+          @click="saveConfigDialog"
+          style="background:#1E2157; border-color:#1E2157" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
@@ -650,6 +834,204 @@ async function createChildBookable(type: 'VENUE' | 'ITEM') {
   await navigateTo(`/bookables/${data.id}?new=1`)
 }
 
+// Venue map sizing — pick the natural grid for the child count so the visual
+// roughly matches the venue layout the user picked from the library.
+//   2 → 2×1 (halves)        3 → 3×1 (thirds)        4 → 2×2 (quarters)
+//   5 → 5×1                 6 → 3×2                  8 → 4×2 (badminton)
+//  10 → 5×2                 default → 4×N
+const mapCols = computed(() => {
+  const n = children.value.length
+  if (n <= 1) return 1
+  if (n === 2) return 2
+  if (n === 3) return 3
+  if (n === 4) return 2
+  if (n === 5) return 5
+  if (n === 6) return 3
+  if (n === 7) return 4
+  if (n === 8) return 4
+  if (n === 9) return 3
+  if (n === 10) return 5
+  return 4
+})
+const mapRows = computed(() => {
+  const n = children.value.length
+  return Math.max(1, Math.ceil(n / mapCols.value))
+})
+
+// Venue library dialog — opens automatically when there are no sub-venues
+// yet and the user clicks "Add Sub-venue". Once they have children, the
+// button creates a single sub-venue inline (the existing flow).
+const venueLibraryOpen = ref(false)
+function onAddSubVenueClick() {
+  if (!children.value.length) venueLibraryOpen.value = true
+  else createChildBookable('VENUE')
+}
+async function applyVenueTemplate(payload: { type: string; division: string | null; configKey: string | null; configName: string | null; children: string[]; count: number; baseName: string }) {
+  if (!venue.value || !orgId.value) { venueLibraryOpen.value = false; return }
+  const count = Math.max(1, Math.min(payload.count ?? 1, 50))
+  const baseName = (payload.baseName ?? 'Item').trim() || 'Item'
+  const childNames = payload.children ?? []
+  const configKey = payload.configKey
+  const configName = payload.configName
+
+  // Single-venue path: no count wrapper, just apply the division (or do
+  // nothing for "custom" / "full only").
+  if (count === 1) {
+    if (!childNames.length) { venueLibraryOpen.value = false; return }
+    const masterChildIds = await createChildSetUnder(venue.value.id, childNames, null)
+    if (!masterChildIds) { venueLibraryOpen.value = false; return }
+    if (configKey && configName) {
+      await saveConfiguration(venue.value.id, configKey, configName, masterChildIds)
+    }
+
+    let siblingsSynced = 0
+    if (venue.value.is_master && linkedItems.value.length) {
+      for (const sibling of linkedItems.value) {
+        if ((sibling.customized_sections ?? []).includes('sub-venues')) continue
+        const ok = await createChildSetUnder(sibling.id, childNames, masterChildIds)
+        if (ok && configKey && configName) {
+          await saveConfiguration(sibling.id, configKey, configName, ok)
+          siblingsSynced++
+        } else if (ok) {
+          siblingsSynced++
+        }
+      }
+    }
+    venueLibraryOpen.value = false
+    await loadChildren()
+    await loadConfigurations()
+    toast.add({
+      severity: 'success',
+      summary: 'Template applied',
+      detail: siblingsSynced
+        ? `${childNames.length} sub-venues created — also synced to ${siblingsSynced} linked sibling${siblingsSynced === 1 ? '' : 's'}.`
+        : `${childNames.length} sub-venues created.`,
+      life: 3500,
+    })
+    return
+  }
+
+  // Bulk path: create N siblings (e.g. "Court 1" .. "Court N") under the
+  // current venue. The first sibling is the master, the rest link to it.
+  // Then apply the chosen division to each sibling, chaining sub-children
+  // up to the master sibling's sub-children (two-deep master_id chain).
+  const siblingNames = Array.from({ length: count }, (_, i) => `${baseName} ${i + 1}`)
+  const siblingIds = await createChildSetUnder(venue.value.id, siblingNames, null)
+  if (!siblingIds || !siblingIds.length) { venueLibraryOpen.value = false; return }
+
+  // Apply the division to each sibling.
+  let masterSubIds: string[] | null = null
+  if (childNames.length) {
+    // First sibling owns the master sub-children.
+    masterSubIds = await createChildSetUnder(siblingIds[0], childNames, null)
+    if (masterSubIds && configKey && configName) {
+      await saveConfiguration(siblingIds[0], configKey, configName, masterSubIds)
+    }
+    // Linked siblings mirror, each child chained up to the master sibling's child.
+    for (let i = 1; i < siblingIds.length; i++) {
+      if (!masterSubIds) break
+      const ids = await createChildSetUnder(siblingIds[i], childNames, masterSubIds)
+      if (ids && configKey && configName) {
+        await saveConfiguration(siblingIds[i], configKey, configName, ids)
+      }
+    }
+  }
+
+  venueLibraryOpen.value = false
+  await loadChildren()
+  await loadConfigurations()
+  const detail = childNames.length
+    ? `${count} ${baseName.toLowerCase()}${count === 1 ? '' : 's'} created — each subdivided into ${childNames.length} sub-${childNames.length === 1 ? 'venue' : 'venues'}.`
+    : `${count} ${baseName.toLowerCase()}${count === 1 ? '' : 's'} created.`
+  toast.add({ severity: 'success', summary: 'Template applied', detail, life: 4000 })
+}
+
+// Save a named configuration on `parentBookableId` with the given slots.
+// Idempotent — re-applying the same key replaces the membership. The
+// legacy `childIds` form (each child = its own slot) is still supported
+// for the simple edit dialog.
+interface SaveSlot { name: string; childIds: string[] }
+async function saveConfiguration(parentBookableId: string, key: string, name: string, slotsOrChildIds: SaveSlot[] | string[]) {
+  // Normalise to slots: a flat array of child ids becomes N single-member
+  // slots named after the child itself (or a generic "Slot N" fallback).
+  let slots: SaveSlot[]
+  if (Array.isArray(slotsOrChildIds) && slotsOrChildIds.length && typeof slotsOrChildIds[0] === 'string') {
+    const childIds = slotsOrChildIds as string[]
+    slots = childIds.map((cid, i) => {
+      const child = children.value.find(c => c.id === cid)
+      return { name: child?.name ?? `Slot ${i + 1}`, childIds: [cid] }
+    })
+  } else {
+    slots = (slotsOrChildIds as SaveSlot[]).filter(s => s.childIds.length > 0)
+  }
+  if (!slots.length) return
+
+  const { data: existing } = await (db.from as any)('bookable_configurations')
+    .select('id').eq('parent_bookable_id', parentBookableId).eq('key', key).maybeSingle()
+  let configId = existing?.id as string | undefined
+  if (configId) {
+    await (db.from as any)('bookable_configurations').update({ name }).eq('id', configId)
+    await (db.from as any)('bookable_configuration_children').delete().eq('configuration_id', configId)
+  } else {
+    const { data: created } = await (db.from as any)('bookable_configurations')
+      .insert({ parent_bookable_id: parentBookableId, key, name, sort_order: 0 })
+      .select('id').single()
+    configId = created?.id
+  }
+  if (!configId) return
+  const rows: any[] = []
+  let sortOrder = 0
+  for (let si = 0; si < slots.length; si++) {
+    for (const bid of slots[si].childIds) {
+      rows.push({
+        configuration_id: configId,
+        bookable_id: bid,
+        sort_order: sortOrder++,
+        slot_index: si,
+        slot_name: slots[si].name,
+      })
+    }
+  }
+  if (rows.length) await (db.from as any)('bookable_configuration_children').insert(rows)
+}
+
+// Helper used by applyVenueTemplate. Creates `names` as children of `parentId`
+// where the first child is_master and the rest link to it. When `mirrorTo`
+// is provided (the array of master-child ids from the master parent), each
+// new child's master_id is also chained up to mirrorTo[i] so a 3-deep chain
+// (master parent's child → linked sibling's child) is established.
+async function createChildSetUnder(parentId: string, names: string[], mirrorTo: string[] | null): Promise<string[] | null> {
+  if (!orgId.value) return null
+  const isPublic = venue.value?.is_public ?? false
+  const ids: string[] = []
+  for (let i = 0; i < names.length; i++) {
+    const name = names[i]
+    const isFirst = i === 0
+    const masterPeer = mirrorTo ? mirrorTo[i] : null
+    const { data, error } = await (db.from as any)('bookables').insert({
+      org_id: orgId.value,
+      name,
+      type: 'VENUE',
+      status: 'ACTIVE',
+      is_public: isPublic,
+      // Within a parent: the first child is the master for the rest of the
+      // siblings under that parent. Across parents (mirror): every child of
+      // a linked sibling links up to the master-parent's matching child.
+      is_master: isFirst && !mirrorTo,
+      master_id: mirrorTo ? masterPeer : (isFirst ? null : ids[0]),
+      parent_id: parentId,
+      sort_order: i,
+      max_concurrent: 1,
+    }).select('id').single()
+    if (error || !data?.id) {
+      toast.add({ severity: 'error', summary: 'Could not create sub-venue', detail: error?.message ?? 'Unknown error', life: 4000 })
+      return ids.length ? ids : null
+    }
+    ids.push(data.id)
+  }
+  return ids
+}
+
 const masterName = computed(() =>
   allBookables.value.find(b => b.id === venue.value?.master_id)?.name ?? 'master'
 )
@@ -683,27 +1065,6 @@ async function pullSectionFromMaster(section: string) {
   if (!venue.value?.master_id) return
   const masterId = venue.value.master_id
 
-  if (section === 'layouts') {
-    const { data: masterLayouts } = await (db.from as any)('bookable_layouts')
-      .select('*, bookable_layout_modes(*)')
-      .eq('bookable_id', masterId)
-    await (db.from as any)('bookable_layouts').delete().eq('bookable_id', id)
-    if (masterLayouts?.length) {
-      const { data: newLayouts } = await (db.from as any)('bookable_layouts')
-        .insert(masterLayouts.map(({ id: _, bookable_id: __, created_at: ___, bookable_layout_modes: ____, ...rest }: any) => ({ ...rest, bookable_id: id })))
-        .select()
-      if (newLayouts) {
-        const modeRows: any[] = []
-        newLayouts.forEach((nl: any, i: number) => {
-          ;(masterLayouts[i].bookable_layout_modes ?? []).forEach((m: any) => {
-            modeRows.push({ layout_id: nl.id, name: m.name, description: m.description, min_players: m.min_players, max_players: m.max_players, price: m.price, price_type: m.price_type, sort_order: m.sort_order })
-          })
-        })
-        if (modeRows.length) await (db.from as any)('bookable_layout_modes').insert(modeRows)
-      }
-    }
-  }
-
   if (section === 'availability') {
     const { data: avRules } = await (db.from as any)('availability_rules').select('*').eq('bookable_id', masterId)
     await (db.from as any)('availability_rules').delete().eq('bookable_id', id)
@@ -732,6 +1093,33 @@ async function pullSectionFromMaster(section: string) {
       }
     }
   }
+
+  if (section === 'sub-venues') {
+    // Mirror the master's children verbatim, chaining each new child's
+    // master_id to the master-side equivalent (so rules cascade two-deep).
+    const { data: masterKids } = await (db.from as any)('bookables')
+      .select('id, name, sort_order, max_concurrent, is_public, type')
+      .eq('parent_id', masterId)
+      .neq('status', 'DELETED')
+      .order('sort_order')
+    // Wipe this venue's existing children before re-mirroring.
+    await (db.from as any)('bookables').delete().eq('parent_id', id)
+    if (masterKids?.length) {
+      const rows = masterKids.map((mk: any) => ({
+        org_id: orgId.value,
+        name: mk.name,
+        type: mk.type ?? 'VENUE',
+        status: 'ACTIVE',
+        is_public: mk.is_public ?? false,
+        is_master: false,
+        master_id: mk.id, // chain to the master's child
+        parent_id: id,
+        sort_order: mk.sort_order ?? 0,
+        max_concurrent: mk.max_concurrent ?? 1,
+      }))
+      await (db.from as any)('bookables').insert(rows)
+    }
+  }
 }
 
 // Propagate a section from this master to all linked venues that haven't customised it
@@ -751,29 +1139,6 @@ async function propagateSectionToLinked(section: string) {
 
 async function propagateSection(section: string, targetIds: string[]) {
   if (!targetIds.length) return
-
-  if (section === 'layouts') {
-    const { data: masterLayouts } = await (db.from as any)('bookable_layouts')
-      .select('*, bookable_layout_modes(*)')
-      .eq('bookable_id', id)
-    for (const tid of targetIds) {
-      await (db.from as any)('bookable_layouts').delete().eq('bookable_id', tid)
-      if (masterLayouts?.length) {
-        const { data: newLayouts } = await (db.from as any)('bookable_layouts')
-          .insert(masterLayouts.map(({ id: _, bookable_id: __, created_at: ___, bookable_layout_modes: ____, ...rest }: any) => ({ ...rest, bookable_id: tid })))
-          .select()
-        if (newLayouts) {
-          const modeRows: any[] = []
-          newLayouts.forEach((nl: any, i: number) => {
-            ;(masterLayouts[i].bookable_layout_modes ?? []).forEach((m: any) => {
-              modeRows.push({ layout_id: nl.id, name: m.name, description: m.description, min_players: m.min_players, max_players: m.max_players, price: m.price, price_type: m.price_type, sort_order: m.sort_order })
-            })
-          })
-          if (modeRows.length) await (db.from as any)('bookable_layout_modes').insert(modeRows)
-        }
-      }
-    }
-  }
 
   if (section === 'schedule') {
     const { data: wins } = await (db.from as any)('booking_windows').select('*, booking_window_slots(*)').eq('bookable_id', id)
@@ -795,6 +1160,32 @@ async function propagateSection(section: string, targetIds: string[]) {
       }
     }
   }
+
+  if (section === 'sub-venues') {
+    const { data: masterKids } = await (db.from as any)('bookables')
+      .select('id, name, sort_order, max_concurrent, is_public, type')
+      .eq('parent_id', id)
+      .neq('status', 'DELETED')
+      .order('sort_order')
+    for (const tid of targetIds) {
+      await (db.from as any)('bookables').delete().eq('parent_id', tid)
+      if (masterKids?.length) {
+        const rows = masterKids.map((mk: any) => ({
+          org_id: orgId.value,
+          name: mk.name,
+          type: mk.type ?? 'VENUE',
+          status: 'ACTIVE',
+          is_public: mk.is_public ?? false,
+          is_master: false,
+          master_id: mk.id,
+          parent_id: tid,
+          sort_order: mk.sort_order ?? 0,
+          max_concurrent: mk.max_concurrent ?? 1,
+        }))
+        await (db.from as any)('bookables').insert(rows)
+      }
+    }
+  }
 }
 
 async function setVenueRole(role: 'standalone' | 'master' | 'linked') {
@@ -804,7 +1195,7 @@ async function setVenueRole(role: 'standalone' | 'master' | 'linked') {
   await db.from('bookables').update(updates).eq('id', id)
   venue.value = { ...venue.value, ...updates }
   if (role === 'linked' && updates.master_id) {
-    for (const section of ['layouts', 'schedule']) {
+    for (const section of ['schedule']) {
       if (!sectionInherited(section)) continue
       await pullSectionFromMaster(section)
     }
@@ -816,7 +1207,7 @@ async function changeMaster(newMasterId: string) {
   if (!venue.value) return
   await db.from('bookables').update({ master_id: newMasterId }).eq('id', id)
   venue.value = { ...venue.value, master_id: newMasterId }
-  for (const section of ['layouts', 'schedule']) {
+  for (const section of ['schedule']) {
     if (sectionInherited(section)) await pullSectionFromMaster(section)
   }
 }
@@ -988,7 +1379,19 @@ function navToday() {
 
 // Booking wizard
 // ── New booking → full-page wizard ────────────────────────────
-function openNewBooking(start?: Date | null, end?: Date | null, rule?: any) {
+// When a venue is linked to exactly one activity, pre-select that activity in
+// the URL so /bookings/new picks the right flow (scheduler vs wizard) without
+// the user having to choose again.
+async function uniqueActivityIdForBookable(bookableId: string): Promise<string | null> {
+  const { data } = await (db.from as any)('activity_bookables')
+    .select('activity_id')
+    .eq('bookable_id', bookableId)
+    .limit(2)
+  if ((data?.length ?? 0) === 1) return data[0].activity_id as string
+  return null
+}
+
+async function openNewBooking(start?: Date | null, end?: Date | null, rule?: any) {
   const fmt = (d: Date) => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
   const params = new URLSearchParams({ bookableId: id })
   if (start) {
@@ -997,10 +1400,12 @@ function openNewBooking(start?: Date | null, end?: Date | null, rule?: any) {
   }
   if (end) params.set('endTime', fmt(end))
   if (rule?.activity_mode_ids?.length) params.set('activityModeIds', rule.activity_mode_ids.join(','))
+  const actId = await uniqueActivityIdForBookable(id)
+  if (actId) params.set('activityId', actId)
   navigateTo(`/bookings/new?${params}`)
 }
 
-function openSchedulerBooking(child: any, start: Date, end: Date) {
+async function openSchedulerBooking(child: any, start: Date, end: Date) {
   const fmt = (d: Date) => `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
   const params = new URLSearchParams({
     bookableId: child.id,
@@ -1008,6 +1413,10 @@ function openSchedulerBooking(child: any, start: Date, end: Date) {
     startTime: fmt(start),
     endTime: fmt(end),
   })
+  // Prefer the child's own unique activity link; fall back to the parent's
+  // (so picking a court inherits Tennis from "Tennis Courts").
+  const actId = (await uniqueActivityIdForBookable(child.id)) ?? (await uniqueActivityIdForBookable(id))
+  if (actId) params.set('activityId', actId)
   navigateTo(`/bookings/new?${params}`)
 }
 
@@ -1289,7 +1698,6 @@ const tabs = computed(() => [
   { key: 'bookings',   label: 'Bookings',    icon: 'pi-calendar' },
   { key: 'details',    label: 'Details',     icon: 'pi-info-circle' },
   { key: 'availability', label: 'Availability', icon: 'pi-clock' },
-  ...(venue.value?.allow_multiple_layouts !== false ? [{ key: 'layouts', label: 'Layouts', icon: 'pi-th-large' }] : []),
   ...(venue.value?.allow_sub_venues ? [{ key: 'sub-venues', label: 'Sub-venues', icon: 'pi-sitemap' }] : []),
   { key: 'items',      label: 'Items',       icon: 'pi-box' },
 ])
@@ -1342,18 +1750,11 @@ async function onSaved(saved: any) {
   toast.add({ severity: 'success', summary: 'Saved', life: 2000 })
   if (saved.default_booking_view) {
     const VIEW_MAP: Record<string, string> = {
-      dayGridMonth: 'month', timeGridWeek: 'week', timeGridDay: 'day', listWeek: 'list',
+      dayGridMonth: 'month', timeGridWeek: 'week', timeGridDay: 'day', listWeek: 'list', scheduler: 'scheduler',
       month: 'month', week: 'week', day: 'day', list: 'list',
     }
     const mapped = VIEW_MAP[saved.default_booking_view] ?? 'week'
     if (mapped !== activeCalView.value) setCalView(mapped)
-  }
-  if (saved.is_master && activeTab.value === 'layouts') {
-    const targets = linkedItems.value.filter(l => !(l.customized_sections ?? []).includes('layouts')).map(l => l.id)
-    if (targets.length) {
-      await propagateSection('layouts', targets)
-      toast.add({ severity: 'info', summary: `Layouts synced to ${targets.length} linked venue${targets.length !== 1 ? 's' : ''}`, life: 2500 })
-    }
   }
 }
 
@@ -1379,13 +1780,13 @@ async function loadVenue() {
     parentVenue.value = null
   }
   if (data?.default_booking_view) {
-    const VIEW_MAP: Record<string, 'day' | 'week' | 'month' | 'list'> = {
-      dayGridMonth: 'month', timeGridWeek: 'week', timeGridDay: 'day', listWeek: 'list',
+    const VIEW_MAP: Record<string, 'day' | 'week' | 'month' | 'list' | 'scheduler'> = {
+      dayGridMonth: 'month', timeGridWeek: 'week', timeGridDay: 'day', listWeek: 'list', scheduler: 'scheduler',
       month: 'month', week: 'week', day: 'day', list: 'list',
     }
     const mapped = VIEW_MAP[data.default_booking_view] ?? 'week'
-    calView.value = mapped
     activeCalView.value = mapped
+    if (mapped !== 'scheduler') calView.value = mapped
   }
   // Set breadcrumbs in global header
   const crumbs: { label: string; to?: string }[] = [{ label: 'Bookables', to: '/bookables' }]
@@ -1412,15 +1813,6 @@ async function syncToLinked() {
     sports: master.sports,
     max_concurrent: master.max_concurrent,
   }).in('id', linkedItems.value.map(l => l.id))
-  const { data: masterLayouts } = await (db.from as any)('bookable_layouts').select('*').eq('bookable_id', id)
-  for (const linked of linkedItems.value) {
-    const lid = linked.id
-    await (db.from as any)('bookable_layouts').delete().eq('bookable_id', lid)
-    if (masterLayouts?.length) {
-      await (db.from as any)('bookable_layouts')
-        .insert(masterLayouts.map(({ id: _, bookable_id: __, created_at: ___, ...rest }: any) => ({ ...rest, bookable_id: lid })))
-    }
-  }
   syncing.value = false
   toast.add({ severity: 'success', summary: `Synced to ${linkedItems.value.length} linked item(s)`, life: 3000 })
 }
@@ -1438,12 +1830,6 @@ async function syncFromMaster() {
       sports: master.sports,
       max_concurrent: master.max_concurrent,
     }).eq('id', id)
-    const { data: masterLayouts } = await (db.from as any)('bookable_layouts').select('*').eq('bookable_id', masterId)
-    await (db.from as any)('bookable_layouts').delete().eq('bookable_id', id)
-    if (masterLayouts?.length) {
-      await (db.from as any)('bookable_layouts')
-        .insert(masterLayouts.map(({ id: _, bookable_id: __, created_at: ___, ...rest }: any) => ({ ...rest, bookable_id: id })))
-    }
     await loadVenue()
     await afterPricingMutation()
   }
@@ -1454,6 +1840,247 @@ async function syncFromMaster() {
 async function loadChildren() {
   const { data } = await db.from('bookables').select('*').eq('parent_id', id).eq('type', 'VENUE').neq('status', 'DELETED').order('name')
   children.value = data ?? []
+}
+
+// ── Configurations ────────────────────────────────────────────────────────
+// Configurations are named slot-groups over this venue's sub-venues. A
+// "Halves" config has two slots — Half A (Q1+Q2) and Half B (Q3+Q4) —
+// where each slot lists the physical sub-venues a booking on that slot
+// occupies atomically. Modes can require a configuration_key; the booking
+// flow surfaces a single "any half" tile and resolves to the first slot
+// whose member sub-venues are all free.
+interface ConfigSlot {
+  index: number
+  name: string
+  childIds: string[]
+}
+interface ConfigurationRow {
+  id: string
+  key: string
+  name: string
+  sort_order: number
+  slots: ConfigSlot[]
+}
+const configurations = ref<ConfigurationRow[]>([])
+async function loadConfigurations() {
+  const { data: cfgs } = await (db.from as any)('bookable_configurations')
+    .select('id, key, name, sort_order')
+    .eq('parent_bookable_id', id)
+    .order('sort_order')
+  const rows = (cfgs ?? []) as { id: string; key: string; name: string; sort_order: number }[]
+  if (!rows.length) { configurations.value = []; return }
+  const { data: cc } = await (db.from as any)('bookable_configuration_children')
+    .select('configuration_id, bookable_id, sort_order, slot_index, slot_name')
+    .in('configuration_id', rows.map(r => r.id))
+    .order('slot_index')
+    .order('sort_order')
+  type ChildRow = { configuration_id: string; bookable_id: string; slot_index: number; slot_name: string | null }
+  const slotsByCfg: Record<string, Record<number, ConfigSlot>> = {}
+  for (const c of (cc ?? []) as ChildRow[]) {
+    const cfgSlots = (slotsByCfg[c.configuration_id] ??= {})
+    const idx = c.slot_index ?? 0
+    const slot = (cfgSlots[idx] ??= { index: idx, name: c.slot_name ?? `Slot ${idx + 1}`, childIds: [] })
+    slot.childIds.push(c.bookable_id)
+  }
+  configurations.value = rows.map(r => {
+    const sl = slotsByCfg[r.id] ?? {}
+    const slots = Object.values(sl).sort((a, b) => a.index - b.index)
+    return { ...r, slots }
+  })
+}
+
+// Edit/create dialog state. The dialog edits configurations as ordered
+// slots; each slot has a display name and a list of member sub-venues.
+// Booking that slot reserves every member atomically — so "Half A" with
+// members {Q1, Q2} blocks both quarters together.
+interface DialogSlot { uid: string; name: string; childIds: string[] }
+const configDialogOpen = ref(false)
+const configDialogMode = ref<'create' | 'edit'>('create')
+const configDialogForm = reactive<{ id: string | null; name: string; key: string; slots: DialogSlot[] }>({
+  id: null, name: '', key: '', slots: [],
+})
+function newSlotUid() { return `s_${Math.random().toString(36).slice(2, 9)}` }
+
+// Map-selection state — driven by clicking tiles on the venue map. Lets
+// users pick e.g. Q1+Q2 visually then turn that selection into a config.
+const selectedMapIds = ref<string[]>([])
+const selectedMapIdSet = computed(() => new Set(selectedMapIds.value))
+function toggleMapSelection(childId: string) {
+  const set = new Set(selectedMapIds.value)
+  if (set.has(childId)) set.delete(childId)
+  else set.add(childId)
+  selectedMapIds.value = Array.from(set)
+}
+function clearMapSelection() { selectedMapIds.value = [] }
+
+function openCreateConfig() {
+  configDialogMode.value = 'create'
+  configDialogForm.id = null
+  configDialogForm.name = ''
+  configDialogForm.key = ''
+  // Start with one empty slot — the user adds more as needed for halves /
+  // thirds / quarters etc.
+  configDialogForm.slots = [{ uid: newSlotUid(), name: 'Slot 1', childIds: [] }]
+  configDialogOpen.value = true
+}
+// Variant entry-point that pre-fills the dialog with whatever sub-venues
+// the user has selected on the venue map. The selection becomes one slot
+// (e.g. "Half A = {Q1, Q2}"); the user can then add a second slot for the
+// other half.
+function openCreateConfigFromSelection() {
+  const ids = [...selectedMapIds.value]
+  if (!ids.length) return openCreateConfig()
+  configDialogMode.value = 'create'
+  configDialogForm.id = null
+  const n = ids.length
+  configDialogForm.name = n === 2 ? 'Halves' : n === 3 ? 'Thirds' : n === 4 ? 'Quarters' : `${n}-piece`
+  configDialogForm.key = configDialogForm.name
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32)
+  // If the user picked 2 children of a venue that has 4, default to "Half A"
+  // for the picked pair — they can rename + add a "Half B" slot for the rest.
+  const slotName = (configDialogForm.name === 'Halves' && n === 2) ? 'Half A'
+    : (configDialogForm.name === 'Quarters') ? 'Quarter 1'
+    : 'Slot 1'
+  configDialogForm.slots = [{ uid: newSlotUid(), name: slotName, childIds: ids }]
+  configDialogOpen.value = true
+}
+
+function addDialogSlot() {
+  const idx = configDialogForm.slots.length
+  // Best-guess name for a fresh slot based on the configuration name.
+  const cfgName = configDialogForm.name.trim().toLowerCase()
+  const fallback =
+    cfgName.startsWith('half') ? ['Half A', 'Half B'][idx] ?? `Half ${idx + 1}`
+    : cfgName.startsWith('quart') ? `Quarter ${idx + 1}`
+    : cfgName.startsWith('third') ? `Third ${idx + 1}`
+    : `Slot ${idx + 1}`
+  configDialogForm.slots.push({ uid: newSlotUid(), name: fallback, childIds: [] })
+}
+function removeDialogSlot(uid: string) {
+  configDialogForm.slots = configDialogForm.slots.filter(s => s.uid !== uid)
+  if (!configDialogForm.slots.length) {
+    configDialogForm.slots.push({ uid: newSlotUid(), name: 'Slot 1', childIds: [] })
+  }
+}
+// Toggle a child into a slot. A child can only belong to one slot per
+// configuration — picking it for slot B auto-removes it from slot A so
+// availability can't accidentally be double-counted.
+function toggleSlotChild(slotUid: string, childId: string) {
+  for (const s of configDialogForm.slots) {
+    if (s.uid === slotUid) {
+      const idx = s.childIds.indexOf(childId)
+      if (idx >= 0) s.childIds.splice(idx, 1)
+      else s.childIds.push(childId)
+    } else {
+      const idx = s.childIds.indexOf(childId)
+      if (idx >= 0) s.childIds.splice(idx, 1)
+    }
+  }
+}
+function isChildInSlot(slotUid: string, childId: string): boolean {
+  return !!configDialogForm.slots.find(s => s.uid === slotUid)?.childIds.includes(childId)
+}
+function slotForChild(childId: string): DialogSlot | null {
+  return configDialogForm.slots.find(s => s.childIds.includes(childId)) ?? null
+}
+function openEditConfig(cfg: ConfigurationRow) {
+  configDialogMode.value = 'edit'
+  configDialogForm.id = cfg.id
+  configDialogForm.name = cfg.name
+  configDialogForm.key = cfg.key
+  configDialogForm.slots = cfg.slots.map(s => ({
+    uid: newSlotUid(),
+    name: s.name,
+    childIds: [...s.childIds],
+  }))
+  if (!configDialogForm.slots.length) {
+    configDialogForm.slots = [{ uid: newSlotUid(), name: 'Slot 1', childIds: [] }]
+  }
+  configDialogOpen.value = true
+}
+// Auto-derive a slug-style key from the display name when creating a new
+// configuration. Once edited, the user can hand-tweak it; on edit we leave
+// the key alone since it may already be referenced by modes.
+function onConfigNameInput(v: string | undefined) {
+  const value = v ?? ''
+  configDialogForm.name = value
+  if (configDialogMode.value === 'create') {
+    configDialogForm.key = value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 32)
+  }
+}
+// Save is allowed only when at least one slot has members and every slot
+// has a non-empty name. Empty slots would make no sense as bookable units.
+const canSaveConfig = computed(() => {
+  if (!configDialogForm.name.trim() || !configDialogForm.key.trim()) return false
+  const slots = configDialogForm.slots
+  if (!slots.length) return false
+  if (slots.some(s => !s.name.trim() || !s.childIds.length)) return false
+  return true
+})
+
+async function saveConfigDialog() {
+  if (!canSaveConfig.value || !venue.value) return
+  const name = configDialogForm.name.trim()
+  const key = configDialogForm.key.trim()
+  const slots = configDialogForm.slots.map(s => ({ name: s.name.trim(), childIds: [...s.childIds] }))
+
+  // Persist on this venue first.
+  await saveConfiguration(venue.value.id, key, name, slots)
+
+  // Propagate to linked siblings — for each slot, map our child ids to the
+  // sibling's corresponding children via master_id. Slots with no mappable
+  // children on the sibling are skipped (the sibling stays partial).
+  let siblingsSynced = 0
+  if (venue.value.is_master && linkedItems.value.length) {
+    for (const sibling of linkedItems.value) {
+      if ((sibling.customized_sections ?? []).includes('sub-venues')) continue
+      const { data: sibChildren } = await (db.from as any)('bookables')
+        .select('id, master_id')
+        .eq('parent_id', sibling.id)
+        .neq('status', 'DELETED')
+      const masterToSibling = new Map<string, string>()
+      for (const c of (sibChildren ?? []) as { id: string; master_id: string | null }[]) {
+        if (c.master_id) masterToSibling.set(c.master_id, c.id)
+      }
+      const mappedSlots = slots.map(s => ({
+        name: s.name,
+        childIds: s.childIds.map(cid => masterToSibling.get(cid)).filter((x): x is string => !!x),
+      })).filter(s => s.childIds.length)
+      if (mappedSlots.length) {
+        await saveConfiguration(sibling.id, key, name, mappedSlots)
+        siblingsSynced++
+      }
+    }
+  }
+
+  configDialogOpen.value = false
+  selectedMapIds.value = []
+  await loadConfigurations()
+  toast.add({
+    severity: 'success',
+    summary: configDialogMode.value === 'create' ? 'Configuration created' : 'Configuration updated',
+    detail: siblingsSynced
+      ? `Also synced to ${siblingsSynced} linked sibling${siblingsSynced === 1 ? '' : 's'}.`
+      : undefined,
+    life: 3000,
+  })
+}
+
+async function deleteConfiguration(cfg: ConfigurationRow) {
+  if (!venue.value) return
+  if (!confirm(`Delete the "${cfg.name}" configuration? Modes that reference it will fall back to booking the whole venue.`)) return
+  // Remove from this venue. Linked siblings keep their copies — deletion
+  // doesn't auto-propagate (the user can clean those up individually if
+  // they want; safer than yanking config out from under siblings that may
+  // have been customized).
+  await (db.from as any)('bookable_configuration_children').delete().eq('configuration_id', cfg.id)
+  await (db.from as any)('bookable_configurations').delete().eq('id', cfg.id)
+  await loadConfigurations()
+  toast.add({ severity: 'success', summary: 'Configuration deleted', life: 2500 })
 }
 
 async function duplicateVenue(child: any) {
@@ -1491,6 +2118,7 @@ onMounted(async () => {
   }
   await loadVenue()
   await loadChildren()
+  loadConfigurations()
   loadItems()
   loadLinked()
 

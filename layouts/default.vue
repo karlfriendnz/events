@@ -372,11 +372,14 @@ function formatRelative(iso: string): string {
 }
 // Initial unread count + close-on-outside-click
 watch(orgId, (v) => { if (v) { loadNotifications(); loadPendingBookingsCount() } }, { immediate: true })
+// Refresh the pending-bookings badge on every navigation so it reflects
+// recent approve/decline/reset actions without waiting on the 30s poll.
+watch(() => route.path, () => { if (orgId.value) loadPendingBookingsCount() })
 const bellWrapper = ref<HTMLElement | null>(null)
 let pollHandle: any = null
 onMounted(() => {
   document.addEventListener('click', onDocClick)
-  pollHandle = setInterval(() => { if (orgId.value) loadNotifications() }, 30_000)
+  pollHandle = setInterval(() => { if (orgId.value) { loadNotifications(); loadPendingBookingsCount() } }, 30_000)
 })
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
