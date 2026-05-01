@@ -21,7 +21,8 @@
     </div>
 
     <!-- ── SCHEDULE: grid on the left, booking summary panel on the right ── -->
-    <div v-else class="h-full flex flex-col p-4 lg:p-6 min-h-0">
+    <div v-else class="h-full flex flex-col p-4 lg:p-6 min-h-0"
+      :class="props.embedded ? '' : 'max-w-7xl mx-auto w-full'">
 
       <!-- Header: optional back button + page title. The back button only
            shows when the parent (the /book picker) is wiring an @back
@@ -251,6 +252,10 @@ const props = defineProps<{
    *  activity picker. Direct embeds (deep-linked ?activityId=...) leave
    *  this off so there's nowhere irrelevant to navigate to. */
   showBackToPicker?: boolean
+  /** When rendered inside a host iframe (?embed=1 on /book) we fill
+   *  the container edge-to-edge. Standalone "Open" pages still cap
+   *  themselves so a wide monitor doesn't get a stretched layout. */
+  embedded?: boolean
 }>()
 const emit = defineEmits<{
   (e: 'done'): void

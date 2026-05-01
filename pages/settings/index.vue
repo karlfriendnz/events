@@ -78,6 +78,59 @@
               <Button label="Save Payment Options" :loading="savingPayments" @click="saveDefaultPayments" size="small" />
             </div>
           </div>
+
+          <!-- Booker theme — applied to /book embeds (and the Open page). -->
+          <div class="card p-5">
+            <h2 class="text-sm font-semibold text-surface-700 mb-1">Booker theme</h2>
+            <p class="text-xs text-surface-500 mb-4">Brand colours used on the public booking page (/book) and any iframe embed.</p>
+            <div class="space-y-4">
+              <div class="flex items-center gap-3">
+                <input type="color" v-model="bookerTheme.canvas"
+                  class="w-12 h-10 rounded border border-gray-200 cursor-pointer shrink-0" />
+                <div class="flex-1">
+                  <p class="text-sm font-medium text-gray-800">Background</p>
+                  <p class="text-xs text-gray-400">Page canvas behind the cards.</p>
+                </div>
+                <input type="text" v-model="bookerTheme.canvas" maxlength="7"
+                  class="w-24 h-9 px-2 text-xs font-mono uppercase border border-gray-200 rounded outline-none focus:border-[#1E2157]" />
+              </div>
+              <div class="flex items-center gap-3">
+                <input type="color" v-model="bookerTheme.primary"
+                  class="w-12 h-10 rounded border border-gray-200 cursor-pointer shrink-0" />
+                <div class="flex-1">
+                  <p class="text-sm font-medium text-gray-800">Primary</p>
+                  <p class="text-xs text-gray-400">Buttons, selected-state borders, brand accents.</p>
+                </div>
+                <input type="text" v-model="bookerTheme.primary" maxlength="7"
+                  class="w-24 h-9 px-2 text-xs font-mono uppercase border border-gray-200 rounded outline-none focus:border-[#1E2157]" />
+              </div>
+              <div class="flex items-center gap-3">
+                <input type="color" v-model="bookerTheme.on_primary"
+                  class="w-12 h-10 rounded border border-gray-200 cursor-pointer shrink-0" />
+                <div class="flex-1">
+                  <p class="text-sm font-medium text-gray-800">On primary</p>
+                  <p class="text-xs text-gray-400">Text + icons drawn on top of the primary colour.</p>
+                </div>
+                <input type="text" v-model="bookerTheme.on_primary" maxlength="7"
+                  class="w-24 h-9 px-2 text-xs font-mono uppercase border border-gray-200 rounded outline-none focus:border-[#1E2157]" />
+              </div>
+
+              <!-- Live preview swatch -->
+              <div class="rounded-lg overflow-hidden border border-gray-200"
+                :style="{ background: bookerTheme.canvas }">
+                <div class="p-4 flex items-center gap-3">
+                  <button class="px-4 py-2 text-sm font-semibold rounded-lg transition-shadow hover:shadow-sm"
+                    :style="{ background: bookerTheme.primary, color: bookerTheme.on_primary }">
+                    Confirm booking
+                  </button>
+                  <p class="text-xs text-gray-500">Preview</p>
+                </div>
+              </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+              <Button label="Save Theme" :loading="savingTheme" @click="saveBookerTheme" size="small" />
+            </div>
+          </div>
         </TabPanel>
 
         <!-- ── EVENTS ── -->
@@ -389,6 +442,19 @@ const defaultPaymentOptions = ref<Record<string, boolean>>({ invoice: false, cre
 const eventsPaymentOptions = ref<Record<string, boolean>>({ invoice: false, credit_card: false, payment_plan: false, coupon: false })
 const savingPayments = ref(false)
 const savingEventsPayments = ref(false)
+
+// Booker theme — applied to /book embeds.
+interface BookerTheme { canvas: string; primary: string; on_primary: string }
+const bookerTheme = ref<BookerTheme>({ canvas: '#F5F8FA', primary: '#1E2157', on_primary: '#FFFFFF' })
+const savingTheme = ref(false)
+async function saveBookerTheme() {
+  savingTheme.value = true
+  await (db.from as any)('organisations')
+    .update({ booker_theme: { ...bookerTheme.value } })
+    .eq('id', orgId.value)
+  toast.add({ severity: 'success', summary: 'Booker theme saved', life: 2500 })
+  savingTheme.value = false
+}
 async function saveDefaultPayments() {
   savingPayments.value = true
   await (db.from as any)('organisations')
@@ -460,6 +526,12 @@ async function load() {
     eventsPaymentOptions.value = {
       invoice: false, credit_card: false, payment_plan: false, coupon: false,
       ...(orgData.events_default_payment_options ?? {}),
+    }
+    const t = (orgData.booker_theme ?? {}) as Partial<BookerTheme>
+    bookerTheme.value = {
+      canvas: t.canvas || '#F5F8FA',
+      primary: t.primary || '#1E2157',
+      on_primary: t.on_primary || '#FFFFFF',
     }
   }
   await loadBankAccounts()

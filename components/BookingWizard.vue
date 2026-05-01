@@ -103,7 +103,8 @@
       </div>
 
       <!-- Booking flow -->
-      <div v-else class="px-4 sm:px-6 py-6 sm:py-8 flex flex-col lg:flex-row gap-6 lg:gap-8">
+      <div v-else class="px-4 sm:px-6 py-6 sm:py-8 flex flex-col lg:flex-row gap-6 lg:gap-8"
+        :class="props.embedded ? '' : 'max-w-6xl mx-auto'">
 
         <!-- Main form -->
         <div class="flex-1 min-w-0">
@@ -944,6 +945,11 @@ const props = defineProps<{
    *  /book sets this true so the user can return to its activity picker.
    *  Direct embeds (deep-linked ?activityId=...) leave it off. */
   showBackToPicker?: boolean
+  /** When the page is rendered inside a host iframe (?embed=1) we fill
+   *  the available width edge-to-edge. Outside that, the wizard caps
+   *  itself at max-w-6xl and centres so a standalone "Open" page
+   *  doesn't look stretched on a wide monitor. */
+  embedded?: boolean
 }>()
 const emit = defineEmits<{
   /** Fired when the user hits Back from the first visible step in the

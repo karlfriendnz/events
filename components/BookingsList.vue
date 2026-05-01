@@ -389,7 +389,12 @@ function orgUrl(): string {
   return `${origin}/book?org=${orgId.value}`
 }
 function embedSnippet(activityId?: string): string {
-  const url = activityId ? activityUrl(activityId) : orgUrl()
+  // Embeds get the &embed=1 flag so /book switches to the full-width
+  // layout — no max-width caps, no centred cards, fills the host
+  // iframe edge-to-edge. The Open / Copy actions still use the
+  // un-flagged URLs so a standalone page stays nicely centred.
+  const base = activityId ? activityUrl(activityId) : orgUrl()
+  const url = `${base}${base.includes('?') ? '&' : '?'}embed=1`
   return `<iframe src="${url}" width="100%" height="700" frameborder="0" style="border:none;border-radius:8px"></iframe>`
 }
 
