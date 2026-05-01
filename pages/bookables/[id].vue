@@ -946,53 +946,27 @@ async function applyVenueTemplate(payload: { type: string; division: string | nu
   toast.add({ severity: 'success', summary: 'Template applied', detail, life: 4000 })
 }
 
-// Save a named configuration on `parentBookableId` with the given slots.
-// Idempotent — re-applying the same key replaces the membership. The
-// legacy `childIds` form (each child = its own slot) is still supported
-// for the simple edit dialog.
+// Save helpers live in useBookableConfigurations. The local saveConfiguration
+// shim accepts either a slots array (manual dialog) or a flat list of child
+// ids (legacy template-apply path), normalising via the composable.
 interface SaveSlot { name: string; childIds: string[] }
-async function saveConfiguration(parentBookableId: string, key: string, name: string, slotsOrChildIds: SaveSlot[] | string[]) {
-  // Normalise to slots: a flat array of child ids becomes N single-member
-  // slots named after the child itself (or a generic "Slot N" fallback).
-  let slots: SaveSlot[]
+const {
+  saveConfiguration: saveConfigurationCore,
+  saveConfigurationFromChildIds,
+} = useBookableConfigurations()
+async function saveConfiguration(
+  parentBookableId: string,
+  key: string,
+  name: string,
+  slotsOrChildIds: SaveSlot[] | string[],
+) {
   if (Array.isArray(slotsOrChildIds) && slotsOrChildIds.length && typeof slotsOrChildIds[0] === 'string') {
-    const childIds = slotsOrChildIds as string[]
-    slots = childIds.map((cid, i) => {
-      const child = children.value.find(c => c.id === cid)
-      return { name: child?.name ?? `Slot ${i + 1}`, childIds: [cid] }
-    })
-  } else {
-    slots = (slotsOrChildIds as SaveSlot[]).filter(s => s.childIds.length > 0)
+    return saveConfigurationFromChildIds(
+      parentBookableId, key, name, slotsOrChildIds as string[],
+      cid => children.value.find(c => c.id === cid)?.name ?? null,
+    )
   }
-  if (!slots.length) return
-
-  const { data: existing } = await (db.from as any)('bookable_configurations')
-    .select('id').eq('parent_bookable_id', parentBookableId).eq('key', key).maybeSingle()
-  let configId = existing?.id as string | undefined
-  if (configId) {
-    await (db.from as any)('bookable_configurations').update({ name }).eq('id', configId)
-    await (db.from as any)('bookable_configuration_children').delete().eq('configuration_id', configId)
-  } else {
-    const { data: created } = await (db.from as any)('bookable_configurations')
-      .insert({ parent_bookable_id: parentBookableId, key, name, sort_order: 0 })
-      .select('id').single()
-    configId = created?.id
-  }
-  if (!configId) return
-  const rows: any[] = []
-  let sortOrder = 0
-  for (let si = 0; si < slots.length; si++) {
-    for (const bid of slots[si].childIds) {
-      rows.push({
-        configuration_id: configId,
-        bookable_id: bid,
-        sort_order: sortOrder++,
-        slot_index: si,
-        slot_name: slots[si].name,
-      })
-    }
-  }
-  if (rows.length) await (db.from as any)('bookable_configuration_children').insert(rows)
+  return saveConfigurationCore(parentBookableId, key, name, slotsOrChildIds as SaveSlot[])
 }
 
 // Helper used by applyVenueTemplate. Creates `names` as children of `parentId`

@@ -16,15 +16,15 @@ Given any URL, find the file and what to expect instantly.
 | `/events/new-advanced` | `pages/events/new-advanced.vue` | 742 | Advanced event form; Sessions step uses `<BulkSessionTemplates>` to generate sessions across programme days |
 | `/events/new-multi` | `pages/events/new-multi.vue` | 285 | Bulk event creation from templates |
 | `/events/reporting` | `pages/events/reporting.vue` | 292 | Event analytics/reporting |
-| `/events/:id` | `pages/events/[id].vue` | **8326** | **Main event editor** — see tab breakdown below |
-| `/bookables` | `pages/bookables/index.vue` | ~75 | **Unified page** with centered pill tabs — renders `<BookingsList>`, `<BookablesList>`, `<ActivitiesList>`, `<BookingDiscountsList>`, or `<AccessControlList>`. Bookings tab hidden when no active bookables exist. `<BookablesList>` itself has inner Venues/Persons/Items/**Archived** sub-tabs (Archived only shown when count > 0) |
+| `/events/:id` | `pages/events/[id].vue` | **~8230** | **Main event editor** — see tab breakdown below |
+| `/bookables` | `pages/bookables/index.vue` | ~90 | **Unified page** with centered pill tabs — renders `<BookingsList>`, `<BookablesList>`, `<ActivitiesList>`, `<BookingDiscountsList>`, or `<AccessControlList>`. Bookings tab hidden when no active bookables exist. `<BookablesList>` itself has inner Venues/Persons/Items/**Archived** sub-tabs (Archived only shown when count > 0). Venues view groups each top-level facility into its own card, with depth-0 expanded by default and any nested venue collapsed |
 | ~~`/bookables/new`~~ | _removed_ | — | "New Venue" inserts a draft `bookables` row + redirects to `/bookables/:id?new=1` (Details tab opens automatically). Same path used by the "Add Sub-venue" / "Add Item" buttons via `createChildBookable()` |
-| `/bookables/:id` | `pages/bookables/[id].vue` | 900 | Venue detail — wraps `<BookableEditor>` in tabs |
+| `/bookables/:id` | `pages/bookables/[id].vue` | ~2160 | Venue detail — wraps `<BookableEditor>` in tabs + Sub-venues tab with venue map and Configurations panel |
 | `/bookings/new` | `pages/bookings/new.vue` | 6 | **Thin wrapper** → `<BookingWizard staff />` |
 | `/book` | `pages/book/index.vue` | 7 | **Thin wrapper** → `<BookingWizard />` (public, reads `?org=`) |
-| `/activities/:id` | `pages/activities/[id]/index.vue` | ~610 | Activity detail — Details card (incl. image upload at bottom), modes list, back button to `/bookables?tab=activities` |
-| `/activities/:id/modes/new` | `pages/activities/[id]/modes/[modeId].vue` | 319 | New mode (modeId === 'new') |
-| `/activities/:id/modes/:modeId` | `pages/activities/[id]/modes/[modeId].vue` | 319 | Edit existing mode — 3 tabs |
+| `/activities/:id` | `pages/activities/[id]/index.vue` | ~720 | Activity detail — Details card (incl. image upload at bottom), modes list, back button to `/bookables?tab=activities` |
+| `/activities/:id/modes/new` | `pages/activities/[id]/modes/[modeId].vue` | ~697 | New mode (modeId === 'new') |
+| `/activities/:id/modes/:modeId` | `pages/activities/[id]/modes/[modeId].vue` | ~697 | Edit existing mode — 3 tabs (Details / Pricing / Add-ons). Details has Capacity card + **Required configuration** picker (uses `activity_modes.configuration_key`) + **Bookable scope** card (writes `activity_mode_bookables`) |
 | `/settings` | `pages/settings/index.vue` | 1247 | Org settings — members, billing, fields, etc. |
 | `/settings/calendars` | `pages/settings/calendars.vue` | 356 | Calendar integrations |
 | `/settings/venues` | `pages/settings/venues.vue` | 148 | Venue tree editor (uses `<BookableEditor>`) |
@@ -87,6 +87,13 @@ Header has back button → `/bookables?tab=activities`. Two-column body — no t
 | `details` | Name, colour, image, **Capacity** card | `<AppCard>`, `<SettingsRow>` |
 | `pricing` | Default pricing + per-tier overrides | `<ModePricingTiersEditor>` |
 | `addons` | Optional extras (tables, lanes, etc.) | `<ModeAddonsEditor>` |
+
+### Activity `booking_flow` — wizard vs scheduler
+Each activity row has a `booking_flow` column:
+- `'wizard'` (default) → `<BookingWizard>` — multi-step flow described below
+- `'scheduler'` → `<BookingScheduler>` — single-screen grid + side panel; slot-aware (see Phase 2 booking integrity below)
+
+Set per-activity in the activity detail page.
 
 ### `/bookings/new` (staff) and `/book` (public)
 Both are multi-step wizards with similar step keys:
@@ -152,6 +159,9 @@ If the user says a section title, card heading, or tab name, look it up here to 
 | **"Sub-venues"** tab (venue/:id) | `pages/bookables/[id].vue` | venue map + Configurations panel |
 | **"Configurations"** panel (sub-venues tab) | `pages/bookables/[id].vue` | below the venue map; rows show `slot_name = child + child` chips; edit dialog manages slots |
 | **"Set up a sport"** button (toolbar + empty state) | `components/BookablesList.vue` | opens `<SetupWizard>` |
+| **"Required configuration"** picker (mode editor) | `pages/activities/[id]/modes/[modeId].vue` | Details tab; binds to `form.configuration_key`; options come from `bookable_configurations` rows on the activity's linked bookables, deduped by key |
+| **"Bookable scope"** card (mode editor) | `pages/activities/[id]/modes/[modeId].vue` | Details tab; persists to `activity_mode_bookables` |
+| **"Tile selection + New configuration from selection"** | `pages/bookables/[id].vue` | Sub-venues tab — clicking a child tile on the venue map toggles selection; "New configuration from selection" opens the dialog pre-filled with one slot |
 | **"Eligibility"** / conditions | `components/ConditionEditor.vue` | full component |
 | **"Registration Window"** | `pages/settings/index.vue` | settings tab |
 | **"Calendars"** settings | `pages/settings/calendars.vue` | full page |
@@ -214,6 +224,7 @@ import type { Bookable, Activity, ActivityMode, Session, Booking, FMEvent } from
 | `useCalendarSettingsOpen()` | Boolean ref for calendar settings panel |
 | `useBookingDiscounts()` | `{ loadActive, qualifies, bestMatch, amountForDiscount }` — evaluates discount rules against a `BookingContext` |
 | `useBookingTokens` | `BOOKING_TOKENS` list + `substituteBookingTokens(template, ctx)` — pass `BOOKING_TOKENS` into `<FeeLineItemsTable :tokens>` so users can insert `{date}/{start_time}/{activity}/{venue}/...` into fee names |
+| `useBookableConfigurations()` | `{ saveConfiguration, saveConfigurationFromChildIds }`. Idempotent slot-aware save against `bookable_configurations` + `bookable_configuration_children`. Used by `<SetupWizard>` and `pages/bookables/[id].vue` so both flows write the schema identically |
 
 ---
 
@@ -324,8 +335,25 @@ And handle the change event with a named method — no type annotations in the h
 
 ---
 
+## Configuration / slot model (Phase 2 booking integrity)
+
+Configurations are **named groups of slots**, where each slot lists physical sub-venues that get booked atomically together. So a Tennis Court that needs both halves and quarters has:
+- Physical sub-venues: Q1, Q2, Q3, Q4 (the **finest** division — only level that exists as `bookables` rows)
+- "Quarters" config: 4 slots, each one quarter
+- "Halves" config: 2 slots — Half A = {Q1, Q2}, Half B = {Q3, Q4}
+
+When a booking targets a slot, `<BookingScheduler>` inserts:
+- One **primary** booking on the first member sub-venue (no `parent_booking_id`)
+- One **child** booking per remaining member, each with `parent_booking_id` = primary's id
+
+So booking "Half A" on Court 1 writes two `bookings` rows on Q1 and Q2 — both calendars show busy, no double-booking possible. The pre-flight check in `submit()` queries every member sub-venue across the picked slots before writing, aborting with a toast if any overlap exists.
+
+**Known gap:** the calendar grid (`<BookingsCalendar>` / `<SubVenueScheduler>`) doesn't yet visually cross-block sub-venues sharing a slot — Q1's column shows free even when Q2 is booked in the same Halves slot. The pre-flight check stops the bad write; the visual polish is still to come.
+
+---
+
 ## Migrations
-Numbered sequentially in `/supabase/migrations/` (currently up to `111_`).
+Numbered sequentially in `/supabase/migrations/` (currently up to `112_`).
 ```bash
 npx supabase db push   # no Docker needed — pushes to remote project
 ```

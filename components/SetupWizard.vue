@@ -529,38 +529,7 @@ function computeSlots(div: Division, finest: Division, finestChildIds: string[])
   return slots
 }
 
-// Idempotent slot-aware save. Replaces the configuration's children
-// rows; each slot becomes N rows sharing slot_index + slot_name.
-async function saveConfigurationSlots(parentBookableId: string, key: string, name: string, slots: ConfigSlot[]) {
-  if (!slots.length) return
-  const { data: existing } = await (db.from as any)('bookable_configurations')
-    .select('id').eq('parent_bookable_id', parentBookableId).eq('key', key).maybeSingle()
-  let configId = existing?.id as string | undefined
-  if (configId) {
-    await (db.from as any)('bookable_configurations').update({ name }).eq('id', configId)
-    await (db.from as any)('bookable_configuration_children').delete().eq('configuration_id', configId)
-  } else {
-    const { data: created } = await (db.from as any)('bookable_configurations')
-      .insert({ parent_bookable_id: parentBookableId, key, name, sort_order: 0 })
-      .select('id').single()
-    configId = created?.id
-  }
-  if (!configId) return
-  const rows: any[] = []
-  let sortOrder = 0
-  for (let si = 0; si < slots.length; si++) {
-    for (const bid of slots[si].childIds) {
-      rows.push({
-        configuration_id: configId,
-        bookable_id: bid,
-        sort_order: sortOrder++,
-        slot_index: si,
-        slot_name: slots[si].name,
-      })
-    }
-  }
-  if (rows.length) {
-    await (db.from as any)('bookable_configuration_children').insert(rows)
-  }
-}
+// Slot-aware save lives in useBookableConfigurations so it's shared with
+// pages/bookables/[id].vue (manual edit dialog + template apply).
+const { saveConfiguration: saveConfigurationSlots } = useBookableConfigurations()
 </script>
