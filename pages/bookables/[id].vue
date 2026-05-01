@@ -883,6 +883,13 @@ async function applyVenueTemplate(payload: { type: string; division: string | nu
     if (configKey && configName) {
       await saveConfiguration(venue.value.id, configKey, configName, masterChildIds)
     }
+    // Library-driven sub-venues are by definition splits — flip the
+    // parent so the booker doesn't see Q1-Q4 as separate columns; the
+    // system resolves a slot at booking time based on the mode's
+    // configuration_key. Re-load the venue so the local form picks up
+    // the change.
+    await (db.from as any)('bookables').update({ auto_resolve_children: true }).eq('id', venue.value.id)
+    if (venue.value) venue.value.auto_resolve_children = true
 
     let siblingsSynced = 0
     if (venue.value.is_master && linkedItems.value.length) {
@@ -894,6 +901,9 @@ async function applyVenueTemplate(payload: { type: string; division: string | nu
           siblingsSynced++
         } else if (ok) {
           siblingsSynced++
+        }
+        if (ok) {
+          await (db.from as any)('bookables').update({ auto_resolve_children: true }).eq('id', sibling.id)
         }
       }
     }
@@ -935,6 +945,11 @@ async function applyVenueTemplate(payload: { type: string; division: string | nu
         await saveConfiguration(siblingIds[i], configKey, configName, ids)
       }
     }
+    // Every sibling that received splits gets auto_resolve_children=true
+    // so their booker grid renders the sibling itself, not Q1-Q4.
+    await (db.from as any)('bookables')
+      .update({ auto_resolve_children: true })
+      .in('id', siblingIds)
   }
 
   venueLibraryOpen.value = false

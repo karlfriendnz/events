@@ -270,7 +270,7 @@ import type { Bookable, Activity, ActivityMode, Session, Booking, FMEvent } from
 
 | Table | Important columns |
 |---|---|
-| `bookables` | `id, org_id, name, type, parent_id, master_id, max_concurrent, booking_limit_type, booking_limit_count, disallow_concurrent, disallow_consecutive, allow_modes_with_others, allow_sub_venues, rules, status, is_public, sections (text[])` |
+| `bookables` | `id, org_id, name, type, parent_id, master_id, max_concurrent, booking_limit_type, booking_limit_count, disallow_concurrent, disallow_consecutive, allow_modes_with_others, allow_sub_venues, auto_resolve_children, rules, status, is_public, sections (text[])`. `auto_resolve_children` (migration 113) — when `true`, the booker doesn't see this bookable's children as separate columns; the system picks a slot at booking time based on the mode's `configuration_key`. Set `true` on courts/fields with halves+quarters; `false` on facilities (Tennis Courts) and on bookables whose children are physically distinct units (Competition Pool's lanes, Locker Room's lockers) |
 | `bookable_modes` | `id, bookable_id, name, color, activity_mode_ids (uuid[])` |
 | `bookable_configurations` | `id, parent_bookable_id, key, name, sort_order` — named layouts owned by a parent venue (e.g. Court 1 → Halves / Quarters). `unique(parent_bookable_id, key)` |
 | `bookable_configuration_children` | `configuration_id, bookable_id, sort_order, slot_index, slot_name` — slot membership. A "Halves" config has two slot_indexes (0=Half A, 1=Half B); each slot can list multiple sub-venues (Half A = {Q1, Q2}). Booking the slot blocks every member atomically |
@@ -364,3 +364,4 @@ Recent migrations worth knowing:
 - `110_configuration_slots.sql` — `slot_index` + `slot_name` on configuration children (multi-member slots like "Half A = Q1+Q2")
 - `111_booking_parent_link.sql` — `bookings.parent_booking_id` (atomic multi-bookable slot reservations)
 - `112_booking_indexes.sql` — `(bookable_id, start_at)` compound index hot-pathed by every availability check + conflict pre-flight; activity_id index; partial index on active statuses
+- `113_auto_resolve_children.sql` — `bookables.auto_resolve_children` flag controlling whether the booker picks among children explicitly or the system resolves them at booking time

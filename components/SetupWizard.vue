@@ -359,8 +359,9 @@ async function create() {
 
     // 3) Parent court bookables. Court 1 is the master; the rest link via
     //    master_id. allow_sub_venues is only true when the picked modes
-    //    need a finer division (otherwise the Sub-venues tab on a court is
-    //    just empty noise).
+    //    need a finer division. auto_resolve_children mirrors that —
+    //    when a court has halves/quarters the booker shouldn't pick
+    //    among them; the system picks based on the mode's config_key.
     const needsSubVenues = requiredDivisions.value.length > 0
     const parentIds: string[] = []
     for (let i = 0; i < count.value; i++) {
@@ -377,6 +378,7 @@ async function create() {
         master_id: isMaster ? null : parentIds[0],
         is_public: true,
         allow_sub_venues: needsSubVenues,
+        auto_resolve_children: needsSubVenues,
       }).select('id').single()
       if (error || !data?.id) throw error ?? new Error('Could not create venue')
       parentIds.push(data.id)

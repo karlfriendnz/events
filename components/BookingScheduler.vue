@@ -30,49 +30,13 @@
           No bookable venues linked to this activity yet — link one in the Activities page.
         </div>
         <template v-else>
-        <!-- Venue picker — parent venues as a row of cards. Cards with
-             children expand to show sub-venues as smaller chips inside. -->
-        <div v-if="venueGroups.length > 1 || venueGroups[0]?.children.length"
-          class="mb-3 shrink-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <div v-for="g in venueGroups" :key="g.parent.id"
-            class="rounded-xl border-2 bg-white transition-all"
-            :class="isVenueGroupActive(g) ? 'border-[#1E2157] ring-2 ring-[#1E2157]/20' : 'border-gray-100 hover:border-gray-200'">
-            <!-- Parent row -->
-            <button type="button" class="w-full flex items-center gap-3 px-3 py-2.5 text-left"
-              :class="g.children.length ? '' : 'rounded-xl'"
-              @click="onPickGroup(g)">
-              <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 overflow-hidden bg-[#1E2157]/10">
-                <img v-if="g.parent.main_image" :src="g.parent.main_image" class="w-full h-full object-cover" />
-                <i v-else class="pi pi-building text-[#1E2157] text-sm" />
-              </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-bold text-gray-900 truncate">{{ g.parent.name }}</p>
-                <p class="text-[11px] text-gray-400 truncate">
-                  <template v-if="g.configName">Any {{ g.configName.toLowerCase() }} · pick from below</template>
-                  <template v-else-if="g.children.length">Whole space · {{ g.children.length }} sub-{{ g.children.length === 1 ? 'venue' : 'venues' }}</template>
-                  <template v-else>{{ g.parent.location || 'Single bookable space' }}</template>
-                </p>
-              </div>
-              <i v-if="selectedVenueId === g.parent.id" class="pi pi-check text-[#1E2157] text-xs shrink-0" />
-            </button>
-            <!-- Children chips -->
-            <div v-if="g.children.length" class="px-3 pb-3 pt-1 flex flex-wrap gap-1.5 border-t border-gray-100">
-              <button v-for="c in g.children" :key="c.id" type="button"
-                class="px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors"
-                :class="selectedVenueId === c.id
-                  ? 'bg-[#1E2157] border-[#1E2157] text-white'
-                  : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'"
-                @click="selectedVenueId = c.id">
-                <i v-if="selectedVenueId === c.id" class="pi pi-check text-[9px] mr-1" />{{ c.name }}
-              </button>
-            </div>
-          </div>
-        </div>
-
+        <!-- Header: date nav. The venue picker is gone — the booker
+             columns below ARE the picker. Each column is whatever level
+             the booker actually picks (a court, a field, a lane); slot
+             resolution into halves/quarters happens at submit time. -->
         <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-3 shrink-0">
           <div class="flex-1 min-w-0">
-            <h2 class="text-base font-semibold text-gray-900 leading-tight">{{ selectedVenue?.name }}</h2>
-            <p class="text-xs text-gray-400">Click an empty slot to add it</p>
+            <p class="text-xs text-gray-400">Click a slot to start a booking</p>
           </div>
           <div class="flex items-center gap-1.5">
             <button type="button" class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500"
@@ -88,24 +52,15 @@
         </div>
 
         <div class="flex-1 min-h-0 rounded-xl border border-gray-200 bg-white overflow-hidden">
-          <SubVenueScheduler v-if="(selectedVenue?.children?.length ?? 0) > 0"
+          <SubVenueScheduler v-if="bookerColumns.length"
             class="h-full"
-            :children="selectedVenue!.children!"
+            :children="bookerColumns"
             :date="schedDate"
             :activity-mode-ids="modeIds"
             :selected-slot-keys="selectedSlotKeys"
             @new-booking="onSlotClick"
             @add-slot="onAddSlot"
             @booking-click="onExistingBookingClick" />
-          <BookingsCalendar v-else
-            class="h-full"
-            :bookable-id="selectedVenueId!"
-            :cal-date="schedDate"
-            cal-view="day"
-            :wizard-mode="true"
-            :activity-mode-ids="modeIds"
-            :selected-slot-keys="selectedSlotKeys"
-            @slot-click="onSingleSlotClick" />
         </div>
 
         <!-- Sponsor strip (only shows when the active venue or its children
@@ -296,6 +251,10 @@ interface VenueOpt {
   type: string
   main_image?: string | null
   sponsor_image?: string | null
+  /** Children are alternative slicings of this bookable; the system picks
+   *  one at booking time based on the mode's configuration_key. The
+   *  booker doesn't see the children as separate columns. */
+  auto_resolve_children?: boolean
   children?: any[]
 }
 
@@ -326,7 +285,7 @@ async function load() {
 
   // Pull every bookable in the org so we can resolve children of linked parents.
   const { data: all } = await (db.from as any)('bookables')
-    .select('id, name, type, parent_id, location, sort_order, is_master, master_id, sponsor_image, main_image')
+    .select('id, name, type, parent_id, location, sort_order, is_master, master_id, sponsor_image, main_image, auto_resolve_children')
     .eq('org_id', orgId.value)
     .neq('status', 'DELETED')
     .neq('status', 'ARCHIVED')
@@ -357,6 +316,7 @@ async function load() {
       type: b.type,
       main_image: b.main_image ?? null,
       sponsor_image: b.sponsor_image ?? null,
+      auto_resolve_children: !!b.auto_resolve_children,
       children,
     })
   }
@@ -534,6 +494,48 @@ function resolveSlotForChild(parentId: string, childId: string): ConfigSlot | nu
   }
   return null
 }
+
+// Booker columns: walk every venueOption, expanding through parents whose
+// auto_resolve_children=false until we hit a leaf or an auto-resolve
+// parent. The result is the flat set of columns the booker actually picks
+// from. So Tennis Courts (linked to courts with auto_resolve=true) yields
+// [Court 1, Court 2, Court 3, Court 4]; Swimming linked to Competition
+// Pool (auto_resolve=false) expands to [Lane 1, Lane 2, Lane 3, Lane 4].
+const bookerColumns = computed<VenueOpt[]>(() => {
+  const out: VenueOpt[] = []
+  const linkedIds = new Set(venueOptions.value.map(v => v.id))
+  const isLinkedRoot = (b: VenueOpt) => linkedIds.has(b.id)
+
+  // Drop linked bookables that are themselves children of another linked
+  // bookable — when both Court 1 (parent) and Q1 (child) are linked to
+  // the activity, we only want Court 1 in the column set.
+  const tops = venueOptions.value.filter(v => !v.parent_id || !isLinkedRoot({
+    id: v.parent_id, name: '', parent_id: null, type: 'VENUE',
+  } as VenueOpt) || !venueOptions.value.some(o => o.id === v.parent_id))
+
+  function expand(b: VenueOpt) {
+    if (b.auto_resolve_children || !b.children?.length) {
+      out.push(b)
+      return
+    }
+    // Look up children with their full record (auto_resolve_children flag
+    // lives on the raw bookable, not on the synthesised VenueOpt).
+    for (const child of b.children as { id: string; name: string; parent_id: string | null; type: string; auto_resolve_children?: boolean }[]) {
+      const grandChildren = allBookables.value.filter(x => x.parent_id === child.id)
+      const synth: VenueOpt = {
+        id: child.id,
+        name: child.name,
+        parent_id: child.parent_id,
+        type: child.type,
+        auto_resolve_children: !!child.auto_resolve_children,
+        children: grandChildren,
+      }
+      expand(synth)
+    }
+  }
+  for (const v of tops) expand(v)
+  return out
+})
 
 // Group venueOptions by parent for the card-based picker. Top-level entries
 // are either standalone bookables OR parents whose children are also linked.
@@ -888,8 +890,22 @@ async function submit() {
 
     // Resolve every member sub-venue we'd write — used both for the
     // pre-flight conflict check and the actual inserts below.
+    //
+    // Two paths:
+    //  1. The picked bookable HAS a matching configuration on itself
+    //     (this is the new "click a court, system picks the slot" path).
+    //     We look up the active config_key on s.bookableId, pick the
+    //     first slot's members. Phase 2 will swap "first" for "best
+    //     free" — same call site.
+    //  2. Legacy: the picked bookable IS a sub-venue and the parent
+    //     holds the configuration (kept for any caller still passing a
+    //     leaf-level bookableId via presetBookableId).
     function membersFor(s: PendingSlot): string[] {
       if (!activeConfigKey.value) return [s.bookableId]
+      const own = configurationsByParent.value[s.bookableId]?.[activeConfigKey.value]
+      if (own && own.slots.length && own.slots[0].memberIds.length) {
+        return own.slots[0].memberIds
+      }
       const child = allBookables.value.find(b => b.id === s.bookableId)
       const parentId = child?.parent_id
       if (!parentId) return [s.bookableId]

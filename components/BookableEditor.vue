@@ -219,6 +219,47 @@
                 <ToggleSwitch v-model="form.allow_sub_venues" @update:modelValue="save" />
               </div>
 
+              <div v-if="form.allow_sub_venues" class="px-5 py-4">
+                <p class="text-sm font-semibold text-gray-800 mb-1">What are these sub-venues?</p>
+                <p class="text-xs text-gray-500 mb-3">Determines how the booker sees them at booking time.</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button type="button"
+                    class="text-left px-3 py-3 rounded-lg border-2 transition-all"
+                    :class="!form.auto_resolve_children
+                      ? 'border-[#1E2157] bg-[#1E2157]/[0.04]'
+                      : 'border-gray-100 hover:border-gray-200 bg-white'"
+                    @click="onSubVenueKindChange(false)">
+                    <div class="flex items-start gap-2">
+                      <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5"
+                        :class="!form.auto_resolve_children ? 'border-[#1E2157]' : 'border-gray-300'">
+                        <div v-if="!form.auto_resolve_children" class="w-2 h-2 rounded-full bg-[#1E2157]" />
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold text-gray-800">Separate spaces</p>
+                        <p class="text-xs text-gray-500 mt-0.5 leading-snug">Booker picks which one. Ideal for lockers, lanes, or distinct courts.</p>
+                      </div>
+                    </div>
+                  </button>
+                  <button type="button"
+                    class="text-left px-3 py-3 rounded-lg border-2 transition-all"
+                    :class="form.auto_resolve_children
+                      ? 'border-[#1E2157] bg-[#1E2157]/[0.04]'
+                      : 'border-gray-100 hover:border-gray-200 bg-white'"
+                    @click="onSubVenueKindChange(true)">
+                    <div class="flex items-start gap-2">
+                      <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5"
+                        :class="form.auto_resolve_children ? 'border-[#1E2157]' : 'border-gray-300'">
+                        <div v-if="form.auto_resolve_children" class="w-2 h-2 rounded-full bg-[#1E2157]" />
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold text-gray-800">Layouts of the same space</p>
+                        <p class="text-xs text-gray-500 mt-0.5 leading-snug">System picks based on the mode. Ideal for halves or quarters of one court.</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
             </div>
           </div>
 
@@ -652,6 +693,7 @@ const form = reactive({
   show_location: true,
   default_booking_view: 'dayGridMonth',
   allow_sub_venues: false,
+  auto_resolve_children: false,
   master_id: null as string | null,
   images: [] as string[],
   main_image: null as string | null,
@@ -701,6 +743,7 @@ watch(() => props.bookable, (b) => {
     form.show_location = b.show_location ?? true
     form.default_booking_view = b.default_booking_view ?? 'dayGridMonth'
     form.allow_sub_venues = b.allow_sub_venues ?? false
+    form.auto_resolve_children = b.auto_resolve_children ?? false
     form.master_id = b.master_id ?? null
     form.images = Array.isArray(b.images) ? [...b.images] : []
     form.main_image = b.main_image ?? null
@@ -727,6 +770,7 @@ watch(() => props.bookable, (b) => {
     form.show_location = true
     form.default_booking_view = 'dayGridMonth'
     form.allow_sub_venues = false
+    form.auto_resolve_children = false
     form.master_id = null
     form.images = []
     form.main_image = null
@@ -793,6 +837,16 @@ function addSection() {
   newSection.value = ''
 }
 
+// Handler for the "What are these sub-venues?" radio. The two cards
+// translate to a single boolean (`auto_resolve_children`); centralising
+// the click here keeps the template tidy and ensures both cards autosave
+// the same way.
+function onSubVenueKindChange(autoResolve: boolean) {
+  if (form.auto_resolve_children === autoResolve) return
+  form.auto_resolve_children = autoResolve
+  save()
+}
+
 async function save() {
   if (!form.name.trim()) return
   // Flush any partially-typed section/sport/feature that hasn't been confirmed with Enter
@@ -823,6 +877,7 @@ async function save() {
     show_location: form.show_location,
     default_booking_view: form.default_booking_view,
     allow_sub_venues: form.allow_sub_venues,
+    auto_resolve_children: form.auto_resolve_children,
     master_id: form.master_id || null,
     images: form.images,
     main_image: form.main_image,

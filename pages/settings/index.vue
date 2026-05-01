@@ -542,64 +542,209 @@ async function seedDemoEvents() {
     const clubRoomsId = clubRooms?.id as string | undefined
 
     // Sub-venues of Club Rooms (each with their own sub-locations)
+    // Football Fields — slot-aware setup matching SetupWizard's Football
+    // preset. Field 1 master, Field 2 linked; each gets Half A/B as
+    // physical sub-venues, with Halves configurations so Small-sided
+    // games book "Any half".
+    const footballFieldIds: string[] = []
+    const footballHalvesByField: Record<string, string[]> = {}
     const { data: footballFields } = await db.from('bookables').insert({
       org_id: orgId.value, name: 'Football Fields', type: 'VENUE', status: 'ACTIVE',
       is_public: true, description: 'Two full-size football fields for training and match play.',
-      parent_id: clubRoomsId, sort_order: 1,
+      parent_id: clubRoomsId, sort_order: 1, allow_sub_venues: true,
+      default_booking_view: 'scheduler', show_in_menu: true,
     }).select('id').single()
     if (footballFields?.id) {
-      await db.from('bookables').insert([
-        { org_id: orgId.value, name: 'Field 1', type: 'VENUE', status: 'ACTIVE', is_public: true, parent_id: footballFields.id, sort_order: 0 },
-        { org_id: orgId.value, name: 'Field 2', type: 'VENUE', status: 'ACTIVE', is_public: true, parent_id: footballFields.id, sort_order: 1 },
-      ])
+      const { data: field1 } = await db.from('bookables').insert({
+        org_id: orgId.value, name: 'Field 1', type: 'VENUE', status: 'ACTIVE',
+        is_public: true, is_master: true, parent_id: footballFields.id, sort_order: 0,
+        allow_sub_venues: true, auto_resolve_children: true,
+      }).select('id').single()
+      if (field1?.id) {
+        footballFieldIds.push(field1.id as string)
+        const { data: field2 } = await db.from('bookables').insert({
+          org_id: orgId.value, name: 'Field 2', type: 'VENUE', status: 'ACTIVE',
+          is_public: true, master_id: field1.id, parent_id: footballFields.id, sort_order: 1,
+          allow_sub_venues: true, auto_resolve_children: true,
+        }).select('id').single()
+        if (field2?.id) footballFieldIds.push(field2.id as string)
+
+        // Halves on each field — Field 1 owns the master halves, Field 2's
+        // halves chain back to Field 1's via master_id.
+        const halfNames = ['Half A', 'Half B']
+        const masterHalfIds: string[] = []
+        for (let i = 0; i < halfNames.length; i++) {
+          const isMaster = i === 0
+          const { data: h } = await db.from('bookables').insert({
+            org_id: orgId.value, name: halfNames[i], type: 'VENUE', status: 'ACTIVE',
+            is_public: true, parent_id: field1.id,
+            is_master: isMaster, master_id: isMaster ? null : masterHalfIds[0],
+            max_concurrent: 1,
+          }).select('id').single()
+          if (h?.id) masterHalfIds.push(h.id as string)
+        }
+        footballHalvesByField[field1.id as string] = masterHalfIds
+
+        if (footballFieldIds.length > 1) {
+          const linkedField = footballFieldIds[1]
+          const linkedHalfIds: string[] = []
+          for (let i = 0; i < halfNames.length; i++) {
+            const { data: h } = await db.from('bookables').insert({
+              org_id: orgId.value, name: halfNames[i], type: 'VENUE', status: 'ACTIVE',
+              is_public: true, parent_id: linkedField,
+              is_master: false, master_id: masterHalfIds[i],
+              max_concurrent: 1,
+            }).select('id').single()
+            if (h?.id) linkedHalfIds.push(h.id as string)
+          }
+          footballHalvesByField[linkedField] = linkedHalfIds
+        }
+
+        // Halves configuration on every field — single-member slots since
+        // halves IS the finest division (no quarters here).
+        const { saveConfiguration } = useBookableConfigurations()
+        for (const fieldId of footballFieldIds) {
+          const hIds = footballHalvesByField[fieldId]
+          if (!hIds || hIds.length !== 2) continue
+          await saveConfiguration(fieldId, 'halves', 'Halves', [
+            { name: 'Half A', childIds: [hIds[0]] },
+            { name: 'Half B', childIds: [hIds[1]] },
+          ])
+        }
+      }
     }
 
+    // Swimming Pool — Competition Pool gets a Lanes-4 configuration so a
+    // Lane swim mode can resolve "Any free lane" while Pool hire books
+    // the whole pool (parent-child mutex blocks every lane).
+    let competitionPoolId: string | null = null
+    const competitionLaneIds: string[] = []
     const { data: swimmingPool } = await db.from('bookables').insert({
       org_id: orgId.value, name: 'Swimming Pool', type: 'VENUE', status: 'ACTIVE',
       is_public: true, description: '25m heated pool with 6 lanes. Available for squad sessions and public swim.',
-      parent_id: clubRoomsId, sort_order: 2,
+      parent_id: clubRoomsId, sort_order: 2, allow_sub_venues: true,
     }).select('id').single()
     if (swimmingPool?.id) {
       const { data: compPool } = await db.from('bookables').insert(
-        { org_id: orgId.value, name: 'Competition Pool', type: 'VENUE', status: 'ACTIVE', is_public: true, parent_id: swimmingPool.id, sort_order: 0, default_booking_view: 'scheduler', show_in_menu: true }
+        { org_id: orgId.value, name: 'Competition Pool', type: 'VENUE', status: 'ACTIVE', is_public: true, parent_id: swimmingPool.id, sort_order: 0, default_booking_view: 'scheduler', show_in_menu: true, allow_sub_venues: true },
       ).select('id').single()
       if (compPool?.id) {
+        competitionPoolId = compPool.id as string
         const { data: lane1 } = await db.from('bookables').insert({
           org_id: orgId.value, name: 'Lane 1', type: 'VENUE', status: 'ACTIVE',
           is_public: true, is_master: true, parent_id: compPool.id, sort_order: 0,
+          max_concurrent: 1,
         }).select('id').single()
         if (lane1?.id) {
-          await db.from('bookables').insert(
+          competitionLaneIds.push(lane1.id as string)
+          const { data: linkedLanes } = await db.from('bookables').insert(
             [2, 3, 4].map((n, i) => ({
               org_id: orgId.value, name: `Lane ${n}`, type: 'VENUE', status: 'ACTIVE',
               is_public: true, master_id: lane1.id, parent_id: compPool.id, sort_order: i + 1,
-            }))
-          )
+              max_concurrent: 1,
+            })),
+          ).select('id, sort_order')
+          for (const ll of ((linkedLanes ?? []) as { id: string; sort_order: number }[]).sort((a, b) => a.sort_order - b.sort_order)) {
+            competitionLaneIds.push(ll.id)
+          }
+        }
+
+        if (competitionLaneIds.length === 4) {
+          const { saveConfiguration } = useBookableConfigurations()
+          await saveConfiguration(competitionPoolId, 'lanes-4', '4 lanes', competitionLaneIds.map((cid, i) => ({
+            name: `Lane ${i + 1}`, childIds: [cid],
+          })))
         }
       }
       await db.from('bookables').insert(
-        { org_id: orgId.value, name: 'Learn-to-Swim Area', type: 'VENUE', status: 'ACTIVE', is_public: true, parent_id: swimmingPool.id, sort_order: 1 }
+        { org_id: orgId.value, name: 'Learn-to-Swim Area', type: 'VENUE', status: 'ACTIVE', is_public: true, parent_id: swimmingPool.id, sort_order: 1 },
       )
     }
 
+    // Tennis Courts — full slot-aware setup matching what SetupWizard
+    // produces: facility → 4 courts (master/linked) → 4 quarters per court
+    // (master/linked chained), plus Halves + Quarters configurations on
+    // every court so modes can require either layout.
+    const tennisCourtIds: string[] = []
+    const tennisQuartersByCourt: Record<string, string[]> = {}
     const { data: tennisCourts } = await db.from('bookables').insert({
       org_id: orgId.value, name: 'Tennis Courts', type: 'VENUE', status: 'ACTIVE',
       is_public: true, description: '4 hard-court tennis courts with floodlighting.',
       parent_id: clubRoomsId, sort_order: 3, default_booking_view: 'scheduler', show_in_menu: true,
+      allow_sub_venues: true,
     }).select('id').single()
     if (tennisCourts?.id) {
-      // Court 1 is master; Courts 2–4 are linked to it
+      // Court 1 is master; Courts 2–4 are linked to it. Each court itself
+      // has allow_sub_venues=true so the Sub-venues tab + Configurations
+      // panel appear inside it.
       const { data: court1 } = await db.from('bookables').insert({
         org_id: orgId.value, name: 'Court 1', type: 'VENUE', status: 'ACTIVE',
         is_public: true, is_master: true, parent_id: tennisCourts.id, sort_order: 0,
+        allow_sub_venues: true, auto_resolve_children: true,
       }).select('id').single()
       if (court1?.id) {
-        await db.from('bookables').insert(
+        tennisCourtIds.push(court1.id as string)
+        const { data: linkedCourts } = await db.from('bookables').insert(
           [2, 3, 4].map((n, i) => ({
             org_id: orgId.value, name: `Court ${n}`, type: 'VENUE', status: 'ACTIVE',
             is_public: true, master_id: court1.id, parent_id: tennisCourts.id, sort_order: i + 1,
-          }))
-        )
+            allow_sub_venues: true, auto_resolve_children: true,
+          })),
+        ).select('id, sort_order')
+        const orderedLinked = ((linkedCourts ?? []) as { id: string; sort_order: number }[])
+          .sort((a, b) => a.sort_order - b.sort_order)
+        for (const lc of orderedLinked) tennisCourtIds.push(lc.id)
+
+        // Quarters per court — Q1 of Court 1 is the overall master; each
+        // subsequent court's Q1-Q4 chains via master_id back to Court 1's
+        // Q1-Q4 so an edit on the master cascades to siblings.
+        const quarterNames = ['Quarter 1', 'Quarter 2', 'Quarter 3', 'Quarter 4']
+        const masterQuarterIds: string[] = []
+        for (let qi = 0; qi < quarterNames.length; qi++) {
+          const isMaster = qi === 0
+          const { data: q } = await db.from('bookables').insert({
+            org_id: orgId.value, name: quarterNames[qi], type: 'VENUE', status: 'ACTIVE',
+            is_public: true,
+            parent_id: court1.id,
+            is_master: isMaster,
+            master_id: isMaster ? null : masterQuarterIds[0],
+            max_concurrent: 1,
+          }).select('id').single()
+          if (q?.id) masterQuarterIds.push(q.id as string)
+        }
+        tennisQuartersByCourt[court1.id as string] = masterQuarterIds
+
+        for (const lc of orderedLinked) {
+          const linkedQuarterIds: string[] = []
+          for (let qi = 0; qi < quarterNames.length; qi++) {
+            const { data: q } = await db.from('bookables').insert({
+              org_id: orgId.value, name: quarterNames[qi], type: 'VENUE', status: 'ACTIVE',
+              is_public: true,
+              parent_id: lc.id,
+              is_master: false,
+              master_id: masterQuarterIds[qi],
+              max_concurrent: 1,
+            }).select('id').single()
+            if (q?.id) linkedQuarterIds.push(q.id as string)
+          }
+          tennisQuartersByCourt[lc.id] = linkedQuarterIds
+        }
+
+        // Save Halves + Quarters configurations on every court via the
+        // shared composable — same path SetupWizard uses, so the schema
+        // is identical to a wizard-built setup.
+        const { saveConfiguration } = useBookableConfigurations()
+        for (const courtId of tennisCourtIds) {
+          const qIds = tennisQuartersByCourt[courtId]
+          if (!qIds || qIds.length !== 4) continue
+          await saveConfiguration(courtId, 'halves', 'Halves', [
+            { name: 'Half A', childIds: [qIds[0], qIds[1]] },
+            { name: 'Half B', childIds: [qIds[2], qIds[3]] },
+          ])
+          await saveConfiguration(courtId, 'quads', 'Quarters', qIds.map((cid, i) => ({
+            name: `Quarter ${i + 1}`, childIds: [cid],
+          })))
+        }
       }
     }
 
@@ -780,31 +925,77 @@ async function seedDemoEvents() {
       ])
     }
 
-    // ── Activities + modes (mirrors live setup: Birthdays, Tennis) ─────
+    // ── Activities + modes — every activity below mirrors what
+    //    SetupWizard would write: scheduler booking_flow, configuration_key
+    //    on slot-bound modes, explicit activity_mode_bookables scope.
     const { data: birthdaysAct } = await db.from('activities').insert({
       org_id: orgId.value, name: 'Birthdays', color: '#F59E0B', icon: 'pi-bolt',
       status: 'ACTIVE', bookings_enabled: true, approval_mode: 'auto',
+      booking_flow: 'scheduler',
+      area_name_singular: 'Hall',
+      area_name_plural: 'Halls',
     }).select('id').single()
     const { data: tennisAct } = await db.from('activities').insert({
       org_id: orgId.value, name: 'Tennis', color: '#84CC16', icon: 'pi-bolt',
       status: 'ACTIVE', bookings_enabled: true, approval_mode: 'auto',
+      booking_flow: 'scheduler',
+      area_name_singular: 'Court',
+      area_name_plural: 'Courts',
+    }).select('id').single()
+    const { data: footballAct } = await db.from('activities').insert({
+      org_id: orgId.value, name: 'Football', color: '#10B981', icon: 'pi-bolt',
+      status: 'ACTIVE', bookings_enabled: true, approval_mode: 'auto',
+      booking_flow: 'scheduler',
+      area_name_singular: 'Field',
+      area_name_plural: 'Fields',
+    }).select('id').single()
+    const { data: swimmingAct } = await db.from('activities').insert({
+      org_id: orgId.value, name: 'Swimming', color: '#0EA5E9', icon: 'pi-bolt',
+      status: 'ACTIVE', bookings_enabled: true, approval_mode: 'auto',
+      booking_flow: 'scheduler',
+      area_name_singular: 'Lane',
+      area_name_plural: 'Lanes',
     }).select('id').single()
 
-    if (hallId && birthdaysAct?.id && tennisAct?.id) {
-      await db.from('activity_bookables').insert([
-        { activity_id: birthdaysAct.id, bookable_id: hallId },
-        { activity_id: tennisAct.id,    bookable_id: hallId },
-      ])
+    // activity_bookables — link each activity to the venues it can be
+    // booked on. Children (quarters / halves / lanes) inherit through
+    // configuration_key resolution at booking time, so we link the parent
+    // bookable rather than every sub-venue.
+    if (hallId && birthdaysAct?.id) {
+      await db.from('activity_bookables').insert({
+        activity_id: birthdaysAct.id, bookable_id: hallId,
+      })
+    }
+    if (tennisAct?.id && tennisCourtIds.length) {
+      await db.from('activity_bookables').insert(
+        tennisCourtIds.map(bid => ({ activity_id: tennisAct.id, bookable_id: bid })),
+      )
+    }
+    if (footballAct?.id && footballFieldIds.length) {
+      await db.from('activity_bookables').insert(
+        footballFieldIds.map(bid => ({ activity_id: footballAct.id, bookable_id: bid })),
+      )
+    }
+    if (swimmingAct?.id && competitionPoolId) {
+      await db.from('activity_bookables').insert({
+        activity_id: swimmingAct.id, bookable_id: competitionPoolId,
+      })
     }
 
+    // Default payment options for seeded modes — shared across every row
+    // in each batch so PostgREST doesn't fill `null` on rows that omit
+    // the key (NOT NULL constraint on activity_modes.payment_options).
+    const seedPaymentOptions = { bank: true, card: true, cash: true, coupon: false, invoice: true, credit_card: true, payment_plan: false }
+
     if (birthdaysAct?.id) {
-      const { error: bdayModesErr } = await db.from('activity_modes').insert([
+      const { data: birthdayModes, error: bdayModesErr } = await db.from('activity_modes').insert([
         {
           activity_id: birthdaysAct.id, name: 'Boys', color: '#3B82F6', sort_order: 0,
           allow_visitors: false, approval_mode: 'INSTANT',
           form_id: bookingForm?.id ?? null,
           default_booking_view: 'listWeek',
-          payment_options: { bank: true, card: true, cash: true, coupon: false, invoice: true, credit_card: true, payment_plan: false },
+          payment_options: seedPaymentOptions,
+          configuration_key: null,
           pricing: { base: [], tiers: [], per_hour: [], per_person: [] },
           addons: [
             { id: crypto.randomUUID(), name: 'Cake Small',   type: 'fee_base',       description: '', qty_available: null,
@@ -818,19 +1009,129 @@ async function seedDemoEvents() {
         {
           activity_id: birthdaysAct.id, name: 'Girls', color: '#EC4899', sort_order: 1,
           allow_visitors: false, approval_mode: 'INSTANT',
+          form_id: null,
+          default_booking_view: null,
+          payment_options: seedPaymentOptions,
+          configuration_key: null,
           pricing: { base: [], tiers: [], per_hour: [], per_person: [] }, addons: [],
         },
-      ])
+      ]).select('id')
       if (bdayModesErr) throw new Error(`Birthdays modes seed failed: ${bdayModesErr.message}`)
+
+      // Both Boys/Girls modes book the whole hall — explicit scope for
+      // consistency with the wizard pattern.
+      if (birthdayModes?.length && hallId) {
+        const scopeRows = (birthdayModes as { id: string }[]).map(m => ({ mode_id: m.id, bookable_id: hallId }))
+        const { error: scopeErr } = await db.from('activity_mode_bookables').insert(scopeRows)
+        if (scopeErr) throw new Error(`Birthdays mode-scope seed failed: ${scopeErr.message}`)
+      }
     }
 
+    // Tennis modes — mirror the SetupWizard's preset modes for tennis so
+    // the seed produces the same schema a wizard run would. Singles /
+    // Doubles use the whole court; Mini-tennis requires the Halves
+    // configuration; Kids coaching requires the Quarters configuration.
     if (tennisAct?.id) {
-      const { error: tennisModesErr } = await db.from('activity_modes').insert([
-        { activity_id: tennisAct.id, name: 'Play',       color: '#F97316', sort_order: 0, allow_visitors: false, approval_mode: 'INSTANT', pricing: { base: [], tiers: [], per_hour: [], per_person: [] }, addons: [] },
-        { activity_id: tennisAct.id, name: 'Practice',   color: '#3B82F6', sort_order: 1, allow_visitors: false, approval_mode: 'INSTANT', pricing: { base: [], tiers: [], per_hour: [], per_person: [] }, addons: [] },
-        { activity_id: tennisAct.id, name: 'Tournament', color: '#14B8A6', sort_order: 2, allow_visitors: false, approval_mode: 'INSTANT', pricing: { base: [], tiers: [], per_hour: [], per_person: [] }, addons: [] },
-      ])
+      const tennisModeRows = [
+        { name: 'Singles',       color: '#F97316', requires: null     },
+        { name: 'Doubles',       color: '#0EA5E9', requires: null     },
+        { name: 'Mini-tennis',   color: '#14B8A6', requires: 'halves' },
+        { name: 'Kids coaching', color: '#A855F7', requires: 'quads'  },
+        { name: 'Practice',      color: '#3B82F6', requires: null     },
+      ]
+      const { data: tennisInsertedModes, error: tennisModesErr } = await db.from('activity_modes').insert(
+        tennisModeRows.map((m, i) => ({
+          activity_id: tennisAct.id,
+          name: m.name,
+          color: m.color,
+          sort_order: i,
+          allow_visitors: false,
+          approval_mode: 'INSTANT',
+          configuration_key: m.requires,
+          payment_options: seedPaymentOptions,
+          pricing: { base: [], tiers: [], per_hour: [], per_person: [] },
+          addons: [],
+        })),
+      ).select('id')
       if (tennisModesErr) throw new Error(`Tennis modes seed failed: ${tennisModesErr.message}`)
+
+      // Per-mode bookable scope — every mode is bookable on every court.
+      // Matches the explicit-scope behaviour the wizard now writes.
+      if (tennisInsertedModes?.length && tennisCourtIds.length) {
+        const scopeRows = (tennisInsertedModes as { id: string }[]).flatMap(m =>
+          tennisCourtIds.map(bid => ({ mode_id: m.id, bookable_id: bid })),
+        )
+        const { error: scopeErr } = await db.from('activity_mode_bookables').insert(scopeRows)
+        if (scopeErr) throw new Error(`Tennis mode-scope seed failed: ${scopeErr.message}`)
+      }
+    }
+
+    // Football modes — Match books the full pitch; Small-sided games book
+    // a half (Halves configuration on each field). Mirrors SetupWizard's
+    // football preset.
+    if (footballAct?.id) {
+      const footballModeRows = [
+        { name: 'Match',            color: '#10B981', requires: null     },
+        { name: 'Small-sided game', color: '#0EA5E9', requires: 'halves' },
+        { name: 'Training',         color: '#3B82F6', requires: null     },
+      ]
+      const { data: footballInsertedModes, error: footballModesErr } = await db.from('activity_modes').insert(
+        footballModeRows.map((m, i) => ({
+          activity_id: footballAct.id,
+          name: m.name,
+          color: m.color,
+          sort_order: i,
+          allow_visitors: false,
+          approval_mode: 'INSTANT',
+          configuration_key: m.requires,
+          payment_options: seedPaymentOptions,
+          pricing: { base: [], tiers: [], per_hour: [], per_person: [] },
+          addons: [],
+        })),
+      ).select('id')
+      if (footballModesErr) throw new Error(`Football modes seed failed: ${footballModesErr.message}`)
+
+      if (footballInsertedModes?.length && footballFieldIds.length) {
+        const scopeRows = (footballInsertedModes as { id: string }[]).flatMap(m =>
+          footballFieldIds.map(bid => ({ mode_id: m.id, bookable_id: bid })),
+        )
+        const { error: scopeErr } = await db.from('activity_mode_bookables').insert(scopeRows)
+        if (scopeErr) throw new Error(`Football mode-scope seed failed: ${scopeErr.message}`)
+      }
+    }
+
+    // Swimming modes — Pool hire books the whole Competition Pool (parent-
+    // child mutex blocks every lane); Lane swim resolves "Any free lane"
+    // through the Lanes-4 configuration.
+    if (swimmingAct?.id && competitionPoolId) {
+      const swimmingModeRows = [
+        { name: 'Pool hire',       color: '#0EA5E9', requires: null      },
+        { name: 'Lane swim',       color: '#06B6D4', requires: 'lanes-4' },
+        { name: 'Squad training',  color: '#3B82F6', requires: 'lanes-4' },
+      ]
+      const { data: swimmingInsertedModes, error: swimmingModesErr } = await db.from('activity_modes').insert(
+        swimmingModeRows.map((m, i) => ({
+          activity_id: swimmingAct.id,
+          name: m.name,
+          color: m.color,
+          sort_order: i,
+          allow_visitors: false,
+          approval_mode: 'INSTANT',
+          configuration_key: m.requires,
+          payment_options: seedPaymentOptions,
+          pricing: { base: [], tiers: [], per_hour: [], per_person: [] },
+          addons: [],
+        })),
+      ).select('id')
+      if (swimmingModesErr) throw new Error(`Swimming modes seed failed: ${swimmingModesErr.message}`)
+
+      if (swimmingInsertedModes?.length) {
+        const scopeRows = (swimmingInsertedModes as { id: string }[]).map(m => ({
+          mode_id: m.id, bookable_id: competitionPoolId,
+        }))
+        const { error: scopeErr } = await db.from('activity_mode_bookables').insert(scopeRows)
+        if (scopeErr) throw new Error(`Swimming mode-scope seed failed: ${scopeErr.message}`)
+      }
     }
 
     const base = {
