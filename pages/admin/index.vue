@@ -73,7 +73,7 @@ async function load() {
 }
 
 function openOrg(id: string) {
-  try { localStorage.setItem('fm_active_org', id) } catch { /* ignore */ }
+  persistActiveOrg(id) // per-tab (sessionStorage) + last-used — so Open switches THIS tab
   window.location.href = '/events'
 }
 
