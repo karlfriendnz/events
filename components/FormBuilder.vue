@@ -216,7 +216,9 @@
                   class="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-transparent transition-all group"
                   :class="isFieldAdded(pf.label)
                     ? 'opacity-40 cursor-default'
-                    : 'hover:bg-blue-50/40 hover:border-blue-100 cursor-grab active:cursor-grabbing'"
+                    : pf.required
+                      ? 'bg-red-50 border-red-200 hover:bg-red-100/70 cursor-grab active:cursor-grabbing'
+                      : 'hover:bg-blue-50/40 hover:border-blue-100 cursor-grab active:cursor-grabbing'"
                   @dragstart="onPaletteDragStart('PEOPLE:' + pf.label, $event)"
                   @dragend="onPaletteDragEnd">
                   <i class="pi pi-bars text-gray-300 text-xs" :class="{ 'opacity-0': isFieldAdded(pf.label) }" />
@@ -629,7 +631,7 @@ watch(() => _fbOrg.orgId.value, async (id) => {
   orgDefs.value = id ? await _fbResolveFields(id) : []
 }, { immediate: true })
 const orgPaletteGroups = computed(() => {
-  const mapF = (d: any) => ({ label: d.label, type: PALETTE_TYPE[d.field_type] || d.field_type, icon: PALETTE_ICON[d.field_type] || 'pi-tag', options: d.options || [] })
+  const mapF = (d: any) => ({ label: d.label, type: PALETTE_TYPE[d.field_type] || d.field_type, icon: PALETTE_ICON[d.field_type] || 'pi-tag', options: d.options || [], required: !!d.is_required })
   const groups: any[] = []
   const ownDefs = orgDefs.value.filter((d: any) => !d.inherited)
   const inhDefs = orgDefs.value.filter((d: any) => d.inherited)
@@ -637,7 +639,8 @@ const orgPaletteGroups = computed(() => {
   if (inhDefs.length) groups.push({ label: 'Inherited (NSO) fields', fields: inhDefs.map(mapF) })
   return groups
 })
-const allFieldGroups = computed(() => [...orgPaletteGroups.value, ...peopleFieldGroups])
+// System/Identity group first, then org fields, then the rest.
+const allFieldGroups = computed(() => [peopleFieldGroups[0], ...orgPaletteGroups.value, ...peopleFieldGroups.slice(1)])
 
 function isFieldAdded(label: string) {
   return form.value.fields.some(f => f.label === label || (f.core && CORE_LABELS[f.core] === label))

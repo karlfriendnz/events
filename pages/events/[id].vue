@@ -517,7 +517,9 @@
                         class="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-transparent transition-all group"
                         :class="isEvtFieldAdded(f)
                           ? 'opacity-40 cursor-default'
-                          : 'hover:bg-blue-50/40 hover:border-blue-100 cursor-grab active:cursor-grabbing'"
+                          : requiredOrgFields.has(f)
+                            ? 'bg-red-50 border-red-200 hover:bg-red-100/70 cursor-grab active:cursor-grabbing'
+                            : 'hover:bg-blue-50/40 hover:border-blue-100 cursor-grab active:cursor-grabbing'"
                         @dragstart="startEvtFieldDrag($event, f)"
                         @dragend="onEvtFieldDragEnd">
                         <i class="pi pi-bars text-gray-300 text-xs" :class="{ 'opacity-0': isEvtFieldAdded(f) }" />
@@ -5685,22 +5687,26 @@ const orgFieldLabels = ref<string[]>([])
 const inheritedFieldLabels = ref<string[]>([])
 const _EVT_FT: Record<string, string> = { text: 'text', textarea: 'textarea', email: 'email', phone: 'tel', number: 'number', date: 'date', select: 'select', checkbox: 'checkbox' }
 const _EVT_ICON: Record<string, string> = { text: 'pi-font', textarea: 'pi-align-left', email: 'pi-envelope', phone: 'pi-phone', number: 'pi-hashtag', date: 'pi-calendar', select: 'pi-list', checkbox: 'pi-check-square' }
+const requiredOrgFields = ref<Set<string>>(new Set())
 watch(orgId, async (id) => {
-  orgFieldLabels.value = []; inheritedFieldLabels.value = []
+  orgFieldLabels.value = []; inheritedFieldLabels.value = []; requiredOrgFields.value = new Set()
   if (!id) return
   try {
     const defs = await _evtResolveFields(id)
+    const req = new Set<string>()
     for (const d of defs) {
       evtFieldMeta[d.label] = { field_type: _EVT_FT[d.field_type] || 'text', icon: _EVT_ICON[d.field_type] || 'pi-tag', placeholder: d.help_text || '', options: d.options || [] }
       ;(d.inherited ? inheritedFieldLabels : orgFieldLabels).value.push(d.label)
+      if (d.is_required) req.add(d.label)
     }
+    requiredOrgFields.value = req
   } catch (e) { console.error('[evt org fields]', e) }
 }, { immediate: true })
 const evtExistingGroups = computed<Record<string, string[]>>(() => {
-  const g: Record<string, string[]> = {}
+  // System fields first, then org (own + inherited), then the rest.
+  const g: Record<string, string[]> = { 'System Fields': systemFields }
   if (orgFieldLabels.value.length) g['Organisation fields'] = orgFieldLabels.value
   if (inheritedFieldLabels.value.length) g['Inherited (NSO) fields'] = inheritedFieldLabels.value
-  g['System Fields'] = systemFields
   g['Person Fields'] = personFields
   g['Previous Event Fields'] = previousEventFields
   return g
