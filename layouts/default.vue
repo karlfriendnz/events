@@ -208,6 +208,8 @@
           </nav>
           <h1 v-else class="text-base font-semibold text-gray-900">{{ pageTitle }}</h1>
         </div>
+        <!-- Super-admin organisation switcher (only renders for super_admin role) -->
+        <OrgSwitcher />
         <!-- Notifications bell -->
         <div ref="bellWrapper" class="relative">
           <button type="button"
@@ -254,11 +256,42 @@
           <i class="pi pi-exclamation-triangle" />
           Early prototype — not production ready
         </div>
+        <ReviewWidget v-if="orgReady && user && !gate.isDeveloper.value" />
       </header>
 
       <!-- Page content -->
-      <main class="flex-1 overflow-y-auto">
-        <slot v-if="orgReady" />
+      <main class="flex-1 overflow-y-auto relative">
+        <template v-if="orgReady">
+          <!-- Developer gate: only approved pages are visible to users with role='developer' -->
+          <div v-if="gate.blocked.value" class="min-h-full flex flex-col items-center justify-center px-6 py-12 bg-[#F5F8FA]">
+            <div class="max-w-md w-full bg-white border border-gray-200 rounded-xl shadow-sm p-6 text-center">
+              <div class="w-12 h-12 mx-auto rounded-xl bg-amber-100 flex items-center justify-center mb-3">
+                <i class="pi pi-lock text-amber-600 text-lg" />
+              </div>
+              <h2 class="text-base font-bold text-gray-900">Not yet approved</h2>
+              <p class="text-sm text-gray-500 mt-1">
+                This page hasn't been signed off for development yet.
+              </p>
+              <p class="text-[11px] font-mono text-gray-400 mt-3 truncate">{{ gate.pageKey.value }}</p>
+              <div v-if="gate.approvedNavigable.value.length" class="mt-5 text-left">
+                <p class="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">Approved pages</p>
+                <div class="flex flex-col gap-1">
+                  <NuxtLink v-for="row in gate.approvedNavigable.value"
+                    :key="row.path + (row.tab ?? '')"
+                    :to="row.tab ? { path: row.path, query: { tab: row.tab } } : row.path"
+                    class="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg border border-gray-100">
+                    <i class="pi pi-check-circle text-emerald-500 text-xs shrink-0" />
+                    <span class="font-mono text-[11px] truncate">{{ row.path }}{{ row.tab ? '?tab=' + row.tab : '' }}</span>
+                  </NuxtLink>
+                </div>
+              </div>
+              <p v-else class="text-[11px] text-gray-400 mt-5">
+                No pages have been approved yet.
+              </p>
+            </div>
+          </div>
+          <slot v-else />
+        </template>
         <div v-else class="flex items-center justify-center h-full">
           <i class="pi pi-spin pi-spinner text-2xl text-surface-400" />
         </div>
@@ -312,6 +345,12 @@ const db = useSupabaseClient()
 const user = useSupabaseUser()
 const breadcrumbs = useBreadcrumbs()
 const { orgId, orgReady } = useOrg()
+const gate = useDeveloperGate()
+// Pull the list of approved-and-navigable pages once for the gate stub,
+// then refresh whenever the developer lands on a still-blocked page.
+watch([gate.isDeveloper, gate.pageKey], () => {
+  if (gate.isDeveloper.value) gate.loadApprovedNavigable()
+}, { immediate: true })
 
 // ── Notifications bell ────────────────────────────────────
 const notifications = ref<any[]>([])
@@ -477,6 +516,8 @@ function openNewCalendarModal() {
 const navItems = [
   { href: '/bookables', label: 'Bookables', icon: 'pi-building' },
   { href: '/registration', label: 'Registration', icon: 'pi-clipboard' },
+  { href: '/attendance', label: 'Attendance', icon: 'pi-check-square' },
+  { href: '/groups', label: 'Groups', icon: 'pi-users' },
   { href: '/finances', label: 'Finances', icon: 'pi-dollar' },
   { href: '/reporting', label: 'Reporting', icon: 'pi-chart-bar' },
 ]
@@ -486,6 +527,8 @@ const pageTitles: Record<string, string> = {
   '/bookables': 'Bookables',
   '/finances': 'Finances',
   '/registration': 'Registration',
+  '/attendance': 'Attendance',
+  '/groups': 'Groups',
   '/reporting': 'Reporting',
   '/settings': 'Settings',
 }

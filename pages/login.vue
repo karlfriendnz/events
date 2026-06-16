@@ -82,8 +82,22 @@ function switchMode(m: 'login' | 'register') {
 
 const { orgId, orgReady } = useOrg()
 
-async function prefetchOrg(userId: string) {
-  const { data } = await db.from('org_members').select('org_id').eq('user_id', userId).single()
+async function prefetchOrg(u: any) {
+  // Super-admins aren't bound to one org via org_members — resolve their active
+  // org the same way plugins/auth.client.ts does (persisted choice, else top org).
+  if (u?.app_metadata?.role === 'super_admin') {
+    const saved = (typeof localStorage !== 'undefined') ? localStorage.getItem('fm_active_org') : null
+    if (saved) {
+      orgId.value = saved
+    } else {
+      const { data } = await (db.from as any)('organisations')
+        .select('id').order('org_level', { ascending: false }).order('name').limit(1)
+      orgId.value = data?.[0]?.id ?? null
+    }
+    orgReady.value = true
+    return
+  }
+  const { data } = await db.from('org_members').select('org_id').eq('user_id', u?.id).single()
   orgId.value = data?.org_id ?? null
   orgReady.value = true
 }
@@ -98,8 +112,10 @@ async function handleLogin() {
   // before onAuthStateChange fires
   const supabaseUser = useSupabaseUser()
   if (data.user) supabaseUser.value = data.user as any
-  if (data.user?.id) await prefetchOrg(data.user.id)
-  await navigateTo('/events')
+  if (data.user?.id) await prefetchOrg(data.user)
+  // Super-admins land on the overarching all-orgs dashboard, not a club view.
+  const dest = (data.user as any)?.app_metadata?.role === 'super_admin' ? '/admin' : '/events'
+  await navigateTo(dest)
 }
 
 async function handleRegister() {
@@ -117,7 +133,7 @@ async function handleRegister() {
   if (authError) {
     error.value = authError.message
   } else if (data.user?.id) {
-    await prefetchOrg(data.user.id)
+    await prefetchOrg(data.user)
     await navigateTo('/events')
   } else {
     success.value = 'Account created! Check your email to confirm your address.'

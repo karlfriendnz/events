@@ -25,6 +25,25 @@
                 <label class="text-sm font-medium">Organisation Name</label>
                 <InputText v-model="org.name" />
               </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium">Organisation level</label>
+                <p class="text-xs text-surface-500 -mt-0.5">Where this organisation sits in the hierarchy.</p>
+                <Select v-model="org.org_level" :options="orgLevelOptions" option-label="label" option-value="value" class="w-full" />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium">Parent organisation</label>
+                <p class="text-xs text-surface-500 -mt-0.5">The body this organisation reports up to (e.g. a club → its regional association). Builds the full chain up to the national body. Drives shared categories, fields, branding, and cross-org reporting.</p>
+                <Select v-model="org.parent_id" :options="parentCandidates" option-label="_label" option-value="id"
+                  placeholder="Not affiliated" show-clear filter class="w-full" />
+                <div v-if="orgChain.length > 1" class="mt-1 flex flex-wrap items-center gap-1 text-xs">
+                  <template v-for="(node, i) in orgChain" :key="node.id">
+                    <span :class="['px-2 py-0.5 rounded', node.id === orgId ? 'bg-primary text-white' : 'bg-surface-100 text-surface-700']">
+                      {{ node.name }}<span class="opacity-60"> · {{ orgLevelLabel(node.org_level) }}</span>
+                    </span>
+                    <i v-if="i < orgChain.length - 1" class="pi pi-angle-right text-surface-400" />
+                  </template>
+                </div>
+              </div>
               <div class="grid grid-cols-2 gap-3">
                 <div class="flex flex-col gap-1.5">
                   <label class="text-sm font-medium">Currency</label>
@@ -33,6 +52,14 @@
                 <div class="flex flex-col gap-1.5">
                   <label class="text-sm font-medium">Locale</label>
                   <Select v-model="org.locale" :options="['en-AU', 'en-NZ', 'en-US', 'en-GB']" class="w-full" />
+                </div>
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium">Season</label>
+                <p class="text-xs text-surface-500 -mt-0.5">Default date range used by group terms, attendance, and reporting windows.</p>
+                <div class="grid grid-cols-2 gap-3 mt-1">
+                  <DatePicker v-model="org.season_start" date-format="d M yy" placeholder="Start date" class="w-full" />
+                  <DatePicker v-model="org.season_end" date-format="d M yy" placeholder="End date" :min-date="org.season_start ?? undefined" class="w-full" />
                 </div>
               </div>
             </div>
@@ -360,6 +387,10 @@ const org = ref<{
   name: string
   currency: string
   locale: string
+  season_start: Date | null
+  season_end: Date | null
+  parent_id: string | null
+  org_level: 'CLUB' | 'REGIONAL' | 'ASSOCIATION' | 'NATIONAL'
   default_form_id: string | null
   default_payment_method: string | null
   default_bank_account_id: string | null
@@ -367,8 +398,33 @@ const org = ref<{
   events_default_bank_account_id: string | null
 }>({
   name: 'Demo Club', currency: 'AUD', locale: 'en-AU',
+  season_start: null, season_end: null,
+  parent_id: null, org_level: 'CLUB',
   default_form_id: null, default_payment_method: null, default_bank_account_id: null,
   events_default_payment_method: null, events_default_bank_account_id: null,
+})
+
+// Org hierarchy (Club -> Regional -> Association -> National)
+const { buildChain } = useOrgHierarchy()
+const allOrgs = ref<OrgNode[]>([])
+const orgLevelOptions = (ORG_LEVELS as readonly string[]).map(v => ({ value: v, label: orgLevelLabel(v) }))
+// Candidate parents = every other org that is NOT a descendant of this org (cycle-safe).
+const parentCandidates = computed(() => allOrgs.value
+  .filter(o => o.id !== orgId.value)
+  .filter(o => !buildChain(o.id, allOrgs.value).some(c => c.id === orgId.value))
+  .map(o => ({ ...o, _label: `${o.name} · ${orgLevelLabel(o.org_level)}` }))
+  .sort((a, b) => orgLevelRank(b.org_level) - orgLevelRank(a.org_level) || a.name.localeCompare(b.name)))
+// Resolved chain (top org first … this org last), using the LIVE form selection.
+const orgChain = computed<OrgNode[]>(() => {
+  const id = orgId.value
+  if (!id) return []
+  const merged = allOrgs.value.map(o => o.id === id
+    ? { ...o, name: org.value.name, parent_id: org.value.parent_id, org_level: org.value.org_level }
+    : o)
+  if (!merged.some(o => o.id === id)) {
+    merged.push({ id, name: org.value.name, org_level: org.value.org_level, parent_id: org.value.parent_id })
+  }
+  return buildChain(id, merged)
 })
 
 // Bank accounts
@@ -500,19 +556,25 @@ const addingPerson = ref(false)
 const personForm = ref({ first_name: '', last_name: '', email: '', phone: '' })
 
 async function load() {
-  const [{ data: orgData }, { data: catData }, { count }, { data: groupData }, { data: memberships }, { data: forms }] = await Promise.all([
+  const [{ data: orgData }, { data: catData }, { count }, { data: groupData }, { data: memberships }, { data: forms }, { data: orgsData }] = await Promise.all([
     db.from('organisations').select('*').eq('id', orgId.value).single(),
     db.from('categories').select('*').eq('org_id', orgId.value).order('name'),
     db.from('persons').select('*', { count: 'exact', head: true }).eq('org_id', orgId.value),
     db.from('member_groups').select('id, name, color, parent_id, sort_order').eq('org_id', orgId.value).order('sort_order'),
     db.from('member_group_memberships').select('group_id'),
     (db.from as any)('registration_forms').select('id, name').eq('org_id', orgId.value).order('name'),
+    (db.from as any)('organisations').select('id, name, org_level, parent_id').order('name'),
   ])
+  allOrgs.value = (orgsData ?? []) as OrgNode[]
   if (orgData) {
     org.value = {
       name: orgData.name,
       currency: orgData.currency,
       locale: orgData.locale,
+      season_start: orgData.season_start ? new Date(orgData.season_start) : null,
+      season_end: orgData.season_end ? new Date(orgData.season_end) : null,
+      parent_id: orgData.parent_id ?? null,
+      org_level: (orgData.org_level ?? 'CLUB') as 'CLUB' | 'REGIONAL' | 'ASSOCIATION' | 'NATIONAL',
       default_form_id: orgData.default_form_id ?? null,
       default_payment_method: orgData.default_payment_method ?? null,
       default_bank_account_id: orgData.default_bank_account_id ?? null,
@@ -545,9 +607,23 @@ async function load() {
   groupsLoading.value = false
 }
 
+function toIsoDate(d: Date | null): string | null {
+  if (!d) return null
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 async function saveOrg() {
   savingOrg.value = true
-  await db.from('organisations').update({ name: org.value.name, currency: org.value.currency, locale: org.value.locale }).eq('id', orgId.value)
+  await db.from('organisations').update({
+    name: org.value.name,
+    currency: org.value.currency,
+    locale: org.value.locale,
+    parent_id: org.value.parent_id,
+    org_level: org.value.org_level,
+    season_start: toIsoDate(org.value.season_start),
+    season_end: toIsoDate(org.value.season_end),
+  }).eq('id', orgId.value)
   toast.add({ severity: 'success', summary: 'Organisation saved', life: 3000 })
   savingOrg.value = false
 }
@@ -587,6 +663,7 @@ async function seedDemoEvents() {
     // ── Categories ──────────────────────────────────────────────
     const categoryDefs = [
       { name: 'Training',      color: '#3B82F6', icon: 'pi-bolt' },
+      { name: 'Trainings',     color: '#06B6D4', icon: 'pi-calendar' },
       { name: 'Competition',   color: '#EF4444', icon: 'pi-trophy' },
       { name: 'Social',        color: '#8B5CF6', icon: 'pi-star' },
       { name: 'Administration',color: '#6B7280', icon: 'pi-briefcase' },
@@ -832,18 +909,23 @@ async function seedDemoEvents() {
       is_public: true, description: '4 practice nets for batting and bowling drills.',
       sort_order: 5, default_booking_view: 'scheduler', show_in_menu: true,
     }).select('id').single()
+    // Capture cricket net IDs so the cricket coach's modes can pool them
+    // as their required-venue option set later in this seed.
+    const cricketNetIds: string[] = []
     if (cricketNets?.id) {
       const { data: net1 } = await db.from('bookables').insert({
         org_id: orgId.value, name: 'Net 1', type: 'VENUE', status: 'ACTIVE',
         is_public: true, is_master: true, parent_id: cricketNets.id, sort_order: 0,
       }).select('id').single()
       if (net1?.id) {
-        await db.from('bookables').insert(
+        cricketNetIds.push(net1.id)
+        const { data: extras } = await db.from('bookables').insert(
           [2, 3, 4].map((n, i) => ({
             org_id: orgId.value, name: `Net ${n}`, type: 'VENUE', status: 'ACTIVE',
             is_public: true, master_id: net1.id, parent_id: cricketNets.id, sort_order: i + 1,
           }))
-        )
+        ).select('id')
+        for (const r of (extras ?? [])) cricketNetIds.push(r.id)
       }
     }
 
@@ -872,28 +954,99 @@ async function seedDemoEvents() {
       }
     }
 
-    // Rentable items
-    const { error: itemsError } = await db.from('bookables').insert([
-      { org_id: orgId.value, name: 'Marquee', type: 'ITEM', status: 'ACTIVE', is_public: true, item_category: 'Equipment', description: '6m × 12m marquee for outdoor events. Advance booking required.', sort_order: 10 },
-      { org_id: orgId.value, name: 'Lawn Mower', type: 'ITEM', status: 'ACTIVE', is_public: false, item_category: 'Grounds', description: 'Club ride-on mower. Authorised staff only.', sort_order: 11 },
-      { org_id: orgId.value, name: 'PA System', type: 'ITEM', status: 'ACTIVE', is_public: true, item_category: 'Equipment', description: 'Portable PA system with 2 speakers and microphone.', sort_order: 12 },
-      { org_id: orgId.value, name: 'Projector & Screen', type: 'ITEM', status: 'ACTIVE', is_public: true, item_category: 'Equipment', description: 'HD projector with 2m pull-down screen.', sort_order: 13 },
-      { org_id: orgId.value, name: 'Fold-out Tables (x10)', type: 'ITEM', status: 'ACTIVE', is_public: true, item_category: 'Furniture', description: 'Pack of 10 rectangular fold-out tables.', sort_order: 14 },
-      { org_id: orgId.value, name: 'Chairs (x50)', type: 'ITEM', status: 'ACTIVE', is_public: true, item_category: 'Furniture', description: 'Stack of 50 plastic chairs.', sort_order: 15 },
-    ])
+    // Rentable items. Bowling Machine is captured by id so the cricket
+    // coach's "Net session" mode can flag it as required equipment
+    // (auto-reserved alongside the booking).
+    const { data: insertedItems, error: itemsError } = await db.from('bookables').insert([
+      { org_id: orgId.value, name: 'Marquee',              type: 'ITEM', status: 'ACTIVE', is_public: true,  item_category: 'Equipment', description: '6m × 12m marquee for outdoor events. Advance booking required.', max_concurrent: 1, sort_order: 10 },
+      { org_id: orgId.value, name: 'Lawn Mower',           type: 'ITEM', status: 'ACTIVE', is_public: false, item_category: 'Grounds',   description: 'Club ride-on mower. Authorised staff only.',                    max_concurrent: 1, sort_order: 11 },
+      { org_id: orgId.value, name: 'PA System',            type: 'ITEM', status: 'ACTIVE', is_public: true,  item_category: 'Equipment', description: 'Portable PA system with 2 speakers and microphone.',            max_concurrent: 1, sort_order: 12 },
+      { org_id: orgId.value, name: 'Projector & Screen',   type: 'ITEM', status: 'ACTIVE', is_public: true,  item_category: 'Equipment', description: 'HD projector with 2m pull-down screen.',                        max_concurrent: 1, sort_order: 13 },
+      { org_id: orgId.value, name: 'Fold-out Tables (x10)',type: 'ITEM', status: 'ACTIVE', is_public: true,  item_category: 'Furniture', description: 'Pack of 10 rectangular fold-out tables.',                       max_concurrent: 1, sort_order: 14 },
+      { org_id: orgId.value, name: 'Chairs (x50)',         type: 'ITEM', status: 'ACTIVE', is_public: true,  item_category: 'Furniture', description: 'Stack of 50 plastic chairs.',                                   max_concurrent: 1, sort_order: 15 },
+      { org_id: orgId.value, name: 'Bowling Machine',      type: 'ITEM', status: 'ACTIVE', is_public: true,  item_category: 'Equipment', description: 'Cricket bowling machine — programmable.',                       max_concurrent: 2, sort_order: 16 },
+    ]).select('id, name')
     if (itemsError) throw new Error(`Rentable items insert failed: ${itemsError.message}`)
+    const bowlingMachineId = (insertedItems ?? []).find((i: any) => i.name === 'Bowling Machine')?.id as string | undefined
 
-    // Staff coaches as PERSON bookables
+    // Staff coaches as PERSON bookables — each gets their own owning
+    // activity (staff_bookable_id set) plus a couple of mode "offerings"
+    // so the "What I offer" tab is populated end-to-end.
     const coachNames = coachPersons?.length
       ? coachPersons.map((p: any) => `${p.first_name} ${p.last_name}`)
       : ['James Carter', 'Sarah Mitchell']
-    await db.from('bookables').insert(
+    const { data: insertedCoaches } = await db.from('bookables').insert(
       coachNames.map((name: string, i: number) => ({
         org_id: orgId.value, name,
         type: 'PERSON', status: 'ACTIVE', is_public: false,
         description: 'Club coach', sort_order: i,
-      }))
-    )
+      })),
+    ).select('id, name')
+
+    // Per-coach offerings. The first coach is the cricket / hitting coach
+    // (uses cricket nets — these will exist in this seed too — and a
+    // bowling machine). The second coach is a tennis coach. Adjust mode
+    // shape if you want different defaults; this is just demo seed.
+    const coachOfferings: Record<string, { category: string; modes: any[] }> = {
+      'James Carter': {
+        category: 'Cricket',
+        modes: [
+          { name: 'Net session',     period_unit: 'hour', period_count: 1, term_type: 'fixed', period_price: 80,  sort_order: 0 },
+          { name: '1-on-1 coaching', period_unit: 'hour', period_count: 1, term_type: 'fixed', period_price: 100, sort_order: 1 },
+        ],
+      },
+      'Sarah Mitchell': {
+        category: 'Tennis',
+        modes: [
+          { name: '30-min lesson', period_unit: 'hour', period_count: 1, term_type: 'fixed', period_price: 60,  sort_order: 0 },
+          { name: '60-min lesson', period_unit: 'hour', period_count: 1, term_type: 'fixed', period_price: 100, sort_order: 1 },
+        ],
+      },
+    }
+    for (const coach of insertedCoaches ?? []) {
+      const cfg = coachOfferings[coach.name as string]
+      if (!cfg) continue
+      // 1. Owning activity — same name as the coach, staff_bookable_id set.
+      const { data: actRow } = await db.from('activities').insert({
+        org_id: orgId.value,
+        name: coach.name,
+        status: 'ACTIVE',
+        bookings_enabled: true,
+        booking_flow: 'wizard',
+        require_mode: true,
+        staff_bookable_id: coach.id,
+        color: '#1E2157',
+        icon: 'pi-user',
+      }).select('id').single()
+      if (!actRow?.id) continue
+      // 2. Link the coach as the only resource on this activity.
+      await db.from('activity_bookables').insert({ activity_id: actRow.id, bookable_id: coach.id })
+      // 3. Modes — tagged with the category so the booker's "By service"
+      //    cards group all coaches teaching the same thing together.
+      const { data: insertedModes } = await db.from('activity_modes').insert(
+        cfg.modes.map(m => ({ ...m, activity_id: actRow.id, category: cfg.category })),
+      ).select('id, name')
+      // 4. Wire venue requirements + required equipment per mode. Cricket
+      //    coach modes pool the cricket nets; "Net session" also auto-
+      //    reserves a bowling machine (locked equipment row at booking
+      //    time). Tennis coach uses tennis-court-style venues — wired
+      //    elsewhere when those exist; for now the tennis coach has none.
+      for (const mode of insertedModes ?? []) {
+        if (cfg.category === 'Cricket' && cricketNetIds.length) {
+          await db.from('activity_mode_resources').insert(
+            cricketNetIds.map((bid, i) => ({ mode_id: mode.id, bookable_id: bid, sort_order: i })),
+          )
+          if (mode.name === 'Net session' && bowlingMachineId) {
+            await db.from('activity_mode_required_items').insert({
+              mode_id: mode.id,
+              bookable_id: bowlingMachineId,
+              quantity: 1,
+              sort_order: 0,
+            })
+          }
+        }
+      }
+    }
 
     // ── Registration forms ──────────────────────────────────────
     const { data: holForm } = await db.from('registration_forms')
@@ -1002,29 +1155,29 @@ async function seedDemoEvents() {
     //    on slot-bound modes, explicit activity_mode_bookables scope.
     const { data: birthdaysAct } = await db.from('activities').insert({
       org_id: orgId.value, name: 'Birthdays', color: '#F59E0B', icon: 'pi-bolt',
-      status: 'ACTIVE', bookings_enabled: true, approval_mode: 'auto',
-      booking_flow: 'scheduler',
+      status: 'ACTIVE', bookings_enabled: true, approval_mode: 'manual',
+      booking_flow: 'wizard', require_mode: true,
       area_name_singular: 'Hall',
       area_name_plural: 'Halls',
     }).select('id').single()
     const { data: tennisAct } = await db.from('activities').insert({
       org_id: orgId.value, name: 'Tennis', color: '#84CC16', icon: 'pi-bolt',
       status: 'ACTIVE', bookings_enabled: true, approval_mode: 'auto',
-      booking_flow: 'scheduler',
+      booking_flow: 'scheduler', require_mode: true,
       area_name_singular: 'Court',
       area_name_plural: 'Courts',
     }).select('id').single()
     const { data: footballAct } = await db.from('activities').insert({
       org_id: orgId.value, name: 'Football', color: '#10B981', icon: 'pi-bolt',
       status: 'ACTIVE', bookings_enabled: true, approval_mode: 'auto',
-      booking_flow: 'scheduler',
+      booking_flow: 'scheduler', require_mode: true,
       area_name_singular: 'Field',
       area_name_plural: 'Fields',
     }).select('id').single()
     const { data: swimmingAct } = await db.from('activities').insert({
       org_id: orgId.value, name: 'Swimming', color: '#0EA5E9', icon: 'pi-bolt',
       status: 'ACTIVE', bookings_enabled: true, approval_mode: 'auto',
-      booking_flow: 'scheduler',
+      booking_flow: 'scheduler', require_mode: true,
       area_name_singular: 'Lane',
       area_name_plural: 'Lanes',
     }).select('id').single()
@@ -1625,7 +1778,7 @@ async function seedDemoEvents() {
       { name: 'Main Calendar', sort_order: 0, categories: allCategoryNames },
       { name: 'Club Events',   sort_order: 1, categories: ['Social', 'Community', 'Administration'] },
       { name: 'Committee',     sort_order: 2, categories: ['Administration'] },
-      { name: 'Sport',         sort_order: 3, categories: ['Training', 'Competition', 'Development'] },
+      { name: 'Sport',         sort_order: 3, categories: ['Training', 'Trainings', 'Competition', 'Development'] },
     ]
     for (const calDef of calendarDefs) {
       const { data: calRow } = await (db.from as any)('calendars')
