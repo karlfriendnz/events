@@ -527,11 +527,13 @@ const navItems = [
 // Permission enforcement + governing-body extras.
 const { can, load: loadPerms } = useCan()
 const isGoverningOrg = ref(false)
+const activeOrgName = ref('')
 watch(orgId, async (id) => {
   loadPerms()
-  if (!id) { isGoverningOrg.value = false; return }
-  const { data } = await (db.from as any)('organisations').select('org_level').eq('id', id).single()
+  if (!id) { isGoverningOrg.value = false; activeOrgName.value = ''; return }
+  const { data } = await (db.from as any)('organisations').select('name, org_level').eq('id', id).single()
   isGoverningOrg.value = !!data?.org_level && data.org_level !== 'CLUB'
+  activeOrgName.value = data?.name ?? ''
 }, { immediate: true })
 const navItemsForOrg = computed(() => {
   const base = isGoverningOrg.value
@@ -563,6 +565,12 @@ const pageTitle = computed(() => {
   if (exact) return exact
   const match = Object.entries(pageTitles).find(([k]) => path.startsWith(k + '/'))
   return match ? match[1] : 'FriendlyManager'
+})
+
+// Browser tab title: "Club name: Page" — so multiple club tabs are distinguishable.
+useHead({
+  title: () => activeOrgName.value ? `${activeOrgName.value}: ${pageTitle.value}` : pageTitle.value,
+  titleTemplate: '%s',
 })
 
 function isActive(href: string) {

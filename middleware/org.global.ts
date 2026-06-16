@@ -15,13 +15,15 @@ export default defineNuxtRouteMiddleware(async (to) => {
   // Super-admins can view any org (not bound to one org_members row).
   const isSuper = ((user.value as any)?.app_metadata?.role) === 'super_admin'
   if (isSuper) {
-    const saved = (typeof localStorage !== 'undefined') ? localStorage.getItem('fm_active_org') : null
+    const saved = readActiveOrg()
     if (saved) {
       orgId.value = saved
+      rememberResolvedOrg(saved)
     } else {
       const { data } = await (db.from as any)('organisations')
         .select('id').order('org_level', { ascending: false }).order('name').limit(1)
       orgId.value = data?.[0]?.id ?? null
+      if (orgId.value) rememberResolvedOrg(orgId.value)
     }
     orgReady.value = true
     return

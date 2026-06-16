@@ -23,7 +23,7 @@ onMounted(async () => {
 
 function switchOrg(id: string) {
   if (!id || id === orgId.value) return
-  try { localStorage.setItem('fm_active_org', id) } catch { /* ignore */ }
+  persistActiveOrg(id) // per-tab (sessionStorage) + last-used (localStorage)
   // Full reload so every page re-fetches under the new org scope.
   window.location.reload()
 }

@@ -86,13 +86,15 @@ async function prefetchOrg(u: any) {
   // Super-admins aren't bound to one org via org_members — resolve their active
   // org the same way plugins/auth.client.ts does (persisted choice, else top org).
   if (u?.app_metadata?.role === 'super_admin') {
-    const saved = (typeof localStorage !== 'undefined') ? localStorage.getItem('fm_active_org') : null
+    const saved = readActiveOrg()
     if (saved) {
       orgId.value = saved
+      rememberResolvedOrg(saved)
     } else {
       const { data } = await (db.from as any)('organisations')
         .select('id').order('org_level', { ascending: false }).order('name').limit(1)
       orgId.value = data?.[0]?.id ?? null
+      if (orgId.value) rememberResolvedOrg(orgId.value)
     }
     orgReady.value = true
     return
