@@ -521,7 +521,7 @@ const navItems = [
   { href: '/finances', label: 'Finances', icon: 'pi-dollar' },
   { href: '/reporting', label: 'Reporting', icon: 'pi-chart-bar' },
   { href: '/settings/permissions', label: 'Permissions', icon: 'pi-lock' },
-  { href: '/settings/member-fields', label: 'Member Fields', icon: 'pi-id-card' },
+  { href: '/settings/fields', label: 'Fields', icon: 'pi-id-card' },
 ]
 
 // Governing bodies (NSO/association/regional) get a Disciplines item.
