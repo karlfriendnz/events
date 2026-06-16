@@ -224,7 +224,7 @@
                   <i class="pi pi-bars text-gray-300 text-xs" :class="{ 'opacity-0': isFieldAdded(pf.label) }" />
                   <i class="pi text-xs shrink-0" :class="[pf.icon, isFieldAdded(pf.label) ? 'text-green-400' : 'text-gray-300']" />
                   <span class="flex-1 text-sm" :class="isFieldAdded(pf.label) ? 'text-gray-500' : 'text-gray-700'">{{ pf.label }}</span>
-                  <span v-if="pf.required" class="text-[9px] font-bold uppercase tracking-wide text-red-500 bg-red-100 px-1.5 py-0.5 rounded shrink-0">Required</span>
+                  <span v-if="pf.required" :title="'Required by ' + (pf.requiredBy || 'your governing body')" class="text-[9px] font-bold uppercase tracking-wide text-red-500 bg-red-100 px-1.5 py-0.5 rounded shrink-0 cursor-help">Required</span>
                   <span v-if="isFieldAdded(pf.label)" class="text-[10px] text-green-500 font-medium">Added</span>
                   <button v-else type="button"
                     class="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-[#0e43a3] opacity-0 group-hover:opacity-100 transition-all rounded hover:bg-blue-50"
@@ -632,7 +632,7 @@ watch(() => _fbOrg.orgId.value, async (id) => {
   orgDefs.value = id ? await _fbResolveFields(id) : []
 }, { immediate: true })
 const orgPaletteGroups = computed(() => {
-  const mapF = (d: any) => ({ label: d.label, type: PALETTE_TYPE[d.field_type] || d.field_type, icon: PALETTE_ICON[d.field_type] || 'pi-tag', options: d.options || [], required: !!d.is_required })
+  const mapF = (d: any) => ({ label: d.label, type: PALETTE_TYPE[d.field_type] || d.field_type, icon: PALETTE_ICON[d.field_type] || 'pi-tag', options: d.options || [], required: !!d.is_required, requiredBy: d.ownerName })
   const groups: any[] = []
   const ownDefs = orgDefs.value.filter((d: any) => !d.inherited)
   const inhDefs = orgDefs.value.filter((d: any) => d.inherited)

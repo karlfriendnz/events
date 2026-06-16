@@ -525,7 +525,7 @@
                         <i class="pi pi-bars text-gray-300 text-xs" :class="{ 'opacity-0': isEvtFieldAdded(f) }" />
                         <i class="pi text-xs shrink-0" :class="[evtFieldMeta[f]?.icon ?? 'pi-minus', isEvtFieldAdded(f) ? 'text-green-400' : 'text-gray-300']" />
                         <span class="flex-1 text-sm" :class="isEvtFieldAdded(f) ? 'text-gray-500' : 'text-gray-700'">{{ f }}</span>
-                        <span v-if="requiredOrgFields.has(f)" class="text-[9px] font-bold uppercase tracking-wide text-red-500 bg-red-100 px-1.5 py-0.5 rounded shrink-0">Required</span>
+                        <span v-if="requiredOrgFields.has(f)" :title="'Required by ' + (requiredByOrg[f] || 'your governing body')" class="text-[9px] font-bold uppercase tracking-wide text-red-500 bg-red-100 px-1.5 py-0.5 rounded shrink-0 cursor-help">Required</span>
                         <span v-if="evtAlwaysPresentFields.includes(f)" class="text-[10px] text-gray-400">Always</span>
                         <span v-else-if="currentEvtFormFields.some(x => x.label === f)" class="text-[10px] text-green-500 font-medium">Added</span>
                         <button
@@ -5689,18 +5689,21 @@ const inheritedFieldLabels = ref<string[]>([])
 const _EVT_FT: Record<string, string> = { text: 'text', textarea: 'textarea', email: 'email', phone: 'tel', number: 'number', date: 'date', select: 'select', checkbox: 'checkbox' }
 const _EVT_ICON: Record<string, string> = { text: 'pi-font', textarea: 'pi-align-left', email: 'pi-envelope', phone: 'pi-phone', number: 'pi-hashtag', date: 'pi-calendar', select: 'pi-list', checkbox: 'pi-check-square' }
 const requiredOrgFields = ref<Set<string>>(new Set())
+const requiredByOrg = ref<Record<string, string>>({})
 watch(orgId, async (id) => {
-  orgFieldLabels.value = []; inheritedFieldLabels.value = []; requiredOrgFields.value = new Set()
+  orgFieldLabels.value = []; inheritedFieldLabels.value = []; requiredOrgFields.value = new Set(); requiredByOrg.value = {}
   if (!id) return
   try {
     const defs = await _evtResolveFields(id)
     const req = new Set<string>()
+    const reqBy: Record<string, string> = {}
     for (const d of defs) {
       evtFieldMeta[d.label] = { field_type: _EVT_FT[d.field_type] || 'text', icon: _EVT_ICON[d.field_type] || 'pi-tag', placeholder: d.help_text || '', options: d.options || [] }
       ;(d.inherited ? inheritedFieldLabels : orgFieldLabels).value.push(d.label)
-      if (d.is_required) req.add(d.label)
+      if (d.is_required) { req.add(d.label); reqBy[d.label] = d.ownerName }
     }
     requiredOrgFields.value = req
+    requiredByOrg.value = reqBy
   } catch (e) { console.error('[evt org fields]', e) }
 }, { immediate: true })
 const evtExistingGroups = computed<Record<string, string[]>>(() => {
