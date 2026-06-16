@@ -75,11 +75,12 @@ const fieldOptions = computed(() => [...own.value, ...inherited.value]
 async function saveEdit() {
   const e = editing.value
   if (!e.label.trim()) return
-  await (db.from as any)('field_definitions').update({
+  const { error } = await (db.from as any)('field_definitions').update({
     label: e.label.trim(), field_type: e.field_type, is_required: e.is_required,
     options: e.field_type === 'select' ? e.optionsText.split('\n').map((s: string) => s.trim()).filter(Boolean) : [],
-    rules: e.rules.filter((r: any) => r.value !== null && r.value !== ''),
+    rules: e.rules.filter((r: any) => r.value !== null && r.value !== '' && r.value !== undefined),
   }).eq('id', e.id)
+  if (error) { toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 6000 }); console.error('[field save]', error); return }
   toast.add({ severity: 'success', summary: 'Field saved', life: 2000 })
   editing.value = null; await load()
 }
