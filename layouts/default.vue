@@ -520,6 +520,7 @@ const navItems = [
   { href: '/groups', label: 'Groups', icon: 'pi-users' },
   { href: '/finances', label: 'Finances', icon: 'pi-dollar' },
   { href: '/reporting', label: 'Reporting', icon: 'pi-chart-bar' },
+  { href: '/settings/permissions', label: 'Permissions', icon: 'pi-lock' },
 ]
 
 const pageTitles: Record<string, string> = {

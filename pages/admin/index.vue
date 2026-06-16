@@ -6,6 +6,8 @@
   Visible only to users with app_metadata.role === 'super_admin'.
 -->
 <script setup lang="ts">
+definePageMeta({ layout: 'admin' })
+
 const db = useDb()
 const user = useSupabaseUser()
 
@@ -82,7 +84,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div v-if="isSuper" class="p-6 max-w-5xl mx-auto space-y-5">
+  <div v-if="isSuper" class="p-6 md:p-8 max-w-6xl mx-auto space-y-5">
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-xl font-semibold text-gray-900">All Organisations</h1>
