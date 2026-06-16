@@ -525,6 +525,7 @@
                         <i class="pi pi-bars text-gray-300 text-xs" :class="{ 'opacity-0': isEvtFieldAdded(f) }" />
                         <i class="pi text-xs shrink-0" :class="[evtFieldMeta[f]?.icon ?? 'pi-minus', isEvtFieldAdded(f) ? 'text-green-400' : 'text-gray-300']" />
                         <span class="flex-1 text-sm" :class="isEvtFieldAdded(f) ? 'text-gray-500' : 'text-gray-700'">{{ f }}</span>
+                        <span v-if="requiredOrgFields.has(f)" class="text-[9px] font-bold uppercase tracking-wide text-red-500 bg-red-100 px-1.5 py-0.5 rounded shrink-0">Required</span>
                         <span v-if="evtAlwaysPresentFields.includes(f)" class="text-[10px] text-gray-400">Always</span>
                         <span v-else-if="currentEvtFormFields.some(x => x.label === f)" class="text-[10px] text-green-500 font-medium">Added</span>
                         <button
