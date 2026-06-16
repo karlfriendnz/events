@@ -514,26 +514,32 @@ function openNewCalendarModal() {
 
 // ---- Nav ----
 const navItems = [
-  { href: '/bookables', label: 'Bookables', icon: 'pi-building' },
-  { href: '/registration', label: 'Registration', icon: 'pi-clipboard' },
-  { href: '/attendance', label: 'Attendance', icon: 'pi-check-square' },
-  { href: '/groups', label: 'Groups', icon: 'pi-users' },
-  { href: '/finances', label: 'Finances', icon: 'pi-dollar' },
+  { href: '/bookables', label: 'Bookables', icon: 'pi-building', resource: 'bookings' },
+  { href: '/registration', label: 'Registration', icon: 'pi-clipboard', resource: 'events' },
+  { href: '/attendance', label: 'Attendance', icon: 'pi-check-square', resource: 'attendance' },
+  { href: '/groups', label: 'Groups', icon: 'pi-users', resource: 'groups' },
+  { href: '/finances', label: 'Finances', icon: 'pi-dollar', resource: 'fees' },
   { href: '/reporting', label: 'Reporting', icon: 'pi-chart-bar' },
-  { href: '/settings/permissions', label: 'Permissions', icon: 'pi-lock' },
-  { href: '/settings/fields', label: 'Fields', icon: 'pi-id-card' },
+  { href: '/settings/permissions', label: 'Permissions', icon: 'pi-lock', resource: 'permissions' },
+  { href: '/settings/fields', label: 'Fields', icon: 'pi-id-card', resource: 'custom_fields' },
 ]
 
-// Governing bodies (NSO/association/regional) get a Disciplines item.
+// Permission enforcement + governing-body extras.
+const { can, load: loadPerms } = useCan()
 const isGoverningOrg = ref(false)
 watch(orgId, async (id) => {
+  loadPerms()
   if (!id) { isGoverningOrg.value = false; return }
   const { data } = await (db.from as any)('organisations').select('org_level').eq('id', id).single()
   isGoverningOrg.value = !!data?.org_level && data.org_level !== 'CLUB'
 }, { immediate: true })
-const navItemsForOrg = computed(() => isGoverningOrg.value
-  ? [...navItems, { href: '/disciplines', label: 'Disciplines', icon: 'pi-tags' }]
-  : navItems)
+const navItemsForOrg = computed(() => {
+  const base = isGoverningOrg.value
+    ? [...navItems, { href: '/disciplines', label: 'Disciplines', icon: 'pi-tags' }]
+    : navItems
+  // Hide modules the user has no read permission for (unrestricted users see all).
+  return base.filter((i: any) => !i.resource || can(i.resource, 'read'))
+})
 
 const pageTitles: Record<string, string> = {
   '/events': 'Events',

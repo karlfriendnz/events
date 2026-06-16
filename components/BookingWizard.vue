@@ -488,7 +488,9 @@
                 <span class="text-sm font-medium text-gray-500">{{ pageCalTitle }}</span>
                 <div class="flex items-center gap-0.5">
                   <button type="button"
-                    class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500"
+                    :disabled="pageNavPrevDisabled"
+                    class="w-7 h-7 flex items-center justify-center rounded text-gray-500 disabled:opacity-30 disabled:cursor-not-allowed"
+                    :class="pageNavPrevDisabled ? '' : 'hover:bg-gray-100'"
                     @click="pageNavPrev">
                     <i class="pi pi-chevron-left text-xs" />
                   </button>
@@ -595,62 +597,65 @@
 
           <!-- ── STEP 5: Details ── -->
           <div v-if="step === 5" class="space-y-5">
-            <div>
-              <h2 class="text-lg font-semibold text-gray-900">Your details</h2>
-              <p class="text-sm text-gray-500 mt-1">We'll use these to confirm your booking.</p>
+            <!-- Auth panel: shown until the user picks a path. Same
+                 reusable chooser used by ItemBooker / BookingScheduler so
+                 every booking flow has one consistent registration entry
+                 point (member pick / guest / OTP / password / app). -->
+            <div v-if="detailsPanel === 'auth'" class="bg-white rounded-xl border border-gray-200 p-5">
+              <BookingAuthChooser ref="authChooserRef"
+                :org-id="orgId"
+                :staff="staff"
+                :can-go-back="true"
+                :guest-label="staff ? 'Type member details' : 'Continue as guest'"
+                :guest-description="staff ? 'Fill in the member\'s name and email.' : 'Just fill in a quick form.'"
+                title="How would you like to book?"
+                subtitle="Sign in for faster checkout, or carry on as a guest."
+                @back="step = hasAddons ? 4 : 3"
+                @select-guest="detailsPanel = 'form'"
+                @signed-in="onWizardSignedIn" />
             </div>
 
-            <!-- Staff: link to event -->
-            <div v-if="staff" class="bg-white rounded-xl border border-gray-200 p-5">
-              <label class="text-sm font-semibold text-gray-700 block mb-1.5">
-                Link to event <span class="text-gray-400 font-normal">(optional)</span>
-              </label>
-              <Select v-model="booking.eventId" :options="events" option-label="title" option-value="id"
-                placeholder="Select an event…" filter show-clear class="w-full" />
-            </div>
-
-            <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-              <div class="grid grid-cols-2 gap-4">
-                <div v-for="f in effectiveFormFields.filter(isFieldVisible)" :key="f.id" class="flex flex-col gap-1.5"
-                  :class="f._col_span === 1 ? 'col-span-1' : 'col-span-2'">
-                  <label class="text-sm font-medium text-gray-700">
-                    {{ f.label }}
-                    <span v-if="f.is_required" class="text-red-400">*</span>
-                  </label>
-                  <input v-if="['SHORT_TEXT','NUMBER','DATE'].includes(f.field_type)"
-                    v-model="formAnswers[f.id]"
-                    :type="f.field_type === 'NUMBER' ? 'number' : f.field_type === 'DATE' ? 'date' : (f._core === 'email' ? 'email' : f._core === 'phone' ? 'tel' : 'text')"
-                    :placeholder="f.placeholder ?? ''"
-                    :min="f._core === 'attendees' ? (currentActivityMode?.min_people ?? 1) : undefined"
-                    :max="f._core === 'attendees' ? (currentActivityMode?.max_people ?? undefined) : undefined"
-                    class="h-9 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1E2157]/30 focus:border-[#1E2157]" />
-                  <textarea v-else-if="f.field_type === 'LONG_TEXT'" v-model="formAnswers[f.id]" rows="3" :placeholder="f.placeholder ?? ''"
-                    class="rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1E2157]/30 focus:border-[#1E2157]" />
-                  <select v-else-if="f.field_type === 'SINGLE_SELECT'" v-model="formAnswers[f.id]"
-                    class="h-9 rounded-lg border border-gray-300 px-3 text-sm">
-                    <option value="">—</option>
-                    <option v-for="opt in f._options" :key="opt" :value="opt">{{ opt }}</option>
-                  </select>
-                  <label v-else-if="f.field_type === 'TOGGLE'" class="flex items-center gap-2 text-sm">
-                    <input type="checkbox" v-model="formAnswers[f.id]" class="rounded border-gray-300" />
-                    {{ f.placeholder || 'Yes' }}
-                  </label>
-                  <input v-else-if="f.field_type === 'FILE'" type="file" @change="(e: any) => formAnswers[f.id] = e.target.files?.[0]?.name ?? ''"
-                    class="text-sm" />
-                  <p v-if="f.help_text" class="text-xs text-gray-400">{{ f.help_text }}</p>
-                  <p v-else-if="f._core === 'attendees' && (currentActivityMode?.min_people || currentActivityMode?.max_people)" class="text-xs text-gray-400">
-                    <template v-if="currentActivityMode?.min_people && currentActivityMode?.max_people">
-                      {{ currentActivityMode.min_people }}–{{ currentActivityMode.max_people }} for "{{ currentActivityMode.name }}"
-                    </template>
-                    <template v-else-if="currentActivityMode?.min_people">
-                      Min {{ currentActivityMode.min_people }} for "{{ currentActivityMode.name }}"
-                    </template>
-                    <template v-else>
-                      Up to {{ currentActivityMode.max_people }} for "{{ currentActivityMode.name }}"
-                    </template>
-                  </p>
+            <template v-else>
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <h2 class="text-lg font-semibold text-gray-900">Your details</h2>
+                  <p class="text-sm text-gray-500 mt-1">We'll use these to confirm your booking.</p>
                 </div>
+                <button type="button"
+                  class="text-xs font-semibold text-gray-400 hover:text-gray-600 transition-colors"
+                  @click="backToWizardAuth">
+                  Change
+                </button>
               </div>
+
+              <div v-if="signedInEmail"
+                class="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 flex items-center gap-2">
+                <i class="pi pi-check-circle text-emerald-600 text-sm" />
+                <p class="text-xs text-emerald-700">Signed in as <span class="font-semibold">{{ signedInEmail }}</span></p>
+              </div>
+
+              <!-- Staff: link to event -->
+              <div v-if="staff" class="bg-white rounded-xl border border-gray-200 p-5">
+                <label class="text-sm font-semibold text-gray-700 block mb-1.5">
+                  Link to event <span class="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <Select v-model="booking.eventId" :options="events" option-label="title" option-value="id"
+                  placeholder="Select an event…" filter show-clear class="w-full" />
+              </div>
+
+              <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+              <!-- Form rendering is owned by the shared <BookingFormFields>
+                   component so wizard / scheduler / item bookings all use
+                   the same code path. We mirror its emitted answers into
+                   our local formAnswers so the rest of the wizard logic
+                   (financial rules, per-person fees, validation) still
+                   works against a flat id-keyed map. -->
+              <BookingFormFields
+                :form-id="effectiveFormId"
+                :org-fields-org-id="staffOrgId"
+                :prefill="formPrefill"
+                :hide-cores="hiddenFormCores"
+                @change="onFormFieldsChange" />
 
               <!-- Visitors: contextual to mode, not part of the form -->
               <div v-if="modeAllowsVisitors" class="flex flex-col gap-1.5 pt-3 border-t border-gray-100">
@@ -661,6 +666,62 @@
                   placeholder="e.g. 5"
                   class="h-9 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1E2157]/30 focus:border-[#1E2157]" />
                 <p v-if="currentActivityMode?.max_visitors" class="text-xs text-gray-400">Up to {{ currentActivityMode.max_visitors }} visitors</p>
+              </div>
+            </div>
+
+            <!-- Equipment: required items the mode bundles (locked) +
+                 optional items the mode lets customers add (editable).
+                 Both lists are mode-scoped — the org's whole item
+                 catalogue is intentionally NOT exposed here so a
+                 customer can't add a Lawn Mower to their birthday. -->
+            <div v-if="requiredItemsForCurrentMode.length || optionalItemsForCurrentMode.length"
+              class="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+              <div>
+                <p class="text-sm font-semibold text-gray-700">Equipment</p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  <span v-if="requiredItemsForCurrentMode.length && optionalItemsForCurrentMode.length">Locked rows are bundled with this booking; the rest is optional.</span>
+                  <span v-else-if="requiredItemsForCurrentMode.length">Bundled with this booking.</span>
+                  <span v-else>Optional extras you can add.</span>
+                </p>
+              </div>
+
+              <!-- Required (locked) -->
+              <div v-if="requiredItemsForCurrentMode.length"
+                class="rounded-lg bg-emerald-50/40 border border-emerald-100 px-3 py-2 divide-y divide-emerald-100/50">
+                <div v-for="r in requiredItemsForCurrentMode" :key="`req-${r.bookable_id}`"
+                  class="flex items-center gap-3 py-2">
+                  <i class="pi pi-lock text-emerald-600 text-xs shrink-0" />
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-900 truncate">{{ r.item?.name ?? 'Item' }}</p>
+                    <p class="text-[11px] text-emerald-700">
+                      <span v-if="r.price_override != null">${{ (r.price_override * r.quantity).toFixed(2) }}</span>
+                      <span v-else>Included with this booking</span>
+                    </p>
+                  </div>
+                  <span class="text-sm font-semibold text-gray-700 tabular-nums">× {{ r.quantity }}</span>
+                </div>
+              </div>
+
+              <!-- Optional (mode-scoped, editable) -->
+              <div v-if="optionalItemsForCurrentMode.length" class="divide-y divide-gray-100">
+                <div v-for="opt in optionalItemsForCurrentMode" :key="`opt-${opt.bookable_id}`"
+                  class="flex items-center gap-3 py-2.5">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-900 truncate">{{ opt.item?.name }}</p>
+                    <p class="text-[11px] text-gray-400">
+                      <span v-if="opt.price_override != null">${{ opt.price_override }} each</span>
+                      <span v-else>Free</span>
+                      <span v-if="opt.item?.max_concurrent"> · {{ opt.item.max_concurrent }} available</span>
+                    </p>
+                  </div>
+                  <InputNumber :model-value="selectedItems[opt.bookable_id] ?? 0"
+                    :min="0"
+                    :max="opt.item?.max_concurrent ?? 999"
+                    show-buttons button-layout="horizontal"
+                    decrement-button-class="!h-8 !w-8" increment-button-class="!h-8 !w-8"
+                    input-class="!h-8 !w-12 !text-center !text-sm !font-semibold"
+                    @update:model-value="v => selectedItems[opt.bookable_id] = v ?? 0" />
+                </div>
               </div>
             </div>
 
@@ -690,6 +751,7 @@
                 :disabled="!booking.contactName.trim() || !booking.contactEmail.trim() || (hasPerPersonFees && !booking.attendeeCount) || formAnswersIncomplete"
                 @click="step = 6" style="background:#1E2157; border-color:#1E2157" />
             </div>
+            </template>
           </div>
 
           <!-- ── STEP 6: Review ── -->
@@ -941,6 +1003,11 @@ const props = defineProps<{
   staff?: boolean
   /** When set, skip the activity-picker step and pre-select this activity. */
   activityId?: string | null
+  /** When set together with `activityId`, also skip the mode-picker step
+   *  and pre-select this mode. Used by the booker's "By service" picker
+   *  so a customer who clicked "Coach Sarah · 30-min lesson" lands on
+   *  Resource without re-picking what they already chose. */
+  presetModeId?: string | null
   /** Show a back button on the first visible step that emits `back`.
    *  /book sets this true so the user can return to its activity picker.
    *  Direct embeds (deep-linked ?activityId=...) leave it off. */
@@ -1153,6 +1220,188 @@ function termsConsentSnapshot() {
   return modeFormTerms.value.map((t, i) => ({ label: t.label, agreed: !!termsAgreed[i], at: termsAgreed[i] ? new Date().toISOString() : null }))
 }
 const formAnswers = reactive<Record<string, any>>({})
+// Prefill values pushed into <BookingFormFields> when the user signs in
+// or otherwise has known contact details. Keyed by the same "core" names
+// the form fields use (first_name / last_name / email / phone / …).
+const formPrefill = ref<Record<string, string | number | null>>({})
+
+// ── Coach venue requirements + bundled equipment ─────────────────────────
+// Mode → list of bookable_ids the system tries to reserve alongside the
+// primary booking (e.g. coach + lane). First non-overlapping wins.
+const modeResourcesByMode = ref<Record<string, string[]>>({})
+
+// Mode → required items (bookable_id + qty + price_override). Auto-
+// reserved on every booking; rendered as locked rows in the Equipment
+// section. price_override is per-unit, multiplied by qty in the total.
+const modeRequiredItemsByMode = ref<Record<string, { bookable_id: string; quantity: number; price_override: number | null }[]>>({})
+
+// Mode → optional items. Customer picks 0..max; the per-unit price
+// from price_override (if any) flows into the total based on the
+// customer's chosen quantity, not the configured default qty.
+const modeOptionalItemsByMode = ref<Record<string, { bookable_id: string; quantity: number; price_override: number | null }[]>>({})
+
+// Required items for the currently picked mode, with the resolved item
+// metadata stitched in so the locked rows can render names + caps.
+const requiredItemsForCurrentMode = computed(() => {
+  const list = modeRequiredItemsByMode.value[booking.activityModeId ?? ''] ?? []
+  return list.map(r => ({
+    ...r,
+    item: availableItems.value.find(i => i.id === r.bookable_id),
+  }))
+})
+
+// Optional items for the currently picked mode, with item metadata.
+const optionalItemsForCurrentMode = computed(() => {
+  const list = modeOptionalItemsByMode.value[booking.activityModeId ?? ''] ?? []
+  return list
+    .map(r => ({ ...r, item: availableItems.value.find(i => i.id === r.bookable_id) }))
+    .filter(r => !!r.item)
+})
+
+// At submit time, walk the picked mode's resource list and find the first
+// venue that has no overlapping booking in [start, end]. Returns the
+// chosen id, null if no resources are required, or the magic
+// __NONE_AVAILABLE__ when every option is taken.
+async function resolveModeVenue(): Promise<string | null | '__NONE_AVAILABLE__'> {
+  const modeId = booking.activityModeId
+  if (!modeId) return null
+  const candidates = modeResourcesByMode.value[modeId] ?? []
+  if (!candidates.length) return null
+  const startIso = booking.startAt.toISOString()
+  const endIso = booking.endAt.toISOString()
+  // Pull every overlapping booking on the candidate venues in one query
+  // and resolve locally — cheaper than N queries for a small candidate set.
+  const { data } = await (db.from as any)('bookings')
+    .select('bookable_id')
+    .in('bookable_id', candidates)
+    .lt('start_at', endIso)
+    .gt('end_at', startIso)
+    .neq('status', 'CANCELLED')
+  const taken = new Set((data ?? []).map((r: any) => r.bookable_id))
+  const free = candidates.find(id => !taken.has(id))
+  return free ?? '__NONE_AVAILABLE__'
+}
+
+// Sum overlapping booking_items.quantity per item bookable for the
+// proposed window. If `(existing + requested) > max_concurrent` for any
+// item, return a friendly message; otherwise return null.
+async function checkItemAvailability(rows: { id: string; qty: number; item: any }[]): Promise<string | null> {
+  const ids = rows.map(r => r.id)
+  if (!ids.length) return null
+  const startIso = booking.startAt.toISOString()
+  const endIso = booking.endAt.toISOString()
+  // booking_items isn't time-aware on its own — the time window comes
+  // from the parent bookings row. Join via an inner select.
+  const { data } = await (db.from as any)('booking_items')
+    .select('bookable_id, quantity, booking:bookings!inner(start_at, end_at, status)')
+    .in('bookable_id', ids)
+  const usedByItem: Record<string, number> = {}
+  for (const r of (data ?? []) as any[]) {
+    const bk = r.booking
+    if (!bk || bk.status === 'CANCELLED') continue
+    if (new Date(bk.start_at) >= new Date(endIso)) continue
+    if (new Date(bk.end_at) <= new Date(startIso)) continue
+    usedByItem[r.bookable_id] = (usedByItem[r.bookable_id] ?? 0) + (r.quantity ?? 0)
+  }
+  for (const r of rows) {
+    const cap = r.item?.max_concurrent ?? null
+    if (cap == null) continue // unlimited
+    const used = usedByItem[r.id] ?? 0
+    if (used + r.qty > cap) {
+      const free = Math.max(0, cap - used)
+      return `${r.item?.name ?? 'Item'}: only ${free} free for that slot (you asked for ${r.qty}).`
+    }
+  }
+  return null
+}
+
+// ITEM bookables available to bundle with this booking (footballs, cones,
+// nets…). Loaded once in load(); the picker filters from this list.
+const availableItems = ref<{ id: string; name: string; max_concurrent: number | null }[]>([])
+
+// User-picked items: { bookable_id → quantity }. Empty = no equipment
+// reserved. Driven by the Equipment section in Step 5.
+const selectedItems = reactive<Record<string, number>>({})
+
+// Optional items the customer chose (selectedItems map) merged with the
+// mode's required items. Required wins on a tie via Map dedup so we
+// don't double-book the same bookable.
+const selectedItemRows = computed(() => {
+  const merged = new Map<string, { id: string; qty: number; item: any }>()
+  for (const [id, qty] of Object.entries(selectedItems)) {
+    if (qty > 0) merged.set(id, { id, qty, item: availableItems.value.find(i => i.id === id) })
+  }
+  for (const r of modeRequiredItemsByMode.value[booking.activityModeId ?? ''] ?? []) {
+    const existing = merged.get(r.bookable_id)
+    const item = availableItems.value.find(i => i.id === r.bookable_id)
+    // If the customer also picked the same item optionally, take the
+    // larger of the two quantities — required is a floor, not a cap.
+    merged.set(r.bookable_id, {
+      id: r.bookable_id,
+      qty: Math.max(r.quantity, existing?.qty ?? 0),
+      item,
+    })
+  }
+  return Array.from(merged.values())
+})
+
+// ── Step-5 auth gate ─────────────────────────────────────────────────────
+// The Details step opens with the reusable <BookingAuthChooser>. Once the
+// user picks "Continue as guest", signs in via OTP/password, or (staff
+// only) picks a member, we flip to the form view and prefill known
+// contact fields.
+const detailsPanel = ref<'auth' | 'form'>('auth')
+const signedInEmail = ref<string | null>(null)
+const authChooserRef = ref<{ reset: () => void } | null>(null)
+
+function onWizardSignedIn(payload: { email: string; firstName: string; lastName: string; phone: string | null }) {
+  signedInEmail.value = payload.email || null
+  formPrefill.value = {
+    first_name: payload.firstName ?? '',
+    last_name:  payload.lastName  ?? '',
+    email:      payload.email     ?? '',
+    phone:      payload.phone     ?? '',
+  }
+  // Mirror to the legacy `booking` object the wizard's submit/review code
+  // already reads from. Keeps existing logic untouched.
+  if (payload.email)     booking.contactEmail = payload.email
+  if (payload.firstName || payload.lastName) {
+    booking.contactName = [payload.firstName, payload.lastName].filter(Boolean).join(' ').trim()
+  }
+  if (payload.phone)     booking.contactPhone = payload.phone
+  detailsPanel.value = 'form'
+}
+
+function backToWizardAuth() {
+  signedInEmail.value = null
+  formPrefill.value = {}
+  authChooserRef.value?.reset()
+  detailsPanel.value = 'auth'
+}
+
+// Hide the People Attending field unless the mode actually uses head
+// count — either it has min/max_people configured, or the user has
+// picked a per-person addon. Anything else and the field is noise.
+const hiddenFormCores = computed<string[]>(() => {
+  const mode = currentActivityMode.value
+  const modeNeedsCount = !!(mode?.min_people || mode?.max_people)
+  const addonNeedsCount = (booking.selectedAddons ?? []).some((a: any) =>
+    a?.type === 'fee_per_person' && (a.qty ?? 1) > 0,
+  )
+  return (modeNeedsCount || addonNeedsCount) ? [] : ['attendees']
+})
+
+// Keep our local `formAnswers` map in sync with the component's emitted
+// answers — downstream code (financial rules, per-person fee logic,
+// validation, submit payload) still reads this flat id-keyed object.
+function onFormFieldsChange(payload: { answers: Record<string, any> }) {
+  // Drop keys that no longer exist in the new payload (form swap), then
+  // copy the new ones in.
+  for (const k of Object.keys(formAnswers)) {
+    if (!(k in payload.answers)) delete formAnswers[k]
+  }
+  for (const [k, v] of Object.entries(payload.answers)) formAnswers[k] = v
+}
 
 const CORE_BY_LABEL: Record<string, string> = {
   'First Name': 'first_name', 'Last Name': 'last_name', 'Email Address': 'email',
@@ -1415,6 +1664,22 @@ const invoiceLines = computed<InvoiceLine[]>(() => {
     }
   }
 
+  // Equipment: required (always) + optional (when picked qty > 0). Each
+  // gets its own invoice line so the customer sees the breakdown. The
+  // per-unit price comes from activity_mode_required_items.price_override
+  // (set on the mode editor); null = free.
+  for (const r of selectedItemRows.value) {
+    const cfgPrice = priceForItem(r.id, r.qty)
+    if (!cfgPrice) continue
+    lines.push({
+      label: `${r.item?.name ?? 'Item'}${r.qty > 1 ? ` × ${r.qty}` : ''}`,
+      qty: r.qty,
+      unit: '',
+      unitPrice: cfgPrice.unit,
+      total: cfgPrice.total,
+    })
+  }
+
   // Financial rules from the form's Advanced tab (per-field, condition-driven).
   for (const adj of financialAdjustments.value) {
     const sign = adj.type === 'discount' ? -1 : 1
@@ -1429,6 +1694,17 @@ const invoiceLines = computed<InvoiceLine[]>(() => {
 
   return lines
 })
+
+// Look up the configured per-unit price for a given item on the
+// currently-picked mode. Returns null when no price was set (free).
+function priceForItem(bookableId: string, qty: number): { unit: number; total: number } | null {
+  const required = modeRequiredItemsByMode.value[booking.activityModeId ?? ''] ?? []
+  const optional = modeOptionalItemsByMode.value[booking.activityModeId ?? ''] ?? []
+  const row = required.find(r => r.bookable_id === bookableId)
+       ?? optional.find(r => r.bookable_id === bookableId)
+  if (!row || row.price_override == null) return null
+  return { unit: row.price_override, total: row.price_override * qty }
+}
 
 const invoiceSubtotal = computed(() => invoiceLines.value.reduce((s, l) => s + l.total, 0))
 
@@ -1634,7 +1910,30 @@ const pageCalTitle = computed(() => {
   return pageCalDate.value.toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 })
 
+// True when the current calendar window is already at (or before) the
+// current month/week/day — the booker can't pick anything before today,
+// so the back button is disabled when this is true.
+const pageNavPrevDisabled = computed(() => {
+  const d = pageCalDate.value
+  const now = new Date()
+  const v = pageCalView.value
+  if (v === 'month' || v === 'list') {
+    return d.getFullYear() < now.getFullYear() ||
+      (d.getFullYear() === now.getFullYear() && d.getMonth() <= now.getMonth())
+  }
+  if (v === 'week') {
+    const dow = (d.getDay() + 6) % 7
+    const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow)
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    return monday.getTime() <= today.getTime()
+  }
+  return d.getFullYear() < now.getFullYear() ||
+    (d.getFullYear() === now.getFullYear() && d.getMonth() < now.getMonth()) ||
+    (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() <= now.getDate())
+})
+
 function pageNavPrev() {
+  if (pageNavPrevDisabled.value) return
   const d = new Date(pageCalDate.value)
   const v = pageCalView.value
   if (v === 'month' || v === 'list') d.setMonth(d.getMonth() - 1)
@@ -1845,6 +2144,53 @@ async function load() {
       actMap[row.activity_id].add(row.bookable_id)
     }
     activityBookableIds.value = actMap
+
+    // Coach-mode venue requirements: when set, the system reserves one
+    // venue from this list alongside the coach at submit time.
+    const modeIds = (amData ?? []).map((m: any) => m.id)
+    if (modeIds.length) {
+      const [{ data: rData }, { data: reqItemData }] = await Promise.all([
+        (db.from as any)('activity_mode_resources')
+          .select('mode_id, bookable_id, sort_order')
+          .in('mode_id', modeIds)
+          .order('sort_order'),
+        (db.from as any)('activity_mode_required_items')
+          .select('mode_id, bookable_id, quantity, sort_order, is_optional, price_override')
+          .in('mode_id', modeIds)
+          .order('sort_order'),
+      ])
+      const resByMode: Record<string, string[]> = {}
+      for (const r of rData ?? []) {
+        if (!resByMode[r.mode_id]) resByMode[r.mode_id] = []
+        resByMode[r.mode_id].push(r.bookable_id)
+      }
+      modeResourcesByMode.value = resByMode
+
+      // Split into required (auto-included) and optional (customer-pickable).
+      const reqByMode: Record<string, { bookable_id: string; quantity: number; price_override: number | null }[]> = {}
+      const optByMode: Record<string, { bookable_id: string; quantity: number; price_override: number | null }[]> = {}
+      for (const r of reqItemData ?? []) {
+        const target = r.is_optional ? optByMode : reqByMode
+        if (!target[r.mode_id]) target[r.mode_id] = []
+        target[r.mode_id].push({
+          bookable_id: r.bookable_id,
+          quantity: r.quantity,
+          price_override: r.price_override != null ? Number(r.price_override) : null,
+        })
+      }
+      modeRequiredItemsByMode.value = reqByMode
+      modeOptionalItemsByMode.value = optByMode
+    }
+
+    // ITEM bookables (footballs, cones, …) for the Equipment picker.
+    // Pull every active item in the org — small fixed inventory.
+    const { data: itemData } = await (db.from as any)('bookables')
+      .select('id, name, max_concurrent')
+      .eq('org_id', queryOrgId.value)
+      .eq('type', 'ITEM')
+      .eq('status', 'ACTIVE')
+      .order('name')
+    availableItems.value = itemData ?? []
   }
 
   bookables.value = bData ?? []
@@ -1909,6 +2255,24 @@ async function handleSubmit() {
     }
 
     if (props.staff) {
+      // Pre-flight: resolve a venue if the picked mode requires one
+      // (coach modes), and verify item inventory.
+      const resolvedVenueId = await resolveModeVenue()
+      if (resolvedVenueId === '__NONE_AVAILABLE__') {
+        toast.add({ severity: 'error', summary: 'No venue available', detail: 'Every venue this mode needs is already booked for that time.', life: 4000 })
+        submitting.value = false
+        return
+      }
+      const itemRowsToInsert = selectedItemRows.value
+      if (itemRowsToInsert.length) {
+        const itemIssue = await checkItemAvailability(itemRowsToInsert)
+        if (itemIssue) {
+          toast.add({ severity: 'error', summary: 'Not enough equipment', detail: itemIssue, life: 4000 })
+          submitting.value = false
+          return
+        }
+      }
+
       // Staff: direct DB insert (auth enforced server-side via RLS), supports event_id.
       // bookings has no org_id — it's derived through bookable_id.
       const { data: bookingRow, error } = await (db.from as any)('bookings').insert({
@@ -1937,6 +2301,37 @@ async function handleSubmit() {
         },
       }).select('id').single()
       if (error) throw error
+
+      // Child booking on the venue resolved above (e.g. coach + lane).
+      // parent_booking_id ties them together; both calendars block.
+      if (resolvedVenueId && bookingRow?.id) {
+        await (db.from as any)('bookings').insert({
+          bookable_id: resolvedVenueId,
+          activity_id: booking.activityId || null,
+          activity_mode_id: booking.activityModeId || null,
+          parent_booking_id: bookingRow.id,
+          type: 'ONE_OFF',
+          status: currentActivityMode.value?.approval_mode === 'REQUIRES_APPROVAL' ? 'PENDING' : 'CONFIRMED',
+          start_at: booking.startAt.toISOString(),
+          end_at: booking.endAt.toISOString(),
+          contact_name: booking.contactName,
+          contact_email: booking.contactEmail,
+          notes: `via ${currentActivityMode.value?.name ?? 'mode'}`,
+          is_all_day: false,
+        })
+      }
+
+      // Equipment rows. Fungible — one row per item type with a quantity.
+      if (itemRowsToInsert.length && bookingRow?.id) {
+        await (db.from as any)('booking_items').insert(
+          itemRowsToInsert.map((r, i) => ({
+            booking_id: bookingRow.id,
+            bookable_id: r.id,
+            quantity: r.qty,
+            sort_order: i,
+          })),
+        )
+      }
       // Mirror the public-booking notification path.
       const isPending = currentActivityMode.value?.approval_mode === 'REQUIRES_APPROVAL'
       const { data: notif } = await (db.from as any)('notifications').insert({
@@ -1957,6 +2352,9 @@ async function handleSubmit() {
       }
       if (bookingRow?.id) {
         $fetch('/api/send-customer-booking-email', { method: 'POST', body: { bookingId: bookingRow.id, event: 'created' } }).catch(() => {})
+        if (!isPending) {
+          $fetch('/api/finalize-access', { method: 'POST', body: { bookingId: bookingRow.id } }).catch(() => {})
+        }
       }
       bookedStatus.value = currentActivityMode.value?.approval_mode === 'REQUIRES_APPROVAL' ? 'PENDING' : 'CONFIRMED'
       bookedId.value = bookingRow?.id ?? null
@@ -2025,7 +2423,22 @@ onMounted(async () => {
   // when there's exactly one linked venue).
   if (props.activityId) {
     const act = activities.value.find(a => a.id === props.activityId)
-    if (act) { selectActivity(act); afterActivity() }
+    if (act) {
+      selectActivity(act)
+      // Caller pre-selected a mode too (booker's "By service" picker)
+      // — apply it, then walk straight to the Resource step.
+      if (props.presetModeId) {
+        const mode = availableModes.value.find(m => m.id === props.presetModeId)
+        if (mode) {
+          selectMode(mode)
+          proceedToResource()
+        } else {
+          afterActivity()
+        }
+      } else {
+        afterActivity()
+      }
+    }
   }
   try { activeDiscounts.value = await loadActiveDiscounts() } catch { activeDiscounts.value = [] }
 })
