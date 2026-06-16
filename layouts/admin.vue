@@ -1,12 +1,18 @@
 <!--
-  Full-screen super-admin platform console. Distinct chrome from the club app
-  (no club sidebar) so the cross-org "All Organisations" area feels like a
-  separate platform. Used by /admin/* pages via definePageMeta({ layout: 'admin' }).
+  Full-screen super-admin platform console with a light-blue left navigation.
+  Distinct from the club app (no club chrome). Used by /admin/* pages via
+  definePageMeta({ layout: 'admin' }).
 -->
 <script setup lang="ts">
 const user = useSupabaseUser()
 const db = useSupabaseClient()
+const route = useRoute()
 const email = computed(() => user.value?.email ?? '')
+
+const navItems = [
+  { to: '/admin', label: 'Organisations', icon: 'pi-building' },
+  { to: '/admin/disciplines', label: 'Disciplines', icon: 'pi-tags' },
+]
 
 async function logout() {
   await db.auth.signOut()
@@ -15,27 +21,30 @@ async function logout() {
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col bg-gray-50">
-    <header class="h-14 shrink-0 bg-[#1E2157] text-white flex items-center px-6 gap-5 z-10">
-      <div class="flex items-center gap-2 font-semibold whitespace-nowrap">
-        <i class="pi pi-sitemap" />
-        FriendlyManager
-        <span class="opacity-60 font-normal hidden sm:inline">· Platform Admin</span>
+  <div class="min-h-screen flex bg-gray-50">
+    <!-- Light-blue left nav -->
+    <aside class="w-60 shrink-0 bg-[#DCEBFB] border-r border-[#BBD4F0] flex flex-col">
+      <div class="px-5 py-4 flex items-center gap-2 text-[#1E2157] font-semibold border-b border-white/60">
+        <i class="pi pi-sitemap" /> FriendlyManager
       </div>
-      <nav class="flex items-center gap-1 text-sm">
-        <NuxtLink to="/admin"
-          class="px-3 py-1.5 rounded-md hover:bg-white/10 transition-colors"
-          active-class="bg-white/15">Organisations</NuxtLink>
-        <!-- Extend: Plans · Platform Users · Billing · Audit … -->
+      <p class="px-5 pt-3 pb-1 text-[10px] uppercase tracking-wider text-[#1E2157]/50">Platform Admin</p>
+      <nav class="flex-1 px-2 space-y-0.5">
+        <NuxtLink v-for="item in navItems" :key="item.to" :to="item.to"
+          class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors"
+          :class="route.path === item.to
+            ? 'bg-white shadow-sm font-medium text-[#1E2157]'
+            : 'text-[#1E2157]/80 hover:bg-white/70'">
+          <i :class="['pi', item.icon, 'text-sm']" />
+          {{ item.label }}
+        </NuxtLink>
       </nav>
-      <div class="flex-1" />
-      <span class="text-xs opacity-80 hidden md:inline">{{ email }}</span>
-      <button type="button"
-        class="text-xs px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 transition-colors"
-        @click="logout">
-        <i class="pi pi-sign-out mr-1" />Sign out
-      </button>
-    </header>
+      <div class="p-3 border-t border-white/60 text-xs text-[#1E2157]/80">
+        <div class="truncate mb-1 font-medium">{{ email }}</div>
+        <button type="button" class="hover:underline" @click="logout">
+          <i class="pi pi-sign-out mr-1" />Sign out
+        </button>
+      </div>
+    </aside>
 
     <main class="flex-1 overflow-y-auto">
       <slot />

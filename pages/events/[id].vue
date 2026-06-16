@@ -190,6 +190,12 @@
             @new-category="showNewCategoryDialog = true"
           />
 
+          <!-- Disciplines (NSO mapping) -->
+          <div v-if="id" class="bg-white rounded-xl border border-gray-200 p-5">
+            <h3 class="text-sm font-semibold text-gray-800 mb-2">Disciplines</h3>
+            <DisciplineLinker entity-type="event" :entity-id="id" />
+          </div>
+
           <!-- Child-of-series banner -->
           <div v-if="event?.recurrence_parent_id"
             class="bg-[#EFF6FF] rounded-xl border border-[#1E2157]/20 px-6 py-3 flex items-center gap-3">
@@ -2907,6 +2913,62 @@
               </div>
             </div>
 
+          </div>
+
+          <!-- Per-session breakdown — people + revenue, one row per session -->
+          <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
+            <div class="flex items-center justify-between mb-3">
+              <h3 class="text-sm font-semibold text-gray-700">Sessions breakdown</h3>
+              <span class="text-[10px] text-gray-400">Revenue split evenly across each registration's sessions</span>
+            </div>
+            <div v-if="!reportingSessionBreakdown.length" class="text-sm text-gray-400 italic">No session enrolments recorded</div>
+            <table v-else class="w-full text-sm">
+              <thead>
+                <tr class="text-xs text-gray-400 border-b border-gray-100">
+                  <th class="text-left pb-2 font-medium">Session</th>
+                  <th class="text-right pb-2 font-medium">Confirmed</th>
+                  <th class="text-right pb-2 font-medium">Cancelled</th>
+                  <th class="text-right pb-2 font-medium">Checked in</th>
+                  <th class="text-right pb-2 font-medium">Capacity</th>
+                  <th class="text-right pb-2 font-medium">Revenue</th>
+                  <th class="text-right pb-2 font-medium">Paid</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in reportingSessionBreakdown" :key="row.id"
+                  class="border-b border-gray-50 last:border-0">
+                  <td class="py-2 pr-3">
+                    <p class="text-gray-800 font-medium">{{ row.title }}</p>
+                    <p v-if="row.start_at" class="text-[11px] text-gray-400">
+                      {{ new Date(row.start_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true }) }}
+                    </p>
+                  </td>
+                  <td class="py-2 pr-3 text-right text-gray-800">{{ row.confirmed }}</td>
+                  <td class="py-2 pr-3 text-right text-gray-400">{{ row.cancelled || '—' }}</td>
+                  <td class="py-2 pr-3 text-right text-gray-700">
+                    <span v-if="row.checkedIn">{{ row.checkedIn }}</span>
+                    <span v-else class="text-gray-300">—</span>
+                  </td>
+                  <td class="py-2 pr-3 text-right text-gray-400 text-xs">
+                    <span v-if="row.capacity">{{ row.confirmed }} / {{ row.capacity }}</span>
+                    <span v-else>—</span>
+                  </td>
+                  <td class="py-2 pr-3 text-right text-gray-800">${{ row.revenue.toFixed(2) }}</td>
+                  <td class="py-2 text-right text-gray-700">${{ row.paid.toFixed(2) }}</td>
+                </tr>
+              </tbody>
+              <tfoot v-if="reportingSessionBreakdown.length > 1">
+                <tr class="font-semibold text-gray-700 border-t border-gray-200">
+                  <td class="pt-3 pr-3">Total</td>
+                  <td class="pt-3 pr-3 text-right">{{ reportingSessionBreakdown.reduce((s, r) => s + r.confirmed, 0) }}</td>
+                  <td class="pt-3 pr-3 text-right">{{ reportingSessionBreakdown.reduce((s, r) => s + r.cancelled, 0) || '—' }}</td>
+                  <td class="pt-3 pr-3 text-right">{{ reportingSessionBreakdown.reduce((s, r) => s + r.checkedIn, 0) || '—' }}</td>
+                  <td class="pt-3 pr-3 text-right text-gray-300">—</td>
+                  <td class="pt-3 pr-3 text-right">${{ reportingSessionBreakdown.reduce((s, r) => s + r.revenue, 0).toFixed(2) }}</td>
+                  <td class="pt-3 text-right">${{ reportingSessionBreakdown.reduce((s, r) => s + r.paid, 0).toFixed(2) }}</td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
 
           <!-- Recent registrations -->
@@ -6028,6 +6090,12 @@ const CONDITION_DEFS: Record<string, { label: string; group: string; operators: 
   usage_limit_per_discount:                 { label: 'Total uses cap',                   group: 'Limits',        operators: ['<=', '<'],            valueType: 'number' },
   usage_limit_per_participant:              { label: 'Per-person uses cap',              group: 'Limits',        operators: ['<=', '<'],            valueType: 'number' },
   combinable_with_other_discounts:          { label: 'Combinable with other discounts',  group: 'Limits',        operators: ['is_true', 'is_false'], valueType: 'boolean'},
+  // Cross-event eligibility — "if this person is already registered
+  // for one of these events, give them the discount". Powers the
+  // 'book this AND that → save' loyalty pattern. Stored as an array
+  // of event ids in cond.value; evaluated at registration time
+  // against the registrations table.
+  registered_for_event:                     { label: 'Already registered for',           group: 'Cross-event',   operators: ['in', 'in_all'],       valueType: 'event_array' },
 }
 
 const OPERATOR_LABELS: Record<string, string> = {
@@ -6269,6 +6337,13 @@ const reportingStats = ref({
 })
 const reportingSessionRows = ref<any[]>([])
 const reportingRecentRegistrations = ref<any[]>([])
+// Full per-session breakdown — confirmed/pending/cancelled/waitlisted/
+// checked-in counts, plus allocated revenue. Revenue is allocated by
+// even-split: each registration's total_amount is divided across the
+// number of CONFIRMED sessions it covers, then summed per session.
+// Approximate (since per-session amounts aren't stored on the
+// registration_sessions junction), but stable and traceable.
+const reportingSessionBreakdown = ref<any[]>([])
 
 async function loadReporting() {
   if (reportingLoading.value) return
@@ -6309,6 +6384,55 @@ async function loadReporting() {
         }))
         .filter((r: any) => r.enrolled > 0)
         .sort((a: any, b: any) => b.enrolled - a.enrolled)
+
+      // Per-session breakdown — counts + allocated revenue. Each
+      // registration's total/paid amount is split evenly across the
+      // CONFIRMED sessions it covers; cancelled rows are excluded
+      // from revenue but still counted in the "cancelled" column.
+      const regsById: Record<string, any> = {}
+      for (const r of rows) regsById[r.id] = r
+      const confirmedCountByReg: Record<string, number> = {}
+      for (const rs of rsRows) {
+        if (rs.status !== 'CONFIRMED') continue
+        confirmedCountByReg[rs.registration_id] = (confirmedCountByReg[rs.registration_id] ?? 0) + 1
+      }
+      reportingSessionBreakdown.value = sessions.value
+        .filter((s: any) => s.id)
+        .map((s: any) => {
+          const links = rsRows.filter((r: any) => r.session_id === s.id)
+          let confirmed = 0
+          let cancelled = 0
+          let revenue = 0
+          let paid = 0
+          let checkedIn = 0
+          for (const rs of links) {
+            const reg = regsById[rs.registration_id]
+            if (rs.status === 'CANCELLED') { cancelled++; continue }
+            if (rs.status !== 'CONFIRMED' || !reg) continue
+            confirmed++
+            if (reg.checked_in_at) checkedIn++
+            if (reg.status === 'CANCELLED') continue
+            const split = confirmedCountByReg[rs.registration_id] || 1
+            revenue += Number(reg.total_amount ?? 0) / split
+            paid    += Number(reg.paid_amount  ?? 0) / split
+          }
+          return {
+            id: s.id,
+            title: s.title || 'Untitled session',
+            start_at: s.start_at,
+            confirmed,
+            cancelled,
+            checkedIn,
+            revenue,
+            paid,
+            capacity: s.capacity_max ?? null,
+          }
+        })
+        .sort((a: any, b: any) => {
+          const at = a.start_at ? new Date(a.start_at).getTime() : 0
+          const bt = b.start_at ? new Date(b.start_at).getTime() : 0
+          return at - bt
+        })
     }
     reportingLoaded.value = true
   } finally {
@@ -6569,7 +6693,12 @@ const activeSessionAttendanceMap = computed(() =>
 )
 
 function isAttendedForContext(inv: any) {
-  if (attendanceInSessionMode.value && selectedAttendanceSessionId.value) {
+  // When the event has sessions, attendance is ALWAYS per-session.
+  // Never fall through to the event-level `inv.attended` flag — it's
+  // legacy/stale data once sessions are in play, and reading from it
+  // makes sign-ins appear identical across sessions.
+  if (attendanceInSessionMode.value) {
+    if (!selectedAttendanceSessionId.value) return false
     return !!activeSessionAttendanceMap.value[inv.id]
   }
   return !!inv.attended
@@ -6578,14 +6707,29 @@ function isAttendedForContext(inv: any) {
 async function selectAttendanceSession(sessionId: string) {
   selectedAttendanceSessionId.value = sessionId
   if (!sessionAttendanceData.value[sessionId]) {
-    const { data } = await db.from('attendance').select('*').eq('session_id', sessionId)
+    // Live `attendance` schema is keyed on (person_id, session_id) and
+    // uses `attended` rather than the legacy `invitee_id`/`is_present`
+    // columns the migration file shows. We index the local map by
+    // invitee.id (still the row we render) but match rows back via
+    // their person_id.
+    const { data } = await db.from('attendance').select('*').eq('session_id', sessionId).eq('attended', true)
+    const personIdToRow: Record<string, any> = {}
+    for (const row of (data ?? [])) personIdToRow[row.person_id] = row
     const map: Record<string, any> = {}
-    for (const row of (data ?? [])) map[row.invitee_id] = row
+    for (const inv of invitees.value) {
+      if (inv.person_id && personIdToRow[inv.person_id]) {
+        map[inv.id] = personIdToRow[inv.person_id]
+      }
+    }
     sessionAttendanceData.value = { ...sessionAttendanceData.value, [sessionId]: map }
   }
 }
 
 async function toggleSessionAttendance(inv: any, sessionId: string) {
+  if (!inv.person_id) {
+    toast.add({ severity: 'warn', summary: 'No member linked', detail: 'This invitee has no person record, so per-session attendance cannot be recorded.', life: 4000 })
+    return
+  }
   const map = sessionAttendanceData.value[sessionId] ?? {}
   if (map[inv.id]) {
     await db.from('attendance').delete().eq('id', map[inv.id].id)
@@ -6593,9 +6737,16 @@ async function toggleSessionAttendance(inv: any, sessionId: string) {
     delete updated[inv.id]
     sessionAttendanceData.value = { ...sessionAttendanceData.value, [sessionId]: updated }
   } else {
+    // Live schema: (person_id, session_id, event_id, attended). The
+    // table has no unique constraint we can ON CONFLICT against, so we
+    // do a plain insert. The earlier delete branch keeps duplicates
+    // from accumulating.
     const { data } = await db.from('attendance').insert({
-      invitee_id: inv.id, session_id: sessionId, is_present: true, checked_in_at: new Date().toISOString(),
-    }).select().single()
+      person_id: inv.person_id,
+      session_id: sessionId,
+      event_id: id,
+      attended: true,
+    } as any).select().single()
     if (data) sessionAttendanceData.value = { ...sessionAttendanceData.value, [sessionId]: { ...map, [inv.id]: data } }
   }
 }
@@ -6670,10 +6821,45 @@ async function toggleSignOut(inv: any) {
 }
 
 async function markSelectedIn() {
-  await Promise.all(
-    attendanceSelected.value.map(invId => db.from('invitees').update({ attended: true }).eq('id', invId))
-  )
-  invitees.value.forEach(i => { if (attendanceSelected.value.includes(i.id)) i.attended = true })
+  // When a session is selected, bulk sign-in must go to the
+  // per-session `attendance` table — otherwise it falls through to
+  // the event-level `invitees.attended` flag and appears as "signed
+  // in for every session". Skips invitees already marked in for the
+  // current session so the unique (invitee_id, session_id) constraint
+  // doesn't fire.
+  if (attendanceInSessionMode.value && selectedAttendanceSessionId.value) {
+    const sid = selectedAttendanceSessionId.value
+    const map = sessionAttendanceData.value[sid] ?? {}
+    const inviteesById: Record<string, any> = {}
+    for (const i of invitees.value) inviteesById[i.id] = i
+    const toInsert = attendanceSelected.value
+      .filter(id => !map[id])
+      .map(id => inviteesById[id])
+      .filter((inv: any) => inv?.person_id)
+    if (toInsert.length) {
+      const { data } = await db.from('attendance').insert(
+        toInsert.map((inv: any) => ({
+          person_id: inv.person_id,
+          session_id: sid,
+          event_id: id,
+          attended: true,
+        })),
+      ).select()
+      const next = { ...map }
+      const personIdToInviteeId: Record<string, string> = {}
+      for (const inv of invitees.value) if (inv.person_id) personIdToInviteeId[inv.person_id] = inv.id
+      for (const row of (data ?? [])) {
+        const invId = personIdToInviteeId[row.person_id]
+        if (invId) next[invId] = row
+      }
+      sessionAttendanceData.value = { ...sessionAttendanceData.value, [sid]: next }
+    }
+  } else {
+    await Promise.all(
+      attendanceSelected.value.map(invId => db.from('invitees').update({ attended: true }).eq('id', invId))
+    )
+    invitees.value.forEach(i => { if (attendanceSelected.value.includes(i.id)) i.attended = true })
+  }
   attendanceSelected.value = []
   attendanceSelectAll.value = false
 }
@@ -7365,6 +7551,9 @@ async function loadSessions() {
     await nextTick()
     _suppressAutoSave = false
   }
+  // Sessions just loaded — clean up any stale event-level attendance
+  // flags now that we know we're in session mode. Idempotent.
+  if (invitees.value.length) await cleanupLegacyEventLevelAttendance()
 }
 
 function buildSessionPayload(s: any, idx: number) {
@@ -7693,6 +7882,27 @@ async function loadInvitees() {
   }
   inviteeGroupMap.value = map
   inviteesLoading.value = false
+  // Once sessions exist, attendance lives entirely in the per-session
+  // `attendance` table. Wipe the legacy event-level `attended` flag
+  // from local state so it can't bleed into the session-mode UI even
+  // if the column still has stale `true` values in the DB from before
+  // the per-session system landed.
+  await cleanupLegacyEventLevelAttendance()
+}
+
+// Clears `inv.attended=true` rows on the server when sessions exist,
+// so the event-level flag doesn't paint stale ticks across sessions.
+// Runs once per load — idempotent if there's nothing to clear.
+async function cleanupLegacyEventLevelAttendance() {
+  if (!sessions.value.length) {
+    // Sessions not loaded yet; will be retried after loadSessions.
+    return
+  }
+  if (!attendanceInSessionMode.value) return
+  const stale = invitees.value.filter((i: any) => i.attended)
+  if (!stale.length) return
+  await db.from('invitees').update({ attended: false } as any).in('id', stale.map((i: any) => i.id))
+  for (const i of stale) i.attended = false
 }
 
 async function loadFees() {
@@ -8039,9 +8249,17 @@ async function setInviteeStatus(inviteeId: string, status: string) {
 }
 
 async function toggleAttendance(inv: any) {
-  if (attendanceInSessionMode.value && selectedAttendanceSessionId.value) {
-    await toggleSessionAttendance(inv, selectedAttendanceSessionId.value)
-    return
+  // In session mode, attendance is always per-session. Auto-select
+  // the first session when nothing's picked yet so a bare toggle
+  // doesn't accidentally fall through to the event-level flag.
+  if (attendanceInSessionMode.value) {
+    if (!selectedAttendanceSessionId.value) {
+      await selectAttendanceSession(attendanceSessions.value[0].id)
+    }
+    if (selectedAttendanceSessionId.value) {
+      await toggleSessionAttendance(inv, selectedAttendanceSessionId.value)
+      return
+    }
   }
   const newVal = !inv.attended
   await db.from('invitees').update({ attended: newVal }).eq('id', inv.id)
@@ -8158,6 +8376,20 @@ onMounted(async () => {
   if (activeTab.value === 'sessions' || activeTab.value === 'forms') loadSessions()
   if (activeTab.value === 'discounts' || activeTab.value === 'forms') loadDiscounts()
   if (activeTab.value === 'forms') loadEvtFormConfig()
+  // Direct URL landing on the attendance tab — load sessions and auto-
+  // select the first one so toggling checkboxes records per-session
+  // attendance instead of falling through to the event-level flag.
+  if (activeTab.value === 'attendance') {
+    if (!sessions.value.length) {
+      loadSessions().then(() => {
+        if (!selectedAttendanceSessionId.value && attendanceSessions.value.length) {
+          selectAttendanceSession(attendanceSessions.value[0].id)
+        }
+      })
+    } else if (!selectedAttendanceSessionId.value && attendanceSessions.value.length) {
+      selectAttendanceSession(attendanceSessions.value[0].id)
+    }
+  }
 
   // Apply query-param date prefill and persist to DB
   if (route.query.date) {
