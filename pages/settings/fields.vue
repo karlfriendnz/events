@@ -20,11 +20,13 @@ const SUBJECTS = [
   { label: 'Discipline', value: 'discipline' },
   { label: 'Registrant age', value: 'age' },
   { label: 'Gender', value: 'gender' },
+  { label: 'Another field', value: 'field' },
 ]
 const OPS: Record<string, { label: string; value: string }[]> = {
   discipline: [{ label: 'is', value: 'is' }, { label: 'is not', value: 'is_not' }],
   age: [{ label: 'is under', value: 'lt' }, { label: 'is at most', value: 'lte' }, { label: 'is over', value: 'gt' }, { label: 'is at least', value: 'gte' }],
   gender: [{ label: 'is', value: 'is' }, { label: 'is not', value: 'is_not' }],
+  field: [{ label: 'is filled in', value: 'is_set' }, { label: 'is', value: 'is' }, { label: 'is not', value: 'is_not' }],
 }
 const GENDERS = ['MALE', 'FEMALE', 'NON_BINARY']
 
@@ -64,8 +66,11 @@ function startEdit(f: any) {
     rules: JSON.parse(JSON.stringify(f.rules || [])),
   }
 }
-function addRule() { editing.value.rules.push({ subject: 'discipline', op: 'is', value: null }) }
-function onSubject(r: any) { r.op = OPS[r.subject][0].value; r.value = r.subject === 'age' ? 16 : null }
+function addRule() { editing.value.rules.push({ subject: 'discipline', op: 'is', value: null, value2: '' }) }
+function onSubject(r: any) { r.op = OPS[r.subject][0].value; r.value = r.subject === 'age' ? 16 : null; r.value2 = '' }
+const fieldOptions = computed(() => [...own.value, ...inherited.value]
+  .filter(f => !editing.value || f.id !== editing.value.id)
+  .map(f => ({ id: f.id, label: f.label })))
 
 async function saveEdit() {
   const e = editing.value
@@ -125,6 +130,10 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
           <Select v-model="r.op" :options="OPS[r.subject]" option-label="label" option-value="value" class="w-32" />
           <Select v-if="r.subject === 'discipline'" v-model="r.value" :options="disciplines" option-label="label" option-value="id" filter placeholder="discipline" class="flex-1" />
           <Select v-else-if="r.subject === 'gender'" v-model="r.value" :options="GENDERS" placeholder="gender" class="flex-1" />
+          <template v-else-if="r.subject === 'field'">
+            <Select v-model="r.value" :options="fieldOptions" option-label="label" option-value="id" filter placeholder="field" class="flex-1" />
+            <InputText v-if="r.op === 'is' || r.op === 'is_not'" v-model="r.value2" placeholder="value" class="w-28" />
+          </template>
           <InputNumber v-else v-model="r.value" :min="0" :max="120" class="w-24" />
           <button class="text-gray-300 hover:text-red-500" @click="editing.rules.splice(i, 1)"><i class="pi pi-trash text-xs" /></button>
         </div>

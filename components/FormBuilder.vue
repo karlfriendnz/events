@@ -208,7 +208,7 @@
               <i class="pi pi-info-circle text-[11px]" />
               Drag fields onto the form or click <i class="pi pi-plus text-[10px]" />
             </p>
-            <div v-for="group in peopleFieldGroups" :key="group.label">
+            <div v-for="group in allFieldGroups" :key="group.label">
               <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 px-1">{{ group.label }}</p>
               <div class="space-y-0.5">
                 <div v-for="pf in group.fields" :key="pf.label"
@@ -618,6 +618,27 @@ const peopleFieldGroups = [
     ],
   },
 ]
+// Org field library (the field engine) surfaced in the palette so you can drag
+// your own + inherited NSO fields onto any form.
+const _fbOrg = useOrg()
+const { resolveFields: _fbResolveFields } = useOrgFieldPolicy()
+const orgDefs = ref<any[]>([])
+const PALETTE_ICON: Record<string, string> = { text: 'pi-font', textarea: 'pi-align-left', email: 'pi-envelope', phone: 'pi-phone', number: 'pi-hashtag', date: 'pi-calendar', select: 'pi-list', checkbox: 'pi-check-square' }
+const PALETTE_TYPE: Record<string, string> = { email: 'text', phone: 'text' }
+watch(() => _fbOrg.orgId.value, async (id) => {
+  orgDefs.value = id ? await _fbResolveFields(id) : []
+}, { immediate: true })
+const orgPaletteGroups = computed(() => {
+  const mapF = (d: any) => ({ label: d.label, type: PALETTE_TYPE[d.field_type] || d.field_type, icon: PALETTE_ICON[d.field_type] || 'pi-tag', options: d.options || [] })
+  const groups: any[] = []
+  const ownDefs = orgDefs.value.filter((d: any) => !d.inherited)
+  const inhDefs = orgDefs.value.filter((d: any) => d.inherited)
+  if (ownDefs.length) groups.push({ label: 'Organisation fields', fields: ownDefs.map(mapF) })
+  if (inhDefs.length) groups.push({ label: 'Inherited (NSO) fields', fields: inhDefs.map(mapF) })
+  return groups
+})
+const allFieldGroups = computed(() => [...orgPaletteGroups.value, ...peopleFieldGroups])
+
 function isFieldAdded(label: string) {
   return form.value.fields.some(f => f.label === label || (f.core && CORE_LABELS[f.core] === label))
 }
@@ -626,8 +647,8 @@ const CORE_LABELS: Record<string, string> = {
   attendees: 'People Attending', notes: 'Notes',
 }
 function findPeopleField(label: string) {
-  for (const g of peopleFieldGroups) {
-    const f = g.fields.find(x => x.label === label)
+  for (const g of allFieldGroups.value) {
+    const f = g.fields.find((x: any) => x.label === label)
     if (f) return f
   }
   return null
