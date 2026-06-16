@@ -11,7 +11,7 @@ const email = computed(() => user.value?.email ?? '')
 
 const navItems = [
   { to: '/admin', label: 'Organisations', icon: 'pi-building' },
-  { to: '/admin/disciplines', label: 'Disciplines', icon: 'pi-tags' },
+  { to: '/admin/permissions', label: 'Permission Templates', icon: 'pi-lock' },
 ]
 
 async function logout() {

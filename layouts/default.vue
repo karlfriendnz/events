@@ -85,7 +85,7 @@
       </div>
 
       <!-- Other nav icons -->
-      <template v-for="item in navItems" :key="item.href">
+      <template v-for="item in navItemsForOrg" :key="item.href">
         <!-- Bookables: flyout with pinned venues -->
         <div v-if="item.href === '/bookables' && menuBookables.length"
           class="relative"
@@ -522,6 +522,17 @@ const navItems = [
   { href: '/reporting', label: 'Reporting', icon: 'pi-chart-bar' },
   { href: '/settings/permissions', label: 'Permissions', icon: 'pi-lock' },
 ]
+
+// Governing bodies (NSO/association/regional) get a Disciplines item.
+const isGoverningOrg = ref(false)
+watch(orgId, async (id) => {
+  if (!id) { isGoverningOrg.value = false; return }
+  const { data } = await (db.from as any)('organisations').select('org_level').eq('id', id).single()
+  isGoverningOrg.value = !!data?.org_level && data.org_level !== 'CLUB'
+}, { immediate: true })
+const navItemsForOrg = computed(() => isGoverningOrg.value
+  ? [...navItems, { href: '/disciplines', label: 'Disciplines', icon: 'pi-tags' }]
+  : navItems)
 
 const pageTitles: Record<string, string> = {
   '/events': 'Events',
