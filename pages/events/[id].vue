@@ -508,7 +508,7 @@
                 <!-- Existing Fields tab -->
                 <div v-if="evtFormFieldsTab === 'existing'" class="px-4 py-3 overflow-y-auto space-y-4 flex-1">
                   <p class="text-xs text-gray-400 flex items-center gap-1.5"><i class="pi pi-info-circle text-[11px]" />Drag fields onto the form or click <i class="pi pi-plus text-[10px]" /></p>
-                  <div v-for="(fields, group) in { 'System Fields': systemFields, 'Person Fields': personFields, 'Previous Event Fields': previousEventFields }" :key="group">
+                  <div v-for="(fields, group) in evtExistingGroups" :key="group">
                     <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 px-1">{{ group }}</p>
                     <div class="space-y-0.5">
                       <div
@@ -5678,6 +5678,33 @@ const evtDiscountSummaryLines = computed<{ formText: string; amount: number }[]>
 const systemFields = ['First Name', 'Last Name', 'Email Address', 'Phone Number', 'Date of Birth']
 const personFields = ['Member Number', 'Club', 'Emergency Contact', 'Medical Notes', 'Dietary Requirements']
 const previousEventFields = ['T-Shirt Size', 'Bus Pickup Location', 'Team Name']
+
+// Org field library (field engine) surfaced in the event form palette.
+const { resolveFields: _evtResolveFields } = useOrgFieldPolicy()
+const orgFieldLabels = ref<string[]>([])
+const inheritedFieldLabels = ref<string[]>([])
+const _EVT_FT: Record<string, string> = { text: 'text', textarea: 'textarea', email: 'email', phone: 'tel', number: 'number', date: 'date', select: 'select', checkbox: 'checkbox' }
+const _EVT_ICON: Record<string, string> = { text: 'pi-font', textarea: 'pi-align-left', email: 'pi-envelope', phone: 'pi-phone', number: 'pi-hashtag', date: 'pi-calendar', select: 'pi-list', checkbox: 'pi-check-square' }
+watch(orgId, async (id) => {
+  orgFieldLabels.value = []; inheritedFieldLabels.value = []
+  if (!id) return
+  try {
+    const defs = await _evtResolveFields(id)
+    for (const d of defs) {
+      evtFieldMeta[d.label] = { field_type: _EVT_FT[d.field_type] || 'text', icon: _EVT_ICON[d.field_type] || 'pi-tag', placeholder: d.help_text || '', options: d.options || [] }
+      ;(d.inherited ? inheritedFieldLabels : orgFieldLabels).value.push(d.label)
+    }
+  } catch (e) { console.error('[evt org fields]', e) }
+}, { immediate: true })
+const evtExistingGroups = computed<Record<string, string[]>>(() => {
+  const g: Record<string, string[]> = {}
+  if (orgFieldLabels.value.length) g['Organisation fields'] = orgFieldLabels.value
+  if (inheritedFieldLabels.value.length) g['Inherited (NSO) fields'] = inheritedFieldLabels.value
+  g['System Fields'] = systemFields
+  g['Person Fields'] = personFields
+  g['Previous Event Fields'] = previousEventFields
+  return g
+})
 const availableTerms = ref([
   { label: 'NZ Sport Terms', required: true, agreeText: 'I agree to NZ Sport Terms' },
   { label: 'Photos Policy', required: false, agreeText: 'I agree to the Photos Policy' },
