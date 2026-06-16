@@ -4,7 +4,8 @@
   `add` with { label, type, placeholder, required, options }.
 -->
 <script setup lang="ts">
-const emit = defineEmits<{ add: [{ label: string; type: string; placeholder: string; required: boolean; options: string[] }] }>()
+const props = defineProps<{ personTypes?: { key: string; label: string }[] }>()
+const emit = defineEmits<{ add: [{ label: string; type: string; placeholder: string; required: boolean; options: string[]; target: string }] }>()
 
 // Same list/values as components/FormBuilder.vue
 const fieldTypes = [
@@ -18,7 +19,8 @@ const fieldTypes = [
   { label: 'Checkbox', value: 'checkbox' },
 ]
 
-const f = reactive({ label: '', type: 'text', placeholder: '', required: true, optionsText: '' })
+const f = reactive({ label: '', type: 'text', placeholder: '', required: true, optionsText: '', target: 'member' })
+watchEffect(() => { if (props.personTypes?.length && !props.personTypes.some(t => t.key === f.target)) f.target = props.personTypes[0].key })
 
 function add() {
   if (!f.label.trim()) return
@@ -28,6 +30,7 @@ function add() {
     placeholder: f.placeholder.trim(),
     required: f.required,
     options: f.type === 'select' ? f.optionsText.split('\n').map(s => s.trim()).filter(Boolean) : [],
+    target: f.target,
   })
   f.label = ''; f.placeholder = ''; f.optionsText = ''; f.type = 'text'; f.required = true
 }
@@ -35,6 +38,10 @@ function add() {
 
 <template>
   <div class="px-4 pt-4 pb-3">
+    <div v-if="(personTypes || []).length" class="mb-3">
+      <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Capturing data about</label>
+      <Select v-model="f.target" :options="personTypes" option-label="label" option-value="key" class="w-full" />
+    </div>
     <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Custom field</p>
     <input v-model="f.label" type="text" placeholder="Field label e.g. Preferred Name"
       class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] mb-3" />

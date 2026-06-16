@@ -75,6 +75,7 @@ function emptyForm() {
       formHeading: 'Fill in the form to register',
     },
     sectionSaved: { settings: false, fields: false, terms: false } as Record<string, boolean>,
+    profiles: [] as any[],
   }
 }
 const form = ref(emptyForm())
@@ -107,6 +108,7 @@ async function load() {
     fresh.terms = (cfg.terms ?? []).map((t: any) => ({ _key: freshKey(), ...t }))
     Object.assign(fresh.settings, cfg.settings ?? {})
     Object.assign(fresh.sectionSaved, cfg.sectionSaved ?? {})
+    fresh.profiles = cfg.profiles ?? []
     fieldMeta = cfg.fieldMeta ?? {}
   }
   const { data: ff } = await (db.from as any)('form_fields').select('*').eq('form_id', id).order('sort_order')
@@ -164,6 +166,7 @@ async function save() {
       terms: form.value.terms.map(({ _key, ...rest }: any) => rest),
       settings: { ...form.value.settings },
       sectionSaved: { ...form.value.sectionSaved },
+      profiles: form.value.profiles ?? [],
     }
     if (isNew.value || !id) {
       const { data, error } = await (db.from as any)('registration_forms').insert({

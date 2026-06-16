@@ -42,6 +42,46 @@
       </template>
 
       <!-- ── SETTINGS PANEL ── -->
+      <!-- ── WHO IS REGISTERING (profiles) ── -->
+      <template v-else-if="selectedSection === 'people'">
+        <div class="flex items-center gap-3 px-4 py-4 border-b border-gray-100 shrink-0">
+          <button type="button" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-500" @click="selectedSection = ''">
+            <i class="pi pi-chevron-left text-sm" />
+          </button>
+          <div class="flex-1">
+            <p class="text-sm font-bold text-gray-900">Who is registering</p>
+            <p class="text-xs text-gray-400">The people this form collects, and how many of each</p>
+          </div>
+          <button type="button" class="px-3 py-1.5 bg-[#1ab4e8] hover:bg-[#16a0d0] text-white text-xs font-semibold rounded-lg transition-colors" @click="markSaved('people')">Save</button>
+        </div>
+        <div class="px-4 py-4 space-y-3 overflow-y-auto flex-1">
+          <div v-if="!profiles.length" class="text-sm text-gray-400 italic py-2 text-center">No people added yet — add who this form registers.</div>
+          <div v-for="(p, i) in profiles" :key="p.key" class="border border-gray-200 rounded-xl p-3 bg-gray-50/40">
+            <div class="flex items-center gap-2 mb-2">
+              <i class="pi pi-user text-gray-400 text-sm" />
+              <span class="flex-1 font-semibold text-sm text-gray-800">{{ p.label }}</span>
+              <button type="button" class="w-7 h-7 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors" @click="removeProfile(i)">
+                <i class="pi pi-trash text-xs" />
+              </button>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-gray-600">
+              <span>How many?</span>
+              <span class="text-gray-400">min</span><InputNumber v-model="p.min" :min="0" class="w-16" />
+              <span class="text-gray-400">max</span><InputNumber v-model="p.max" :min="0" placeholder="∞" class="w-16" />
+            </div>
+          </div>
+          <div v-if="unusedPersonTypes.length" class="pt-1">
+            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Add a person</p>
+            <div class="flex flex-wrap gap-1.5">
+              <button v-for="t in unusedPersonTypes" :key="t.key" type="button"
+                class="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:border-[#1E2157] hover:bg-blue-50/40 transition-all"
+                @click="addProfile(t.key)">+ {{ t.label }}</button>
+            </div>
+          </div>
+          <p v-else-if="!availablePersonTypes.length" class="text-xs text-gray-400">No person types defined yet — create them in Fields → Person Types.</p>
+        </div>
+      </template>
+
       <template v-else-if="selectedSection === 'settings'">
         <div class="flex items-center gap-3 px-4 py-4 border-b border-gray-100 shrink-0">
           <button type="button" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-500" @click="selectedSection = ''">
@@ -454,6 +494,7 @@ interface FormBuilderModel {
     formHeading: string
   }
   sectionSaved: Record<string, boolean>
+  profiles?: { key: string; label: string; min: number; max: number | null }[]
 }
 interface FormBuilderContext {
   title?: string
@@ -492,7 +533,24 @@ const hasContextIcons = computed(() => {
 })
 
 // ── Section nav state ───────────────────────────────────────
-const selectedSection = ref<'' | 'settings' | 'fields' | 'terms'>('')
+const selectedSection = ref<'' | 'people' | 'settings' | 'fields' | 'terms'>('')
+
+// Person types (who can be registered) — own + inherited from governing bodies.
+const _fbOrg2 = useOrg()
+const { resolvePersonTypes: _fbResolvePersonTypes } = useOrgFieldPolicy()
+const availablePersonTypes = ref<{ key: string; label: string; min_count: number; max_count: number | null }[]>([])
+watch(() => _fbOrg2.orgId.value, async (id) => {
+  availablePersonTypes.value = id ? await _fbResolvePersonTypes(id) : []
+}, { immediate: true })
+const profiles = computed(() => form.value.profiles ?? [])
+function addProfile(key: string) {
+  const t = availablePersonTypes.value.find(x => x.key === key)
+  if (!t || profiles.value.some(p => p.key === key)) return
+  if (!form.value.profiles) form.value.profiles = []
+  form.value.profiles.push({ key: t.key, label: t.label, min: t.min_count ?? 1, max: t.max_count })
+}
+function removeProfile(i: number) { form.value.profiles?.splice(i, 1) }
+const unusedPersonTypes = computed(() => availablePersonTypes.value.filter(t => !profiles.value.some(p => p.key === t.key)))
 const fieldsTab = ref<'existing' | 'new'>('existing')
 const editingFieldKey = ref<string | null>(null)
 const fieldEditorTab = ref<'details' | 'advanced'>('details')
@@ -520,6 +578,7 @@ function advancedCount(f: FormBuilderField | null): number {
 }
 
 const sections = computed(() => [
+  { id: 'people',   label: 'Who is registering', icon: 'pi-users',       complete: !!form.value.profiles?.length, subtitle: form.value.profiles?.length ? form.value.profiles.map(p => p.label).join(', ') : 'Not set' },
   { id: 'settings', label: 'Settings',           icon: 'pi-cog',         complete: form.value.sectionSaved.settings, subtitle: form.value.sectionSaved.settings ? 'Saved' : 'Not configured' },
   { id: 'fields',   label: 'Form',               icon: 'pi-list',        complete: form.value.sectionSaved.fields, subtitle: form.value.sectionSaved.fields ? 'Saved' : (form.value.fields.length ? `${form.value.fields.length} field${form.value.fields.length === 1 ? '' : 's'}` : 'Not configured') },
   { id: 'terms',    label: 'Terms & Conditions', icon: 'pi-file',        complete: form.value.sectionSaved.terms,    subtitle: form.value.sectionSaved.terms ? 'Saved' : (form.value.terms.length ? `${form.value.terms.length} term${form.value.terms.length === 1 ? '' : 's'}` : 'Not configured') },
