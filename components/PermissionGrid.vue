@@ -30,6 +30,7 @@ function toggleColumn(action: PermAction, val: boolean) {
 
 <template>
   <div class="card p-0 overflow-hidden" :class="{ 'opacity-90': readonly }">
+    <div class="overflow-x-auto">
     <table class="w-full text-sm">
       <thead>
         <tr class="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
@@ -37,7 +38,7 @@ function toggleColumn(action: PermAction, val: boolean) {
           <th v-for="a in PERM_ACTIONS" :key="a.key" class="px-3 py-2 font-medium text-center w-20">
             <div class="flex flex-col items-center gap-0.5">
               <span>{{ a.label }}</span>
-              <button v-if="!readonly" class="text-[10px] text-gray-400 hover:text-[#1E2157]" @click="toggleColumn(a.key, true)">all</button>
+              <button v-if="!readonly" class="text-[10px] text-gray-400 hover:text-primary" @click="toggleColumn(a.key, true)">all</button>
             </div>
           </th>
         </tr>
@@ -48,12 +49,13 @@ function toggleColumn(action: PermAction, val: boolean) {
             <td :colspan="PERM_ACTIONS.length + 1" class="px-4 py-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">{{ block.area }}</td>
           </tr>
           <tr v-for="r in block.items" :key="r.key" class="border-b border-gray-50 hover:bg-gray-50/60">
-            <td class="px-4 py-2">
-              <button class="text-gray-800 hover:text-[#1E2157] font-medium" :disabled="readonly"
+            <td class="px-4 py-2 align-top">
+              <button class="block text-left text-gray-800 hover:text-primary font-medium" :disabled="readonly"
                 @click="toggleResource(r.key, !isOn(r.key, 'read'))">{{ r.label }}</button>
+              <p v-if="r.description" class="mt-0.5 text-[11px] leading-snug text-gray-400 max-w-[34ch]">{{ r.description }}</p>
             </td>
-            <td v-for="a in PERM_ACTIONS" :key="a.key" class="px-3 py-2 text-center">
-              <input type="checkbox" class="w-4 h-4 accent-[#1E2157]" :class="readonly ? 'cursor-not-allowed' : 'cursor-pointer'"
+            <td v-for="a in PERM_ACTIONS" :key="a.key" class="px-3 py-2.5 text-center align-top">
+              <input type="checkbox" class="w-4 h-4 accent-primary" :class="readonly ? 'cursor-not-allowed' : 'cursor-pointer'"
                 :checked="isOn(r.key, a.key)" :disabled="readonly"
                 @change="setOn(r.key, a.key, ($event.target as HTMLInputElement).checked)" />
             </td>
@@ -61,5 +63,6 @@ function toggleColumn(action: PermAction, val: boolean) {
         </template>
       </tbody>
     </table>
+    </div>
   </div>
 </template>

@@ -1,12 +1,12 @@
 <template>
-  <div class="p-6 max-w-4xl mx-auto">
+  <div class="p-3 sm:p-6 max-w-4xl mx-auto">
     <div class="flex items-center justify-between mb-5">
       <div>
         <h1 class="text-xl font-semibold text-gray-900">Forms</h1>
         <p class="text-sm text-gray-500 mt-0.5">Reusable question forms for events and booking modes.</p>
       </div>
       <Button label="New form" icon="pi pi-plus" size="small"
-        @click="navigateTo('/forms/new')" style="background:#1E2157;border-color:#1E2157" />
+        @click="navigateTo('/forms/new')" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
     </div>
 
     <div v-if="loading" class="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400">
@@ -14,16 +14,16 @@
     </div>
 
     <div v-else-if="!forms.length"
-      class="bg-white rounded-xl border-2 border-dashed border-[#1E2157]/20 py-14 text-center">
+      class="bg-white rounded-xl border-2 border-dashed border-primary/20 py-14 text-center">
       <div class="w-14 h-14 mx-auto rounded-full bg-[#EFF6FF] flex items-center justify-center mb-3">
-        <i class="pi pi-list text-xl text-[#1E2157]" />
+        <i class="pi pi-list text-xl text-primary" />
       </div>
       <h3 class="text-base font-semibold text-gray-900 mb-1">No forms yet</h3>
       <p class="text-sm text-gray-500 mb-4 max-w-sm mx-auto">
         Build a form once and reuse it across events and modes.
       </p>
       <Button label="Create your first form" icon="pi pi-plus"
-        @click="navigateTo('/forms/new')" style="background:#1E2157;border-color:#1E2157" />
+        @click="navigateTo('/forms/new')" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
     </div>
 
     <div v-else class="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -32,7 +32,7 @@
         :class="i > 0 && 'border-t border-gray-100'"
         @click="navigateTo(`/forms/${f.id}`)">
         <div class="w-10 h-10 rounded-lg bg-[#EFF6FF] flex items-center justify-center shrink-0">
-          <i class="pi pi-list text-[#1E2157]" />
+          <i class="pi pi-list text-primary" />
         </div>
         <div class="flex-1 min-w-0">
           <p class="text-sm font-semibold text-gray-900 truncate">{{ f.name }}</p>
@@ -41,7 +41,7 @@
             <span v-if="f.usage_count" class="text-gray-400">· in use by {{ f.usage_count }}</span>
           </p>
         </div>
-        <i class="pi pi-chevron-right text-gray-300 text-xs group-hover:text-[#1E2157]" />
+        <i class="pi pi-chevron-right text-gray-300 text-xs group-hover:text-primary" />
       </div>
     </div>
   </div>

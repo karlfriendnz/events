@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6 space-y-4">
+  <div class="p-3 sm:p-6 space-y-4">
 
     <!-- Windows list -->
     <div v-if="loading" class="flex justify-center py-12">
@@ -11,7 +11,7 @@
       <p class="text-sm font-medium">No booking windows yet</p>
       <p class="text-xs mt-1">Add windows to define when and how this bookable can be booked.</p>
       <Button v-if="!props.readonly" label="Add first window" icon="pi pi-plus" size="small" class="mt-4"
-        style="background:#1E2157;border-color:#1E2157" @click="openAdd" />
+        style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="openAdd" />
     </div>
 
     <div v-else class="space-y-3">
@@ -48,7 +48,7 @@
         <div v-if="win.window_type === 'FIXED'" class="border-t border-gray-100 px-5 py-3">
           <div class="flex items-center justify-between mb-2">
             <p class="text-xs font-medium text-gray-500">Fixed slots</p>
-            <button class="text-xs text-[#1E2157] hover:underline" @click="openSlots(win)">Manage slots</button>
+            <button class="text-xs text-primary hover:underline" @click="openSlots(win)">Manage slots</button>
           </div>
           <div v-if="win.slots?.length" class="flex flex-wrap gap-2">
             <span v-for="s in win.slots" :key="s.id"
@@ -67,7 +67,7 @@
     </div>
 
     <!-- Window add/edit dialog -->
-    <Dialog v-model:visible="showWindowDialog" :header="editTarget?.id ? 'Edit window' : 'Add booking window'" modal style="width:520px">
+    <Dialog v-model:visible="showWindowDialog" :header="editTarget?.id ? 'Edit window' : 'Add booking window'" modal :style="{ width: '95vw', maxWidth: '520px' }">
       <div class="space-y-4 pt-1">
         <div>
           <label class="text-xs font-medium text-gray-600 block mb-1">Name</label>
@@ -75,12 +75,12 @@
         </div>
         <div>
           <label class="text-xs font-medium text-gray-600 block mb-1">Type</label>
-          <div class="grid grid-cols-3 gap-2">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <button v-for="t in windowTypes" :key="t.value"
               class="flex flex-col items-start p-3 rounded-xl border text-left transition-colors"
-              :class="winForm.window_type === t.value ? 'border-[#1E2157] bg-[#EFF6FF]' : 'border-gray-200 hover:border-gray-300'"
+              :class="winForm.window_type === t.value ? 'border-primary bg-[#EFF6FF]' : 'border-gray-200 hover:border-gray-300'"
               @click="winForm.window_type = t.value">
-              <span class="text-sm font-semibold" :class="winForm.window_type === t.value ? 'text-[#1E2157]' : 'text-gray-700'">{{ t.label }}</span>
+              <span class="text-sm font-semibold" :class="winForm.window_type === t.value ? 'text-primary' : 'text-gray-700'">{{ t.label }}</span>
               <span class="text-xs text-gray-400 mt-0.5">{{ t.desc }}</span>
             </button>
           </div>
@@ -90,13 +90,13 @@
           <div class="flex gap-1.5">
             <button v-for="(day, i) in dayLabels" :key="i"
               class="w-9 h-9 rounded-lg text-xs font-medium transition-colors"
-              :class="winForm.days_of_week.includes(i) ? 'bg-[#1E2157] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'"
+              :class="winForm.days_of_week.includes(i) ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'"
               @click="toggleDay(i)">
               {{ day }}
             </button>
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="text-xs font-medium text-gray-600 block mb-1">Start time</label>
             <Select v-model="winForm.start_time" :options="timeOptions" option-label="label" option-value="value" class="w-full" />
@@ -106,7 +106,7 @@
             <Select v-model="winForm.end_time" :options="timeOptions" option-label="label" option-value="value" class="w-full" />
           </div>
         </div>
-        <div v-if="winForm.window_type !== 'FIXED'" class="grid grid-cols-2 gap-3">
+        <div v-if="winForm.window_type !== 'FIXED'" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="text-xs font-medium text-gray-600 block mb-1">Slot duration (mins)</label>
             <Select v-model="winForm.slot_duration_mins" :options="durationOptions" option-label="label" option-value="value" class="w-full" />
@@ -124,12 +124,12 @@
       <template #footer>
         <Button label="Cancel" severity="secondary" text @click="showWindowDialog = false" />
         <Button :label="editTarget?.id ? 'Save' : 'Add window'" icon="pi pi-check" :loading="saving"
-          @click="saveWindow" style="background:#1E2157;border-color:#1E2157" />
+          @click="saveWindow" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
       </template>
     </Dialog>
 
     <!-- Fixed slots dialog -->
-    <Dialog v-model:visible="showSlotsDialog" :header="`Slots — ${slotWindow?.name}`" modal style="width:480px">
+    <Dialog v-model:visible="showSlotsDialog" :header="`Slots — ${slotWindow?.name}`" modal :style="{ width: '95vw', maxWidth: '480px' }">
       <div class="space-y-3 pt-1">
         <div v-if="slotForms.length" class="space-y-2">
           <div v-for="(s, i) in slotForms" :key="i" class="flex items-center gap-2">
@@ -143,7 +143,7 @@
             </button>
           </div>
         </div>
-        <button class="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#1E2157]"
+        <button class="flex items-center gap-1.5 text-sm text-gray-400 hover:text-primary"
           @click="slotForms.push({ slot_start: '09:00', slot_end: '10:00', label: '', capacity: 1, sort_order: slotForms.length })">
           <i class="pi pi-plus text-xs" />Add slot
         </button>
@@ -151,7 +151,7 @@
       <template #footer>
         <Button label="Cancel" severity="secondary" text @click="showSlotsDialog = false" />
         <Button label="Save slots" icon="pi pi-check" :loading="saving"
-          @click="saveSlots" style="background:#1E2157;border-color:#1E2157" />
+          @click="saveSlots" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
       </template>
     </Dialog>
 

@@ -36,7 +36,7 @@
             <span class="text-gray-500">Reference</span>
             <span class="font-mono font-semibold text-gray-800 bg-gray-100 rounded px-2 py-1">{{ bookingReference }}</span>
           </div>
-          <NuxtLink :to="`/booking/${bookingReference}`" class="text-[#1E2157] underline">
+          <NuxtLink :to="`/booking/${bookingReference}`" class="text-primary underline">
             View this booking later
           </NuxtLink>
         </div>
@@ -92,7 +92,7 @@
 
         <!-- Calendar download -->
         <a v-if="icsHref" :href="icsHref" :download="`${bookingReference || 'booking'}.ics`"
-          class="text-sm text-[#1E2157] font-medium flex items-center gap-2 hover:underline">
+          class="text-sm text-primary font-medium flex items-center gap-2 hover:underline">
           <i class="pi pi-calendar-plus text-xs" />
           Add to calendar
         </a>
@@ -120,14 +120,14 @@
                 Step {{ currentStepNumber }} of {{ visibleSteps.length }}
               </p>
               <div class="flex items-center gap-3">
-                <p class="text-sm font-bold text-[#1E2157] truncate max-w-[140px]">{{ currentStepLabel }}</p>
+                <p class="text-sm font-bold text-primary truncate max-w-[140px]">{{ currentStepLabel }}</p>
                 <button type="button"
                   class="text-xs font-semibold text-gray-400 hover:text-red-500 transition-colors"
                   @click="onCancel">Cancel</button>
               </div>
             </div>
             <div class="h-1 rounded-full bg-gray-100 overflow-hidden">
-              <div class="h-full bg-[#1E2157] transition-all duration-300"
+              <div class="h-full bg-primary transition-all duration-300"
                 :style="{ width: `${(currentStepNumber / visibleSteps.length) * 100}%` }" />
             </div>
           </div>
@@ -136,14 +136,14 @@
               <div class="flex items-center gap-2 cursor-pointer"
                 @click="step > stepIndex[s.key] ? step = stepIndex[s.key] : null">
                 <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 transition-colors"
-                  :class="step === stepIndex[s.key] ? 'bg-[#1E2157] text-white'
+                  :class="step === stepIndex[s.key] ? 'bg-primary text-white'
                     : step > stepIndex[s.key] ? 'bg-green-500 text-white'
                     : 'bg-gray-200 text-gray-500'">
                   <i v-if="step > stepIndex[s.key]" class="pi pi-check text-xs" />
                   <span v-else>{{ vi + 1 }}</span>
                 </div>
                 <span class="text-sm font-medium"
-                  :class="step === stepIndex[s.key] ? 'text-[#1E2157]'
+                  :class="step === stepIndex[s.key] ? 'text-primary'
                     : step > stepIndex[s.key] ? 'text-green-600'
                     : 'text-gray-400'">
                   {{ stepLabel(s.key, s.label) }}
@@ -226,7 +226,7 @@
               <Button label="Next" icon="pi pi-arrow-right" icon-pos="right"
                 :disabled="activities.length > 0 && !activityChosen"
                 @click="afterActivity"
-                style="background:#1E2157; border-color:#1E2157" />
+                style="background:var(--brand-primary); border-color:var(--brand-primary)" />
             </div>
           </div>
 
@@ -358,7 +358,7 @@
               <Button label="Next" icon="pi pi-arrow-right" icon-pos="right"
                 :disabled="availableModes.length > 0 && (!modeChosen || (booking.activity?.require_mode && !booking.activityModeId))"
                 @click="proceedToResource"
-                style="background:#1E2157; border-color:#1E2157" />
+                style="background:var(--brand-primary); border-color:var(--brand-primary)" />
             </div>
           </div>
 
@@ -394,15 +394,15 @@
                 class="grid grid-cols-2 md:grid-cols-3 gap-3">
                 <div v-for="item in filteredBookables.filter(b => b.type !== 'ITEM')" :key="item.id"
                   class="bg-white rounded-xl border-2 p-4 cursor-pointer transition-all hover:shadow-sm"
-                  :class="booking.bookableId === item.id ? 'border-[#1E2157] shadow-sm' : 'border-gray-200 hover:border-gray-300'"
+                  :class="booking.bookableId === item.id ? 'border-primary shadow-sm' : 'border-gray-200 hover:border-gray-300'"
                   @click="selectBookable(item)">
                   <div class="flex items-start justify-between mb-3">
                     <div class="w-10 h-10 rounded-lg flex items-center justify-center"
                       :class="item.type === 'VENUE' ? 'bg-[#EFF6FF]' : 'bg-green-50'">
                       <i class="pi text-base"
-                        :class="item.type === 'VENUE' ? 'pi-building text-[#1E2157]' : 'pi-user text-green-600'" />
+                        :class="item.type === 'VENUE' ? 'pi-building text-primary' : 'pi-user text-green-600'" />
                     </div>
-                    <div v-if="booking.bookableId === item.id" class="w-5 h-5 rounded-full bg-[#1E2157] flex items-center justify-center">
+                    <div v-if="booking.bookableId === item.id" class="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
                       <i class="pi pi-check text-white text-xs" />
                     </div>
                   </div>
@@ -427,13 +427,13 @@
                   <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
                     <div v-for="item in group.items" :key="item.id"
                       class="bg-white rounded-xl border-2 p-4 cursor-pointer transition-all hover:shadow-sm"
-                      :class="booking.bookableId === item.id ? 'border-[#1E2157] shadow-sm' : 'border-gray-200 hover:border-gray-300'"
+                      :class="booking.bookableId === item.id ? 'border-primary shadow-sm' : 'border-gray-200 hover:border-gray-300'"
                       @click="selectBookable(item)">
                       <div class="flex items-start justify-between mb-3">
                         <div class="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center">
                           <i class="pi pi-box text-amber-600 text-base" />
                         </div>
-                        <div v-if="booking.bookableId === item.id" class="w-5 h-5 rounded-full bg-[#1E2157] flex items-center justify-center">
+                        <div v-if="booking.bookableId === item.id" class="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
                           <i class="pi pi-check text-white text-xs" />
                         </div>
                       </div>
@@ -449,15 +449,15 @@
             <div v-else class="grid grid-cols-2 md:grid-cols-3 gap-3">
               <div v-for="item in filteredBookables" :key="item.id"
                 class="bg-white rounded-xl border-2 p-4 cursor-pointer transition-all hover:shadow-sm"
-                :class="booking.bookableId === item.id ? 'border-[#1E2157] shadow-sm' : 'border-gray-200 hover:border-gray-300'"
+                :class="booking.bookableId === item.id ? 'border-primary shadow-sm' : 'border-gray-200 hover:border-gray-300'"
                 @click="selectBookable(item)">
                 <div class="flex items-start justify-between mb-3">
                   <div class="w-10 h-10 rounded-lg flex items-center justify-center"
                     :class="item.type === 'VENUE' ? 'bg-[#EFF6FF]' : item.type === 'ITEM' ? 'bg-amber-50' : 'bg-green-50'">
                     <i class="pi text-base"
-                      :class="item.type === 'VENUE' ? 'pi-building text-[#1E2157]' : item.type === 'ITEM' ? 'pi-box text-amber-600' : 'pi-user text-green-600'" />
+                      :class="item.type === 'VENUE' ? 'pi-building text-primary' : item.type === 'ITEM' ? 'pi-box text-amber-600' : 'pi-user text-green-600'" />
                   </div>
-                  <div v-if="booking.bookableId === item.id" class="w-5 h-5 rounded-full bg-[#1E2157] flex items-center justify-center">
+                  <div v-if="booking.bookableId === item.id" class="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
                     <i class="pi pi-check text-white text-xs" />
                   </div>
                 </div>
@@ -472,7 +472,7 @@
               <span v-else />
               <Button label="Next" icon="pi pi-arrow-right" icon-pos="right"
                 :disabled="!booking.bookableId" @click="step = 3"
-                style="background:#1E2157; border-color:#1E2157" />
+                style="background:var(--brand-primary); border-color:var(--brand-primary)" />
             </div>
           </div>
 
@@ -516,7 +516,7 @@
                 />
               </div>
               <div v-if="booking.startAt && booking.endAt"
-                class="flex items-center gap-2 text-sm text-[#1E2157] font-medium bg-blue-50 rounded-lg px-4 py-3">
+                class="flex items-center gap-2 text-sm text-primary font-medium bg-blue-50 rounded-lg px-4 py-3">
                 <i class="pi pi-check-circle" />
                 {{ formatReviewDate }}
               </div>
@@ -533,7 +533,7 @@
                 :label="hasAddons ? 'Next: Add-ons' : 'Next: Details'"
                 :disabled="!booking.startAt || !booking.endAt"
                 @click="hasAddons ? step = 4 : step = 5"
-                style="background:#1E2157; border-color:#1E2157" />
+                style="background:var(--brand-primary); border-color:var(--brand-primary)" />
             </div>
           </div>
 
@@ -547,12 +547,12 @@
             <div class="space-y-3">
               <div v-for="addon in selectedModeAddons" :key="addon.id"
                 class="bg-white rounded-xl border-2 p-4 cursor-pointer transition-all"
-                :class="isAddonSelected(addon.id) ? 'border-[#1E2157] shadow-sm' : 'border-gray-200 hover:border-gray-300'"
+                :class="isAddonSelected(addon.id) ? 'border-primary shadow-sm' : 'border-gray-200 hover:border-gray-300'"
                 @click="toggleAddon(addon)">
                 <div class="flex items-start gap-4">
                   <!-- Checkbox -->
                   <div class="mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors"
-                    :class="isAddonSelected(addon.id) ? 'bg-[#1E2157] border-[#1E2157]' : 'border-gray-300'">
+                    :class="isAddonSelected(addon.id) ? 'bg-primary border-primary' : 'border-gray-300'">
                     <i v-if="isAddonSelected(addon.id)" class="pi pi-check text-white text-xs" />
                   </div>
                   <div class="flex-1 min-w-0">
@@ -591,7 +591,7 @@
             <div class="flex justify-between pt-2">
               <Button label="Back" severity="secondary" outlined icon="pi pi-arrow-left" @click="step = 3" />
               <Button label="Next: Details" icon="pi pi-arrow-right" icon-pos="right"
-                @click="step = 5" style="background:#1E2157; border-color:#1E2157" />
+                @click="step = 5" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
             </div>
           </div>
 
@@ -664,7 +664,7 @@
                   :min="currentActivityMode?.min_visitors ?? 0"
                   :max="currentActivityMode?.max_visitors ?? undefined"
                   placeholder="e.g. 5"
-                  class="h-9 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1E2157]/30 focus:border-[#1E2157]" />
+                  class="h-9 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
                 <p v-if="currentActivityMode?.max_visitors" class="text-xs text-gray-400">Up to {{ currentActivityMode.max_visitors }} visitors</p>
               </div>
             </div>
@@ -730,8 +730,8 @@
               <p class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Terms &amp; Conditions</p>
               <label v-for="(t, i) in modeFormTerms" :key="i"
                 class="flex items-start gap-3 px-3 py-3 rounded-xl border cursor-pointer transition-colors"
-                :class="termsAgreed[i] ? 'border-[#1E2157] bg-[#EFF6FF]/40' : 'border-gray-200 hover:bg-gray-50'">
-                <input type="checkbox" class="mt-1 w-4 h-4 rounded border-gray-300 accent-[#1E2157]"
+                :class="termsAgreed[i] ? 'border-primary bg-[#EFF6FF]/40' : 'border-gray-200 hover:bg-gray-50'">
+                <input type="checkbox" class="mt-1 w-4 h-4 rounded border-gray-300 accent-primary"
                   :checked="!!termsAgreed[i]"
                   @change="termsAgreed[i] = ($event.target as HTMLInputElement).checked" />
                 <div class="flex-1 min-w-0">
@@ -749,7 +749,7 @@
                 @click="hasAddons ? step = 4 : step = 3" />
               <Button label="Review booking" icon="pi pi-arrow-right" icon-pos="right"
                 :disabled="!booking.contactName.trim() || !booking.contactEmail.trim() || (hasPerPersonFees && !booking.attendeeCount) || formAnswersIncomplete"
-                @click="step = 6" style="background:#1E2157; border-color:#1E2157" />
+                @click="step = 6" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
             </div>
             </template>
           </div>
@@ -771,7 +771,7 @@
                   <p class="text-xs text-gray-400 uppercase tracking-wide font-medium">Activity</p>
                   <p class="text-sm font-semibold text-gray-900">{{ booking.activity.name }}</p>
                 </div>
-                <button class="text-xs text-[#1E2157] underline" @click="step = 0">Change</button>
+                <button class="text-xs text-primary underline" @click="step = 0">Change</button>
               </div>
               <div v-if="booking.modeName" class="flex items-center gap-4 px-5 py-4">
                 <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
@@ -782,20 +782,20 @@
                   <p class="text-xs text-gray-400 uppercase tracking-wide font-medium">{{ modeLabel }}</p>
                   <p class="text-sm font-semibold text-gray-900">{{ booking.modeName }}</p>
                 </div>
-                <button v-if="!skipModeStep" class="text-xs text-[#1E2157] underline" @click="step = 1">Change</button>
+                <button v-if="!skipModeStep" class="text-xs text-primary underline" @click="step = 1">Change</button>
               </div>
               <div class="flex items-center gap-4 px-5 py-4">
                 <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
                   :class="booking.bookable?.type === 'VENUE' ? 'bg-[#EFF6FF]' : booking.bookable?.type === 'ITEM' ? 'bg-amber-50' : 'bg-green-50'">
                   <i class="pi text-base"
-                    :class="booking.bookable?.type === 'VENUE' ? 'pi-building text-[#1E2157]' : booking.bookable?.type === 'ITEM' ? 'pi-box text-amber-600' : 'pi-user text-green-600'" />
+                    :class="booking.bookable?.type === 'VENUE' ? 'pi-building text-primary' : booking.bookable?.type === 'ITEM' ? 'pi-box text-amber-600' : 'pi-user text-green-600'" />
                 </div>
                 <div class="flex-1">
                   <p class="text-xs text-gray-400 uppercase tracking-wide font-medium">Resource</p>
                   <p class="text-sm font-semibold text-gray-900">{{ booking.bookable?.name }}</p>
                   <p v-if="booking.bookable?.location" class="text-xs text-gray-400">{{ booking.bookable.location }}</p>
                 </div>
-                <button v-if="!skipResourceStep" class="text-xs text-[#1E2157] underline" @click="step = 2">Change</button>
+                <button v-if="!skipResourceStep" class="text-xs text-primary underline" @click="step = 2">Change</button>
               </div>
               <div class="flex items-center gap-4 px-5 py-4">
                 <div class="w-10 h-10 rounded-lg bg-purple-50 flex items-center justify-center shrink-0">
@@ -805,7 +805,7 @@
                   <p class="text-xs text-gray-400 uppercase tracking-wide font-medium">Date & time</p>
                   <p class="text-sm font-semibold text-gray-900">{{ formatReviewDate }}</p>
                 </div>
-                <button class="text-xs text-[#1E2157] underline" @click="step = 3">Change</button>
+                <button class="text-xs text-primary underline" @click="step = 3">Change</button>
               </div>
               <div v-if="hasAddons" class="flex items-start gap-4 px-5 py-4">
                 <div class="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
@@ -821,7 +821,7 @@
                   </div>
                   <p v-else class="text-sm text-gray-400 italic">None selected</p>
                 </div>
-                <button class="text-xs text-[#1E2157] underline" @click="step = 4">Change</button>
+                <button class="text-xs text-primary underline" @click="step = 4">Change</button>
               </div>
               <div v-if="hasPerPersonFees" class="flex items-center gap-4 px-5 py-4">
                 <div class="w-10 h-10 rounded-lg bg-pink-50 flex items-center justify-center shrink-0">
@@ -831,7 +831,7 @@
                   <p class="text-xs text-gray-400 uppercase tracking-wide font-medium">Attendees</p>
                   <p class="text-sm font-semibold text-gray-900">{{ booking.attendeeCount }} people</p>
                 </div>
-                <button class="text-xs text-[#1E2157] underline" @click="step = 5">Change</button>
+                <button class="text-xs text-primary underline" @click="step = 5">Change</button>
               </div>
               <div class="flex items-center gap-4 px-5 py-4">
                 <div class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
@@ -842,7 +842,7 @@
                   <p class="text-sm font-semibold text-gray-900">{{ booking.contactName }}</p>
                   <p class="text-xs text-gray-400">{{ booking.contactEmail }}</p>
                 </div>
-                <button class="text-xs text-[#1E2157] underline" @click="step = 5">Change</button>
+                <button class="text-xs text-primary underline" @click="step = 5">Change</button>
               </div>
             </div>
 
@@ -852,7 +852,8 @@
                 <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Estimated charges</p>
                 <p v-if="bookingDurationHours" class="text-xs text-gray-400">{{ bookingDurationHours % 1 ? bookingDurationHours.toFixed(1) : bookingDurationHours }}h booking</p>
               </div>
-              <table class="w-full text-sm">
+              <div class="overflow-x-auto">
+              <table class="w-full text-sm min-w-[420px]">
                 <thead>
                   <tr class="border-b border-gray-100 bg-gray-50/50">
                     <th class="text-left px-5 py-2.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Description</th>
@@ -891,6 +892,7 @@
                   </tr>
                 </tfoot>
               </table>
+              </div>
               <p class="px-5 py-2.5 text-xs text-gray-400 border-t border-gray-100">Charges are estimates and subject to confirmation.</p>
             </div>
 
@@ -899,9 +901,9 @@
               <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">How would you like to pay?</p>
               <label v-for="p in enabledPaymentMethods" :key="p.value"
                 class="flex items-center gap-3 px-3 py-3 rounded-xl border cursor-pointer transition-colors"
-                :class="booking.paymentMethod === p.value ? 'border-[#1E2157] bg-[#EFF6FF]/40' : 'border-gray-200 hover:bg-gray-50'">
+                :class="booking.paymentMethod === p.value ? 'border-primary bg-[#EFF6FF]/40' : 'border-gray-200 hover:bg-gray-50'">
                 <input type="radio" :value="p.value" v-model="booking.paymentMethod"
-                  class="w-4 h-4 accent-[#1E2157]" />
+                  class="w-4 h-4 accent-primary" />
                 <div class="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
                   <i :class="`pi ${p.icon} text-sm text-gray-600`" />
                 </div>
@@ -916,7 +918,7 @@
               <Button label="Back" severity="secondary" outlined icon="pi pi-arrow-left" @click="step = 5" />
               <Button label="Confirm booking" icon="pi pi-check" :loading="submitting"
                 :disabled="enabledPaymentMethods.length > 0 && !booking.paymentMethod"
-                @click="handleSubmit" style="background:#1E2157; border-color:#1E2157" />
+                @click="handleSubmit" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
             </div>
           </div>
 
@@ -960,7 +962,7 @@
                   <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
                     :class="booking.bookable.type === 'VENUE' ? 'bg-[#EFF6FF]' : booking.bookable.type === 'ITEM' ? 'bg-amber-50' : 'bg-green-50'">
                     <i class="pi text-xs"
-                      :class="booking.bookable.type === 'VENUE' ? 'pi-building text-[#1E2157]' : booking.bookable.type === 'ITEM' ? 'pi-box text-amber-600' : 'pi-user text-green-600'" />
+                      :class="booking.bookable.type === 'VENUE' ? 'pi-building text-primary' : booking.bookable.type === 'ITEM' ? 'pi-box text-amber-600' : 'pi-user text-green-600'" />
                   </div>
                   <div>
                     <p class="text-sm font-medium text-gray-900">{{ booking.bookable.name }}</p>
@@ -1352,10 +1354,13 @@ const selectedItemRows = computed(() => {
 // contact fields.
 const detailsPanel = ref<'auth' | 'form'>('auth')
 const signedInEmail = ref<string | null>(null)
+// Who the booking is FOR (act-on-behalf) — set by the auth chooser picker.
+const subjectPersonId = ref<string | null>(null)
 const authChooserRef = ref<{ reset: () => void } | null>(null)
 
-function onWizardSignedIn(payload: { email: string; firstName: string; lastName: string; phone: string | null }) {
+function onWizardSignedIn(payload: { email: string; firstName: string; lastName: string; phone: string | null; subjectPersonId?: string | null }) {
   signedInEmail.value = payload.email || null
+  subjectPersonId.value = payload.subjectPersonId ?? null
   formPrefill.value = {
     first_name: payload.firstName ?? '',
     last_name:  payload.lastName  ?? '',
@@ -2291,6 +2296,7 @@ async function handleSubmit() {
         contact_email: booking.contactEmail,
         contact_phone: booking.contactPhone || null,
         is_all_day: false,
+        subject_person_id: subjectPersonId.value,
         booking_discount_id: claimedDiscountId,
         discount_amount: claimedDiscountAmount,
         custom_fields: {
@@ -2373,6 +2379,7 @@ async function handleSubmit() {
           notes: booking.notes || null,
           selectedAddons: booking.selectedAddons,
           attendeeCount: booking.attendeeCount || null,
+          subjectPersonId: subjectPersonId.value,
           bookingDiscountId: claimedDiscountId,
           discountAmount: claimedDiscountAmount,
           customFields: {

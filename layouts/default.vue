@@ -1,215 +1,73 @@
 <template>
   <div class="flex h-screen overflow-hidden" style="background:#F5F8FA">
-    <!-- Narrow icon-only sidebar -->
-    <aside
-      class="w-14 shrink-0 flex flex-col items-center py-3 gap-1 relative z-[60]"
-      style="background: linear-gradient(180deg, #1E2157 0%, #21278E 100%)"
-    >
-      <!-- Logo mark -->
-      <div class="mb-3 w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-        <i class="pi pi-calendar text-white text-sm" />
-      </div>
+    <!-- Icon-rail sidebar (desktop only — mobile uses the bottom tab bar) -->
+    <aside class="w-14 shrink-0 hidden md:flex flex-col items-center py-3 gap-1 relative z-[60]"
+      style="background: linear-gradient(180deg, var(--brand-primary) 0%, #21278E 100%)">
+      <NuxtLink to="/dashboard" class="mb-3 w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center overflow-hidden" :title="activeOrgName">
+        <img v-if="brandMark" :src="brandMark" class="w-full h-full object-cover" />
+        <i v-else class="pi pi-calendar text-white text-sm" />
+      </NuxtLink>
 
-      <!-- Events nav item with hover flyout -->
-      <div
-        class="relative"
-        @mouseenter="onEventsEnter"
-        @mouseleave="onEventsLeave"
-      >
-        <NuxtLink
-          to="/events"
-          class="flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
-          :class="isActive('/events') ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white'"
-        >
-          <i class="pi pi-calendar text-lg" />
-        </NuxtLink>
-
-        <!-- Flyout panel -->
-        <div
-          v-show="eventsHover"
-          class="absolute left-full top-0 z-[70]"
-          style="padding-left:10px"
-          @mouseenter="onEventsEnter"
-          @mouseleave="onEventsLeave"
-        >
-          <div class="bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden" style="width:220px">
-            <!-- View Events -->
-            <NuxtLink
-              to="/events"
-              class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-              @click="eventsHover = false"
-            >
-              <i class="pi pi-calendar text-gray-400 text-xs" />
-              View Events
-            </NuxtLink>
-
-            <!-- Calendar list -->
-            <template v-if="calendars.length">
-              <div class="border-t border-gray-100" />
-              <div class="py-1">
-                <NuxtLink
-                  v-for="cal in calendars"
-                  :key="cal.id"
-                  :to="`/events?calendar=${cal.id}`"
-                  class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                  @click="eventsHover = false"
-                >
+      <template v-for="item in clubMenu" :key="item.label">
+        <!-- Events: icon + rich flyout (calendars, reporting, venues, registration, forms) -->
+        <div v-if="item.events" class="relative" @mouseenter="onEventsEnter" @mouseleave="onEventsLeave">
+          <NuxtLink :to="item.href"
+            class="flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
+            :class="isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white'">
+            <i :class="['pi', item.icon, 'text-lg']" />
+          </NuxtLink>
+          <div v-show="eventsHover" class="absolute left-full top-0 z-[70]" style="padding-left:10px"
+            @mouseenter="onEventsEnter" @mouseleave="onEventsLeave">
+            <div class="bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden" style="width:220px">
+              <NuxtLink to="/events" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-calendar text-gray-400 text-xs" />View Events</NuxtLink>
+              <template v-if="calendars.length"><div class="border-t border-gray-100" /><div class="py-1">
+                <NuxtLink v-for="cal in calendars" :key="cal.id" :to="`/events?calendar=${cal.id}`" class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" @click="eventsHover = false">
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: cal.color ?? '#94a3b8' }" />
                   <span :class="cal.name ? '' : 'italic text-gray-400'">{{ cal.name || 'Untitled calendar' }}</span>
-                </NuxtLink>
-              </div>
-            </template>
-
-            <!-- Reporting -->
-            <div class="border-t border-gray-100" />
-            <NuxtLink
-              to="/events/reporting"
-              class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-              @click="eventsHover = false"
-            >
-              <i class="pi pi-chart-bar text-gray-400 text-xs" />
-              Reporting
-            </NuxtLink>
-
-            <!-- New Category -->
-            <div class="border-t border-gray-100" />
-            <button
-              class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-              @click="openNewCalendarModal"
-            >
-              <i class="pi pi-plus text-gray-400 text-xs" />
-              New Category
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Other nav icons -->
-      <template v-for="item in navItemsForOrg" :key="item.href">
-        <!-- Bookables: flyout with pinned venues -->
-        <div v-if="item.href === '/bookables' && menuBookables.length"
-          class="relative"
-          @mouseenter="onBookablesEnter"
-          @mouseleave="onBookablesLeave">
-          <NuxtLink :to="item.href"
-            class="relative flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
-            :class="isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white'">
-            <i :class="`pi ${item.icon} text-lg`" />
-            <span v-if="pendingBookingsCount > 0"
-              class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-amber-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none ring-2 ring-[#1E2157]"
-              v-tooltip.right="`${pendingBookingsCount} booking${pendingBookingsCount === 1 ? '' : 's'} awaiting approval`">
-              {{ pendingBookingsCount > 99 ? '99+' : pendingBookingsCount }}
-            </span>
-          </NuxtLink>
-          <div v-show="bookablesHover"
-            class="absolute left-full top-0 z-[70]" style="padding-left:10px"
-            @mouseenter="onBookablesEnter" @mouseleave="onBookablesLeave">
-            <div class="bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden" style="width:220px">
-              <NuxtLink to="/bookables"
-                class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                @click="bookablesHover = false">
-                <i class="pi pi-building text-gray-400 text-xs" /> View all Bookables
-              </NuxtLink>
-              <NuxtLink v-if="pendingBookingsCount > 0" to="/bookings/pending"
-                class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-amber-700 bg-amber-50/50 hover:bg-amber-50 transition-colors border-t border-amber-100"
-                @click="bookablesHover = false">
-                <i class="pi pi-clock text-amber-500 text-xs" />
-                <span class="flex-1">Review pending bookings</span>
-                <span class="text-[10px] font-bold uppercase tracking-wide bg-amber-500 text-white px-1.5 py-0.5 rounded-full">{{ pendingBookingsCount }}</span>
-              </NuxtLink>
-              <div v-if="menuBookables.length" class="border-t border-gray-100" />
-              <div v-if="menuBookables.length" class="py-1">
-                <NuxtLink v-for="b in menuBookables" :key="b.id"
-                  :to="`/bookables/${b.id}`"
-                  class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                  @click="bookablesHover = false">
-                  <img v-if="b.sponsor_image || b.main_image" :src="b.sponsor_image || b.main_image"
-                    class="w-5 h-5 rounded object-contain shrink-0" />
-                  <i v-else class="pi pi-building text-gray-300 text-xs shrink-0" />
-                  {{ b.name }}
-                </NuxtLink>
-              </div>
+                </NuxtLink></div></template>
+              <div class="border-t border-gray-100" />
+              <NuxtLink to="/events/reporting" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-chart-bar text-gray-400 text-xs" />Reporting</NuxtLink>
+              <NuxtLink to="/bookables" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-building text-gray-400 text-xs" /><span class="flex-1">Venues &amp; Bookings</span><span v-if="pendingBookingsCount > 0" class="text-[10px] font-bold bg-amber-500 text-white px-1.5 rounded-full">{{ pendingBookingsCount }}</span></NuxtLink>
+              <NuxtLink to="/registration" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-clipboard text-gray-400 text-xs" />Registration</NuxtLink>
+              <NuxtLink to="/forms" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-file-edit text-gray-400 text-xs" />Forms</NuxtLink>
+              <div class="border-t border-gray-100" />
+              <button class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="openNewCalendarModal"><i class="pi pi-plus text-gray-400 text-xs" />New Category</button>
             </div>
           </div>
         </div>
 
-        <!-- All other nav items -->
-        <NuxtLink v-else
-          :to="item.href"
+        <!-- Other items: icon + hover tooltip -->
+        <NuxtLink v-else :to="item.href"
           class="group relative flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
           :class="isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white'">
-          <i :class="`pi ${item.icon} text-lg`" />
-          <span v-if="item.href === '/bookables' && pendingBookingsCount > 0"
-            class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-amber-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none ring-2 ring-[#1E2157]">
-            {{ pendingBookingsCount > 99 ? '99+' : pendingBookingsCount }}
-          </span>
-          <span class="pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow">
-            {{ item.label }}
-          </span>
+          <i :class="['pi', item.icon, 'text-lg']" />
+          <span class="pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow">{{ item.label }}</span>
         </NuxtLink>
       </template>
 
-      <!-- Spacer -->
-      <div class="flex-1" />
-
-      <!-- Settings at bottom -->
-      <NuxtLink
-        to="/settings"
-        class="group relative flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
-        :class="isActive('/settings')
-          ? 'bg-white/20 text-white'
-          : 'text-white/50 hover:bg-white/10 hover:text-white'"
-      >
-        <i class="pi pi-cog text-lg" />
-        <span
-          class="pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow"
-        >
-          Settings
-        </span>
-      </NuxtLink>
-
-      <!-- Avatar with sign-out flyout -->
-      <div class="relative mt-2" @mouseenter="avatarHover = true" @mouseleave="avatarHover = false">
-        <div
-          class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors"
-          :title="user?.email"
-        >
-          <span v-if="userInitials" class="text-white text-xs font-semibold">{{ userInitials }}</span>
-          <i v-else class="pi pi-user text-white text-sm" />
-        </div>
-        <div v-show="avatarHover" class="absolute left-full bottom-0 z-50" style="padding-left:10px">
-          <div class="bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden" style="width:180px">
-            <div class="px-4 py-2.5 border-b border-gray-100">
-              <p class="text-xs text-gray-400 truncate">{{ user?.email }}</p>
-            </div>
-            <button
-              class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
-              @click="handleLogout"
-            >
-              <i class="pi pi-sign-out text-xs" />
-              Sign out
-            </button>
-          </div>
-        </div>
-      </div>
     </aside>
 
-    <!-- Right panel: top bar + page content -->
-    <div class="flex flex-col flex-1 min-w-0">
+    <!-- Right panel: top bar + page content. Pushes left when the review
+         drawer slides out on the right (desktop only; it overlays on mobile). -->
+    <div class="flex flex-col flex-1 min-w-0 transition-[margin] duration-300 ease-out"
+      :class="reviewPanel ? 'md:mr-[440px]' : ''">
       <!-- Top header bar -->
-      <header class="h-14 shrink-0 bg-white border-b border-gray-200 flex items-center px-6 gap-4 z-10">
+      <header class="h-14 shrink-0 bg-white border-b border-gray-200 flex items-center px-3 sm:px-6 gap-2 sm:gap-4 z-10">
+        <!-- Mobile brand mark (icon rail is hidden on mobile) — tap to go home -->
+        <NuxtLink to="/dashboard" class="md:hidden w-8 h-8 shrink-0 rounded-lg flex items-center justify-center overflow-hidden" style="background: var(--brand-primary)" :title="activeOrgName">
+          <img v-if="brandMark" :src="brandMark" class="w-full h-full object-cover" />
+          <i v-else class="pi pi-calendar text-white text-sm" />
+        </NuxtLink>
         <div class="flex items-center gap-2 flex-1 min-w-0">
-          <nav v-if="breadcrumbs.length" class="flex items-center gap-1.5 text-sm min-w-0">
+          <nav v-if="breadcrumbs.length" class="hidden sm:flex items-center gap-1.5 text-sm min-w-0">
             <template v-for="(crumb, i) in breadcrumbs" :key="i">
               <i v-if="i > 0" class="pi pi-chevron-right text-[10px] text-gray-300 shrink-0" />
               <NuxtLink v-if="crumb.to" :to="crumb.to" class="text-gray-400 hover:text-gray-700 transition-colors shrink-0">{{ crumb.label }}</NuxtLink>
               <span v-else class="font-semibold text-gray-800 truncate">{{ crumb.label }}</span>
             </template>
           </nav>
-          <h1 v-else class="text-base font-semibold text-gray-900">{{ pageTitle }}</h1>
+          <h1 v-else class="hidden sm:block text-base font-semibold text-gray-900 truncate">{{ pageTitle }}</h1>
         </div>
-        <!-- Super-admin organisation switcher (only renders for super_admin role) -->
-        <OrgSwitcher />
         <!-- Notifications bell -->
         <div ref="bellWrapper" class="relative">
           <button type="button"
@@ -227,7 +85,7 @@
             <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
               <p class="text-sm font-semibold text-gray-800">Notifications</p>
               <button v-if="unreadNotifications > 0" type="button"
-                class="text-xs text-[#1E2157] hover:underline" @click="markAllRead">Mark all read</button>
+                class="text-xs text-primary hover:underline" @click="markAllRead">Mark all read</button>
             </div>
             <div v-if="!notifications.length" class="text-sm text-gray-400 italic py-6 text-center">
               You're all caught up.
@@ -240,7 +98,7 @@
                 @click="markRead(n)">
                 <div class="flex items-start gap-2">
                   <i class="pi pi-bell text-xs mt-1"
-                    :class="n.read_at ? 'text-gray-300' : 'text-[#1E2157]'" />
+                    :class="n.read_at ? 'text-gray-300' : 'text-primary'" />
                   <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium text-gray-800 truncate">{{ n.title }}</p>
                     <p v-if="n.body" class="text-xs text-gray-500 truncate">{{ n.body }}</p>
@@ -252,15 +110,62 @@
           </div>
         </div>
 
-        <div class="flex items-center gap-2 bg-red-600 text-white text-xs font-semibold px-4 py-1.5 rounded-lg">
-          <i class="pi pi-exclamation-triangle" />
-          Early prototype — not production ready
+        <ReviewWidget v-if="orgReady && user && !gate.isDeveloper.value" hide-pill />
+
+        <!-- Comments & review — pops out the <ReviewWidget> drawer -->
+        <button v-if="orgReady && user && !gate.isDeveloper.value" type="button"
+          class="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors shrink-0"
+          :class="reviewCount > 0 ? 'text-primary' : 'text-gray-500'"
+          v-tooltip.bottom="reviewCount > 0 ? `${reviewCount} open comment${reviewCount === 1 ? '' : 's'}` : 'Comments & review'"
+          @click="reviewPanel = true">
+          <i :class="reviewCount > 0 ? 'pi pi-comments' : 'pi pi-comment'" class="text-base" />
+          <span v-if="reviewCount > 0"
+            class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
+            {{ reviewCount > 99 ? '99+' : reviewCount }}
+          </span>
+        </button>
+
+        <!-- Settings gear -->
+        <NuxtLink to="/settings"
+          class="hidden md:flex w-9 h-9 items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-500 shrink-0"
+          title="Settings">
+          <i class="pi pi-cog text-base" />
+        </NuxtLink>
+
+        <!-- User avatar + dropdown -->
+        <div ref="userMenuWrapper" class="relative shrink-0">
+          <button type="button" class="flex items-center gap-1.5 rounded-full p-0.5 hover:bg-gray-100 transition-colors"
+            @click="userMenuOpen = !userMenuOpen">
+            <span class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-white text-sm font-semibold flex items-center justify-center"
+              :class="userMenuOpen ? 'ring-2 ring-primary ring-offset-1' : ''">{{ userInitials }}</span>
+            <i class="pi pi-chevron-down text-[10px] text-gray-400 hidden sm:inline" />
+          </button>
+          <div v-if="userMenuOpen"
+            class="absolute right-0 top-full mt-1.5 w-64 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-50">
+            <div class="px-4 py-3 border-b border-gray-100">
+              <p class="text-sm font-semibold text-gray-900 truncate">{{ userName }}</p>
+              <p class="text-xs text-gray-400 truncate">{{ user?.email }}</p>
+            </div>
+            <OrgSwitcher @switched="userMenuOpen = false" />
+            <NuxtLink v-if="isSuper" to="/admin" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+              @click="userMenuOpen = false"><i class="pi pi-sitemap text-gray-400 w-4 text-center" />All orgs</NuxtLink>
+            <NuxtLink to="/settings" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+              @click="userMenuOpen = false"><i class="pi pi-cog text-gray-400 w-4 text-center" />Settings</NuxtLink>
+            <button type="button" class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 text-left"
+              @click="handleLogout"><i class="pi pi-sign-out text-gray-400 w-4 text-center" />Sign out</button>
+          </div>
         </div>
-        <ReviewWidget v-if="orgReady && user && !gate.isDeveloper.value" />
+
+        <!-- Help -->
+        <button type="button"
+          class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-500 shrink-0"
+          v-tooltip.bottom="'Help & about'" @click="showDisclaimer = true">
+          <i class="pi pi-question-circle text-base" />
+        </button>
       </header>
 
       <!-- Page content -->
-      <main class="flex-1 overflow-y-auto relative">
+      <main class="flex-1 overflow-y-auto relative pb-16 md:pb-0">
         <template v-if="orgReady">
           <!-- Developer gate: only approved pages are visible to users with role='developer' -->
           <div v-if="gate.blocked.value" class="min-h-full flex flex-col items-center justify-center px-6 py-12 bg-[#F5F8FA]">
@@ -298,11 +203,50 @@
       </main>
       <Toast />
     </div>
+
+    <!-- Mobile bottom tab bar -->
+    <nav class="md:hidden fixed bottom-0 left-0 right-0 z-[55] bg-white border-t border-gray-200 flex items-stretch h-16"
+      style="padding-bottom: env(safe-area-inset-bottom)">
+      <NuxtLink v-for="item in mobilePrimary" :key="item.href" :to="item.href"
+        class="flex-1 flex flex-col items-center justify-center gap-0.5"
+        :class="isActive(item.href) ? 'text-primary' : 'text-gray-400'">
+        <i :class="['pi', item.icon, 'text-lg']" />
+        <span class="text-[10px] font-medium">{{ item.label }}</span>
+      </NuxtLink>
+      <button type="button" class="flex-1 flex flex-col items-center justify-center gap-0.5 text-gray-400"
+        :class="mobileMenuOpen ? 'text-primary' : ''" @click="mobileMenuOpen = true">
+        <i class="pi pi-bars text-lg" />
+        <span class="text-[10px] font-medium">More</span>
+      </button>
+    </nav>
+
+    <!-- Mobile "More" sheet: full menu + profile -->
+    <div v-if="mobileMenuOpen" class="md:hidden fixed inset-0 z-[70]">
+      <div class="absolute inset-0 bg-black/40" @click="mobileMenuOpen = false" />
+      <div class="absolute inset-x-0 bottom-0 max-h-[85vh] bg-white rounded-t-2xl flex flex-col overflow-hidden">
+        <div class="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between shrink-0">
+          <span class="font-semibold text-gray-900">Menu</span>
+          <button class="text-gray-400 hover:text-gray-700" @click="mobileMenuOpen = false"><i class="pi pi-times" /></button>
+        </div>
+        <div class="overflow-y-auto p-2">
+          <NuxtLink v-for="item in clubMenu" :key="item.label" :to="item.href"
+            class="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium"
+            :class="isActive(item.href) ? 'bg-primary/10 text-primary' : 'text-gray-700 hover:bg-gray-50'">
+            <i :class="['pi', item.icon, 'text-base w-5 text-center']" />{{ item.label }}
+          </NuxtLink>
+          <div class="border-t border-gray-100 my-2" />
+          <button v-if="orgReady && user && !gate.isDeveloper.value" type="button" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 text-left" @click="openReviewFromMobile"><i class="pi pi-comment text-base w-5 text-center" />Comments &amp; review<span v-if="reviewCount > 0" class="ml-auto min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center">{{ reviewCount > 99 ? '99+' : reviewCount }}</span></button>
+          <NuxtLink to="/settings" class="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"><i class="pi pi-cog text-base w-5 text-center" />Settings</NuxtLink>
+          <NuxtLink to="/switch-role" class="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"><i class="pi pi-sync text-base w-5 text-center" />Switch role</NuxtLink>
+          <button type="button" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 text-left" @click="handleLogout"><i class="pi pi-sign-out text-base w-5 text-center" />Sign out</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Prototype disclaimer modal -->
   <Dialog v-model:visible="showDisclaimer" modal :closable="false" :draggable="false"
-    style="width: 480px"
+    :style="{ width: '95vw', maxWidth: '480px' }"
     :pt="{ mask: { style: 'backdrop-filter: blur(20px); background: rgba(0,0,0,0.5)' }, header: { style: 'padding: 0' } }">
     <template #header>
       <div class="w-full bg-red-600 px-6 py-4 flex items-center gap-3 rounded-t-xl">
@@ -333,7 +277,7 @@
     </div>
     <template #footer>
       <Button label="I understand" icon="pi pi-check" class="w-full" @click="acknowledgeDisclaimer"
-        style="background:#1E2157;border-color:#1E2157" />
+        style="background:var(--brand-primary);border-color:var(--brand-primary)" />
     </template>
   </Dialog>
 
@@ -343,9 +287,11 @@
 const route = useRoute()
 const db = useSupabaseClient()
 const user = useSupabaseUser()
+const isSuper = computed(() => ((user.value as any)?.app_metadata?.role) === 'super_admin')
 const breadcrumbs = useBreadcrumbs()
 const { orgId, orgReady } = useOrg()
 const gate = useDeveloperGate()
+useBrandTheme() // re-themes --brand-primary from the active org's connected brand
 // Pull the list of approved-and-navigable pages once for the gate stub,
 // then refresh whenever the developer lands on a still-blocked page.
 watch([gate.isDeveloper, gate.pageKey], () => {
@@ -425,9 +371,19 @@ onBeforeUnmount(() => {
   if (pollHandle) clearInterval(pollHandle)
 })
 function onDocClick(e: MouseEvent) {
-  if (!bellOpen.value) return
-  if (bellWrapper.value && !bellWrapper.value.contains(e.target as Node)) bellOpen.value = false
+  if (bellOpen.value && bellWrapper.value && !bellWrapper.value.contains(e.target as Node)) bellOpen.value = false
+  if (userMenuOpen.value && userMenuWrapper.value && !userMenuWrapper.value.contains(e.target as Node)) userMenuOpen.value = false
 }
+
+const reviewPanel = useReviewPanel()
+const reviewCount = useReviewCount()
+function openReviewFromMobile() { mobileMenuOpen.value = false; reviewPanel.value = true }
+const userMenuOpen = ref(false)
+const userMenuWrapper = ref<HTMLElement | null>(null)
+const userName = computed(() => {
+  const m = (user.value?.user_metadata as any) || {}
+  return m.full_name || m.name || (user.value?.email ? user.value.email.split('@')[0] : 'Account')
+})
 
 const orgName = ref('FriendlyManager')
 const userInitials = computed(() => {
@@ -479,11 +435,15 @@ function onBookablesLeave() {
 const calendars = ref<{ id: string; name: string; color: string | null }[]>([])
 
 async function loadCalendars() {
-  const { data } = await (db.from as any)('calendars').select('id, name').order('sort_order')
+  if (!orgId.value) { calendars.value = []; return }
+  // Scope to the active org — otherwise the menu pools every org's calendars.
+  const { data } = await (db.from as any)('calendars').select('id, name').eq('org_id', orgId.value).order('sort_order')
   calendars.value = (data ?? []).map((c: any) => ({ id: c.id, name: c.name, color: null }))
 }
 
-onMounted(() => { loadCalendars(); loadMenuBookables() })
+onMounted(() => { loadMenuBookables() })
+// Reload calendars whenever the active org changes (incl. super-admin switch).
+watch(orgId, loadCalendars, { immediate: true })
 watch(() => route.path, loadMenuBookables)
 
 // Reload when a new calendar is created via the settings modal
@@ -520,20 +480,63 @@ const navItems = [
   { href: '/groups', label: 'Groups', icon: 'pi-users', resource: 'groups' },
   { href: '/finances', label: 'Finances', icon: 'pi-dollar', resource: 'fees' },
   { href: '/reporting', label: 'Reporting', icon: 'pi-chart-bar' },
-  { href: '/settings/permissions', label: 'Permissions', icon: 'pi-lock', resource: 'permissions' },
-  { href: '/settings/fields', label: 'Fields', icon: 'pi-id-card', resource: 'custom_fields' },
+  { href: '/proto', label: 'Prototype', icon: 'pi-compass' },
+  { href: '/settings/communications', label: 'Communications', icon: 'pi-megaphone', resource: 'settings' },
+  // Permissions, Fields and Terminology now live under Settings (via <SettingsNav>).
 ]
+
+// ---- Club menu (wide labelled left nav, mirrors the legacy club menu order/icons) ----
+// `events: true` gets the rich expandable sub-list (calendars, reporting, venues, etc.).
+// Items without a built page point at a ComingSoon placeholder route.
+const clubMenu = [
+  { label: 'Dashboard',   icon: 'pi-th-large',      href: '/dashboard',               chevron: false },
+  { label: 'People',      icon: 'pi-users',         href: '/people',                  chevron: true },
+  { label: 'Classes',     icon: 'pi-sitemap',       href: '/groups',                  chevron: true },
+  { label: 'Fees',        icon: 'pi-dollar',        href: '/finances',                chevron: true },
+  { label: 'Events',      icon: 'pi-calendar',      href: '/events',                  chevron: true, events: true },
+  { label: 'Bookings',    icon: 'pi-bookmark',      href: '/bookables?tab=bookings',  chevron: true },
+  { label: 'Attendance',  icon: 'pi-check-square',  href: '/attendance',              chevron: true },
+  { label: 'Mailer',      icon: 'pi-envelope',      href: '/settings/communications', chevron: true },
+  { label: 'Resources',   icon: 'pi-video',         href: '/resources',               chevron: false },
+  { label: 'Assets',      icon: 'pi-shopping-cart', href: '/assets',                  chevron: true },
+  { label: 'Mobile App',  icon: 'pi-mobile',        href: '/mobile-app',              chevron: true },
+  { label: 'Programme',   icon: 'pi-flag',          href: '/programme',               chevron: true },
+  { label: 'GNZ',         icon: 'pi-user',          href: '/gnz',                     chevron: true },
+  { label: 'FM Invoices', icon: 'pi-file',          href: '/fm-invoices',             chevron: false },
+]
+// Which top-level item is expanded (one at a time).
+const expandedMenu = ref<string | null>(null)
+function toggleMenu(label: string) { expandedMenu.value = expandedMenu.value === label ? null : label }
+
+// ── Mobile navigation (bottom tab bar + "More" sheet) ──
+const mobilePrimary = [
+  { label: 'People', icon: 'pi-users',        href: '/people' },
+  { label: 'Events', icon: 'pi-calendar',     href: '/events' },
+  { label: 'Fees',   icon: 'pi-dollar',       href: '/finances' },
+]
+const mobileMenuOpen = ref(false)
+watch(() => route.path, () => { mobileMenuOpen.value = false })
 
 // Permission enforcement + governing-body extras.
 const { can, load: loadPerms } = useCan()
 const isGoverningOrg = ref(false)
 const activeOrgName = ref('')
+// Brand mark shown top-left: the org's own icon, else its connected brand's icon.
+const brandMark = ref<string | null>(null)
 watch(orgId, async (id) => {
   loadPerms()
-  if (!id) { isGoverningOrg.value = false; activeOrgName.value = ''; return }
-  const { data } = await (db.from as any)('organisations').select('name, org_level').eq('id', id).single()
+  if (!id) { isGoverningOrg.value = false; activeOrgName.value = ''; brandMark.value = null; return }
+  const { data } = await (db.from as any)('organisations').select('name, org_level, icon_url, brand_id').eq('id', id).single()
   isGoverningOrg.value = !!data?.org_level && data.org_level !== 'CLUB'
   activeOrgName.value = data?.name ?? ''
+  if (data?.icon_url) {
+    brandMark.value = data.icon_url
+  } else if (data?.brand_id) {
+    const { data: brand } = await (db.from as any)('brands').select('icon_url').eq('id', data.brand_id).maybeSingle()
+    brandMark.value = brand?.icon_url ?? null
+  } else {
+    brandMark.value = null
+  }
 }, { immediate: true })
 const navItemsForOrg = computed(() => {
   const base = isGoverningOrg.value

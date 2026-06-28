@@ -21,7 +21,7 @@
       </div>
       <!-- Progress bar -->
       <div class="h-1 bg-gray-100">
-        <div class="h-full bg-[#1E2157] transition-all duration-300"
+        <div class="h-full bg-primary transition-all duration-300"
           :style="{ width: `${((mobileStep + 1) / mobileSteps.length) * 100}%` }" />
       </div>
     </div>
@@ -37,7 +37,7 @@
       </div>
       <div class="flex items-center gap-2">
         <Button label="Cancel" severity="secondary" outlined size="small" @click="navigateTo('/events')" />
-        <Button label="Save Event" icon="pi pi-check" size="small" :loading="saving" :disabled="!form.title.trim()" @click="saveEvent" style="background:#1E2157; border-color:#1E2157" />
+        <Button label="Save Event" icon="pi pi-check" size="small" :loading="saving" :disabled="!form.title.trim()" @click="saveEvent" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
       </div>
     </div>
 
@@ -118,7 +118,7 @@
                   <span v-else class="text-gray-400 italic">No date set</span>
                 </span>
                 <span v-if="formDateDisplay.days !== null"
-                  class="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#1E2157]/10 text-[#1E2157]">
+                  class="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                   {{ formDateDisplay.days }} {{ formDateDisplay.days === 1 ? 'day' : 'days' }}
                 </span>
                 <i class="pi text-sm text-gray-300 group-hover:text-gray-500 transition-colors shrink-0"
@@ -224,6 +224,33 @@
           </div>
         </div>
 
+        <!-- ─ Registration form ─
+             Toggle that lets the event owner choose whether to collect
+             extra registration info via a custom form. When ON we render
+             the same <FormBuilder> the advanced event uses; on save we
+             persist the form to registration_forms / form_fields and
+             link it via events.form_id. -->
+        <div :class="isMobile ? (mobileStep === 4 ? 'px-4 py-5 mt-5' : 'hidden') : ''">
+          <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Registration form</h2>
+          <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="flex items-center justify-between">
+              <div class="flex-1 min-w-0 pr-4">
+                <p class="text-sm font-medium text-gray-700">Public registration form</p>
+                <p class="text-xs text-gray-500 mt-0.5">Let people sign up themselves through a custom form (name, email, plus any extra questions you ask). Off by default — invitees still sign up via your invitee list.</p>
+              </div>
+              <ToggleSwitch v-model="form.use_registration_form" />
+            </div>
+            <p v-if="form.use_registration_form" class="text-[11px] text-gray-400 mt-3">
+              Default fields below cover the basics. Add more by clicking "+ Add field" inside the builder. The form name defaults to the event title.
+            </p>
+          </div>
+          <div v-if="form.use_registration_form" class="mt-4 bg-white rounded-xl border border-gray-200 overflow-hidden" style="min-height:560px">
+            <FormBuilder v-model="form.registration_form"
+              :context="{ title: form.title || 'Registration', description: form.description }"
+              :allow-multiple-persons="false" />
+          </div>
+        </div>
+
         <!-- ─ Fees ─ -->
         <div :class="isMobile ? (mobileStep === 5 ? 'px-4 py-5' : 'hidden') : ''">
           <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Fees</h2>
@@ -234,8 +261,8 @@
                 <p class="text-xs text-gray-500 mt-0.5">Enable to add fee components to this event</p>
               </div>
               <div class="flex gap-0">
-                <button class="px-4 py-2 text-sm font-medium border rounded-l-lg transition-colors" :class="!form.is_paid ? 'bg-[#1E2157] border-[#1E2157] text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'" @click="form.is_paid = false">Free</button>
-                <button class="px-4 py-2 text-sm font-medium border rounded-r-lg transition-colors" :class="form.is_paid ? 'bg-[#1E2157] border-[#1E2157] text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'" @click="form.is_paid = true">Charged</button>
+                <button class="px-4 py-2 text-sm font-medium border rounded-l-lg transition-colors" :class="!form.is_paid ? 'bg-primary border-primary text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'" @click="form.is_paid = false">Free</button>
+                <button class="px-4 py-2 text-sm font-medium border rounded-r-lg transition-colors" :class="form.is_paid ? 'bg-primary border-primary text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'" @click="form.is_paid = true">Charged</button>
               </div>
             </div>
             <div v-if="form.is_paid" class="border border-gray-200 rounded-xl overflow-hidden">
@@ -267,7 +294,7 @@
             <div>
               <h3 class="text-sm font-semibold text-gray-800 mb-1">Banner image</h3>
               <p class="text-xs text-gray-500 mb-3">For best results upload an image that is 1200 × 350</p>
-              <div v-if="!form.banner_url" class="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center gap-2 hover:border-[#1E2157] transition-colors cursor-pointer" @click="triggerBannerUpload">
+              <div v-if="!form.banner_url" class="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center gap-2 hover:border-primary transition-colors cursor-pointer" @click="triggerBannerUpload">
                 <i class="pi pi-image text-2xl text-gray-400" />
                 <Button label="Upload banner image" severity="secondary" outlined size="small" icon="pi pi-upload" />
               </div>
@@ -287,11 +314,11 @@
               <div class="space-y-2 mb-3">
                 <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
                   <span class="text-sm text-gray-700">Club Terms and Conditions</span>
-                  <span class="text-xs bg-[#1E2157] text-white px-2 py-0.5 rounded-full">Required</span>
+                  <span class="text-xs bg-primary text-white px-2 py-0.5 rounded-full">Required</span>
                 </div>
                 <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
                   <span class="text-sm text-gray-700">Privacy Policy</span>
-                  <span class="text-xs bg-[#1E2157] text-white px-2 py-0.5 rounded-full">Required</span>
+                  <span class="text-xs bg-primary text-white px-2 py-0.5 rounded-full">Required</span>
                 </div>
                 <div v-for="(term, idx) in form.custom_terms" :key="idx"
                   class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg group">
@@ -314,12 +341,12 @@
                   <span class="text-sm text-blue-600 font-medium cursor-pointer hover:underline">{{ admin.name }}</span>
                   <div class="flex justify-center"><Checkbox v-model="admin.registrations" binary /></div>
                   <div class="flex justify-center">
-                    <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center cursor-pointer" :class="admin.changes ? 'border-[#1E2157] bg-[#1E2157]' : 'border-gray-300'" @click="admin.changes = !admin.changes">
+                    <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center cursor-pointer" :class="admin.changes ? 'border-primary bg-primary' : 'border-gray-300'" @click="admin.changes = !admin.changes">
                       <div v-if="admin.changes" class="w-1.5 h-1.5 rounded-full bg-white" />
                     </div>
                   </div>
                   <div class="flex justify-center">
-                    <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center cursor-pointer" :class="admin.notes ? 'border-[#1E2157] bg-[#1E2157]' : 'border-gray-300'" @click="admin.notes = !admin.notes">
+                    <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center cursor-pointer" :class="admin.notes ? 'border-primary bg-primary' : 'border-gray-300'" @click="admin.notes = !admin.notes">
                       <div v-if="admin.notes" class="w-1.5 h-1.5 rounded-full bg-white" />
                     </div>
                   </div>
@@ -356,14 +383,14 @@
         :disabled="mobileStep === 0 && !form.title.trim()"
         :loading="saving && mobileStep === mobileSteps.length - 1"
         class="flex-1"
-        style="background:#1E2157; border-color:#1E2157"
+        style="background:var(--brand-primary); border-color:var(--brand-primary)"
         @click="mobileNext"
       />
     </div>
   </div>
 
   <!-- Add Admin Dialog -->
-  <Dialog v-model:visible="showAddAdminDialog" header="Add Event Administrator" modal style="width:360px">
+  <Dialog v-model:visible="showAddAdminDialog" header="Add Event Administrator" modal :style="{ width: '95vw', maxWidth: '360px' }">
     <div class="flex flex-col gap-3 py-2">
       <div class="flex flex-col gap-1.5">
         <label class="text-sm font-medium">Name</label>
@@ -387,12 +414,12 @@
     </div>
     <template #footer>
       <Button label="Cancel" severity="secondary" text @click="showAddAdminDialog = false" />
-      <Button label="Add" :disabled="!adminDraft.name.trim()" @click="addAdmin" style="background:#1E2157; border-color:#1E2157" />
+      <Button label="Add" :disabled="!adminDraft.name.trim()" @click="addAdmin" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
     </template>
   </Dialog>
 
   <!-- New Category Dialog -->
-  <Dialog v-model:visible="showNewCategoryDialog" header="New Category" modal style="width:360px">
+  <Dialog v-model:visible="showNewCategoryDialog" header="New Category" modal :style="{ width: '95vw', maxWidth: '360px' }">
     <div class="flex flex-col gap-4 py-1">
       <div class="flex flex-col gap-1.5">
         <label class="text-sm font-medium">Name</label>
@@ -419,7 +446,7 @@
     </div>
     <template #footer>
       <Button label="Cancel" severity="secondary" text @click="showNewCategoryDialog = false" />
-      <Button label="Create" :disabled="!newCategoryName.trim()" :loading="savingCategory" @click="createCategory" style="background:#1E2157; border-color:#1E2157" />
+      <Button label="Create" :disabled="!newCategoryName.trim()" :loading="savingCategory" @click="createCategory" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
     </template>
   </Dialog>
 
@@ -639,7 +666,40 @@ const form = reactive({
   banner_url: '',
   custom_terms: [] as string[],
   admins: [] as { name: string; registrations: boolean; changes: boolean; notes: boolean }[],
+  // Registration form (gated by toggle). Mirrors the shape the
+  // FormBuilder + /forms/[id].vue use, so save logic is portable.
+  use_registration_form: false,
+  registration_form: emptyRegistrationForm() as any,
 })
+
+// Mirrors emptyForm() / coreFields() from /pages/forms/[id].vue so
+// the basic event ships with the same default registration template
+// as the standalone form builder.
+function freshFieldKey() { return crypto.randomUUID() }
+function defaultRegistrationFields() {
+  return [
+    { _key: freshFieldKey(), field_type: 'text',     label: 'First Name',       is_required: true,  placeholder: 'John',                     has_placeholder: true,  helper_text: '', has_helper_text: false, col_span: 1, _optionsText: '', core: 'first_name' },
+    { _key: freshFieldKey(), field_type: 'text',     label: 'Last Name',        is_required: true,  placeholder: 'Smith',                    has_placeholder: true,  helper_text: '', has_helper_text: false, col_span: 1, _optionsText: '', core: 'last_name'  },
+    { _key: freshFieldKey(), field_type: 'text',     label: 'Email Address',    is_required: true,  placeholder: 'you@example.com',          has_placeholder: true,  helper_text: '', has_helper_text: false, col_span: 2, _optionsText: '', core: 'email'      },
+    { _key: freshFieldKey(), field_type: 'text',     label: 'Phone Number',     is_required: false, placeholder: '+64…',                     has_placeholder: true,  helper_text: '', has_helper_text: false, col_span: 2, _optionsText: '', core: 'phone'      },
+    { _key: freshFieldKey(), field_type: 'number',   label: 'People Attending', is_required: false, placeholder: '1',                        has_placeholder: true,  helper_text: 'How many people are attending?', has_helper_text: true, col_span: 1, _optionsText: '', core: 'attendees' },
+    { _key: freshFieldKey(), field_type: 'textarea', label: 'Notes',            is_required: false, placeholder: 'Any special requirements…', has_placeholder: true, helper_text: '', has_helper_text: false, col_span: 2, _optionsText: '', core: 'notes'     },
+  ]
+}
+function emptyRegistrationForm() {
+  return {
+    name: '',
+    description: '',
+    fields: defaultRegistrationFields(),
+    terms: [] as any[],
+    settings: {
+      submitLabel: 'Submit',
+      confirmMessage: '',
+      formHeading: 'Fill in the form to register',
+    },
+    sectionSaved: { settings: false, fields: false, terms: false } as Record<string, boolean>,
+  }
+}
 
 const totalFees = computed(() =>
   form.fees.reduce((sum, f) => sum + (f.amount ?? 0), 0)
@@ -676,11 +736,75 @@ function buildDateTime(date: Date | null, time: Date | null): string | null {
   return d.toISOString()
 }
 
+// Persists the registration-form draft to registration_forms +
+// form_fields and returns the form id. Mirrors /forms/[id].vue's save
+// logic so a form created here is editable from /forms/:id afterward.
+async function saveRegistrationForm(eventTitle: string): Promise<string | null> {
+  const draft = form.registration_form
+  const formName = draft.name?.trim() || `${eventTitle.trim() || 'Event'} registration`
+  const config: any = {
+    description: draft.description || null,
+    terms: (draft.terms ?? []).map(({ _key, ...rest }: any) => rest),
+    settings: { ...draft.settings },
+    sectionSaved: { ...draft.sectionSaved },
+  }
+  const { data, error } = await (db.from as any)('registration_forms').insert({
+    org_id: orgId.value,
+    name: formName,
+    config,
+  }).select('id').single()
+  if (error) throw error
+  const formId = data.id
+
+  if (draft.fields.length) {
+    const typeToDb: Record<string, string> = {
+      text: 'SHORT_TEXT', textarea: 'LONG_TEXT', select: 'SINGLE_SELECT',
+      checkbox: 'TOGGLE', number: 'NUMBER', date: 'DATE', file: 'FILE',
+    }
+    const rows = draft.fields.map((f: any, idx: number) => ({
+      form_id: formId,
+      field_type: typeToDb[f.field_type] ?? 'SHORT_TEXT',
+      label: f.label || 'Untitled',
+      placeholder: f.has_placeholder ? (f.placeholder || null) : null,
+      help_text: f.has_helper_text ? (f.helper_text || null) : null,
+      is_required: !!f.is_required,
+      sort_order: idx,
+      page_number: 1,
+      options: f.field_type === 'select'
+        ? JSON.stringify((f._optionsText || '').split('\n').map((s: string) => s.trim()).filter(Boolean))
+        : null,
+    }))
+    await (db.from as any)('form_fields').insert(rows)
+  }
+  // Per-field metadata (col_span, core, has_helper_text, etc.) lives in
+  // registration_forms.config so it round-trips back through the builder.
+  const fieldMeta = draft.fields.reduce((acc: any, f: any) => {
+    acc[f.label] = {
+      col_span: f.col_span,
+      core: f.core,
+      has_helper_text: f.has_helper_text,
+      has_visibility_conditions: f.has_visibility_conditions,
+      visibility_conditions: f.visibility_conditions,
+      has_financial_increase: f.has_financial_increase,
+      financial_rules: f.financial_rules,
+    }
+    return acc
+  }, {})
+  await (db.from as any)('registration_forms').update({
+    config: { ...config, fieldMeta },
+  }).eq('id', formId)
+  return formId
+}
+
 async function saveEvent() {
   if (!form.title.trim()) return
   saving.value = true
   try {
-    const payload = {
+    let registrationFormId: string | null = null
+    if (form.use_registration_form) {
+      registrationFormId = await saveRegistrationForm(form.title)
+    }
+    const payload: any = {
       title: form.title.trim(),
       description: form.description.trim() || null,
       category_id: form.category_ids[0] ?? null,
@@ -704,6 +828,7 @@ async function saveEvent() {
       hold_spot_enabled: form.hold_spot_enabled,
       reg_open_at: form.reg_open_at ?? null,
       reg_close_at: form.reg_close_at ?? null,
+      form_id: registrationFormId,
       status: 'DRAFT',
     }
 

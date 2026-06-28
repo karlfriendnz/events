@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col" style="height: calc(100vh - 3.5rem)">
+  <div class="flex flex-col h-[calc(100vh-3.5rem-4rem)] md:h-[calc(100vh-3.5rem)]">
 
     <!-- Top bar -->
     <div class="bg-white border-b border-gray-200 px-4 md:px-6 py-3 flex items-center justify-between shrink-0">
@@ -9,7 +9,9 @@
         <span class="hidden sm:inline">Cancel</span>
       </button>
       <span class="text-sm font-semibold text-gray-800">Create Venue</span>
-      <div class="w-16" />
+      <NuxtLink to="/bookables/new-v2" class="text-xs text-gray-400 hover:text-gray-700">
+        Try v2 →
+      </NuxtLink>
     </div>
 
     <!-- Step indicators -->
@@ -20,20 +22,20 @@
             :disabled="i + 1 > maxStepReached" @click="goToStep(i + 1)">
             <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs border-2 transition-all"
               :class="currentStep > i + 1
-                ? 'bg-[#1E2157] border-[#1E2157] text-white'
+                ? 'bg-primary border-primary text-white'
                 : currentStep === i + 1
-                ? 'bg-white border-[#1E2157] text-[#1E2157] font-semibold'
+                ? 'bg-white border-primary text-primary font-semibold'
                 : 'bg-white border-gray-200 text-gray-400'">
               <i v-if="currentStep > i + 1" class="pi pi-check text-[10px]" />
               <span v-else>{{ i + 1 }}</span>
             </div>
             <span class="hidden sm:inline text-[10px] whitespace-nowrap font-medium"
-              :class="currentStep === i + 1 ? 'text-[#1E2157]' : currentStep > i + 1 ? 'text-gray-500' : 'text-gray-300'">
+              :class="currentStep === i + 1 ? 'text-primary' : currentStep > i + 1 ? 'text-gray-500' : 'text-gray-300'">
               {{ step.label }}
             </span>
           </button>
           <div v-if="i < steps.length - 1" class="w-10 md:w-16 h-px mx-1 mb-3 sm:mb-0 transition-colors shrink-0"
-            :class="currentStep > i + 1 ? 'bg-[#1E2157]' : 'bg-gray-200'" />
+            :class="currentStep > i + 1 ? 'bg-primary' : 'bg-gray-200'" />
         </template>
       </div>
     </div>
@@ -50,13 +52,13 @@
           </div>
 
           <div class="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-4">
-            <div class="flex items-center gap-4">
-              <label class="w-40 text-sm font-medium text-gray-700 shrink-0">Name <span class="text-red-400">*</span></label>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+              <label class="w-full sm:w-40 text-sm font-medium text-gray-700 shrink-0">Name <span class="text-red-400">*</span></label>
               <InputText v-model="form.name" placeholder="e.g. Main Hall, Court 1" class="flex-1" autofocus />
             </div>
 
-            <div class="flex items-center gap-4">
-              <label class="w-40 text-sm font-medium text-gray-700 shrink-0">Parent venue</label>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+              <label class="w-full sm:w-40 text-sm font-medium text-gray-700 shrink-0">Parent venue</label>
               <Select v-model="form.parent_id" :options="parentOptions" option-label="name" option-value="id"
                 placeholder="None — top-level venue" class="flex-1" show-clear>
                 <template #option="{ option }">
@@ -68,21 +70,52 @@
               </Select>
             </div>
 
-            <div class="flex items-center gap-4">
-              <label class="w-40 text-sm font-medium text-gray-700 shrink-0">Location</label>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+              <label class="w-full sm:w-40 text-sm font-medium text-gray-700 shrink-0">Location</label>
               <InputText v-model="form.location" placeholder="Address or description" class="flex-1" />
             </div>
 
-            <div class="flex items-center gap-4">
-              <label class="w-40 text-sm font-medium text-gray-700 shrink-0">Max capacity</label>
-              <InputNumber v-model="form.max_concurrent" :min="1" class="w-28" />
-              <span class="text-xs text-gray-400">simultaneous bookings allowed</span>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+              <label class="w-full sm:w-40 text-sm font-medium text-gray-700 shrink-0">Number of venues</label>
+              <InputNumber v-model="form.count" :min="1" :max="200" input-class="w-16" class="shrink-0" />
+              <span class="text-xs text-gray-400 min-w-0">
+                {{ form.count > 1
+                  ? `Creates ${form.count} auto-numbered: "${form.name || 'Venue'} 1" … "${form.name || 'Venue'} ${form.count}"`
+                  : 'Set higher than 1 to create several at once (e.g. 10 lockers, 4 courts)' }}
+              </span>
             </div>
 
-            <div class="flex items-start gap-4">
-              <label class="w-40 text-sm font-medium text-gray-700 shrink-0 pt-1">Description</label>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+              <label class="w-full sm:w-40 text-sm font-medium text-gray-700 shrink-0">Max capacity</label>
+              <InputNumber v-model="form.max_concurrent" :min="1" input-class="w-16" class="shrink-0" />
+              <span class="text-xs text-gray-400 min-w-0">simultaneous bookings per venue</span>
+            </div>
+
+            <div class="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4">
+              <label class="w-full sm:w-40 text-sm font-medium text-gray-700 shrink-0 pt-1">Description</label>
               <Textarea v-model="form.description" rows="2" auto-resize placeholder="Optional"
                 class="flex-1 text-sm" />
+            </div>
+
+            <div class="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4">
+              <label class="w-full sm:w-40 text-sm font-medium text-gray-700 shrink-0 pt-1">Image</label>
+              <div class="flex-1">
+                <div v-if="!form.main_image"
+                  class="border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center gap-2 hover:border-primary transition-colors cursor-pointer"
+                  @click="imageInput?.click()">
+                  <i class="pi pi-image text-2xl text-gray-300" />
+                  <Button label="Upload image" severity="secondary" outlined size="small" icon="pi pi-upload" />
+                </div>
+                <div v-else class="relative rounded-xl overflow-hidden w-48">
+                  <img :src="form.main_image" class="w-full h-32 object-cover" />
+                  <div v-if="uploadingImage" class="absolute inset-0 bg-black/40 flex items-center justify-center">
+                    <i class="pi pi-spin pi-spinner text-white text-xl" />
+                  </div>
+                  <Button v-else icon="pi pi-times" severity="danger" rounded size="small"
+                    class="absolute top-2 right-2" @click="form.main_image = ''" />
+                </div>
+                <input ref="imageInput" type="file" accept="image/*" class="hidden" @change="handleImageUpload" />
+              </div>
             </div>
           </div>
         </template>
@@ -92,7 +125,7 @@
           <div>
             <h2 class="text-xl font-semibold text-gray-900">What happens here?</h2>
             <p class="text-sm text-gray-500 mt-1">
-              Pick the activities people can book at this venue. You need at least one.
+              Pick the activities people can book at this venue, or skip to add later.
             </p>
           </div>
 
@@ -120,19 +153,41 @@
             </label>
 
             <div v-for="(na, i) in form.new_activities" :key="i"
-              class="flex items-center gap-3 px-5 py-3 bg-amber-50/50">
-              <i class="pi pi-plus-circle text-amber-500 text-sm" />
-              <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-                :style="{ background: na.color + '22', color: na.color }">
-                <i class="pi pi-bolt text-sm" />
+              class="px-5 py-3 bg-amber-50/50">
+              <div class="flex items-center gap-3">
+                <i class="pi pi-plus-circle text-amber-500 text-sm" />
+                <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                  :style="{ background: na.color + '22', color: na.color }">
+                  <i class="pi pi-bolt text-sm" />
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium text-gray-800">{{ na.name }}</p>
+                  <p class="text-[11px] text-amber-600">
+                    New activity — will be created
+                    <span v-if="na.modes.length"> with {{ na.modes.length }} mode{{ na.modes.length === 1 ? '' : 's' }}</span>
+                  </p>
+                </div>
+                <button type="button" class="text-xs font-medium text-primary hover:underline"
+                  @click="openModeWizard(i)">
+                  <i class="pi pi-plus text-[10px] mr-0.5" /> Add mode
+                </button>
+                <button type="button" class="text-gray-400 hover:text-red-500"
+                  @click="form.new_activities.splice(i, 1)">
+                  <i class="pi pi-times text-xs" />
+                </button>
               </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-gray-800">{{ na.name }}</p>
-                <p class="text-[11px] text-amber-600">New activity — will be created</p>
+              <!-- Mode chips for this new activity -->
+              <div v-if="na.modes.length" class="flex flex-wrap gap-1.5 mt-2 pl-12">
+                <span v-for="(m, mi) in na.modes" :key="mi"
+                  class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-white border border-amber-200 text-amber-800">
+                  <span class="w-2 h-2 rounded-full" :style="{ background: m.color }" />
+                  {{ m.name }}
+                  <button type="button" class="text-amber-400 hover:text-red-500 ml-0.5"
+                    @click="na.modes.splice(mi, 1)">
+                    <i class="pi pi-times text-[9px]" />
+                  </button>
+                </span>
               </div>
-              <button class="text-gray-400 hover:text-red-500" @click="form.new_activities.splice(i, 1)">
-                <i class="pi pi-times text-xs" />
-              </button>
             </div>
           </div>
 
@@ -150,7 +205,7 @@
                   @click="newActivityColor = c" />
               </div>
               <Button label="Add" icon="pi pi-plus" size="small" :disabled="!newActivityName.trim()"
-                @click="addNewActivity" style="background:#1E2157;border-color:#1E2157" />
+                @click="addNewActivity" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
             </div>
           </div>
         </template>
@@ -186,7 +241,7 @@
                   <button v-for="(d, i) in dayLabels" :key="i" type="button"
                     class="px-3 py-1.5 text-xs rounded-full border transition-colors"
                     :class="form.days.includes(i)
-                      ? 'bg-[#1E2157] border-[#1E2157] text-white'
+                      ? 'bg-primary border-primary text-white'
                       : 'border-gray-200 text-gray-600 hover:border-gray-400'"
                     @click="toggleDay(i)">
                     {{ d }}
@@ -194,60 +249,22 @@
                 </div>
               </div>
 
-              <div class="flex items-center gap-4">
-                <label class="w-40 text-sm font-medium text-gray-700 shrink-0">Hours</label>
-                <Select v-model="form.time_from" :options="timeSlots" option-label="label" option-value="value"
-                  placeholder="From" class="w-32" />
-                <span class="text-gray-400 text-sm">to</span>
-                <Select v-model="form.time_to" :options="timeSlots" option-label="label" option-value="value"
-                  placeholder="To" class="w-32" />
+              <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+                <label class="w-full sm:w-40 text-sm font-medium text-gray-700 shrink-0">Hours</label>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <Select v-model="form.time_from" :options="timeSlots" option-label="label" option-value="value"
+                    placeholder="From" class="w-32" />
+                  <span class="text-gray-400 text-sm">to</span>
+                  <Select v-model="form.time_to" :options="timeSlots" option-label="label" option-value="value"
+                    placeholder="To" class="w-32" />
+                </div>
               </div>
             </template>
           </div>
         </template>
 
-        <!-- ── Step 4: Discounts ── -->
+        <!-- ── Step 4: Review ── -->
         <template v-if="currentStep === 4">
-          <div>
-            <h2 class="text-xl font-semibold text-gray-900">Apply any discounts?</h2>
-            <p class="text-sm text-gray-500 mt-1">
-              Optional. Selected discounts will apply to the activities at this venue.
-            </p>
-          </div>
-
-          <div v-if="loadingDiscounts" class="bg-white rounded-xl border border-gray-200 p-8 flex justify-center">
-            <i class="pi pi-spin pi-spinner text-xl text-gray-400" />
-          </div>
-
-          <div v-else-if="!existingDiscounts.length"
-            class="bg-white rounded-xl border-2 border-dashed border-gray-200 p-8 text-center">
-            <div class="w-12 h-12 mx-auto rounded-full bg-gray-100 flex items-center justify-center mb-3">
-              <i class="pi pi-tag text-gray-400" />
-            </div>
-            <p class="text-sm text-gray-500">No discounts set up yet.</p>
-            <p class="text-xs text-gray-400 mt-1">You can add them later under Discounts.</p>
-          </div>
-
-          <div v-else class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-            <label v-for="d in existingDiscounts" :key="d.id"
-              class="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-gray-50">
-              <Checkbox :model-value="form.discount_ids.includes(d.id)" :binary="true"
-                @update:model-value="toggleDiscount(d.id)" />
-              <div class="w-9 h-9 rounded-lg bg-[#EFF6FF] flex items-center justify-center shrink-0">
-                <i class="pi pi-tag text-[#1E2157] text-sm" />
-              </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-gray-800">{{ d.name }}</p>
-                <p class="text-xs text-gray-400">
-                  {{ d.modifier_type === 'PERCENT' ? `${d.modifier_value}% off` : `$${d.modifier_value} off` }}
-                </p>
-              </div>
-            </label>
-          </div>
-        </template>
-
-        <!-- ── Step 5: Review ── -->
-        <template v-if="currentStep === 5">
           <div>
             <h2 class="text-xl font-semibold text-gray-900">Ready to create?</h2>
             <p class="text-sm text-gray-500 mt-1">Review the details below — you can change everything later.</p>
@@ -255,11 +272,15 @@
 
           <div class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
             <div class="px-5 py-4">
-              <p class="text-xs uppercase tracking-wide text-gray-400 font-semibold mb-1">Venue</p>
-              <p class="text-sm font-semibold text-gray-800">{{ form.name }}</p>
+              <p class="text-xs uppercase tracking-wide text-gray-400 font-semibold mb-1">
+                {{ form.count > 1 ? `Venues (${form.count})` : 'Venue' }}
+              </p>
+              <p class="text-sm font-semibold text-gray-800">
+                {{ form.count > 1 ? `${form.name} 1 … ${form.count}` : form.name }}
+              </p>
               <p v-if="parentName" class="text-xs text-gray-500">Sub-venue of {{ parentName }}</p>
               <p v-if="form.location" class="text-xs text-gray-500">{{ form.location }}</p>
-              <p class="text-xs text-gray-500">Max capacity: {{ form.max_concurrent }}</p>
+              <p class="text-xs text-gray-500">Max capacity: {{ form.max_concurrent }} per venue</p>
             </div>
 
             <div class="px-5 py-4">
@@ -268,12 +289,12 @@
               </p>
               <div class="flex flex-wrap gap-1.5">
                 <span v-for="aid in form.activity_ids" :key="aid"
-                  class="text-xs px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1E2157] font-medium">
+                  class="text-xs px-2 py-0.5 rounded-full bg-[#EFF6FF] text-primary font-medium">
                   {{ existingActivities.find(a => a.id === aid)?.name }}
                 </span>
                 <span v-for="(na, i) in form.new_activities" :key="i"
                   class="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-medium">
-                  + {{ na.name }}
+                  + {{ na.name }}<span v-if="na.modes.length"> · {{ na.modes.length }} mode{{ na.modes.length === 1 ? '' : 's' }}</span>
                 </span>
               </div>
             </div>
@@ -287,18 +308,6 @@
               </p>
             </div>
 
-            <div class="px-5 py-4">
-              <p class="text-xs uppercase tracking-wide text-gray-400 font-semibold mb-1">
-                Discounts ({{ form.discount_ids.length }})
-              </p>
-              <p v-if="!form.discount_ids.length" class="text-sm text-gray-500">None</p>
-              <div v-else class="flex flex-wrap gap-1.5">
-                <span v-for="did in form.discount_ids" :key="did"
-                  class="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 font-medium">
-                  {{ existingDiscounts.find(d => d.id === did)?.name }}
-                </span>
-              </div>
-            </div>
           </div>
         </template>
 
@@ -312,17 +321,24 @@
       <p v-if="stepError" class="text-xs text-red-500">{{ stepError }}</p>
       <Button v-if="currentStep < steps.length" label="Continue" icon="pi pi-arrow-right" icon-pos="right"
         size="small" :disabled="!canContinue" @click="next"
-        style="background:#1E2157;border-color:#1E2157" />
-      <Button v-else label="Create Venue" icon="pi pi-check" icon-pos="right" size="small"
-        :loading="creating" @click="submit" style="background:#1E2157;border-color:#1E2157" />
+        style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+      <Button v-else :label="form.count > 1 ? `Create ${form.count} Venues` : 'Create Venue'"
+        icon="pi pi-check" icon-pos="right" size="small"
+        :loading="creating" @click="submit" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
     </div>
 
     <Toast />
+
+    <ModeWizard
+      v-model:visible="modeWizardOpen"
+      :activity-name="modeWizardActivityName"
+      @done="onModeCaptured" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
+import type { ModePayload } from '~/components/ModeWizard.vue'
 
 definePageMeta({ layout: 'default' })
 
@@ -350,7 +366,6 @@ const steps = [
   { key: 'details',      label: 'Details' },
   { key: 'activities',   label: 'Activities' },
   { key: 'availability', label: 'Availability' },
-  { key: 'discounts',    label: 'Discounts' },
   { key: 'review',       label: 'Review' },
 ]
 
@@ -364,21 +379,32 @@ const form = reactive({
   location: '',
   max_concurrent: 1,
   description: '',
+  main_image: '',
+  count: 1,
   activity_ids: [] as string[],
-  new_activities: [] as { name: string; color: string }[],
+  new_activities: [] as { name: string; color: string; modes: ModePayload[] }[],
   availability_mode: 'ALWAYS' as 'ALWAYS' | 'SCHEDULED',
   days: [0, 1, 2, 3, 4, 5, 6],
   time_from: '09:00',
   time_to: '21:00',
-  discount_ids: [] as string[],
 })
+
+const imageInput = ref<HTMLInputElement | null>(null)
+const uploadingImage = ref(false)
+const { uploadFile } = useUpload()
+
+async function handleImageUpload(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  form.main_image = URL.createObjectURL(file)
+  uploadingImage.value = true
+  try { form.main_image = await uploadFile(file) } finally { uploadingImage.value = false }
+}
 
 // Existing data
 const allBookables = ref<any[]>([])
 const existingActivities = ref<any[]>([])
-const existingDiscounts = ref<any[]>([])
 const loadingActivities = ref(false)
-const loadingDiscounts = ref(false)
 
 const parentOptions = computed(() => {
   const venues = allBookables.value.filter(b => b.type === 'VENUE' && b.status !== 'ARCHIVED' && b.status !== 'DELETED')
@@ -403,21 +429,40 @@ const newActivityColor = ref(COLORS[0])
 function addNewActivity() {
   const name = newActivityName.value.trim()
   if (!name) return
-  form.new_activities.push({ name, color: newActivityColor.value })
+  const newIndex = form.new_activities.length
+  form.new_activities.push({ name, color: newActivityColor.value, modes: [] })
   newActivityName.value = ''
   newActivityColor.value = COLORS[(form.new_activities.length) % COLORS.length]
+  // Prompt for mode capture immediately. The wizard's "Save & add
+  // another" lets users chain modes for the activity, and Cancel still
+  // leaves the activity in place with no modes (a default "Default"
+  // mode is seeded at submit time so it's still bookable).
+  openModeWizard(newIndex)
+}
+
+// ── Per-activity mode wizard. We track which queued new-activity row it
+//    targets via index, then push the captured ModePayload onto that
+//    activity's modes[] when the wizard emits `done`.
+const modeWizardOpen = ref(false)
+const modeWizardActivityIndex = ref<number | null>(null)
+const modeWizardActivityName = computed(() => {
+  const i = modeWizardActivityIndex.value
+  return i !== null ? form.new_activities[i]?.name ?? '' : ''
+})
+function openModeWizard(activityIndex: number) {
+  modeWizardActivityIndex.value = activityIndex
+  modeWizardOpen.value = true
+}
+function onModeCaptured(mode: ModePayload) {
+  const i = modeWizardActivityIndex.value
+  if (i === null) return
+  form.new_activities[i]?.modes.push(mode)
 }
 
 function toggleActivity(id: string) {
   const i = form.activity_ids.indexOf(id)
   if (i >= 0) form.activity_ids.splice(i, 1)
   else form.activity_ids.push(id)
-}
-
-function toggleDiscount(id: string) {
-  const i = form.discount_ids.indexOf(id)
-  if (i >= 0) form.discount_ids.splice(i, 1)
-  else form.discount_ids.push(id)
 }
 
 function toggleDay(i: number) {
@@ -430,7 +475,6 @@ function toggleDay(i: number) {
 // Step gating
 const canContinue = computed(() => {
   if (currentStep.value === 1) return form.name.trim().length > 0
-  if (currentStep.value === 2) return form.activity_ids.length + form.new_activities.length > 0
   if (currentStep.value === 3) {
     if (form.availability_mode === 'ALWAYS') return true
     return form.days.length > 0 && !!form.time_from && !!form.time_to && form.time_from < form.time_to
@@ -440,8 +484,6 @@ const canContinue = computed(() => {
 
 const stepError = computed(() => {
   if (currentStep.value === 1 && !form.name.trim()) return 'Name is required'
-  if (currentStep.value === 2 && form.activity_ids.length + form.new_activities.length === 0)
-    return 'Pick at least one activity'
   if (currentStep.value === 3 && form.availability_mode === 'SCHEDULED') {
     if (!form.days.length) return 'Pick at least one day'
     if (form.time_from >= form.time_to) return 'End time must be after start time'
@@ -467,23 +509,19 @@ async function loadParents() {
   allBookables.value = data ?? []
 }
 
-async function loadActivitiesAndDiscounts() {
+async function loadActivities() {
   if (!orgId.value) return
   loadingActivities.value = true
-  loadingDiscounts.value = true
-  const [{ data: a }, { data: d }] = await Promise.all([
-    (db.from as any)('activities').select('id, name, description, color, icon').eq('org_id', orgId.value).eq('status', 'ACTIVE').order('name'),
-    (db.from as any)('booking_discounts').select('id, name, modifier_type, modifier_value').eq('org_id', orgId.value).eq('is_active', true).order('name'),
-  ])
-  existingActivities.value = a ?? []
-  existingDiscounts.value = d ?? []
+  const { data } = await (db.from as any)('activities')
+    .select('id, name, description, color, icon')
+    .eq('org_id', orgId.value).eq('status', 'ACTIVE').order('name')
+  existingActivities.value = data ?? []
   loadingActivities.value = false
-  loadingDiscounts.value = false
 }
 
 watch(orgId, () => {
   loadParents()
-  loadActivitiesAndDiscounts()
+  loadActivities()
 }, { immediate: true })
 
 async function submit() {
@@ -493,21 +531,38 @@ async function submit() {
   }
   creating.value = true
   try {
-    // 1. Create the bookable
-    const { data: venue, error: venueErr } = await (db.from as any)('bookables').insert({
-      org_id: orgId.value,
-      name: form.name.trim(),
-      type: 'VENUE',
-      status: 'ACTIVE',
-      parent_id: form.parent_id || null,
-      location: form.location.trim() || null,
-      description: form.description.trim() || null,
-      max_concurrent: form.max_concurrent || 1,
-    }).select('id').single()
+    // 1. Create the bookable(s). When count > 1, the first row is the
+    //    master and the rest link via master_id (mirrors <SetupWizard>'s
+    //    pattern), so edits to the master propagate to siblings.
+    const baseName = form.name.trim()
+    const count = Math.max(1, form.count || 1)
+    const venueIds: string[] = []
+    for (let i = 0; i < count; i++) {
+      const isMaster = i === 0
+      const name = count === 1 ? baseName : `${baseName} ${i + 1}`
+      const { data, error } = await (db.from as any)('bookables').insert({
+        org_id: orgId.value,
+        name,
+        type: 'VENUE',
+        status: 'ACTIVE',
+        parent_id: form.parent_id || null,
+        location: form.location.trim() || null,
+        description: form.description.trim() || null,
+        max_concurrent: form.max_concurrent || 1,
+        main_image: form.main_image || null,
+        is_public: true,
+        is_master: isMaster,
+        master_id: isMaster ? null : venueIds[0],
+      }).select('id').single()
+      if (error || !data?.id) throw error ?? new Error('Could not create venue')
+      venueIds.push(data.id)
+    }
+    const venue = { id: venueIds[0] }
 
-    if (venueErr || !venue?.id) throw venueErr ?? new Error('Could not create venue')
-
-    // 2. Create new activities
+    // 2. Create new activities. For each, persist the modes the user
+    //    captured via <ModeWizard>; if none were captured, seed a single
+    //    "Default" mode so the activity is bookable end-to-end without a
+    //    follow-up trip to the activity editor.
     let createdActivityIds: string[] = []
     if (form.new_activities.length) {
       const { data: created } = await (db.from as any)('activities').insert(
@@ -517,43 +572,75 @@ async function submit() {
           color: na.color,
           status: 'ACTIVE',
         })),
-      ).select('id')
+      ).select('id, name')
       createdActivityIds = (created ?? []).map((r: any) => r.id)
+      if (created?.length) {
+        const modeRows: any[] = []
+        created.forEach((row: any, idx: number) => {
+          const captured = form.new_activities[idx]?.modes ?? []
+          if (captured.length) {
+            captured.forEach((m, sort_order) => {
+              const pricing = m.default_price != null ? { default: m.default_price } : {}
+              modeRows.push({
+                activity_id: row.id,
+                name: m.name,
+                description: m.description || null,
+                color: m.color,
+                min_people: m.min_people,
+                max_people: m.max_people,
+                allow_visitors: m.allow_visitors,
+                pricing,
+                sort_order,
+              })
+            })
+          } else {
+            modeRows.push({ activity_id: row.id, name: 'Default' })
+          }
+        })
+        await (db.from as any)('activity_modes').insert(modeRows)
+      }
     }
 
     const allActivityIds = [...form.activity_ids, ...createdActivityIds]
 
-    // 3. Link activities to the venue
+    // 3. Link activities to every sibling so the booker sees them all.
     if (allActivityIds.length) {
-      await (db.from as any)('activity_bookables').insert(
-        allActivityIds.map(activity_id => ({ activity_id, bookable_id: venue.id })),
+      const rows: any[] = []
+      for (const vid of venueIds) {
+        for (const activity_id of allActivityIds) rows.push({ activity_id, bookable_id: vid })
+      }
+      await (db.from as any)('activity_bookables').insert(rows)
+    }
+
+    // 4. Availability rule per sibling. Always write one — without any
+    //    rule the scheduler/calendar treats the venue as having no
+    //    bookable slots. ALWAYS = 24/7 across every day; SCHEDULED uses
+    //    the picked window. time_from/time_to mirror the first slot for
+    //    legacy fallbacks that read those fields directly.
+    {
+      const isAlways = form.availability_mode === 'ALWAYS'
+      const days = isAlways ? [0, 1, 2, 3, 4, 5, 6] : form.days
+      const fromTime = isAlways ? '00:00' : form.time_from
+      const toTime = isAlways ? '23:59' : form.time_to
+      await (db.from as any)('availability_rules').insert(
+        venueIds.map(vid => ({
+          bookable_id: vid,
+          name: isAlways ? 'Always open' : 'Open hours',
+          rule_type: 'OPEN',
+          days_of_week: days,
+          time_slots: [{ from: fromTime, to: toTime }],
+          time_from: fromTime,
+          time_to: toTime,
+          is_active: true,
+        })),
       )
     }
 
-    // 4. Availability rule (only if scheduled)
-    if (form.availability_mode === 'SCHEDULED') {
-      await (db.from as any)('availability_rules').insert({
-        bookable_id: venue.id,
-        name: 'Open hours',
-        rule_type: 'OPEN',
-        days_of_week: form.days,
-        time_slots: [{ from: form.time_from, to: form.time_to }],
-        is_active: true,
-      })
-    }
-
-    // 5. Apply discounts to selected activities
-    if (form.discount_ids.length && allActivityIds.length) {
-      const rows: any[] = []
-      for (const did of form.discount_ids) {
-        for (const aid of allActivityIds) {
-          rows.push({ discount_id: did, activity_id: aid })
-        }
-      }
-      await (db.from as any)('booking_discount_activities').upsert(rows, { onConflict: 'discount_id,activity_id' })
-    }
-
-    toast.add({ severity: 'success', summary: 'Venue created', life: 2500 })
+    toast.add({
+      severity: 'success',
+      summary: count === 1 ? 'Venue created' : `${count} venues created`,
+      life: 2500,
+    })
     await navigateTo(`/bookables/${venue.id}`)
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Could not create venue', detail: e?.message ?? 'Unknown error', life: 4000 })

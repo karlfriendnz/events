@@ -69,7 +69,7 @@
           <!-- Add group row -->
           <div class="px-4 py-3 flex items-center gap-3 flex-wrap">
             <button type="button"
-              class="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#1E2157] transition-colors"
+              class="flex items-center gap-1.5 text-sm text-gray-400 hover:text-primary transition-colors"
               @click="addGroup(section.key, '')">
               <i class="pi pi-plus text-xs" />
               Add group
@@ -78,7 +78,7 @@
             <div class="flex items-center gap-1.5 flex-wrap">
               <button v-for="preset in availablePresets(section.key)" :key="preset"
                 type="button"
-                class="text-xs px-2.5 py-0.5 rounded-full border border-gray-200 text-gray-500 hover:border-[#1E2157] hover:text-[#1E2157] transition-colors"
+                class="text-xs px-2.5 py-0.5 rounded-full border border-gray-200 text-gray-500 hover:border-primary hover:text-primary transition-colors"
                 @click="addGroup(section.key, preset)">
                 + {{ preset }}
               </button>

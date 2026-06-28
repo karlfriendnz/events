@@ -104,25 +104,31 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
 </script>
 
 <template>
-  <div class="p-6 max-w-6xl mx-auto">
-    <div class="flex items-center justify-between mb-4">
+  <div class="p-3 sm:p-6 min-h-full flex flex-col">
+    <div class="flex flex-col md:flex-row gap-4 md:gap-6 flex-1 min-h-0">
+      <SettingsNav />
+      <div class="flex-1 min-w-0 settings-fill">
+        <Tabs value="perm">
+          <TabPanels>
+            <TabPanel value="perm" class="space-y-4">
+    <div class="flex items-center justify-between">
       <div>
         <h1 class="text-xl font-semibold text-gray-900">Permission Groups</h1>
         <p class="text-sm text-gray-500">Inherited core templates (overridable) plus your own groups. Assign people and set the CRUD grid.</p>
       </div>
     </div>
 
-    <div class="grid grid-cols-[240px_1fr] gap-5">
+    <div class="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-5">
       <!-- list -->
       <div class="card p-0 overflow-hidden h-fit">
         <div class="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
           <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Groups</span>
-          <button class="text-xs text-[#1E2157] hover:underline" @click="newGroup">+ New</button>
+          <button class="text-xs text-primary hover:underline" @click="newGroup">+ New</button>
         </div>
         <div v-if="loading" class="p-4 text-sm text-gray-400">Loading…</div>
         <button v-for="it in items" :key="it.key" type="button"
           class="w-full text-left px-4 py-2.5 text-sm border-b border-gray-50 hover:bg-gray-50 transition-colors flex items-center justify-between gap-2"
-          :class="it.key === selectedKey ? 'bg-gray-50 font-medium text-[#1E2157]' : 'text-gray-700'"
+          :class="it.key === selectedKey ? 'bg-gray-50 font-medium text-primary' : 'text-gray-700'"
           @click="selectedKey = it.key">
           <span class="truncate">{{ it.name }}</span>
           <span class="text-[9px] uppercase tracking-wide shrink-0"
@@ -134,16 +140,16 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
 
       <!-- editor -->
       <div v-if="selected" class="space-y-4">
-        <div v-if="selected.kind === 'core'" class="bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5 text-sm text-blue-800 flex items-center justify-between">
+        <div v-if="selected.kind === 'core'" class="bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5 text-sm text-blue-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <span><i class="pi pi-lock mr-1.5" />Inherited from the platform core template (read-only).</span>
-          <Button label="Override to customise" size="small" style="background:#1E2157;border-color:#1E2157" @click="override(selected)" />
+          <Button label="Override to customise" size="small" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="override(selected)" />
         </div>
-        <div v-else-if="selected.kind === 'override'" class="bg-amber-50 border border-amber-100 rounded-lg px-4 py-2.5 text-sm text-amber-800 flex items-center justify-between">
+        <div v-else-if="selected.kind === 'override'" class="bg-amber-50 border border-amber-100 rounded-lg px-4 py-2.5 text-sm text-amber-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <span><i class="pi pi-pencil mr-1.5" />Overriding the core template for this club.</span>
           <Button label="Reset to core" size="small" severity="warning" outlined @click="resetToCore(selected)" />
         </div>
 
-        <div class="card p-5 grid grid-cols-2 gap-3">
+        <div class="card p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium">Group name</label>
             <InputText v-model="selected.name" :disabled="selected.kind === 'core'" />
@@ -160,10 +166,15 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         <div v-if="selected.kind !== 'core'" class="flex items-center justify-between">
           <button v-if="selected.kind === 'local'" class="text-sm text-red-600 hover:underline" @click="removeLocal(selected)">Delete group</button>
           <span v-else />
-          <Button label="Save" :loading="saving" style="background:#1E2157;border-color:#1E2157" @click="save" />
+          <Button label="Save" :loading="saving" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="save" />
         </div>
       </div>
       <div v-else class="card p-8 text-center text-gray-400 text-sm">Select a group, or create one.</div>
+    </div>
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
+      </div>
     </div>
   </div>
 </template>

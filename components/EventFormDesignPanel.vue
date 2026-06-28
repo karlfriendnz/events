@@ -42,7 +42,7 @@
             @click="design.style = 'single'">Single Page</button>
           <button type="button" class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors"
             :class="design.style === 'tabs' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'"
-            @click="design.style = 'tabs'">Tabs</button>
+            @click="design.style = 'tabs'">Steps</button>
         </div>
       </div>
 
@@ -142,7 +142,7 @@
               </div>
               <input type="range" min="0" max="1" step="0.05"
                 v-model.number="design.backgroundOverlay"
-                class="w-full accent-[#1E2157]" />
+                class="w-full accent-primary" />
             </div>
           </div>
         </template>

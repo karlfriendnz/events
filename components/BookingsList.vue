@@ -1,11 +1,11 @@
 <template>
   <div>
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
       <div>
         <h1 class="text-xl font-semibold text-surface-900">Bookings</h1>
         <p class="text-sm text-surface-500 mt-0.5">Manage bookable resource reservations.</p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2">
         <Button icon="pi pi-link" label="Public links" size="small" severity="secondary" @click="sharePopover.toggle($event)" />
         <Button icon="pi pi-external-link" label="Public booking page" size="small" severity="secondary" @click="navigateTo(`/book?org=${orgId}`, { open: { target: '_blank' } })" />
         <Button label="New Booking" icon="pi pi-plus" size="small" @click="navigateTo('/bookings/new')" />
@@ -55,16 +55,16 @@
               </div>
               <div class="shrink-0 flex items-center gap-2">
                 <a :href="activityUrl(a.id)" target="_blank"
-                  class="flex items-center gap-1 text-xs text-[#1E2157] hover:underline font-medium">
+                  class="flex items-center gap-1 text-xs text-primary hover:underline font-medium">
                   <i class="pi pi-external-link text-[10px]" />
                   Open
                 </a>
-                <button class="flex items-center gap-1 text-xs text-[#1E2157] hover:underline font-medium"
+                <button class="flex items-center gap-1 text-xs text-primary hover:underline font-medium"
                   @click="copyActivityLink(a.id)">
                   <i class="pi pi-copy text-[10px]" />
                   Copy
                 </button>
-                <button class="flex items-center gap-1 text-xs text-[#1E2157] hover:underline font-medium"
+                <button class="flex items-center gap-1 text-xs text-primary hover:underline font-medium"
                   @click="copyEmbedFor(a.id)">
                   <i class="pi pi-code text-[10px]" />
                   Embed
@@ -81,7 +81,7 @@
       <button v-for="opt in dateFilters" :key="opt.value"
         class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors flex items-center gap-1.5"
         :class="dateFilter === opt.value
-          ? 'bg-[#1E2157] text-white'
+          ? 'bg-primary text-white'
           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
         @click="dateFilter = opt.value">
         {{ opt.label }}
@@ -101,13 +101,13 @@
       <!-- View toggle on right -->
       <div class="ml-auto flex rounded-lg border border-gray-200 overflow-hidden">
         <button class="px-2.5 py-1.5 transition-colors text-xs font-medium flex items-center gap-1"
-          :class="groupByDate ? 'bg-white text-gray-500 hover:bg-gray-50' : 'bg-[#1E2157] text-white'"
+          :class="groupByDate ? 'bg-white text-gray-500 hover:bg-gray-50' : 'bg-primary text-white'"
           @click="groupByDate = false" title="Flat list">
           <i class="pi pi-list text-xs" />
           List
         </button>
         <button class="px-2.5 py-1.5 transition-colors text-xs font-medium flex items-center gap-1 border-l border-gray-200"
-          :class="groupByDate ? 'bg-[#1E2157] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'"
+          :class="groupByDate ? 'bg-primary text-white' : 'bg-white text-gray-500 hover:bg-gray-50'"
           @click="groupByDate = true" title="Group by date">
           <i class="pi pi-calendar text-xs" />
           By date
@@ -115,7 +115,7 @@
       </div>
 
       <button v-if="hasActiveFilter"
-        class="text-xs text-gray-500 hover:text-[#1E2157] font-medium flex items-center gap-1"
+        class="text-xs text-gray-500 hover:text-primary font-medium flex items-center gap-1"
         @click="clearFilters">
         <i class="pi pi-times text-[10px]" />
         Clear filters
@@ -126,13 +126,13 @@
     <div v-if="!loading && !filtered.length" class="bg-white rounded-xl border border-gray-200 py-16 text-center">
       <i class="pi pi-book text-3xl text-gray-300 mb-3 block" />
       <p class="text-sm text-gray-500">{{ bookings.length ? 'No bookings match your filters.' : 'No bookings yet.' }}</p>
-      <button v-if="hasActiveFilter" class="text-xs text-[#1E2157] hover:underline mt-2 font-medium" @click="clearFilters">
+      <button v-if="hasActiveFilter" class="text-xs text-primary hover:underline mt-2 font-medium" @click="clearFilters">
         Clear filters
       </button>
     </div>
 
     <!-- Single table — optionally grouped by date via subheader rows -->
-    <div v-else :class="['card', { 'grouped-bookings': groupByDate }]">
+    <div v-else :class="['card overflow-x-auto', { 'grouped-bookings': groupByDate }]">
       <DataTable
         :value="rowsForTable"
         :loading="loading"
@@ -272,7 +272,7 @@
     <Menu ref="rowMenu" :model="menuItems" :popup="true" />
 
     <!-- Create Dialog -->
-    <Dialog v-model:visible="showCreate" header="New Booking" modal style="width: 480px">
+    <Dialog v-model:visible="showCreate" header="New Booking" modal :style="{ width: '95vw', maxWidth: '480px' }">
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Bookable</label>

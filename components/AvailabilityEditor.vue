@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6 space-y-6">
+  <div class="p-3 sm:p-6 space-y-6">
 
     <div v-if="loading" class="flex justify-center py-16">
       <i class="pi pi-spin pi-spinner text-2xl text-gray-300" />
@@ -12,7 +12,7 @@
 
         <!-- Panel header -->
         <div class="border-b border-gray-100 bg-gray-50">
-          <div class="px-6 py-4 flex items-center justify-between">
+          <div class="px-3 sm:px-6 py-4 flex items-center justify-between">
             <div>
               <h3 class="text-base font-semibold text-gray-800">{{ editing ? 'Edit rule' : 'Add rule' }}</h3>
               <p class="text-xs text-gray-400 mt-0.5">
@@ -26,16 +26,16 @@
         <div>
 
           <!-- Name — full width -->
-          <div class="px-8 pt-7 pb-0">
+          <div class="px-3 sm:px-8 pt-7 pb-0">
             <label class="text-sm font-medium text-gray-700">Name <span class="text-gray-400 font-normal">(optional)</span></label>
             <InputText v-model="form.name" placeholder="e.g. Junior peak hours" autofocus class="w-full mt-2" />
           </div>
 
           <!-- Two-column grid -->
-          <div class="grid grid-cols-2 gap-0 divide-x divide-gray-100 mt-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-0 md:divide-x divide-gray-100 mt-6">
 
             <!-- Left column: Type · Days · Recurrence -->
-            <div class="px-8 pb-8 space-y-7">
+            <div class="px-3 sm:px-8 pb-8 space-y-7">
 
               <div>
                 <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Rule type</p>
@@ -56,7 +56,7 @@
                 <div class="flex gap-1.5">
                   <button v-for="(day, di) in DAYS" :key="day"
                     class="flex-1 py-2.5 rounded-lg border text-xs font-semibold transition-colors"
-                    :class="form.days_of_week.includes(di) ? 'bg-[#1E2157] border-[#1E2157] text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-50'"
+                    :class="form.days_of_week.includes(di) ? 'bg-primary border-primary text-white' : 'border-gray-200 text-gray-500 hover:bg-gray-50'"
                     @click="toggleDay(di)">
                     {{ day }}
                   </button>
@@ -122,11 +122,11 @@
                 <div class="space-y-2">
                   <div v-for="(slot, i) in form.time_slots" :key="i" class="flex items-center gap-2">
                     <input v-model="slot.from" type="time"
-                      class="flex-1 h-9 rounded-lg border border-gray-300 px-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E2157]/30 focus:border-[#1E2157]"
+                      class="flex-1 h-9 rounded-lg border border-gray-300 px-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                       @change="onSlotFromChange(slot)" />
                     <span class="text-gray-400 text-sm shrink-0">→</span>
                     <input v-model="slot.to" type="time" :min="slot.from || undefined"
-                      class="flex-1 h-9 rounded-lg border border-gray-300 px-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E2157]/30 focus:border-[#1E2157]"
+                      class="flex-1 h-9 rounded-lg border border-gray-300 px-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                       @change="onSlotToChange(slot)" />
                     <button type="button" class="text-gray-300 hover:text-red-400 transition-colors shrink-0" @click="removeSlot(i)">
                       <i class="pi pi-times text-xs" />
@@ -135,13 +135,13 @@
                 </div>
                 <div class="flex items-center gap-3 mt-2">
                   <button type="button"
-                    class="flex items-center gap-1.5 text-xs text-[#1E2157] hover:underline w-fit"
+                    class="flex items-center gap-1.5 text-xs text-primary hover:underline w-fit"
                     @click="addSlot">
                     <i class="pi pi-plus text-xs" /> Add slot
                   </button>
                   <button type="button"
                     class="flex items-center gap-1.5 text-xs hover:underline w-fit"
-                    :class="showGenerator ? 'text-gray-500' : 'text-[#1E2157]'"
+                    :class="showGenerator ? 'text-gray-500' : 'text-primary'"
                     @click="showGenerator = !showGenerator">
                     <i class="pi pi-sliders-h text-xs" /> Generate slots
                   </button>
@@ -154,22 +154,22 @@
                     <div>
                       <label class="text-[11px] text-gray-500 mb-1 block">Start</label>
                       <input v-model="gen.from" type="time"
-                        class="w-full h-9 rounded-lg border border-gray-300 px-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E2157]/30 focus:border-[#1E2157]" />
+                        class="w-full h-9 rounded-lg border border-gray-300 px-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
                     </div>
                     <div>
                       <label class="text-[11px] text-gray-500 mb-1 block">End</label>
                       <input v-model="gen.to" type="time"
-                        class="w-full h-9 rounded-lg border border-gray-300 px-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E2157]/30 focus:border-[#1E2157]" />
+                        class="w-full h-9 rounded-lg border border-gray-300 px-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
                     </div>
                     <div>
                       <label class="text-[11px] text-gray-500 mb-1 block">Slot duration (min)</label>
                       <input v-model.number="gen.duration" type="number" min="5" max="720" step="5"
-                        class="w-full h-9 rounded-lg border border-gray-300 px-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E2157]/30 focus:border-[#1E2157]" />
+                        class="w-full h-9 rounded-lg border border-gray-300 px-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
                     </div>
                     <div>
                       <label class="text-[11px] text-gray-500 mb-1 block">Gap between slots (min)</label>
                       <input v-model.number="gen.gap" type="number" min="0" max="240" step="5"
-                        class="w-full h-9 rounded-lg border border-gray-300 px-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#1E2157]/30 focus:border-[#1E2157]" />
+                        class="w-full h-9 rounded-lg border border-gray-300 px-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
                     </div>
                   </div>
                   <div v-if="generatedSlotPreview.length" class="flex flex-wrap gap-1">
@@ -182,7 +182,7 @@
                   <div class="flex items-center gap-2">
                     <button type="button"
                       class="text-xs font-medium px-3 py-1.5 rounded-lg text-white transition-colors disabled:opacity-40"
-                      style="background:#1E2157"
+                      style="background:var(--brand-primary)"
                       :disabled="!generatedSlotPreview.length"
                       @click="applyGenerated">
                       Apply {{ generatedSlotPreview.length ? `(${generatedSlotPreview.length} slots)` : '' }}
@@ -227,13 +227,13 @@
                     <div class="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
                       <button type="button"
                         class="px-3 py-1.5 transition-colors"
-                        :class="!form.eligibility.restricted ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50 bg-white'"
+                        :class="!form.eligibility.restricted ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50 bg-white'"
                         @click="form.eligibility = { restricted: false, conditions: [] }">
                         Open to all
                       </button>
                       <button type="button"
                         class="px-3 py-1.5 transition-colors border-l border-gray-200"
-                        :class="form.eligibility.restricted ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50 bg-white'"
+                        :class="form.eligibility.restricted ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50 bg-white'"
                         @click="form.eligibility.restricted = true">
                         Restricted
                       </button>
@@ -257,13 +257,13 @@
                       class="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
                       @click="toggleAvailabilityInviteeMode(opt.value)">
                       <i :class="[`pi ${opt.icon}`, 'text-sm w-4 shrink-0',
-                        form.invitee_modes.includes(opt.value) ? 'text-[#1E2157]' : 'text-gray-400']" />
+                        form.invitee_modes.includes(opt.value) ? 'text-primary' : 'text-gray-400']" />
                       <div class="flex-1">
-                        <p class="text-sm font-medium" :class="form.invitee_modes.includes(opt.value) ? 'text-[#1E2157]' : 'text-gray-700'">{{ opt.label }}</p>
+                        <p class="text-sm font-medium" :class="form.invitee_modes.includes(opt.value) ? 'text-primary' : 'text-gray-700'">{{ opt.label }}</p>
                         <p class="text-xs text-gray-400">{{ opt.sub }}</p>
                       </div>
                       <div class="w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors"
-                        :class="form.invitee_modes.includes(opt.value) ? 'bg-[#1E2157] border-[#1E2157]' : 'border-gray-300'">
+                        :class="form.invitee_modes.includes(opt.value) ? 'bg-primary border-primary' : 'border-gray-300'">
                         <i v-if="form.invitee_modes.includes(opt.value)" class="pi pi-check text-white text-[10px]" />
                       </div>
                     </button>
@@ -335,7 +335,7 @@
                       <Select v-model="tier.price_type" :options="PRICE_TYPES" option-label="label" option-value="value"
                         size="small" style="min-width:120px" />
                       <button type="button" title="Clone pricing tier"
-                        class="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-[#1E2157] hover:bg-gray-100 transition-colors"
+                        class="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-primary hover:bg-gray-100 transition-colors"
                         @click="cloneTier(ti)">
                         <i class="pi pi-copy text-xs" />
                       </button>
@@ -389,17 +389,17 @@
         </div>
 
         <!-- Panel footer -->
-        <div class="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 bg-gray-50">
+        <div class="px-3 sm:px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-3 bg-gray-50">
           <Button label="Cancel" severity="secondary" text @click="closePanel" />
           <Button :label="editing ? 'Save changes' : 'Add rule'" :loading="saving"
             :disabled="!form.days_of_week.length"
-            style="background:#1E2157;border-color:#1E2157" @click="save" />
+            style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="save" />
         </div>
       </div>
 
       <!-- ── Rules list ─────────────────────────────────────────────── -->
       <div v-if="!panelOpen" class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div class="px-5 py-3 border-b border-gray-100 flex items-center gap-3">
+        <div class="px-5 py-3 border-b border-gray-100 flex items-center gap-3 flex-wrap">
           <div class="flex-1 min-w-0">
             <h3 class="text-sm font-semibold text-gray-700">Availability rules</h3>
             <p class="text-xs text-gray-400 mt-0.5">Define when the venue is open, restricted, blocked, or closed.</p>
@@ -431,7 +431,7 @@
               :class="isTempClosed ? 'bg-amber-50 border-amber-400 text-amber-700 hover:bg-amber-100' : ''"
               @click="showTempClosedDialog = true" />
             <Button v-if="!props.readonly" label="Add rule" icon="pi pi-plus" size="small"
-              style="background:#1E2157;border-color:#1E2157" @click="openPanel()" />
+              style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="openPanel()" />
           </div>
         </div>
 
@@ -445,7 +445,8 @@
           <p class="text-sm">No rules match your filter.</p>
         </div>
 
-        <table v-else class="w-full text-sm">
+        <div v-else class="overflow-x-auto">
+        <table class="w-full text-sm min-w-[640px]">
           <thead>
             <tr class="border-b border-gray-100 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
               <th v-if="!props.readonly" class="px-2 py-2.5 w-8" />
@@ -523,6 +524,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
 
       <!-- ── Calendar view ──────────────────────────────────────────── -->
@@ -600,8 +602,8 @@
                   <span class="text-xs text-gray-400">{{ formatSlots(rule) }}</span>
                 </div>
                 <div v-for="booking in day.bookings" :key="booking.id" class="flex items-center gap-2">
-                  <span class="w-2 h-2 rounded-full bg-[#1E2157] shrink-0" />
-                  <span class="text-sm font-medium text-[#1E2157]">Booked</span>
+                  <span class="w-2 h-2 rounded-full bg-primary shrink-0" />
+                  <span class="text-sm font-medium text-primary">Booked</span>
                   <span class="text-xs text-gray-400">{{ formatTime(bookingStartTime(booking)) }} – {{ formatTime(bookingEndTime(booking)) }}</span>
                 </div>
               </div>
@@ -707,7 +709,7 @@
   </div>
 
   <!-- Temporarily closed dialog -->
-  <Dialog v-model:visible="showTempClosedDialog" modal header="Temporarily closed" style="width: 420px" :draggable="false">
+  <Dialog v-model:visible="showTempClosedDialog" modal header="Temporarily closed" :style="{ width: '95vw', maxWidth: '420px' }" :draggable="false">
     <div class="space-y-4 py-2">
       <p class="text-sm text-gray-500">Block all bookings during a specific period. Leave dates empty to close indefinitely.</p>
       <div class="flex items-center gap-4">
@@ -728,7 +730,7 @@
         <Button v-if="isTempClosed" label="Remove closure" severity="danger" text size="small" @click="clearTempClosed" />
         <div class="flex gap-2 ml-auto">
           <Button label="Cancel" severity="secondary" text size="small" @click="showTempClosedDialog = false" />
-          <Button label="Save" size="small" :loading="savingTempClosed" style="background:#1E2157;border-color:#1E2157" @click="saveTempClosed" />
+          <Button label="Save" size="small" :loading="savingTempClosed" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveTempClosed" />
         </div>
       </div>
     </template>
@@ -736,7 +738,7 @@
 
   <!-- Conflict resolution dialog -->
   <Dialog v-model:visible="conflictDialog.open" modal header="Overlapping availability rule"
-    :style="{ width: '520px' }">
+    :style="{ width: '95vw', maxWidth: '520px' }">
     <div class="flex flex-col gap-3 py-2">
       <p class="text-sm text-gray-700">
         This rule overlaps with
@@ -752,7 +754,7 @@
       </ul>
 
       <label class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors mt-2"
-        :class="conflictChoice === 'higher' ? 'border-[#1E2157] bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
+        :class="conflictChoice === 'higher' ? 'border-primary bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
         <RadioButton v-model="conflictChoice" value="higher" />
         <div>
           <p class="text-sm font-medium text-gray-800">Keep both — this one as higher priority</p>
@@ -762,7 +764,7 @@
         </div>
       </label>
       <label class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors"
-        :class="conflictChoice === 'lower' ? 'border-[#1E2157] bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
+        :class="conflictChoice === 'lower' ? 'border-primary bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
         <RadioButton v-model="conflictChoice" value="lower" />
         <div>
           <p class="text-sm font-medium text-gray-800">Keep both — this one as lower priority</p>
@@ -772,7 +774,7 @@
         </div>
       </label>
       <label class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors"
-        :class="conflictChoice === 'cancel' ? 'border-[#1E2157] bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
+        :class="conflictChoice === 'cancel' ? 'border-primary bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
         <RadioButton v-model="conflictChoice" value="cancel" />
         <div>
           <p class="text-sm font-medium text-gray-800">Don't create</p>
@@ -782,7 +784,7 @@
     </div>
     <template #footer>
       <Button label="Back" severity="secondary" text size="small" @click="conflictDialog.open = false" />
-      <Button label="Apply" size="small" style="background:#1E2157;border-color:#1E2157"
+      <Button label="Apply" size="small" style="background:var(--brand-primary);border-color:var(--brand-primary)"
         @click="resolveConflict(conflictChoice)" />
     </template>
   </Dialog>

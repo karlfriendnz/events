@@ -3,8 +3,8 @@
     <div v-for="m in methods" :key="m.value" class="bg-white rounded-xl border border-gray-200">
       <div class="flex items-center gap-3 px-4 py-3">
         <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-          :class="enabled(m.value) ? 'bg-[#1E2157]/10' : 'bg-gray-100'">
-          <i :class="`pi ${m.icon} text-sm`" :style="enabled(m.value) ? 'color:#1E2157' : 'color:#6b7280'" />
+          :class="enabled(m.value) ? 'bg-primary/10' : 'bg-gray-100'">
+          <i :class="`pi ${m.icon} text-sm`" :style="enabled(m.value) ? 'color:var(--brand-primary)' : 'color:#6b7280'" />
         </div>
         <div class="flex-1 min-w-0">
           <p class="text-sm text-gray-800">
@@ -17,7 +17,7 @@
           </div>
           <button v-else-if="enabled(m.value) && allowDefault"
             type="button"
-            class="text-[11px] text-gray-400 hover:text-[#1E2157] mt-0.5 transition-colors"
+            class="text-[11px] text-gray-400 hover:text-primary mt-0.5 transition-colors"
             @click="$emit('update:defaultModel', m.value)">
             Set as default
           </button>

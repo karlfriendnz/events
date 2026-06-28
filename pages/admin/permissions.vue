@@ -48,37 +48,60 @@ async function removeGroup() {
   if (!g._new) await (db.from as any)('permission_groups').delete().eq('id', g.id)
   groups.value = groups.value.filter(x => x.id !== g.id); selectedId.value = groups.value[0]?.id ?? null
 }
+
+// Drag-to-reorder the template list; persists sort_order for saved rows.
+const dragIndex = ref<number | null>(null)
+function onDragStart(i: number) { dragIndex.value = i }
+function onDragOver(e: DragEvent) { e.preventDefault() }
+async function onDrop(i: number) {
+  const from = dragIndex.value; dragIndex.value = null
+  if (from === null || from === i) return
+  const arr = groups.value.slice()
+  const [moved] = arr.splice(from, 1)
+  arr.splice(i, 0, moved)
+  arr.forEach((g, idx) => { g.sort_order = idx })
+  groups.value = arr
+  const saved = arr.filter(g => !g._new)
+  await Promise.all(saved.map(g => (db.from as any)('permission_groups').update({ sort_order: g.sort_order }).eq('id', g.id)))
+}
 onMounted(() => { if (!isSuper.value) { navigateTo('/'); return } load() })
 </script>
 
 <template>
-  <div v-if="isSuper" class="p-6 md:p-8 max-w-6xl mx-auto">
+  <div v-if="isSuper" class="p-3 sm:p-6 md:p-8 max-w-6xl mx-auto">
     <div class="mb-4">
       <h1 class="text-xl font-semibold text-gray-900">Permission Templates</h1>
       <p class="text-sm text-gray-500">Core permission groups inherited by every club. Clubs can override or reset them.</p>
     </div>
-    <div class="grid grid-cols-[220px_1fr] gap-5">
+    <div class="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-5">
       <div class="card p-0 overflow-hidden h-fit">
         <div class="px-4 py-2.5 border-b border-gray-100 flex items-center justify-between">
           <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Templates</span>
-          <button class="text-xs text-[#1E2157] hover:underline" @click="newGroup">+ New</button>
+          <button class="text-xs text-primary hover:underline" @click="newGroup">+ New</button>
         </div>
         <div v-if="loading" class="p-4 text-sm text-gray-400">Loading…</div>
         <div v-else-if="!groups.length" class="p-4 text-sm text-gray-400">No templates yet.</div>
-        <button v-for="g in groups" :key="g.id" type="button"
-          class="w-full text-left px-4 py-2.5 text-sm border-b border-gray-50 hover:bg-gray-50 transition-colors"
-          :class="g.id === selectedId ? 'bg-gray-50 font-medium text-[#1E2157]' : 'text-gray-700'"
-          @click="selectedId = g.id">{{ g.name }}<span v-if="g._new" class="text-[10px] text-amber-500"> ·new</span></button>
+        <div v-for="(g, i) in groups" :key="g.id"
+          draggable="true"
+          @dragstart="onDragStart(i)" @dragover="onDragOver" @drop="onDrop(i)" @dragend="dragIndex = null"
+          class="group/row flex items-center border-b border-gray-50 transition-colors"
+          :class="[g.id === selectedId ? 'bg-gray-50' : 'hover:bg-gray-50', dragIndex === i ? 'opacity-40' : '']">
+          <i class="pi pi-bars pl-3 text-xs text-gray-300 group-hover/row:text-gray-400 cursor-grab" />
+          <button type="button"
+            class="flex-1 text-left px-3 py-2.5 text-sm"
+            :class="g.id === selectedId ? 'font-medium text-primary' : 'text-gray-700'"
+            @click="selectedId = g.id">{{ g.name }}<span v-if="g._new" class="text-[10px] text-amber-500"> ·new</span></button>
+        </div>
       </div>
       <div v-if="selected" class="space-y-4">
-        <div class="card p-5 grid grid-cols-2 gap-3">
+        <div class="card p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5"><label class="text-sm font-medium">Template name</label><InputText v-model="selected.name" /></div>
           <div class="flex flex-col gap-1.5"><label class="text-sm font-medium">Description</label><InputText v-model="selected.description" placeholder="What this role can do" /></div>
         </div>
         <PermissionGrid v-model="selected.permissions" />
         <div class="flex items-center justify-between">
           <button class="text-sm text-red-600 hover:underline" @click="removeGroup">Delete template</button>
-          <Button label="Save" :loading="saving" style="background:#1E2157;border-color:#1E2157" @click="save" />
+          <Button label="Save" :loading="saving" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="save" />
         </div>
       </div>
       <div v-else class="card p-8 text-center text-gray-400 text-sm">Select a template, or create one.</div>

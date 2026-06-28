@@ -1,48 +1,52 @@
 <template>
-  <div class="p-6 flex flex-col h-full">
+  <div class="p-3 sm:p-6 flex flex-col h-full">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-5">
-      <div class="flex items-center gap-3">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-5">
+      <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+        <!-- View selector is desktop-only; mobile is forced to the agenda list view -->
         <Select
           :model-value="calSettings.defaultView"
           :options="calViews"
           option-label="label"
           option-value="value"
           size="small"
-          class="w-32"
+          class="hidden md:block w-32"
           @update:model-value="setCalView" />
-        <div class="flex items-center gap-1">
+        <div class="hidden md:flex items-center gap-1 min-w-0">
           <Button icon="pi pi-chevron-left" severity="secondary" text size="small" @click="prev" />
-          <span class="text-sm font-semibold text-gray-800 min-w-36 text-center">{{ calendarTitle }}</span>
+          <span class="text-sm font-semibold text-gray-800 sm:min-w-36 text-center truncate">{{ calendarTitle }}</span>
           <Button icon="pi pi-chevron-right" severity="secondary" text size="small" @click="next" />
-          <Button label="Today" severity="secondary" outlined size="small" class="ml-1" @click="goToday" />
+          <Button label="Today" severity="secondary" outlined size="small" class="ml-1 shrink-0" @click="goToday" />
         </div>
+        <span class="md:hidden text-base font-semibold text-gray-900">Events</span>
       </div>
       <div class="flex items-center gap-2">
-        <IconField>
+        <IconField class="flex-1 sm:flex-none">
           <InputIcon class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search events…" size="small" class="w-48" />
+          <InputText v-model="search" placeholder="Search events…" size="small" class="w-full sm:w-48" />
         </IconField>
         <Button
           icon="pi pi-sliders-h"
           severity="secondary"
           outlined
           size="small"
+          class="hidden md:inline-flex"
           v-tooltip.bottom="'Calendar Settings'"
           @click="openCalSettings"
         />
         <Button
-          label="New Event"
+          :label="isNarrow ? undefined : 'New Event'"
           icon="pi pi-plus"
           size="small"
+          class="shrink-0"
           @click="openEventTypeModal()"
-          style="background:#1E2157; border-color:#1E2157"
+          style="background:var(--brand-primary); border-color:var(--brand-primary)"
         />
       </div>
     </div>
 
     <!-- Calendar Settings Dialog -->
-    <Dialog v-model:visible="showCalSettings" :header="activeCalendar ? `Calendar Settings — ${activeCalendar.name}` : 'Calendar Settings'" modal style="width:460px">
+    <Dialog v-model:visible="showCalSettings" :header="activeCalendar ? `Calendar Settings — ${activeCalendar.name}` : 'Calendar Settings'" modal :style="{ width: '95vw', maxWidth: '460px' }">
       <div class="flex flex-col gap-5 py-1">
 
         <!-- New calendar / edit calendar -->
@@ -163,16 +167,16 @@
       </div>
       <template #footer>
         <Button label="Reset to defaults" severity="secondary" text @click="resetCalSettings" />
-        <Button label="Apply" @click="applyCalSettings" style="background:#1E2157; border-color:#1E2157" />
+        <Button label="Apply" @click="applyCalSettings" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
       </template>
     </Dialog>
 
     <!-- Move-recurring dialog -->
-    <Dialog v-model:visible="dropDialog.open" modal header="Move recurring event" :style="{ width: '480px' }">
+    <Dialog v-model:visible="dropDialog.open" modal header="Move recurring event" :style="{ width: '95vw', maxWidth: '480px' }">
       <div class="flex flex-col gap-3 py-2">
         <p class="text-sm text-gray-700">This event is part of a recurring series. What do you want to move?</p>
         <label class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors"
-          :class="dropDialog.scope === 'this' ? 'border-[#1E2157] bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
+          :class="dropDialog.scope === 'this' ? 'border-primary bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
           <RadioButton v-model="dropDialog.scope" value="this" />
           <div>
             <p class="text-sm font-medium text-gray-800">Just this event</p>
@@ -180,7 +184,7 @@
           </div>
         </label>
         <label class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors"
-          :class="dropDialog.scope === 'following' ? 'border-[#1E2157] bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
+          :class="dropDialog.scope === 'following' ? 'border-primary bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
           <RadioButton v-model="dropDialog.scope" value="following" />
           <div>
             <p class="text-sm font-medium text-gray-800">This and all following</p>
@@ -188,7 +192,7 @@
           </div>
         </label>
         <label class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors"
-          :class="dropDialog.scope === 'all' ? 'border-[#1E2157] bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
+          :class="dropDialog.scope === 'all' ? 'border-primary bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
           <RadioButton v-model="dropDialog.scope" value="all" />
           <div>
             <p class="text-sm font-medium text-gray-800">All events in the series</p>
@@ -206,12 +210,36 @@
       </div>
       <template #footer>
         <Button label="Cancel" severity="secondary" text size="small" @click="dropDialog.open = false; dropDialog.pending = null" />
-        <Button label="Move" icon="pi pi-arrow-right" size="small" @click="performDropMove" style="background:#1E2157;border-color:#1E2157" />
+        <Button label="Move" icon="pi pi-arrow-right" size="small" @click="performDropMove" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
       </template>
     </Dialog>
 
-    <!-- Calendar view -->
-    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden flex-1" style="min-height:0">
+    <!-- Mobile: upcoming-events list (the calendar grid is desktop-only) -->
+    <div class="md:hidden flex-1 overflow-y-auto -mx-1 px-1" style="min-height:0">
+      <div v-if="!mobileEventsList.length" class="card p-10 text-center text-gray-400">
+        <i class="pi pi-calendar text-3xl mb-3 block" />
+        <p>No upcoming events.</p>
+        <button class="text-primary hover:underline mt-2 text-sm" @click="openEventTypeModal()">Create one →</button>
+      </div>
+      <div v-else class="space-y-2">
+        <button v-for="ev in mobileEventsList" :key="ev.id" type="button"
+          class="card w-full p-3 flex items-center gap-3 text-left active:bg-gray-50 transition-colors"
+          @click="onCalendarEventClick(ev)">
+          <div class="w-12 h-12 shrink-0 rounded-xl flex flex-col items-center justify-center text-white" :style="{ background: ev.color || 'var(--brand-primary)' }">
+            <span class="text-[9px] uppercase leading-none">{{ evDow(ev.start_at) }}</span>
+            <span class="text-lg font-bold leading-tight">{{ new Date(ev.start_at).getDate() }}</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="font-medium text-gray-800 truncate">{{ ev.notes }}</p>
+            <p class="text-xs text-gray-500 truncate">{{ evWhen(ev.start_at) }}</p>
+          </div>
+          <i class="pi pi-chevron-right text-gray-300 text-xs shrink-0" />
+        </button>
+      </div>
+    </div>
+
+    <!-- Calendar view (desktop) -->
+    <div class="hidden md:flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden flex-1" style="min-height:0">
       <BookingsCalendar
         :cal-date="calDate"
         :cal-view="bookingsCalView"
@@ -277,7 +305,7 @@
     <Menu ref="rowMenu" :model="menuItems" :popup="true" />
 
     <!-- Event name modal (step 1) -->
-    <Dialog v-model:visible="showEventNameModal" header="New event" modal style="width:420px" @keydown.enter.prevent="submitEventName">
+    <Dialog v-model:visible="showEventNameModal" header="New event" modal :style="{ width: '95vw', maxWidth: '420px' }" @keydown.enter.prevent="submitEventName">
       <div class="space-y-4 pt-1">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1.5">Event name</label>
@@ -292,27 +320,27 @@
         </div>
         <div class="flex justify-end gap-2">
           <Button label="Cancel" size="small" severity="secondary" text @click="showEventNameModal = false" />
-          <Button label="Next" icon="pi pi-arrow-right" icon-pos="right" size="small" :disabled="!newEventName.trim()" @click="submitEventName" style="background:#1E2157;border-color:#1E2157" />
+          <Button label="Next" icon="pi pi-arrow-right" icon-pos="right" size="small" :disabled="!newEventName.trim()" @click="submitEventName" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
         </div>
       </div>
     </Dialog>
 
     <!-- Event type picker modal -->
-    <Dialog v-model:visible="showEventTypeModal" header="Create new event" modal style="width:680px">
+    <Dialog v-model:visible="showEventTypeModal" header="Create new event" modal :style="{ width: '95vw', maxWidth: '680px' }">
 
-      <div class="grid grid-cols-3 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div
-          class="border-2 rounded-xl p-5 cursor-pointer hover:border-[#1E2157] hover:bg-[#F0F4FF] transition-colors group"
+          class="border-2 rounded-xl p-5 cursor-pointer hover:border-primary hover:bg-[#F0F4FF] transition-colors group"
           @click="createBasicEvent"
         >
           <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center mb-3">
-            <i class="pi pi-calendar text-[#1E2157] text-lg" />
+            <i class="pi pi-calendar text-primary text-lg" />
           </div>
           <h3 class="font-semibold text-gray-900 mb-1">Invite Only</h3>
           <p class="text-xs text-gray-500 leading-relaxed">Simple single-page setup. Covers all essentials without the wizard steps.</p>
         </div>
         <div
-          class="border-2 rounded-xl p-5 cursor-pointer hover:border-[#1E2157] hover:bg-[#F0F4FF] transition-colors group"
+          class="border-2 rounded-xl p-5 cursor-pointer hover:border-primary hover:bg-[#F0F4FF] transition-colors group"
           @click="createMultiSessionEvent"
         >
           <div class="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center mb-3">
@@ -322,7 +350,7 @@
           <p class="text-xs text-gray-500 leading-relaxed">Ideal for holiday programmes. Multiple sessions under one event with shared registration.</p>
         </div>
         <div
-          class="border-2 rounded-xl p-5 cursor-pointer hover:border-[#1E2157] hover:bg-[#F0F4FF] transition-colors group"
+          class="border-2 rounded-xl p-5 cursor-pointer hover:border-primary hover:bg-[#F0F4FF] transition-colors group"
           @click="createAdvancedEvent"
         >
           <div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center mb-3">
@@ -343,11 +371,11 @@
     </Dialog>
 
     <!-- Demo Data Prompt -->
-    <Dialog v-model:visible="showDemoPrompt" header="Welcome to FriendlyManager!" modal :closable="false" style="width:460px">
+    <Dialog v-model:visible="showDemoPrompt" header="Welcome to FriendlyManager!" modal :closable="false" :style="{ width: '95vw', maxWidth: '460px' }">
       <div class="py-2 space-y-4">
         <div class="flex items-start gap-3">
-          <div class="w-10 h-10 rounded-full bg-[#1E2157]/10 flex items-center justify-center shrink-0 mt-0.5">
-            <i class="pi pi-sparkles text-[#1E2157]" />
+          <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+            <i class="pi pi-sparkles text-primary" />
           </div>
           <div>
             <p class="text-sm font-medium text-gray-800 mb-1">Your calendar is empty.</p>
@@ -357,7 +385,7 @@
       </div>
       <template #footer>
         <Button label="Start Fresh" severity="secondary" text :loading="installingDemo" @click="dismissDemoPrompt" />
-        <Button label="Install Demo Data" icon="pi pi-download" :loading="installingDemo" @click="installDemoData" style="background:#1E2157; border-color:#1E2157" />
+        <Button label="Install Demo Data" icon="pi pi-download" :loading="installingDemo" @click="installDemoData" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
       </template>
     </Dialog>
 
@@ -785,9 +813,26 @@ const VIEW_MAP: Record<string, 'day' | 'week' | 'month' | 'list'> = {
 }
 
 const calDate = ref(new Date())
+// On a phone the month/week grids are unusable — force the agenda (list) view.
+const isNarrow = ref(false)
+function updateNarrow() { if (import.meta.client) isNarrow.value = window.innerWidth < 768 }
+onMounted(updateNarrow)
+if (import.meta.client) {
+  window.addEventListener('resize', updateNarrow)
+  onBeforeUnmount(() => window.removeEventListener('resize', updateNarrow))
+}
 const bookingsCalView = computed<'day' | 'week' | 'month' | 'list'>(() =>
   VIEW_MAP[calSettings.defaultView] ?? 'month',
 )
+// Mobile shows a purpose-built upcoming-events list instead of the calendar grid.
+const mobileEventsList = computed(() => {
+  const start = new Date(); start.setHours(0, 0, 0, 0)
+  return (bookingsCalEvents.value as any[])
+    .filter(e => e.start_at && new Date(e.start_at) >= start)
+    .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
+})
+function evDow(iso: any) { return new Date(iso).toLocaleDateString(undefined, { weekday: 'short' }) }
+function evWhen(iso: any) { return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' · ' + new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) }
 
 // Map our events into the shape BookingsCalendar expects
 const bookingsCalEvents = computed(() => {
@@ -1284,7 +1329,7 @@ onMounted(async () => {
 .fc .fc-col-header-cell-cushion { font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 0; }
 .fc .fc-daygrid-event { border-radius: 4px; padding: 1px 6px; font-size: 12px; font-weight: 500; margin: 1px 4px; }
 .fc .fc-day-today .fc-daygrid-day-frame { background: #f0f4ff; }
-.fc .fc-day-today .fc-daygrid-day-number { color: #1E2157; font-weight: 700; }
+.fc .fc-day-today .fc-daygrid-day-number { color: var(--brand-primary); font-weight: 700; }
 .fc-theme-standard td, .fc-theme-standard th { border-color: #e5e7eb; }
 .fc-theme-standard .fc-scrollgrid { border-color: transparent; }
 .fc .fc-event-dimmed { opacity: 0.15; transition: opacity 0.15s; }

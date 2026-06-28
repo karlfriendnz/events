@@ -33,7 +33,7 @@
                 <img v-else-if="child.main_image" :src="child.main_image"
                   class="max-w-full max-h-full object-contain" />
                 <div v-else
-                  class="w-10 h-10 rounded-full bg-[#1E2157] flex items-center justify-center text-white text-xs font-bold shadow shrink-0">
+                  class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold shadow shrink-0">
                   {{ initials(child.name) }}
                 </div>
               </div>
@@ -51,7 +51,7 @@
                 'border-b cursor-pointer transition-colors',
                 slot.minutes % 60 === 0 ? 'border-gray-200' : 'border-gray-100',
                 isDragging && dragChildId === child.id && isSlotSelected(slot.minutes)
-                  ? 'bg-[#1E2157]/10'
+                  ? 'bg-primary/10'
                   : 'hover:bg-gray-50'
               ]"
               @mousedown="startDrag(child, slot.minutes)"
@@ -66,7 +66,7 @@
             <div v-for="(slot, i) in slotsForChild(child.id)" :key="`${child.id}-rule-${i}`"
               class="absolute left-1 right-1 rounded-md border-2 cursor-pointer transition-colors z-0 select-none"
               :class="isSlotPicked(child, slot)
-                ? 'bg-[#1E2157] border-[#1E2157] shadow-md ring-2 ring-[#1E2157]/40 ring-offset-1'
+                ? 'bg-primary border-primary shadow-md ring-2 ring-primary/40 ring-offset-1'
                 : slot.ruleType === 'CLOSED'
                   ? 'bg-red-50 border-red-200 hover:bg-red-100/70'
                   : slot.ruleType === 'RESTRICTED'
@@ -109,7 +109,7 @@
 
       <!-- Loading overlay -->
       <div v-if="loading" class="absolute inset-0 bg-white/60 flex items-center justify-center z-30">
-        <i class="pi pi-spin pi-spinner text-2xl text-[#1E2157]" />
+        <i class="pi pi-spin pi-spinner text-2xl text-primary" />
       </div>
     </div>
   </div>
@@ -135,21 +135,68 @@ const emit = defineEmits<{
   // Drag entered a new slot (mouse held down). Parent adds it idempotently
   // — never removes — so dragging back over a slot won't unselect it.
   'add-slot': [child: any, start: Date, end: Date]
+  // Fired once after rules first load if `props.date` has no applicable
+  // slots and a future date (within 14 days) does. Parent decides whether
+  // to apply it — typically only on initial mount, before the user has
+  // manually navigated.
+  'suggest-date': [date: Date]
+  // List of dates within the lookahead window that have no applicable
+  // slots — wired to the parent's DatePicker `:disabled-dates` so users
+  // can't pick days the courts are closed. Empty array = nothing disabled
+  // (e.g. when there are no rules at all and we don't know the schedule).
+  'disabled-dates': [dates: Date[]]
 }>()
 
 const db = useDb()
 
-const DAY_START_HOUR = 6
-const DAY_END_HOUR   = 23
+// Default fallback window when no rules + no bookings exist for the day —
+// keeps the grid from collapsing to nothing on a blank schedule.
+const FALLBACK_START_HOUR = 9
+const FALLBACK_END_HOUR   = 17
+
 const SLOT_MINS      = 30
 const slotHeight     = 28
 const headerHeight   = 80
 const timeGutterWidth = 52
 const colMinWidth    = 140
 
+// Earliest rule slot start / latest rule slot end across all visible
+// children + any bookings on the day, rounded outward to the hour. The
+// grid crops to this window so empty hours don't take up vertical space.
+const visibleHours = computed(() => {
+  let minMin = Infinity
+  let maxMin = -Infinity
+  for (const child of props.children) {
+    for (const slot of slotsForChild(child.id)) {
+      const from = timeToMins(slot.from)
+      const to   = timeToMins(slot.to)
+      if (from < minMin) minMin = from
+      if (to   > maxMin) maxMin = to
+    }
+  }
+  // Existing bookings outside the rule window must still be visible.
+  for (const b of bookings.value) {
+    const s = new Date(b.start_at)
+    const e = new Date(b.end_at)
+    const sm = s.getHours() * 60 + s.getMinutes()
+    const em = e.getHours() * 60 + e.getMinutes()
+    if (sm < minMin) minMin = sm
+    if (em > maxMin) maxMin = em
+  }
+  if (!isFinite(minMin) || !isFinite(maxMin)) {
+    return { startHour: FALLBACK_START_HOUR, endHour: FALLBACK_END_HOUR }
+  }
+  const startHour = Math.max(0,  Math.floor(minMin / 60))
+  let   endHour   = Math.min(24, Math.ceil(maxMin  / 60))
+  if (endHour <= startHour) endHour = startHour + 1
+  return { startHour, endHour }
+})
+const dayStartHour = computed(() => visibleHours.value.startHour)
+const dayEndHour   = computed(() => visibleHours.value.endHour)
+
 const timeSlots = computed(() => {
   const slots = []
-  for (let m = DAY_START_HOUR * 60; m < DAY_END_HOUR * 60; m += SLOT_MINS) {
+  for (let m = dayStartHour.value * 60; m < dayEndHour.value * 60; m += SLOT_MINS) {
     slots.push({ minutes: m })
   }
   return slots
@@ -181,12 +228,12 @@ function bookingsForChild(childId: string) {
 
 function minutesFromDayStart(iso: string) {
   const d = new Date(iso)
-  return d.getHours() * 60 + d.getMinutes() - DAY_START_HOUR * 60
+  return d.getHours() * 60 + d.getMinutes() - dayStartHour.value * 60
 }
 
 function bookingStyle(booking: any) {
   const startMins    = Math.max(minutesFromDayStart(booking.start_at), 0)
-  const endMins      = Math.min(minutesFromDayStart(booking.end_at), (DAY_END_HOUR - DAY_START_HOUR) * 60)
+  const endMins      = Math.min(minutesFromDayStart(booking.end_at), (dayEndHour.value - dayStartHour.value) * 60)
   const durationMins = Math.max(endMins - startMins, SLOT_MINS)
   const top    = (startMins / SLOT_MINS) * slotHeight
   const height = (durationMins / SLOT_MINS) * slotHeight - 2
@@ -194,7 +241,7 @@ function bookingStyle(booking: any) {
 }
 
 function statusClass(status: string) {
-  if (status === 'CONFIRMED') return 'bg-[#1E2157] text-white'
+  if (status === 'CONFIRMED') return 'bg-primary text-white'
   if (status === 'PENDING')   return 'bg-amber-400 text-white'
   return 'bg-gray-200 text-gray-600'
 }
@@ -288,6 +335,64 @@ async function loadRules() {
   rules.value = data ?? []
 }
 
+// Does any visible child have an applicable rule with at least one slot on
+// `date`? Used by the initial-seek logic — when today has nothing, the
+// parent jumps the date forward to the next day that does.
+function hasAnySlotsOnDate(date: Date): boolean {
+  for (const child of props.children) {
+    const sourceId = child.master_id ?? child.id
+    for (const r of rules.value) {
+      if (r.bookable_id !== sourceId) continue
+      if (!ruleAppliesOnDate(r, date)) continue
+      const slots = r.time_slots?.length
+        ? r.time_slots.filter((s: any) => s?.from && s?.to)
+        : (r.time_from ? [{ from: r.time_from, to: r.time_to }] : [])
+      if (slots.length) return true
+    }
+  }
+  return false
+}
+
+// One-shot seek: after the first non-empty rule load, if today has no
+// applicable slots, look forward up to 14 days for the next date that does
+// and emit it back to the parent. Runs once per component lifetime.
+let initialSeekDone = false
+watch(rules, () => {
+  // Refresh the disabled-dates set every time rules change so the
+  // parent's DatePicker stays in sync.
+  emit('disabled-dates', computeDisabledDates())
+
+  if (initialSeekDone || !rules.value.length) return
+  initialSeekDone = true
+  if (hasAnySlotsOnDate(props.date)) return
+  for (let d = 1; d <= 14; d++) {
+    const candidate = new Date(props.date)
+    candidate.setHours(0, 0, 0, 0)
+    candidate.setDate(candidate.getDate() + d)
+    if (hasAnySlotsOnDate(candidate)) {
+      emit('suggest-date', candidate)
+      return
+    }
+  }
+})
+
+// Build the list of dates within the next 90 days that have NO applicable
+// slots. Skipped (returns []) when rules are empty — we don't know the
+// schedule yet, so don't constrain the picker.
+const DISABLE_LOOKAHEAD_DAYS = 90
+function computeDisabledDates(): Date[] {
+  if (!rules.value.length) return []
+  const out: Date[] = []
+  const start = new Date()
+  start.setHours(0, 0, 0, 0)
+  for (let d = 0; d < DISABLE_LOOKAHEAD_DAYS; d++) {
+    const candidate = new Date(start)
+    candidate.setDate(candidate.getDate() + d)
+    if (!hasAnySlotsOnDate(candidate)) out.push(candidate)
+  }
+  return out
+}
+
 function timeToMins(t: string): number {
   const [h, m] = t.split(':').map(Number)
   return h * 60 + m
@@ -343,7 +448,7 @@ function slotsForChild(childId: string): DisplaySlot[] {
 
 function slotStyle(slot: DisplaySlot) {
   // SLOT_MINS-based vertical positioning matching the timeSlots grid.
-  const dayStart = DAY_START_HOUR * 60
+  const dayStart = dayStartHour.value * 60
   const top    = ((timeToMins(slot.from) - dayStart) / SLOT_MINS) * slotHeight
   const height = Math.max(((timeToMins(slot.to) - timeToMins(slot.from)) / SLOT_MINS) * slotHeight, slotHeight)
   return { top: `${top}px`, height: `${height}px` }

@@ -3,7 +3,7 @@
     type="button"
     class="w-full flex items-center gap-3 px-3 py-3 rounded-xl border transition-all text-left"
     :class="selected
-      ? 'bg-[#1E2157]/5 border-[#1E2157]/20 shadow-sm'
+      ? 'bg-primary/5 border-primary/20 shadow-sm'
       : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50/60'"
     @click="$emit('click')">
     <div

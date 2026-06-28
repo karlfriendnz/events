@@ -21,7 +21,7 @@
         <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
           :class="item.type === 'VENUE' ? 'bg-[#EFF6FF]' : item.type === 'ITEM' ? 'bg-amber-50' : 'bg-green-50'">
           <i class="pi text-sm"
-            :class="item.type === 'VENUE' ? 'pi-building text-[#1E2157]' : item.type === 'ITEM' ? 'pi-box text-amber-600' : 'pi-user text-green-600'" />
+            :class="item.type === 'VENUE' ? 'pi-building text-primary' : item.type === 'ITEM' ? 'pi-box text-amber-600' : 'pi-user text-green-600'" />
         </div>
         <div class="flex-1 min-w-0">
           <p class="text-sm font-semibold text-gray-900">{{ item.name }}</p>

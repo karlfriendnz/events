@@ -1,12 +1,12 @@
 <template>
-  <div class="p-6 space-y-4">
+  <div class="p-3 sm:p-6 space-y-4">
     <!-- Centered pill tabs (match venue detail page) -->
-    <div class="flex justify-center">
+    <div class="flex md:justify-center overflow-x-auto -mx-1 px-1 no-scrollbar">
       <div class="flex gap-2">
         <button v-for="tab in visibleTabs" :key="tab.value"
-          class="flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-medium transition-colors"
+          class="flex items-center gap-1.5 px-4 sm:px-5 py-2 rounded-full text-sm font-medium transition-colors shrink-0 whitespace-nowrap"
           :class="activeTopTab === tab.value
-            ? 'bg-[#1E2157] text-white shadow-sm'
+            ? 'bg-primary text-white shadow-sm'
             : 'bg-[rgba(30,33,90,0.06)] text-gray-600 hover:bg-[rgba(30,33,90,0.1)]'"
           @click="activeTopTab = tab.value">
           <i :class="`pi ${tab.icon} text-xs`" />
@@ -32,8 +32,8 @@ const route = useRoute()
 const router = useRouter()
 
 const topTabs = [
-  { label: 'Bookings',       value: 'bookings',   icon: 'pi-book',     visibleWhen: 'hasBookables' },
   { label: 'Bookables',      value: 'bookables',  icon: 'pi-building', visibleWhen: 'always' },
+  { label: 'Bookings',       value: 'bookings',   icon: 'pi-book',     visibleWhen: 'hasBookables' },
   { label: 'Activities',     value: 'activities', icon: 'pi-bolt',     visibleWhen: 'always' },
   { label: 'Discounts',      value: 'discounts',  icon: 'pi-tag',      visibleWhen: 'always' },
   { label: 'Access Control', value: 'access',     icon: 'pi-shield',   visibleWhen: 'always' },
@@ -52,8 +52,7 @@ const visibleTabs = computed(() =>
   }),
 )
 
-const activeTopTab = ref<TopTab>((route.query.tab as TopTab) || 'bookings')
-const tabExplicit = !!route.query.tab
+const activeTopTab = ref<TopTab>((route.query.tab as TopTab) || 'bookables')
 
 watch(activeTopTab, (tab) => {
   router.replace({ query: { ...route.query, tab } })
@@ -81,9 +80,6 @@ async function loadCounts() {
   activeCount.value = bookablesCount ?? 0
   bookingsCount.value = bkCount ?? 0
   countsLoaded.value = true
-  if (!tabExplicit && bookingsCount.value === 0 && activeTopTab.value === 'bookings') {
-    activeTopTab.value = 'bookables'
-  }
 }
 
 watch(orgId, () => loadCounts(), { immediate: true })

@@ -1,41 +1,47 @@
 <template>
   <div class="divide-y divide-gray-100">
     <!-- Date -->
-    <div class="flex items-center gap-4" :class="rowPadding">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4" :class="rowPadding">
       <span class="text-sm text-gray-500 shrink-0" :class="labelWidth">Date</span>
-      <DatePicker :model-value="startDate" :manual-input="false" show-icon date-format="dd/mm/yy" placeholder="Start date" class="flex-1"
-        :min-date="minStartDate"
-        :max-date="maxDate ?? undefined"
-        @update:model-value="onStartDate" />
-      <span class="text-sm text-gray-300 shrink-0">→</span>
-      <DatePicker :model-value="endDate" :manual-input="false" show-icon date-format="dd/mm/yy" placeholder="End date" class="flex-1"
-        :min-date="minEndDate ?? startDate ?? undefined"
-        :max-date="maxDate ?? undefined"
-        @update:model-value="onEndDate" />
+      <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-1 w-full min-w-0">
+        <DatePicker :model-value="startDate" :manual-input="false" show-icon date-format="dd/mm/yy" placeholder="Start date" fluid class="flex-1 min-w-0"
+          :min-date="minStartDate"
+          :max-date="maxDate ?? undefined"
+          @update:model-value="onStartDate" />
+        <span class="text-sm text-gray-300 shrink-0 hidden sm:inline">→</span>
+        <DatePicker :model-value="endDate" :manual-input="false" show-icon date-format="dd/mm/yy" placeholder="End date" fluid class="flex-1 min-w-0"
+          :min-date="minEndDate ?? startDate ?? undefined"
+          :max-date="maxDate ?? undefined"
+          @update:model-value="onEndDate" />
+      </div>
     </div>
     <!-- Time -->
-    <div class="flex items-center gap-4" :class="rowPadding">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4" :class="rowPadding">
       <span class="text-sm text-gray-500 shrink-0" :class="labelWidth">Time</span>
-      <DatePicker :model-value="startTime" time-only show-icon hour-format="12" placeholder="Start" class="flex-1"
-        :disabled="isAllDay"
-        @update:model-value="onStartTime" />
-      <span class="text-sm text-gray-300 shrink-0">→</span>
-      <DatePicker :model-value="endTime" time-only show-icon hour-format="12" placeholder="End" class="flex-1"
-        :disabled="isAllDay"
-        @update:model-value="onEndTime" />
+      <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-1 w-full min-w-0">
+        <DatePicker :model-value="startTime" time-only show-icon hour-format="12" placeholder="Start" fluid class="flex-1 min-w-0"
+          :disabled="isAllDay"
+          @update:model-value="onStartTime" />
+        <span class="text-sm text-gray-300 shrink-0 hidden sm:inline">→</span>
+        <DatePicker :model-value="endTime" time-only show-icon hour-format="12" placeholder="End" fluid class="flex-1 min-w-0"
+          :disabled="isAllDay"
+          @update:model-value="onEndTime" />
+      </div>
     </div>
     <!-- All day + Outside event dates -->
-    <div class="flex items-center gap-4" :class="rowPadding">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4" :class="rowPadding">
       <span class="text-sm text-gray-500 shrink-0" :class="labelWidth">All day</span>
-      <ToggleSwitch :model-value="isAllDay" @update:model-value="emit('update:isAllDay', $event)" />
-      <div v-if="showOutsideEventDates" class="flex items-center gap-2 ml-auto">
-        <span class="text-xs text-gray-400">Outside event dates</span>
-        <ToggleSwitch :model-value="outsideEventDates" @update:model-value="emit('update:outsideEventDates', $event)" />
+      <div class="flex items-center gap-2 w-full">
+        <ToggleSwitch :model-value="isAllDay" @update:model-value="emit('update:isAllDay', $event)" />
+        <div v-if="showOutsideEventDates" class="flex items-center gap-2 ml-auto">
+          <span class="text-xs text-gray-400">Outside event dates</span>
+          <ToggleSwitch :model-value="outsideEventDates" @update:model-value="emit('update:outsideEventDates', $event)" />
+        </div>
       </div>
     </div>
     <!-- Repeat (dropdown + exclusions calendar) -->
-    <div class="flex items-start gap-4" :class="rowPadding">
-      <span class="text-sm text-gray-500 shrink-0 pt-2" :class="labelWidth">Repeat</span>
+    <div class="flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-4" :class="rowPadding">
+      <span class="text-sm text-gray-500 shrink-0 sm:pt-2" :class="labelWidth">Repeat</span>
       <RepeatField
         :model-value="repeat"
         :exdates="exdates"

@@ -18,11 +18,11 @@
             option-label="label" option-value="value" size="small" class="w-40 shrink-0"
             @update:model-value="emit('update:modelValue', [...modelValue])" />
           <input v-model.number="cond.val1" type="number" min="0" placeholder="0"
-            class="w-16 shrink-0 h-7 px-2 text-sm text-gray-800 border border-gray-200 rounded-md outline-none focus:border-[#1E2157] focus:ring-1 focus:ring-[#1E2157]/20 bg-white"
+            class="w-16 shrink-0 h-7 px-2 text-sm text-gray-800 border border-gray-200 rounded-md outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 bg-white"
             @input="emit('update:modelValue', [...modelValue])" />
           <span v-if="cond.op === 'between'" class="text-xs text-gray-400 shrink-0">and</span>
           <input v-if="cond.op === 'between'" v-model.number="cond.val2" type="number" min="0" placeholder="0"
-            class="w-16 shrink-0 h-7 px-2 text-sm text-gray-800 border border-gray-200 rounded-md outline-none focus:border-[#1E2157] focus:ring-1 focus:ring-[#1E2157]/20 bg-white"
+            class="w-16 shrink-0 h-7 px-2 text-sm text-gray-800 border border-gray-200 rounded-md outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 bg-white"
             @input="emit('update:modelValue', [...modelValue])" />
         </template>
 

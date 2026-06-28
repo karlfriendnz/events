@@ -3,7 +3,7 @@
     <!-- Top toolbar -->
     <div class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shrink-0">
       <div class="flex items-center gap-3">
-        <button class="text-sm text-gray-500 hover:text-[#1E2157] flex items-center gap-1.5"
+        <button class="text-sm text-gray-500 hover:text-primary flex items-center gap-1.5"
           @click="navigateTo(returnTo || '/forms')">
           <i class="pi pi-arrow-left text-xs" />
           {{ returnLabel }}
@@ -13,7 +13,7 @@
       </div>
       <div class="flex items-center gap-2">
         <Button :label="isNew ? 'Create form' : 'Save changes'" icon="pi pi-check" size="small" :loading="saving"
-          @click="save" style="background:#1E2157;border-color:#1E2157" />
+          @click="save" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
       </div>
     </div>
 
@@ -99,7 +99,7 @@ async function load() {
   }
   const id = formId.value!
   const fresh = emptyForm()
-  const { data: f } = await (db.from as any)('registration_forms').select('id, name, config').eq('id', id).single()
+  const { data: f } = await (db.from as any)('registration_forms').select('id, name, config').eq('id', id).eq('org_id', orgId.value).single()
   let fieldMeta: Record<string, any> = {}
   if (f) {
     fresh.name = f.name ?? ''
@@ -178,7 +178,7 @@ async function save() {
       id = data.id
       formId.value = id
     } else {
-      await (db.from as any)('registration_forms').update({ name: form.value.name.trim(), config }).eq('id', id)
+      await (db.from as any)('registration_forms').update({ name: form.value.name.trim(), config }).eq('id', id).eq('org_id', orgId.value)
     }
     await (db.from as any)('form_fields').delete().eq('form_id', id)
     if (form.value.fields.length) {
@@ -219,7 +219,7 @@ async function save() {
     }, {})
     await (db.from as any)('registration_forms').update({
       config: { ...config, fieldMeta },
-    }).eq('id', id)
+    }).eq('id', id).eq('org_id', orgId.value)
     toast.add({ severity: 'success', summary: 'Form saved', life: 2000 })
     if (returnTo.value) {
       await navigateTo(`${returnTo.value}${returnTo.value.includes('?') ? '&' : '?'}form_id=${id}`)
@@ -236,7 +236,7 @@ async function onDelete() {
   if (!formId.value) return
   if (!confirm('Delete this form? Modes and events using it will be unlinked.')) return
   await (db.from as any)('form_fields').delete().eq('form_id', formId.value)
-  await (db.from as any)('registration_forms').delete().eq('id', formId.value)
+  await (db.from as any)('registration_forms').delete().eq('id', formId.value).eq('org_id', orgId.value)
   toast.add({ severity: 'success', summary: 'Form deleted', life: 2000 })
   navigateTo('/forms')
 }

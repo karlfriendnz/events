@@ -1,7 +1,7 @@
 <template>
   <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
     <div v-if="title || $slots.title || $slots['header-action']"
-      class="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
+      class="px-4 sm:px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-4">
       <div class="min-w-0">
         <p class="text-sm font-semibold text-gray-800">
           <slot name="title">{{ title }}</slot>

@@ -10,7 +10,7 @@
           <span class="hidden sm:inline">Cancel</span>
         </button>
         <span class="text-sm font-semibold text-gray-800">Create Advanced Event</span>
-        <button class="text-sm text-[#1E2157] hover:underline font-medium" @click="saveDraft">
+        <button class="text-sm text-primary hover:underline font-medium" @click="saveDraft">
           <span class="hidden sm:inline">Save draft</span>
           <i class="pi pi-bookmark sm:hidden" />
         </button>
@@ -23,9 +23,9 @@
             <!-- Circle -->
             <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all"
               :class="idx < currentStep
-                ? 'bg-[#1E2157] text-white'
+                ? 'bg-primary text-white'
                 : idx === currentStep
-                  ? 'bg-[#1E2157] text-white ring-4 ring-[#1E2157]/20'
+                  ? 'bg-primary text-white ring-4 ring-primary/20'
                   : 'bg-gray-100 text-gray-400'">
               <i v-if="idx < currentStep" class="pi pi-check text-[10px]" />
               <span v-else>{{ idx + 1 }}</span>
@@ -38,14 +38,14 @@
           </div>
           <!-- Connector line -->
           <div v-if="idx < steps.length - 1" class="flex-1 min-w-[16px] h-px mx-2 shrink-0"
-            :class="idx < currentStep ? 'bg-[#1E2157]' : 'bg-gray-200'" />
+            :class="idx < currentStep ? 'bg-primary' : 'bg-gray-200'" />
         </template>
       </div>
     </div>
 
     <!-- Step content (scrollable) -->
     <div class="flex-1 overflow-y-auto bg-[#F5F8FA]">
-      <div class="max-w-[1140px] mx-auto px-6 py-6 space-y-6">
+      <div class="max-w-[1140px] mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6">
 
         <!-- Step 0: Event Info -->
         <template v-if="currentStep === 0">
@@ -88,7 +88,7 @@
               <label class="block text-sm font-medium text-gray-700 mb-1.5">Banner Image</label>
               <p class="text-xs text-gray-400 mb-3">1200 × 350 recommended</p>
               <div v-if="!form.banner_url"
-                class="border-2 border-dashed border-gray-200 rounded-xl p-8 flex flex-col items-center gap-3 hover:border-[#1E2157] transition-colors cursor-pointer"
+                class="border-2 border-dashed border-gray-200 rounded-xl p-8 flex flex-col items-center gap-3 hover:border-primary transition-colors cursor-pointer"
                 @click="bannerInput?.click()">
                 <i class="pi pi-image text-3xl text-gray-300" />
                 <Button label="Upload banner" severity="secondary" outlined size="small" icon="pi pi-upload" />
@@ -111,20 +111,20 @@
               <ToggleSwitch v-model="form.is_all_day" />
               <span class="text-sm text-gray-700">All day event</span>
             </div>
-            <div class="px-5 py-4 flex items-center gap-6 flex-wrap">
-              <div class="flex flex-col gap-1.5">
+            <div class="px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+              <div class="flex flex-col gap-1.5 w-full sm:w-auto">
                 <label class="text-sm font-medium text-gray-700">Start</label>
-                <div class="flex items-center gap-2">
-                  <DatePicker v-model="form.start_date" dateFormat="dd/mm/yy" placeholder="Start date" :minDate="twoWeeksAgo" class="w-40" :manualInput="false" />
-                  <DatePicker v-if="!form.is_all_day" v-model="form.start_time" timeOnly hourFormat="12" placeholder="Start time" class="w-36" />
+                <div class="flex items-center gap-2 w-full">
+                  <DatePicker v-model="form.start_date" dateFormat="dd/mm/yy" placeholder="Start date" :minDate="twoWeeksAgo" fluid class="flex-1 min-w-0 sm:flex-none sm:w-40" :manualInput="false" />
+                  <DatePicker v-if="!form.is_all_day" v-model="form.start_time" timeOnly hourFormat="12" placeholder="Start time" fluid class="flex-1 min-w-0 sm:flex-none sm:w-36" />
                 </div>
               </div>
-              <span class="text-gray-300 text-lg pt-5">→</span>
-              <div class="flex flex-col gap-1.5">
+              <span class="text-gray-300 text-lg pt-5 hidden sm:inline">→</span>
+              <div class="flex flex-col gap-1.5 w-full sm:w-auto">
                 <label class="text-sm font-medium text-gray-700">End</label>
-                <div class="flex items-center gap-2">
-                  <DatePicker v-model="form.end_date" dateFormat="dd/mm/yy" placeholder="End date" :minDate="form.start_date ?? twoWeeksAgo" class="w-40" :manualInput="false" />
-                  <DatePicker v-if="!form.is_all_day" v-model="form.end_time" timeOnly hourFormat="12" placeholder="End time" class="w-36" />
+                <div class="flex items-center gap-2 w-full">
+                  <DatePicker v-model="form.end_date" dateFormat="dd/mm/yy" placeholder="End date" :minDate="form.start_date ?? twoWeeksAgo" fluid class="flex-1 min-w-0 sm:flex-none sm:w-40" :manualInput="false" />
+                  <DatePicker v-if="!form.is_all_day" v-model="form.end_time" timeOnly hourFormat="12" placeholder="End time" fluid class="flex-1 min-w-0 sm:flex-none sm:w-36" />
                 </div>
               </div>
             </div>
@@ -174,11 +174,11 @@
             @update:modelValue="v => { templates.splice(0, templates.length, ...v) }" />
 
           <!-- Preview -->
-          <div v-if="sessionDays.length > 0 && namedTemplates.length > 0" class="bg-[#1E2157]/5 border border-[#1E2157]/20 rounded-xl px-5 py-4">
-            <p class="text-sm font-semibold text-[#1E2157] mb-2">Sessions to be created</p>
+          <div v-if="sessionDays.length > 0 && namedTemplates.length > 0" class="bg-primary/5 border border-primary/20 rounded-xl px-5 py-4">
+            <p class="text-sm font-semibold text-primary mb-2">Sessions to be created</p>
             <ul class="text-sm text-gray-600 space-y-1">
-              <li><i class="pi pi-clock text-[#1E2157] mr-2 text-xs" />{{ sessionDays.length }} day{{ sessionDays.length !== 1 ? 's' : '' }} · {{ namedTemplates.length }} template{{ namedTemplates.length !== 1 ? 's' : '' }} per day</li>
-              <li><i class="pi pi-list text-[#1E2157] mr-2 text-xs" /><strong>{{ totalSessions }}</strong> sessions will be generated</li>
+              <li><i class="pi pi-clock text-primary mr-2 text-xs" />{{ sessionDays.length }} day{{ sessionDays.length !== 1 ? 's' : '' }} · {{ namedTemplates.length }} template{{ namedTemplates.length !== 1 ? 's' : '' }} per day</li>
+              <li><i class="pi pi-list text-primary mr-2 text-xs" /><strong>{{ totalSessions }}</strong> sessions will be generated</li>
             </ul>
           </div>
         </template>
@@ -298,10 +298,10 @@
               </div>
               <div class="flex">
                 <button class="px-4 py-2 text-sm font-medium border rounded-l-lg transition-colors"
-                  :class="!form.is_paid ? 'bg-[#1E2157] border-[#1E2157] text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'"
+                  :class="!form.is_paid ? 'bg-primary border-primary text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'"
                   @click="form.is_paid = false">Free</button>
                 <button class="px-4 py-2 text-sm font-medium border rounded-r-lg transition-colors"
-                  :class="form.is_paid ? 'bg-[#1E2157] border-[#1E2157] text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'"
+                  :class="form.is_paid ? 'bg-primary border-primary text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'"
                   @click="form.is_paid = true">Charged</button>
               </div>
             </div>
@@ -379,7 +379,7 @@
           icon="pi pi-chevron-right"
           icon-pos="right"
           :disabled="currentStep === 0 && !form.title.trim()"
-          style="background:#1E2157; border-color:#1E2157"
+          style="background:var(--brand-primary); border-color:var(--brand-primary)"
           @click="currentStep++; scrollTop()"
         />
         <Button
@@ -396,7 +396,7 @@
   </div>
 
   <!-- New Category Dialog -->
-  <Dialog v-model:visible="showNewCategoryDialog" header="New Category" modal style="width:360px">
+  <Dialog v-model:visible="showNewCategoryDialog" header="New Category" modal :style="{ width: '95vw', maxWidth: '360px' }">
     <div class="flex flex-col gap-4 py-1">
       <div class="flex flex-col gap-1.5">
         <label class="text-sm font-medium">Name</label>
@@ -416,7 +416,7 @@
     <template #footer>
       <Button label="Cancel" severity="secondary" text @click="showNewCategoryDialog = false" />
       <Button label="Create" :disabled="!newCategoryName.trim()" :loading="savingCategory" @click="createCategory"
-        style="background:#1E2157; border-color:#1E2157" />
+        style="background:var(--brand-primary); border-color:var(--brand-primary)" />
     </template>
   </Dialog>
 

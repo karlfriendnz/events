@@ -1,23 +1,17 @@
 <template>
-  <div class="p-6">
-    <div class="mb-6">
-      <h1 class="text-xl font-semibold text-surface-900">Settings</h1>
-      <p class="text-sm text-surface-500 mt-0.5">Organisation configuration and preferences.</p>
-    </div>
-
-    <Tabs value="general">
-      <TabList>
-        <Tab value="general"><i class="pi pi-cog mr-2 text-xs" />General</Tab>
-        <Tab value="bookings"><i class="pi pi-calendar mr-2 text-xs" />Bookings</Tab>
-        <Tab value="events"><i class="pi pi-megaphone mr-2 text-xs" />Events</Tab>
-        <Tab value="people"><i class="pi pi-users mr-2 text-xs" />People</Tab>
-        <Tab value="resources"><i class="pi pi-building mr-2 text-xs" />Resources</Tab>
-        <Tab value="advanced"><i class="pi pi-wrench mr-2 text-xs" />Advanced</Tab>
-      </TabList>
-      <TabPanels>
+  <div class="p-3 sm:p-6 min-h-full flex flex-col">
+    <div class="flex flex-col md:flex-row gap-4 md:gap-6 flex-1 min-h-0">
+      <SettingsNav />
+      <div class="flex-1 min-w-0 settings-fill">
+        <Tabs :value="activeTab">
+          <TabPanels>
 
         <!-- ── GENERAL ── -->
-        <TabPanel value="general" class="space-y-4 max-w-2xl">
+        <TabPanel value="general" class="space-y-4 max-w-3xl">
+          <div class="mb-1">
+            <h1 class="text-xl font-semibold text-gray-900">General</h1>
+            <p class="text-sm text-gray-500">Your organisation's name, level and currency.</p>
+          </div>
           <div class="card p-5">
             <h2 class="text-sm font-semibold text-surface-700 mb-4">Organisation</h2>
             <div class="flex flex-col gap-4">
@@ -25,14 +19,78 @@
                 <label class="text-sm font-medium">Organisation Name</label>
                 <InputText v-model="org.name" />
               </div>
+              <!-- Branding: full logo (wordmark) + square icon (app/favicon style) -->
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium">Branding</label>
+                <div class="flex gap-6">
+                  <div class="flex flex-col gap-1.5">
+                    <span class="text-xs text-surface-500">Logo</span>
+                    <div class="flex items-center gap-2">
+                      <label class="w-28 h-14 shrink-0 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden cursor-pointer hover:border-gray-300 relative">
+                        <img v-if="org.logo_url" :src="org.logo_url" class="w-full h-full object-contain" />
+                        <i v-else :class="['pi', uploadingLogo ? 'pi-spin pi-spinner' : 'pi-image', 'text-gray-300']" />
+                        <input type="file" accept="image/*" class="hidden" @change="e => onOrgImage('logo', e)" />
+                      </label>
+                      <button v-if="org.logo_url" type="button" class="text-xs text-gray-400 hover:text-red-500" @click="clearOrgImage('logo')">Remove</button>
+                    </div>
+                  </div>
+                  <div class="flex flex-col gap-1.5">
+                    <span class="text-xs text-surface-500">Icon</span>
+                    <div class="flex items-center gap-2">
+                      <label class="w-14 h-14 shrink-0 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden cursor-pointer hover:border-gray-300 relative">
+                        <img v-if="org.icon_url" :src="org.icon_url" class="w-full h-full object-cover" />
+                        <i v-else :class="['pi', uploadingIcon ? 'pi-spin pi-spinner' : 'pi-image', 'text-gray-300']" />
+                        <input type="file" accept="image/*" class="hidden" @change="e => onOrgImage('icon', e)" />
+                      </label>
+                      <button v-if="org.icon_url" type="button" class="text-xs text-gray-400 hover:text-red-500" @click="clearOrgImage('icon')">Remove</button>
+                    </div>
+                  </div>
+                </div>
+                <p class="text-xs text-surface-400">Logo is the full wordmark; the icon is a square mark used in compact spots (sidebar, tabs).</p>
+
+                <!-- Club brand colours (migration 179). Drive branded surfaces like the
+                     invitation email header. Background = the club colour; Text = what sits on it. -->
+                <div class="flex flex-col sm:flex-row gap-5 mt-2">
+                  <div class="flex items-center gap-3">
+                    <div class="flex flex-col gap-0.5">
+                      <span class="text-xs font-medium text-surface-600">Background color</span>
+                      <span class="text-[11px] text-surface-400 uppercase">{{ (org.brand_color || '#1E2157').replace('#','') }}</span>
+                    </div>
+                    <label class="relative w-9 h-9 rounded-lg border border-gray-200 shrink-0 cursor-pointer overflow-hidden"
+                      :style="{ background: org.brand_color || '#1E2157' }">
+                      <input type="color" :value="org.brand_color || '#1E2157'" @input="e => org.brand_color = (e.target as HTMLInputElement).value"
+                        class="absolute inset-0 opacity-0 cursor-pointer" />
+                    </label>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <div class="flex flex-col gap-0.5">
+                      <span class="text-xs font-medium text-surface-600">Text color</span>
+                      <span class="text-[11px] text-surface-400 uppercase">{{ (org.brand_text_color || '#FFFFFF').replace('#','') }}</span>
+                    </div>
+                    <label class="relative w-9 h-9 rounded-lg border border-gray-200 shrink-0 cursor-pointer overflow-hidden"
+                      :style="{ background: org.brand_text_color || '#FFFFFF' }">
+                      <input type="color" :value="org.brand_text_color || '#FFFFFF'" @input="e => org.brand_text_color = (e.target as HTMLInputElement).value"
+                        class="absolute inset-0 opacity-0 cursor-pointer" />
+                    </label>
+                  </div>
+                  <!-- Live swatch preview -->
+                  <div class="flex items-center justify-center rounded-lg px-4 py-2 text-sm font-semibold shrink-0"
+                    :style="{ background: org.brand_color || '#1E2157', color: org.brand_text_color || '#FFFFFF' }">
+                    {{ org.name || 'Club' }}
+                  </div>
+                </div>
+                <p class="text-xs text-surface-400">Your club's brand colours — used on branded surfaces like the invitation email header.</p>
+              </div>
               <div class="flex flex-col gap-1.5">
                 <label class="text-sm font-medium">Organisation level</label>
                 <p class="text-xs text-surface-500 -mt-0.5">Where this organisation sits in the hierarchy.</p>
                 <Select v-model="org.org_level" :options="orgLevelOptions" option-label="label" option-value="value" class="w-full" />
               </div>
-              <div class="flex flex-col gap-1.5">
+              <!-- Governing bodies set their parent directly here. Clubs set it via the
+                   Sports card below (each sport → its NSO), so nothing shows here for them. -->
+              <div v-if="isGoverningBody(org.org_level)" class="flex flex-col gap-1.5">
                 <label class="text-sm font-medium">Parent organisation</label>
-                <p class="text-xs text-surface-500 -mt-0.5">The body this organisation reports up to (e.g. a club → its regional association). Builds the full chain up to the national body. Drives shared categories, fields, branding, and cross-org reporting.</p>
+                <p class="text-xs text-surface-500 -mt-0.5">The body this organisation reports up to (e.g. a regional → its association). Builds the full chain up to the national body. Drives shared categories, fields, branding, and cross-org reporting.</p>
                 <Select v-model="org.parent_id" :options="parentCandidates" option-label="_label" option-value="id"
                   placeholder="Not affiliated" show-clear filter class="w-full" />
                 <div v-if="orgChain.length > 1" class="mt-1 flex flex-wrap items-center gap-1 text-xs">
@@ -44,6 +102,29 @@
                   </template>
                 </div>
               </div>
+              <!-- Default sport name (governing bodies only) — seeds the name member
+                   clubs see when they connect; they can override it locally. -->
+              <div v-if="isGoverningBody(org.org_level)" class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium">Default sport name</label>
+                <p class="text-xs text-surface-500 -mt-0.5">The sport this body governs. Member clubs see this as the default name when they connect — they can rename it locally.</p>
+                <InputText v-model="org.default_sport_name" placeholder="e.g. Cricket" />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium">Club type</label>
+                <p class="text-xs text-surface-500 -mt-0.5">
+                  <template v-if="org.org_level === 'CLUB'">Categorise this club. Types inherited from your governing bodies are shown locked.</template>
+                  <template v-else>Imparted to every club connected beneath this {{ orgLevelLabel(org.org_level).toLowerCase() }} (e.g. a cricket NSO → "Team Based").</template>
+                </p>
+                <div v-if="inheritedClubTypes.length" class="flex flex-wrap gap-1.5 mb-1">
+                  <span v-for="t in inheritedClubTypes" :key="t.id" v-tooltip.top="'From ' + t.from"
+                    class="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5">
+                    <i class="pi pi-lock text-[9px]" />{{ t.name }}
+                  </span>
+                </div>
+                <MultiSelect v-model="org.club_type_ids" :options="clubTypes" option-label="name" option-value="id"
+                  filter :placeholder="org.org_level === 'CLUB' ? 'Add club type(s)' : 'Select club type(s) to impart'"
+                  class="w-full" :max-selected-labels="4" :empty-message="'No club types yet — add them in /admin'" />
+              </div>
               <div class="grid grid-cols-2 gap-3">
                 <div class="flex flex-col gap-1.5">
                   <label class="text-sm font-medium">Currency</label>
@@ -54,23 +135,22 @@
                   <Select v-model="org.locale" :options="['en-AU', 'en-NZ', 'en-US', 'en-GB']" class="w-full" />
                 </div>
               </div>
-              <div class="flex flex-col gap-1.5">
-                <label class="text-sm font-medium">Season</label>
-                <p class="text-xs text-surface-500 -mt-0.5">Default date range used by group terms, attendance, and reporting windows.</p>
-                <div class="grid grid-cols-2 gap-3 mt-1">
-                  <DatePicker v-model="org.season_start" date-format="d M yy" placeholder="Start date" class="w-full" />
-                  <DatePicker v-model="org.season_end" date-format="d M yy" placeholder="End date" :min-date="org.season_start ?? undefined" class="w-full" />
-                </div>
-              </div>
             </div>
             <div class="mt-4 flex justify-end">
               <Button label="Save Organisation" :loading="savingOrg" @click="saveOrg" size="small" />
             </div>
           </div>
+
+          <!-- Sports + per-sport NSO connection (clubs only) -->
+          <OrgSportsEditor v-if="org.org_level === 'CLUB'" />
         </TabPanel>
 
         <!-- ── BOOKINGS ── -->
-        <TabPanel value="bookings" class="space-y-4 max-w-2xl">
+        <TabPanel value="bookings" class="space-y-4 max-w-3xl">
+          <div class="mb-1">
+            <h1 class="text-xl font-semibold text-gray-900">Bookings</h1>
+            <p class="text-sm text-gray-500">Defaults applied across the booking flow.</p>
+          </div>
           <div class="card p-5">
             <h2 class="text-sm font-semibold text-surface-700 mb-1">Default booking form</h2>
             <p class="text-xs text-surface-500 mb-3">Form used by every activity mode unless the mode picks its own. Holds the fields, terms &amp; conditions, and confirmation copy customers see at the Details step.</p>
@@ -80,7 +160,7 @@
               <Button v-if="org.default_form_id" label="Edit form" icon="pi pi-pencil" size="small" severity="secondary" outlined
                 @click="navigateTo(`/forms/${org.default_form_id}?return=${encodeURIComponent($route.fullPath)}`)" />
               <Button label="New form" icon="pi pi-plus" size="small"
-                style="background:#1E2157;border-color:#1E2157"
+                style="background:var(--brand-primary);border-color:var(--brand-primary)"
                 @click="navigateTo(`/forms/new?return=${encodeURIComponent($route.fullPath)}`)" />
             </div>
             <div class="mt-4 flex justify-end">
@@ -119,7 +199,7 @@
                   <p class="text-xs text-gray-400">Page canvas behind the cards.</p>
                 </div>
                 <input type="text" v-model="bookerTheme.canvas" maxlength="7"
-                  class="w-24 h-9 px-2 text-xs font-mono uppercase border border-gray-200 rounded outline-none focus:border-[#1E2157]" />
+                  class="w-24 h-9 px-2 text-xs font-mono uppercase border border-gray-200 rounded outline-none focus:border-primary" />
               </div>
               <div class="flex items-center gap-3">
                 <input type="color" v-model="bookerTheme.primary"
@@ -129,7 +209,7 @@
                   <p class="text-xs text-gray-400">Buttons, selected-state borders, brand accents.</p>
                 </div>
                 <input type="text" v-model="bookerTheme.primary" maxlength="7"
-                  class="w-24 h-9 px-2 text-xs font-mono uppercase border border-gray-200 rounded outline-none focus:border-[#1E2157]" />
+                  class="w-24 h-9 px-2 text-xs font-mono uppercase border border-gray-200 rounded outline-none focus:border-primary" />
               </div>
               <div class="flex items-center gap-3">
                 <input type="color" v-model="bookerTheme.on_primary"
@@ -139,7 +219,7 @@
                   <p class="text-xs text-gray-400">Text + icons drawn on top of the primary colour.</p>
                 </div>
                 <input type="text" v-model="bookerTheme.on_primary" maxlength="7"
-                  class="w-24 h-9 px-2 text-xs font-mono uppercase border border-gray-200 rounded outline-none focus:border-[#1E2157]" />
+                  class="w-24 h-9 px-2 text-xs font-mono uppercase border border-gray-200 rounded outline-none focus:border-primary" />
               </div>
 
               <!-- Live preview swatch -->
@@ -161,7 +241,11 @@
         </TabPanel>
 
         <!-- ── EVENTS ── -->
-        <TabPanel value="events" class="space-y-4 max-w-2xl">
+        <TabPanel value="events" class="space-y-4 max-w-3xl">
+          <div class="mb-1">
+            <h1 class="text-xl font-semibold text-gray-900">Events</h1>
+            <p class="text-sm text-gray-500">Defaults applied to event registration.</p>
+          </div>
           <div class="card p-5">
             <h2 class="text-sm font-semibold text-surface-700 mb-4">Event Defaults</h2>
             <div class="space-y-3">
@@ -215,47 +299,13 @@
           </div>
         </TabPanel>
 
-        <!-- ── PEOPLE ── -->
-        <TabPanel value="people" class="grid grid-cols-2 gap-4 max-w-4xl">
-          <div class="card p-4">
-            <h3 class="text-sm font-semibold text-surface-700 mb-3">Members</h3>
-            <p class="text-sm text-surface-500 mb-3">{{ personCount }} members in this organisation.</p>
-            <Button label="Add Member" icon="pi pi-user-plus" size="small" severity="secondary" @click="showAddPerson = true" class="w-full" />
-          </div>
-          <div class="card p-4">
-            <h3 class="text-sm font-semibold text-surface-700 mb-3">Member Groups</h3>
-            <div v-if="groupsLoading" class="py-4 flex justify-center">
-              <i class="pi pi-spin pi-spinner text-gray-300" />
-            </div>
-            <div v-else-if="!topLevelGroups.length" class="text-sm text-surface-400 py-1">No groups yet.</div>
-            <div v-else class="space-y-1">
-              <div v-for="group in topLevelGroups" :key="group.id">
-                <div class="flex items-center gap-2 py-1.5 px-1 rounded hover:bg-surface-50 cursor-pointer"
-                  @click="groupChildren(group.id).length && toggleExpand(group.id)">
-                  <button class="w-4 h-4 flex items-center justify-center shrink-0">
-                    <i v-if="groupChildren(group.id).length"
-                      :class="`pi text-[10px] text-gray-400 ${expandedGroupIds[group.id] ? 'pi-chevron-down' : 'pi-chevron-right'}`" />
-                  </button>
-                  <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: group.color ?? '#94a3b8' }" />
-                  <span class="text-sm font-semibold text-gray-800 flex-1 truncate">{{ group.name }}</span>
-                  <span class="text-xs text-gray-400">{{ groupMemberCount(group.id) }}</span>
-                </div>
-                <template v-if="expandedGroupIds[group.id]">
-                  <div v-for="child in groupChildren(group.id)" :key="child.id"
-                    class="flex items-center gap-2 py-1.5 pl-7 pr-1 rounded hover:bg-surface-50">
-                    <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: child.color ?? '#94a3b8' }" />
-                    <span class="text-sm text-gray-700 flex-1 truncate">{{ child.name }}</span>
-                    <span class="text-xs text-gray-400">{{ groupMemberCount(child.id) }}</span>
-                  </div>
-                </template>
-              </div>
-            </div>
-          </div>
-        </TabPanel>
-
         <!-- ── RESOURCES ── -->
-        <TabPanel value="resources" class="grid grid-cols-3 gap-4 max-w-4xl">
-          <div class="card p-4">
+        <TabPanel value="resources" class="space-y-4 max-w-3xl">
+          <div class="mb-1">
+            <h1 class="text-xl font-semibold text-gray-900">Resources</h1>
+            <p class="text-sm text-gray-500">Categories, calendars and venues.</p>
+          </div>
+          <div class="card p-5">
             <div class="flex items-center justify-between mb-3">
               <h3 class="text-sm font-semibold text-surface-700">Categories</h3>
               <Button label="Manage" icon="pi pi-arrow-right" icon-pos="right" text size="small" @click="navigateTo('/settings/calendars')" />
@@ -269,14 +319,14 @@
               <p v-if="!categories.length" class="text-sm text-surface-400 py-2">No categories yet.</p>
             </div>
           </div>
-          <div class="card p-4">
+          <div class="card p-5">
             <div class="flex items-center justify-between mb-2">
               <h3 class="text-sm font-semibold text-surface-700">Calendars</h3>
               <Button label="Manage" icon="pi pi-arrow-right" icon-pos="right" text size="small" @click="navigateTo('/settings/calendars')" />
             </div>
             <p class="text-sm text-surface-500">Named groupings of categories for calendar filtering.</p>
           </div>
-          <div class="card p-4">
+          <div class="card p-5">
             <div class="flex items-center justify-between mb-3">
               <h3 class="text-sm font-semibold text-surface-700">Venues</h3>
               <Button label="Manage" icon="pi pi-arrow-right" icon-pos="right" text size="small" @click="navigateTo('/settings/venues')" />
@@ -286,8 +336,12 @@
         </TabPanel>
 
         <!-- ── ADVANCED ── -->
-        <TabPanel value="advanced" class="space-y-4 max-w-2xl">
-          <div class="rounded-xl border border-gray-200 bg-white p-5">
+        <TabPanel value="advanced" class="space-y-4 max-w-3xl">
+          <div class="mb-1">
+            <h1 class="text-xl font-semibold text-gray-900">Advanced</h1>
+            <p class="text-sm text-gray-500">Maintenance and data tools.</p>
+          </div>
+          <div class="card p-5">
             <div class="flex items-center justify-between">
               <div>
                 <h2 class="text-sm font-semibold text-gray-700">Demo Events</h2>
@@ -317,10 +371,12 @@
         </TabPanel>
 
       </TabPanels>
-    </Tabs>
+        </Tabs>
+      </div>
+    </div>
 
     <!-- Bank Accounts Dialog -->
-    <Dialog v-model:visible="showBankAccounts" header="Bank Accounts" modal style="width: 540px">
+    <Dialog v-model:visible="showBankAccounts" header="Bank Accounts" modal :style="{ width: '95vw', maxWidth: '540px' }">
       <div class="space-y-3">
         <div v-if="!bankAccounts.length" class="text-sm text-gray-400 italic py-3 text-center">No bank accounts yet.</div>
         <div v-for="b in bankAccounts" :key="b.id"
@@ -340,35 +396,7 @@
       <template #footer>
         <Button label="Cancel" severity="secondary" text @click="cancelBankAccounts" />
         <Button label="Save" :loading="savingBankAccounts" @click="saveBankAccounts"
-          style="background:#1E2157;border-color:#1E2157" />
-      </template>
-    </Dialog>
-
-    <!-- Add Person Dialog -->
-    <Dialog v-model:visible="showAddPerson" header="Add Member" modal style="width: 400px">
-      <div class="flex flex-col gap-4">
-        <div class="grid grid-cols-2 gap-3">
-          <div class="flex flex-col gap-1.5">
-            <label class="text-sm font-medium">First Name</label>
-            <InputText v-model="personForm.first_name" autofocus />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label class="text-sm font-medium">Last Name</label>
-            <InputText v-model="personForm.last_name" />
-          </div>
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Email</label>
-          <InputText v-model="personForm.email" type="email" />
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Phone</label>
-          <InputText v-model="personForm.phone" type="tel" />
-        </div>
-      </div>
-      <template #footer>
-        <Button label="Cancel" severity="secondary" text @click="showAddPerson = false" />
-        <Button label="Add" :loading="addingPerson" :disabled="!personForm.first_name || !personForm.last_name" @click="handleAddPerson" />
+          style="background:var(--brand-primary);border-color:var(--brand-primary)" />
       </template>
     </Dialog>
 
@@ -383,6 +411,10 @@ import { useToast } from 'primevue/usetoast'
 const db = useDb()
 const toast = useToast()
 
+// Active panel is driven by ?tab= so the shared <SettingsNav> tab bar controls it.
+const route = useRoute()
+const activeTab = computed(() => (route.query.tab as string) || 'general')
+
 const org = ref<{
   name: string
   currency: string
@@ -390,7 +422,13 @@ const org = ref<{
   season_start: Date | null
   season_end: Date | null
   parent_id: string | null
-  org_level: 'CLUB' | 'REGIONAL' | 'ASSOCIATION' | 'NATIONAL'
+  org_level: 'CLUB' | 'REGIONAL' | 'ASSOCIATION' | 'NATIONAL' | 'RST'
+  default_sport_name: string | null
+  club_type_ids: string[]
+  logo_url: string | null
+  icon_url: string | null
+  brand_color: string | null
+  brand_text_color: string | null
   default_form_id: string | null
   default_payment_method: string | null
   default_bank_account_id: string | null
@@ -399,7 +437,8 @@ const org = ref<{
 }>({
   name: 'Demo Club', currency: 'AUD', locale: 'en-AU',
   season_start: null, season_end: null,
-  parent_id: null, org_level: 'CLUB',
+  parent_id: null, org_level: 'CLUB', default_sport_name: null, club_type_ids: [],
+  logo_url: null, icon_url: null, brand_color: null, brand_text_color: null,
   default_form_id: null, default_payment_method: null, default_bank_account_id: null,
   events_default_payment_method: null, events_default_bank_account_id: null,
 })
@@ -407,7 +446,7 @@ const org = ref<{
 // Org hierarchy (Club -> Regional -> Association -> National)
 const { buildChain } = useOrgHierarchy()
 const allOrgs = ref<OrgNode[]>([])
-const orgLevelOptions = (ORG_LEVELS as readonly string[]).map(v => ({ value: v, label: orgLevelLabel(v) }))
+const orgLevelOptions = (ORG_TYPE_OPTIONS as readonly string[]).map(v => ({ value: v, label: orgLevelLabel(v) }))
 // Candidate parents = every other org that is NOT a descendant of this org (cycle-safe).
 const parentCandidates = computed(() => allOrgs.value
   .filter(o => o.id !== orgId.value)
@@ -536,36 +575,26 @@ async function saveEventsPayments() {
   savingEventsPayments.value = false
 }
 const categories = ref<any[]>([])
-const personCount = ref(0)
+// Club types catalogue (created by super-admins in /admin) for the multi-select.
+const clubTypes = ref<{ id: string; name: string }[]>([])
+const { resolveInherited: resolveInheritedClubTypes } = useClubTypes()
+const inheritedClubTypes = ref<{ id: string; name: string; from: string }[]>([])
 
-const memberGroups = ref<any[]>([])
-const membershipCounts = ref<Record<string, number>>({})
-const groupsLoading = ref(true)
-const expandedGroupIds = reactive<Record<string, boolean>>({})
-
-const topLevelGroups = computed(() => memberGroups.value.filter(g => !g.parent_id))
-function groupChildren(parentId: string) { return memberGroups.value.filter(g => g.parent_id === parentId) }
-function groupMemberCount(groupId: string) {
-  const count = membershipCounts.value[groupId] ?? 0
-  return count ? `${count}` : ''
+async function loadClubTypes() {
+  const { data } = await (db.from as any)('club_types').select('id, name').order('sort_order').order('name')
+  clubTypes.value = data ?? []
+  inheritedClubTypes.value = orgId.value ? await resolveInheritedClubTypes(orgId.value, clubTypes.value) : []
 }
-function toggleExpand(id: string) { expandedGroupIds[id] = !expandedGroupIds[id] }
-
-const showAddPerson = ref(false)
-const addingPerson = ref(false)
-const personForm = ref({ first_name: '', last_name: '', email: '', phone: '' })
 
 async function load() {
-  const [{ data: orgData }, { data: catData }, { count }, { data: groupData }, { data: memberships }, { data: forms }, { data: orgsData }] = await Promise.all([
+  const [{ data: orgData }, { data: catData }, { data: forms }, { data: orgsData }] = await Promise.all([
     db.from('organisations').select('*').eq('id', orgId.value).single(),
     db.from('categories').select('*').eq('org_id', orgId.value).order('name'),
-    db.from('persons').select('*', { count: 'exact', head: true }).eq('org_id', orgId.value),
-    db.from('member_groups').select('id, name, color, parent_id, sort_order').eq('org_id', orgId.value).order('sort_order'),
-    db.from('member_group_memberships').select('group_id'),
     (db.from as any)('registration_forms').select('id, name').eq('org_id', orgId.value).order('name'),
     (db.from as any)('organisations').select('id, name, org_level, parent_id').order('name'),
   ])
   allOrgs.value = (orgsData ?? []) as OrgNode[]
+  loadClubTypes()
   if (orgData) {
     org.value = {
       name: orgData.name,
@@ -574,7 +603,13 @@ async function load() {
       season_start: orgData.season_start ? new Date(orgData.season_start) : null,
       season_end: orgData.season_end ? new Date(orgData.season_end) : null,
       parent_id: orgData.parent_id ?? null,
-      org_level: (orgData.org_level ?? 'CLUB') as 'CLUB' | 'REGIONAL' | 'ASSOCIATION' | 'NATIONAL',
+      org_level: (orgData.org_level ?? 'CLUB') as 'CLUB' | 'REGIONAL' | 'ASSOCIATION' | 'NATIONAL' | 'RST',
+      default_sport_name: orgData.default_sport_name ?? null,
+      club_type_ids: orgData.club_type_ids ?? [],
+      logo_url: orgData.logo_url ?? null,
+      icon_url: orgData.icon_url ?? null,
+      brand_color: orgData.brand_color ?? null,
+      brand_text_color: orgData.brand_text_color ?? null,
       default_form_id: orgData.default_form_id ?? null,
       default_payment_method: orgData.default_payment_method ?? null,
       default_bank_account_id: orgData.default_bank_account_id ?? null,
@@ -599,18 +634,33 @@ async function load() {
   await loadBankAccounts()
   allForms.value = (forms ?? []) as any[]
   categories.value = catData ?? []
-  personCount.value = count ?? 0
-  memberGroups.value = groupData ?? []
-  const counts: Record<string, number> = {}
-  for (const m of memberships ?? []) counts[m.group_id] = (counts[m.group_id] ?? 0) + 1
-  membershipCounts.value = counts
-  groupsLoading.value = false
 }
 
 function toIsoDate(d: Date | null): string | null {
   if (!d) return null
   const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+const { uploadFile } = useUpload()
+const uploadingLogo = ref(false)
+const uploadingIcon = ref(false)
+async function onOrgImage(kind: 'logo' | 'icon', e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return
+  const busy = kind === 'logo' ? uploadingLogo : uploadingIcon
+  busy.value = true
+  try {
+    const url = await uploadFile(file)
+    if (kind === 'logo') org.value.logo_url = url; else org.value.icon_url = url
+    await (db.from as any)('organisations').update(kind === 'logo' ? { logo_url: url } : { icon_url: url }).eq('id', orgId.value)
+    toast.add({ severity: 'success', summary: `${kind === 'logo' ? 'Logo' : 'Icon'} uploaded`, life: 1500 })
+  } catch (err: any) {
+    toast.add({ severity: 'error', summary: 'Upload failed', detail: err?.message, life: 4000 })
+  } finally { busy.value = false }
+}
+async function clearOrgImage(kind: 'logo' | 'icon') {
+  if (kind === 'logo') org.value.logo_url = null; else org.value.icon_url = null
+  await (db.from as any)('organisations').update(kind === 'logo' ? { logo_url: null } : { icon_url: null }).eq('id', orgId.value)
 }
 
 async function saveOrg() {
@@ -621,6 +671,12 @@ async function saveOrg() {
     locale: org.value.locale,
     parent_id: org.value.parent_id,
     org_level: org.value.org_level,
+    default_sport_name: org.value.default_sport_name?.trim() || null,
+    club_type_ids: org.value.club_type_ids ?? [],
+    logo_url: org.value.logo_url,
+    icon_url: org.value.icon_url,
+    brand_color: org.value.brand_color,
+    brand_text_color: org.value.brand_text_color,
     season_start: toIsoDate(org.value.season_start),
     season_end: toIsoDate(org.value.season_end),
   }).eq('id', orgId.value)
@@ -628,24 +684,6 @@ async function saveOrg() {
   savingOrg.value = false
 }
 
-
-async function handleAddPerson() {
-  addingPerson.value = true
-  const { error } = await db.from('persons').insert({
-    org_id: orgId.value,
-    first_name: personForm.value.first_name,
-    last_name: personForm.value.last_name,
-    email: personForm.value.email || null,
-    phone: personForm.value.phone || null,
-  })
-  if (!error) {
-    toast.add({ severity: 'success', summary: 'Member added', life: 3000 })
-    showAddPerson.value = false
-    personForm.value = { first_name: '', last_name: '', email: '', phone: '' }
-    load()
-  }
-  addingPerson.value = false
-}
 
 const seedingEvents = ref(false)
 

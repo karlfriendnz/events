@@ -9,12 +9,44 @@
   @tailwind utilities;
 }
 
+/* The standard white card surface, used app-wide as class="card" (with p-* /
+   overflow-* utilities alongside). Matches <AppCard>. Was previously undefined,
+   so every `card` element rendered flat — defining it unifies the look. */
+.card {
+  background-color: #ffffff;
+  border: 1px solid rgb(229 231 235); /* gray-200 */
+  border-radius: 0.75rem;             /* rounded-xl */
+}
+
+/* Settings pages: stretch the white .p-tabpanels holder down to the bottom of
+   the page. Scoped via .settings-fill so other .p-tabpanels (events, mode editor)
+   are untouched. Needs the page root to be min-h-full + flex-col and the flex row
+   flex-1 (see the settings page templates). */
+.settings-fill { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+.settings-fill > .p-tabs { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; }
+.settings-fill .p-tabpanels { flex: 1 1 auto; }
+
+/* Hide scrollbars on horizontal mobile tab strips (still scrollable). */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
 :root {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* Brand-themeable primary colour. Defaults to FriendlyManager navy; overridden
+     at runtime by useBrandTheme() when the active club is connected to a brand.
+     The Tailwind `primary` token + all migrated #1E2157 literals read these. */
+  --brand-primary: #1E2157;
+  --brand-primary-hover: #2a2f6e;
+  --brand-primary-light: rgba(30, 33, 87, 0.06);
 }
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  /* Default body text = 14px. Explicit Tailwind text-* classes (rem off the 16px
+     root) are unaffected; this only sets the size of otherwise-unstyled text
+     (e.g. DataTable cells on /people, plain spans). */
+  font-size: 14px;
 }
 
 /* Make unselectable (out-of-range / disabled) calendar days very visually subdued */
@@ -25,4 +57,23 @@ body {
   pointer-events: none !important;
   text-decoration: none !important;
 }
+
+/* ── SYSTEM RULE: MultiSelect chip style (apply everywhere) ──
+   Every display="chip" MultiSelect (User Role, Communication, member groups,
+   event pickers, …) renders selected values as the SAME compact chip:
+   text-xs (12px), soft slate fill, small remove icon. `<ChipMultiSelect>`'s
+   custom chips (.chip-ms) are tuned to match this exactly. Do NOT hand-size
+   chips per-instance — keep them uniform via this rule. */
+.p-multiselect-chip-item .p-chip {
+  padding: 0.0625rem 0.5rem;
+  font-size: 0.75rem;       /* text-xs — the app's label size */
+  line-height: 1.25rem;
+  border-radius: 9999px;
+  background: #f1f5f9;
+  color: #334155;
+  gap: 0.25rem;
+}
+.p-multiselect-chip-item .p-chip-label { font-size: 0.75rem; line-height: 1.25rem; }
+.p-multiselect-chip-icon { font-size: 0.75rem; width: 0.75rem; height: 0.75rem; color: #94a3b8; }
+.p-multiselect-chip-icon:hover { color: #475569; }
 

@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
-  const { bookableId, activityId, activityModeId, startAt, endAt, contactName, contactEmail, contactPhone, notes, selectedAddons, attendeeCount, bookingDiscountId, discountAmount, customFields } = body
+  const { bookableId, activityId, activityModeId, startAt, endAt, contactName, contactEmail, contactPhone, notes, selectedAddons, attendeeCount, bookingDiscountId, discountAmount, customFields, subjectPersonId } = body
 
   if (!bookableId || !startAt || !endAt || !contactName || !contactEmail) {
     throw createError({ statusCode: 400, message: 'Missing required fields' })
@@ -108,6 +108,7 @@ export default defineEventHandler(async (event) => {
     booking_discount_id: bookingDiscountId || null,
     discount_amount: discountAmount ?? null,
     custom_fields: customFields ?? {},
+    subject_person_id: subjectPersonId || null,
   }
 
   const { data: bookingRow, error } = await supabase.from('bookings').insert({
@@ -163,6 +164,14 @@ export default defineEventHandler(async (event) => {
     $fetch('/api/send-customer-booking-email', {
       method: 'POST',
       body: { bookingId: bookingRow.id, event: 'created' },
+    }).catch(() => { /* non-fatal */ })
+  }
+  // Access control: generate code, materialise unlock windows, email the
+  // code if the venue has access_enabled. No-op otherwise.
+  if (bookingRow?.id && bookingStatus === 'CONFIRMED') {
+    $fetch('/api/finalize-access', {
+      method: 'POST',
+      body: { bookingId: bookingRow.id },
     }).catch(() => { /* non-fatal */ })
   }
 

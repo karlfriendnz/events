@@ -1,5 +1,5 @@
 <template>
-  <div class="w-full px-4 py-4">
+  <div class="w-full p-3 sm:p-6">
     <NuxtLink to="/groups"
       class="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-700 mb-4">
       <i class="pi pi-arrow-left text-[10px]" /> Groups
@@ -8,15 +8,16 @@
     <div v-if="loading" class="text-sm text-gray-400 py-8 text-center">Loading…</div>
     <div v-else-if="!group" class="text-sm text-gray-400 py-8 text-center">Group not found.</div>
     <template v-else>
-      <div class="mb-5 flex items-center gap-3">
+      <div class="mb-5 flex items-center gap-3 flex-wrap">
         <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: group.color || '#94a3b8' }" />
         <h1 class="text-xl font-semibold text-surface-900">{{ group.name }}</h1>
-        <div class="ml-auto flex items-center gap-2">
+        <span v-for="r in myRoleLabels" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1976d2]/10 text-[#1976d2] font-semibold" title="Your role in this group">{{ r }}</span>
+        <div class="ml-auto flex items-center gap-2 w-full sm:w-auto">
           <span v-if="trainingEventCount" class="text-xs text-gray-500">
             <i class="pi pi-calendar text-[10px] mr-1" />{{ trainingEventCount }} training event{{ trainingEventCount === 1 ? '' : 's' }} linked
           </span>
-          <span v-if="createBlockedReason && missingTrainingEvents.length" class="text-xs text-gray-400">{{ createBlockedReason }}</span>
-          <button v-if="missingTrainingEvents.length" type="button"
+          <span v-if="canManage && createBlockedReason && missingTrainingEvents.length" class="text-xs text-gray-400">{{ createBlockedReason }}</span>
+          <button v-if="canManage && missingTrainingEvents.length" type="button"
             class="text-xs font-semibold text-white px-3 py-1.5 rounded inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
             :class="!createBlockedReason ? 'bg-[#1976d2] hover:bg-[#125ea8]' : 'bg-gray-400'"
             :disabled="creatingEvent || !!createBlockedReason"
@@ -30,8 +31,8 @@
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <!-- Left column: INFO + COACHES -->
         <div class="md:col-span-1 flex flex-col gap-4">
-          <!-- Disciplines (NSO mapping) -->
-          <div v-if="group?.id" class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <!-- Disciplines (NSO mapping) — manage-only -->
+          <div v-if="group?.id && canManage" class="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div class="bg-[#1976d2] text-white text-xs font-bold tracking-widest text-center py-2">DISCIPLINES</div>
             <div class="p-4">
               <DisciplineLinker entity-type="group" :entity-id="group.id" />
@@ -40,7 +41,7 @@
           <!-- INFO -->
           <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div class="bg-[#1976d2] text-white text-xs font-bold tracking-widest text-center py-2">INFO</div>
-            <div class="p-5 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+            <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3 text-sm">
               <!-- Left half: labelled fields -->
               <div>
                 <dl class="text-sm">
@@ -64,7 +65,7 @@
               <div>
                 <div class="flex items-center justify-between mb-2">
                   <p class="font-bold text-gray-800">Session Times</p>
-                  <button type="button"
+                  <button v-if="canManage" type="button"
                     class="text-xs font-semibold text-[#1976d2] hover:underline inline-flex items-center gap-1"
                     @click="openScheduleEditor">
                     <i class="pi pi-pencil text-[10px]" /> Edit
@@ -87,17 +88,30 @@
           <!-- COACHES -->
           <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div class="bg-[#1976d2] text-white text-xs font-bold tracking-widest text-center py-2 relative">
-              COACHES
+              COACHES &amp; MANAGERS
+              <button v-if="canManage" type="button" class="absolute left-3 top-1/2 -translate-y-1/2 text-white/90 hover:text-white flex items-center gap-1 text-[11px] font-semibold"
+                title="Add a coach or manager" @click="openAdd('coach')">
+                <i class="pi pi-user-plus text-sm" /> Add
+              </button>
               <i class="pi pi-envelope text-white/90 absolute right-3 top-1/2 -translate-y-1/2 text-sm" />
             </div>
             <div class="p-4">
-              <div v-if="!coaches.length" class="text-sm text-gray-400 py-6 text-center">No coaches assigned.</div>
-              <div v-else class="grid grid-cols-2 gap-3">
+              <div v-if="!coaches.length" class="text-sm text-gray-400 py-6 text-center">
+                No coaches or managers assigned.
+                <button v-if="canManage" type="button" class="block mx-auto mt-3 text-[#1976d2] hover:underline font-medium" @click="openAdd('coach')">
+                  <i class="pi pi-user-plus text-xs mr-1" />Add a coach or manager
+                </button>
+              </div>
+              <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div v-for="(c, i) in coaches" :key="c.id"
-                  class="rounded-md border border-gray-200 px-3 py-2.5"
+                  class="group relative rounded-md border border-gray-200 px-3 py-2.5"
                   :class="i === 0 ? 'bg-blue-50 border-blue-200' : 'bg-gray-50'">
-                  <p class="text-sm font-bold text-gray-900 truncate">{{ c.name }}</p>
-                  <p class="text-xs text-gray-500 italic truncate">{{ c.role }}</p>
+                  <button v-if="canManage" type="button" class="absolute right-2 top-2 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                    :title="`Remove ${c.name}`" @click="removeCoach(c)"><i class="pi pi-times-circle text-sm" /></button>
+                  <NuxtLink :to="`/people/${c.id}`" class="text-sm font-bold text-gray-900 hover:text-[#1976d2] truncate block pr-5">{{ c.name }}</NuxtLink>
+                  <div class="flex flex-wrap gap-1 mt-1">
+                    <span v-for="r in c.roles" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1976d2]/10 text-[#1976d2] font-medium">{{ roleLabel(r) }}</span>
+                  </div>
                   <p v-if="c.phone" class="text-xs text-[#1976d2] mt-1.5 inline-flex items-center gap-1">
                     <i class="pi pi-phone text-[10px]" /> {{ c.phone }}
                   </p>
@@ -112,28 +126,43 @@
           <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div class="bg-[#1976d2] text-white text-xs font-bold tracking-widest text-center py-2 relative">
               MEMBERS
+              <button v-if="canManage" type="button" class="absolute left-3 top-1/2 -translate-y-1/2 text-white/90 hover:text-white flex items-center gap-1 text-[11px] font-semibold"
+                title="Add a member" @click="openAdd('member')">
+                <i class="pi pi-user-plus text-sm" /> Add
+              </button>
               <i class="pi pi-envelope text-white/90 absolute right-3 top-1/2 -translate-y-1/2 text-sm" />
             </div>
             <div v-if="!members.length" class="p-8 text-center text-sm text-gray-400">
               No members in this group yet.
+              <button v-if="canManage" type="button" class="block mx-auto mt-3 text-[#1976d2] hover:underline font-medium" @click="openAdd('member')">
+                <i class="pi pi-user-plus text-xs mr-1" />Add a member
+              </button>
             </div>
-            <table v-else class="w-full text-sm">
+            <div v-else class="overflow-x-auto">
+            <table class="w-full text-sm">
               <thead>
                 <tr class="text-left text-xs font-bold text-gray-700 border-b border-gray-200">
                   <th class="px-4 py-2.5">Name</th>
+                  <th class="px-4 py-2.5">Roles</th>
                   <th class="px-4 py-2.5">Phone</th>
                   <th class="px-4 py-2.5">Email</th>
-                  <th class="px-4 py-2.5 w-8" />
+                  <th v-if="canManage" class="px-4 py-2.5 w-8" />
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="m in members" :key="m.id" class="border-b border-gray-100 hover:bg-gray-50">
                   <td class="px-4 py-2.5">
-                    <a href="#" class="text-[#1976d2] hover:underline" @click.prevent>{{ m.name }}</a>
+                    <NuxtLink :to="`/people/${m.id}`" class="text-[#1976d2] hover:underline">{{ m.name }}</NuxtLink>
+                  </td>
+                  <td class="px-4 py-2.5">
+                    <div class="flex flex-wrap gap-1">
+                      <span v-for="r in m.roles" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">{{ roleLabel(r) }}</span>
+                      <span v-if="!m.roles.length" class="text-gray-300">—</span>
+                    </div>
                   </td>
                   <td class="px-4 py-2.5 text-gray-700">{{ m.phone || '' }}</td>
                   <td class="px-4 py-2.5 text-gray-700">{{ m.email || '' }}</td>
-                  <td class="px-4 py-2.5 text-right">
+                  <td v-if="canManage" class="px-4 py-2.5 text-right">
                     <button type="button"
                       class="text-red-500 hover:text-red-700"
                       :title="`Remove ${m.name} from ${group.name}`"
@@ -144,16 +173,42 @@
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>
     </template>
 
-    <Dialog v-model:visible="editorOpen" modal :style="{ width: '720px' }" header="Edit session times">
+    <!-- Add a person (with one or more roles) -->
+    <Dialog v-model:visible="addOpen" modal :style="{ width: '95vw', maxWidth: '440px' }" :header="`Add to ${group ? group.name : 'group'}`">
+      <div class="flex flex-col gap-3">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Person</label>
+          <AutoComplete v-model="personQuery" :suggestions="personResults" optionLabel="label"
+            placeholder="Type a name or email…" class="w-full" dropdown forceSelection
+            @complete="searchPersons" @item-select="onPickPerson" />
+          <p class="text-xs text-gray-400">People already in the group aren't shown. <NuxtLink to="/people" class="text-[#1976d2] hover:underline">Manage people →</NuxtLink></p>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Roles</label>
+          <MultiSelect v-model="addRoles" :options="groupRoleOptions" optionLabel="label" optionValue="value"
+            display="chip" :showToggleAll="false" placeholder="Pick role(s)" class="w-full" />
+          <p class="text-xs text-gray-400">A person can hold several roles (e.g. Coach + Player). Coach/Manager can manage this group.</p>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" text @click="addOpen = false" />
+        <Button label="Add" :disabled="!pendingPerson || !addRoles.length"
+          style="background:#1976d2;border-color:#1976d2" @click="addPerson" />
+      </template>
+    </Dialog>
+
+    <Dialog v-model:visible="editorOpen" modal :style="{ width: '95vw', maxWidth: '720px' }" header="Edit session times">
       <div v-if="!draftSchedules.length" class="text-sm text-gray-400 py-2">
         No sessions yet — add the days and times this group trains.
       </div>
-      <table v-else class="w-full text-sm">
+      <div v-else class="overflow-x-auto">
+      <table class="w-full text-sm">
         <thead>
           <tr class="text-left text-xs font-bold text-gray-700 border-b border-gray-200">
             <th class="py-2 pr-3">Day</th>
@@ -201,6 +256,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
 
       <button type="button"
         class="mt-4 text-xs font-semibold text-[#1976d2] hover:underline inline-flex items-center gap-1"
@@ -221,7 +277,7 @@
       </template>
     </Dialog>
 
-    <Dialog v-model:visible="locationPickerOpen" modal :style="{ width: '640px' }" header="Choose location">
+    <Dialog v-model:visible="locationPickerOpen" modal :style="{ width: '95vw', maxWidth: '640px' }" header="Choose location">
       <LocationEditor v-if="locationDraft" :model-value="[locationDraft]" :multi="false"
         @update:model-value="locs => locationDraft = locs[0]" />
       <template #footer>
@@ -253,8 +309,8 @@ interface Group {
   term_fee?: number | null
   capacity?: number | null
 }
-interface Member { id: string; name: string; email: string | null; phone: string | null }
-interface Coach { id: string; name: string; role: string; phone: string | null }
+interface Member { id: string; name: string; email: string | null; phone: string | null; roles: string[] }
+interface Coach { id: string; name: string; phone: string | null; roles: string[] }
 import type { LocationEntry } from '~/composables/useLocation'
 interface Schedule {
   id: string
@@ -268,6 +324,13 @@ interface Schedule {
 const group = ref<Group | null>(null)
 const members = ref<Member[]>([])
 const coaches = ref<Coach[]>([])
+
+// Scoped per-resource roles (coach/manager of THIS group can manage it).
+const scoped = useScopedRoles()
+const groupRoleOptions = computed(() => scoped.rolesFor('group').map(r => ({ label: r.label, value: r.key })))
+const roleLabel = (key: string) => scoped.roleDef('group', key)?.label ?? key
+const canManage = computed(() => group.value ? scoped.canManageGroup(group.value.id) : false)
+const myRoleLabels = computed(() => group.value ? scoped.rolesOnGroup(group.value.id).map(roleLabel) : [])
 const schedules = ref<Schedule[]>([])
 const bookableNameById = ref<Record<string, string>>({})
 const trainingEventByScheduleId = ref<Record<string, { id: string; title: string }>>({})
@@ -324,23 +387,24 @@ async function load() {
 
   if (!g) { members.value = []; loading.value = false; return }
 
-  // Members
+  // Members + coaches — both are member_group_memberships rows. A person can
+  // hold multiple roles; anyone with a 'staff' role (Coach/Manager/Assistant)
+  // shows in the COACHES & MANAGERS card, everyone else in MEMBERS.
   const { data: rows } = await (db.from as any)('member_group_memberships')
-    .select('person:persons!inner(id, first_name, last_name, email, phone)')
+    .select('roles, role, person:persons!inner(id, first_name, last_name, email, phone)')
     .eq('group_id', id)
-  members.value = (rows ?? [])
-    .map((r: any) => r.person)
-    .filter(Boolean)
-    .map((p: any) => ({
-      id: p.id,
-      name: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || '—',
-      email: p.email ?? null,
-      phone: p.phone ?? null,
-    }))
+  const mapped = (rows ?? [])
+    .map((r: any) => ({ roles: scoped.normalizeRoles('group', r.roles, r.role), p: r.person }))
+    .filter((x: any) => x.p)
+  const named = (x: any) => `${x.p.first_name ?? ''} ${x.p.last_name ?? ''}`.trim() || '—'
+  members.value = mapped
+    .filter((x: any) => !scoped.isStaff('group', x.roles))
+    .map((x: any) => ({ id: x.p.id, name: named(x), email: x.p.email ?? null, phone: x.p.phone ?? null, roles: x.roles }))
     .sort((a: Member, b: Member) => a.name.localeCompare(b.name))
-
-  // Coaches — no schema yet, show empty for prototype
-  coaches.value = []
+  coaches.value = mapped
+    .filter((x: any) => scoped.isStaff('group', x.roles))
+    .map((x: any) => ({ id: x.p.id, name: named(x), phone: x.p.phone ?? null, roles: x.roles }))
+    .sort((a: Coach, b: Coach) => a.name.localeCompare(b.name))
 
   // Training events for this group (one event per schedule row).
   await loadTrainingEvents()
@@ -535,6 +599,63 @@ async function removeMember(m: Member) {
   members.value = members.value.filter(x => x.id !== m.id)
 }
 
+// ── Add a person to the group with one or more roles ──
+const addOpen = ref(false)
+const addRoles = ref<string[]>(['member'])
+const pendingPerson = ref<any>(null)
+const personQuery = ref<any>('')
+const personResults = ref<any[]>([])
+function openAdd(mode: 'member' | 'coach') {
+  // Seed sensible default roles depending on which card's Add was clicked.
+  addRoles.value = mode === 'coach' ? ['coach'] : ['member']
+  pendingPerson.value = null
+  personQuery.value = ''
+  personResults.value = []
+  addOpen.value = true
+}
+async function searchPersons(e: { query: string }) {
+  const q = (e.query || '').trim()
+  // Exclude anyone already in the group (members or coaches).
+  const existing = new Set([...members.value.map(m => m.id), ...coaches.value.map(c => c.id)])
+  let query = (db.from as any)('persons')
+    .select('id, first_name, last_name, email, phone')
+    .eq('org_id', orgId.value).order('last_name').limit(25)
+  if (q) query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`)
+  const { data } = await query
+  personResults.value = (data ?? [])
+    .filter((p: any) => !existing.has(p.id))
+    .map((p: any) => ({ ...p, label: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() + (p.email ? ` · ${p.email}` : '') }))
+}
+function onPickPerson(e: { value: any }) { pendingPerson.value = e.value }
+async function addPerson() {
+  const p = pendingPerson.value
+  if (!p?.id || !group.value || !addRoles.value.length) return
+  const roles = [...addRoles.value]
+  const { error } = await (db.from as any)('member_group_memberships')
+    .insert({ group_id: group.value.id, person_id: p.id, roles, role: roles[0] ?? null })
+  if (!error) {
+    const name = `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || '—'
+    if (scoped.isStaff('group', roles)) {
+      coaches.value.push({ id: p.id, name, phone: p.phone ?? null, roles })
+      coaches.value.sort((a, b) => a.name.localeCompare(b.name))
+    } else {
+      members.value.push({ id: p.id, name, email: p.email ?? null, phone: p.phone ?? null, roles })
+      members.value.sort((a, b) => a.name.localeCompare(b.name))
+    }
+  }
+  pendingPerson.value = null
+  personQuery.value = ''
+  personResults.value = []
+  addOpen.value = false
+}
+async function removeCoach(c: Coach) {
+  if (!group.value) return
+  if (!window.confirm(`Remove ${c.name} as a coach of ${group.value.name}?`)) return
+  await (db.from as any)('member_group_memberships')
+    .delete().eq('group_id', group.value.id).eq('person_id', c.id)
+  coaches.value = coaches.value.filter(x => x.id !== c.id)
+}
+
 async function createAttendanceEvent() {
   if (!group.value || !orgId.value) return
   if (createBlockedReason.value) return
@@ -646,6 +767,6 @@ function findFirstOccurrence(dow: number): Date | null {
   return d
 }
 
-watch(orgId, load, { immediate: true })
+watch(orgId, () => { load(); scoped.load(); scoped.loadRoleDefs() }, { immediate: true })
 watch(() => route.params.id, () => { if (orgId.value) load() })
 </script>

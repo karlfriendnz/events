@@ -5,7 +5,7 @@
 -->
 <script setup lang="ts">
 const props = defineProps<{ personTypes?: { key: string; label: string }[] }>()
-const emit = defineEmits<{ add: [{ label: string; type: string; placeholder: string; required: boolean; options: string[]; target: string }] }>()
+const emit = defineEmits<{ add: [{ label: string; type: string; placeholder: string; required: boolean; options: string[]; targets: string[] }] }>()
 
 // Same list/values as components/FormBuilder.vue
 const fieldTypes = [
@@ -19,8 +19,9 @@ const fieldTypes = [
   { label: 'Checkbox', value: 'checkbox' },
 ]
 
-const f = reactive({ label: '', type: 'text', placeholder: '', required: true, optionsText: '', target: 'member' })
-watchEffect(() => { if (props.personTypes?.length && !props.personTypes.some(t => t.key === f.target)) f.target = props.personTypes[0].key })
+const f = reactive({ label: '', type: 'text', placeholder: '', required: true, optionsText: '', targets: ['member'] as string[] })
+// Default to the first person type if none of the picked targets are valid yet.
+watchEffect(() => { if (props.personTypes?.length && !f.targets.some(k => props.personTypes!.some(t => t.key === k))) f.targets = [props.personTypes[0].key] })
 
 function add() {
   if (!f.label.trim()) return
@@ -30,7 +31,7 @@ function add() {
     placeholder: f.placeholder.trim(),
     required: f.required,
     options: f.type === 'select' ? f.optionsText.split('\n').map(s => s.trim()).filter(Boolean) : [],
-    target: f.target,
+    targets: f.targets.length ? f.targets : ['member'],
   })
   f.label = ''; f.placeholder = ''; f.optionsText = ''; f.type = 'text'; f.required = true
 }
@@ -40,7 +41,7 @@ function add() {
   <div class="px-4 pt-4 pb-3">
     <div v-if="(personTypes || []).length" class="mb-3">
       <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Capturing data about</label>
-      <Select v-model="f.target" :options="personTypes" option-label="label" option-value="key" class="w-full" />
+      <MultiSelect v-model="f.targets" :options="personTypes" option-label="label" option-value="key" display="chip" placeholder="Pick one or more types" class="w-full" />
     </div>
     <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Custom field</p>
     <input v-model="f.label" type="text" placeholder="Field label e.g. Preferred Name"
@@ -48,7 +49,7 @@ function add() {
     <div class="grid grid-cols-2 gap-1.5 mb-3">
       <button v-for="ft in fieldTypes" :key="ft.value" type="button"
         class="px-3 py-2 rounded-lg border text-xs font-semibold transition-colors"
-        :class="f.type === ft.value ? 'bg-[#1E2157] border-[#1E2157] text-white' : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'"
+        :class="f.type === ft.value ? 'bg-primary border-primary text-white' : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'"
         @click="f.type = ft.value">{{ ft.label }}</button>
     </div>
     <textarea v-if="f.type === 'select'" v-model="f.optionsText" rows="3"
@@ -57,7 +58,7 @@ function add() {
     <input v-else v-model="f.placeholder" type="text" placeholder="Placeholder text (optional)"
       class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] mb-3" />
     <label class="flex items-center gap-2 cursor-pointer mb-3">
-      <input type="checkbox" v-model="f.required" class="w-4 h-4 accent-[#1E2157]" />
+      <input type="checkbox" v-model="f.required" class="w-4 h-4 accent-primary" />
       <span class="text-xs font-medium text-gray-600">Required</span>
     </label>
     <button type="button"

@@ -8,7 +8,7 @@
         <p class="text-sm text-gray-500 mt-0.5">Named activities that happen at your venues — e.g. Tennis, Badminton, 5-a-side</p>
       </div>
       <Button label="New activity" icon="pi pi-plus" size="small"
-        @click="openCreate" style="background:#1E2157;border-color:#1E2157" />
+        @click="openCreate" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
     </div>
 
     <!-- Loading -->
@@ -18,16 +18,16 @@
 
     <!-- Empty -->
     <div v-else-if="!activities.length"
-      class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-[#1E2157]/20">
+      class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-primary/20">
       <div class="w-16 h-16 mx-auto rounded-full bg-[#EFF6FF] flex items-center justify-center mb-4">
-        <i class="pi pi-bolt text-2xl text-[#1E2157]" />
+        <i class="pi pi-bolt text-2xl text-primary" />
       </div>
       <h3 class="text-base font-semibold text-gray-900 mb-1">Create your first activity</h3>
       <p class="text-sm text-gray-500 mb-5 max-w-sm mx-auto">
         Activities are what people do at your venues — Tennis, Badminton, 5-a-side. Add one to get started.
       </p>
       <Button label="New activity" icon="pi pi-plus"
-        style="background:#1E2157;border-color:#1E2157" @click="openCreate" />
+        style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="openCreate" />
     </div>
 
     <!-- List -->
@@ -41,7 +41,7 @@
           <i :class="`pi ${a.icon} text-lg`" />
         </div>
         <div class="flex-1 min-w-0">
-          <p class="text-sm font-semibold text-gray-800 truncate group-hover:text-[#1E2157]">{{ a.name }}</p>
+          <p class="text-sm font-semibold text-gray-800 truncate group-hover:text-primary">{{ a.name }}</p>
           <p v-if="a.description" class="text-xs text-gray-400 mt-0.5 truncate">{{ a.description }}</p>
           <div class="flex items-center gap-2 mt-1.5">
             <span class="text-[11px] text-gray-400">{{ venueCount[a.id] ?? 0 }} venue{{ (venueCount[a.id] ?? 0) === 1 ? '' : 's' }}</span>
@@ -56,7 +56,7 @@
     </div>
 
     <!-- Create dialog -->
-    <Dialog v-model:visible="showCreate" modal header="New activity" style="width:420px">
+    <Dialog v-model:visible="showCreate" modal header="New activity" :style="{ width: '95vw', maxWidth: '420px' }">
       <div class="space-y-4 pt-2">
         <div class="flex items-center gap-3">
           <label class="text-sm font-medium text-gray-700 w-24 shrink-0">Name</label>
@@ -80,7 +80,7 @@
       <template #footer>
         <Button label="Cancel" severity="secondary" text @click="showCreate = false" />
         <Button label="Create" icon="pi pi-check" :loading="creating" :disabled="!newName.trim()"
-          @click="create" style="background:#1E2157;border-color:#1E2157" />
+          @click="create" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
       </template>
     </Dialog>
 
@@ -106,8 +106,13 @@ const newDescription = ref('')
 async function load() {
   loading.value = true
   try {
+    // Staff-owned activities (staff_bookable_id set) live on the staff's
+    // profile page under "What I offer" — exclude them from the global
+    // list so they don't clutter the venue/item activity catalogue.
     const { data } = await (db.from as any)('activities')
-      .select('*').eq('org_id', orgId.value).order('sort_order').order('name')
+      .select('*').eq('org_id', orgId.value)
+      .is('staff_bookable_id', null)
+      .order('sort_order').order('name')
     activities.value = data ?? []
 
     if (activities.value.length) {

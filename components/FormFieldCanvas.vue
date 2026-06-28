@@ -13,7 +13,70 @@
     <slot name="empty-action" />
   </div>
 
-  <!-- Field grid -->
+  <!-- Sectioned layout: top-level sections, then ONE Tabs element (a tab strip + per-tab pages) -->
+  <div v-else-if="sectioned" ref="sectionRootEl" class="space-y-3"
+    @dragover.prevent="onDragOver" @dragleave="dropActive = false" @drop.prevent="onDrop">
+    <template v-for="c in renderContainers" :key="c.key">
+      <!-- Tabs element bar -->
+      <div v-if="c.type === 'tabsbar'"
+        class="pfc-tabsel flex items-center gap-2 px-2 py-1.5 rounded-lg border border-[#0e43a3]/30 bg-[#0e43a3]/5"
+        :class="editingKey === c.el._key ? 'ring-2 ring-[#0e43a3]/40' : ''"
+        :data-tabs-key="c.el._key">
+        <i class="pi pi-folder text-[#0e43a3] text-xs shrink-0" />
+        <div class="flex items-center gap-1 flex-1 overflow-x-auto overflow-y-hidden">
+          <button v-for="t in c.el.tabs" :key="t.id" type="button"
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md whitespace-nowrap transition-colors"
+            :class="activeTabId === t.id ? 'bg-[#0e43a3] text-white' : 'text-[#0e43a3] hover:bg-[#0e43a3]/10'"
+            @click="setActive(t.id)"><i v-if="t.icon" :class="`${t.icon} text-[10px]`" />{{ t.label || 'Tab' }}</button>
+        </div>
+        <button type="button" class="text-[#0e43a3]/60 hover:text-[#0e43a3] shrink-0" v-tooltip.top="'Edit tabs'"
+          @click="$emit('select', c.el._key)"><i class="pi pi-cog text-xs" /></button>
+      </div>
+
+      <!-- A groups container: top-level (tab_id '') or one tab page -->
+      <div v-else v-show="c.type !== 'tabpage' || activeTabId === c.tabId"
+        class="pfc-cgroups grid grid-cols-2 gap-3 items-start" :data-tab-id="c.tabId">
+        <div v-for="grp in c.groups" :key="grp.key"
+          class="pfc-group rounded-xl border border-gray-200 bg-white overflow-hidden"
+          :class="[grp.key.startsWith('__top') ? 'border-dashed' : '', (grp.section && grp.section.col_span !== 2) ? 'col-span-1' : 'col-span-2']"
+          :data-section-key="grp.key">
+          <div v-if="grp.section"
+            class="flex items-start gap-2 px-4 py-2.5 border-b border-gray-100 bg-gray-50/60 group/sec cursor-pointer transition-all"
+            :class="editingKey === grp.section._key ? 'ring-2 ring-inset ring-[#0e43a3]/40' : 'hover:bg-gray-100'"
+            @click="$emit('select', grp.section._key)">
+            <span class="pfc-section-handle cursor-grab active:cursor-grabbing text-gray-300 hover:text-primary shrink-0 mt-0.5"
+              v-tooltip.top="'Drag to reorder section'" @click.stop @mousedown.stop><i class="pi pi-bars text-xs" /></span>
+            <div class="flex-1 min-w-0">
+              <h3 class="text-sm font-bold text-gray-800 truncate">{{ grp.section.label || 'Section heading' }}</h3>
+              <p v-if="grp.section.placeholder" class="text-xs text-gray-400 mt-0.5 truncate">{{ grp.section.placeholder }}</p>
+            </div>
+            <img v-if="grp.section.block && grp.section.block[0]" :src="grp.section.block[0]" class="h-11 w-auto object-contain shrink-0" />
+            <i class="pi pi-pencil text-[9px] text-gray-300 opacity-0 group-hover/sec:opacity-100 transition-opacity mt-0.5 shrink-0" />
+          </div>
+          <div v-else class="px-4 pt-2.5 text-[10px] font-semibold text-gray-300 uppercase tracking-widest">Unsectioned</div>
+
+          <div class="pfc-fields grid gap-x-8 gap-y-5 p-4 sm:p-5 min-h-[40px]" :class="(grp.section && grp.section.col_span !== 2) ? 'grid-cols-1' : 'grid-cols-2'" :data-section-key="grp.key">
+            <div v-for="f in grp.fields" :key="f._key"
+              :data-field-key="f._key" :data-pinned="isPinned(f) ? 'true' : null"
+              :class="[
+                f.col_span === 1 ? 'col-span-1' : 'col-span-2',
+                editingKey === f._key ? 'ring-2 ring-[#0e43a3]/40 bg-blue-50/20' : 'hover:ring-2 hover:ring-[#0e43a3]/20 hover:bg-blue-50/20',
+              ]"
+              class="space-y-1 group cursor-pointer rounded-lg px-2 py-1 transition-all relative"
+              @click="$emit('select', f._key)">
+              <span v-if="!isPinned(f)"
+                class="field-drag-handle absolute right-0 top-0 w-5 h-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                v-tooltip.top="'Drag to move'" @click.stop @mousedown.stop><i class="pi pi-arrows-alt text-[11px]" /></span>
+              <CanvasFieldPreview :f="f" />
+            </div>
+            <p v-if="!grp.fields.length" class="col-span-2 text-xs text-gray-300 italic py-1 text-center">Drag fields here</p>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <!-- Flat layout (default) -->
   <div v-else ref="listEl" class="grid grid-cols-2 gap-3"
     @dragover.prevent="onDragOver"
     @dragleave="dropActive = false"
@@ -29,77 +92,14 @@
       ]"
       class="space-y-1 group cursor-pointer rounded-lg px-2 py-1 -mx-2 transition-all relative"
       @click="$emit('select', f._key)">
-
-      <!-- Drag handle (skipped on pinned fields) — floats over top-right -->
       <span v-if="!isPinned(f)"
-        class="field-drag-handle absolute right-0 top-0 w-5 h-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-[#1E2157] opacity-0 group-hover:opacity-100 transition-opacity z-10"
+        class="field-drag-handle absolute right-0 top-0 w-5 h-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity z-10"
         v-tooltip.top="'Drag to reorder'"
         @click.stop
         @mousedown.stop>
         <i class="pi pi-arrows-alt text-[11px]" />
       </span>
-
-      <!-- Block: section heading -->
-      <template v-if="f.field_type === 'section'">
-        <p class="text-sm font-bold text-gray-800">{{ f.label || 'Section heading' }}</p>
-        <p v-if="f.placeholder" class="text-xs text-gray-400">{{ f.placeholder }}</p>
-      </template>
-
-      <!-- Block: image -->
-      <template v-else-if="f.field_type === 'image'">
-        <div class="w-full h-20 rounded-lg bg-gray-100 flex items-center justify-center text-gray-300">
-          <i class="pi pi-image text-base" />
-          <span class="ml-2 text-xs">{{ f.label || 'Image' }}</span>
-        </div>
-      </template>
-
-      <!-- Block: text -->
-      <template v-else-if="f.field_type === 'text-block' || f.field_type === 'text_block'">
-        <p class="text-sm text-gray-600 whitespace-pre-wrap">{{ f.label || 'Text block' }}</p>
-      </template>
-
-      <!-- Block: button -->
-      <template v-else-if="f.field_type === 'button'">
-        <span class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-[#1E2157] text-white pointer-events-none">
-          {{ f.label || 'Button' }}
-          <i class="pi pi-external-link text-xs" />
-        </span>
-      </template>
-
-      <!-- Regular field -->
-      <template v-else>
-        <div v-if="f.field_type !== 'checkbox'" class="flex items-center gap-1">
-          <label class="text-sm font-semibold text-gray-600 cursor-pointer">
-            {{ f.label }}
-            <span v-if="f.is_required" class="text-red-400 ml-0.5">*</span>
-          </label>
-          <i v-if="f.core" class="pi pi-lock text-[9px] text-blue-400 ml-1" v-tooltip.top="'Core booking field'" />
-          <i class="pi pi-pencil text-[9px] text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity ml-0.5" />
-        </div>
-        <textarea v-if="f.field_type === 'textarea' || f.field_type === 'LONG_TEXT'"
-          :placeholder="f.has_placeholder ? f.placeholder : ''"
-          rows="3"
-          class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none resize-none pointer-events-none" />
-        <select v-else-if="f.field_type === 'select' || f.field_type === 'SINGLE_SELECT' || f.field_type === 'MULTI_SELECT'"
-          class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none bg-white pointer-events-none">
-          <option value="" disabled selected>{{ f.has_placeholder ? f.placeholder : 'Select...' }}</option>
-          <option v-for="opt in selectOptions(f)" :key="opt" :value="opt">{{ opt }}</option>
-        </select>
-        <div v-else-if="f.field_type === 'checkbox' || f.field_type === 'TOGGLE'"
-          class="flex items-center gap-2.5 pointer-events-none">
-          <input type="checkbox" class="w-4 h-4 rounded border-gray-300 accent-[#1E2157]" />
-          <span class="text-sm text-gray-600">{{ f.label }}</span>
-        </div>
-        <input v-else-if="f.field_type === 'date' || f.field_type === 'DATE'" type="date"
-          class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none pointer-events-none" />
-        <input v-else-if="f.field_type === 'file' || f.field_type === 'FILE'" type="file"
-          class="w-full text-xs text-gray-500 pointer-events-none" />
-        <input v-else
-          :type="inputType(f)"
-          :placeholder="f.has_placeholder ? f.placeholder : ''"
-          class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none pointer-events-none" />
-        <p v-if="f.has_helper_text && f.helper_text" class="text-xs text-gray-400 mt-0.5">{{ f.helper_text }}</p>
-      </template>
+      <CanvasFieldPreview :f="f" />
     </div>
   </div>
 </template>
@@ -120,6 +120,8 @@ interface CanvasField {
   _optionsText?: string
   options?: any
   core?: string
+  tab_id?: string | null
+  tabs?: { id: string; label: string; icon?: string }[]
 }
 
 const props = defineProps<{
@@ -127,37 +129,66 @@ const props = defineProps<{
   editingKey?: string | null
   pinnedRoles?: string[]
   emptyText?: string
+  sectioned?: boolean
+  activeTab?: string
 }>()
 const emit = defineEmits<{
   (e: 'update:modelValue', v: CanvasField[]): void
+  (e: 'update:activeTab', id: string): void
   (e: 'select', key: string): void
   (e: 'drop', payload: string): void
 }>()
 
 const listEl = ref<HTMLElement | null>(null)
+const sectionRootEl = ref<HTMLElement | null>(null)
 let sortable: any = null
+let sectionSortables: any[] = []
 const dropActive = ref(false)
 
 function isPinned(f: CanvasField) {
   return !!(f.core && (props.pinnedRoles ?? []).includes(f.core))
 }
 
-function selectOptions(f: CanvasField): string[] {
-  if (Array.isArray(f.options)) return f.options
-  return (f._optionsText ?? '').split('\n').map(s => s.trim()).filter(Boolean)
+// Group a list of items into section containers (leading "no section" group + one per section).
+function groupItems(items: CanvasField[]) {
+  const out: { key: string; section: CanvasField | null; fields: CanvasField[] }[] = []
+  let cur: { key: string; section: CanvasField | null; fields: CanvasField[] } = { key: '__top', section: null, fields: [] }
+  out.push(cur)
+  for (const f of items) {
+    if (f.field_type === 'section') { cur = { key: f._key, section: f, fields: [] }; out.push(cur) }
+    else cur.fields.push(f)
+  }
+  // unique keys for "no section" boxes
+  for (const g of out) if (!g.section) g.key = '__top_' + (g.fields[0]?._key ?? 'x')
+  return out.filter((g, i) => (i === 0 ? (g.fields.length > 0 || out.length === 1) : true))
 }
 
-function inputType(f: CanvasField): string {
-  if (f.field_type === 'number' || f.field_type === 'NUMBER') return 'number'
-  if (f.field_type === 'email')     return 'email'
-  if (f.field_type === 'phone' || f.field_type === 'tel') return 'tel'
-  if (f.core === 'email')           return 'email'
-  if (f.core === 'phone')           return 'tel'
-  return 'text'
-}
+const tabsEl = computed(() => props.modelValue.find(f => f.field_type === 'tabs') || null)
+const topItems = computed(() => props.modelValue.filter(f => f.field_type !== 'tabs' && !f.tab_id))
+function itemsForTab(id: string) { return props.modelValue.filter(f => f.field_type !== 'tabs' && f.tab_id === id) }
+
+// Ordered list of render containers: top-level groups, the tabs bar, then a page per tab.
+const renderContainers = computed(() => {
+  const out: any[] = []
+  out.push({ type: 'toplevel', key: '__toplevel', tabId: '', groups: groupItems(topItems.value) })
+  if (tabsEl.value) {
+    out.push({ type: 'tabsbar', key: 'tabsbar:' + tabsEl.value._key, el: tabsEl.value })
+    for (const t of (tabsEl.value.tabs ?? [])) {
+      out.push({ type: 'tabpage', key: 'page:' + t.id, tabId: t.id, groups: groupItems(itemsForTab(t.id)) })
+    }
+  }
+  return out
+})
+
+const activeTabId = ref('')
+watch(tabsEl, (el) => {
+  const ids = (el?.tabs ?? []).map(t => t.id)
+  if (!ids.includes(activeTabId.value)) activeTabId.value = ids[0] ?? ''
+}, { immediate: true })
+function setActive(id: string) { activeTabId.value = id; emit('update:activeTab', id) }
+watch(activeTabId, id => emit('update:activeTab', id), { immediate: true })
 
 function onDragOver(e: DragEvent) {
-  // Only highlight if there's actually a drag payload (not internal Sortable drags)
   if (e.dataTransfer?.types.includes('text/plain')) {
     dropActive.value = true
     e.dataTransfer.dropEffect = 'copy'
@@ -169,6 +200,15 @@ function onDrop(e: DragEvent) {
   if (payload) emit('drop', payload)
 }
 
+function repin(list: CanvasField[]): CanvasField[] {
+  const pinnedRoles = props.pinnedRoles ?? []
+  if (!pinnedRoles.length) return list
+  const pinned = pinnedRoles.map(role => list.find(f => f.core === role)).filter(Boolean) as CanvasField[]
+  const rest = list.filter(f => !pinnedRoles.includes(f.core ?? ''))
+  return [...pinned, ...rest]
+}
+
+// ── Flat-mode sortable ──
 watch(listEl, (el) => {
   if (sortable) { sortable.destroy(); sortable = null }
   if (!el) return
@@ -178,21 +218,74 @@ watch(listEl, (el) => {
     filter: '[data-pinned="true"]',
     onMove: (evt: any) => evt.related?.dataset?.pinned !== 'true',
     onEnd: () => {
-      const orderedKeys = Array.from(el.querySelectorAll<HTMLElement>('[data-field-key]'))
-        .map(n => n.dataset.fieldKey!)
-      const next = [...props.modelValue].sort(
-        (a, b) => orderedKeys.indexOf(a._key) - orderedKeys.indexOf(b._key),
-      )
-      // Re-pin fields with a "pinned" core role to the top, in the order
-      // they appear in pinnedRoles.
-      const pinnedRoles = props.pinnedRoles ?? []
-      const pinned = pinnedRoles
-        .map(role => next.find(f => f.core === role))
-        .filter(Boolean) as CanvasField[]
-      const rest = next.filter(f => !pinnedRoles.includes(f.core ?? ''))
-      emit('update:modelValue', [...pinned, ...rest])
+      const orderedKeys = Array.from(el.querySelectorAll<HTMLElement>('[data-field-key]')).map(n => n.dataset.fieldKey!)
+      const next = [...props.modelValue].sort((a, b) => orderedKeys.indexOf(a._key) - orderedKeys.indexOf(b._key))
+      emit('update:modelValue', repin(next))
     },
   })
 })
-onBeforeUnmount(() => { if (sortable) { sortable.destroy(); sortable = null } })
+
+// ── Sectioned-mode sortables ──
+function destroySectioned() { sectionSortables.forEach(s => s.destroy()); sectionSortables = [] }
+function pushBox(box: HTMLElement, tid: string | null, byKey: Record<string, CanvasField>, next: CanvasField[]) {
+  const secKey = box.getAttribute('data-section-key')
+  if (secKey && !secKey.startsWith('__top') && byKey[secKey]) next.push({ ...byKey[secKey], tab_id: tid })
+  box.querySelectorAll<HTMLElement>('.pfc-fields [data-field-key]').forEach(node => {
+    const k = node.dataset.fieldKey!
+    if (byKey[k]) next.push({ ...byKey[k], tab_id: tid })
+  })
+}
+function serializeSectioned() {
+  const root = sectionRootEl.value
+  if (!root) return
+  const byKey = Object.fromEntries(props.modelValue.map(f => [f._key, f]))
+  const next: CanvasField[] = []
+  Array.from(root.children).forEach(node => {
+    const el = node as HTMLElement
+    if (el.classList.contains('pfc-tabsel')) {
+      const k = el.getAttribute('data-tabs-key')
+      if (k && byKey[k]) next.push(byKey[k])
+    } else if (el.classList.contains('pfc-cgroups')) {
+      const tid = el.getAttribute('data-tab-id') || null
+      el.querySelectorAll<HTMLElement>(':scope > .pfc-group').forEach(box => pushBox(box, tid, byKey, next))
+    }
+  })
+  emit('update:modelValue', repin(next))
+}
+function buildSectioned() {
+  destroySectioned()
+  const root = sectionRootEl.value
+  if (!root) return
+  // Field lists — shared group so fields drag between sections AND across tab pages / top-level.
+  root.querySelectorAll<HTMLElement>('.pfc-fields').forEach(el => {
+    sectionSortables.push(Sortable.create(el, {
+      group: { name: 'pfc', pull: true, put: true },
+      handle: '.field-drag-handle',
+      animation: 150,
+      filter: '[data-pinned="true"]',
+      onMove: (evt: any) => evt.related?.dataset?.pinned !== 'true',
+      onEnd: serializeSectioned,
+      onAdd: serializeSectioned,
+    }))
+  })
+  // Section reorder within each container.
+  root.querySelectorAll<HTMLElement>('.pfc-cgroups').forEach(el => {
+    sectionSortables.push(Sortable.create(el, {
+      handle: '.pfc-section-handle',
+      draggable: '.pfc-group',
+      animation: 150,
+      onEnd: serializeSectioned,
+    }))
+  })
+}
+
+watch(() => [props.sectioned, renderContainers.value] as const, () => {
+  if (props.sectioned) nextTick(buildSectioned)
+  else destroySectioned()
+}, { immediate: true })
+
+onBeforeUnmount(() => {
+  if (sortable) { sortable.destroy(); sortable = null }
+  destroySectioned()
+})
 </script>

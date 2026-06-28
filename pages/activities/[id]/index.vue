@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col" style="height: calc(100vh - 3.5rem)">
+  <div class="flex flex-col h-[calc(100vh-3.5rem-4rem)] md:h-[calc(100vh-3.5rem)]">
 
     <div v-if="loading" class="flex-1 flex items-center justify-center text-gray-400">
       <i class="pi pi-spin pi-spinner text-xl" />
@@ -11,9 +11,9 @@
       <div class="bg-white border-b border-gray-200 px-4 py-2 shrink-0 flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
           <button class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 transition-colors mr-1"
-            @click="navigateTo('/bookables?tab=activities')">
+            @click="navigateTo(backHref)">
             <i class="pi pi-chevron-left text-xs" />
-            <span class="hidden sm:inline">Activities</span>
+            <span class="hidden sm:inline">{{ form.staff_bookable_id ? 'Coach' : 'Activities' }}</span>
           </button>
           <span class="text-gray-300">/</span>
           <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
@@ -23,33 +23,43 @@
           <span class="text-sm font-semibold text-gray-800">{{ activity.name }}</span>
         </div>
         <div class="flex items-center gap-2">
+          <button type="button"
+            class="flex items-center gap-1.5 text-xs font-medium px-2.5 h-8 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors"
+            :class="linkCopied ? 'text-green-600 border-green-200 bg-green-50' : 'text-gray-600'"
+            :title="bookingLink"
+            @click="copyBookingLink">
+            <i :class="`pi ${linkCopied ? 'pi-check' : 'pi-copy'} text-xs`" />
+            <span class="hidden sm:inline">{{ linkCopied ? 'Copied' : 'Copy link' }}</span>
+          </button>
+          <NuxtLink :to="`/bookings/new?activityId=${activity.id}`"
+            class="flex items-center gap-1.5 text-xs font-medium px-2.5 h-8 rounded-md border border-gray-200 hover:bg-gray-50 transition-colors text-gray-600">
+            <i class="pi pi-external-link text-xs" />
+            <span class="hidden sm:inline">Open booker</span>
+          </NuxtLink>
           <Button label="Save" icon="pi pi-check" size="small" :loading="saving"
-            @click="save" style="background:#1E2157;border-color:#1E2157" />
+            @click="save" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
           <Button icon="pi pi-ellipsis-v" severity="secondary" text size="small"
             @click="e => actionsMenu.toggle(e)" />
           <Menu ref="actionsMenu" :model="actionsMenuItems" :popup="true" />
         </div>
       </div>
 
-      <!-- Two-column body -->
+      <!-- Single-column body -->
       <div class="flex-1 overflow-y-auto bg-[#F5F8FA]">
-        <div class="p-6 flex gap-5 items-start">
-
-          <!-- ── Left: Details + Booking settings + Venues + Booking link + Groups ── -->
-          <div class="w-1/2 space-y-5">
+        <div class="p-3 sm:p-6 max-w-4xl mx-auto space-y-5">
 
             <!-- Details card -->
             <div class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-              <div class="flex items-center px-5 py-4 gap-6">
-                <span class="text-sm font-semibold text-gray-700 w-32 shrink-0">Name</span>
+              <div class="flex flex-col sm:flex-row sm:items-center px-5 py-4 gap-1 sm:gap-6">
+                <span class="text-sm font-semibold text-gray-700 w-full sm:w-32 shrink-0">Name</span>
                 <InputText v-model="form.name" placeholder="e.g. Tennis" class="flex-1" />
               </div>
-              <div class="flex items-start px-5 py-4 gap-6">
-                <span class="text-sm font-semibold text-gray-700 w-32 shrink-0 pt-1">Description</span>
+              <div class="flex flex-col sm:flex-row sm:items-start px-5 py-4 gap-1 sm:gap-6">
+                <span class="text-sm font-semibold text-gray-700 w-full sm:w-32 shrink-0 pt-1">Description</span>
                 <Textarea v-model="form.description" placeholder="Optional" auto-resize rows="2" class="flex-1 text-sm" />
               </div>
-              <div class="flex items-center px-5 py-4 gap-6">
-                <span class="text-sm font-semibold text-gray-700 w-32 shrink-0">Colour</span>
+              <div class="flex flex-col sm:flex-row sm:items-center px-5 py-4 gap-1 sm:gap-6">
+                <span class="text-sm font-semibold text-gray-700 w-full sm:w-32 shrink-0">Colour</span>
                 <div class="flex gap-2.5 flex-wrap">
                   <button v-for="c in COLORS" :key="c" type="button"
                     class="w-6 h-6 rounded-full ring-offset-2 transition-all"
@@ -58,29 +68,20 @@
                     @click="form.color = c" />
                 </div>
               </div>
-              <div class="flex items-center px-5 py-4 gap-6">
-                <span class="text-sm font-semibold text-gray-700 w-32 shrink-0">Status</span>
+              <div class="flex flex-wrap items-center px-5 py-4 gap-x-6 gap-y-3">
+                <span class="text-sm font-semibold text-gray-700 w-full sm:w-32 shrink-0">Status</span>
                 <Select v-model="form.status" :options="statusOptions" option-label="label" option-value="value"
                   size="small" class="w-40" />
-              </div>
-              <div class="flex items-center px-5 py-4 gap-6">
-                <span class="text-sm font-semibold text-gray-700 w-32 shrink-0">Bookings enabled</span>
+                <div class="hidden md:block flex-1" />
+                <span class="text-sm font-semibold text-gray-700 shrink-0">Bookings enabled</span>
                 <ToggleSwitch v-model="form.bookings_enabled" />
-                <span class="text-xs text-gray-400">{{ form.bookings_enabled ? 'Open' : 'Closed' }}</span>
+                <span class="text-xs text-gray-400 w-12 shrink-0">{{ form.bookings_enabled ? 'Open' : 'Closed' }}</span>
               </div>
-              <div class="flex items-center px-5 py-4 gap-3">
-                <span class="text-sm font-semibold text-gray-700 w-32 shrink-0">Area name</span>
-                <div class="flex items-center gap-2 flex-1">
-                  <InputText v-model="form.area_name_singular" placeholder="Singular" class="flex-1" />
-                  <span class="text-xs text-gray-400 shrink-0">/</span>
-                  <InputText v-model="form.area_name_plural" placeholder="Plural" class="flex-1" />
-                </div>
-              </div>
-              <div class="flex items-start px-5 py-4 gap-6">
-                <span class="text-sm font-semibold text-gray-700 w-32 shrink-0 pt-1">Image</span>
+              <div class="flex flex-col sm:flex-row sm:items-start px-5 py-4 gap-1 sm:gap-6">
+                <span class="text-sm font-semibold text-gray-700 w-full sm:w-32 shrink-0 pt-1">Image</span>
                 <div class="flex-1">
                   <div v-if="!form.image_url"
-                    class="border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center gap-2 hover:border-[#1E2157] transition-colors cursor-pointer"
+                    class="border-2 border-dashed border-gray-200 rounded-xl p-6 flex flex-col items-center gap-2 hover:border-primary transition-colors cursor-pointer"
                     @click="imageInput?.click()">
                     <i class="pi pi-image text-2xl text-gray-300" />
                     <Button label="Upload image" severity="secondary" outlined size="small" icon="pi pi-upload" />
@@ -98,9 +99,114 @@
               </div>
             </div>
 
+            <!-- Modes panel -->
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div class="px-5 py-4 border-b border-gray-100">
+                <div class="flex items-center justify-between gap-3">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-gray-800">{{ form.mode_label || 'Modes' }}</p>
+                    <p class="text-xs text-gray-400 mt-0.5">Sub-types for this activity, e.g. "Boys Birthday"</p>
+                  </div>
+                  <label class="flex items-center gap-2 cursor-pointer shrink-0">
+                    <span class="text-xs text-gray-500">Require {{ (form.mode_label || 'mode').toLowerCase() }}</span>
+                    <ToggleSwitch v-model="form.require_mode" @change="save" />
+                  </label>
+                  <Button label="Add" icon="pi pi-plus" size="small" severity="secondary" outlined
+                    @click="modeWizardOpen = true" />
+                </div>
+                <!-- Booker-facing display options. These flow through to
+                     the wizard's Mode step + BookingScheduler labels. -->
+                <div class="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
+                  <div class="flex items-center gap-2 flex-1 min-w-0">
+                    <span class="text-[11px] text-gray-500 shrink-0">Booker label</span>
+                    <input v-model="form.mode_label" type="text" placeholder="Mode" maxlength="32"
+                      class="h-7 px-2 text-xs border border-gray-200 rounded outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 w-40 transition-shadow"
+                      @change="save" />
+                    <span class="text-[11px] text-gray-400 shrink-0 hidden sm:inline">e.g. Format, Theme, Style</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <span class="text-[11px] text-gray-500">Display</span>
+                    <div class="flex border border-gray-200 rounded-lg overflow-hidden">
+                      <button type="button"
+                        class="w-8 h-7 flex items-center justify-center transition-colors"
+                        :class="form.mode_display === 'list' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
+                        title="List — image on left"
+                        @click="form.mode_display = 'list'; save()">
+                        <i class="pi pi-list text-xs" />
+                      </button>
+                      <button type="button"
+                        class="w-8 h-7 flex items-center justify-center border-l border-gray-200 transition-colors"
+                        :class="form.mode_display === 'grid' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
+                        title="Grid — image on top"
+                        @click="form.mode_display = 'grid'; save()">
+                        <i class="pi pi-th-large text-xs" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="overflow-x-auto">
+              <table class="w-full text-sm min-w-[480px]">
+                <thead>
+                  <tr class="border-b border-gray-100 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    <th class="px-4 py-2.5 text-left w-10"></th>
+                    <th class="px-4 py-2.5 text-left">Name</th>
+                    <th class="px-4 py-2.5 text-left">Description</th>
+                    <th class="px-4 py-2.5 text-left w-16">Colour</th>
+                    <th class="px-4 py-2.5 w-16"></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  <tr v-if="!modes.length">
+                    <td colspan="5" class="px-5 py-10 text-center text-sm text-gray-400">
+                      No modes yet — add one to let bookers choose a sub-type
+                    </td>
+                  </tr>
+                  <tr v-for="mode in modes" :key="mode.id" class="hover:bg-gray-50 group cursor-pointer"
+                    @click="navigateTo(`/activities/${route.params.id}/modes/${mode.id}`)">
+                    <td class="px-4 py-3">
+                      <img v-if="mode.image_url" :src="mode.image_url"
+                        class="w-8 h-8 rounded-lg object-cover border border-gray-100" />
+                      <span v-else class="w-3 h-3 rounded-full block" :style="{ background: mode.color || '#6366F1' }" />
+                    </td>
+                    <td class="px-4 py-3 font-medium text-gray-800">{{ mode.name }}</td>
+                    <td class="px-4 py-3 text-gray-400 text-xs">{{ mode.description ?? '—' }}</td>
+                    <td class="px-4 py-3">
+                      <span class="w-4 h-4 rounded-full block" :style="{ background: mode.color || '#6366F1' }" />
+                    </td>
+                    <td class="px-4 py-3" @click.stop>
+                      <div class="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button type="button" class="text-xs text-gray-400 hover:text-gray-700"
+                          @click="navigateTo(`/activities/${route.params.id}/modes/${mode.id}`)">Edit</button>
+                        <button type="button" class="text-xs text-gray-400 hover:text-gray-700"
+                          :disabled="cloningModeId === mode.id"
+                          @click="cloneMode(mode)">
+                          <span v-if="cloningModeId === mode.id">…</span>
+                          <span v-else>Clone</span>
+                        </button>
+                        <button type="button" class="text-gray-300 hover:text-red-400"
+                          @click="deleteMode(mode.id)">
+                          <i class="pi pi-times text-xs" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              </div>
+            </div>
+
             <!-- Booking settings card -->
             <AppCard title="Booking settings" description="Rules applied when someone makes a booking for this activity">
-              <div class="grid grid-cols-2 divide-x divide-gray-100">
+              <div class="flex flex-col sm:flex-row sm:items-center px-5 py-4 gap-1 sm:gap-6 border-b border-gray-100">
+                <span class="text-sm font-medium text-gray-700 w-full sm:w-32 shrink-0">Area name</span>
+                <div class="flex items-center gap-2 flex-1 max-w-md">
+                  <InputText v-model="form.area_name_singular" placeholder="Singular" class="flex-1" />
+                  <span class="text-xs text-gray-400 shrink-0">/</span>
+                  <InputText v-model="form.area_name_plural" placeholder="Plural" class="flex-1" />
+                </div>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 md:divide-x divide-gray-100">
 
                 <!-- Timing -->
                 <div class="divide-y divide-gray-100">
@@ -114,10 +220,10 @@
                     </div>
                     <div class="flex items-center rounded-lg border border-gray-200 overflow-hidden text-xs font-medium shrink-0">
                       <button type="button" class="px-3 py-1.5 transition-colors"
-                        :class="form.booking_flow === 'wizard' ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50'"
+                        :class="form.booking_flow === 'wizard' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
                         @click="form.booking_flow = 'wizard'">Wizard</button>
                       <button type="button" class="px-3 py-1.5 border-l border-gray-200 transition-colors"
-                        :class="form.booking_flow === 'scheduler' ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50'"
+                        :class="form.booking_flow === 'scheduler' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
                         @click="form.booking_flow = 'scheduler'">Scheduler</button>
                     </div>
                   </div>
@@ -128,10 +234,10 @@
                     </div>
                     <div class="flex items-center rounded-lg border border-gray-200 overflow-hidden text-xs font-medium shrink-0">
                       <button type="button" class="px-3 py-1.5 transition-colors"
-                        :class="form.approval_mode === 'auto' ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50'"
+                        :class="form.approval_mode === 'auto' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
                         @click="form.approval_mode = 'auto'">Auto</button>
                       <button type="button" class="px-3 py-1.5 border-l border-gray-200 transition-colors"
-                        :class="form.approval_mode === 'manual' ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50'"
+                        :class="form.approval_mode === 'manual' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
                         @click="form.approval_mode = 'manual'">Manual</button>
                     </div>
                   </div>
@@ -294,8 +400,9 @@
               </div>
             </AppCard>
 
-            <!-- Venues -->
-            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <!-- Venues — hidden for staff-owned activities; the staff
+                 person IS the bookable so a picker doesn't apply. -->
+            <div v-if="!form.staff_bookable_id" class="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                 <div>
                   <p class="text-sm font-semibold text-gray-800">Venues</p>
@@ -323,26 +430,6 @@
               </div>
             </div>
 
-            <!-- Booking link -->
-            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div class="px-5 py-4 border-b border-gray-100">
-                <p class="text-sm font-semibold text-gray-800">Booking link</p>
-              </div>
-              <div class="px-4 py-3 flex items-center gap-2">
-                <code class="flex-1 text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 truncate select-all font-mono">{{ bookingLink }}</code>
-                <button type="button"
-                  class="shrink-0 flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-                  :class="linkCopied ? 'text-green-600 border-green-200 bg-green-50' : 'text-gray-600'"
-                  @click="copyBookingLink">
-                  <i :class="`pi ${linkCopied ? 'pi-check' : 'pi-copy'} text-xs`" />
-                </button>
-                <NuxtLink :to="`/bookings/new?activityId=${activity.id}`"
-                  class="shrink-0 flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg bg-[#1E2157] text-white hover:bg-[#2a2f6e] transition-colors">
-                  <i class="pi pi-external-link text-xs" />
-                </NuxtLink>
-              </div>
-            </div>
-
             <!-- Groups -->
             <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -366,117 +453,21 @@
               </div>
             </div>
 
-          </div><!-- end left column -->
-
-          <!-- ── Right: Modes ── -->
-          <div class="w-1/2 space-y-5">
-
-            <!-- Modes panel -->
-            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <div class="px-5 py-4 border-b border-gray-100">
-                <div class="flex items-center justify-between gap-3">
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-semibold text-gray-800">{{ form.mode_label || 'Modes' }}</p>
-                    <p class="text-xs text-gray-400 mt-0.5">Sub-types for this activity, e.g. "Boys Birthday"</p>
-                  </div>
-                  <label class="flex items-center gap-2 cursor-pointer shrink-0">
-                    <span class="text-xs text-gray-500">Require {{ (form.mode_label || 'mode').toLowerCase() }}</span>
-                    <ToggleSwitch v-model="form.require_mode" @change="save" />
-                  </label>
-                  <Button label="Add" icon="pi pi-plus" size="small" severity="secondary" outlined
-                    @click="navigateTo(`/activities/${route.params.id}/modes/new`)" />
-                </div>
-                <!-- Booker-facing display options. These flow through to
-                     the wizard's Mode step + BookingScheduler labels. -->
-                <div class="flex items-center gap-3 mt-3 pt-3 border-t border-gray-100">
-                  <div class="flex items-center gap-2 flex-1 min-w-0">
-                    <span class="text-[11px] text-gray-500 shrink-0">Booker label</span>
-                    <input v-model="form.mode_label" type="text" placeholder="Mode" maxlength="32"
-                      class="h-7 px-2 text-xs border border-gray-200 rounded outline-none focus:border-[#1E2157] focus:ring-2 focus:ring-[#1E2157]/15 w-40 transition-shadow"
-                      @change="save" />
-                    <span class="text-[11px] text-gray-400 shrink-0 hidden sm:inline">e.g. Format, Theme, Style</span>
-                  </div>
-                  <div class="flex items-center gap-1.5 shrink-0">
-                    <span class="text-[11px] text-gray-500">Display</span>
-                    <div class="flex border border-gray-200 rounded-lg overflow-hidden">
-                      <button type="button"
-                        class="w-8 h-7 flex items-center justify-center transition-colors"
-                        :class="form.mode_display === 'list' ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50'"
-                        title="List — image on left"
-                        @click="form.mode_display = 'list'; save()">
-                        <i class="pi pi-list text-xs" />
-                      </button>
-                      <button type="button"
-                        class="w-8 h-7 flex items-center justify-center border-l border-gray-200 transition-colors"
-                        :class="form.mode_display === 'grid' ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50'"
-                        title="Grid — image on top"
-                        @click="form.mode_display = 'grid'; save()">
-                        <i class="pi pi-th-large text-xs" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <table class="w-full text-sm">
-                <thead>
-                  <tr class="border-b border-gray-100 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                    <th class="px-4 py-2.5 text-left w-10"></th>
-                    <th class="px-4 py-2.5 text-left">Name</th>
-                    <th class="px-4 py-2.5 text-left">Description</th>
-                    <th class="px-4 py-2.5 text-left w-16">Colour</th>
-                    <th class="px-4 py-2.5 w-16"></th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-50">
-                  <tr v-if="!modes.length">
-                    <td colspan="5" class="px-5 py-10 text-center text-sm text-gray-400">
-                      No modes yet — add one to let bookers choose a sub-type
-                    </td>
-                  </tr>
-                  <tr v-for="mode in modes" :key="mode.id" class="hover:bg-gray-50 group cursor-pointer"
-                    @click="navigateTo(`/activities/${route.params.id}/modes/${mode.id}`)">
-                    <td class="px-4 py-3">
-                      <img v-if="mode.image_url" :src="mode.image_url"
-                        class="w-8 h-8 rounded-lg object-cover border border-gray-100" />
-                      <span v-else class="w-3 h-3 rounded-full block" :style="{ background: mode.color || '#6366F1' }" />
-                    </td>
-                    <td class="px-4 py-3 font-medium text-gray-800">{{ mode.name }}</td>
-                    <td class="px-4 py-3 text-gray-400 text-xs">{{ mode.description ?? '—' }}</td>
-                    <td class="px-4 py-3">
-                      <span class="w-4 h-4 rounded-full block" :style="{ background: mode.color || '#6366F1' }" />
-                    </td>
-                    <td class="px-4 py-3" @click.stop>
-                      <div class="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button type="button" class="text-xs text-gray-400 hover:text-gray-700"
-                          @click="navigateTo(`/activities/${route.params.id}/modes/${mode.id}`)">Edit</button>
-                        <button type="button" class="text-xs text-gray-400 hover:text-gray-700"
-                          :disabled="cloningModeId === mode.id"
-                          @click="cloneMode(mode)">
-                          <span v-if="cloningModeId === mode.id">…</span>
-                          <span v-else>Clone</span>
-                        </button>
-                        <button type="button" class="text-gray-300 hover:text-red-400"
-                          @click="deleteMode(mode.id)">
-                          <i class="pi pi-times text-xs" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-          </div><!-- end right column -->
-
-        </div><!-- end two-column body -->
+        </div><!-- end single-column body -->
       </div>
 
     </template>
+
+    <ModeWizard
+      v-model:visible="modeWizardOpen"
+      :activity-name="activity?.name ?? ''"
+      @done="onModeCreated" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
+import type { ModePayload } from '~/components/ModeWizard.vue'
 
 const route = useRoute()
 const db = useDb()
@@ -548,7 +539,18 @@ const form = reactive({
   min_duration_mins: null as number | null,
   max_duration_mins: null as number | null,
   buffer_mins: null as number | null,
+  // Set when this activity belongs to a single staff member (PERSON
+  // bookable). Drives "owned by a coach" UI rules — hides the venue
+  // picker, etc. — and keeps the activity off the global Activities list.
+  staff_bookable_id: null as string | null,
 })
+
+// Top-left back link target. Staff-owned activities pop back to the
+// coach's "What I offer" tab; everything else returns to the global
+// activity list as before.
+const backHref = computed(() => form.staff_bookable_id
+  ? `/bookables/${form.staff_bookable_id}?tab=offerings`
+  : '/bookables?tab=activities')
 
 const imageInput = ref<HTMLInputElement | null>(null)
 const uploadingImage = ref(false)
@@ -670,6 +672,7 @@ async function load() {
       form.min_duration_mins = act.min_duration_mins ?? null
       form.max_duration_mins = act.max_duration_mins ?? null
       form.buffer_mins = act.buffer_mins ?? null
+      form.staff_bookable_id = act.staff_bookable_id ?? null
       bookingWindowUnit.value = inferWindowUnit(form.booking_window_days)
       bookingWindowDisplay.value = daysToDisplay(form.booking_window_days, bookingWindowUnit.value)
       minNoticeUnit.value = inferHoursUnit(form.min_notice_hours)
@@ -724,6 +727,31 @@ async function deleteMode(id: string) {
   if (!confirm('Delete this mode?')) return
   await (db.from as any)('activity_modes').delete().eq('id', id)
   modes.value = modes.value.filter(m => m.id !== id)
+}
+
+// ── Inline mode creation via <ModeWizard>. Replaces the old "navigate to
+//    /modes/new" flow so users can chain creates without leaving the page;
+//    "Save & add another" inside the dialog stays open between captures.
+const modeWizardOpen = ref(false)
+async function onModeCreated(mode: ModePayload) {
+  const sort_order = modes.value.reduce((max, m) => Math.max(max, m.sort_order ?? 0), 0) + 1
+  const pricing = mode.default_price != null ? { default: mode.default_price } : null
+  const { data, error } = await (db.from as any)('activity_modes').insert({
+    activity_id: route.params.id,
+    name: mode.name,
+    description: mode.description || null,
+    color: mode.color,
+    min_people: mode.min_people,
+    max_people: mode.max_people,
+    allow_visitors: mode.allow_visitors,
+    pricing,
+    sort_order,
+  }).select('*').single()
+  if (error || !data) {
+    toast.add({ severity: 'error', summary: 'Could not create mode', detail: error?.message ?? 'Unknown error', life: 4000 })
+    return
+  }
+  modes.value = [...modes.value, data]
 }
 
 // Tracks the mode being cloned so the Clone button can show a brief

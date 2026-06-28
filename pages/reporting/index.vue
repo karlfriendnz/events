@@ -1,6 +1,6 @@
 <template>
-  <div class="p-6">
-    <div class="flex items-center justify-between mb-6">
+  <div class="p-3 sm:p-6">
+    <div class="flex items-center justify-between flex-wrap gap-2 mb-6">
       <div>
         <h1 class="text-xl font-semibold text-surface-900">Reporting</h1>
         <p class="text-sm text-surface-500 mt-0.5">Cross-event analytics, attendance trends, and financial summaries.</p>
@@ -9,30 +9,30 @@
     </div>
 
     <!-- KPI cards -->
-    <div class="grid grid-cols-4 gap-4 mb-6">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
       <div class="card p-4">
         <p class="text-xs text-surface-500 uppercase tracking-wide mb-1">Total Events</p>
-        <p class="text-3xl font-bold text-surface-900">{{ kpis.totalEvents }}</p>
+        <p class="text-2xl sm:text-3xl font-bold text-surface-900">{{ kpis.totalEvents }}</p>
         <p class="text-xs text-green-600 mt-1">{{ kpis.publishedEvents }} published</p>
       </div>
       <div class="card p-4">
         <p class="text-xs text-surface-500 uppercase tracking-wide mb-1">Total Invitees</p>
-        <p class="text-3xl font-bold text-surface-900">{{ kpis.totalInvitees }}</p>
+        <p class="text-2xl sm:text-3xl font-bold text-surface-900">{{ kpis.totalInvitees }}</p>
         <p class="text-xs text-surface-500 mt-1">{{ kpis.confirmedInvitees }} confirmed</p>
       </div>
       <div class="card p-4">
         <p class="text-xs text-surface-500 uppercase tracking-wide mb-1">Sessions</p>
-        <p class="text-3xl font-bold text-surface-900">{{ kpis.totalSessions }}</p>
+        <p class="text-2xl sm:text-3xl font-bold text-surface-900">{{ kpis.totalSessions }}</p>
         <p class="text-xs text-surface-500 mt-1">across all events</p>
       </div>
       <div class="card p-4">
         <p class="text-xs text-surface-500 uppercase tracking-wide mb-1">Est. Revenue</p>
-        <p class="text-3xl font-bold text-primary">{{ formatCurrency(kpis.estimatedRevenue) }}</p>
+        <p class="text-2xl sm:text-3xl font-bold text-primary">{{ formatCurrency(kpis.estimatedRevenue) }}</p>
         <p class="text-xs text-surface-500 mt-1">from confirmed attendees</p>
       </div>
     </div>
 
-    <div class="grid grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
       <!-- Events by status -->
       <div class="card p-4">
         <h3 class="text-sm font-semibold text-surface-700 mb-4">Events by Status</h3>
@@ -83,7 +83,7 @@
     <!-- Recent events table -->
     <div class="mt-6">
       <h3 class="text-sm font-semibold text-surface-700 mb-3">All Events</h3>
-      <div class="card">
+      <div class="card overflow-x-auto">
         <DataTable
           ref="reportTable"
           :value="events"

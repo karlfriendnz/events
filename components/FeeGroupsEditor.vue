@@ -45,7 +45,7 @@
             <h3 class="text-sm font-semibold text-gray-900">Fee Groups</h3>
             <p class="text-xs text-gray-500 mt-0.5">Set different fees per person type</p>
           </div>
-          <Button label="Add Group" icon="pi pi-plus" size="small" @click="addGroup" style="background:#1E2157;border-color:#1E2157" />
+          <Button label="Add Group" icon="pi pi-plus" size="small" @click="addGroup" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
         </div>
 
         <div v-if="!modelValue.groups?.length" class="py-10 text-center text-sm text-gray-400 border border-dashed border-gray-200 rounded-xl bg-white">

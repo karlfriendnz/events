@@ -11,24 +11,40 @@
           <!-- Day cells -->
           <div class="absolute inset-0 grid grid-cols-7 gap-1">
             <div v-for="day in week" :key="day.toISOString()"
-              class="rounded-lg p-1.5 transition-colors border cursor-pointer overflow-hidden"
+              class="rounded-lg p-1.5 transition-colors border overflow-hidden"
               :class="[
-                day.getMonth() !== calDate.getMonth() ? 'border-transparent bg-gray-50/50' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50',
+                wizardMode && isPast(day) ? 'cursor-not-allowed opacity-40 border-transparent bg-gray-50/50'
+                  : day.getMonth() !== calDate.getMonth() ? 'cursor-pointer border-transparent bg-gray-50/50'
+                  : 'cursor-pointer border-gray-100 hover:border-gray-200 hover:bg-gray-50',
                 isToday(day) ? '!bg-blue-50 !border-blue-200' : '',
                 monthDropTarget && monthDropTarget.getTime() === stripTimeMs(day) ? '!bg-green-50 !border-green-300' : '',
               ]"
-              @click="(!wizardMode || rulesForDate(day).length) && $emit('slot-click', day)"
-              @dragover.prevent="monthDropTarget = stripDate(day)"
+              @click="(!wizardMode || (rulesForDate(day).length && !isPast(day))) && $emit('slot-click', day)"
+              @dragover.prevent="!wizardMode && (monthDropTarget = stripDate(day))"
               @dragleave="onMonthDragLeave(day)"
-              @drop.prevent="onMonthDrop(day)">
+              @drop.prevent="!wizardMode && onMonthDrop(day)">
               <span class="text-xs font-medium block"
                 :class="day.getMonth() !== calDate.getMonth() ? 'text-gray-300' : isToday(day) ? 'text-blue-600 font-bold' : 'text-gray-700'">
                 {{ day.getDate() }}
               </span>
-              <div v-if="rulesForDate(day).length" class="flex gap-0.5 mt-0.5">
-                <span v-for="(rule, ri) in rulesForDate(day).slice(0, 3)" :key="ri"
-                  class="w-1.5 h-1.5 rounded-full border shrink-0"
-                  :style="{ borderColor: ruleColor(rule), backgroundColor: ruleColor(rule) + '30' }" />
+              <!-- One bar per individual slot — three slots = three bars,
+                   matching the booked-session bar style so an empty
+                   day's availability reads visually the same as a busy
+                   one. Capped at three with a "+N more" if there are
+                   lots of slots in a single day. -->
+              <div v-if="ruleSlotsForDate(day).length" class="flex flex-col gap-0.5 mt-1">
+                <div v-for="(s, si) in ruleSlotsForDate(day).slice(0, 3)" :key="si"
+                  class="rounded-md text-[10px] font-medium leading-[16px] px-1.5 truncate"
+                  :style="{
+                    backgroundColor: s.color + '22',
+                    color: s.color,
+                    borderLeft: `3px solid ${s.color}`,
+                  }">
+                  <span class="font-semibold tabular-nums">{{ s.label }}</span>
+                </div>
+                <div v-if="ruleSlotsForDate(day).length > 3" class="text-[9px] text-gray-400 px-1">
+                  +{{ ruleSlotsForDate(day).length - 3 }} more
+                </div>
               </div>
             </div>
           </div>
@@ -187,6 +203,8 @@
 
     <!-- Week view -->
     <template v-else-if="calView === 'week'">
+      <div class="flex-1 min-h-0 overflow-x-auto flex flex-col">
+      <div class="flex flex-col flex-1 min-h-0 min-w-[640px]">
       <div class="flex border-b border-gray-100 bg-gray-50 shrink-0">
         <div class="shrink-0 border-r border-gray-100" style="width:52px" />
         <div v-for="(day, di) in weekDays" :key="di"
@@ -268,8 +286,10 @@
       <div class="px-4 py-2 border-t border-gray-100 flex items-center gap-4 text-xs text-gray-400 shrink-0 bg-gray-50/50">
         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm border border-green-400 bg-green-400/20 inline-block" /> Open</span>
         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm border border-blue-400 bg-blue-400/20 inline-block" /> Restricted</span>
-        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#1E2157] inline-block" /> Confirmed</span>
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-primary inline-block" /> Confirmed</span>
         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block" /> Pending</span>
+      </div>
+      </div>
       </div>
     </template>
 
@@ -307,7 +327,7 @@
               style="left: 8px; right: 8px"
               :class="[
                 slotRemainingCapacity(rule, slot, calDate) === 0 ? 'cursor-not-allowed opacity-40' : 'cursor-pointer',
-                isSlotSelected(calDate, slot) ? 'ring-2 ring-[#1E2157]/40 ring-offset-1 shadow-md' : '',
+                isSlotSelected(calDate, slot) ? 'ring-2 ring-primary/40 ring-offset-1 shadow-md' : '',
               ]"
               :style="isSlotSelected(calDate, slot)
                 ? { borderLeft: `4px solid #1E2157`, border: `2px solid #1E2157`, backgroundColor: '#1E2157', top: slotTop(slot.from), height: slotHeight(slot.from, slot.to) }
@@ -369,7 +389,7 @@
       <div class="px-4 py-2 border-t border-gray-100 flex items-center gap-4 text-xs text-gray-400 shrink-0 bg-gray-50/50">
         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm border border-green-400 bg-green-400/20 inline-block" /> Open</span>
         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm border border-blue-400 bg-blue-400/20 inline-block" /> Restricted</span>
-        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#1E2157] inline-block" /> Confirmed</span>
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-primary inline-block" /> Confirmed</span>
         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block" /> Pending</span>
       </div>
     </template>
@@ -707,6 +727,9 @@ const listMonths = computed(() => {
     const daysInMonth = new Date(year, month + mi + 1, 0).getDate()
     const days = Array.from({ length: daysInMonth }, (__, d) => {
       const date = new Date(year, month + mi, d + 1)
+      // In wizardMode the booker shouldn't see past days at all — they
+      // can't be booked, so listing them is just noise.
+      if (props.wizardMode && isPast(date)) return null
       const dayRules = rulesForDate(date)
       const dayBookings = bookingsForDate(date)
       return (dayRules.length || dayBookings.length) ? { date, rules: dayRules, bookings: dayBookings } : null
@@ -718,6 +741,15 @@ const listMonths = computed(() => {
 function isToday(date: Date): boolean {
   const now = new Date()
   return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate()
+}
+
+// True for any day strictly before today's calendar date. Used in
+// wizardMode to grey out + disable past day cells so the booker can't
+// pick a slot that's already gone.
+function isPast(date: Date): boolean {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return date.getTime() < today.getTime()
 }
 
 function timeToMins(t: string): number {
@@ -921,6 +953,31 @@ function formatSlots(rule: any): string {
     : rule.time_from ? [{ from: rule.time_from, to: rule.time_to }] : []
   if (!slots.length) return 'All day'
   return slots.map((s: any) => `${formatTime(s.from)} – ${formatTime(s.to)}`).join(', ')
+}
+
+// Flatten every rule's slots for a given date into one list — drives the
+// month view's per-slot bars. Each entry carries its display label and
+// the rule's colour so the bar can be styled like a booking session.
+function ruleSlotsForDate(day: Date): { from: string; to: string; label: string; color: string }[] {
+  const fmt = (t: string) => {
+    const [h, m] = t.split(':').map(Number)
+    const hr = h % 12 || 12
+    const ap = h < 12 ? 'a' : 'p'
+    return m ? `${hr}:${String(m).padStart(2, '0')}${ap}` : `${hr}${ap}`
+  }
+  const out: { from: string; to: string; label: string; color: string }[] = []
+  for (const rule of rulesForDate(day)) {
+    const color = ruleColor(rule)
+    for (const s of ruleSlots(rule)) {
+      out.push({ from: s.from, to: s.to, color, label: `${fmt(s.from)}–${fmt(s.to)}` })
+    }
+  }
+  // Stable order: earliest start first.
+  out.sort((a, b) => {
+    const toMins = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+    return toMins(a.from) - toMins(b.from)
+  })
+  return out
 }
 
 function bookingStartTime(b: any): string {

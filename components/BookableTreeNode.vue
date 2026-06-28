@@ -3,7 +3,7 @@
     <div
       class="flex items-center gap-1 px-3 py-2 cursor-pointer group transition-colors"
       :class="selectedId === node.id
-        ? 'bg-[#1E2157]/8 text-[#1E2157]'
+        ? 'bg-primary/8 text-primary'
         : 'hover:bg-gray-50 text-gray-700'"
       :style="{ paddingLeft: `${12 + depth * 16}px` }"
       @click="$emit('select', node)">
@@ -11,7 +11,7 @@
       <!-- Expand toggle -->
       <button v-if="node.children?.length"
         class="w-5 h-5 flex items-center justify-center shrink-0 rounded hover:bg-gray-200 transition-colors"
-        :class="selectedId === node.id ? 'text-[#1E2157]' : 'text-gray-400'"
+        :class="selectedId === node.id ? 'text-primary' : 'text-gray-400'"
         @click.stop="expanded = !expanded">
         <i :class="`pi text-[10px] ${expanded ? 'pi-chevron-down' : 'pi-chevron-right'}`" />
       </button>
@@ -32,7 +32,7 @@
       <!-- Add child button -->
       <button
         class="w-5 h-5 flex items-center justify-center shrink-0 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-200"
-        :class="selectedId === node.id ? 'text-[#1E2157]' : 'text-gray-400'"
+        :class="selectedId === node.id ? 'text-primary' : 'text-gray-400'"
         v-tooltip.right="'Add sub-venue'"
         @click.stop="$emit('add-child', node.id)">
         <i class="pi pi-plus text-[10px]" />

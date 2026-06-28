@@ -6,26 +6,27 @@
         <h1 class="text-lg font-semibold text-gray-900">Booking Discounts</h1>
         <p class="text-sm text-gray-500 mt-0.5">Rules that automatically apply savings when people book activities.</p>
       </div>
-      <Button icon="pi pi-plus" label="Add Discount" size="small" @click="openNew" style="background:#1E2157; border-color:#1E2157" />
+      <Button icon="pi pi-plus" label="Add Discount" size="small" @click="openNew" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
     </div>
 
     <!-- Empty state -->
     <div v-if="!loading && discounts.length === 0"
-      class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-[#1E2157]/20">
+      class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-primary/20">
       <div class="w-16 h-16 mx-auto rounded-full bg-[#EFF6FF] flex items-center justify-center mb-4">
-        <i class="pi pi-tag text-2xl text-[#1E2157]" />
+        <i class="pi pi-tag text-2xl text-primary" />
       </div>
       <h3 class="text-base font-semibold text-gray-900 mb-1">Create your first discount</h3>
       <p class="text-sm text-gray-500 mb-5 max-w-sm mx-auto">
         Discounts automatically reduce prices for off-peak times, member rates, or promotions.
       </p>
       <Button label="Add Discount" icon="pi pi-plus"
-        style="background:#1E2157;border-color:#1E2157" @click="openNew" />
+        style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="openNew" />
     </div>
 
     <!-- Table -->
     <div v-else class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <table class="w-full text-sm">
+      <div class="overflow-x-auto">
+      <table class="w-full text-sm min-w-[720px]">
         <thead>
           <tr class="border-b border-gray-200 bg-gray-50 text-left">
             <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</th>
@@ -44,14 +45,14 @@
               <p class="font-medium text-gray-800">{{ d.name || '—' }}</p>
               <p v-if="d.form_text" class="text-xs text-gray-400 mt-0.5">{{ d.form_text }}</p>
             </td>
-            <td class="px-4 py-3 whitespace-nowrap font-semibold text-[#1E2157]">
+            <td class="px-4 py-3 whitespace-nowrap font-semibold text-primary">
               {{ d.modifier_type === 'PERCENT' ? `${d.modifier_value}% off` : `$${d.modifier_value} off` }}
             </td>
             <td class="px-4 py-3">
               <div v-if="!d.activity_ids?.length" class="text-xs text-gray-500 italic">All activities</div>
               <div v-else class="flex flex-wrap gap-1">
                 <span v-for="aid in d.activity_ids" :key="aid"
-                  class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-[#1E2157]/8 text-[#1E2157]">
+                  class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-primary/8 text-primary">
                   {{ activitiesById[aid]?.name ?? '—' }}
                 </span>
               </div>
@@ -87,17 +88,18 @@
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <!-- Edit Dialog -->
-    <Dialog v-model:visible="showDialog" modal style="width:760px;padding:0"
+    <Dialog v-model:visible="showDialog" modal :style="{ width: '95vw', maxWidth: '760px', padding: 0 }"
       :pt="{ header: { class: 'hidden' }, content: { class: 'p-0' }, footer: { class: 'hidden' } }"
       @hide="resetDraft">
       <div class="flex flex-col" style="max-height:88vh">
         <!-- Header -->
         <div class="flex items-center justify-between px-6 py-3.5 border-b border-gray-100 shrink-0">
           <div class="flex items-center gap-2.5">
-            <div class="w-7 h-7 rounded-lg bg-[#1E2157] flex items-center justify-center shrink-0">
+            <div class="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
               <i class="pi pi-tag text-white" style="font-size:11px" />
             </div>
             <h2 class="text-sm font-semibold text-gray-800">{{ editingIdx !== null ? 'Edit Discount' : 'New Discount' }}</h2>
@@ -110,7 +112,7 @@
 
         <div class="flex-1 overflow-y-auto">
           <!-- Names -->
-          <div class="px-5 py-4 grid grid-cols-2 gap-4 border-b border-gray-100">
+          <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4 border-b border-gray-100">
             <div class="flex flex-col gap-1.5">
               <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name <span class="text-red-400 normal-case font-normal tracking-normal">*</span></label>
               <InputText v-model="draft.name" placeholder="e.g. April Early Bird" class="w-full text-sm h-9" autofocus />
@@ -124,12 +126,12 @@
           <!-- Amount -->
           <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
             <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Discount amount</p>
-            <div class="rounded-lg border border-gray-200 overflow-hidden bg-white">
-              <div class="grid" style="grid-template-columns: auto 140px 1fr">
+            <div class="rounded-lg border border-gray-200 overflow-x-auto bg-white">
+              <div class="grid min-w-[420px]" style="grid-template-columns: auto 140px 1fr">
                 <div class="flex border-r border-gray-200">
                   <button v-for="t in typeOptions" :key="t.value" type="button"
                     class="px-5 py-2.5 text-sm font-semibold transition-all border-r border-gray-200 last:border-r-0"
-                    :class="draft.modifier_type === t.value ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50'"
+                    :class="draft.modifier_type === t.value ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
                     @click="draft.modifier_type = t.value">{{ t.label }}</button>
                 </div>
                 <div class="relative flex items-center border-r border-gray-200">
@@ -170,13 +172,13 @@
             <div class="flex items-center justify-between mb-3">
               <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Criteria</p>
               <span v-if="draft.conditions.length > 1"
-                class="text-xs font-semibold text-[#1E2157] bg-[#1E2157]/10 px-2.5 py-1 rounded-full">
+                class="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full">
                 All must be met
               </span>
             </div>
 
-            <div v-if="draft.conditions.length" class="rounded-lg border border-gray-200 overflow-hidden mb-3">
-              <div class="grid bg-gray-50 border-b border-gray-200 px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide"
+            <div v-if="draft.conditions.length" class="rounded-lg border border-gray-200 overflow-x-auto mb-3">
+              <div class="grid min-w-[560px] bg-gray-50 border-b border-gray-200 px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide"
                 style="grid-template-columns: 230px 170px 1fr 32px">
                 <span class="pl-1">Criterion</span>
                 <span>Operator</span>
@@ -184,7 +186,7 @@
                 <span />
               </div>
               <div v-for="(cond, i) in draft.conditions" :key="i"
-                class="grid items-center px-3 border-b border-gray-100 last:border-0 group hover:bg-gray-50/60 transition-colors"
+                class="grid min-w-[560px] items-center px-3 border-b border-gray-100 last:border-0 group hover:bg-gray-50/60 transition-colors"
                 style="grid-template-columns: 230px 170px 1fr 32px">
                 <div class="py-2 pr-2">
                   <Select :modelValue="cond.key" :options="conditionTypeGroups"
@@ -197,10 +199,10 @@
                   <template v-if="cond.key && condValueType(cond.key) === 'boolean'">
                     <div class="flex rounded-md border border-gray-200 overflow-hidden text-xs font-semibold bg-white">
                       <button type="button" class="flex-1 py-1.5 border-r border-gray-200 transition-all"
-                        :class="cond.operator === 'is_true' ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50'"
+                        :class="cond.operator === 'is_true' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
                         @click="cond.operator = 'is_true'">Yes</button>
                       <button type="button" class="flex-1 py-1.5 transition-all"
-                        :class="cond.operator === 'is_false' ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50'"
+                        :class="cond.operator === 'is_false' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
                         @click="cond.operator = 'is_false'">No</button>
                     </div>
                   </template>
@@ -246,7 +248,7 @@
             </div>
 
             <button type="button"
-              class="w-full flex items-center justify-center gap-2 text-sm text-gray-400 hover:text-[#1E2157] border border-dashed border-gray-200 hover:border-[#1E2157]/30 hover:bg-[#1E2157]/[0.02] rounded-lg py-2.5 transition-all"
+              class="w-full flex items-center justify-center gap-2 text-sm text-gray-400 hover:text-primary border border-dashed border-gray-200 hover:border-primary/30 hover:bg-primary/[0.02] rounded-lg py-2.5 transition-all"
               @click="addCondition">
               <i class="pi pi-plus text-xs" /> Add criterion
             </button>
@@ -255,7 +257,7 @@
           <!-- Period & usage -->
           <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
             <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Validity &amp; usage</p>
-            <div class="grid grid-cols-3 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div class="flex flex-col gap-1.5">
                 <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Valid from</label>
                 <DatePicker v-model="draft.valid_from" show-icon date-format="dd/mm/yy" placeholder="Always" show-button-bar class="w-full" />
@@ -288,7 +290,7 @@
           <Button label="Cancel" severity="secondary" outlined size="small" @click="showDialog = false; resetDraft()" />
           <Button :label="editingIdx !== null ? 'Save Changes' : 'Create Discount'" size="small"
             :disabled="!draft.name.trim()" :loading="saving"
-            @click="saveDraft" style="background:#1E2157; border-color:#1E2157" />
+            @click="saveDraft" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
         </div>
       </div>
     </Dialog>
@@ -639,14 +641,21 @@ async function deleteDiscount(idx: number) {
 
 async function load() {
   loading.value = true
-  const [discRes, actRes, modeRes, grpRes, actLinkRes, modeLinkRes] = await Promise.all([
+  const [discRes, actRes, modeRes, grpRes] = await Promise.all([
     (db.from as any)('booking_discounts').select('*').eq('org_id', orgId.value).order('created_at', { ascending: false }),
     (db.from as any)('activities').select('id, name').eq('org_id', orgId.value).order('name'),
     (db.from as any)('activity_modes').select('id, name, activity_id, activities!inner(name, org_id)').eq('activities.org_id', orgId.value).order('name'),
     (db.from as any)('member_groups').select('id, name').eq('org_id', orgId.value).order('name'),
-    (db.from as any)('booking_discount_activities').select('discount_id, activity_id'),
-    (db.from as any)('booking_discount_activity_modes').select('discount_id, activity_mode_id'),
   ])
+  // The discount join tables have no org_id — scope them to THIS org's discounts
+  // so we don't pull every org's join rows into the client.
+  const discountIds = (discRes.data ?? []).map((d: any) => d.id)
+  const [actLinkRes, modeLinkRes] = discountIds.length
+    ? await Promise.all([
+        (db.from as any)('booking_discount_activities').select('discount_id, activity_id').in('discount_id', discountIds),
+        (db.from as any)('booking_discount_activity_modes').select('discount_id, activity_mode_id').in('discount_id', discountIds),
+      ])
+    : [{ data: [] }, { data: [] }]
   activities.value = actRes.data ?? []
   modes.value = (modeRes.data ?? []).map((m: any) => ({
     id: m.id, name: m.name, activity_id: m.activity_id, activity_name: m.activities?.name ?? '',

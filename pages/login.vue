@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center" style="background: linear-gradient(135deg, #1E2157 0%, #21278E 100%)">
+  <div class="min-h-screen flex items-center justify-center" style="background: linear-gradient(135deg, var(--brand-primary) 0%, #21278E 100%)">
     <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8">
       <!-- Logo -->
       <div class="flex items-center justify-center mb-6">

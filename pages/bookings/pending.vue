@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6 max-w-6xl mx-auto">
+  <div class="p-3 sm:p-6 max-w-6xl mx-auto">
     <div class="flex items-start justify-between gap-4 mb-6">
       <div>
         <h1 class="text-xl font-semibold text-gray-900">Pending bookings</h1>
@@ -31,7 +31,7 @@
       <div v-for="b in rows" :key="b.id"
         class="bg-white rounded-xl border border-gray-200 hover:border-gray-300 transition-colors cursor-pointer"
         @click="openBooking(b)">
-        <div class="flex items-start gap-4 p-4">
+        <div class="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4 p-4">
 
           <!-- Activity colour swatch -->
           <div class="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center"
@@ -71,7 +71,7 @@
           </div>
 
           <!-- Actions -->
-          <div class="flex items-center gap-2 shrink-0" @click.stop>
+          <div class="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end" @click.stop>
             <Button label="Decline" icon="pi pi-times" size="small" severity="danger" outlined
               :loading="busyId === b.id" @click="decline(b)" />
             <Button label="Approve" icon="pi pi-check" size="small"

@@ -1,6 +1,6 @@
 <template>
   <div v-if="payment.plan.enabled || payment.credit_card.enabled || payment.invoice.enabled || payment.coupon.enabled"
-    class="px-6 pb-6 space-y-2">
+    class="px-4 sm:px-6 pb-6 space-y-2">
     <h3 class="text-sm font-bold text-gray-800 mb-3">Payment</h3>
     <FormsPaymentOptionCard v-if="payment.plan.enabled"
       icon="pi-calendar" title="Payment Plan"

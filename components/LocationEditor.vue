@@ -7,7 +7,7 @@
       </div>
 
       <!-- Type selector -->
-      <div class="grid grid-cols-3 gap-3">
+      <div class="grid grid-cols-3 gap-2 sm:gap-3">
         <div v-for="lt in locationTypes" :key="lt.value"
           class="border-2 rounded-xl p-3 cursor-pointer flex flex-col items-center gap-2 transition-colors"
           :class="loc.type === lt.value ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'"
@@ -67,8 +67,8 @@
               <span
                 class="inline-flex items-center justify-center w-[18px] h-[18px] rounded border-2 shrink-0 transition-colors cursor-pointer"
                 :class="loc.bookable_ids.includes(node.id) || isPartial(loc, node.id)
-                  ? 'bg-[#1E2157] border-[#1E2157]'
-                  : 'border-gray-400 bg-white hover:border-[#1E2157]'"
+                  ? 'bg-primary border-primary'
+                  : 'border-gray-400 bg-white hover:border-primary'"
                 @click.stop="effectiveAvailabilityMap[node.id] !== 'booked' && toggleVenue(locIdx, node.id)">
                 <i v-if="loc.bookable_ids.includes(node.id)" class="pi pi-check text-white" style="font-size:10px" />
                 <span v-else-if="isPartial(loc, node.id)" class="block w-2 h-0.5 bg-white rounded-full" />

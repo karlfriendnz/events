@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6">
+  <div class="p-3 sm:p-6">
     <div class="flex items-center justify-between mb-6">
       <div>
         <h1 class="text-xl font-semibold text-surface-900">Registration</h1>
@@ -9,7 +9,7 @@
     </div>
 
     <!-- Forms list -->
-    <div class="card">
+    <div class="card overflow-x-auto">
       <DataTable :value="forms" :loading="loading" row-hover striped-rows size="small"
         @row-click="e => selectedForm = e.data">
         <template #empty>
@@ -50,7 +50,7 @@
         <h2 class="text-base font-semibold text-surface-800">{{ selectedForm.name }}</h2>
         <Button icon="pi pi-times" severity="secondary" text rounded size="small" @click="selectedForm = null" />
       </div>
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="card p-4">
           <h3 class="text-sm font-semibold text-surface-700 mb-3">Form Fields</h3>
           <div v-if="formFields.length" class="space-y-2">
@@ -80,7 +80,7 @@
     <Menu ref="rowMenu" :model="menuItems" :popup="true" />
 
     <!-- Create Form Dialog -->
-    <Dialog v-model:visible="showCreate" header="New Registration Form" modal style="width: 380px">
+    <Dialog v-model:visible="showCreate" header="New Registration Form" modal :style="{ width: '95vw', maxWidth: '380px' }">
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Form Name</label>
@@ -94,7 +94,7 @@
     </Dialog>
 
     <!-- Add Field Dialog -->
-    <Dialog v-model:visible="showAddField" header="Add Field" modal style="width: 380px">
+    <Dialog v-model:visible="showAddField" header="Add Field" modal :style="{ width: '95vw', maxWidth: '380px' }">
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Field Label</label>

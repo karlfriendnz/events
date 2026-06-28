@@ -29,7 +29,12 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return
   }
 
-  const { data } = await db.from('org_members').select('org_id').eq('user_id', userId).single()
-  orgId.value = data?.org_id ?? null
+  // A person can belong to several clubs; honour their saved choice (from
+  // <ProfileMenu>) if it's one of their memberships, else fall back to the first.
+  const { data } = await db.from('org_members').select('org_id').eq('user_id', userId)
+  const ids = (data ?? []).map((r: any) => r.org_id)
+  const saved = readActiveOrg()
+  orgId.value = (saved && ids.includes(saved)) ? saved : (ids[0] ?? null)
+  if (orgId.value) rememberResolvedOrg(orgId.value)
   orgReady.value = true
 })

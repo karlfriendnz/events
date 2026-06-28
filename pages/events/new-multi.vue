@@ -1,7 +1,7 @@
 <template>
-  <div class="flex flex-col" style="height: calc(100vh - 3.5rem)">
+  <div class="flex flex-col h-[calc(100vh-3.5rem-4rem)] md:h-[calc(100vh-3.5rem)]">
     <!-- Header -->
-    <div class="bg-white border-b border-gray-200 px-6 py-3.5 flex items-center justify-between shrink-0">
+    <div class="bg-white border-b border-gray-200 px-4 sm:px-6 py-3.5 flex items-center justify-between shrink-0">
       <div class="flex items-center gap-3">
         <NuxtLink to="/events" class="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1">
           <i class="pi pi-chevron-left text-xs" /> Events
@@ -11,13 +11,13 @@
       </div>
       <div class="flex items-center gap-2">
         <Button label="Cancel" severity="secondary" outlined size="small" @click="navigateTo('/events')" />
-        <Button label="Create Event" icon="pi pi-check" size="small" :loading="saving" :disabled="!canCreate" @click="createEvent" style="background:#1E2157; border-color:#1E2157" />
+        <Button label="Create Event" icon="pi pi-check" size="small" :loading="saving" :disabled="!canCreate" @click="createEvent" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
       </div>
     </div>
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto bg-[#F5F8FA]">
-      <div class="max-w-[1140px] mx-auto px-6 py-8 space-y-6">
+      <div class="max-w-[1140px] mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6">
 
         <!-- Banner -->
         <div class="bg-green-50 border border-green-200 rounded-xl px-5 py-4 flex items-start gap-3">
@@ -34,11 +34,11 @@
             <h2 class="text-sm font-semibold text-gray-700">Event Details</h2>
           </div>
           <div class="px-5 py-4 space-y-4">
-            <div class="grid grid-cols-[160px_1fr] items-center gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1.5 sm:gap-4">
               <label class="text-sm font-medium text-gray-700">Event Name <span class="text-red-400">*</span></label>
               <InputText v-model="form.title" placeholder="e.g. Easter Holiday Programme" class="w-full" autofocus />
             </div>
-            <div class="grid grid-cols-[160px_1fr] items-center gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1.5 sm:gap-4">
               <label class="text-sm font-medium text-gray-700">Age Limit</label>
               <div class="flex items-center gap-2">
                 <InputNumber v-model="form.ageMin" :min="0" :max="120" placeholder="Min" class="w-24" inputClass="w-24" />
@@ -57,12 +57,12 @@
           </div>
           <div class="px-5 py-4 space-y-4">
             <!-- Programme date range -->
-            <div class="grid grid-cols-[160px_1fr] items-center gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1.5 sm:gap-4">
               <label class="text-sm font-medium text-gray-700">Programme Dates <span class="text-red-400">*</span></label>
-              <div class="flex items-center gap-3 flex-wrap">
-                <DatePicker v-model="form.startDate" placeholder="Start date" dateFormat="dd/mm/yy" class="w-40" />
+              <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <DatePicker v-model="form.startDate" placeholder="Start date" dateFormat="dd/mm/yy" fluid class="flex-1 min-w-0 sm:flex-none sm:w-40" />
                 <span class="text-sm text-gray-400">to</span>
-                <DatePicker v-model="form.endDate" placeholder="End date" dateFormat="dd/mm/yy" class="w-40" :minDate="form.startDate ?? undefined" />
+                <DatePicker v-model="form.endDate" placeholder="End date" dateFormat="dd/mm/yy" fluid class="flex-1 min-w-0 sm:flex-none sm:w-40" :minDate="form.startDate ?? undefined" />
                 <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none ml-1">
                   <Checkbox v-model="form.includeWeekends" :binary="true" />
                   Include weekends
@@ -84,16 +84,16 @@
               </p>
             </div>
             <!-- Signup open / close -->
-            <div class="grid grid-cols-[160px_1fr] items-center gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1.5 sm:gap-4">
               <label class="text-sm font-medium text-gray-700">Signup Dates</label>
-              <div class="flex items-center gap-3">
-                <DatePicker v-model="form.regOpen" placeholder="Opens" dateFormat="dd/mm/yy" showTime hourFormat="12" class="w-48" />
-                <span class="text-sm text-gray-400">to</span>
-                <DatePicker v-model="form.regClose" placeholder="Closes" dateFormat="dd/mm/yy" showTime hourFormat="12" class="w-48" />
+              <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+                <DatePicker v-model="form.regOpen" placeholder="Opens" dateFormat="dd/mm/yy" showTime hourFormat="12" fluid class="w-full sm:w-48" />
+                <span class="text-sm text-gray-400 hidden sm:inline">to</span>
+                <DatePicker v-model="form.regClose" placeholder="Closes" dateFormat="dd/mm/yy" showTime hourFormat="12" fluid class="w-full sm:w-48" />
               </div>
             </div>
             <!-- Public calendar -->
-            <div class="grid grid-cols-[160px_1fr] items-center gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1.5 sm:gap-4">
               <label class="text-sm font-medium text-gray-700">Visibility</label>
               <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
                 <Checkbox v-model="form.isPublic" :binary="true" />
@@ -110,12 +110,12 @@
           @update:modelValue="v => { templates.splice(0, templates.length, ...v) }" />
 
         <!-- Preview summary -->
-        <div v-if="canCreate" class="bg-[#1E2157]/5 border border-[#1E2157]/20 rounded-xl px-5 py-4">
-          <p class="text-sm font-semibold text-[#1E2157] mb-2">Ready to create</p>
+        <div v-if="canCreate" class="bg-primary/5 border border-primary/20 rounded-xl px-5 py-4">
+          <p class="text-sm font-semibold text-primary mb-2">Ready to create</p>
           <ul class="text-sm text-gray-600 space-y-1">
-            <li><i class="pi pi-calendar text-[#1E2157] mr-2 text-xs" /><strong>{{ form.title }}</strong></li>
-            <li><i class="pi pi-clock text-[#1E2157] mr-2 text-xs" />{{ sessionDays.length }} days · {{ templates.filter(t => t.name.trim()).length }} session template{{ templates.filter(t => t.name.trim()).length !== 1 ? 's' : '' }} per day</li>
-            <li><i class="pi pi-list text-[#1E2157] mr-2 text-xs" /><strong>{{ totalSessions }}</strong> sessions will be created automatically</li>
+            <li><i class="pi pi-calendar text-primary mr-2 text-xs" /><strong>{{ form.title }}</strong></li>
+            <li><i class="pi pi-clock text-primary mr-2 text-xs" />{{ sessionDays.length }} days · {{ templates.filter(t => t.name.trim()).length }} session template{{ templates.filter(t => t.name.trim()).length !== 1 ? 's' : '' }} per day</li>
+            <li><i class="pi pi-list text-primary mr-2 text-xs" /><strong>{{ totalSessions }}</strong> sessions will be created automatically</li>
           </ul>
         </div>
 

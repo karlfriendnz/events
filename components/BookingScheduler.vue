@@ -2,7 +2,7 @@
   <div class="h-full bg-[#F5F8FA]">
 
     <!-- ── DONE state takes over the whole pane after submit ── -->
-    <div v-if="step === 2" class="h-full overflow-y-auto px-6 pb-6">
+    <div v-if="step === 2" class="h-full overflow-y-auto px-3 sm:px-6 pb-6">
       <div class="max-w-xl mx-auto py-10 text-center">
         <div class="w-14 h-14 mx-auto rounded-full bg-green-100 flex items-center justify-center">
           <i class="pi pi-check text-green-600 text-xl" />
@@ -15,7 +15,7 @@
         </p>
         <div class="flex justify-center gap-2 mt-5">
           <Button severity="secondary" outlined label="Make another" icon="pi pi-plus" @click="resetAll" />
-          <Button label="Done" @click="$emit('done')" style="background:#1E2157; border-color:#1E2157" />
+          <Button label="Done" @click="$emit('done')" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
         </div>
       </div>
     </div>
@@ -23,26 +23,6 @@
     <!-- ── SCHEDULE: grid on the left, booking summary panel on the right ── -->
     <div v-else class="h-full flex flex-col p-4 lg:p-6 min-h-0"
       :class="props.embedded ? '' : 'max-w-7xl mx-auto w-full'">
-
-      <!-- Header: optional back button + page title. The back button only
-           shows when the parent (the /book picker) is wiring an @back
-           handler — direct embeds skip it. -->
-      <div class="flex items-center gap-3 mb-4 shrink-0">
-        <button v-if="showBackToPicker" type="button"
-          class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
-          aria-label="Back to picker"
-          @click="emit('back')">
-          <i class="pi pi-arrow-left text-sm" />
-        </button>
-        <div class="flex-1 min-w-0">
-          <h1 class="text-lg sm:text-xl font-bold text-gray-900 leading-tight tracking-tight">
-            Book {{ activityName || 'a slot' }}
-          </h1>
-          <p class="text-xs text-gray-500 mt-0.5">
-            Click an empty slot on the schedule, pick a mode on the right, and confirm.
-          </p>
-        </div>
-      </div>
 
       <div class="flex-1 flex flex-col lg:flex-row gap-4 min-h-0">
       <!-- LEFT: schedule grid -->
@@ -52,24 +32,46 @@
           No bookable venues linked to this activity yet — link one in the Activities page.
         </div>
         <template v-else>
-        <!-- Header: date nav. The venue picker is gone — the booker
+        <!-- Header row: back button + title/description on the left, date
+             nav on the right. The venue picker is gone — the booker
              columns below ARE the picker. Each column is whatever level
              the booker actually picks (a court, a field, a lane); slot
              resolution into halves/quarters happens at submit time. -->
-        <div class="flex flex-col sm:flex-row sm:items-center gap-3 mb-3 shrink-0">
+        <div class="flex items-center gap-3 mb-3 shrink-0">
+          <button v-if="showBackToPicker" type="button"
+            class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition-colors shrink-0"
+            aria-label="Back to picker"
+            @click="emit('back')">
+            <i class="pi pi-arrow-left text-sm" />
+          </button>
           <div class="flex-1 min-w-0">
-            <p class="text-xs text-gray-400">Click a slot to start a booking</p>
+            <h1 class="text-lg sm:text-xl font-bold text-gray-900 leading-tight tracking-tight truncate">
+              Book {{ activityName || 'a slot' }}
+            </h1>
+            <p class="text-xs text-gray-500 mt-0.5 truncate">
+              Click an empty slot on the schedule, pick a mode on the right, and confirm.
+            </p>
           </div>
-          <div class="flex items-center gap-1.5">
-            <button type="button" class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500"
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button type="button"
+              class="w-8 h-8 flex items-center justify-center rounded text-gray-500 transition-colors"
+              :class="canGoPrev ? 'hover:bg-gray-100' : 'opacity-30 cursor-not-allowed'"
+              :disabled="!canGoPrev"
               @click="navDay(-1)"><i class="pi pi-chevron-left text-xs" /></button>
-            <span class="text-sm font-medium text-gray-700 min-w-32 text-center">
+            <button type="button"
+              class="text-sm font-medium text-gray-700 min-w-32 text-center px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+              @click="datePopover.toggle($event)">
               {{ schedDate.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'long' }) }}
-            </span>
+            </button>
+            <Popover ref="datePopover">
+              <DatePicker :model-value="schedDate" inline :min-date="today"
+                :disabled-dates="disabledDates"
+                @update:model-value="onDatePicked" />
+            </Popover>
             <button type="button" class="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100 text-gray-500"
               @click="navDay(1)"><i class="pi pi-chevron-right text-xs" /></button>
             <button type="button" class="ml-2 px-2.5 py-1.5 text-xs font-semibold rounded border border-gray-200 hover:bg-gray-50 text-gray-700"
-              @click="schedDate = new Date()">Today</button>
+              @click="goToday">Today</button>
           </div>
         </div>
 
@@ -82,7 +84,9 @@
             :selected-slot-keys="selectedSlotKeys"
             @new-booking="onSlotClick"
             @add-slot="onAddSlot"
-            @booking-click="onExistingBookingClick" />
+            @booking-click="onExistingBookingClick"
+            @suggest-date="onSuggestDate"
+            @disabled-dates="disabledDates = $event" />
         </div>
 
         <!-- Sponsor strip (only shows when the active venue or its children
@@ -114,15 +118,17 @@
         </div>
 
         <div class="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-5 text-sm">
-          <!-- Empty state -->
-          <div v-if="!selectedSlots.length" class="py-10 text-center">
+
+          <!-- Empty state — only on the build step before any slots are picked -->
+          <div v-if="panelStep === 'build' && !selectedSlots.length" class="py-10 text-center">
             <div class="w-12 h-12 mx-auto rounded-full bg-gray-50 flex items-center justify-center">
               <i class="pi pi-calendar-plus text-gray-300 text-lg" />
             </div>
             <p class="text-xs text-gray-400 mt-3">Click an available slot on the left to start your booking.</p>
           </div>
 
-          <template v-else>
+          <!-- ── STEP: BUILD ── slots + mode + add-ons ── -->
+          <template v-else-if="panelStep === 'build'">
             <!-- Selected slots, removable -->
             <div class="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2.5 space-y-2">
               <div v-for="(s, i) in selectedSlots" :key="`${slotKey(s)}-${i}`"
@@ -148,7 +154,7 @@
                 <button v-for="m in modes" :key="m.id" type="button"
                   class="flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all text-left"
                   :class="pendingModeId === m.id
-                    ? 'border-[#1E2157] ring-1 ring-[#1E2157]/30 bg-white'
+                    ? 'border-primary ring-1 ring-primary/30 bg-white'
                     : 'border-gray-100 hover:border-gray-200 bg-white'"
                   @click="pendingModeId = m.id">
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="`background:${m.color || '#1E2157'}`" />
@@ -164,11 +170,11 @@
                 <button v-for="addon in modeAddons" :key="addon.id" type="button"
                   class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border-2 text-left transition-colors"
                   :class="isAddonSelected(addon.id)
-                    ? 'border-[#1E2157] bg-[#1E2157]/5'
+                    ? 'border-primary bg-primary/5'
                     : 'border-gray-100 hover:border-gray-200 bg-white'"
                   @click="toggleAddon(addon.id)">
                   <div class="w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors"
-                    :class="isAddonSelected(addon.id) ? 'bg-[#1E2157] border-[#1E2157]' : 'border-gray-300'">
+                    :class="isAddonSelected(addon.id) ? 'bg-primary border-primary' : 'border-gray-300'">
                     <i v-if="isAddonSelected(addon.id)" class="pi pi-check text-white text-[10px]" />
                   </div>
                   <div class="flex-1 min-w-0">
@@ -176,17 +182,39 @@
                     <p v-if="addon.description" class="text-xs text-gray-400 truncate">{{ addon.description }}</p>
                     <p v-else-if="addon.type === 'fee_per_person'" class="text-xs text-gray-400">${{ addonUnitAmount(addon).toFixed(2) }} per person</p>
                   </div>
-                  <span class="text-sm font-semibold text-[#1E2157] tabular-nums shrink-0">
+                  <span class="text-sm font-semibold text-primary tabular-nums shrink-0">
                     ${{ addonDisplayAmount(addon).toFixed(2) }}
                   </span>
                 </button>
               </div>
             </div>
+          </template>
 
-            <!-- Contact details -->
-            <div class="border-t border-gray-100 pt-4">
+          <!-- ── STEP: AUTH chooser ── 4 ways to identify yourself ── -->
+          <template v-else-if="panelStep === 'auth'">
+            <BookingAuthChooser ref="authChooserRef"
+              :org-id="orgId"
+              :staff="staff"
+              :app-deep-link="appDeepLink"
+              @back="panelStep = 'build'"
+              @select-guest="panelStep = 'guest'"
+              @signed-in="onAuthSignedIn" />
+          </template>
+
+          <!-- ── STEP: GUEST form (also shown after sign-in, prefilled) ── -->
+          <template v-else-if="panelStep === 'guest'">
+            <button type="button" class="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors"
+              @click="panelStep = 'auth'">
+              <i class="pi pi-arrow-left text-[10px]" /> Back
+            </button>
+            <div v-if="signedInEmail"
+              class="rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2 flex items-center gap-2">
+              <i class="pi pi-check-circle text-emerald-600 text-sm" />
+              <p class="text-xs text-emerald-700">Signed in as <span class="font-semibold">{{ signedInEmail }}</span></p>
+            </div>
+            <div>
               <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Contact details</p>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="flex flex-col gap-3">
                 <div>
                   <label class="text-xs font-semibold text-gray-600 mb-1 block">First Name <span class="text-red-400">*</span></label>
                   <input v-model="form.firstName" type="text" placeholder="John"
@@ -197,7 +225,7 @@
                   <input v-model="form.lastName" type="text" placeholder="Smith"
                     class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
                 </div>
-                <div class="sm:col-span-2">
+                <div>
                   <label class="text-xs font-semibold text-gray-600 mb-1 block">Email <span class="text-red-400">*</span></label>
                   <input v-model="form.email" type="email" placeholder="you@example.com"
                     class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
@@ -211,7 +239,7 @@
                   <label class="text-xs font-semibold text-gray-600 mb-1 block">People attending</label>
                   <InputNumber v-model="form.attendees" :min="1" class="w-full" />
                 </div>
-                <div class="sm:col-span-2">
+                <div>
                   <label class="text-xs font-semibold text-gray-600 mb-1 block">Notes</label>
                   <textarea v-model="form.notes" rows="2" placeholder="Anything we should know"
                     class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] resize-none" />
@@ -219,17 +247,31 @@
               </div>
             </div>
           </template>
+
+          <!-- (auth sub-steps — otp / password / app — now live inside
+               <BookingAuthChooser>; the auth template above is the only
+               entry point this state machine needs.) -->
         </div>
 
-        <!-- Sticky footer with confirm/clear -->
-        <div v-if="selectedSlots.length" class="px-4 py-3 border-t border-gray-100 shrink-0 flex items-center gap-2">
-          <button type="button" class="text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors"
-            @click="clearSelection">Clear</button>
-          <Button label="Confirm booking" icon="pi pi-check" class="ml-auto" size="small"
+        <!-- ── Sticky footer ── changes per step ── -->
+        <div v-if="showFooter" class="px-4 py-3 border-t border-gray-100 shrink-0 flex items-center gap-2">
+          <!-- BUILD step: Clear (left) + Continue (right) -->
+          <template v-if="panelStep === 'build'">
+            <button type="button" class="text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors"
+              @click="clearSelection">Clear</button>
+            <Button label="Continue" icon="pi pi-arrow-right" iconPos="right" class="ml-auto" size="small"
+              :disabled="!canContinueFromBuild"
+              @click="panelStep = 'auth'"
+              style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+          </template>
+
+          <!-- GUEST step: Confirm booking (right) -->
+          <Button v-else-if="panelStep === 'guest'"
+            label="Confirm booking" icon="pi pi-check" class="ml-auto" size="small"
             :loading="submitting"
             :disabled="!canSubmitDialog"
             @click="submitFromDialog"
-            style="background:#1E2157; border-color:#1E2157" />
+            style="background:var(--brand-primary); border-color:var(--brand-primary)" />
         </div>
       </aside>
       </div>
@@ -291,6 +333,11 @@ interface VenueOpt {
    *  booker doesn't see the children as separate columns. */
   auto_resolve_children?: boolean
   children?: any[]
+  /** Linked-sibling pointer. Children that share a master display the
+   *  master's availability rules (avoids re-keying the same hours per
+   *  sibling). SubVenueScheduler reads this when resolving rules. */
+  master_id?: string | null
+  is_master?: boolean
 }
 
 const allBookables = ref<any[]>([])
@@ -356,6 +403,8 @@ async function load() {
       sponsor_image: b.sponsor_image ?? null,
       auto_resolve_children: !!b.auto_resolve_children,
       children,
+      master_id: b.master_id ?? null,
+      is_master: !!b.is_master,
     })
   }
   venueOptions.value = opts
@@ -561,7 +610,7 @@ const bookerColumns = computed<VenueOpt[]>(() => {
     }
     // Look up children with their full record (auto_resolve_children flag
     // lives on the raw bookable, not on the synthesised VenueOpt).
-    for (const child of b.children as { id: string; name: string; parent_id: string | null; type: string; auto_resolve_children?: boolean }[]) {
+    for (const child of b.children as any[]) {
       const grandChildren = allBookables.value.filter(x => x.parent_id === child.id)
       const synth: VenueOpt = {
         id: child.id,
@@ -569,6 +618,8 @@ const bookerColumns = computed<VenueOpt[]>(() => {
         parent_id: child.parent_id,
         type: child.type,
         auto_resolve_children: !!child.auto_resolve_children,
+        master_id: child.master_id ?? null,
+        is_master: !!child.is_master,
         children: grandChildren,
       }
       expand(synth)
@@ -714,9 +765,52 @@ function registerVenueGroupsWatcher() {
 
 // ── Step 2 scheduler state ─────────────────────────────────────────────────
 const schedDate = ref(new Date())
+const datePopover = ref()
+// Dates within the lookahead window with no applicable slots — passed to
+// the inline DatePicker's `disabled-dates` so users can't pick days the
+// courts are closed. Populated by SubVenueScheduler after rules load.
+const disabledDates = ref<Date[]>([])
+// Tracks whether the user has manually changed the date — once true, we
+// stop applying the auto-seek hint from SubVenueScheduler so a one-time
+// suggestion can't yank the user away from the day they're looking at.
+const userTouchedDate = ref(false)
+// Today at midnight — used as the lower bound for both the prev-day button
+// and the inline DatePicker. Past dates are never bookable through this
+// view, so navigation is clamped at today.
+const today = computed(() => {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d
+})
+const canGoPrev = computed(() => {
+  const cur = new Date(schedDate.value); cur.setHours(0, 0, 0, 0)
+  return cur > today.value
+})
 function navDay(delta: number) {
+  if (delta < 0 && !canGoPrev.value) return
+  userTouchedDate.value = true
   const d = new Date(schedDate.value)
   d.setDate(d.getDate() + delta)
+  // Belt-and-braces clamp in case the day ticked over between checks.
+  if (d < today.value) { schedDate.value = new Date(today.value); return }
+  schedDate.value = d
+}
+function goToday() {
+  userTouchedDate.value = true
+  schedDate.value = new Date()
+}
+function onDatePicked(d: Date | null) {
+  if (!d) return
+  if (d < today.value) d = new Date(today.value)
+  userTouchedDate.value = true
+  schedDate.value = d
+  datePopover.value?.hide()
+}
+// SubVenueScheduler emits this once after rules first load, when today has
+// no applicable slots and a future day (within 14) does. Apply only on the
+// initial render — explicit user navigation wins.
+function onSuggestDate(d: Date) {
+  if (userTouchedDate.value) return
   schedDate.value = d
 }
 
@@ -836,6 +930,69 @@ const selectedAddonIds = ref<Set<string>>(new Set())
 // When the user switches mode mid-dialog, drop any addon selections that
 // don't belong to the new mode (otherwise they'd silently submit).
 watch(pendingModeId, () => { selectedAddonIds.value = new Set() })
+
+// ── Right-panel sub-steps ──────────────────────────────────────────────────
+// The right pane progresses through:
+//   build      — pick slots, mode, add-ons (existing)
+//   auth       — chooser: guest / app / one-time code / password
+//   guest      — contact form (also used after sign-in, prefilled)
+//   otp-email  — enter email to receive a one-time code
+//   otp-code   — enter the 6-digit code
+//   password   — email + password sign-in
+//   app        — QR code + deep-link to mobile app
+type PanelStep = 'build' | 'auth' | 'guest' | 'otp-email' | 'otp-code' | 'password' | 'app'
+const panelStep = ref<PanelStep>('build')
+
+// Reset to 'build' whenever the user clears the slot list — the rest of
+// the flow only makes sense once at least one slot is picked.
+watch(selectedSlots, (slots) => {
+  if (!slots.length) panelStep.value = 'build'
+}, { deep: true })
+
+// Auth chooser owns all of the OTP/password/app sub-steps internally;
+// this component just feeds it the deep-link URL and listens for the
+// signed-in / select-guest events.
+const signedInEmail = ref<string | null>(null)
+// Who the booking is FOR — set from the auth chooser's "who is this for?"
+// picker (a parent booking for their child / a circle co-member). Null = self/guest.
+const subjectPersonId = ref<string | null>(null)
+const appDeepLink = computed(() => {
+  const s = selectedSlots.value[0]
+  if (!s) return ''
+  const params = new URLSearchParams({
+    org: typeof orgId.value === 'string' ? orgId.value : '',
+    activity: props.activityId,
+    bookable: s.bookableId,
+    start: s.start.toISOString(),
+    end: s.end.toISOString(),
+  })
+  if (pendingModeId.value) params.set('mode', pendingModeId.value)
+  return `friendlymanager://book?${params.toString()}`
+})
+
+// Holds the BookingAuthChooser instance so we can call its imperative
+// reset() handle when the user clears their selection and lands back on
+// the build step (otherwise stale OTP / password input lingers).
+const authChooserRef = ref<{ reset: () => void } | null>(null)
+
+function onAuthSignedIn(payload: { email: string; firstName: string; lastName: string; phone: string | null; subjectPersonId?: string | null }) {
+  signedInEmail.value = payload.email || null
+  subjectPersonId.value = payload.subjectPersonId ?? null
+  if (payload.email && !form.email) form.email = payload.email
+  if (payload.firstName && !form.firstName) form.firstName = payload.firstName
+  if (payload.lastName && !form.lastName) form.lastName = payload.lastName
+  if (payload.phone && !form.phone) form.phone = payload.phone
+  panelStep.value = 'guest'
+}
+
+// Footer Continue button enables once the build step has the minimum picked.
+const canContinueFromBuild = computed(() => {
+  if (!selectedSlots.value.length) return false
+  if (modes.value.length > 0 && !pendingModeId.value) return false
+  return true
+})
+
+const showFooter = computed(() => panelStep.value === 'build' || panelStep.value === 'guest')
 
 const modeAddons = computed<any[]>(() =>
   Array.isArray(selectedMode.value?.addons) ? selectedMode.value!.addons : [],
@@ -1015,6 +1172,7 @@ async function submit() {
         attendee_count: attendeeCount,
         notes: notesValue,
         selected_addons: addons,
+        subject_person_id: subjectPersonId.value,
         is_all_day: false,
       })
 
@@ -1061,6 +1219,9 @@ async function submit() {
       // contact data so a single notification per slot booking is right.
       for (const id of primaryIds) {
         $fetch('/api/send-customer-booking-email', { method: 'POST', body: { bookingId: id, event: 'created' } }).catch(() => {})
+        if (!isPending) {
+          $fetch('/api/finalize-access', { method: 'POST', body: { bookingId: id } }).catch(() => {})
+        }
       }
     } else {
       // Public: one /api/public-booking call per slot — anon RLS path.
@@ -1081,6 +1242,7 @@ async function submit() {
               notes: notesValue,
               attendeeCount,
               selectedAddons: addons,
+              subjectPersonId: subjectPersonId.value,
             },
           },
         )
@@ -1105,6 +1267,9 @@ function resetAll() {
   bookedStatus.value = null
   form.firstName = ''; form.lastName = ''; form.email = ''
   form.phone = ''; form.attendees = 1; form.notes = ''
+  panelStep.value = 'build'
+  signedInEmail.value = null
+  authChooserRef.value?.reset()
 }
 
 // Initial load + venueGroups watcher both run here, after every ref above

@@ -10,8 +10,11 @@ export interface FieldDef {
   is_required: boolean
   options: string[]
   help_text: string | null
+  key: string | null
+  meta: Record<string, any>
   sort_order: number
   target: string
+  targets?: string[]
   rules: any[]
   inherited: boolean
   ownerName: string
@@ -27,13 +30,19 @@ export function useOrgFieldPolicy() {
     const anc = await ancestors(orgId)
     const ids = [orgId, ...anc.map(a => a.id)]
     const { data } = await (db.from as any)('field_definitions')
-      .select('id, org_id, label, field_type, is_required, options, help_text, sort_order, target, rules, organisations(name, org_level)')
+      .select('id, org_id, label, field_type, is_required, options, help_text, key, meta, sort_order, target, targets, rules, organisations(name, org_level)')
       .in('org_id', ids)
       .order('sort_order')
+    const parseArr = (v: any) => {
+      if (Array.isArray(v)) return v
+      if (!v) return []
+      try { const p = JSON.parse(v); return Array.isArray(p) ? p : [] } catch { return [] }
+    }
     return (data ?? []).map((f: any) => ({
       ...f,
-      options: Array.isArray(f.options) ? f.options : (f.options ? JSON.parse(f.options) : []),
-      rules: Array.isArray(f.rules) ? f.rules : (f.rules ? JSON.parse(f.rules) : []),
+      options: parseArr(f.options),
+      rules: parseArr(f.rules),
+      meta: f.meta && typeof f.meta === 'object' ? f.meta : {},
       inherited: f.org_id !== orgId,
       ownerName: f.organisations?.name ?? '',
       ownerLevel: f.organisations?.org_level ?? '',
@@ -45,15 +54,36 @@ export function useOrgFieldPolicy() {
     const anc = await ancestors(orgId)
     const ids = [orgId, ...anc.map(a => a.id)]
     const { data } = await (db.from as any)('person_target_types')
-      .select('id, org_id, key, label, min_count, max_count, sort_order, organisations(name)')
+      .select('id, org_id, key, label, kind, min_count, max_count, sort_order, is_access, organisations(name)')
       .in('org_id', ids)
       .order('sort_order')
     return (data ?? []).map((t: any) => ({
       ...t,
+      kind: t.kind ?? 'person',
+      is_access: !!t.is_access,
       inherited: t.org_id !== orgId,
       ownerName: t.organisations?.name ?? '',
     }))
   }
 
-  return { resolveFields, resolvePersonTypes }
+  /** A club's OWN person/entity types only (no inheritance) — the single source
+   *  the /proto/* prototype uses, so there's no duplicate/two-concept confusion. */
+  async function loadOrgTypes(orgId: string) {
+    const { data } = await (db.from as any)('person_target_types')
+      .select('id, org_id, key, label, kind, is_access, permissions, member_slots, sort_order')
+      .eq('org_id', orgId).order('sort_order')
+    return (data ?? []).map((t: any) => ({
+      ...t, kind: t.kind ?? 'person', is_access: !!t.is_access, inherited: false, ownerName: '',
+    }))
+  }
+
+  /** Does a field definition apply to the given person-type key?
+   *  Uses targets[] (multi-type); falls back to the legacy single `target`. */
+  function fieldAppliesTo(f: any, key: string): boolean {
+    const lc = (s: string) => (s || '').toLowerCase()
+    const list = (Array.isArray(f.targets) && f.targets.length ? f.targets : [f.target || 'member']).map(lc)
+    return list.includes(lc(key))
+  }
+
+  return { resolveFields, resolvePersonTypes, loadOrgTypes, fieldAppliesTo }
 }

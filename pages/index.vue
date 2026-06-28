@@ -1,4 +1,4 @@
 <template><div /></template>
 <script setup lang="ts">
-navigateTo('/events')
+navigateTo('/dashboard')
 </script>

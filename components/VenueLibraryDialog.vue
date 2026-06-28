@@ -18,11 +18,11 @@
           <button v-for="t in LIBRARY" :key="t.type" type="button"
             class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-colors"
             :class="selectedType === t.type
-              ? 'bg-white text-[#1E2157] ring-1 ring-[#1E2157]/15 shadow-sm'
+              ? 'bg-white text-primary ring-1 ring-primary/15 shadow-sm'
               : 'text-gray-700 hover:bg-white/70'"
             @click="selectType(t.type)">
             <span class="w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0 transition-colors"
-              :class="selectedType === t.type ? 'bg-[#1E2157]/8' : 'bg-white ring-1 ring-gray-100'">
+              :class="selectedType === t.type ? 'bg-primary/8' : 'bg-white ring-1 ring-gray-100'">
               <span>{{ t.icon }}</span>
             </span>
             <span class="text-sm font-medium tracking-tight">{{ t.name }}</span>
@@ -32,11 +32,11 @@
           <button type="button"
             class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-colors"
             :class="selectedType === 'custom'
-              ? 'bg-white text-[#1E2157] ring-1 ring-[#1E2157]/15 shadow-sm'
+              ? 'bg-white text-primary ring-1 ring-primary/15 shadow-sm'
               : 'text-gray-700 hover:bg-white/70'"
             @click="selectType('custom')">
             <span class="w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0 transition-colors"
-              :class="selectedType === 'custom' ? 'bg-[#1E2157]/8' : 'bg-white ring-1 ring-gray-100'">✏️</span>
+              :class="selectedType === 'custom' ? 'bg-primary/8' : 'bg-white ring-1 ring-gray-100'">✏️</span>
             <span class="text-sm font-medium tracking-tight">Custom</span>
           </button>
         </div>
@@ -47,7 +47,7 @@
         <!-- Hero header -->
         <header class="px-7 pt-7 pb-4 border-b border-gray-100 flex items-start justify-between gap-4">
           <div class="min-w-0">
-            <p class="text-[11px] font-semibold text-[#1E2157] uppercase tracking-[0.18em]">
+            <p class="text-[11px] font-semibold text-primary uppercase tracking-[0.18em]">
               {{ selectedType === 'custom' ? 'Custom' : 'Template' }}
             </p>
             <h2 class="text-xl font-bold text-gray-900 mt-1 tracking-tight">{{ selectedTypeData?.name ?? 'Pick a venue type' }}</h2>
@@ -75,20 +75,20 @@
 
           <template v-else-if="selectedTypeData">
             <!-- Mode tabs (underline style — cleaner than pills) -->
-            <div class="flex items-center gap-6 border-b border-gray-100 -mx-7 px-7 mb-6">
+            <div class="flex items-center gap-6 border-b border-gray-100 px-3 sm:px-7 overflow-x-auto no-scrollbar mb-6">
               <button type="button"
                 class="relative py-2 text-sm font-semibold transition-colors"
-                :class="mode === 'siblings' ? 'text-[#1E2157]' : 'text-gray-400 hover:text-gray-700'"
+                :class="mode === 'siblings' ? 'text-primary' : 'text-gray-400 hover:text-gray-700'"
                 @click="mode = 'siblings'">
                 Multiple {{ baseName.toLowerCase() }}s
-                <span v-if="mode === 'siblings'" class="absolute left-0 right-0 -bottom-px h-0.5 bg-[#1E2157] rounded-full" />
+                <span v-if="mode === 'siblings'" class="absolute left-0 right-0 -bottom-px h-0.5 bg-primary rounded-full" />
               </button>
               <button type="button"
                 class="relative py-2 text-sm font-semibold transition-colors"
-                :class="mode === 'configurations' ? 'text-[#1E2157]' : 'text-gray-400 hover:text-gray-700'"
+                :class="mode === 'configurations' ? 'text-primary' : 'text-gray-400 hover:text-gray-700'"
                 @click="mode = 'configurations'">
                 Configurations
-                <span v-if="mode === 'configurations'" class="absolute left-0 right-0 -bottom-px h-0.5 bg-[#1E2157] rounded-full" />
+                <span v-if="mode === 'configurations'" class="absolute left-0 right-0 -bottom-px h-0.5 bg-primary rounded-full" />
               </button>
             </div>
 
@@ -111,7 +111,7 @@
                     <span class="text-gray-300 font-normal">— suffixed 1, 2, 3 …</span>
                   </label>
                   <input v-model="baseName" type="text"
-                    class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#1E2157] focus:ring-2 focus:ring-[#1E2157]/15 transition-shadow" />
+                    class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-shadow" />
                 </div>
               </div>
 
@@ -150,11 +150,11 @@
                 <button v-for="d in selectedTypeData.divisions" :key="d.key" type="button"
                   class="group relative flex flex-col items-stretch gap-2 rounded-xl border bg-white p-3 text-left transition-all"
                   :class="isLayoutPicked(d.key)
-                    ? 'border-[#1E2157] ring-2 ring-[#1E2157]/15 shadow-sm'
+                    ? 'border-primary ring-2 ring-primary/15 shadow-sm'
                     : 'border-gray-100 hover:border-gray-200 hover:shadow-sm'"
                   @click="toggleLayout(d.key)">
                   <span class="absolute top-2.5 right-2.5 w-5 h-5 rounded-md flex items-center justify-center transition-colors"
-                    :class="isLayoutPicked(d.key) ? 'bg-[#1E2157] text-white' : 'bg-white ring-1 ring-gray-200 text-transparent'">
+                    :class="isLayoutPicked(d.key) ? 'bg-primary text-white' : 'bg-white ring-1 ring-gray-200 text-transparent'">
                     <i class="pi pi-check text-[9px]" />
                   </span>
                   <DivisionDiagram :sections="d.sections" :regions="d.regions"
@@ -189,7 +189,7 @@
             class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-sm transition-all"
             :class="applyDisabled
               ? 'bg-gray-300 cursor-not-allowed'
-              : 'bg-[#1E2157] hover:bg-[#161A45] hover:shadow-md'"
+              : 'bg-primary hover:bg-[#161A45] hover:shadow-md'"
             :disabled="applyDisabled"
             @click="apply">
             <span>{{ footerButtonLabel }}</span>

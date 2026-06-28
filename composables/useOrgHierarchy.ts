@@ -6,12 +6,20 @@ export interface OrgNode {
   id: string
   name: string
   type?: string | null
-  org_level: 'CLUB' | 'REGIONAL' | 'ASSOCIATION' | 'NATIONAL'
+  org_level: 'CLUB' | 'REGIONAL' | 'ASSOCIATION' | 'NATIONAL' | 'RST'
   parent_id: string | null
   depth?: number
 }
 
 export const ORG_LEVELS = ['CLUB', 'REGIONAL', 'ASSOCIATION', 'NATIONAL'] as const
+// All selectable org types, including RST (a partner org — see isGoverningBody).
+export const ORG_TYPE_OPTIONS = [...ORG_LEVELS, 'RST'] as const
+
+// Governing bodies sit in the club → national chain. RST and CLUB do not, so
+// they're excluded from affiliation / discipline "governing body" lists.
+export function isGoverningBody(level: string | null | undefined): boolean {
+  return level === 'REGIONAL' || level === 'ASSOCIATION' || level === 'NATIONAL'
+}
 
 export function orgLevelRank(level: string | null | undefined): number {
   const i = (ORG_LEVELS as readonly string[]).indexOf(level ?? 'CLUB')
@@ -23,6 +31,7 @@ export function orgLevelLabel(level: string | null | undefined): string {
     case 'NATIONAL': return 'National'
     case 'ASSOCIATION': return 'Association'
     case 'REGIONAL': return 'Regional'
+    case 'RST': return 'RST'
     default: return 'Club'
   }
 }

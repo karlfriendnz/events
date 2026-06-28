@@ -54,31 +54,8 @@
           </div>
           <button type="button" class="px-3 py-1.5 bg-[#1ab4e8] hover:bg-[#16a0d0] text-white text-xs font-semibold rounded-lg transition-colors" @click="markSaved('people')">Save</button>
         </div>
-        <div class="px-4 py-4 space-y-3 overflow-y-auto flex-1">
-          <div v-if="!profiles.length" class="text-sm text-gray-400 italic py-2 text-center">No people added yet — add who this form registers.</div>
-          <div v-for="(p, i) in profiles" :key="p.key" class="border border-gray-200 rounded-xl p-3 bg-gray-50/40">
-            <div class="flex items-center gap-2 mb-2">
-              <i class="pi pi-user text-gray-400 text-sm" />
-              <span class="flex-1 font-semibold text-sm text-gray-800">{{ p.label }}</span>
-              <button type="button" class="w-7 h-7 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors" @click="removeProfile(i)">
-                <i class="pi pi-trash text-xs" />
-              </button>
-            </div>
-            <div class="flex items-center gap-2 text-xs text-gray-600">
-              <span>How many?</span>
-              <span class="text-gray-400">min</span><InputNumber v-model="p.min" :min="0" class="w-16" />
-              <span class="text-gray-400">max</span><InputNumber v-model="p.max" :min="0" placeholder="∞" class="w-16" />
-            </div>
-          </div>
-          <div v-if="unusedPersonTypes.length" class="pt-1">
-            <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Add a person</p>
-            <div class="flex flex-wrap gap-1.5">
-              <button v-for="t in unusedPersonTypes" :key="t.key" type="button"
-                class="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:border-[#1E2157] hover:bg-blue-50/40 transition-all"
-                @click="addProfile(t.key)">+ {{ t.label }}</button>
-            </div>
-          </div>
-          <p v-else-if="!availablePersonTypes.length" class="text-xs text-gray-400">No person types defined yet — create them in Fields → Person Types.</p>
+        <div class="px-4 py-4 overflow-y-auto flex-1">
+          <FormProfilesEditor :modelValue="form.profiles || []" @update:modelValue="v => form.profiles = v" />
         </div>
       </template>
 
@@ -138,14 +115,14 @@
           <div class="flex border-b border-gray-100 shrink-0">
             <button type="button"
               class="flex-1 py-2.5 text-xs font-semibold transition-colors border-b-2"
-              :class="fieldEditorTab === 'details' ? 'text-[#1E2157] border-[#1E2157]' : 'text-gray-400 hover:text-gray-600 border-transparent'"
+              :class="fieldEditorTab === 'details' ? 'text-primary border-primary' : 'text-gray-400 hover:text-gray-600 border-transparent'"
               @click="fieldEditorTab = 'details'">Details</button>
             <button type="button"
               class="flex-1 py-2.5 text-xs font-semibold transition-colors border-b-2"
-              :class="fieldEditorTab === 'advanced' ? 'text-[#1E2157] border-[#1E2157]' : 'text-gray-400 hover:text-gray-600 border-transparent'"
+              :class="fieldEditorTab === 'advanced' ? 'text-primary border-primary' : 'text-gray-400 hover:text-gray-600 border-transparent'"
               @click="fieldEditorTab = 'advanced'">
               Advanced
-              <span v-if="advancedCount(editingField) > 0" class="ml-1 text-[9px] bg-[#1E2157]/10 text-[#1E2157] rounded-full px-1.5 py-0.5">{{ advancedCount(editingField) }}</span>
+              <span v-if="advancedCount(editingField) > 0" class="ml-1 text-[9px] bg-primary/10 text-primary rounded-full px-1.5 py-0.5">{{ advancedCount(editingField) }}</span>
             </button>
           </div>
 
@@ -168,11 +145,11 @@
               <div class="flex rounded-lg overflow-hidden border border-gray-200 text-xs font-semibold">
                 <button type="button"
                   class="flex-1 py-2 transition-colors border-r border-gray-200"
-                  :class="editingField.col_span === 1 ? 'bg-[#1E2157] text-white' : 'text-gray-600 hover:bg-gray-50'"
+                  :class="editingField.col_span === 1 ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-50'"
                   @click="editingField.col_span = 1">Half</button>
                 <button type="button"
                   class="flex-1 py-2 transition-colors"
-                  :class="editingField.col_span === 2 ? 'bg-[#1E2157] text-white' : 'text-gray-600 hover:bg-gray-50'"
+                  :class="editingField.col_span === 2 ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-50'"
                   @click="editingField.col_span = 2">Full</button>
               </div>
             </div>
@@ -182,16 +159,16 @@
                 <button v-for="ft in fieldTypes" :key="ft.value" type="button"
                   class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border transition-all"
                   :class="editingField.field_type === ft.value
-                    ? 'border-[#1E2157] bg-[#1E2157]/5 ring-1 ring-[#1E2157]/30'
+                    ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
                     : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'"
                   @click="editingField.field_type = ft.value">
                   <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-                    :class="editingField.field_type === ft.value ? 'bg-[#1E2157]/10' : 'bg-gray-50'">
+                    :class="editingField.field_type === ft.value ? 'bg-primary/10' : 'bg-gray-50'">
                     <i :class="`pi ${ft.icon} text-xs`"
-                      :style="editingField.field_type === ft.value ? 'color:#1E2157' : 'color:#6b7280'" />
+                      :style="editingField.field_type === ft.value ? 'color:var(--brand-primary)' : 'color:#6b7280'" />
                   </div>
                   <span class="text-xs font-semibold flex-1 text-left"
-                    :class="editingField.field_type === ft.value ? 'text-[#1E2157]' : 'text-gray-700'">{{ ft.label }}</span>
+                    :class="editingField.field_type === ft.value ? 'text-primary' : 'text-gray-700'">{{ ft.label }}</span>
                 </button>
               </div>
             </div>
@@ -304,7 +281,7 @@
                 <button v-for="ft in fieldTypes" :key="ft.value" type="button"
                   class="px-3 py-2 rounded-lg border text-xs font-semibold transition-colors"
                   :class="newField.type === ft.value
-                    ? 'bg-[#1E2157] border-[#1E2157] text-white'
+                    ? 'bg-primary border-primary text-white'
                     : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'"
                   @click="newField.type = ft.value">{{ ft.label }}</button>
               </div>
@@ -351,7 +328,7 @@
               <span class="text-xs font-medium text-gray-600">Required to submit</span>
             </label>
           </div>
-          <button type="button" class="w-full py-2.5 rounded-xl bg-[#1E2157] hover:bg-[#161a45] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+          <button type="button" class="w-full py-2.5 rounded-xl bg-primary hover:bg-[#161a45] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
             @click="form.terms.push({ _key: freshKey(), label: '', agreeText: '', required: false })">
             <i class="pi pi-plus text-xs" />Add Term
           </button>
@@ -430,7 +407,7 @@
             <h3 class="text-base font-bold text-gray-800 mb-3">Terms &amp; Conditions</h3>
             <div class="space-y-2">
               <label v-for="t in form.terms" :key="t._key" class="flex items-start gap-3 px-4 py-3 rounded-xl border border-gray-200 bg-white">
-                <input type="checkbox" class="mt-1 w-4 h-4 rounded border-gray-300 accent-[#1E2157] pointer-events-none" />
+                <input type="checkbox" class="mt-1 w-4 h-4 rounded border-gray-300 accent-primary pointer-events-none" />
                 <div class="flex-1">
                   <p class="text-sm font-semibold text-gray-800">{{ t.label || 'Untitled term' }}<span v-if="t.required" class="text-red-400 ml-1">*</span></p>
                   <p v-if="t.agreeText" class="text-xs text-gray-500 mt-1 leading-relaxed">{{ t.agreeText }}</p>
@@ -442,7 +419,7 @@
           <!-- Submit footer -->
           <div class="px-6 py-5 border-t border-gray-100 flex items-center justify-end">
             <button type="button" class="px-5 py-2.5 rounded-xl text-white text-sm font-semibold shadow-sm pointer-events-none"
-              style="background:#1E2157">{{ form.settings.submitLabel || 'Submit' }}</button>
+              style="background:var(--brand-primary)">{{ form.settings.submitLabel || 'Submit' }}</button>
           </div>
         </div>
       </div>
@@ -535,22 +512,9 @@ const hasContextIcons = computed(() => {
 // ── Section nav state ───────────────────────────────────────
 const selectedSection = ref<'' | 'people' | 'settings' | 'fields' | 'terms'>('')
 
-// Person types (who can be registered) — own + inherited from governing bodies.
-const _fbOrg2 = useOrg()
-const { resolvePersonTypes: _fbResolvePersonTypes } = useOrgFieldPolicy()
-const availablePersonTypes = ref<{ key: string; label: string; min_count: number; max_count: number | null }[]>([])
-watch(() => _fbOrg2.orgId.value, async (id) => {
-  availablePersonTypes.value = id ? await _fbResolvePersonTypes(id) : []
-}, { immediate: true })
-const profiles = computed(() => form.value.profiles ?? [])
-function addProfile(key: string) {
-  const t = availablePersonTypes.value.find(x => x.key === key)
-  if (!t || profiles.value.some(p => p.key === key)) return
-  if (!form.value.profiles) form.value.profiles = []
-  form.value.profiles.push({ key: t.key, label: t.label, min: t.min_count ?? 1, max: t.max_count })
-}
-function removeProfile(i: number) { form.value.profiles?.splice(i, 1) }
-const unusedPersonTypes = computed(() => availablePersonTypes.value.filter(t => !profiles.value.some(p => p.key === t.key)))
+// "Who is registering" (profiles) is edited by the reusable <FormProfilesEditor>;
+// presets + resolution live in useFormProfilePresets so every form surface shares
+// one implementation. FormBuilder just owns the form.profiles data binding.
 const fieldsTab = ref<'existing' | 'new'>('existing')
 const editingFieldKey = ref<string | null>(null)
 const fieldEditorTab = ref<'details' | 'advanced'>('details')

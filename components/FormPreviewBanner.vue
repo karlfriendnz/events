@@ -8,11 +8,11 @@
       <img v-else :src="design.headerImage" class="absolute inset-0 w-full h-full object-cover" />
     </template>
     <template v-else>
-      <div class="absolute inset-0 bg-gradient-to-br from-[#1E2157] to-[#2e38a8]" />
+      <div class="absolute inset-0 bg-gradient-to-br from-primary to-[#2e38a8]" />
       <img v-if="event?.banner_url" :src="event.banner_url" class="absolute inset-0 w-full h-full object-cover" />
     </template>
     <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-    <div class="absolute bottom-5 left-6 right-6">
+    <div class="absolute bottom-5 left-4 right-4 sm:left-6 sm:right-6">
       <p class="text-white text-sm font-bold drop-shadow">{{ event?.title || 'Event Title' }}</p>
     </div>
   </div>

@@ -37,3 +37,7 @@ supabase/.temp/
 # Playwright test artifacts
 test-results/
 /snap.yml
+
+# Legacy reference app (28MB of ported-from source) + claude-flow tooling state
+old/
+.claude-flow/

@@ -1,19 +1,19 @@
 <template>
   <div class="space-y-4">
     <!-- Tabs + new button -->
-    <div class="flex items-center gap-6">
-      <div class="flex gap-0 border-b border-gray-200 flex-1">
+    <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+      <div class="flex gap-0 border-b border-gray-200 flex-1 overflow-x-auto no-scrollbar">
         <button v-for="tab in visibleTabs" :key="tab.value"
           class="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px"
           :class="activeTab === tab.value
-            ? 'border-[#1E2157] text-[#1E2157]'
+            ? 'border-primary text-primary'
             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
           @click="activeTab = tab.value as any">
           <i :class="`pi ${tab.icon} text-xs`" />
           {{ tab.label }}
           <span class="text-xs rounded-full px-1.5 py-0.5"
             :class="activeTab === tab.value
-              ? (tab.value === 'ARCHIVED' ? 'bg-amber-100 text-amber-700' : 'bg-[#EFF6FF] text-[#1E2157]')
+              ? (tab.value === 'ARCHIVED' ? 'bg-amber-100 text-amber-700' : 'bg-[#EFF6FF] text-primary')
               : 'bg-gray-100 text-gray-500'">
             {{ tab.value === 'ARCHIVED' ? archivedCount : (countByType[tab.value] ?? 0) }}
           </span>
@@ -22,17 +22,21 @@
       <div v-if="activeTab !== 'ARCHIVED'" class="flex items-center gap-2 shrink-0">
         <Button v-if="activeTab === 'VENUE'" label="Set up a sport" icon="pi pi-bolt" size="small"
           severity="secondary" outlined @click="setupWizardOpen = true" />
+        <Button v-if="activeTab === 'ITEM'" label="Set up an item" icon="pi pi-bolt" size="small"
+          severity="secondary" outlined @click="itemWizardOpen = true" />
+        <Button v-if="activeTab === 'PERSON'" label="Set up a coach" icon="pi pi-bolt" size="small"
+          severity="secondary" outlined @click="coachWizardOpen = true" />
         <Button :label="newLabel" icon="pi pi-plus" size="small"
-          @click="openCreate" style="background:#1E2157; border-color:#1E2157" />
+          @click="openCreate" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
       </div>
     </div>
 
     <ArchivedBookablesList v-if="activeTab === 'ARCHIVED'" @changed="loadArchivedCount" />
 
     <!-- Single toolbar row: availability · view toggle · search -->
-    <div v-if="activeTab !== 'ARCHIVED'" class="flex items-center gap-2">
+    <div v-if="activeTab !== 'ARCHIVED'" class="flex items-center gap-2 flex-wrap">
       <!-- Availability -->
-      <i class="pi pi-calendar text-sm shrink-0" :class="availFilterActive ? 'text-[#1E2157]' : 'text-gray-400'" />
+      <i class="pi pi-calendar text-sm shrink-0" :class="availFilterActive ? 'text-primary' : 'text-gray-400'" />
       <DatePicker v-model="availDate" placeholder="Availability date" date-format="D d M yy"
         size="small" show-button-bar class="w-40" />
       <Select v-model="availStart" :options="timeSlots" option-label="label" option-value="value"
@@ -56,12 +60,12 @@
         </IconField>
         <div class="flex rounded-lg border border-gray-200 overflow-hidden">
           <button class="px-2.5 py-1.5 transition-colors"
-            :class="viewMode === 'list' ? 'bg-[#1E2157] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'"
+            :class="viewMode === 'list' ? 'bg-primary text-white' : 'bg-white text-gray-500 hover:bg-gray-50'"
             @click="viewMode = 'list'" title="List view">
             <i class="pi pi-list text-sm" />
           </button>
           <button class="px-2.5 py-1.5 border-l border-gray-200 transition-colors"
-            :class="viewMode === 'grid' ? 'bg-[#1E2157] text-white' : 'bg-white text-gray-500 hover:bg-gray-50'"
+            :class="viewMode === 'grid' ? 'bg-primary text-white' : 'bg-white text-gray-500 hover:bg-gray-50'"
             @click="viewMode = 'grid'" title="Grid view">
             <i class="pi pi-th-large text-sm" />
           </button>
@@ -77,9 +81,9 @@
           <i class="pi pi-spin pi-spinner text-2xl text-gray-400" />
         </div>
         <div v-else-if="!flatVenueList.length"
-          class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-[#1E2157]/20">
+          class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-primary/20">
           <div class="w-16 h-16 mx-auto rounded-full bg-[#EFF6FF] flex items-center justify-center mb-4">
-            <i class="pi pi-building text-2xl text-[#1E2157]" />
+            <i class="pi pi-building text-2xl text-primary" />
           </div>
           <h3 class="text-base font-semibold text-gray-900 mb-1">Create your first venue</h3>
           <p class="text-sm text-gray-500 mb-5 max-w-sm mx-auto">
@@ -89,7 +93,7 @@
             <Button label="Set up a sport" icon="pi pi-bolt" severity="secondary" outlined
               @click="setupWizardOpen = true" />
             <Button label="New Venue" icon="pi pi-plus"
-              style="background:#1E2157; border-color:#1E2157" @click="openCreate" />
+              style="background:var(--brand-primary); border-color:var(--brand-primary)" @click="openCreate" />
           </div>
         </div>
         <div v-else class="space-y-3">
@@ -113,7 +117,7 @@
             <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
               :class="depth === 0 ? 'bg-[#EFF6FF]' : 'bg-gray-100'">
               <i class="pi text-sm"
-                :class="depth === 0 ? 'pi-building text-[#1E2157]' : 'pi-map-marker text-gray-500'" />
+                :class="depth === 0 ? 'pi-building text-primary' : 'pi-map-marker text-gray-500'" />
             </div>
             <!-- Name + meta -->
             <div class="flex-1 min-w-0 cursor-pointer" @click="navigateTo('/bookables/' + item.id)">
@@ -150,7 +154,7 @@
               <Button v-if="bookedIds.has(item.id)" label="Fully booked" icon="pi pi-lock" size="small"
                 severity="secondary" outlined disabled />
               <Button v-else label="Book" icon="pi pi-calendar-plus" size="small"
-                style="background:#1E2157;border-color:#1E2157"
+                style="background:var(--brand-primary);border-color:var(--brand-primary)"
                 @click.stop="navigateTo(bookUrl(item.id))" />
             </div>
           </div>
@@ -164,9 +168,9 @@
           <i class="pi pi-spin pi-spinner text-2xl text-gray-400" />
         </div>
         <div v-else-if="!filteredVenues.length"
-          class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-[#1E2157]/20">
+          class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-primary/20">
           <div class="w-16 h-16 mx-auto rounded-full bg-[#EFF6FF] flex items-center justify-center mb-4">
-            <i class="pi pi-building text-2xl text-[#1E2157]" />
+            <i class="pi pi-building text-2xl text-primary" />
           </div>
           <h3 class="text-base font-semibold text-gray-900 mb-1">Create your first venue</h3>
           <p class="text-sm text-gray-500 mb-5 max-w-sm mx-auto">
@@ -176,17 +180,17 @@
             <Button label="Set up a sport" icon="pi pi-bolt" severity="secondary" outlined
               @click="setupWizardOpen = true" />
             <Button label="New Venue" icon="pi pi-plus"
-              style="background:#1E2157; border-color:#1E2157" @click="openCreate" />
+              style="background:var(--brand-primary); border-color:var(--brand-primary)" @click="openCreate" />
           </div>
         </div>
         <div v-else class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
           <div v-for="item in filteredVenues" :key="item.id"
-            class="bg-white rounded-xl border border-gray-200 p-4 hover:border-[#1E2157]/40 hover:shadow-sm transition-all cursor-pointer group"
+            class="bg-white rounded-xl border border-gray-200 p-4 hover:border-primary/40 hover:shadow-sm transition-all cursor-pointer group"
             @click="navigateTo('/bookables/' + item.id)">
             <div class="flex items-start justify-between mb-3">
               <div class="w-10 h-10 rounded-lg flex items-center justify-center"
                 :class="getDepth(item) === 0 ? 'bg-[#EFF6FF]' : 'bg-gray-100'">
-                <i :class="`pi ${getDepth(item) === 0 ? 'pi-building text-[#1E2157]' : 'pi-map-marker text-gray-500'} text-base`" />
+                <i :class="`pi ${getDepth(item) === 0 ? 'pi-building text-primary' : 'pi-map-marker text-gray-500'} text-base`" />
               </div>
               <template v-if="item.status === 'ACTIVE'">
                 <span v-if="bookedIds.has(item.id)"
@@ -216,7 +220,7 @@
               <Button v-if="bookedIds.has(item.id)" label="Fully booked" icon="pi pi-lock" size="small"
                 severity="secondary" outlined disabled />
               <Button v-else label="Book" icon="pi pi-calendar-plus" size="small"
-                style="background:#1E2157;border-color:#1E2157"
+                style="background:var(--brand-primary);border-color:var(--brand-primary)"
                 @click="navigateTo(bookUrl(item.id))" />
             </div>
           </div>
@@ -231,9 +235,21 @@
         <div v-if="loading" class="p-8 flex justify-center">
           <i class="pi pi-spin pi-spinner text-2xl text-gray-400" />
         </div>
-        <div v-else-if="!filteredPersons.length" class="text-center py-12 text-gray-400">
-          <i class="pi pi-user text-3xl mb-3 block" />
-          <p class="text-sm">No bookable persons yet.</p>
+        <div v-else-if="!filteredPersons.length"
+          class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-primary/20">
+          <div class="w-16 h-16 mx-auto rounded-full bg-[#EFF6FF] flex items-center justify-center mb-4">
+            <i class="pi pi-user text-2xl text-primary" />
+          </div>
+          <h3 class="text-base font-semibold text-gray-900 mb-1">Add your first coach</h3>
+          <p class="text-sm text-gray-500 mb-5 max-w-sm mx-auto">
+            Coaches are staff members members can book directly — tennis pros, swim instructors, personal trainers.
+          </p>
+          <div class="flex items-center justify-center gap-2">
+            <Button label="Set up a coach" icon="pi pi-bolt" severity="secondary" outlined
+              @click="coachWizardOpen = true" />
+            <Button label="New Person" icon="pi pi-plus"
+              style="background:var(--brand-primary); border-color:var(--brand-primary)" @click="openCreate" />
+          </div>
         </div>
         <div v-else class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
           <div v-for="item in filteredPersons" :key="item.id"
@@ -262,7 +278,7 @@
                 <i :class="item.is_public ? 'pi pi-eye text-green-500 text-xs' : 'pi pi-eye-slash text-gray-300 text-xs'" />
               </div>
               <Button v-if="availFilterActive" label="Book" size="small"
-                style="background:#1E2157;border-color:#1E2157"
+                style="background:var(--brand-primary);border-color:var(--brand-primary)"
                 @click.stop="navigateTo(bookUrl(item.id))" />
             </div>
           </div>
@@ -274,9 +290,21 @@
         <div v-if="loading" class="p-8 flex justify-center">
           <i class="pi pi-spin pi-spinner text-2xl text-gray-400" />
         </div>
-        <div v-else-if="!filteredPersons.length" class="text-center py-12 text-gray-400">
-          <i class="pi pi-user text-3xl mb-3 block" />
-          <p class="text-sm">No bookable persons yet.</p>
+        <div v-else-if="!filteredPersons.length"
+          class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-primary/20">
+          <div class="w-16 h-16 mx-auto rounded-full bg-[#EFF6FF] flex items-center justify-center mb-4">
+            <i class="pi pi-user text-2xl text-primary" />
+          </div>
+          <h3 class="text-base font-semibold text-gray-900 mb-1">Add your first coach</h3>
+          <p class="text-sm text-gray-500 mb-5 max-w-sm mx-auto">
+            Coaches are staff members members can book directly — tennis pros, swim instructors, personal trainers.
+          </p>
+          <div class="flex items-center justify-center gap-2">
+            <Button label="Set up a coach" icon="pi pi-bolt" severity="secondary" outlined
+              @click="coachWizardOpen = true" />
+            <Button label="New Person" icon="pi pi-plus"
+              style="background:var(--brand-primary); border-color:var(--brand-primary)" @click="openCreate" />
+          </div>
         </div>
         <div v-else class="divide-y divide-gray-100">
           <div v-for="item in filteredPersons" :key="item.id"
@@ -301,7 +329,7 @@
             </div>
             <div class="flex gap-1 items-center opacity-0 group-hover:opacity-100 transition-opacity" @click.stop>
               <Button v-if="availFilterActive" label="Book" size="small"
-                style="background:#1E2157;border-color:#1E2157"
+                style="background:var(--brand-primary);border-color:var(--brand-primary)"
                 @click="navigateTo(bookUrl(item.id))" />
               <Button icon="pi pi-pencil" severity="secondary" text rounded size="small"
                 @click="navigateTo('/bookables/' + item.id)" />
@@ -316,9 +344,21 @@
       <div v-if="loading" class="p-8 flex justify-center bg-white rounded-xl border border-gray-200">
         <i class="pi pi-spin pi-spinner text-2xl text-gray-400" />
       </div>
-      <div v-else-if="!filteredItems.length" class="text-center py-12 text-gray-400 bg-white rounded-xl border border-gray-200">
-        <i class="pi pi-box text-3xl mb-3 block" />
-        <p class="text-sm">No bookable items yet.</p>
+      <div v-else-if="!filteredItems.length"
+        class="text-center py-16 px-6 bg-white rounded-xl border-2 border-dashed border-primary/20">
+        <div class="w-16 h-16 mx-auto rounded-full bg-[#EFF6FF] flex items-center justify-center mb-4">
+          <i class="pi pi-box text-2xl text-primary" />
+        </div>
+        <h3 class="text-base font-semibold text-gray-900 mb-1">Create your first item</h3>
+        <p class="text-sm text-gray-500 mb-5 max-w-sm mx-auto">
+          Items are things members hire — projectors, lockers, bikes, equipment kits.
+        </p>
+        <div class="flex items-center justify-center gap-2">
+          <Button label="Set up an item" icon="pi pi-bolt" severity="secondary" outlined
+            @click="itemWizardOpen = true" />
+          <Button label="New Item" icon="pi pi-plus"
+            style="background:var(--brand-primary); border-color:var(--brand-primary)" @click="openCreate" />
+        </div>
       </div>
       <div v-else class="space-y-2">
         <div v-for="group in itemsByCategory" :key="group.category"
@@ -364,7 +404,7 @@
                     <span v-if="item.max_concurrent > 1" class="text-xs text-gray-400">×{{ item.max_concurrent }}</span>
                   </div>
                   <Button v-if="availFilterActive" label="Book" size="small"
-                    style="background:#1E2157;border-color:#1E2157"
+                    style="background:var(--brand-primary);border-color:var(--brand-primary)"
                     @click.stop="navigateTo(bookUrl(item.id))" />
                 </div>
               </div>
@@ -392,7 +432,7 @@
                 </div>
                 <div class="flex gap-1 items-center opacity-0 group-hover:opacity-100 transition-opacity" @click.stop>
                   <Button v-if="availFilterActive" label="Book" size="small"
-                    style="background:#1E2157;border-color:#1E2157"
+                    style="background:var(--brand-primary);border-color:var(--brand-primary)"
                     @click="navigateTo(bookUrl(item.id))" />
                   <Button icon="pi pi-pencil" severity="secondary" text rounded size="small"
                     @click="navigateTo('/bookables/' + item.id)" />
@@ -405,9 +445,9 @@
     </template>
 
     <!-- Create Dialog -->
-    <Dialog v-model:visible="showCreate" :header="createItemParentId ? 'New Item for Venue' : `New ${activeTab === 'VENUE' ? 'Venue' : activeTab === 'PERSON' ? 'Person' : 'Item'}`" modal style="width: 480px">
+    <Dialog v-model:visible="showCreate" :header="createItemParentId ? 'New Item for Venue' : `New ${activeTab === 'VENUE' ? 'Venue' : activeTab === 'PERSON' ? 'Person' : 'Item'}`" modal :style="{ width: '95vw', maxWidth: '480px' }">
       <div class="flex flex-col gap-4">
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium">Name</label>
             <InputText v-model="form.name" autofocus placeholder="e.g. Main Oval" />
@@ -426,7 +466,7 @@
           <label class="text-sm font-medium">Location / Description</label>
           <InputText v-model="form.location" placeholder="Address or description" />
         </div>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium">Max Concurrent Bookings</label>
             <InputNumber v-model="form.max_concurrent" :min="1" />
@@ -445,12 +485,18 @@
       </div>
       <template #footer>
         <Button label="Cancel" severity="secondary" text @click="showCreate = false" />
-        <Button label="Create" :loading="creating" :disabled="!form.name.trim()" @click="handleCreate" style="background:#1E2157; border-color:#1E2157" />
+        <Button label="Create" :loading="creating" :disabled="!form.name.trim()" @click="handleCreate" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
       </template>
     </Dialog>
 
     <!-- One-shot sport setup: bookables + sub-venues + configurations + activity + modes -->
     <SetupWizard v-model:visible="setupWizardOpen" @done="onSetupWizardDone" />
+
+    <!-- One-shot item setup: bookable(s) + activity (booking_flow=item) + rate-card modes -->
+    <ItemWizard v-model:visible="itemWizardOpen" @done="onItemWizardDone" />
+
+    <!-- One-shot coach setup: PERSON bookable + owning activity + offerings -->
+    <CoachWizard v-model:visible="coachWizardOpen" @done="onCoachWizardDone" />
 
     <Toast />
   </div>
@@ -469,10 +515,26 @@ const search = ref('')
 const statusFilter = ref('')
 const activeTab = ref<'VENUE' | 'PERSON' | 'ITEM' | 'ARCHIVED'>('VENUE')
 const setupWizardOpen = ref(false)
+const itemWizardOpen = ref(false)
+const coachWizardOpen = ref(false)
 
 async function onSetupWizardDone() {
   // Reload the list so the new venues + activity show up immediately.
   await load()
+}
+
+async function onItemWizardDone() {
+  // Hop to the Items tab so the new bookable is visible without scrolling.
+  activeTab.value = 'ITEM'
+  await load()
+}
+
+async function onCoachWizardDone(payload: { bookableId: string }) {
+  // Hop to the Persons tab so the new coach is visible — and jump
+  // straight into their profile so the user can refine offerings.
+  activeTab.value = 'PERSON'
+  await load()
+  navigateTo(`/bookables/${payload.bookableId}?tab=offerings`)
 }
 
 // Availability filter

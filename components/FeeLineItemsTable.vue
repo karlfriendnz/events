@@ -1,5 +1,51 @@
 <template>
   <div :class="flush ? '' : 'rounded-xl border border-gray-200 overflow-hidden bg-white'">
+
+    <!-- Mobile: one stacked card per fee -->
+    <div class="md:hidden divide-y divide-gray-100">
+      <div v-for="fee in modelValue" :key="fee.id" class="p-3 space-y-2">
+        <textarea
+          :value="fee.name" rows="1" placeholder="Fee name"
+          class="w-full px-3 py-2 text-sm text-gray-800 placeholder-gray-400 border border-gray-200 rounded-lg outline-none focus:border-primary resize-none leading-5"
+          @input="(e) => { setField(fee, 'name', (e.target as HTMLTextAreaElement).value); autoGrow(e.target as HTMLTextAreaElement) }"
+          @keydown.enter.exact.prevent
+          @focus="(e) => autoGrow(e.target as HTMLTextAreaElement)" />
+        <div class="flex items-center gap-2">
+          <input
+            :value="fee.xero_code" type="text" placeholder="Account code"
+            class="flex-1 min-w-0 h-9 px-3 text-sm text-gray-800 placeholder-gray-400 border border-gray-200 rounded-lg outline-none focus:border-primary"
+            @input="setField(fee, 'xero_code', ($event.target as HTMLInputElement).value)" />
+          <div class="flex items-center gap-1 h-9 px-2 border border-gray-200 rounded-lg focus-within:border-primary w-28 shrink-0">
+            <span class="text-gray-400 shrink-0 text-sm">$</span>
+            <input
+              :value="amountDisplay[fee.id] ?? (fee.amount != null ? fee.amount.toFixed(2) : '')"
+              type="text" inputmode="decimal" placeholder="0.00"
+              class="flex-1 min-w-0 text-right text-sm text-gray-800 placeholder-gray-400 outline-none bg-transparent"
+              @input="(e) => {
+                const raw = (e.target as HTMLInputElement).value
+                amountDisplay[fee.id] = raw
+                const v = parseFloat(raw)
+                if (!isNaN(v)) setField(fee, 'amount', Math.round(v * 100) / 100)
+              }"
+              @blur="(e) => {
+                const v = parseFloat((e.target as HTMLInputElement).value)
+                const val = isNaN(v) ? null : Math.round(v * 100) / 100
+                setField(fee, 'amount', val)
+                amountDisplay[fee.id] = val != null ? val.toFixed(2) : ''
+              }" />
+          </div>
+          <button type="button" class="w-9 h-9 flex items-center justify-center text-gray-300 hover:text-red-500 shrink-0" @click="removeFee(fee)">
+            <i class="pi pi-trash text-xs" />
+          </button>
+        </div>
+      </div>
+      <div class="flex items-center justify-between px-3 py-2.5 bg-gray-50 text-sm font-semibold text-gray-800">
+        <span>Total</span><span>${{ total }}</span>
+      </div>
+    </div>
+
+    <!-- Desktop: table -->
+    <div class="hidden md:block">
     <table class="w-full text-sm table-fixed">
       <colgroup>
         <col class="w-8" />
@@ -42,7 +88,7 @@
                 tabindex="-1"
                 data-token-btn
                 class="shrink-0 mr-1 w-6 h-6 flex items-center justify-center rounded transition-colors"
-                :class="activeTokenMenu === fee.id ? 'text-[#1E2157] bg-gray-100' : 'text-gray-300 hover:text-[#1E2157] hover:bg-gray-100'"
+                :class="activeTokenMenu === fee.id ? 'text-primary bg-gray-100' : 'text-gray-300 hover:text-primary hover:bg-gray-100'"
                 @mousedown.prevent
                 @click="toggleTokenMenu(fee, $event.currentTarget as HTMLElement)">
                 <span class="text-[10px] font-bold font-mono">{·}</span>
@@ -100,12 +146,13 @@
         </tr>
       </tbody>
     </table>
+    </div>
 
     <!-- Add fee -->
     <div class="px-4 py-2.5 border-t border-gray-100">
       <button
         type="button"
-        class="flex items-center gap-1.5 text-sm text-gray-400 hover:text-[#1E2157] transition-colors"
+        class="flex items-center gap-1.5 text-sm text-gray-400 hover:text-primary transition-colors"
         @click="addFee">
         <i class="pi pi-plus text-xs" />
         <span>Add Fee</span>
@@ -127,7 +174,7 @@
         class="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-50 flex items-center gap-2 transition-colors"
         @mousedown.prevent
         @click="insertToken(token.value)">
-        <code class="text-[#1E2157] bg-blue-50 px-1 py-0.5 rounded text-[10px]">{{ token.value }}</code>
+        <code class="text-primary bg-blue-50 px-1 py-0.5 rounded text-[10px]">{{ token.value }}</code>
         <span class="text-gray-500">{{ token.label }}</span>
       </button>
     </div>

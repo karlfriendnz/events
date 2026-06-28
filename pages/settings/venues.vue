@@ -1,8 +1,8 @@
 <template>
-  <div class="flex overflow-hidden" style="height: calc(100vh - 3.5rem)">
+  <div class="flex flex-col md:flex-row overflow-hidden h-[calc(100vh-3.5rem-4rem)] md:h-[calc(100vh-3.5rem)]">
 
     <!-- Left: venue tree -->
-    <div class="w-72 shrink-0 border-r border-gray-200 bg-white flex flex-col overflow-hidden">
+    <div class="w-full md:w-72 shrink-0 border-b md:border-b-0 md:border-r border-gray-200 bg-white flex flex-col overflow-hidden">
 
       <!-- Header -->
       <div class="px-4 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -11,7 +11,7 @@
           <p class="text-xs text-gray-400 mt-0.5">{{ allBookables.length }} venue{{ allBookables.length !== 1 ? 's' : '' }}</p>
         </div>
         <Button icon="pi pi-plus" size="small" v-tooltip.left="'Add venue'" @click="openNew(null)"
-          style="background:#1E2157;border-color:#1E2157" />
+          style="background:var(--brand-primary);border-color:var(--brand-primary)" />
       </div>
 
       <!-- Tree -->
@@ -41,10 +41,10 @@
       <div v-if="!showEditor" class="flex-1 flex flex-col items-center justify-center text-center gap-2 text-gray-400">
         <i class="pi pi-building text-3xl text-gray-300" />
         <p class="text-sm font-medium">Select a venue to edit</p>
-        <p class="text-xs text-gray-400">or <button class="text-[#1E2157] hover:underline" @click="openNew(null)">create a new one</button></p>
+        <p class="text-xs text-gray-400">or <button class="text-primary hover:underline" @click="openNew(null)">create a new one</button></p>
       </div>
       <div v-else class="flex-1 overflow-hidden flex flex-col bg-white">
-        <div class="px-6 py-4 border-b border-gray-100 shrink-0 flex items-center gap-3">
+        <div class="px-4 sm:px-6 py-4 border-b border-gray-100 shrink-0 flex items-center gap-3">
           <div class="flex-1">
             <h2 class="text-sm font-semibold text-gray-800">
               {{ editingBookable ? editingBookable.name || 'Untitled venue' : 'New venue' }}

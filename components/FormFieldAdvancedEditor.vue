@@ -36,7 +36,7 @@
           </div>
         </div>
         <button type="button"
-          class="w-full py-2.5 rounded-xl bg-[#1E2157] hover:bg-[#161a45] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+          class="w-full py-2.5 rounded-xl bg-primary hover:bg-[#161a45] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
           @click="addVisibilityCondition">
           <i class="pi pi-plus text-xs" />Add Condition
         </button>
@@ -44,7 +44,7 @@
     </div>
 
     <!-- Financial Rules -->
-    <div class="space-y-3 pb-2">
+    <div v-if="!hideFinancial" class="space-y-3 pb-2">
       <div class="flex items-center justify-between">
         <div>
           <p class="text-sm font-semibold text-gray-800">Financial Rules</p>
@@ -61,7 +61,7 @@
               <select v-model="cond.field"
                 class="flex-1 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700">
                 <option value="" disabled>Select field…</option>
-                <option v-for="f in otherFieldOptions" :key="f._optKey" :value="f.label">{{ f.label }}</option>
+                <option v-for="f in financialFieldOptions" :key="f._optKey" :value="f.label">{{ f._display }}</option>
               </select>
               <button type="button"
                 class="w-6 h-6 flex items-center justify-center rounded text-gray-300 hover:text-red-500 transition-colors shrink-0"
@@ -112,7 +112,7 @@
           </button>
         </div>
         <button type="button"
-          class="w-full py-2.5 rounded-xl bg-[#1E2157] hover:bg-[#161a45] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+          class="w-full py-2.5 rounded-xl bg-primary hover:bg-[#161a45] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
           @click="addFinancialRule">
           <i class="pi pi-dollar text-xs" />Add Financial Rule
         </button>
@@ -140,26 +140,41 @@ const props = withDefaults(defineProps<{
   conditionFieldOptions: FieldOption[]
   accountCodes?: readonly string[]
   operators?: readonly string[]
+  hideFinancial?: boolean   // fields page wants visibility conditions only
 }>(), {
+  hideFinancial: false,
   accountCodes: () => ['ACC-001', 'ACC-002', 'ACC-003', 'ACC-004', 'ACC-005'] as const,
   operators:    () => ['Equals', 'Is Not', 'Contains', 'Is Empty', 'Is Not Empty'] as const,
 })
 
-// Always exclude the field being edited from its own condition options.
+// Visibility conditions exclude the field being edited (a field can't gate itself).
 const otherFieldOptions = computed(() => {
   const me = props.field
   return props.conditionFieldOptions
     .filter(f => (f.id ?? f._key) !== (me?.id ?? me?._key) && f.label !== me?.label)
-    .map(f => ({ ...f, _optKey: f.id ?? f._key ?? f.label }))
+    .map(f => ({ ...f, _optKey: f.id ?? f._key ?? f.label, _display: f.label }))
+})
+// Financial rules CAN key off the current field ("if this field = X"), so its
+// options include the field being edited (listed first, labelled "this field").
+const financialFieldOptions = computed(() => {
+  const me = props.field
+  const self = me?.label
+    ? [{ _optKey: me?.id ?? me?._key ?? me?.label, label: me.label, _display: `${me.label} (this field)` }]
+    : []
+  return [...self, ...otherFieldOptions.value]
 })
 
 function makeCondition(): Condition {
   return { id: crypto.randomUUID(), field: '', operator: 'Equals', value: '' }
 }
 function makeFinancialRule(): FinancialRule {
+  // Default the first condition to THIS field — the common case is
+  // "if this field = X then apply a fee/discount".
+  const first = makeCondition()
+  first.field = props.field?.label ?? ''
   return {
     id: crypto.randomUUID(),
-    conditions: [makeCondition()],
+    conditions: [first],
     account_code: '',
     fee_name: '',
     fee_type: 'increase',

@@ -44,7 +44,7 @@
       :range-end="rangeEnd ?? null"
       @update:model-value="emit('update:exdates', $event)" />
     <template #footer>
-      <Button label="Done" size="small" style="background:#1E2157;border-color:#1E2157"
+      <Button label="Done" size="small" style="background:var(--brand-primary);border-color:var(--brand-primary)"
         @click="exclusionsOpen = false" />
     </template>
   </Dialog>
@@ -71,7 +71,7 @@
           <button v-for="(d, i) in dayLabels" :key="i" type="button"
             class="w-9 h-9 rounded-full text-xs font-semibold transition-colors"
             :class="custom.byDay.includes(weekdayCodes[i])
-              ? 'bg-[#1E2157] text-white shadow-sm'
+              ? 'bg-primary text-white shadow-sm'
               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
             @click="toggleByDay(weekdayCodes[i])">{{ d }}</button>
         </div>
@@ -114,14 +114,14 @@
       </div>
 
       <!-- Live summary -->
-      <div class="px-5 py-3 bg-[#EFF6FF] border-t border-[#1E2157]/10 flex items-center gap-2">
-        <i class="pi pi-info-circle text-[#1E2157] text-xs" />
-        <p class="text-xs text-[#1E2157] font-medium">{{ customSummary }}</p>
+      <div class="px-5 py-3 bg-[#EFF6FF] border-t border-primary/10 flex items-center gap-2">
+        <i class="pi pi-info-circle text-primary text-xs" />
+        <p class="text-xs text-primary font-medium">{{ customSummary }}</p>
       </div>
     </div>
     <template #footer>
       <Button label="Cancel" severity="secondary" text size="small" @click="customOpen = false" />
-      <Button label="Save" size="small" style="background:#1E2157;border-color:#1E2157"
+      <Button label="Save" size="small" style="background:var(--brand-primary);border-color:var(--brand-primary)"
         @click="commitCustom" />
     </template>
   </Dialog>

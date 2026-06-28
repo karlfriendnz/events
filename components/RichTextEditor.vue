@@ -1,36 +1,72 @@
 <template>
   <div class="rich-text-editor border border-gray-200 rounded-lg overflow-hidden" :class="{ 'opacity-60 pointer-events-none bg-gray-50': readonly }">
-    <!-- Toolbar -->
-    <div class="flex items-center gap-0.5 px-2 py-1.5 border-b border-gray-200 bg-gray-50 flex-wrap">
+    <!-- Floating bubble menu (bubble mode only) — appears when text is selected -->
+    <BubbleMenu v-if="bubble && editor" :editor="editor"
+      class="flex items-center gap-0.5 px-1 py-1 bg-white border border-gray-200 rounded-lg shadow-lg">
       <button type="button"
         class="w-7 h-7 flex items-center justify-center rounded text-sm font-bold transition-colors"
-        :class="editor?.isActive('bold') ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-200'"
+        :class="editor?.isActive('bold') ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-200'"
         @click="editor?.chain().focus().toggleBold().run()">B</button>
       <button type="button"
         class="w-7 h-7 flex items-center justify-center rounded text-sm italic transition-colors"
-        :class="editor?.isActive('italic') ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-200'"
+        :class="editor?.isActive('italic') ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-200'"
         @click="editor?.chain().focus().toggleItalic().run()">I</button>
       <button type="button"
         class="w-7 h-7 flex items-center justify-center rounded text-sm underline transition-colors"
-        :class="editor?.isActive('underline') ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-200'"
+        :class="editor?.isActive('underline') ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-200'"
         @click="editor?.chain().focus().toggleUnderline().run()">U</button>
       <div class="w-px h-4 bg-gray-300 mx-1" />
       <button type="button"
         class="w-7 h-7 flex items-center justify-center rounded transition-colors"
-        :class="editor?.isActive('bulletList') ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-200'"
+        :class="editor?.isActive('bulletList') ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-200'"
         @click="editor?.chain().focus().toggleBulletList().run()">
         <i class="pi pi-list text-xs" />
       </button>
       <button type="button"
         class="w-7 h-7 flex items-center justify-center rounded transition-colors"
-        :class="editor?.isActive('orderedList') ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-200'"
+        :class="editor?.isActive('orderedList') ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-200'"
+        @click="editor?.chain().focus().toggleOrderedList().run()">
+        <i class="pi pi-sort-amount-down text-xs" />
+      </button>
+      <button type="button"
+        class="w-7 h-7 flex items-center justify-center rounded transition-colors"
+        :class="editor?.isActive('heading', { level: 2 }) ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-200'"
+        @click="editor?.chain().focus().toggleHeading({ level: 2 }).run()">
+        <span class="text-xs font-bold">H</span>
+      </button>
+    </BubbleMenu>
+
+    <!-- Toolbar (always-on; hidden in bubble mode) -->
+    <div v-if="!bubble" class="flex items-center gap-0.5 px-2 py-1.5 border-b border-gray-200 bg-gray-50 flex-wrap">
+      <button type="button"
+        class="w-7 h-7 flex items-center justify-center rounded text-sm font-bold transition-colors"
+        :class="editor?.isActive('bold') ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-200'"
+        @click="editor?.chain().focus().toggleBold().run()">B</button>
+      <button type="button"
+        class="w-7 h-7 flex items-center justify-center rounded text-sm italic transition-colors"
+        :class="editor?.isActive('italic') ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-200'"
+        @click="editor?.chain().focus().toggleItalic().run()">I</button>
+      <button type="button"
+        class="w-7 h-7 flex items-center justify-center rounded text-sm underline transition-colors"
+        :class="editor?.isActive('underline') ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-200'"
+        @click="editor?.chain().focus().toggleUnderline().run()">U</button>
+      <div class="w-px h-4 bg-gray-300 mx-1" />
+      <button type="button"
+        class="w-7 h-7 flex items-center justify-center rounded transition-colors"
+        :class="editor?.isActive('bulletList') ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-200'"
+        @click="editor?.chain().focus().toggleBulletList().run()">
+        <i class="pi pi-list text-xs" />
+      </button>
+      <button type="button"
+        class="w-7 h-7 flex items-center justify-center rounded transition-colors"
+        :class="editor?.isActive('orderedList') ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-200'"
         @click="editor?.chain().focus().toggleOrderedList().run()">
         <i class="pi pi-sort-amount-down text-xs" />
       </button>
       <div class="w-px h-4 bg-gray-300 mx-1" />
       <button type="button"
         class="w-7 h-7 flex items-center justify-center rounded transition-colors"
-        :class="editor?.isActive('heading', { level: 2 }) ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-200'"
+        :class="editor?.isActive('heading', { level: 2 }) ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-200'"
         @click="editor?.chain().focus().toggleHeading({ level: 2 }).run()">
         <span class="text-xs font-bold">H</span>
       </button>
@@ -61,6 +97,7 @@
 
 <script setup lang="ts">
 import { useEditor, EditorContent } from '@tiptap/vue-3'
+import { BubbleMenu } from '@tiptap/vue-3/menus'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -70,6 +107,8 @@ const props = defineProps<{
   modelValue: string
   placeholder?: string
   readonly?: boolean
+  /** When true, hide the always-on toolbar and show a floating menu on text selection. */
+  bubble?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -91,7 +130,9 @@ const editor = useEditor({
   },
   editorProps: {
     attributes: {
-      class: 'outline-none px-4 py-3 min-h-[120px] text-sm text-gray-800',
+      // Bubble mode (inline description): start at one line and grow with content.
+      // Default mode keeps a comfortable minimum editing area.
+      class: 'outline-none text-sm text-gray-800 ' + (props.bubble ? 'px-3 py-2 min-h-[2.25rem]' : 'px-4 py-3 min-h-[120px]'),
     },
   },
 })

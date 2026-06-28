@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col h-full overflow-hidden">
     <!-- Header -->
-    <div class="px-6 py-5 border-b border-gray-200 bg-white shrink-0">
+    <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-200 bg-white shrink-0">
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-xl font-bold text-gray-900">Event Reporting</h1>
@@ -41,12 +41,12 @@
         <div class="flex items-center gap-2">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">From</label>
           <input v-model="dateFrom" type="date"
-            class="h-8 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#1E2157] transition-colors bg-white" />
+            class="h-8 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-primary transition-colors bg-white" />
         </div>
         <div class="flex items-center gap-2">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">To</label>
           <input v-model="dateTo" type="date"
-            class="h-8 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#1E2157] transition-colors bg-white" />
+            class="h-8 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-primary transition-colors bg-white" />
         </div>
 
         <button class="text-xs text-gray-400 hover:text-gray-600 transition-colors" @click="clearFilters">Clear</button>
@@ -54,7 +54,7 @@
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+    <div class="flex-1 overflow-y-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6">
 
       <!-- Loading -->
       <div v-if="loading" class="flex items-center justify-center py-20">
@@ -79,7 +79,7 @@
           </div>
           <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
             <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Avg Attendance</p>
-            <p class="text-2xl font-bold text-[#1E2157]">
+            <p class="text-2xl font-bold text-primary">
               {{ totalStats.attendanceRate !== null ? totalStats.attendanceRate + '%' : '—' }}
             </p>
           </div>
@@ -90,7 +90,8 @@
           <div class="px-5 py-3.5 border-b border-gray-100 bg-gray-50">
             <p class="text-sm font-semibold text-gray-700">Events breakdown</p>
           </div>
-          <table class="w-full text-sm">
+          <div class="overflow-x-auto">
+          <table class="w-full text-sm min-w-[560px]">
             <thead>
               <tr class="border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide">
                 <th class="text-left px-5 py-3">Event</th>
@@ -126,6 +127,7 @@
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
 
         <!-- Attendance trend (simple bar chart) -->

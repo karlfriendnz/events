@@ -5,11 +5,13 @@
         <h3 class="text-sm font-semibold text-gray-700">Daily Session Templates</h3>
         <p class="text-xs text-gray-400 mt-0.5">Each template creates one session per day across the whole programme.</p>
       </div>
-      <span v-if="totalSessions > 0" class="text-xs font-semibold px-3 py-1 rounded-full bg-[#1E2157]/10 text-[#1E2157]">
+      <span v-if="totalSessions > 0" class="text-xs font-semibold px-3 py-1 rounded-full bg-primary/10 text-primary">
         {{ totalSessions }} sessions total
       </span>
     </div>
 
+    <div class="overflow-x-auto">
+    <div class="min-w-[600px] md:min-w-0">
     <!-- Column headers -->
     <div class="grid gap-2 py-2.5 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide"
       :style="colStyle">
@@ -26,7 +28,7 @@
     <!-- Template rows -->
     <div v-for="(tpl, idx) in templates" :key="idx"
       class="grid gap-2 items-center pr-5 py-2.5 border-b border-gray-100 last:border-0 transition-opacity"
-      :class="dragIdx === idx ? 'opacity-40' : dragOverIdx === idx ? 'ring-2 ring-inset ring-[#1E2157]' : ''"
+      :class="dragIdx === idx ? 'opacity-40' : dragOverIdx === idx ? 'ring-2 ring-inset ring-primary' : ''"
       :style="colStyle"
       draggable="true"
       @dragstart="dragIdx = idx"
@@ -61,6 +63,8 @@
       </button>
     </div>
 
+    </div>
+    </div>
     <div class="px-5 py-3.5 flex justify-end border-t border-gray-100">
       <Button label="Add Session Type" icon="pi pi-plus" size="small" severity="secondary" outlined @click="addTemplate" />
     </div>

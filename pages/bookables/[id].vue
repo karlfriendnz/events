@@ -1,14 +1,14 @@
 <template>
-  <div class="flex flex-col transition-[padding] duration-200"
-    :style="{ height: 'calc(100vh - 3.5rem)', paddingRight: showEditDialog ? (panelExpanded ? '720px' : '380px') : '0' }">
+  <div class="flex flex-col transition-[padding] duration-200 h-[calc(100vh-3.5rem-4rem)] md:h-[calc(100vh-3.5rem)]"
+    :style="{ paddingRight: (isDesktop && showEditDialog) ? (panelExpanded ? '720px' : '380px') : '0' }">
 
     <!-- Row 1: Pill tabs -->
-    <div class="bg-white border-b border-gray-200 px-4 py-2.5 shrink-0 flex justify-center">
+    <div class="bg-white border-b border-gray-200 px-4 py-2.5 shrink-0 flex justify-center overflow-x-auto no-scrollbar">
       <div class="flex gap-2">
         <button v-for="tab in tabs" :key="tab.key"
           class="flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-medium transition-colors"
           :class="activeTab === tab.key
-            ? 'bg-[#1E2157] text-white shadow-sm'
+            ? 'bg-primary text-white shadow-sm'
             : 'bg-[rgba(30,33,90,0.06)] text-gray-600 hover:bg-[rgba(30,33,90,0.1)]'"
           @click="activeTab = tab.key">
           <i :class="`pi ${tab.icon} text-xs`" />
@@ -19,7 +19,7 @@
 
     <!-- Row 2: Contextual actions (only when there's something to show) -->
     <div v-if="activeTab === 'bookings' || activeTab === 'details'"
-      class="bg-white border-b border-gray-200 px-4 py-2 shrink-0 flex items-center justify-between gap-3">
+      class="bg-white border-b border-gray-200 px-4 py-2 shrink-0 flex items-center justify-between gap-3 flex-wrap">
       <template v-if="activeTab === 'bookings'">
         <div class="flex items-center gap-2">
           <Button icon="pi pi-chevron-left" severity="secondary" text size="small" @click="navPrev" />
@@ -47,7 +47,7 @@
             option-label="label" option-value="value" size="small" class="w-32"
             @update:model-value="setCalView" />
           <Button label="New Booking" icon="pi pi-plus" size="small"
-            @click="openNewBooking(null)" style="background:#1E2157;border-color:#1E2157" />
+            @click="openNewBooking(null)" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
           <Button icon="pi pi-ellipsis-v" severity="secondary" text size="small" @click="e => moreMenu.toggle(e)" />
           <Menu ref="moreMenu" :model="moreMenuItems" :popup="true" />
         </div>
@@ -57,7 +57,7 @@
         <div class="flex items-center gap-2">
           <Button label="Save changes" icon="pi pi-check" size="small"
             :loading="editorRef?.saving" :disabled="loading"
-            @click="editorRef?.save()" style="background:#1E2157;border-color:#1E2157" />
+            @click="editorRef?.save()" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
           <Button icon="pi pi-ellipsis-v" severity="secondary" text size="small" @click="e => moreMenu.toggle(e)" />
           <Menu ref="moreMenu" :model="moreMenuItems" :popup="true" />
         </div>
@@ -113,8 +113,20 @@
         />
       </div>
 
+      <!-- "What I offer" tab — staff's owned activities. Each activity
+           has staff_bookable_id set so it doesn't appear on the global
+           Activities list; lives only on this staff's profile. -->
+      <div v-else-if="activeTab === 'offerings'" class="h-full overflow-y-auto bg-[#F5F8FA]">
+        <StaffOfferingsEditor :staff-bookable-id="id" :staff-name="venue?.name" />
+      </div>
+
+      <!-- Access tab -->
+      <div v-else-if="activeTab === 'access'" class="h-full overflow-y-auto bg-[#F5F8FA]">
+        <BookableAccessEditor :bookable-id="id" />
+      </div>
+
       <!-- Items tab -->
-      <div v-else-if="activeTab === 'items'" class="h-full overflow-y-auto p-6">
+      <div v-else-if="activeTab === 'items'" class="h-full overflow-y-auto p-3 sm:p-6">
         <div class="max-w-[1140px] mx-auto">
           <div class="flex justify-between mb-4">
             <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Items</h3>
@@ -123,17 +135,17 @@
                 @click="openAddExisting" />
               <Button label="Create new" icon="pi pi-plus" size="small"
                 @click="createChildBookable('ITEM')"
-                style="background:#1E2157; border-color:#1E2157" />
+                style="background:var(--brand-primary); border-color:var(--brand-primary)" />
             </div>
           </div>
           <div v-if="!items.length" class="text-center py-16 text-gray-400">
             <i class="pi pi-box text-3xl mb-3 block text-gray-300" />
             <p class="text-sm">No items attached yet. Add existing items or create a new one.</p>
           </div>
-          <div v-else class="grid grid-cols-3 gap-4">
+          <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div v-for="item in items" :key="item.id" class="relative group">
               <NuxtLink :to="`/bookables/${item.id}`"
-                class="block bg-white border border-gray-200 rounded-xl p-4 hover:border-[#1E2157] hover:shadow-sm transition-all">
+                class="block bg-white border border-gray-200 rounded-xl p-4 hover:border-primary hover:shadow-sm transition-all">
                 <div class="flex items-center gap-3 mb-2">
                   <div class="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center shrink-0">
                     <i class="pi pi-box text-white text-xs" />
@@ -160,7 +172,7 @@
       <!-- Availability tab -->
       <div v-else-if="activeTab === 'availability'" class="h-full overflow-y-auto">
         <!-- Inheritance banner -->
-        <div v-if="venue?.master_id" class="mx-6 mt-6 rounded-xl border overflow-hidden"
+        <div v-if="venue?.master_id" class="mx-3 sm:mx-6 mt-3 sm:mt-6 rounded-xl border overflow-hidden"
           :class="sectionInherited('availability') ? 'border-violet-200 bg-violet-50' : 'border-amber-200 bg-amber-50'">
           <div class="flex items-center gap-3 px-4 py-3">
             <i class="pi text-sm" :class="sectionInherited('availability') ? 'pi-lock text-violet-500' : 'pi-lock-open text-amber-500'" />
@@ -183,19 +195,19 @@
       </div>
 
       <!-- Sub-venues tab -->
-      <div v-else-if="activeTab === 'sub-venues'" class="h-full overflow-y-auto p-6">
+      <div v-else-if="activeTab === 'sub-venues'" class="h-full overflow-y-auto p-3 sm:p-6">
         <div class="max-w-[1140px] mx-auto">
           <div class="flex justify-between mb-4">
             <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sub-venues</h3>
             <Button label="Add Sub-venue" icon="pi pi-plus" size="small"
               @click="onAddSubVenueClick"
-              style="background:#1E2157; border-color:#1E2157" />
+              style="background:var(--brand-primary); border-color:var(--brand-primary)" />
           </div>
           <div v-if="!children.length" class="text-center py-16 text-gray-400">
             <i class="pi pi-sitemap text-3xl mb-3 block text-gray-300" />
             <p class="text-sm">No sub-venues yet.</p>
             <button type="button"
-              class="mt-3 text-xs font-semibold text-[#1E2157] hover:underline"
+              class="mt-3 text-xs font-semibold text-primary hover:underline"
               @click="venueLibraryOpen = true">
               Pick from the venue library →
             </button>
@@ -206,8 +218,8 @@
           <div v-else class="space-y-4">
             <!-- Parent banner -->
             <div class="rounded-xl border border-gray-200 bg-white px-5 py-3 flex items-center gap-3">
-              <div class="w-8 h-8 rounded-lg bg-[#1E2157]/10 flex items-center justify-center">
-                <i class="pi pi-building text-[#1E2157] text-sm" />
+              <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <i class="pi pi-building text-primary text-sm" />
               </div>
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-bold text-gray-900 truncate">{{ venue?.name }}</p>
@@ -266,7 +278,7 @@
                     @click="clearMapSelection">Clear</button>
                   <Button label="New configuration from selection" icon="pi pi-plus" size="small"
                     @click="openCreateConfigFromSelection"
-                    style="background:#1E2157; border-color:#1E2157" />
+                    style="background:var(--brand-primary); border-color:var(--brand-primary)" />
                 </div>
               </div>
             </div>
@@ -285,14 +297,14 @@
               </div>
               <div v-if="!configurations.length" class="rounded-xl border border-dashed border-gray-200 bg-white px-5 py-8 text-center">
                 <p class="text-sm text-gray-400">No configurations yet.</p>
-                <button type="button" class="mt-2 text-xs font-semibold text-[#1E2157] hover:underline"
+                <button type="button" class="mt-2 text-xs font-semibold text-primary hover:underline"
                   @click="openCreateConfig">+ Create one</button>
               </div>
               <div v-else class="space-y-2">
                 <div v-for="cfg in configurations" :key="cfg.id"
                   class="rounded-xl border border-gray-200 bg-white px-4 py-3 flex items-start gap-3">
-                  <div class="w-8 h-8 rounded-lg bg-[#1E2157]/10 flex items-center justify-center shrink-0">
-                    <i class="pi pi-th-large text-[#1E2157] text-xs" />
+                  <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <i class="pi pi-th-large text-primary text-xs" />
                   </div>
                   <div class="flex-1 min-w-0">
                     <div class="flex items-baseline gap-2 flex-wrap">
@@ -339,7 +351,7 @@
     </div>
 
     <!-- Add existing items dialog -->
-    <Dialog v-model:visible="showAddExisting" header="Add existing items" modal style="width: 520px">
+    <Dialog v-model:visible="showAddExisting" header="Add existing items" modal :style="{ width: '95vw', maxWidth: '520px' }">
       <div class="space-y-3">
         <IconField>
           <InputIcon class="pi pi-search" />
@@ -365,13 +377,13 @@
         <Button label="Cancel" severity="secondary" text @click="showAddExisting = false" />
         <Button label="Add selected" icon="pi pi-check" :disabled="!selectedExistingIds.length"
           :loading="linkingSaving" @click="linkSelectedItems"
-          style="background:#1E2157; border-color:#1E2157" />
+          style="background:var(--brand-primary); border-color:var(--brand-primary)" />
       </template>
     </Dialog>
 
     <!-- Edit booking drawer (slides in from the right; calendar stays visible) -->
-    <Drawer v-model:visible="showEditDialog" position="right" :modal="false" :dismissable="false"
-      :style="{ width: panelExpanded ? '720px' : '380px' }"
+    <Drawer v-model:visible="showEditDialog" position="right" :modal="!isDesktop" :dismissable="!isDesktop"
+      :style="{ width: drawerWidth }"
       :pt="{
         root: { class: 'transition-[width] duration-200' },
         header: { class: 'hidden' },
@@ -453,7 +465,7 @@
           <!-- When + Attendees -->
           <section>
             <div class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5"><i class="pi pi-clock text-[10px] text-gray-400" />When</div>
-            <div class="grid grid-cols-3 gap-3 mt-2">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
               <div class="flex flex-col gap-1.5">
                 <label class="text-[11px] text-gray-500">Start</label>
                 <DatePicker v-model="editForm.start_at" show-time hour-format="12" size="small" class="w-full" />
@@ -472,7 +484,7 @@
           <!-- Activity & Mode -->
           <section>
             <div class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5"><i class="pi pi-bolt text-[10px] text-gray-400" />Activity</div>
-            <div class="grid grid-cols-2 gap-3 mt-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
               <div class="flex flex-col gap-1.5">
                 <label class="text-[11px] text-gray-500">Activity</label>
                 <Select v-model="editForm.activity_id" :options="venueActivities"
@@ -502,7 +514,7 @@
             <!-- Mode's linked form fields (renders the form the customer filled in) -->
             <div v-if="modeFormFields.length" class="rounded-xl border border-gray-200 bg-gray-50/40 p-4 space-y-3 mt-3">
               <p class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Form responses</p>
-              <div class="grid grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div v-for="f in modeFormFields" :key="f.id" class="flex flex-col gap-1.5"
                   :class="f._col_span === 1 ? 'col-span-1' : 'col-span-2'">
                   <label class="text-xs font-medium text-gray-600">
@@ -531,11 +543,11 @@
               </div>
             </div>
             <div v-else-if="editForm.activity_mode_id && !modeFormLoading"
-              class="rounded-xl border border-dashed border-[#1E2157]/30 bg-[#EFF6FF]/40 px-4 py-3 flex items-start gap-3 mt-3">
-              <i class="pi pi-sparkles text-[#1E2157] mt-0.5" />
+              class="rounded-xl border border-dashed border-primary/30 bg-[#EFF6FF]/40 px-4 py-3 flex items-start gap-3 mt-3">
+              <i class="pi pi-sparkles text-primary mt-0.5" />
               <div>
-                <p class="text-xs font-medium text-[#1E2157]">No form linked to this mode</p>
-                <p class="text-[11px] text-[#1E2157]/70 mt-0.5">Configure a booking form on the mode to ask custom questions.</p>
+                <p class="text-xs font-medium text-primary">No form linked to this mode</p>
+                <p class="text-[11px] text-primary/70 mt-0.5">Configure a booking form on the mode to ask custom questions.</p>
               </div>
             </div>
 
@@ -566,7 +578,7 @@
             <div class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5"><i class="pi pi-map-marker text-[10px] text-gray-400" />Location</div>
             <div class="rounded-xl border border-gray-200 p-3 flex items-center gap-3 mt-2">
               <div class="w-9 h-9 rounded-lg bg-[#EFF6FF] flex items-center justify-center shrink-0">
-                <i class="pi pi-map-marker text-[#1E2157] text-sm" />
+                <i class="pi pi-map-marker text-primary text-sm" />
               </div>
               <div class="flex-1 min-w-0">
                 <p class="text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Currently at</p>
@@ -617,19 +629,19 @@
           <!-- Notify actions -->
           <section>
             <div class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5"><i class="pi pi-bell text-[10px] text-gray-400" />Notify</div>
-            <div class="grid grid-cols-2 gap-3 mt-2">
-              <button class="text-left rounded-xl border border-gray-200 hover:border-[#1E2157]/40 hover:shadow-sm transition-all p-3 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+              <button class="text-left rounded-xl border border-gray-200 hover:border-primary/40 hover:shadow-sm transition-all p-3 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
                 :disabled="!editForm.contact_email"
                 @click="notifyEmail">
                 <div class="w-9 h-9 rounded-lg bg-[#EFF6FF] flex items-center justify-center shrink-0">
-                  <i class="pi pi-envelope text-[#1E2157] text-sm" />
+                  <i class="pi pi-envelope text-primary text-sm" />
                 </div>
                 <div class="flex-1 min-w-0">
                   <p class="text-xs font-semibold text-gray-800">Email contact</p>
                   <p class="text-[11px] text-gray-500 truncate">{{ editForm.contact_email || 'No email on file' }}</p>
                 </div>
               </button>
-              <button class="text-left rounded-xl border border-gray-200 hover:border-[#1E2157]/40 hover:shadow-sm transition-all p-3 flex items-center gap-3"
+              <button class="text-left rounded-xl border border-gray-200 hover:border-primary/40 hover:shadow-sm transition-all p-3 flex items-center gap-3"
                 @click="notifyApp">
                 <div class="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
                   <i class="pi pi-bell text-amber-600 text-sm" />
@@ -649,7 +661,7 @@
           <div class="flex gap-2">
             <Button label="Close" severity="secondary" outlined size="small" @click="showEditDialog = false" />
             <Button label="Save changes" icon="pi pi-check" size="small" :loading="savingEdit"
-              @click="saveEditBooking" style="background:#1E2157;border-color:#1E2157" />
+              @click="saveEditBooking" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
           </div>
         </div>
       </div>
@@ -712,7 +724,7 @@
          { Half B: Q3+Q4 }]. -->
     <Dialog v-model:visible="configDialogOpen" modal
       :header="configDialogMode === 'create' ? 'New configuration' : 'Edit configuration'"
-      style="width: 600px">
+      :style="{ width: '95vw', maxWidth: '600px' }">
       <div class="space-y-4">
         <div class="grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-3">
           <div>
@@ -735,7 +747,7 @@
         <div>
           <div class="flex items-center justify-between mb-2">
             <label class="text-xs font-semibold text-gray-600">Slots</label>
-            <button type="button" class="text-xs font-semibold text-[#1E2157] hover:underline"
+            <button type="button" class="text-xs font-semibold text-primary hover:underline"
               @click="addDialogSlot">+ Add slot</button>
           </div>
           <p v-if="!children.length" class="text-xs text-gray-400 italic">No sub-venues on this venue to assign.</p>
@@ -757,7 +769,7 @@
                   class="flex items-center gap-2 px-2 py-1.5 rounded-md text-left hover:bg-white"
                   @click="toggleSlotChild(slot.uid, child.id)">
                   <div class="w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-colors"
-                    :class="isChildInSlot(slot.uid, child.id) ? 'bg-[#1E2157] border-[#1E2157]' : 'border-gray-300 bg-white'">
+                    :class="isChildInSlot(slot.uid, child.id) ? 'bg-primary border-primary' : 'border-gray-300 bg-white'">
                     <i v-if="isChildInSlot(slot.uid, child.id)" class="pi pi-check text-white text-[8px]" />
                   </div>
                   <span class="text-xs flex-1 truncate"
@@ -786,7 +798,7 @@
         <Button :label="configDialogMode === 'create' ? 'Create' : 'Save'"
           icon="pi pi-check" :disabled="!canSaveConfig"
           @click="saveConfigDialog"
-          style="background:#1E2157; border-color:#1E2157" />
+          style="background:var(--brand-primary); border-color:var(--brand-primary)" />
       </template>
     </Dialog>
   </div>
@@ -1413,6 +1425,15 @@ async function openSchedulerBooking(child: any, start: Date, end: Date) {
 const showEditDialog   = ref(false)
 // Drawer width: false = compact 380px, true = expanded 720px (matches old modal).
 const panelExpanded    = ref(false)
+// On mobile the edit drawer is a full-screen overlay — don't push/pad the content.
+const isDesktop = ref(true)
+function updateIsDesktop() { if (import.meta.client) isDesktop.value = window.innerWidth >= 768 }
+onMounted(updateIsDesktop)
+if (import.meta.client) {
+  window.addEventListener('resize', updateIsDesktop)
+  onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
+}
+const drawerWidth = computed(() => isDesktop.value ? (panelExpanded.value ? '720px' : '380px') : '100vw')
 const editingBooking   = ref<any>(null)
 const savingEdit       = ref(false)
 const bookingTab       = ref<'details' | 'activity' | 'location' | 'notify'>('details')
@@ -1686,9 +1707,18 @@ function notifyApp() {
 const tabs = computed(() => [
   { key: 'bookings',   label: 'Bookings',    icon: 'pi-calendar' },
   { key: 'details',    label: 'Details',     icon: 'pi-info-circle' },
+  // PERSON bookables (staff) get a "What I offer" tab where their
+  // owned activities live — keeps the global Activities list focused on
+  // venue/item products and stops staff editing happening across two
+  // unrelated screens.
+  ...(venue.value?.type === 'PERSON' ? [{ key: 'offerings', label: 'What I offer', icon: 'pi-bolt' }] : []),
   { key: 'availability', label: 'Availability', icon: 'pi-clock' },
-  ...(venue.value?.allow_sub_venues ? [{ key: 'sub-venues', label: 'Sub-venues', icon: 'pi-sitemap' }] : []),
+  // Sub-venues only makes sense for VENUE bookables — hide on coaches
+  // (PERSON) and equipment (ITEM) regardless of the allow_sub_venues
+  // flag, in case it got set on the wrong row.
+  ...(venue.value?.allow_sub_venues && venue.value?.type === 'VENUE' ? [{ key: 'sub-venues', label: 'Sub-venues', icon: 'pi-sitemap' }] : []),
   { key: 'items',      label: 'Items',       icon: 'pi-box' },
+  { key: 'access',     label: 'Access',      icon: 'pi-shield' },
 ])
 
 

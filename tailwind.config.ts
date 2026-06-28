@@ -13,10 +13,13 @@ export default <Config>{
   theme: {
     extend: {
       colors: {
+        // Brand-themeable primary. Driven by CSS variables (see assets/css/main.css
+        // :root + useBrandTheme()) so a club's connected brand re-themes the whole
+        // app at runtime. Defaults to FriendlyManager navy when no brand is set.
         primary: {
-          DEFAULT: '#1E2157',
-          hover:   '#2a2f6e',
-          light:   'rgba(30,33,87,0.06)',
+          DEFAULT: 'var(--brand-primary)',
+          hover:   'var(--brand-primary-hover)',
+          light:   'var(--brand-primary-light)',
         },
       },
     },

@@ -75,7 +75,7 @@
     </div>
 
     <button type="button"
-      class="flex items-center gap-2 text-sm text-gray-400 hover:text-[#1E2157] transition-colors py-1"
+      class="flex items-center gap-2 text-sm text-gray-400 hover:text-primary transition-colors py-1"
       @click="add">
       <i class="pi pi-plus text-xs" />
       Add add-on

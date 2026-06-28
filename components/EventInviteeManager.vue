@@ -1,5 +1,5 @@
 <template>
-  <div class="grid grid-cols-2 gap-6">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
 
     <!-- LEFT: Group / Individual selector -->
     <div class="space-y-3">
@@ -26,7 +26,7 @@
           </IconField>
           <div class="relative">
             <Button label="Filter" icon="pi pi-filter" size="small" severity="secondary" outlined @click="showDemoFilter = true" />
-            <span v-if="demoFilterCount > 0" class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-[#1E2157] text-white text-[10px] font-bold flex items-center justify-center">{{ demoFilterCount }}</span>
+            <span v-if="demoFilterCount > 0" class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{{ demoFilterCount }}</span>
           </div>
         </div>
 
@@ -89,8 +89,8 @@
           <div v-else>
             <div v-for="person in personSearchResults" :key="person.id"
               class="flex items-center gap-2.5 px-3 py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-              <div class="w-7 h-7 rounded-full bg-[#1E2157]/10 flex items-center justify-center shrink-0">
-                <span class="text-[10px] font-bold text-[#1E2157]">{{ person.first_name[0] }}{{ person.last_name[0] }}</span>
+              <div class="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <span class="text-[10px] font-bold text-primary">{{ person.first_name[0] }}{{ person.last_name[0] }}</span>
               </div>
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-medium text-gray-800 truncate">{{ person.first_name }} {{ person.last_name }}</p>
@@ -126,11 +126,11 @@
 
       <!-- Action bar (slides in when people are selected) -->
       <Transition name="slide-down">
-        <div v-if="bulkSelected.length" class="bg-[#1E2157] rounded-xl px-4 py-3 flex items-center gap-3">
+        <div v-if="bulkSelected.length" class="bg-primary rounded-xl px-4 py-3 flex items-center gap-3">
           <span class="text-sm font-medium text-white">{{ bulkSelected.length }} selected</span>
           <div class="flex-1" />
           <Button label="Action" icon="pi pi-chevron-down" icon-pos="right" size="small"
-            class="!bg-white !text-[#1E2157] !border-white font-semibold"
+            class="!bg-white !text-primary !border-white font-semibold"
             @click="e => inviteeActionMenu.toggle(e)" />
           <Menu ref="inviteeActionMenu" :model="inviteeActionMenuItems" :popup="true" />
           <button class="text-white/60 hover:text-white text-xs underline ml-1" @click="bulkSelected = []">Clear</button>
@@ -165,16 +165,17 @@
             <div class="flex flex-wrap gap-2">
               <span v-for="inv in visibleGroupInvitees(groupId)" :key="inv.id"
                 class="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm transition-colors cursor-pointer select-none"
-                :class="bulkSelected.includes(inv.id) ? 'bg-[#1E2157] text-white' : isPillHighlighted(inv) ? 'bg-amber-100 text-amber-900 ring-2 ring-amber-400' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                :class="bulkSelected.includes(inv.id) ? 'bg-primary text-white' : isPillHighlighted(inv) ? 'bg-amber-100 text-amber-900 ring-2 ring-amber-400' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
                 @click="toggleBulkSelect(inv.id)">
                 {{ inv.person?.first_name }} {{ inv.person?.last_name }}
+                <span v-if="inviteeRole(inv) !== 'attendee'" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2494D2]/15 text-[#2494D2] font-semibold">{{ eventRoleLabel(inviteeRole(inv)) }}</span>
                 <button class="transition-colors" :class="bulkSelected.includes(inv.id) ? 'text-white/60 hover:text-white' : 'text-gray-400 hover:text-red-500'" @click.stop="removeInvitee(inv.id)">
                   <i class="pi pi-times-circle text-sm" />
                 </button>
               </span>
             </div>
             <button v-if="groupInvitees(groupId).length > GROUP_PREVIEW"
-              class="mt-2.5 flex items-center gap-1 text-sm text-[#1E2157] hover:underline"
+              class="mt-2.5 flex items-center gap-1 text-sm text-primary hover:underline"
               @click="showAllInGroup[groupId] = !showAllInGroup[groupId]">
               <i :class="`pi text-xs ${showAllInGroup[groupId] ? 'pi-chevron-up' : 'pi-chevron-down'}`" />
               {{ showAllInGroup[groupId] ? 'Show less' : `Show all (${groupInvitees(groupId).length})` }}
@@ -197,16 +198,17 @@
             <div class="flex flex-wrap gap-2">
               <span v-for="inv in showAllInGroup['__individual'] ? unassignedInvitees : unassignedInvitees.slice(0, GROUP_PREVIEW)" :key="inv.id"
                 class="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm transition-colors cursor-pointer select-none"
-                :class="bulkSelected.includes(inv.id) ? 'bg-[#1E2157] text-white' : isPillHighlighted(inv) ? 'bg-amber-100 text-amber-900 ring-2 ring-amber-400' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                :class="bulkSelected.includes(inv.id) ? 'bg-primary text-white' : isPillHighlighted(inv) ? 'bg-amber-100 text-amber-900 ring-2 ring-amber-400' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
                 @click="toggleBulkSelect(inv.id)">
                 {{ inv.person?.first_name }} {{ inv.person?.last_name }}
+                <span v-if="inviteeRole(inv) !== 'attendee'" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2494D2]/15 text-[#2494D2] font-semibold">{{ eventRoleLabel(inviteeRole(inv)) }}</span>
                 <button class="transition-colors" :class="bulkSelected.includes(inv.id) ? 'text-white/60 hover:text-white' : 'text-gray-400 hover:text-red-500'" @click.stop="removeInvitee(inv.id)">
                   <i class="pi pi-times-circle text-sm" />
                 </button>
               </span>
             </div>
             <button v-if="unassignedInvitees.length > GROUP_PREVIEW"
-              class="mt-2.5 flex items-center gap-1 text-sm text-[#1E2157] hover:underline"
+              class="mt-2.5 flex items-center gap-1 text-sm text-primary hover:underline"
               @click="showAllInGroup['__individual'] = !showAllInGroup['__individual']">
               <i :class="`pi text-xs ${showAllInGroup['__individual'] ? 'pi-chevron-up' : 'pi-chevron-down'}`" />
               {{ showAllInGroup['__individual'] ? 'Show less' : `Show all (${unassignedInvitees.length})` }}
@@ -219,7 +221,7 @@
   </div>
 
   <!-- Demographics Filter Dialog -->
-  <Dialog v-model:visible="showDemoFilter" header="Filter by Demographics" modal style="width:480px">
+  <Dialog v-model:visible="showDemoFilter" header="Filter by Demographics" modal :style="{ width: '95vw', maxWidth: '480px' }">
     <div class="flex flex-col gap-5 py-2">
 
       <!-- Gender -->
@@ -229,8 +231,8 @@
           <button v-for="g in genderOptions" :key="g.value"
             class="px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors"
             :class="demoFilter.genders.includes(g.value)
-              ? 'bg-[#1E2157] border-[#1E2157] text-white'
-              : 'bg-white border-gray-300 text-gray-600 hover:border-[#1E2157] hover:text-[#1E2157]'"
+              ? 'bg-primary border-primary text-white'
+              : 'bg-white border-gray-300 text-gray-600 hover:border-primary hover:text-primary'"
             @click="toggleDemoGender(g.value)">
             {{ g.label }}
           </button>
@@ -255,7 +257,7 @@
           <button v-for="preset in agePresets" :key="preset.label"
             class="px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors"
             :class="demoFilter.ageMin === preset.min && demoFilter.ageMax === preset.max
-              ? 'bg-[#1E2157] border-[#1E2157] text-white'
+              ? 'bg-primary border-primary text-white'
               : 'bg-white border-gray-200 text-gray-500 hover:border-gray-400'"
             @click="demoFilter.ageMin = preset.min; demoFilter.ageMax = preset.max">
             {{ preset.label }}
@@ -270,8 +272,8 @@
           <button v-for="m in membershipOptions" :key="m.value"
             class="px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors"
             :class="demoFilter.membershipTypes.includes(m.value)
-              ? 'bg-[#1E2157] border-[#1E2157] text-white'
-              : 'bg-white border-gray-300 text-gray-600 hover:border-[#1E2157] hover:text-[#1E2157]'"
+              ? 'bg-primary border-primary text-white'
+              : 'bg-white border-gray-300 text-gray-600 hover:border-primary hover:text-primary'"
             @click="toggleDemoMembership(m.value)">
             {{ m.label }}
           </button>
@@ -285,8 +287,8 @@
           <button v-for="r in registrationOptions" :key="r.value"
             class="px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors"
             :class="demoFilter.registrationStatuses.includes(r.value)
-              ? 'bg-[#1E2157] border-[#1E2157] text-white'
-              : 'bg-white border-gray-300 text-gray-600 hover:border-[#1E2157] hover:text-[#1E2157]'"
+              ? 'bg-primary border-primary text-white'
+              : 'bg-white border-gray-300 text-gray-600 hover:border-primary hover:text-primary'"
             @click="toggleDemoRegistration(r.value)">
             {{ r.label }}
           </button>
@@ -302,7 +304,7 @@
     </div>
     <template #footer>
       <Button label="Cancel" severity="secondary" text @click="showDemoFilter = false" />
-      <Button label="Apply Filters" icon="pi pi-check" @click="showDemoFilter = false" style="background:#1E2157; border-color:#1E2157" />
+      <Button label="Apply Filters" icon="pi pi-check" @click="showDemoFilter = false" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
     </template>
   </Dialog>
 </template>
@@ -315,6 +317,18 @@ const props = defineProps<{
 
 const db = useDb()
 const toast = useToast()
+
+// Scoped per-event roles. A person can be an Attendee / Coach / Manager of an event.
+const scoped = useScopedRoles()
+const eventRoleOptions = computed(() => scoped.rolesFor('event').map(r => ({ label: r.label, value: r.key })))
+const eventRoleLabel = (key: string) => scoped.roleDef('event', key)?.label ?? key
+const inviteeRole = (inv: any) => scoped.normalizeRoles('event', inv.roles, inv.role)[0] || 'attendee'
+// Map a person's GROUP roles → their event role when invited via a group.
+function groupToEventRole(groupRoles: string[]): string {
+  if (groupRoles.includes('manager')) return 'manager'
+  if (groupRoles.some(r => r === 'coach' || r === 'assistant_coach')) return 'coach'
+  return 'attendee'
+}
 
 // ---- Invitees ----
 const invitees = ref<any[]>([])
@@ -373,7 +387,7 @@ function isAlreadyInvited(personId: string) {
 async function addIndividual(person: any) {
   if (isAlreadyInvited(person.id)) return
   addingPersonId.value = person.id
-  const { error } = await db.from('invitees').insert({ event_id: props.eventId, person_id: person.id, status: 'INVITED' })
+  const { error } = await db.from('invitees').insert({ event_id: props.eventId, person_id: person.id, status: 'INVITED', role: 'attendee', roles: ['attendee'] } as any)
   if (error) {
     toast.add({ severity: 'error', summary: 'Error', detail: error.message, life: 4000 })
   } else {
@@ -454,8 +468,16 @@ async function addGroupInvitees(groupId: string) {
   // If this group has children, pull memberships from children; otherwise use the group itself
   const groupIds = children.length > 0 ? children.map(g => g.id) : [groupId]
 
-  const { data: memberships } = await db.from('member_group_memberships').select('person_id').in('group_id', groupIds)
-  const personIds = [...new Set((memberships ?? []).map(m => m.person_id))]
+  const { data: memberships } = await (db.from as any)('member_group_memberships').select('person_id, roles, role').in('group_id', groupIds)
+  const personIds = [...new Set((memberships ?? []).map((m: any) => m.person_id))] as string[]
+  // Best group role per person → their event role (coach in group → coach at event).
+  const eventRoleByPerson: Record<string, string> = {}
+  for (const m of (memberships ?? []) as any[]) {
+    const evRole = groupToEventRole(scoped.normalizeRoles('group', m.roles, m.role))
+    // keep the strongest role if a person is in multiple child groups
+    const rank = (r: string) => (r === 'manager' ? 2 : r === 'coach' ? 1 : 0)
+    if (!eventRoleByPerson[m.person_id] || rank(evRole) > rank(eventRoleByPerson[m.person_id])) eventRoleByPerson[m.person_id] = evRole
+  }
 
   if (!personIds.length) {
     toast.add({ severity: 'info', summary: 'No members found', detail: 'No members in this group.', life: 3000 })
@@ -466,7 +488,7 @@ async function addGroupInvitees(groupId: string) {
   const existingIds = new Set(invitees.value.map(i => i.person_id))
   const toInsert = personIds
     .filter(pid => !existingIds.has(pid))
-    .map(pid => ({ event_id: props.eventId, person_id: pid, status: 'INVITED' }))
+    .map(pid => { const role = eventRoleByPerson[pid] || 'attendee'; return { event_id: props.eventId, person_id: pid, status: 'INVITED', role, roles: [role] } })
 
   if (toInsert.length) {
     const { error } = await db.from('invitees').insert(toInsert)
@@ -605,6 +627,7 @@ function clearDemoFilter() {
 }
 
 onMounted(() => {
+  scoped.loadRoleDefs()
   loadMemberGroups()
   loadInvitees()
 })

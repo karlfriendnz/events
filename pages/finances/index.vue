@@ -1,5 +1,5 @@
 <template>
-  <div class="p-6">
+  <div class="p-3 sm:p-6">
     <div class="flex items-center justify-between mb-6">
       <div>
         <h1 class="text-xl font-semibold text-surface-900">Finances</h1>
@@ -8,7 +8,7 @@
     </div>
 
     <!-- Summary cards -->
-    <div class="grid grid-cols-4 gap-4 mb-6">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
       <div class="card p-4">
         <p class="text-sm text-surface-500 mb-1">Total Events</p>
         <p class="text-2xl font-semibold">{{ summary.events }}</p>
@@ -45,7 +45,7 @@
                 <InputText v-model="feeSearch" placeholder="Search fees…" size="small" class="w-64" />
               </IconField>
             </div>
-            <div class="card">
+            <div class="card overflow-x-auto">
               <DataTable :value="filteredFees" :loading="feesLoading" size="small" striped-rows>
                 <template #empty>
                   <div class="text-center py-10 text-surface-400">
@@ -84,14 +84,14 @@
         <!-- DISCOUNTS -->
         <TabPanel value="discounts">
           <div class="mt-4">
-            <div class="flex justify-between mb-4">
+            <div class="flex justify-between flex-wrap gap-2 mb-4">
               <IconField>
                 <InputIcon class="pi pi-search" />
                 <InputText v-model="discountSearch" placeholder="Search discounts…" size="small" class="w-64" />
               </IconField>
               <Button label="New Discount" icon="pi pi-plus" size="small" @click="showCreateDiscount = true" />
             </div>
-            <div class="card">
+            <div class="card overflow-x-auto">
               <DataTable :value="filteredDiscounts" :loading="discountsLoading" size="small" striped-rows>
                 <template #empty>
                   <div class="text-center py-10 text-surface-400">
@@ -144,11 +144,11 @@
         <!-- ADD-ONS -->
         <TabPanel value="addons">
           <div class="mt-4">
-            <div class="flex justify-between mb-4">
+            <div class="flex justify-between flex-wrap gap-2 mb-4">
               <h3 class="text-sm font-semibold text-surface-700">Add-ons ({{ addons.length }})</h3>
               <Button label="New Add-on" icon="pi pi-plus" size="small" @click="showCreateAddon = true" />
             </div>
-            <div class="card">
+            <div class="card overflow-x-auto">
               <DataTable :value="addons" :loading="addonsLoading" size="small" striped-rows>
                 <template #empty>
                   <div class="text-center py-10 text-surface-400">
@@ -193,31 +193,31 @@
     </Tabs>
 
     <!-- Create Discount Dialog -->
-    <Dialog v-model:visible="showCreateDiscount" header="New Discount" modal style="width: 640px">
+    <Dialog v-model:visible="showCreateDiscount" header="New Discount" modal :style="{ width: '95vw', maxWidth: '640px' }">
       <div class="flex flex-col gap-4 py-1">
         <!-- Event -->
-        <div class="grid grid-cols-[160px_1fr] items-center gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1 sm:gap-3">
           <label class="text-sm font-medium text-gray-700">Event</label>
           <Select v-model="discountForm.event_id" :options="events" option-label="title" option-value="id"
             placeholder="Select event…" filter class="w-full" />
         </div>
         <!-- Name -->
-        <div class="grid grid-cols-[160px_1fr] items-center gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1 sm:gap-3">
           <label class="text-sm font-medium text-gray-700">Name</label>
           <InputText v-model="discountForm.name" placeholder="e.g. Early Bird" class="w-full" />
         </div>
         <!-- Type -->
-        <div class="grid grid-cols-[160px_1fr] items-center gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1 sm:gap-3">
           <label class="text-sm font-medium text-gray-700">Type</label>
           <Select v-model="discountForm.type" :options="['CODE', 'SIBLING', 'ROLE', 'TRAINING_LINKED']" class="w-full" />
         </div>
         <!-- Code -->
-        <div class="grid grid-cols-[160px_1fr] items-center gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1 sm:gap-3">
           <label class="text-sm font-medium text-gray-700">Code</label>
           <InputText v-model="discountForm.code" placeholder="e.g. EARLY20" class="w-full" />
         </div>
         <!-- Modifier type + value side by side -->
-        <div class="grid grid-cols-[160px_1fr] items-center gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1 sm:gap-3">
           <label class="text-sm font-medium text-gray-700">Modifier</label>
           <div class="flex gap-2">
             <Select v-model="discountForm.modifier_type" :options="['PERCENT', 'FLAT']" class="w-36 shrink-0" />
@@ -236,14 +236,14 @@
     </Dialog>
 
     <!-- Create Add-on Dialog -->
-    <Dialog v-model:visible="showCreateAddon" header="New Add-on" modal style="width: 440px">
+    <Dialog v-model:visible="showCreateAddon" header="New Add-on" modal :style="{ width: '95vw', maxWidth: '440px' }">
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Event</label>
           <Select v-model="addonForm.event_id" :options="events" option-label="title" option-value="id"
             placeholder="Select event…" filter class="w-full" />
         </div>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium">Name</label>
             <InputText v-model="addonForm.name" placeholder="e.g. T-Shirt" />
@@ -253,7 +253,7 @@
             <Select v-model="addonForm.type" :options="['OBJECT', 'FIELD_VALUE']" class="w-full" />
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium">Price</label>
             <InputNumber v-model="addonForm.price" mode="currency" currency="AUD" locale="en-AU" />

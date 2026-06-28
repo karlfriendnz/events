@@ -29,8 +29,8 @@
       <!-- Expanded body -->
       <div v-if="expanded[addon.id]" class="border-t border-gray-100">
         <div class="p-4 space-y-3">
-          <div class="flex gap-3">
-            <div class="flex-1 flex flex-col gap-1">
+          <div class="flex gap-3 flex-wrap">
+            <div class="flex-1 min-w-[140px] flex flex-col gap-1">
               <label class="text-xs font-medium text-gray-500">Name</label>
               <input :value="addon.name" type="text" placeholder="e.g. Food package"
                 class="w-full h-9 px-3 rounded-lg border border-gray-200 text-sm outline-none focus:ring-2 focus:ring-indigo-200 transition"
@@ -105,7 +105,7 @@
                 </button>
               </div>
               <button type="button"
-                class="text-xs text-[#1E2157] hover:underline flex items-center gap-1"
+                class="text-xs text-primary hover:underline flex items-center gap-1"
                 @click="addTier(addon)">
                 <i class="pi pi-plus text-[10px]" /> Add bracket
               </button>
@@ -123,7 +123,7 @@
     </div>
 
     <button type="button"
-      class="flex items-center gap-2 text-sm text-gray-400 hover:text-[#1E2157] transition-colors py-1"
+      class="flex items-center gap-2 text-sm text-gray-400 hover:text-primary transition-colors py-1"
       @click="addAddon">
       <i class="pi pi-plus text-xs" />
       Add add-on

@@ -14,10 +14,10 @@
   <div class="space-y-4">
     <div v-if="loading" class="text-xs text-gray-400 py-2">Loading form…</div>
 
-    <div v-else class="grid grid-cols-2 gap-4">
+    <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div v-for="f in visibleFields" :key="f.id"
         class="flex flex-col gap-1.5"
-        :class="(f._col_span ?? 2) === 1 ? 'col-span-1' : 'col-span-2'">
+        :class="(f._col_span ?? 2) === 1 ? 'sm:col-span-1' : 'sm:col-span-2'">
         <label class="text-sm font-medium text-gray-700">
           {{ f.label }}
           <span v-if="f.is_required" class="text-red-400">*</span>
@@ -27,11 +27,11 @@
           v-model="answers[f.id]"
           :type="f.field_type === 'NUMBER' ? 'number' : f.field_type === 'DATE' ? 'date' : (f._core === 'email' ? 'email' : f._core === 'phone' ? 'tel' : 'text')"
           :placeholder="f.placeholder ?? ''"
-          class="h-9 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1E2157]/30 focus:border-[#1E2157]" />
+          class="h-9 rounded-lg border border-gray-300 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
 
         <textarea v-else-if="f.field_type === 'LONG_TEXT'"
           v-model="answers[f.id]" rows="3" :placeholder="f.placeholder ?? ''"
-          class="rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1E2157]/30 focus:border-[#1E2157]" />
+          class="rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
 
         <select v-else-if="f.field_type === 'SINGLE_SELECT'"
           v-model="answers[f.id]"

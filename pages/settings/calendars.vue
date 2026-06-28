@@ -1,15 +1,15 @@
 <template>
-  <div class="p-6 max-w-[1140px] mx-auto space-y-8">
+  <div class="p-3 sm:p-6 max-w-[1140px] mx-auto space-y-8">
 
     <!-- ── CATEGORIES ──────────────────────────────────────────── -->
     <div>
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
         <div>
           <h2 class="text-lg font-semibold text-gray-900">Categories</h2>
           <p class="text-sm text-gray-500 mt-0.5">Colour-coded labels assigned directly to events.</p>
         </div>
-        <Button label="New Category" icon="pi pi-plus" size="small"
-          @click="openCatCreate" style="background:#1E2157; border-color:#1E2157" />
+        <Button label="New Category" icon="pi pi-plus" size="small" class="w-full sm:w-auto"
+          @click="openCatCreate" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
       </div>
 
       <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -31,7 +31,7 @@
               <p class="text-sm font-semibold text-gray-900">{{ cat.name }}</p>
               <p class="text-xs text-gray-400">{{ cat._eventCount ?? 0 }} events</p>
             </div>
-            <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div class="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
               <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openCatEdit(cat)" />
               <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="deleteCategory(cat)" />
             </div>
@@ -42,13 +42,13 @@
 
     <!-- ── CALENDARS ───────────────────────────────────────────── -->
     <div>
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
         <div>
           <h2 class="text-lg font-semibold text-gray-900">Calendars</h2>
           <p class="text-sm text-gray-500 mt-0.5">Named groupings of categories for filtering the calendar view.</p>
         </div>
-        <Button label="New Calendar" icon="pi pi-plus" size="small"
-          @click="openCalCreate" style="background:#1E2157; border-color:#1E2157" />
+        <Button label="New Calendar" icon="pi pi-plus" size="small" class="w-full sm:w-auto"
+          @click="openCalCreate" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
       </div>
 
       <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -82,7 +82,7 @@
                 <span v-else class="text-xs text-gray-400 italic">No categories assigned</span>
               </div>
             </div>
-            <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div class="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
               <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openCalEdit(cal)" />
               <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="deleteCalendar(cal)" />
             </div>
@@ -92,7 +92,7 @@
     </div>
 
     <!-- ── CATEGORY DIALOG ─────────────────────────────────────── -->
-    <Dialog v-model:visible="showCatDialog" :header="editingCat ? 'Edit Category' : 'New Category'" modal style="width:420px">
+    <Dialog v-model:visible="showCatDialog" :header="editingCat ? 'Edit Category' : 'New Category'" modal :style="{ width: '95vw', maxWidth: '420px' }">
       <div class="flex flex-col gap-4 py-1">
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Name</label>
@@ -114,7 +114,7 @@
           <div class="flex flex-wrap gap-2">
             <button v-for="icon in iconOptions" :key="icon"
               class="w-8 h-8 rounded-lg border flex items-center justify-center text-sm transition-colors"
-              :class="catForm.icon === icon ? 'border-[#1E2157] bg-[#EFF6FF] text-[#1E2157]' : 'border-gray-200 text-gray-500 hover:border-gray-400'"
+              :class="catForm.icon === icon ? 'border-primary bg-[#EFF6FF] text-primary' : 'border-gray-200 text-gray-500 hover:border-gray-400'"
               @click="catForm.icon = icon">
               <i :class="`pi pi-${icon}`" />
             </button>
@@ -131,12 +131,12 @@
         <Button label="Cancel" severity="secondary" text @click="showCatDialog = false" />
         <Button :label="editingCat ? 'Save' : 'Create'" :loading="catSaving"
           :disabled="!catForm.name.trim()" @click="saveCat"
-          style="background:#1E2157; border-color:#1E2157" />
+          style="background:var(--brand-primary); border-color:var(--brand-primary)" />
       </template>
     </Dialog>
 
     <!-- ── CALENDAR DIALOG ─────────────────────────────────────── -->
-    <Dialog v-model:visible="showCalDialog" :header="editingCal ? 'Edit Calendar' : 'New Calendar'" modal style="width:440px">
+    <Dialog v-model:visible="showCalDialog" :header="editingCal ? 'Edit Calendar' : 'New Calendar'" modal :style="{ width: '95vw', maxWidth: '440px' }">
       <div class="flex flex-col gap-4 py-1">
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Name</label>
@@ -166,7 +166,7 @@
         <Button label="Cancel" severity="secondary" text @click="showCalDialog = false" />
         <Button :label="editingCal ? 'Save' : 'Create'" :loading="calSaving"
           :disabled="!calForm.name.trim()" @click="saveCal"
-          style="background:#1E2157; border-color:#1E2157" />
+          style="background:var(--brand-primary); border-color:var(--brand-primary)" />
       </template>
     </Dialog>
 

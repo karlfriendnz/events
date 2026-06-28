@@ -40,7 +40,7 @@
           <p class="text-xs text-gray-400 mt-0.5">Different rates per group — inherits default unless overridden</p>
         </div>
         <button type="button"
-          class="flex items-center gap-1.5 text-sm font-medium text-[#1E2157] hover:text-[#2a2f6e] transition-colors shrink-0"
+          class="flex items-center gap-1.5 text-sm font-medium text-primary hover:text-[#2a2f6e] transition-colors shrink-0"
           @click="addTier">
           <i class="pi pi-plus text-xs" />
           Add tier
@@ -71,7 +71,7 @@
           </div>
 
           <!-- Date range row -->
-          <div class="px-4 pb-3 flex items-center gap-2 border-t border-gray-50 pt-2.5">
+          <div class="px-4 pb-3 flex items-center gap-2 flex-wrap border-t border-gray-50 pt-2.5">
             <i class="pi pi-calendar text-gray-300 text-xs shrink-0" />
             <span class="text-xs text-gray-400 shrink-0">Valid from</span>
             <DatePicker
@@ -93,7 +93,7 @@
               inputClass="!text-xs !py-1 !px-2 !h-7 !w-28"
               class="shrink-0"
               @update:modelValue="v => patchTierDate(tier.id, 'valid_until', v)" />
-            <span v-if="tier.valid_from || tier.valid_until" class="text-xs text-[#1E2157] ml-1">
+            <span v-if="tier.valid_from || tier.valid_until" class="text-xs text-primary ml-1">
               {{ tierDateSummary(tier) }}
             </span>
           </div>
@@ -151,7 +151,7 @@
                     class="w-44" />
                 </template>
                 <button type="button"
-                  class="h-7 px-2.5 rounded-lg bg-[#1E2157] text-white text-xs font-medium"
+                  class="h-7 px-2.5 rounded-lg bg-primary text-white text-xs font-medium"
                   @click="confirmCriteriaRule(tier.id)">Add</button>
                 <button type="button"
                   class="h-7 px-2 rounded-lg border border-gray-200 text-xs text-gray-500 hover:bg-gray-50"
@@ -159,7 +159,7 @@
               </template>
               <!-- Add rule button -->
               <button v-else type="button"
-                class="flex items-center gap-1 text-xs text-gray-400 hover:text-[#1E2157] transition-colors"
+                class="flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors"
                 @click="startCriteriaRule(tier.id)">
                 <i class="pi pi-plus text-xs" />
                 Add criteria
@@ -189,7 +189,7 @@
                   <button type="button"
                     class="px-3 py-1.5 border-l border-gray-200 transition-colors"
                     :class="getTierSection(tier.id, section.key) !== null
-                      ? 'bg-[#1E2157] text-white'
+                      ? 'bg-primary text-white'
                       : 'text-gray-400 hover:text-gray-600'"
                     @click="activateTierOverride(tier.id, section.key)">
                     Override
@@ -227,7 +227,7 @@
                     <button type="button"
                       class="px-3 py-1.5 border-l border-gray-200 transition-colors"
                       :class="getTierAddonOverride(tier.id, addon.id) !== null
-                        ? 'bg-[#1E2157] text-white'
+                        ? 'bg-primary text-white'
                         : 'text-gray-400 hover:text-gray-600'"
                       @click="activateTierAddonOverride(tier.id, addon.id)">
                       Override

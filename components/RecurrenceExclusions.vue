@@ -128,10 +128,10 @@ function cellClass(c: any) {
   if (!c.isOccurrence) return 'text-gray-300 cursor-default'
   if (c.isExcluded) return 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100'
   return c.isToday
-    ? 'bg-[#1E2157] text-white font-semibold hover:bg-[#1E2157]/90'
+    ? 'bg-primary text-white font-semibold hover:bg-primary/90'
     : c.isPast
     ? 'bg-gray-50 text-gray-400 hover:bg-gray-100'
-    : 'bg-[#EFF6FF] text-[#1E2157] font-medium hover:bg-[#1E2157]/15'
+    : 'bg-[#EFF6FF] text-primary font-medium hover:bg-primary/15'
 }
 
 function toggle(c: any) {

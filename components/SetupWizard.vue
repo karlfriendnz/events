@@ -19,11 +19,11 @@
           <button v-for="s in SPORTS" :key="s.type" type="button"
             class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left transition-colors"
             :class="selectedType === s.type
-              ? 'bg-white text-[#1E2157] ring-1 ring-[#1E2157]/15 shadow-sm'
+              ? 'bg-white text-primary ring-1 ring-primary/15 shadow-sm'
               : 'text-gray-700 hover:bg-white/70'"
             @click="selectSport(s.type)">
             <span class="w-7 h-7 rounded-lg flex items-center justify-center text-sm shrink-0 transition-colors"
-              :class="selectedType === s.type ? 'bg-[#1E2157]/8' : 'bg-white ring-1 ring-gray-100'">
+              :class="selectedType === s.type ? 'bg-primary/8' : 'bg-white ring-1 ring-gray-100'">
               <span>{{ s.icon }}</span>
             </span>
             <span class="text-sm font-medium tracking-tight">{{ s.name }}</span>
@@ -35,7 +35,7 @@
       <main class="flex-1 flex flex-col min-w-0">
         <header class="px-7 pt-7 pb-4 border-b border-gray-100 flex items-start justify-between gap-4">
           <div class="min-w-0">
-            <p class="text-[11px] font-semibold text-[#1E2157] uppercase tracking-[0.18em]">Sport setup</p>
+            <p class="text-[11px] font-semibold text-primary uppercase tracking-[0.18em]">Sport setup</p>
             <h2 class="text-xl font-bold text-gray-900 mt-1 tracking-tight">{{ sport.name }}</h2>
             <p class="text-sm text-gray-500 mt-0.5">{{ sport.description }}</p>
           </div>
@@ -52,7 +52,7 @@
           <section>
             <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-[0.14em] mb-2">1 · Facility name</p>
             <input v-model="venueName" type="text"
-              class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#1E2157] focus:ring-2 focus:ring-[#1E2157]/15 transition-shadow" />
+              class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-shadow" />
             <p class="text-[11px] text-gray-400 mt-1">
               Top-level venue that owns the {{ baseName.toLowerCase() }}s — e.g. "Tennis Courts" or "Aspen Sports Centre".
             </p>
@@ -71,7 +71,7 @@
               <div>
                 <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Base name <span class="text-gray-300 font-normal">— suffixed 1, 2, 3 …</span></label>
                 <input v-model="baseName" type="text"
-                  class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#1E2157] focus:ring-2 focus:ring-[#1E2157]/15 transition-shadow" />
+                  class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-shadow" />
               </div>
             </div>
           </section>
@@ -85,11 +85,11 @@
               <button v-for="m in sport.presetModes" :key="m.key" type="button"
                 class="text-left flex items-start gap-3 px-3 py-3 rounded-xl border-2 transition-all"
                 :class="pickedModeKeys.has(m.key)
-                  ? 'border-[#1E2157] bg-[#1E2157]/[0.04]'
+                  ? 'border-primary bg-primary/[0.04]'
                   : 'border-gray-100 hover:border-gray-200 bg-white'"
                 @click="toggleMode(m.key)">
                 <div class="w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors"
-                  :class="pickedModeKeys.has(m.key) ? 'bg-[#1E2157] border-[#1E2157]' : 'border-gray-300'">
+                  :class="pickedModeKeys.has(m.key) ? 'bg-primary border-primary' : 'border-gray-300'">
                   <i v-if="pickedModeKeys.has(m.key)" class="pi pi-check text-white text-[10px]" />
                 </div>
                 <div class="flex-1 min-w-0">
@@ -109,8 +109,66 @@
           <section>
             <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-[0.14em] mb-2">4 · Activity name</p>
             <input v-model="activityName" type="text"
-              class="w-full h-10 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#1E2157] focus:ring-2 focus:ring-[#1E2157]/15 transition-shadow" />
+              class="w-full h-10 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-shadow" />
             <p class="text-[11px] text-gray-400 mt-1">The activity people see when booking — e.g. "Tennis", "Tennis Hire".</p>
+          </section>
+
+          <!-- ── Section 5: operating hours + slot length ── -->
+          <section>
+            <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-[0.14em] mb-2">5 · Default sessions</p>
+            <p class="text-xs text-gray-500 mb-3">When can people book, and how long is each session? Edit per-{{ baseName.toLowerCase() }} later in the venue's Availability tab.</p>
+
+            <div class="space-y-4">
+              <!-- Days -->
+              <div>
+                <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Days</label>
+                <div class="flex gap-1.5 flex-wrap">
+                  <button v-for="(label, i) in DAY_LABELS" :key="i" type="button"
+                    class="w-9 h-9 rounded-lg text-xs font-bold transition-colors border"
+                    :class="days.includes(i)
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300'"
+                    @click="toggleDay(i)">{{ label }}</button>
+                </div>
+              </div>
+
+              <!-- Open / close -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Open</label>
+                  <input v-model="openTime" type="time"
+                    class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-shadow" />
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Close</label>
+                  <input v-model="closeTime" type="time"
+                    class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-primary focus:ring-2 focus:ring-primary/15 transition-shadow" />
+                </div>
+              </div>
+
+              <!-- Slot length / buffer -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Session length <span class="text-gray-300 font-normal">— minutes</span></label>
+                  <InputNumber v-model="slotMins" :min="15" :max="480" :step="15" show-buttons button-layout="horizontal"
+                    decrement-button-class="!h-9 !w-9" increment-button-class="!h-9 !w-9"
+                    input-class="!h-9 !w-16 !text-center !text-sm !font-semibold" class="w-full" />
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-gray-600 mb-1.5 block">Gap <span class="text-gray-300 font-normal">— minutes between sessions</span></label>
+                  <InputNumber v-model="bufferMins" :min="0" :max="120" :step="5" show-buttons button-layout="horizontal"
+                    decrement-button-class="!h-9 !w-9" increment-button-class="!h-9 !w-9"
+                    input-class="!h-9 !w-16 !text-center !text-sm !font-semibold" class="w-full" />
+                </div>
+              </div>
+
+              <!-- Preview -->
+              <div class="rounded-lg bg-gray-50 px-3 py-2 text-[11px] text-gray-600 leading-relaxed">
+                <span class="font-semibold text-gray-500 uppercase tracking-wider mr-2">Preview</span>
+                <span v-if="slotPreview">{{ slotPreview }}</span>
+                <span v-else class="text-gray-400">Pick days + times to see the slots.</span>
+              </div>
+            </div>
           </section>
 
           <!-- ── Summary ── -->
@@ -133,6 +191,10 @@
                 <i class="pi pi-check-circle text-emerald-500 text-xs mt-0.5" />
                 <span>Activity <span class="font-semibold text-gray-900">"{{ activityName || sport.name }}"</span> with <span class="font-semibold text-gray-900">{{ pickedModeKeys.size }}</span> mode{{ pickedModeKeys.size === 1 ? '' : 's' }}</span>
               </li>
+              <li v-if="days.length && openTime && closeTime" class="flex items-start gap-2">
+                <i class="pi pi-check-circle text-emerald-500 text-xs mt-0.5" />
+                <span><span class="font-semibold text-gray-900">{{ daysSummary }}</span> {{ openTime }}–{{ closeTime }}, <span class="font-semibold text-gray-900">{{ slotMins }}-min</span> sessions<span v-if="bufferMins"> + {{ bufferMins }}-min gap</span></span>
+              </li>
               <li v-if="!pickedModeKeys.size" class="flex items-start gap-2 text-amber-700">
                 <i class="pi pi-exclamation-circle text-amber-500 text-xs mt-0.5" />
                 <span>Pick at least one bookable format above.</span>
@@ -147,7 +209,7 @@
           <button type="button"
             class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white shadow-sm transition-all"
             :class="canCreate
-              ? 'bg-[#1E2157] hover:bg-[#161A45] hover:shadow-md'
+              ? 'bg-primary hover:bg-[#161A45] hover:shadow-md'
               : 'bg-gray-300 cursor-not-allowed'"
             :disabled="!canCreate || creating"
             @click="create">
@@ -282,6 +344,65 @@ const pickedModeKeys = ref<Set<string>>(new Set(['singles', 'doubles']))
 const activityName = ref('Tennis')
 const creating = ref(false)
 
+// ── Default sessions (operating hours + slot length) ─────────────────────
+// 0=Mon … 6=Sun (matches availability_rules.days_of_week convention).
+const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const days = ref<number[]>([0, 1, 2, 3, 4])
+const openTime = ref('09:00')
+const closeTime = ref('17:00')
+const slotMins = ref(60)
+const bufferMins = ref(15)
+
+function toggleDay(i: number) {
+  const next = new Set(days.value)
+  if (next.has(i)) next.delete(i)
+  else next.add(i)
+  days.value = Array.from(next).sort((a, b) => a - b)
+}
+
+const daysSummary = computed(() => {
+  if (!days.value.length) return 'No days'
+  const sorted = [...days.value].sort((a, b) => a - b)
+  // Tight contiguous range → "Mon–Fri" shorthand.
+  const isContiguous = sorted.every((d, i) => i === 0 || d === sorted[i - 1] + 1)
+  if (isContiguous && sorted.length >= 3) return `${DAY_NAMES[sorted[0]]}–${DAY_NAMES[sorted[sorted.length - 1]]}`
+  return sorted.map(d => DAY_NAMES[d]).join(', ')
+})
+
+function fmtTime(mins: number): string {
+  const h = Math.floor(mins / 60), m = mins % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+// Slice the open/close window into discrete sessions of slotMins separated
+// by bufferMins. Used both by the live preview and by the create() write —
+// availability_rules.time_slots is what the calendar/scheduler iterates to
+// render bookable cells.
+function buildSessionSlots(): { from: string; to: string }[] {
+  if (!openTime.value || !closeTime.value || !slotMins.value) return []
+  const [oh, om] = openTime.value.split(':').map(Number)
+  const [ch, cm] = closeTime.value.split(':').map(Number)
+  const openMin = oh * 60 + om
+  const closeMin = ch * 60 + cm
+  const step = slotMins.value + (bufferMins.value || 0)
+  if (closeMin - openMin < slotMins.value || step <= 0) return []
+  const out: { from: string; to: string }[] = []
+  for (let t = openMin; t + slotMins.value <= closeMin; t += step) {
+    out.push({ from: fmtTime(t), to: fmtTime(t + slotMins.value) })
+  }
+  return out
+}
+
+const slotPreview = computed(() => {
+  if (!days.value.length) return ''
+  const slots = buildSessionSlots()
+  if (!slots.length) return 'Window too short for a session.'
+  const previews = slots.slice(0, 5).map(s => s.from)
+  const more = slots.length > previews.length ? `, … (${slots.length} per day)` : ''
+  return previews.join(', ') + more
+})
+
 function selectSport(t: string) {
   selectedType.value = t
   const s = SPORTS.find(x => x.type === t)
@@ -337,8 +458,19 @@ async function create() {
       name: activityName.value.trim(),
       status: 'ACTIVE',
       bookings_enabled: true,
+      require_mode: true,
       area_name_singular: sport.value.noun,
       area_name_plural: `${sport.value.noun}s`,
+      // Sport-style activities use the single-screen scheduler (grid + side
+      // panel) rather than the multi-step wizard — slot picking on a court
+      // grid is the natural flow for repeat hireable spaces.
+      booking_flow: 'scheduler',
+      // Default sessions — fixed slot length + gap. min == max keeps the
+      // booker locked to one duration; advanced users can widen the range
+      // later in the activity editor.
+      min_duration_mins: slotMins.value,
+      max_duration_mins: slotMins.value,
+      buffer_mins: bufferMins.value,
     }).select('id').single()
     if (actErr || !act?.id) throw actErr ?? new Error('Could not create activity')
     const activityId = act.id as string
@@ -474,7 +606,32 @@ async function create() {
       parentIds.map(pid => ({ activity_id: activityId, bookable_id: pid })),
     )
 
-    // 7) Per-mode bookable scope. Every mode is bookable on every parent
+    // 7a) Default availability rules — one OPEN rule per parent court whose
+    //     time_slots[] holds every individual session generated from the
+    //     open window + slot length + gap. The calendar/scheduler iterates
+    //     time_slots to render bookable cells; collapsing the window to a
+    //     single block would render as one slot. Skipped if the user
+    //     cleared all days (treat as 24/7 / configure later).
+    const sessionSlots = buildSessionSlots()
+    if (days.value.length && sessionSlots.length && parentIds.length) {
+      const { error: avErr } = await (db.from as any)('availability_rules').insert(
+        parentIds.map(pid => ({
+          bookable_id: pid,
+          name: 'Default sessions',
+          rule_type: 'OPEN',
+          days_of_week: days.value,
+          // time_from/time_to mirror the first slot — matches the shape
+          // AvailabilityEditor writes, keeps the legacy fallback consistent.
+          time_from: sessionSlots[0].from,
+          time_to: sessionSlots[0].to,
+          time_slots: sessionSlots,
+          is_active: true,
+        })),
+      )
+      if (avErr) throw avErr
+    }
+
+    // 7b) Per-mode bookable scope. Every mode is bookable on every parent
     //    court the wizard just created — making this explicit (rather than
     //    leaving the table empty as "implicit all") matches what the mode
     //    editor's UI shows and avoids surprises if later changes narrow

@@ -1,11 +1,11 @@
 <template>
   <div class="flex-1 overflow-hidden flex flex-col bg-white">
     <!-- Header -->
-    <div class="flex items-center gap-3 px-6 py-4 border-b border-gray-100 shrink-0">
-      <div class="w-8 h-8 rounded-full bg-[#1E2157]/10 flex items-center justify-center shrink-0">
-        <i class="pi pi-calendar text-[#1E2157] text-sm" />
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 sm:px-6 py-4 border-b border-gray-100 shrink-0">
+      <div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+        <i class="pi pi-calendar text-primary text-sm" />
       </div>
-      <div class="min-w-0 flex-1">
+      <div class="min-w-0 flex-1 w-[60%] sm:w-auto">
         <p class="font-semibold text-gray-900 truncate">{{ session.title || 'Untitled Session' }}</p>
         <div class="flex flex-col gap-0.5 mt-0.5">
           <p class="text-xs text-gray-400 flex items-center gap-1.5">
@@ -30,13 +30,13 @@
       <div class="flex flex-col items-end gap-1.5 shrink-0">
         <div class="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
           <button type="button" class="px-3 py-1.5 transition-colors"
-            :class="!session.is_master && !session.master_id ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50 bg-white'"
+            :class="!session.is_master && !session.master_id ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50 bg-white'"
             @click="setRole('standalone')">Standalone</button>
           <button type="button" class="px-3 py-1.5 transition-colors border-l border-gray-200 flex items-center gap-1"
-            :class="session.is_master ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50 bg-white'"
+            :class="session.is_master ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50 bg-white'"
             @click="setRole('master')"><i class="pi pi-crown text-[9px]" />Master</button>
           <button type="button" class="px-3 py-1.5 transition-colors border-l border-gray-200 flex items-center gap-1"
-            :class="[session.master_id ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50 bg-white', !availableMasters.length ? 'opacity-40 cursor-not-allowed' : '']"
+            :class="[session.master_id ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50 bg-white', !availableMasters.length ? 'opacity-40 cursor-not-allowed' : '']"
             :disabled="!availableMasters.length"
             @click="setRole('linked')"><i class="pi pi-link text-[9px]" />Linked</button>
         </div>
@@ -57,19 +57,24 @@
     </div>
 
     <!-- Tab nav -->
-    <div class="flex items-center gap-1.5 px-6 py-3 border-b border-gray-100 flex-wrap shrink-0">
-      <button v-for="t in tabs" :key="t.key"
-        class="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-colors"
-        :class="activeTab === t.key ? 'bg-[#1E2157] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
-        @click="activeTab = t.key">
-        <i :class="`pi ${t.icon} text-xs`" />{{ t.label }}
-      </button>
-      <Button label="Take Attendance" icon="pi pi-check-square" size="small" class="ml-auto"
-        style="background:#2494D2; border-color:#2494D2" @click="emit('takeAttendance', sessionId(props.session))" />
+    <div class="flex items-stretch border-b border-gray-100 shrink-0">
+      <div class="flex items-center gap-1.5 px-4 sm:px-6 py-3 overflow-x-auto no-scrollbar flex-1 min-w-0">
+        <button v-for="t in tabs" :key="t.key"
+          class="flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-colors shrink-0 whitespace-nowrap"
+          :class="activeTab === t.key ? 'bg-primary text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+          @click="activeTab = t.key">
+          <i :class="`pi ${t.icon} text-xs`" />{{ t.label }}
+        </button>
+      </div>
+      <div class="shrink-0 flex items-center px-3 border-l border-gray-100">
+        <Button label="Take Attendance" icon="pi pi-check-square" size="small" class="whitespace-nowrap"
+          :pt="{ label: { class: 'hidden sm:inline' } }"
+          style="background:#2494D2; border-color:#2494D2" @click="emit('takeAttendance', sessionId(props.session))" />
+      </div>
     </div>
 
     <!-- Tab content -->
-    <div class="flex-1 overflow-y-auto bg-[#F5F8FA] px-6 py-6">
+    <div class="flex-1 overflow-y-auto bg-[#F5F8FA] px-4 sm:px-6 py-4 sm:py-6">
 
       <!-- OVERVIEW -->
       <div v-if="activeTab === 'overview'" class="space-y-6">
@@ -79,36 +84,33 @@
           <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Session Info</h2>
           <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <!-- Title -->
-            <div class="px-5 py-4 border-b border-gray-100">
-              <div class="flex items-center gap-3">
-                <div class="grid grid-cols-[120px_1fr] items-center gap-4 flex-1">
-                  <label class="text-sm font-medium text-gray-700">Session Title</label>
-                  <InputText v-model="session.title" placeholder="Enter the name of this session" class="w-full" :disabled="isLocked('title')" />
+            <div class="px-4 sm:px-5 py-4 border-b border-gray-100">
+              <div class="flex items-center justify-between gap-2 mb-1.5">
+                <label class="text-sm font-medium text-gray-700">Session Title</label>
+                <div class="flex items-center gap-1.5 shrink-0">
+                  <span v-if="session.is_master && inheritingCount('title') > 0"
+                    class="text-[10px] font-medium px-2 py-0.5 rounded border border-violet-200 bg-violet-50 text-violet-600">
+                    <i class="pi pi-link text-[9px] mr-0.5" />{{ inheritingCount('title') }} inheriting</span>
+                  <template v-if="session.master_id">
+                    <button v-if="isLocked('title')" type="button"
+                      class="text-[10px] font-medium px-2 py-0.5 rounded border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors"
+                      @click="unlock('title')"><i class="pi pi-lock text-[9px] mr-0.5" />Inherited</button>
+                    <button v-else type="button"
+                      class="text-[10px] font-medium px-2 py-0.5 rounded border transition-colors"
+                      :class="differs('title') ? 'border-amber-300 bg-amber-50 text-amber-600 hover:bg-amber-100' : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300'"
+                      @click="pullFromMaster('title')"><i class="pi pi-crown text-[9px] mr-0.5" />From master</button>
+                  </template>
                 </div>
-                <span v-if="session.is_master && inheritingCount('title') > 0"
-                  class="text-[10px] font-medium px-2 py-0.5 rounded border border-violet-200 bg-violet-50 text-violet-600 shrink-0">
-                  <i class="pi pi-link text-[9px] mr-0.5" />{{ inheritingCount('title') }} inheriting</span>
-                <template v-if="session.master_id">
-                  <button v-if="isLocked('title')" type="button"
-                    class="text-[10px] font-medium px-2 py-0.5 rounded border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors shrink-0"
-                    @click="unlock('title')"><i class="pi pi-lock text-[9px] mr-0.5" />Inherited</button>
-                  <button v-else type="button"
-                    class="text-[10px] font-medium px-2 py-0.5 rounded border transition-colors shrink-0"
-                    :class="differs('title') ? 'border-amber-300 bg-amber-50 text-amber-600 hover:bg-amber-100' : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300'"
-                    @click="pullFromMaster('title')"><i class="pi pi-crown text-[9px] mr-0.5" />From master</button>
-                </template>
               </div>
+              <InputText v-model="session.title" placeholder="Enter the name of this session" class="w-full" :disabled="isLocked('title')" />
             </div>
             <!-- Description -->
-            <div class="px-5 py-4">
-              <div class="flex gap-3">
-                <div class="grid grid-cols-[120px_1fr] gap-4 flex-1">
-                  <label class="text-sm font-medium text-gray-700 pt-1">Description</label>
-                  <RichTextEditor :modelValue="session.description ?? ''" @update:modelValue="session.description = $event" placeholder="Describe this session…" :readonly="isLocked('description')" />
-                </div>
-                <div class="shrink-0 pt-1">
+            <div class="px-4 sm:px-5 py-4">
+              <div class="flex items-center justify-between gap-2 mb-1.5">
+                <label class="text-sm font-medium text-gray-700">Description</label>
+                <div class="flex items-center gap-1.5 shrink-0">
                   <span v-if="session.is_master && inheritingCount('description') > 0"
-                    class="text-[10px] font-medium px-2 py-0.5 rounded border border-violet-200 bg-violet-50 text-violet-600 shrink-0">
+                    class="text-[10px] font-medium px-2 py-0.5 rounded border border-violet-200 bg-violet-50 text-violet-600">
                     <i class="pi pi-link text-[9px] mr-0.5" />{{ inheritingCount('description') }} inheriting</span>
                   <template v-if="session.master_id">
                     <button v-if="isLocked('description')" type="button"
@@ -121,6 +123,7 @@
                   </template>
                 </div>
               </div>
+              <RichTextEditor :modelValue="session.description ?? ''" @update:modelValue="session.description = $event" placeholder="Describe this session…" :readonly="isLocked('description')" />
             </div>
           </div>
         </div>
@@ -139,7 +142,7 @@
                 <template v-else>No date set</template>
               </span>
               <span v-if="dateDisplay.days !== null"
-                class="text-xs font-semibold px-2 py-0.5 rounded-full bg-[#1E2157]/10 text-[#1E2157]">
+                class="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                 {{ dateDisplay.days }} {{ dateDisplay.days === 1 ? 'day' : 'days' }}
               </span>
               <i class="pi text-sm text-gray-300 group-hover:text-gray-500 transition-colors shrink-0"
@@ -308,7 +311,7 @@
                 <button v-if="isLocked('admins')" type="button" class="text-[10px] font-medium px-2 py-0.5 rounded border border-violet-200 bg-violet-50 text-violet-600 hover:bg-violet-100 transition-colors" @click="unlock('admins')"><i class="pi pi-lock text-[9px] mr-0.5" />Inherited</button>
                 <button v-else type="button" class="text-[10px] font-medium px-2 py-0.5 rounded border transition-colors" :class="differs('admins') ? 'border-amber-300 bg-amber-50 text-amber-600 hover:bg-amber-100' : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300'" @click="pullFromMaster('admins')"><i class="pi pi-crown text-[9px] mr-0.5" />From master</button>
               </template>
-              <button type="button" :disabled="isLocked('admins')" class="flex items-center gap-1 text-xs text-[#1E2157] hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
+              <button type="button" :disabled="isLocked('admins')" class="flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
                 @click="!isLocked('admins') && (session.admins = [...(session.admins ?? []), { name: '', email: '', role: '' }])">
                 <i class="pi pi-plus text-[10px]" /> Add
               </button>
@@ -341,13 +344,13 @@
             <div class="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
               <button type="button"
                 class="px-3 py-1.5 transition-colors"
-                :class="!sessionEligibility.restricted ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50 bg-white'"
+                :class="!sessionEligibility.restricted ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50 bg-white'"
                 @click="setEligibilityRestricted(false)">
                 Open to all
               </button>
               <button type="button"
                 class="px-3 py-1.5 transition-colors border-l border-gray-200"
-                :class="sessionEligibility.restricted ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50 bg-white'"
+                :class="sessionEligibility.restricted ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50 bg-white'"
                 @click="setEligibilityRestricted(true)">
                 Restricted
               </button>
@@ -400,13 +403,13 @@
               type="button"
               class="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors"
               @click="toggleInviteeMode(opt.value)">
-              <i :class="[`pi ${opt.icon}`, 'text-sm w-4 shrink-0', sessionInviteeModes.includes(opt.value) ? 'text-[#1E2157]' : 'text-gray-400']" />
+              <i :class="[`pi ${opt.icon}`, 'text-sm w-4 shrink-0', sessionInviteeModes.includes(opt.value) ? 'text-primary' : 'text-gray-400']" />
               <div class="flex-1 text-left">
-                <p class="text-sm font-medium" :class="sessionInviteeModes.includes(opt.value) ? 'text-[#1E2157]' : 'text-gray-700'">{{ opt.label }}</p>
+                <p class="text-sm font-medium" :class="sessionInviteeModes.includes(opt.value) ? 'text-primary' : 'text-gray-700'">{{ opt.label }}</p>
                 <p class="text-xs text-gray-400">{{ opt.sub }}</p>
               </div>
               <div class="w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors"
-                :class="sessionInviteeModes.includes(opt.value) ? 'bg-[#1E2157] border-[#1E2157]' : 'border-gray-300'">
+                :class="sessionInviteeModes.includes(opt.value) ? 'bg-primary border-primary' : 'border-gray-300'">
                 <i v-if="sessionInviteeModes.includes(opt.value)" class="pi pi-check text-white text-[10px]" />
               </div>
             </button>

@@ -5,13 +5,13 @@
 
       <!-- Date row (accordion) -->
       <div>
-        <div class="flex items-center px-6 py-4 gap-6 group hover:bg-gray-50/50 transition-colors cursor-pointer"
+        <div class="flex flex-col sm:flex-row sm:items-center px-4 sm:px-6 py-4 gap-1 sm:gap-6 group hover:bg-gray-50/50 transition-colors cursor-pointer"
           @click="open !== 'date' && (open = 'date')">
-          <span class="text-sm font-semibold text-gray-700 w-28 shrink-0">Date</span>
+          <span class="text-sm font-semibold text-gray-700 w-full sm:w-28 shrink-0">Date</span>
           <div class="flex items-center gap-2 flex-1 min-w-0">
             <span class="text-sm" :class="dateDisplay ? 'text-gray-700' : 'text-gray-400'">{{ dateDisplay || '—' }}</span>
             <span v-if="repeatBadge"
-              class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#EFF6FF] text-[#1E2157] border border-[#1E2157]/15 shrink-0">
+              class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-[#EFF6FF] text-primary border border-primary/15 shrink-0">
               <i class="pi pi-sync text-[9px]" />
               {{ repeatBadge }}
             </span>
@@ -22,7 +22,7 @@
               {{ exdates!.length }} skipped
             </span>
           </div>
-          <i v-if="open !== 'date'" class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" />
+          <i v-if="open !== 'date'" class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0 !hidden sm:!block" />
         </div>
         <div v-if="open === 'date'" class="border-t border-gray-100" @click.stop>
           <DateTimeEditor
@@ -32,8 +32,8 @@
             :exdates="exdates"
             :minStartDate="twoWeeksAgo"
             :minEndDate="startDate ?? twoWeeksAgo"
-            rowPadding="px-6 py-4"
-            labelWidth="w-28"
+            rowPadding="px-4 sm:px-6 py-4"
+            labelWidth="w-full sm:w-28"
             @update:startDate="$emit('update:startDate', $event)"
             @update:endDate="$emit('update:endDate', $event)"
             @update:startTime="$emit('update:startTime', $event)"
@@ -45,44 +45,49 @@
           <div class="flex justify-end gap-2 px-5 py-3 border-t border-gray-100">
             <Button label="Cancel" size="small" severity="secondary" text @click.stop="open = null" />
             <Button label="Save" icon="pi pi-check" size="small" :loading="savingField === 'date'"
-              @click.stop="save('date')" style="background:#1E2157;border-color:#1E2157" />
+              @click.stop="save('date')" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
           </div>
         </div>
       </div>
 
       <!-- Sign Up row (accordion) -->
       <div>
-        <div class="flex items-center px-6 py-4 gap-6 group hover:bg-gray-50/50 transition-colors cursor-pointer"
+        <div class="flex flex-col sm:flex-row sm:items-center px-4 sm:px-6 py-4 gap-1 sm:gap-6 group hover:bg-gray-50/50 transition-colors cursor-pointer"
           @click="open !== 'signup' && (open = 'signup')">
-          <span class="text-sm font-semibold text-gray-700 w-28 shrink-0">Sign Up</span>
+          <span class="text-sm font-semibold text-gray-700 w-full sm:w-28 shrink-0">Sign Up</span>
           <span class="text-sm flex-1" :class="signupDisplay ? 'text-gray-700' : 'text-gray-400'">{{ signupDisplay || '—' }}</span>
-          <i v-if="open !== 'signup'" class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" />
+          <i v-if="open !== 'signup'" class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0 !hidden sm:!block" />
         </div>
-        <div v-if="open === 'signup'" class="border-t border-gray-100 px-6 py-3" @click.stop>
-          <div class="flex items-center gap-2 min-w-0">
-            <span class="text-sm font-medium text-gray-600 w-28 shrink-0">Opens</span>
-            <DatePicker :modelValue="regOpenAt" showTime hourFormat="12" dateFormat="dd/mm/yy" placeholder="No open date"
-              class="w-44 shrink-0" @update:modelValue="$emit('update:regOpenAt', $event)" />
-            <span class="text-gray-300 shrink-0">→</span>
-            <span class="text-sm font-medium text-gray-600 shrink-0">Closes</span>
-            <DatePicker :modelValue="regCloseAt" showTime hourFormat="12" dateFormat="dd/mm/yy" placeholder="No close date"
-              class="w-44 shrink-0" @update:modelValue="$emit('update:regCloseAt', $event)" />
-            <Button label="Cancel" size="small" severity="secondary" text class="ml-auto shrink-0" @click.stop="open = null" />
-            <Button label="Save" icon="pi pi-check" size="small" :loading="savingField === 'signup'" class="shrink-0"
-              @click.stop="save('signup')" style="background:#1E2157;border-color:#1E2157" />
+        <div v-if="open === 'signup'" class="border-t border-gray-100 px-4 sm:px-6 py-4 space-y-3" @click.stop>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <div class="flex flex-col gap-1.5">
+              <span class="text-xs font-medium text-gray-500">Opens</span>
+              <DatePicker :modelValue="regOpenAt" showTime hourFormat="12" dateFormat="dd/mm/yy" placeholder="No open date"
+                fluid class="w-full" @update:modelValue="$emit('update:regOpenAt', $event)" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <span class="text-xs font-medium text-gray-500">Closes</span>
+              <DatePicker :modelValue="regCloseAt" showTime hourFormat="12" dateFormat="dd/mm/yy" placeholder="No close date"
+                fluid class="w-full" @update:modelValue="$emit('update:regCloseAt', $event)" />
+            </div>
+          </div>
+          <div class="flex justify-end gap-2">
+            <Button label="Cancel" size="small" severity="secondary" text @click.stop="open = null" />
+            <Button label="Save" icon="pi pi-check" size="small" :loading="savingField === 'signup'"
+              @click.stop="save('signup')" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
           </div>
         </div>
       </div>
 
       <!-- Location row (accordion) -->
       <div v-if="showLocation">
-        <div class="flex items-center px-6 py-4 gap-6 group hover:bg-gray-50/50 transition-colors cursor-pointer"
+        <div class="flex flex-col sm:flex-row sm:items-center px-4 sm:px-6 py-4 gap-1 sm:gap-6 group hover:bg-gray-50/50 transition-colors cursor-pointer"
           @click="open !== 'location' && (open = 'location')">
-          <span class="text-sm font-semibold text-gray-700 w-28 shrink-0">Location</span>
+          <span class="text-sm font-semibold text-gray-700 w-full sm:w-28 shrink-0">Location</span>
           <span class="text-sm flex-1" :class="locationSummary ? 'text-gray-700' : 'text-gray-400'">{{ locationSummary || '—' }}</span>
-          <i v-if="open !== 'location'" class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" />
+          <i v-if="open !== 'location'" class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0 !hidden sm:!block" />
         </div>
-        <div v-if="open === 'location'" class="border-t border-gray-100 pl-40 pr-6 pb-5 pt-4 space-y-3" @click.stop>
+        <div v-if="open === 'location'" class="border-t border-gray-100 px-4 sm:pl-40 sm:pr-6 pb-5 pt-4 space-y-3" @click.stop>
           <LocationEditor
             :modelValue="locations"
             :startAt="locationStartAt"
@@ -93,30 +98,34 @@
           <div class="flex justify-end gap-2">
             <Button label="Cancel" size="small" severity="secondary" text @click.stop="open = null" />
             <Button label="Save" icon="pi pi-check" size="small" :loading="savingField === 'location'"
-              @click.stop="save('location')" style="background:#1E2157;border-color:#1E2157" />
+              @click.stop="save('location')" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
           </div>
         </div>
       </div>
 
       <!-- Category row (inline edit) -->
-      <div class="flex items-center px-6 py-4 gap-6 group hover:bg-gray-50/50 transition-colors"
+      <div class="flex flex-col sm:flex-row sm:items-center px-4 sm:px-6 py-4 gap-1 sm:gap-6 group hover:bg-gray-50/50 transition-colors"
         :class="open !== 'category' && 'cursor-pointer'"
         @click="open !== 'category' && (open = 'category')">
-        <span class="text-sm font-semibold text-gray-700 w-28 shrink-0">Category</span>
+        <span class="text-sm font-semibold text-gray-700 w-full sm:w-28 shrink-0">Category</span>
         <template v-if="open === 'category'">
-          <MultiSelect :modelValue="categoryIds" :options="categories" option-label="name" option-value="id"
-            placeholder="Select categories" class="flex-1" display="chip"
-            @update:modelValue="$emit('update:categoryIds', $event)" @click.stop>
-            <template #chip="{ value }">
-              <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                :style="{ background: categories.find(c => c.id === value)?.color ?? '#1E2157' }">
-                {{ categories.find(c => c.id === value)?.name }}
-              </div>
-            </template>
-          </MultiSelect>
-          <Button icon="pi pi-plus" size="small" severity="secondary" outlined v-tooltip.top="'New category'" @click.stop="$emit('new-category')" />
-          <Button label="Save" icon="pi pi-check" size="small" :loading="savingField === 'category'"
-            @click.stop="save('category')" style="background:#1E2157;border-color:#1E2157" />
+          <div class="flex-1 w-full flex flex-col sm:flex-row sm:items-center gap-2 min-w-0" @click.stop>
+            <MultiSelect :modelValue="categoryIds" :options="categories" option-label="name" option-value="id"
+              placeholder="Select categories" class="flex-1 w-full min-w-0" display="chip"
+              @update:modelValue="$emit('update:categoryIds', $event)">
+              <template #chip="{ value }">
+                <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                  :style="{ background: categories.find(c => c.id === value)?.color ?? '#1E2157' }">
+                  {{ categories.find(c => c.id === value)?.name }}
+                </div>
+              </template>
+            </MultiSelect>
+            <div class="flex gap-2 justify-end shrink-0">
+              <Button icon="pi pi-plus" size="small" severity="secondary" outlined v-tooltip.top="'New category'" @click.stop="$emit('new-category')" />
+              <Button label="Save" icon="pi pi-check" size="small" :loading="savingField === 'category'"
+                @click.stop="save('category')" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+            </div>
+          </div>
         </template>
         <template v-else>
           <div class="flex-1 flex flex-wrap gap-1.5 min-w-0">
@@ -127,28 +136,28 @@
             </span>
             <span v-else class="text-sm text-gray-400">—</span>
           </div>
-          <i class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" />
+          <i class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0 !hidden sm:!block" />
         </template>
       </div>
 
       <!-- Description row (inline edit) -->
-      <div class="flex items-start px-6 py-4 gap-6 group hover:bg-gray-50/50 transition-colors"
+      <div class="flex flex-col sm:flex-row sm:items-start px-4 sm:px-6 py-4 gap-1 sm:gap-6 group hover:bg-gray-50/50 transition-colors"
         :class="open !== 'description' && 'cursor-pointer'"
         @click="open !== 'description' && (open = 'description')">
-        <span class="text-sm font-semibold text-gray-700 w-28 shrink-0 pt-1">Description</span>
+        <span class="text-sm font-semibold text-gray-700 w-full sm:w-28 shrink-0 sm:pt-1">Description</span>
         <template v-if="open === 'description'">
           <div class="flex-1 flex flex-col gap-3 min-w-0" @click.stop>
             <Textarea :modelValue="description" placeholder="Add a description…" auto-resize rows="3" class="w-full text-sm"
               @update:modelValue="$emit('update:description', $event)" />
             <div class="flex justify-end">
               <Button label="Save" icon="pi pi-check" size="small" :loading="savingField === 'description'"
-                @click.stop="save('description')" style="background:#1E2157;border-color:#1E2157" />
+                @click.stop="save('description')" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
             </div>
           </div>
         </template>
         <template v-else>
           <span class="text-sm flex-1 line-clamp-2" :class="description ? 'text-gray-700' : 'text-gray-400'">{{ description || '—' }}</span>
-          <i class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0 mt-1" />
+          <i class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0 mt-1 !hidden sm:!block" />
         </template>
       </div>
 

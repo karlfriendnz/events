@@ -3,18 +3,18 @@
 
     <!-- Mode add/edit dialog -->
     <Dialog v-model:visible="showModeDialog" modal :header="editingMode?.id ? 'Edit mode' : 'Add mode'"
-      :style="{ width: '520px' }" :content-style="{ padding: 0 }">
-      <div v-if="editingMode" class="p-6 space-y-5">
+      :style="{ width: '95vw', maxWidth: '520px' }" :content-style="{ padding: 0 }">
+      <div v-if="editingMode" class="p-3 sm:p-6 space-y-5">
 
         <!-- Name -->
-        <div class="flex items-center gap-4">
-          <label class="text-sm font-semibold text-gray-700 w-28 shrink-0">Name <span class="text-red-400">*</span></label>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+          <label class="text-sm font-semibold text-gray-700 w-full sm:w-28 shrink-0">Name <span class="text-red-400">*</span></label>
           <InputText v-model="editingMode.name" placeholder="e.g. Pickleball, 5-a-side" class="flex-1" />
         </div>
 
         <!-- Colour -->
-        <div class="flex items-center gap-4">
-          <label class="text-sm font-semibold text-gray-700 w-28 shrink-0">Colour</label>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+          <label class="text-sm font-semibold text-gray-700 w-full sm:w-28 shrink-0">Colour</label>
           <div class="flex gap-2 flex-wrap">
             <button v-for="c in MODE_COLORS" :key="c" type="button"
               class="w-6 h-6 rounded-full ring-offset-2 transition-all"
@@ -25,14 +25,14 @@
         </div>
 
         <!-- Description -->
-        <div class="flex items-start gap-4">
-          <label class="text-sm font-semibold text-gray-700 w-28 shrink-0 pt-1">Description</label>
+        <div class="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4">
+          <label class="text-sm font-semibold text-gray-700 w-full sm:w-28 shrink-0 pt-1">Description</label>
           <InputText v-model="editingMode.description" placeholder="Shown to bookers (optional)" class="flex-1" />
         </div>
 
         <!-- Capacity -->
-        <div class="flex items-center gap-4">
-          <label class="text-sm font-semibold text-gray-700 w-28 shrink-0">Capacity</label>
+        <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+          <label class="text-sm font-semibold text-gray-700 w-full sm:w-28 shrink-0">Capacity</label>
           <div class="flex items-center gap-2">
             <InputNumber v-model="editingMode.min_players" :min="0" placeholder="Min" class="w-24" size="small" />
             <span class="text-gray-400 text-sm">–</span>
@@ -80,7 +80,7 @@
 
       </div>
       <template #footer>
-        <div class="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+        <div class="flex items-center justify-between px-3 sm:px-6 py-4 border-t border-gray-100">
           <button v-if="editingMode?.id" type="button"
             class="text-sm text-red-400 hover:text-red-600 transition-colors"
             @click="deleteMode">
@@ -90,7 +90,7 @@
           <div class="flex gap-2">
             <Button label="Cancel" severity="secondary" outlined size="small" @click="showModeDialog = false" />
             <Button label="Save" icon="pi pi-check" size="small" :disabled="!editingMode?.name?.trim()"
-              @click="saveModeDialog" style="background:#1E2157;border-color:#1E2157" />
+              @click="saveModeDialog" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
           </div>
         </div>
       </template>
@@ -102,7 +102,7 @@
         v-for="tab in tabs" :key="tab.key"
         class="flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px"
         :class="activeTab === tab.key
-          ? 'border-[#1E2157] text-[#1E2157]'
+          ? 'border-primary text-primary'
           : 'border-transparent text-gray-500 hover:text-gray-800'"
         @click="activeTab = tab.key">
         <i :class="`pi ${tab.icon} text-xs`" />
@@ -114,7 +114,7 @@
     <div class="flex-1 overflow-y-auto">
 
       <!-- Details tab -->
-      <div v-if="activeTab === 'details'" class="p-6">
+      <div v-if="activeTab === 'details'" class="p-3 sm:p-6">
         <div class="max-w-[1140px] mx-auto space-y-5">
 
           <!-- Card 1: Venue -->
@@ -122,28 +122,28 @@
             <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 px-1">Venue</p>
             <div class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
 
-              <div class="flex items-center px-5 py-4 gap-6">
-                <span class="text-sm font-semibold text-gray-700 w-32 shrink-0">Name</span>
+              <div class="flex flex-col sm:flex-row sm:items-center px-5 py-4 gap-1 sm:gap-6">
+                <span class="text-sm font-semibold text-gray-700 w-full sm:w-32 shrink-0">Name</span>
                 <InputText v-model="form.name" placeholder="e.g. Field 1" class="flex-1" />
               </div>
 
-              <div class="flex items-center px-5 py-4 gap-6">
-                <span class="text-sm font-semibold text-gray-700 w-32 shrink-0">Internal name</span>
+              <div class="flex flex-col sm:flex-row sm:items-center px-5 py-4 gap-1 sm:gap-6">
+                <span class="text-sm font-semibold text-gray-700 w-full sm:w-32 shrink-0">Internal name</span>
                 <InputText v-model="form.internal_name" placeholder="Optional internal reference" class="flex-1" />
               </div>
 
-              <div class="flex items-start px-5 py-4 gap-6">
-                <span class="text-sm font-semibold text-gray-700 w-32 shrink-0 pt-1">Description</span>
+              <div class="flex flex-col sm:flex-row sm:items-start px-5 py-4 gap-1 sm:gap-6">
+                <span class="text-sm font-semibold text-gray-700 w-full sm:w-32 shrink-0 pt-1">Description</span>
                 <Textarea v-model="form.description" placeholder="Describe this venue…" auto-resize rows="3" class="flex-1 text-sm" />
               </div>
 
-              <div class="flex items-center px-5 py-4 gap-6">
-                <span class="text-sm font-semibold text-gray-700 w-32 shrink-0">Location</span>
+              <div v-if="bookable?.type !== 'PERSON'" class="flex flex-col sm:flex-row sm:items-center px-5 py-4 gap-1 sm:gap-6">
+                <span class="text-sm font-semibold text-gray-700 w-full sm:w-32 shrink-0">Location</span>
                 <InputText v-model="form.location" placeholder="Street address or area" class="flex-1" />
               </div>
 
-              <div class="flex items-start px-5 py-4 gap-6">
-                <span class="text-sm font-semibold text-gray-700 w-32 shrink-0 pt-1">Features</span>
+              <div class="flex flex-col sm:flex-row sm:items-start px-5 py-4 gap-1 sm:gap-6">
+                <span class="text-sm font-semibold text-gray-700 w-full sm:w-32 shrink-0 pt-1">Features</span>
                 <div class="flex-1 flex flex-wrap gap-2">
                   <div v-for="(feat, i) in form.features" :key="i" class="flex items-center gap-1 bg-blue-50 text-blue-700 rounded-full px-3 py-1 text-sm">
                     <span>{{ feat }}</span>
@@ -159,10 +159,10 @@
               </div>
 
               <!-- Photos inline -->
-              <div class="flex items-start px-5 py-4 gap-6">
-                <div class="w-32 shrink-0 pt-1">
+              <div class="flex flex-col sm:flex-row sm:items-start px-5 py-4 gap-1 sm:gap-6">
+                <div class="w-full sm:w-32 shrink-0 pt-1">
                   <span class="text-sm font-semibold text-gray-700">Photos</span>
-                  <label class="flex items-center gap-1 mt-1 text-xs text-[#1E2157] hover:underline cursor-pointer w-fit">
+                  <label class="flex items-center gap-1 mt-1 text-xs text-primary hover:underline cursor-pointer w-fit">
                     <i class="pi pi-upload text-xs" /> Add
                     <input type="file" accept="image/*" multiple class="hidden" :disabled="uploadingPhoto" @change="handlePhotoUpload" />
                   </label>
@@ -175,13 +175,13 @@
                     <div v-for="(url, i) in form.images" :key="i" class="relative group aspect-square rounded-lg overflow-hidden bg-gray-100">
                       <img :src="url" class="w-full h-full object-cover" />
                       <div class="absolute top-1 left-1 flex gap-1">
-                        <span v-if="form.main_image === url" class="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-[#1E2157] text-white leading-none shadow">Main</span>
+                        <span v-if="form.main_image === url" class="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-primary text-white leading-none shadow">Main</span>
                         <span v-if="form.sponsor_image === url" class="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-amber-500 text-white leading-none shadow">Sponsor</span>
                       </div>
                       <div class="absolute inset-x-0 bottom-0 flex items-center justify-between px-1 pb-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <div class="flex gap-1">
                           <button class="text-[9px] font-semibold px-1.5 py-0.5 rounded leading-none transition-colors"
-                            :class="form.main_image === url ? 'bg-[#1E2157] text-white' : 'bg-black/60 text-white hover:bg-[#1E2157]'"
+                            :class="form.main_image === url ? 'bg-primary text-white' : 'bg-black/60 text-white hover:bg-primary'"
                             @click="setImageRole(url, 'main')">Main</button>
                           <button class="text-[9px] font-semibold px-1.5 py-0.5 rounded leading-none transition-colors"
                             :class="form.sponsor_image === url ? 'bg-amber-500 text-white' : 'bg-black/60 text-white hover:bg-amber-500'"
@@ -201,7 +201,7 @@
               </div>
 
               <div class="flex justify-end px-5 py-3">
-                <Button label="Save" icon="pi pi-check" size="small" :loading="saving" @click="save" style="background:#1E2157;border-color:#1E2157" />
+                <Button label="Save" icon="pi pi-check" size="small" :loading="saving" @click="save" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
               </div>
             </div>
           </div>
@@ -226,13 +226,13 @@
                   <button type="button"
                     class="text-left px-3 py-3 rounded-lg border-2 transition-all"
                     :class="!form.auto_resolve_children
-                      ? 'border-[#1E2157] bg-[#1E2157]/[0.04]'
+                      ? 'border-primary bg-primary/[0.04]'
                       : 'border-gray-100 hover:border-gray-200 bg-white'"
                     @click="onSubVenueKindChange(false)">
                     <div class="flex items-start gap-2">
                       <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5"
-                        :class="!form.auto_resolve_children ? 'border-[#1E2157]' : 'border-gray-300'">
-                        <div v-if="!form.auto_resolve_children" class="w-2 h-2 rounded-full bg-[#1E2157]" />
+                        :class="!form.auto_resolve_children ? 'border-primary' : 'border-gray-300'">
+                        <div v-if="!form.auto_resolve_children" class="w-2 h-2 rounded-full bg-primary" />
                       </div>
                       <div class="flex-1 min-w-0">
                         <p class="text-sm font-semibold text-gray-800">Separate spaces</p>
@@ -243,13 +243,13 @@
                   <button type="button"
                     class="text-left px-3 py-3 rounded-lg border-2 transition-all"
                     :class="form.auto_resolve_children
-                      ? 'border-[#1E2157] bg-[#1E2157]/[0.04]'
+                      ? 'border-primary bg-primary/[0.04]'
                       : 'border-gray-100 hover:border-gray-200 bg-white'"
                     @click="onSubVenueKindChange(true)">
                     <div class="flex items-start gap-2">
                       <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5"
-                        :class="form.auto_resolve_children ? 'border-[#1E2157]' : 'border-gray-300'">
-                        <div v-if="form.auto_resolve_children" class="w-2 h-2 rounded-full bg-[#1E2157]" />
+                        :class="form.auto_resolve_children ? 'border-primary' : 'border-gray-300'">
+                        <div v-if="form.auto_resolve_children" class="w-2 h-2 rounded-full bg-primary" />
                       </div>
                       <div class="flex-1 min-w-0">
                         <p class="text-sm font-semibold text-gray-800">Layouts of the same space</p>
@@ -334,15 +334,15 @@
                 </div>
                 <div class="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-medium bg-white">
                   <button class="px-3 py-1.5 transition-colors"
-                    :class="!localLinked && !props.bookable?.is_master ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50'"
+                    :class="!localLinked && !props.bookable?.is_master ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
                     @click="() => { localLinked.value = false; emit('set-role', 'standalone') }">Standalone</button>
                   <button class="px-3 py-1.5 transition-colors border-l border-gray-200 flex items-center gap-1"
-                    :class="props.bookable?.is_master ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50'"
+                    :class="props.bookable?.is_master ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
                     @click="() => { localLinked.value = false; emit('set-role', 'master') }">
                     <i class="pi pi-crown text-[9px]" /> Master
                   </button>
                   <button class="px-3 py-1.5 transition-colors border-l border-gray-200 flex items-center gap-1"
-                    :class="(localLinked || props.bookable?.master_id) ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:bg-gray-50'"
+                    :class="(localLinked || props.bookable?.master_id) ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
                     @click="() => { localLinked.value = true; emit('set-role', 'linked') }">
                     <i class="pi pi-link text-[9px]" /> Linked
                   </button>
@@ -366,13 +366,13 @@
 
 
       <!-- Modes tab -->
-      <div v-else-if="activeTab === 'modes'" class="p-6">
+      <div v-else-if="activeTab === 'modes'" class="p-3 sm:p-6">
         <div class="max-w-[1140px] mx-auto space-y-4">
 
           <div class="flex items-center justify-between">
             <p class="text-sm text-gray-500">Define the ways this resource can be booked — e.g. Pickleball, Dancing, 5-a-side.</p>
             <Button label="Add mode" icon="pi pi-plus" size="small" outlined
-              @click="openModeDialog()" style="border-color:#1E2157;color:#1E2157" />
+              @click="openModeDialog()" style="border-color:var(--brand-primary);color:var(--brand-primary)" />
           </div>
 
           <div v-if="loadingModes" class="py-12 flex justify-center text-gray-400 text-sm">Loading…</div>
@@ -413,7 +413,7 @@
                 <span v-if="mode.price_per_hour == null && mode.price_per_slot == null && mode.flat_fee == null && mode.price_per_person == null"
                   class="text-xs text-gray-300">No pricing</span>
               </div>
-              <button type="button" class="text-xs text-[#1E2157] hover:underline shrink-0"
+              <button type="button" class="text-xs text-primary hover:underline shrink-0"
                 @click="openModeDialog(mode)">Edit</button>
             </div>
           </div>
@@ -422,16 +422,16 @@
       </div>
 
       <!-- Rules tab -->
-      <div v-else-if="activeTab === 'rules'" class="p-6 space-y-5">
+      <div v-else-if="activeTab === 'rules'" class="p-3 sm:p-6 space-y-5">
 
         <!-- Max concurrent + notes -->
         <div class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-          <div class="flex items-center px-5 py-4 gap-6">
-            <span class="text-sm font-semibold text-gray-700 w-40 shrink-0">Max concurrent bookings</span>
+          <div class="flex flex-col sm:flex-row sm:items-center px-5 py-4 gap-1 sm:gap-6">
+            <span class="text-sm font-semibold text-gray-700 w-full sm:w-40 shrink-0">Max concurrent bookings</span>
             <InputNumber v-model="form.max_concurrent" :min="1" class="w-24" />
           </div>
-          <div class="flex items-start px-5 py-4 gap-6">
-            <span class="text-sm font-semibold text-gray-700 w-40 shrink-0 pt-1">Rules / notes</span>
+          <div class="flex flex-col sm:flex-row sm:items-start px-5 py-4 gap-1 sm:gap-6">
+            <span class="text-sm font-semibold text-gray-700 w-full sm:w-40 shrink-0 pt-1">Rules / notes</span>
             <Textarea v-model="form.rules" placeholder="Booking rules, setup notes…" auto-resize rows="4" class="flex-1 text-sm" />
           </div>
         </div>
@@ -446,7 +446,7 @@
             <label v-for="opt in bookingLimitOptions" :key="opt.value"
               class="flex items-center gap-2 cursor-pointer">
               <input type="radio" :value="opt.value" v-model="form.booking_limit_type"
-                class="accent-[#1E2157] w-4 h-4" />
+                class="accent-primary w-4 h-4" />
               <span class="text-sm text-gray-700">{{ opt.label }}</span>
             </label>
           </div>
@@ -464,21 +464,21 @@
           </div>
           <div class="px-5 py-4 space-y-4">
             <label class="flex items-center gap-3 cursor-pointer">
-              <input type="checkbox" v-model="form.disallow_concurrent" class="accent-[#1E2157] w-4 h-4 rounded" />
+              <input type="checkbox" v-model="form.disallow_concurrent" class="accent-primary w-4 h-4 rounded" />
               <div>
                 <p class="text-sm text-gray-700">Disallow concurrent bookings</p>
                 <p class="text-xs text-gray-400 mt-0.5">A member cannot have two bookings at this venue at the same time</p>
               </div>
             </label>
             <label class="flex items-center gap-3 cursor-pointer">
-              <input type="checkbox" v-model="form.disallow_consecutive" class="accent-[#1E2157] w-4 h-4 rounded" />
+              <input type="checkbox" v-model="form.disallow_consecutive" class="accent-primary w-4 h-4 rounded" />
               <div>
                 <p class="text-sm text-gray-700">Disallow consecutive bookings</p>
                 <p class="text-xs text-gray-400 mt-0.5">A member cannot book back-to-back slots at this venue</p>
               </div>
             </label>
             <label class="flex items-center gap-3 cursor-pointer">
-              <input type="checkbox" v-model="form.allow_modes_with_others" class="accent-[#1E2157] w-4 h-4 rounded" />
+              <input type="checkbox" v-model="form.allow_modes_with_others" class="accent-primary w-4 h-4 rounded" />
               <div>
                 <p class="text-sm text-gray-700">Allow modes if making a booking with other members</p>
                 <p class="text-xs text-gray-400 mt-0.5">Mode restrictions are relaxed when the booking includes other members</p>
@@ -493,7 +493,7 @@
     </div>
 
     <!-- Footer (hidden in standalone mode — parent controls save) -->
-    <div v-if="!standalone" class="px-6 py-4 border-t border-gray-100 shrink-0 flex items-center justify-between bg-white">
+    <div v-if="!standalone" class="px-3 sm:px-6 py-4 border-t border-gray-100 shrink-0 flex items-center justify-between bg-white">
       <button v-if="bookable?.id" type="button"
         class="text-sm text-red-400 hover:text-red-600 transition-colors"
         @click="$emit('delete')">
@@ -503,7 +503,7 @@
       <div class="flex gap-2">
         <Button label="Cancel" size="small" severity="secondary" text @click="$emit('cancel')" />
         <Button :label="bookable?.id ? 'Save changes' : 'Create venue'" icon="pi pi-check" size="small" :loading="saving"
-          @click="save" style="background:#1E2157;border-color:#1E2157" />
+          @click="save" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
       </div>
     </div>
 
@@ -882,7 +882,7 @@ async function save() {
     images: form.images,
     main_image: form.main_image,
     sponsor_image: form.sponsor_image,
-    type: 'VENUE',
+    type: props.bookable?.type ?? 'VENUE',
     parent_id: props.parentId ?? props.bookable?.parent_id ?? null,
   }
   console.log('[save] sending sections:', JSON.stringify(payload.sections))

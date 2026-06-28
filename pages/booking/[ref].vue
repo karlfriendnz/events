@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-[#F5F8FA] py-12 px-6">
+  <div class="min-h-screen bg-[#F5F8FA] py-12 px-3 sm:px-6">
     <div class="max-w-md mx-auto">
 
       <div v-if="loading" class="flex items-center justify-center py-24 text-gray-400">
@@ -7,7 +7,7 @@
       </div>
 
       <div v-else-if="error"
-        class="bg-white rounded-2xl border border-gray-200 px-6 py-12 text-center">
+        class="bg-white rounded-2xl border border-gray-200 px-4 sm:px-6 py-12 text-center">
         <div class="w-14 h-14 mx-auto rounded-full bg-red-50 flex items-center justify-center mb-3">
           <i class="pi pi-times-circle text-2xl text-red-400" />
         </div>
