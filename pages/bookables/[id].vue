@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col transition-[padding] duration-200 h-[calc(100vh-3.5rem-4rem)] md:h-[calc(100vh-3.5rem)]"
-    :style="{ paddingRight: (isDesktop && showEditDialog) ? (panelExpanded ? '720px' : '380px') : '0' }">
+    :style="{ paddingRight: (isDesktop && showEditDialog) ? (panelExpanded ? '1140px' : '760px') : '0' }">
 
     <!-- Row 1: Pill tabs -->
     <div class="bg-white border-b border-gray-200 px-4 py-2.5 shrink-0 flex justify-center overflow-x-auto no-scrollbar">
@@ -1433,7 +1433,7 @@ if (import.meta.client) {
   window.addEventListener('resize', updateIsDesktop)
   onBeforeUnmount(() => window.removeEventListener('resize', updateIsDesktop))
 }
-const drawerWidth = computed(() => isDesktop.value ? (panelExpanded.value ? '720px' : '380px') : '100vw')
+const drawerWidth = computed(() => isDesktop.value ? (panelExpanded.value ? '1140px' : '760px') : '100vw')
 const editingBooking   = ref<any>(null)
 const savingEdit       = ref(false)
 const bookingTab       = ref<'details' | 'activity' | 'location' | 'notify'>('details')
