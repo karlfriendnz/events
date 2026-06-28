@@ -80,7 +80,9 @@ const templateLabel = ref('')
 // dashboard_templates; organisations.dashboard_config is the final fallback.
 async function persistConfig(cfg: CfgItem[]): Promise<{ error: any }> {
   const uid = user.value?.id
-  if (!uid || !orgId.value) return { error: { message: 'Not signed in or no active organisation.' } }
+  console.log('[dashboard] save attempt', { uid, orgId: orgId.value })
+  if (!uid) return { error: { message: 'No user session (you may need to log in on this port).' } }
+  if (!orgId.value) return { error: { message: 'No active organisation selected.' } }
   const { error } = await (db.from as any)('user_dashboards').upsert(
     { user_id: uid, org_id: orgId.value, config: cfg, updated_at: new Date().toISOString() },
     { onConflict: 'user_id,org_id' },
@@ -545,12 +547,11 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
           <div class="h-full w-full overflow-auto" :class="editing ? 'pointer-events-none select-none' : ''">
             <!-- Stat tile (one of four; each independently toggleable) -->
             <NuxtLink v-if="STAT_TILES[item.i]" :to="STAT_TILES[item.i].to"
-              class="card h-full px-3 md:px-5 flex items-center gap-2.5 md:gap-3.5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
-              :style="{ backgroundColor: STAT_TILES[item.i].color + '0F', borderColor: STAT_TILES[item.i].color + '40' }">
-              <div class="w-8 h-8 md:w-11 md:h-11 shrink-0 rounded-lg md:rounded-xl text-white flex items-center justify-center shadow-sm"
-                :style="{ backgroundColor: STAT_TILES[item.i].color }"><i :class="['pi', STAT_TILES[item.i].icon, 'text-sm md:text-lg']" /></div>
-              <div class="min-w-0">
-                <p class="text-xl md:text-3xl font-bold leading-none" :style="{ color: STAT_TILES[item.i].color }">{{ (stats as any)[STAT_TILES[item.i].stat] }}</p>
+              class="card h-full p-0 overflow-hidden flex items-stretch hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+              <div class="w-12 md:w-16 shrink-0 flex items-center justify-center text-white"
+                :style="{ backgroundColor: STAT_TILES[item.i].color }"><i :class="['pi', STAT_TILES[item.i].icon, 'text-base md:text-xl']" /></div>
+              <div class="min-w-0 flex-1 px-3 md:px-4 flex flex-col justify-center">
+                <p class="text-xl md:text-3xl font-bold text-gray-900 leading-none">{{ (stats as any)[STAT_TILES[item.i].stat] }}</p>
                 <p class="text-[11px] md:text-sm font-medium text-gray-600 mt-0.5 md:mt-1.5 leading-tight truncate">{{ STAT_TILES[item.i].label }}</p>
                 <p class="hidden md:block text-[11px] text-gray-400 md:truncate">{{ STAT_TILES[item.i].sublabel }}</p>
               </div>

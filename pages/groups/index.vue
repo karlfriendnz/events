@@ -9,6 +9,20 @@
         style="background:#1E2157;border-color:#1E2157" @click="openCreate(null)" />
     </div>
 
+    <!-- Location tabs (NHG venues) -->
+    <div class="mb-4 border-b border-gray-200">
+      <div class="flex gap-1 overflow-x-auto overflow-y-hidden no-scrollbar -mb-px">
+        <button v-for="loc in LOCATIONS" :key="loc" type="button"
+          class="px-3 sm:px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap transition-colors"
+          :class="activeLocation === loc
+            ? 'border-primary text-primary'
+            : 'border-transparent text-gray-500 hover:text-gray-700'"
+          @click="activeLocation = loc">
+          {{ loc }}
+        </button>
+      </div>
+    </div>
+
     <AppCard title="Member Groups">
       <div v-if="loading" class="py-8 text-center text-sm text-surface-400">Loading…</div>
       <div v-else-if="!flatTree.length" class="py-8 text-center text-sm text-surface-400">
@@ -84,6 +98,8 @@ const { orgId } = useOrg()
 const toast = useToast()
 
 const MAX_DEPTH = 5
+const LOCATIONS = ['All locations', 'HBC', 'Albany', 'Eventfinda Stadium']
+const activeLocation = ref('All locations')
 const PALETTE = ['#1E2157', '#2563EB', '#0f766e', '#059669', '#9333ea', '#EC4899', '#c2410c', '#be123c', '#8B5CF6', '#64748b']
 
 interface Group {
