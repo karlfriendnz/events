@@ -36,11 +36,11 @@ function isChart(key: string) { return key.startsWith('chart:') }
 function widgetDef(key: string): WidgetDef { return defById[key] ?? CHART_DEF }
 
 // Generic spec for the four stat tiles (rendered from one template branch).
-const STAT_TILES: Record<string, { label: string; sublabel: string; icon: string; to: string; stat: 'members' | 'groups' | 'upcomingEvents' | 'upcomingBookings' }> = {
-  stat_members:  { label: 'Members',           sublabel: 'People in this club',        icon: 'pi-users',    to: '/people',                  stat: 'members' },
-  stat_groups:   { label: 'Groups',            sublabel: 'Squads & member groups',     icon: 'pi-sitemap',  to: '/groups',                  stat: 'groups' },
-  stat_events:   { label: 'Upcoming events',   sublabel: 'Scheduled from today',       icon: 'pi-calendar', to: '/events',                  stat: 'upcomingEvents' },
-  stat_bookings: { label: 'Upcoming bookings', sublabel: 'Venue & resource bookings',  icon: 'pi-bookmark', to: '/bookables?tab=bookings',  stat: 'upcomingBookings' },
+const STAT_TILES: Record<string, { label: string; sublabel: string; icon: string; to: string; stat: 'members' | 'groups' | 'upcomingEvents' | 'upcomingBookings'; color: string }> = {
+  stat_members:  { label: 'Members',           sublabel: 'People in this club',        icon: 'pi-users',    to: '/people',                  stat: 'members',         color: '#3B82F6' },
+  stat_groups:   { label: 'Groups',            sublabel: 'Squads & member groups',     icon: 'pi-sitemap',  to: '/groups',                  stat: 'groups',          color: '#8B5CF6' },
+  stat_events:   { label: 'Upcoming events',   sublabel: 'Scheduled from today',       icon: 'pi-calendar', to: '/events',                  stat: 'upcomingEvents',  color: '#EC4899' },
+  stat_bookings: { label: 'Upcoming bookings', sublabel: 'Venue & resource bookings',  icon: 'pi-bookmark', to: '/bookables?tab=bookings',  stat: 'upcomingBookings', color: '#10B981' },
 }
 
 const CHART_COLORS = ['#1E2157', '#3B82F6', '#8B5CF6', '#EC4899', '#10B981', '#F59E0B', '#06B6D4', '#6B7280']
@@ -78,12 +78,15 @@ const templateLabel = ref('')
 
 // Per-person dashboard config lives in user_dashboards; per-role club templates in
 // dashboard_templates; organisations.dashboard_config is the final fallback.
-async function persistConfig(cfg: CfgItem[]) {
-  const uid = user.value?.id; if (!uid || !orgId.value) return
-  await (db.from as any)('user_dashboards').upsert(
+async function persistConfig(cfg: CfgItem[]): Promise<{ error: any }> {
+  const uid = user.value?.id
+  if (!uid || !orgId.value) return { error: { message: 'Not signed in or no active organisation.' } }
+  const { error } = await (db.from as any)('user_dashboards').upsert(
     { user_id: uid, org_id: orgId.value, config: cfg, updated_at: new Date().toISOString() },
     { onConflict: 'user_id,org_id' },
   )
+  if (error) console.error('[dashboard] save failed', error)
+  return { error }
 }
 // The permission groups (= user types) the current user belongs to, plus the core
 // templates they derive from — ordered, used to pick their default dashboard.
@@ -447,8 +450,9 @@ async function saveLayout() {
     navigateTo('/settings/dashboard-defaults')
     return
   }
-  await persistConfig(next)
+  const { error } = await persistConfig(next)
   saving.value = false; editing.value = false; addMenuOpen.value = false
+  if (error) { toast.add({ severity: 'error', summary: 'Could not save dashboard', detail: error.message, life: 6000 }); return }
   toast.add({ severity: 'success', summary: 'Dashboard saved', life: 1500 })
 }
 async function resetLayout() {
@@ -541,10 +545,12 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
           <div class="h-full w-full overflow-auto" :class="editing ? 'pointer-events-none select-none' : ''">
             <!-- Stat tile (one of four; each independently toggleable) -->
             <NuxtLink v-if="STAT_TILES[item.i]" :to="STAT_TILES[item.i].to"
-              class="card h-full px-3 md:px-5 flex items-center gap-2.5 md:gap-3.5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
-              <div class="w-8 h-8 md:w-11 md:h-11 shrink-0 rounded-lg md:rounded-xl bg-primary/10 text-primary flex items-center justify-center"><i :class="['pi', STAT_TILES[item.i].icon, 'text-sm md:text-lg']" /></div>
+              class="card h-full px-3 md:px-5 flex items-center gap-2.5 md:gap-3.5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+              :style="{ backgroundColor: STAT_TILES[item.i].color + '0F', borderColor: STAT_TILES[item.i].color + '40' }">
+              <div class="w-8 h-8 md:w-11 md:h-11 shrink-0 rounded-lg md:rounded-xl text-white flex items-center justify-center shadow-sm"
+                :style="{ backgroundColor: STAT_TILES[item.i].color }"><i :class="['pi', STAT_TILES[item.i].icon, 'text-sm md:text-lg']" /></div>
               <div class="min-w-0">
-                <p class="text-xl md:text-3xl font-bold text-gray-900 leading-none">{{ (stats as any)[STAT_TILES[item.i].stat] }}</p>
+                <p class="text-xl md:text-3xl font-bold leading-none" :style="{ color: STAT_TILES[item.i].color }">{{ (stats as any)[STAT_TILES[item.i].stat] }}</p>
                 <p class="text-[11px] md:text-sm font-medium text-gray-600 mt-0.5 md:mt-1.5 leading-tight truncate">{{ STAT_TILES[item.i].label }}</p>
                 <p class="hidden md:block text-[11px] text-gray-400 md:truncate">{{ STAT_TILES[item.i].sublabel }}</p>
               </div>
