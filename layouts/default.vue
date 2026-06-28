@@ -475,6 +475,7 @@ function openNewCalendarModal() {
 // ---- Nav ----
 const navItems = [
   { href: '/bookables', label: 'Bookables', icon: 'pi-building', resource: 'bookings' },
+  { href: '/bookables?tab=bookings', label: 'Bookings', icon: 'pi-calendar', resource: 'bookings' },
   { href: '/registration', label: 'Registration', icon: 'pi-clipboard', resource: 'events' },
   { href: '/attendance', label: 'Attendance', icon: 'pi-check-square', resource: 'attendance' },
   { href: '/groups', label: 'Groups', icon: 'pi-users', resource: 'groups' },

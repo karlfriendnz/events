@@ -79,9 +79,16 @@ const templateLabel = ref('')
 // Per-person dashboard config lives in user_dashboards; per-role club templates in
 // dashboard_templates; organisations.dashboard_config is the final fallback.
 async function persistConfig(cfg: CfgItem[]): Promise<{ error: any }> {
-  const uid = user.value?.id
-  console.log('[dashboard] save attempt', { uid, orgId: orgId.value })
-  if (!uid) return { error: { message: 'No user session (you may need to log in on this port).' } }
+  // useSupabaseUser() can be null right after a hard refresh (INITIAL_SESSION is
+  // async) or on a dev port that hasn't hydrated the user ref — recover the id
+  // straight from the stored session, the same way auth.global.ts does.
+  let uid = user.value?.id
+  if (!uid) {
+    const { data: { session } } = await db.auth.getSession()
+    uid = session?.user?.id
+    if (uid) user.value = session!.user as any
+  }
+  if (!uid) return { error: { message: 'No user session — please sign in again.' } }
   if (!orgId.value) return { error: { message: 'No active organisation selected.' } }
   const { error } = await (db.from as any)('user_dashboards').upsert(
     { user_id: uid, org_id: orgId.value, config: cfg, updated_at: new Date().toISOString() },
@@ -183,8 +190,9 @@ function reconcile(saved: any): CfgItem[] {
   const out: CfgItem[] = []
   const seen = new Set<string>()
   for (const it of Array.isArray(saved) ? saved : []) {
-    if (it && valid.has(it.key) && !seen.has(it.key)) {
-      const d = defById[it.key]
+    // Keep registry widgets AND dynamic chart instances (chart:<id>, not in the registry).
+    if (it && (valid.has(it.key) || isChart(it.key)) && !seen.has(it.key)) {
+      const d = widgetDef(it.key)
       out.push({
         key: it.key, enabled: it.enabled !== false,
         x: Number.isFinite(it.x) ? it.x : d.x, y: Number.isFinite(it.y) ? it.y : d.y,
@@ -304,9 +312,15 @@ async function load() {
   } else {
     // Resolution: this user's own layout → their role's template → '_default' → club default → code.
     let savedCfg: any = null
-    if (user.value?.id) {
+    let uid = user.value?.id
+    if (!uid) {
+      const { data: { session } } = await db.auth.getSession()
+      uid = session?.user?.id
+      if (uid) user.value = session!.user as any
+    }
+    if (uid) {
       const { data: ud } = await (db.from as any)('user_dashboards').select('config')
-        .eq('user_id', user.value.id).eq('org_id', orgId.value).maybeSingle()
+        .eq('user_id', uid).eq('org_id', orgId.value).maybeSingle()
       savedCfg = ud?.config ?? null
     }
     base = savedCfg
