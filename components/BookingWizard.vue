@@ -2395,7 +2395,7 @@ async function handleSubmit() {
     }
     submitted.value = true
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Could not submit booking', detail: e?.message, life: 5000 })
+    toast.add({ severity: 'error', summary: 'Could not submit booking', detail: e?.data?.message || e?.data?.statusMessage || e?.message, life: 6000 })
   }
   submitting.value = false
 }

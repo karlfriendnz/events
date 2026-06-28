@@ -527,7 +527,7 @@ async function submit() {
     toast.add({ severity: 'success', summary: 'Booked', detail: `${activity.value.name} · ${unit.name}`, life: 4000 })
     emit('done', { bookingId: data.id })
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Could not book', detail: e?.message ?? 'Unknown error', life: 6000 })
+    toast.add({ severity: 'error', summary: 'Could not book', detail: e?.data?.message ?? e?.message ?? 'Unknown error', life: 6000 })
   } finally {
     submitting.value = false
   }
