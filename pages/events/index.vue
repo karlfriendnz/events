@@ -10,7 +10,7 @@
           option-label="label"
           option-value="value"
           size="small"
-          class="hidden md:block w-32"
+          class="hidden md:block w-32 shrink-0"
           @update:model-value="setCalView" />
         <div class="hidden md:flex items-center gap-1 min-w-0">
           <Button icon="pi pi-chevron-left" severity="secondary" text size="small" @click="prev" />
