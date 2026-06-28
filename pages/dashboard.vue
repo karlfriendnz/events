@@ -32,8 +32,12 @@ const defById = Object.fromEntries(DASHBOARD_WIDGETS.map(w => [w.key, w]))
 // Dynamic chart instances use keys like "chart:<id>" — they aren't in the
 // registry, so look-ups fall back to these defaults.
 const CHART_DEF: WidgetDef = { key: 'chart', label: 'Chart', description: 'Report on a field (pie / bar)', x: 0, y: 99, w: 4, h: 6, minW: 3, minH: 4 }
+// Activity instances use keys like "activity:<id>" — a card connected to one
+// activity, surfacing its booking numbers.
+const ACTIVITY_DEF: WidgetDef = { key: 'activity', label: 'Activity', description: 'Connect to an activity (next bookings)', x: 0, y: 99, w: 4, h: 6, minW: 3, minH: 3 }
 function isChart(key: string) { return key.startsWith('chart:') }
-function widgetDef(key: string): WidgetDef { return defById[key] ?? CHART_DEF }
+function isActivity(key: string) { return key.startsWith('activity:') }
+function widgetDef(key: string): WidgetDef { return defById[key] ?? (isActivity(key) ? ACTIVITY_DEF : CHART_DEF) }
 
 // Generic spec for the four stat tiles (rendered from one template branch).
 const STAT_TILES: Record<string, { label: string; sublabel: string; icon: string; to: string; stat: 'members' | 'groups' | 'upcomingEvents' | 'upcomingBookings'; color: string }> = {
@@ -190,8 +194,8 @@ function reconcile(saved: any): CfgItem[] {
   const out: CfgItem[] = []
   const seen = new Set<string>()
   for (const it of Array.isArray(saved) ? saved : []) {
-    // Keep registry widgets AND dynamic chart instances (chart:<id>, not in the registry).
-    if (it && (valid.has(it.key) || isChart(it.key)) && !seen.has(it.key)) {
+    // Keep registry widgets AND dynamic instances (chart:<id> / activity:<id>, not in the registry).
+    if (it && (valid.has(it.key) || isChart(it.key) || isActivity(it.key)) && !seen.has(it.key)) {
       const d = widgetDef(it.key)
       out.push({
         key: it.key, enabled: it.enabled !== false,
@@ -284,6 +288,36 @@ async function saveChartSettings() {
     yMin: settingsDraft.yMin, yMax: settingsDraft.yMax,
   })
   settingsKey.value = null
+}
+
+// ── Activity cards (dynamic instances; each connected to one activity) ──
+const activities = ref<{ id: string; name: string; color: string | null; icon: string | null; image_url: string | null }[]>([])
+const activityStats = ref<Record<string, { total: number; upcoming: number }>>({})
+// Next (up to 10) upcoming bookings per activity, ordered by start_at.
+const activityUpcoming = ref<Record<string, { id: string; bookable_id: string | null; start_at: string; status: string; contact_name: string | null }[]>>({})
+const activityOptions = computed(() => activities.value.map(a => ({ label: a.name, value: a.id })))
+function activityOf(key: string) { return activities.value.find(a => a.id === cfgOpts(key).activityId) || null }
+function activityTitle(key: string) { return cfgOpts(key).title?.trim() || activityOf(key)?.name || 'Activity' }
+function activityCounts(key: string) { const a = activityOf(key); return (a && activityStats.value[a.id]) || { total: 0, upcoming: 0 } }
+function activityImage(key: string) { return activityOf(key)?.image_url || null }
+function activityNext(key: string) { const a = activityOf(key); return (a && activityUpcoming.value[a.id]) || [] }
+// Open a booking on its venue's bookings calendar, focused via ?booking=<id>.
+function bookingLink(b: { id: string; bookable_id: string | null }) {
+  return b.bookable_id ? `/bookables/${b.bookable_id}?tab=bookings&booking=${b.id}` : '/bookables?tab=bookings'
+}
+
+// Per-activity settings dialog (reuses patchChart, which is just a generic opts patch).
+const activityKey = ref<string | null>(null)
+const activityDraft = reactive<{ activityId: string | null; title: string }>({ activityId: null, title: '' })
+function openActivitySettings(key: string) {
+  const o = cfgOpts(key)
+  Object.assign(activityDraft, { activityId: o.activityId || activities.value[0]?.id || null, title: o.title || '' })
+  activityKey.value = key
+}
+async function saveActivitySettings() {
+  if (!activityKey.value) return
+  await patchChart(activityKey.value, { activityId: activityDraft.activityId, title: activityDraft.title.trim() || null })
+  activityKey.value = null
 }
 
 async function load() {
@@ -396,6 +430,31 @@ async function load() {
     stats.upcomingBookings = count ?? 0
   } else stats.upcomingBookings = 0
 
+  // ── Activities + their booking numbers / next bookings (Activity cards) ──
+  const { data: acts } = await (db.from as any)('activities')
+    .select('id, name, color, icon, image_url').eq('org_id', orgId.value).order('name')
+  activities.value = acts ?? []
+  const actIds = activities.value.map(a => a.id)
+  const counts: Record<string, { total: number; upcoming: number }> = {}
+  const upcomingByActivity: Record<string, { id: string; bookable_id: string | null; start_at: string; status: string; contact_name: string | null }[]> = {}
+  if (actIds.length) {
+    const { data: bks } = await (db.from as any)('bookings')
+      .select('id, bookable_id, activity_id, start_at, status, contact_name').in('activity_id', actIds).order('start_at')
+    for (const b of bks ?? []) {
+      if (!b.activity_id) continue
+      const c = (counts[b.activity_id] ??= { total: 0, upcoming: 0 })
+      c.total++
+      if (b.start_at && b.start_at >= nowIso.value && b.status !== 'CANCELLED') {
+        c.upcoming++
+        // bks is start_at-ascending → the first 10 we hit are the next 10.
+        const list = (upcomingByActivity[b.activity_id] ??= [])
+        if (list.length < 10) list.push(b)
+      }
+    }
+  }
+  activityStats.value = counts
+  activityUpcoming.value = upcomingByActivity
+
   loading.value = false
 }
 
@@ -421,8 +480,8 @@ function cancelEdit() {
 }
 function removeWidget(key: string) {
   layout.value = layout.value.filter(l => l.i !== key)
-  if (isChart(key)) {
-    // Chart instances are dynamic — delete entirely (don't linger as "hidden").
+  if (isChart(key) || isActivity(key)) {
+    // Dynamic instances — delete entirely (don't linger as "hidden").
     config.value = config.value.filter(c => c.key !== key)
   } else {
     const c = config.value.find(x => x.key === key); if (c) c.enabled = false
@@ -442,6 +501,16 @@ function addChart() {
   config.value.push({ key: id, enabled: true, x: 0, y: 99, w: d.w, h: d.h, opts: { dimension: reportFields.value[0]?.value || 'gender', chartType: 'pie' } })
   const maxY = layout.value.reduce((m, l) => Math.max(m, l.y + l.h), 0)
   layout.value.push({ i: id, x: 0, y: maxY, w: d.w, h: d.h, minW: d.minW, minH: d.minH })
+}
+let activitySeq = 0
+function addActivity() {
+  const id = `activity:${Date.now().toString(36)}${activitySeq++}`
+  const d = ACTIVITY_DEF
+  config.value.push({ key: id, enabled: true, x: 0, y: 99, w: d.w, h: d.h, opts: { activityId: activities.value[0]?.id || null, title: '' } })
+  const maxY = layout.value.reduce((m, l) => Math.max(m, l.y + l.h), 0)
+  layout.value.push({ i: id, x: 0, y: maxY, w: d.w, h: d.h, minW: d.minW, minH: d.minH })
+  // Open the picker straight away so the user connects it.
+  openActivitySettings(id)
 }
 // Fold live grid positions back into config (disabled widgets keep their last slot).
 function currentConfig(): CfgItem[] {
@@ -519,6 +588,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
                 <button v-for="hw in hiddenWidgets" :key="hw.key" type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50" @click="addWidget(hw.key); addMenuOpen = false"><i class="pi pi-plus text-[10px] text-gray-400" />{{ widgetDef(hw.key).label }}</button>
                 <div v-if="hiddenWidgets.length" class="border-t border-gray-100 my-1" />
                 <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addChart(); addMenuOpen = false"><i class="pi pi-chart-pie text-[10px]" />Chart (choose a field)</button>
+                <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addActivity(); addMenuOpen = false"><i class="pi pi-bookmark text-[10px]" />Activity (connect to an activity)</button>
               </div>
             </template>
           </div>
@@ -675,6 +745,50 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
               </div>
             </div>
 
+            <!-- Activity card (connected to one activity; shows its bookings) -->
+            <div v-else-if="isActivity(item.i)" class="card h-full flex flex-col">
+              <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2 pointer-events-auto">
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: activityOf(item.i)?.color || '#94a3b8' }" />
+                  <p class="text-sm font-semibold text-gray-800 truncate">{{ activityTitle(item.i) }}</p>
+                </div>
+                <button type="button" class="w-7 h-7 rounded-lg border border-gray-200 text-gray-400 hover:text-gray-700 flex items-center justify-center shrink-0" title="Choose activity" @click="openActivitySettings(item.i)"><i class="pi pi-cog text-xs" /></button>
+              </div>
+              <div class="flex-1 min-h-0 flex flex-col pointer-events-auto overflow-hidden">
+                <div v-if="loading" class="text-sm text-gray-400 p-4">Loading…</div>
+                <button v-else-if="!activityOf(item.i)" type="button" class="m-auto text-sm text-primary hover:underline" @click="openActivitySettings(item.i)">
+                  <i class="pi pi-plus text-[10px] mr-1" />Connect an activity
+                </button>
+                <template v-else>
+                  <!-- activity image banner -->
+                  <div v-if="activityImage(item.i)" class="h-24 shrink-0 bg-gray-100 overflow-hidden">
+                    <img :src="activityImage(item.i)!" class="w-full h-full object-cover" />
+                  </div>
+                  <!-- next 10 upcoming bookings -->
+                  <div class="flex-1 min-h-0 overflow-y-auto">
+                    <div v-if="!activityNext(item.i).length" class="text-sm text-gray-400 py-8 px-4 text-center">No upcoming bookings.</div>
+                    <ul v-else class="divide-y divide-gray-50">
+                      <li v-for="(b, bi) in activityNext(item.i)" :key="bi">
+                        <NuxtLink :to="bookingLink(b)" class="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 transition-colors">
+                          <div class="w-11 h-11 shrink-0 rounded-lg bg-primary/5 border border-primary/10 flex flex-col items-center justify-center">
+                            <span class="text-[9px] uppercase tracking-wide text-gray-400 leading-none">{{ fmtDate(b.start_at).split(' ')[0] }}</span>
+                            <span class="text-base font-bold text-primary leading-tight">{{ new Date(b.start_at).getDate() }}</span>
+                          </div>
+                          <div class="min-w-0 flex-1">
+                            <p class="text-sm font-medium text-gray-800 truncate">{{ b.contact_name || 'Booking' }}</p>
+                            <p class="text-xs text-gray-400 truncate">{{ fmtDate(b.start_at) }} · {{ fmtTime(b.start_at) }}</p>
+                          </div>
+                          <span class="text-[10px] uppercase tracking-wide font-medium px-2 py-0.5 rounded-full shrink-0"
+                            :class="b.status === 'CONFIRMED' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'">{{ b.status.toLowerCase() }}</span>
+                        </NuxtLink>
+                      </li>
+                    </ul>
+                  </div>
+                  <NuxtLink :to="`/activities/${activityOf(item.i)!.id}`" class="shrink-0 px-3 py-2 border-t border-gray-100 text-xs font-medium text-primary hover:underline text-right">View activity →</NuxtLink>
+                </template>
+              </div>
+            </div>
+
             <!-- Recently added members -->
             <AppCard v-else-if="item.i === 'recent_members'" title="Recently added members" class="h-full">
               <template #header-action>
@@ -755,6 +869,25 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
       <template #footer>
         <Button label="Cancel" severity="secondary" text @click="settingsKey = null" />
         <Button label="Save" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveChartSettings" />
+      </template>
+    </Dialog>
+
+    <!-- Per-activity settings -->
+    <Dialog :visible="!!activityKey" modal header="Activity card" :style="{ width: '95vw', maxWidth: '26rem' }" @update:visible="v => { if (!v) activityKey = null }">
+      <div class="flex flex-col gap-3.5">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Activity</label>
+          <Select v-model="activityDraft.activityId" :options="activityOptions" option-label="label" option-value="value" placeholder="Choose an activity…" filter class="w-full" />
+          <p v-if="!activityOptions.length" class="text-xs text-gray-400">No activities yet — create one under Bookables.</p>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Title</label>
+          <InputText v-model="activityDraft.title" :placeholder="activities.find(a => a.id === activityDraft.activityId)?.name || 'Activity'" />
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text @click="activityKey = null" />
+        <Button label="Save" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveActivitySettings" />
       </template>
     </Dialog>
   </div>
