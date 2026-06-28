@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
   if (!/^[0-9a-f]{6,32}$/.test(ref)) {
     throw createError({ statusCode: 400, message: 'Invalid reference' })
   }
-  const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!)
+  const supabase = createClient(supabaseUrl()!, serviceKey()!)
 
   // PostgREST doesn't reliably support LIKE on uuid columns, so we use a
   // UUID range scan: any uuid whose first 8 hex chars equal `prefix` falls

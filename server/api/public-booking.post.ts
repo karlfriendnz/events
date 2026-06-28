@@ -8,14 +8,14 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Missing required fields' })
   }
 
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-    console.error('[public-booking] missing env', { hasUrl: !!process.env.SUPABASE_URL, hasServiceKey: !!process.env.SUPABASE_SERVICE_KEY })
-    throw createError({ statusCode: 500, message: 'Server not configured: SUPABASE_URL / SUPABASE_SERVICE_KEY missing on this deployment.' })
+  if (!supabaseUrl() || !serviceKey()) {
+    console.error('[public-booking] missing env', { hasUrl: !!supabaseUrl(), hasServiceKey: !!serviceKey() })
+    throw createError({ statusCode: 500, message: 'Server not configured: Supabase URL / service key missing on this deployment.' })
   }
 
   const supabase = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!
+    supabaseUrl()!,
+    serviceKey()!
   )
 
   const { data: bookable, error: bErr } = await supabase

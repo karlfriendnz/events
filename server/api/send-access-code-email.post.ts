@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
   const { bookingId } = body as { bookingId?: string }
   if (!bookingId) throw createError({ statusCode: 400, message: 'bookingId required' })
 
-  const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!)
+  const supabase = createClient(supabaseUrl()!, serviceKey()!)
 
   const { data: booking } = await supabase
     .from('bookings')

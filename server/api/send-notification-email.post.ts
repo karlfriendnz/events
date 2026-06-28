@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
   const { notificationId } = body as { notificationId?: string }
   if (!notificationId) throw createError({ statusCode: 400, message: 'notificationId required' })
 
-  const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!)
+  const supabase = createClient(supabaseUrl()!, serviceKey()!)
 
   // Look up the notification + recipients in one shot.
   const { data: row, error } = await supabase

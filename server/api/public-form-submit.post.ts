@@ -34,7 +34,7 @@ export default defineEventHandler(async (event) => {
   if (!context?.type) throw createError({ statusCode: 400, message: 'Missing context' })
   if (!Array.isArray(subjects) || !subjects.length) throw createError({ statusCode: 400, message: 'Nothing to submit' })
 
-  const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_KEY!)
+  const supabase = createClient(supabaseUrl()!, serviceKey()!)
 
   // ── Resolve org + a human label for the context entity (org derived server-side) ──
   let orgId: string | null = null
