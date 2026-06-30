@@ -1,18 +1,11 @@
 <template>
   <div class="p-3 sm:p-6">
     <div class="flex items-center justify-between mb-6 gap-4 flex-wrap">
-      <div>
-        <h1 class="text-xl font-semibold text-surface-900">People</h1>
-        <p class="text-sm text-surface-500 mt-0.5">
-          Everyone in your organisation.
-          <span v-if="!loading">{{ people.length }} {{ people.length === 1 ? 'person' : 'people' }}.</span>
-        </p>
-      </div>
+      <IconField iconPosition="left">
+        <InputIcon class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search people…" size="small" class="w-full sm:w-64" />
+      </IconField>
       <div class="flex items-center gap-2 flex-wrap">
-        <IconField iconPosition="left">
-          <InputIcon class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search people…" size="small" class="w-full sm:w-64" />
-        </IconField>
         <!-- Per-tab column chooser (desktop table) -->
         <div ref="colMenuWrap" class="relative hidden md:block">
           <Button label="Columns" icon="pi pi-sliders-h" size="small" severity="secondary" outlined @click="colMenuOpen = !colMenuOpen" />
@@ -28,7 +21,8 @@
             <p v-if="!availableCols.length" class="px-3 py-2 text-xs text-gray-400">No columns available.</p>
           </div>
         </div>
-        <Button label="Export" icon="pi pi-download" size="small" severity="secondary" outlined @click="exportCsv" />
+        <Button label="Export" icon="pi pi-download" size="small" severity="secondary" outlined @click="exportMenu.toggle($event)" />
+        <Menu ref="exportMenu" :model="exportItems" popup />
         <Button label="Add person" icon="pi pi-plus" size="small"
           style="background:#1E2157;border-color:#1E2157" @click="openCreate" />
       </div>
@@ -219,6 +213,7 @@ import { useToast } from 'primevue/usetoast'
 const { orgId } = useOrg()
 const db = useDb()
 const toast = useToast()
+useBreadcrumbs([{ label: 'People' }])
 const { resolvePersonTypes, resolveFields, fieldAppliesTo } = useOrgFieldPolicy()
 
 const people = ref<any[]>([])
@@ -401,22 +396,65 @@ async function bulkSetType(typeKey: string | null) {
   }
 }
 
-function exportCsv() {
-  // Export the selected rows if any, otherwise the current filtered view.
+// Shared export matrix — visible columns + selected (or filtered) rows.
+function peopleExportRows() {
   const rows = selected.value.length ? selected.value : filtered.value
-  if (!rows.length) { toast.add({ severity: 'info', summary: 'Nothing to export', life: 2000 }); return }
-  const head = ['First name', 'Last name', 'Email', 'Phone', 'Type', 'Membership', 'Date of birth']
-  const esc = (v: any) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s }
-  const lines = [head.join(',')]
-  for (const p of rows) {
-    lines.push([p.first_name, p.last_name, p.email, p.phone, typeKeysOf(p).map(typeLabel).join(' / '), p.membership_type, p.dob].map(esc).join(','))
-  }
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
+  const cols: { label: string; get: (p: any) => string }[] = [
+    { label: 'Name', get: p => `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() },
+  ]
+  if (visibleColSet.value.has('email')) cols.push({ label: 'Email', get: p => p.email ?? '' })
+  if (visibleColSet.value.has('phone')) cols.push({ label: 'Phone', get: p => p.phone ?? '' })
+  if (visibleColSet.value.has('roles')) cols.push({ label: 'Roles', get: p => typeKeysOf(p).map(typeLabel).join('; ') })
+  if (visibleColSet.value.has('membership')) cols.push({ label: 'Membership', get: p => p.membership_type ?? '' })
+  if (visibleColSet.value.has('age')) cols.push({ label: 'Age', get: p => { const a = age(p.dob); return a == null ? '' : String(a) } })
+  for (const c of customColDefs.value) cols.push({ label: c.label, get: p => String(cfDisplay(p, c) ?? '') })
+  return { head: cols.map(c => c.label), rows: rows.map(p => cols.map(c => c.get(p))), count: rows.length }
+}
+const exportFileBase = () => `people-${activeType.value}`
+function downloadPeople(content: BlobPart, mime: string, ext: string) {
+  const url = URL.createObjectURL(new Blob([content], { type: mime }))
   const a = document.createElement('a')
-  a.href = url; a.download = `people-${activeType.value}.csv`; a.click()
+  a.href = url; a.download = `${exportFileBase()}.${ext}`; a.click()
   URL.revokeObjectURL(url)
 }
+function peopleTableHtml() {
+  const { head, rows } = peopleExportRows()
+  const th = head.map(h => `<th style="border:1px solid #ccc;padding:4px 8px;background:#1E2157;color:#fff;font-size:11px">${h}</th>`).join('')
+  const trs = rows.map(r => `<tr>${r.map(c => `<td style="border:1px solid #ccc;padding:4px 8px;font-size:11px">${c}</td>`).join('')}</tr>`).join('')
+  return `<table style="border-collapse:collapse;font-family:Arial,sans-serif"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table>`
+}
+function exportCsv() {
+  const { head, rows, count } = peopleExportRows()
+  if (!count) { toast.add({ severity: 'info', summary: 'Nothing to export', life: 2000 }); return }
+  const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const csv = [head, ...rows].map(r => r.map(esc).join(',')).join('\n')
+  downloadPeople('﻿' + csv, 'text/csv;charset=utf-8;', 'csv')
+}
+function exportExcel() {
+  if (!peopleExportRows().count) { toast.add({ severity: 'info', summary: 'Nothing to export', life: 2000 }); return }
+  downloadPeople('﻿<html><head><meta charset="utf-8"></head><body><h3>People</h3>' + peopleTableHtml() + '</body></html>', 'application/vnd.ms-excel', 'xls')
+}
+function exportPdf() {
+  if (!peopleExportRows().count) { toast.add({ severity: 'info', summary: 'Nothing to export', life: 2000 }); return }
+  const iframe = document.createElement('iframe')
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
+  document.body.appendChild(iframe)
+  const doc = iframe.contentWindow?.document
+  if (!doc) { document.body.removeChild(iframe); return }
+  doc.open()
+  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>People</title><style>@page{size:landscape;margin:14mm}body{margin:0;font-family:Arial,sans-serif}</style></head><body><h2 style="color:#1E2157;margin:0 0 12px">People</h2>${peopleTableHtml()}</body></html>`)
+  doc.close()
+  const win = iframe.contentWindow!
+  setTimeout(() => { win.focus(); win.print(); setTimeout(() => document.body.removeChild(iframe), 1500) }, 300)
+}
+const exportMenu = ref()
+const exportItems = [
+  { label: 'CSV', icon: 'pi pi-file', command: () => exportCsv() },
+  { label: 'Excel', icon: 'pi pi-file-excel', command: () => exportExcel() },
+  { label: 'PDF', icon: 'pi pi-file-pdf', command: () => exportPdf() },
+  { separator: true },
+  { label: 'Print', icon: 'pi pi-print', command: () => exportPdf() },
+]
 
 async function bulkDelete() {
   const ids = selected.value.map(p => p.id)

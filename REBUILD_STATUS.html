@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FriendlyManager Rebuild — Status vs Old System</title>
+<style>
+  :root{
+    --navy:#1E2157; --navy-light:#2d3270; --ink:#1f2433; --muted:#6b7280;
+    --line:#e5e7eb; --bg:#f6f7fb; --card:#fff;
+    --green:#16a34a; --amber:#d97706; --red:#dc2626; --blue:#2563eb;
+    --green-bg:#dcfce7; --amber-bg:#fef3c7; --red-bg:#fee2e2; --blue-bg:#dbeafe;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:0 20px 80px}
+
+  /* Hero */
+  header.hero{
+    background:linear-gradient(135deg,var(--navy),var(--navy-light));
+    color:#fff; padding:48px 0 40px; margin-bottom:32px;
+  }
+  header.hero .wrap{padding-bottom:0}
+  .eyebrow{text-transform:uppercase; letter-spacing:.12em; font-size:12px; font-weight:700; opacity:.7; margin:0 0 10px}
+  header.hero h1{font-size:34px; line-height:1.15; margin:0 0 12px; font-weight:700; letter-spacing:-.01em}
+  header.hero p{margin:0; font-size:16px; opacity:.85; max-width:680px}
+  .meta{display:flex; flex-wrap:wrap; gap:24px; margin-top:24px; font-size:13px; opacity:.85}
+  .meta b{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.08em; opacity:.65; margin-bottom:2px; font-weight:600}
+
+  h2{font-size:22px; margin:42px 0 6px; letter-spacing:-.01em; color:var(--navy)}
+  h2 .num{color:var(--muted); font-weight:600; margin-right:8px}
+  .sub{color:var(--muted); margin:0 0 18px; font-size:14px}
+
+  /* Summary cards */
+  .stats{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin:26px 0 8px}
+  .stat{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 18px 16px}
+  .stat .big{font-size:30px; font-weight:800; line-height:1}
+  .stat .lbl{font-size:12.5px; color:var(--muted); margin-top:6px}
+  .stat.g .big{color:var(--green)} .stat.a .big{color:var(--amber)}
+  .stat.r .big{color:var(--red)} .stat.b .big{color:var(--blue)}
+
+  /* Cards */
+  .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:4px 0; overflow:hidden}
+  .card.pad{padding:22px 24px}
+
+  /* Table */
+  table{width:100%; border-collapse:collapse; font-size:14px}
+  th{
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--muted); font-weight:700; padding:14px 18px; border-bottom:2px solid var(--line);
+  }
+  td{padding:13px 18px; border-bottom:1px solid var(--line); vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  td.area{font-weight:600; width:24%}
+  td.old{color:var(--muted); width:34%; font-size:13.5px}
+  .pill{
+    display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600;
+    padding:3px 11px; border-radius:999px; white-space:nowrap;
+  }
+  .pill.done{background:var(--green-bg); color:#15803d}
+  .pill.part{background:var(--amber-bg); color:#b45309}
+  .pill.none{background:var(--red-bg); color:#b91c1c}
+  .pill.proto{background:var(--blue-bg); color:#1d4ed8}
+  .st-note{display:block; color:var(--ink); font-size:13.5px; margin-top:6px}
+
+  /* Section dividers within table */
+  tr.group td{background:#fafbff; font-weight:700; color:var(--navy); font-size:12px; text-transform:uppercase; letter-spacing:.06em; padding:10px 18px}
+
+  /* Phase list */
+  .phases{display:grid; gap:10px; margin-top:16px}
+  .phase{display:flex; gap:14px; align-items:flex-start; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px}
+  .phase .dot{flex:0 0 auto; width:11px; height:11px; border-radius:50%; margin-top:7px}
+  .phase .body{flex:1}
+  .phase .ttl{font-weight:700; font-size:14.5px}
+  .phase .desc{color:var(--muted); font-size:13.5px; margin-top:2px}
+  .phase .tag{font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:2px 9px; border-radius:999px; align-self:flex-start; margin-top:5px}
+  .d-done{background:var(--green)} .d-part{background:var(--amber)} .d-none{background:var(--red)} .d-proto{background:var(--blue)}
+  .tag.t-done{background:var(--green-bg);color:#15803d} .tag.t-part{background:var(--amber-bg);color:#b45309}
+  .tag.t-none{background:var(--red-bg);color:#b91c1c} .tag.t-proto{background:var(--blue-bg);color:#1d4ed8}
+
+  .legend{display:flex; flex-wrap:wrap; gap:16px; margin:14px 0 0; font-size:13px; color:var(--muted)}
+  .legend .pill{font-size:11.5px}
+
+  .callout{background:#fafbff; border:1px solid var(--line); border-left:4px solid var(--navy); border-radius:10px; padding:16px 20px; margin-top:18px}
+  .callout b{color:var(--navy)}
+  .callout ul{margin:8px 0 0; padding-left:20px}
+  .callout li{margin:4px 0}
+
+  footer{margin-top:48px; padding-top:20px; border-top:1px solid var(--line); color:var(--muted); font-size:12.5px}
+
+  @media (max-width:760px){
+    .stats{grid-template-columns:repeat(2,1fr)}
+    header.hero h1{font-size:26px}
+    td.area,td.old{width:auto}
+    table,thead,tbody,th,td,tr{display:block}
+    thead{display:none}
+    tr{border-bottom:1px solid var(--line); padding:8px 0}
+    tr:last-child{border-bottom:none}
+    td{border:none; padding:4px 18px}
+    td.area{padding-top:12px}
+    tr.group td{padding:10px 18px}
+  }
+  @media print{
+    body{background:#fff}
+    header.hero{background:var(--navy)!important; -webkit-print-color-adjust:exact; print-color-adjust:exact}
+    .pill,.stat,.phase .dot,.tag,tr.group td{-webkit-print-color-adjust:exact; print-color-adjust:exact}
+    .card,.phase,.stat{break-inside:avoid}
+    h2{break-after:avoid}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">FriendlyManager Platform Rebuild</p>
+    <h1>Where we're at vs the old system</h1>
+    <p>Status of the rebuild on the <strong>fm-events</strong> (Nuxt 3 + Supabase) foundation, measured against the full legacy FriendlyManager platform — the live swimming demo + the bespoke PHP codebase in <code>/old</code>.</p>
+    <div class="meta">
+      <div><b>Report date</b>30 June 2026</div>
+      <div><b>Tenancy model</b>Single Postgres DB + org hierarchy</div>
+      <div><b>Migrations</b>195 applied</div>
+      <div><b>Source</b>PLATFORM_AUDIT.md · REBUILD_ROADMAP.md</div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- Snapshot -->
+  <div class="stats">
+    <div class="stat g"><div class="big">6</div><div class="lbl">Done / exceeds legacy</div></div>
+    <div class="stat a"><div class="big">5</div><div class="lbl">Partial</div></div>
+    <div class="stat r"><div class="big">7</div><div class="lbl">Not started</div></div>
+    <div class="stat b"><div class="big">1</div><div class="lbl">Prototype</div></div>
+  </div>
+
+  <div class="callout">
+    <b>One-line summary.</b> The enhanced <b>Events + Bookings</b> core is built and exceeds the old system, and so is the <b>foundation layer</b> — federation, roles, custom-field engine, terminology, and People CRM with contacts/circles. The major work still ahead is the <b>Terms/Squads membership spine</b>, the real <b>Billing engine</b>, the entire <b>Competitions module</b>, and the <b>secondary modules + integrations/compliance</b> layer.
+  </div>
+
+  <!-- Comparison table -->
+  <h2><span class="num">1</span>Module-by-module comparison</h2>
+  <p class="sub">Each row = an old-system capability, what it did, and where the rebuild stands today.</p>
+
+  <div class="card">
+    <table>
+      <thead>
+        <tr><th>Area</th><th>Old system did…</th><th>Rebuild status</th></tr>
+      </thead>
+      <tbody>
+        <tr class="group"><td colspan="3">Core — the enhanced slice</td></tr>
+        <tr>
+          <td class="area">Events</td>
+          <td class="old">Basic event: title + date + free-text venue + one fee + invite list + RSVP.</td>
+          <td><span class="pill done">✓ Exceeds</span><span class="st-note">Multi-session events, FormBuilder, ticket types, discounts, invitee groups, automation, reporting, attendance check-in.</span></td>
+        </tr>
+        <tr>
+          <td class="area">Venues & Bookings</td>
+          <td class="old">Venue + sub-venue/lanes + staff (private lessons) as bookables; basic booking flow.</td>
+          <td><span class="pill done">✓ Exceeds</span><span class="st-note">Bookables (venue/person/item), activities/modes, 3 flows (wizard/scheduler/item), configurations, conflict/capacity, access control (doors/lights/codes).</span></td>
+        </tr>
+
+        <tr class="group"><td colspan="3">Foundation — cross-cutting</td></tr>
+        <tr>
+          <td class="area">Federation (multi-org)</td>
+          <td class="old">DB-per-club + NSO federation (shared national profile).</td>
+          <td><span class="pill done">✓ Built</span><span class="st-note">Single-DB org hierarchy + levels, ancestors/descendants resolvers, field-definition inheritance (mig 134–143).</span></td>
+        </tr>
+        <tr>
+          <td class="area">Roles & permissions</td>
+          <td class="old">9-level role ladder + per-handler enforcement.</td>
+          <td><span class="pill done">✓ Built</span><span class="st-note">Core permission templates (152–154) + scoped per-resource roles (183–184) with capability matrix.</span></td>
+        </tr>
+        <tr>
+          <td class="area">Custom-field engine</td>
+          <td class="old">Per-tenant person custom fields (NSO- vs club-scoped).</td>
+          <td><span class="pill done">✓ Built</span><span class="st-note"><code>field_definitions</code> + multi-target fields + per-type form layouts (167–169).</span></td>
+        </tr>
+        <tr>
+          <td class="area">Terminology engine</td>
+          <td class="old">Rename core nouns (player/member/squad…) per club.</td>
+          <td><span class="pill part">◐ Engine done</span><span class="st-note">Resolver + <code>/settings/terminology</code> (145); not yet wired through hardcoded app labels.</span></td>
+        </tr>
+        <tr>
+          <td class="area">Module toggles · Audit log</td>
+          <td class="old">Per-club module on/off + entity change history.</td>
+          <td><span class="pill none">✗ Not started</span><span class="st-note">Club types exist; per-module toggles + surfaced audit log not built.</span></td>
+        </tr>
+
+        <tr class="group"><td colspan="3">Membership & CRM</td></tr>
+        <tr>
+          <td class="area">People / CRM</td>
+          <td class="old">Rich profile + tabs (Awards/Fees/Uniforms/Events/Attendance/Membership), presets, reports.</td>
+          <td><span class="pill done">✓ Mostly</span><span class="st-note"><code>/people</code> directory + profile (tabs, custom fields, membership, configurable dashboard). Saved-view presets + people reports still thin.</span></td>
+        </tr>
+        <tr>
+          <td class="area">Contacts / guardians</td>
+          <td class="old">Reusable contacts (Primary/Standard/Emergency), related-comms, shared across members.</td>
+          <td><span class="pill done">✓ Built</span><span class="st-note">Families & Circles + act-on-behalf + comms preferences (170–176).</span></td>
+        </tr>
+        <tr>
+          <td class="area">People / Entities / Access</td>
+          <td class="old">(Implicit in legacy person/role model.)</td>
+          <td><span class="pill proto">◐ Prototype</span><span class="st-note">Unified "two screens, one engine" model at <code>/proto/*</code> (185–188), per the PRD.</span></td>
+        </tr>
+        <tr>
+          <td class="area">Squads + Terms</td>
+          <td class="old">Squad code-templates + <b>Terms / Codes / Waitlist / Allocation / Term-transfer / Retention</b>.</td>
+          <td><span class="pill none">✗ Spine missing</span><span class="st-note">Groups + weekly schedules + training-event series built. The whole Terms registration spine is absent (season is a lightweight stand-in).</span></td>
+        </tr>
+
+        <tr class="group"><td colspan="3">Finance, competitions & operations</td></tr>
+        <tr>
+          <td class="area">Billing / Fees</td>
+          <td class="old">Real engine: pro-rata, prompt discounts, subscriptions, affiliation/family discounts, credit-note allocation, Xero, Stripe/Ezidebit/Windcave, statement crons.</td>
+          <td><span class="pill none">✗ Basic only</span><span class="st-note">Fee line items on forms/bookings only — no invoicing engine, payments, or accounting sync.</span></td>
+        </tr>
+        <tr>
+          <td class="area">Competitions</td>
+          <td class="old">~30-table engine: draws, divisions, pools, rounds, games, officials, per-sport scoring, individual sessions, public score-entry/judging.</td>
+          <td><span class="pill none">✗ None</span><span class="st-note">Entirely net-new — the single biggest remaining build.</span></td>
+        </tr>
+        <tr>
+          <td class="area">Attendance</td>
+          <td class="old">Roll-taking + Generate-from-class-times + Coach Hours + Visitors + non-attendance reports.</td>
+          <td><span class="pill part">◐ Partial</span><span class="st-note">Attendance landing + take-attendance on event occurrences. Coach hours, visitors, and reports missing.</span></td>
+        </tr>
+        <tr>
+          <td class="area">Mailer / Comms</td>
+          <td class="old">3-step bulk email, recipient selection, attachments, history, templates, bounce + subscription handling.</td>
+          <td><span class="pill part">◐ Stub</span><span class="st-note">Communications surface exists; bulk composer, history, templates, and bounce tracking not built.</span></td>
+        </tr>
+
+        <tr class="group"><td colspan="3">Secondary, compliance & platform</td></tr>
+        <tr>
+          <td class="area">Awards · Resources · Uniforms · Programmes</td>
+          <td class="old">4 module-toggle modules: badges, document library, asset/merch inventory, holiday programmes.</td>
+          <td><span class="pill none">✗ Mostly none</span><span class="st-note">Holiday-programme event style partially covered; the four modules themselves are not built.</span></td>
+        </tr>
+        <tr>
+          <td class="area">Compliance · Mobile API · Embeds · Integrations</td>
+          <td class="old">Waivers, vaccine/vetting, <code>/app/*</code> mobile API, calendar/register/book embeds, webhooks, Xero/Kamar/NSO syncs.</td>
+          <td><span class="pill part">◐ Embeds only</span><span class="st-note">Public <code>/r/</code> + <code>/book</code> embed surfaces exist. Compliance, mobile API, and third-party integrations not started.</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="legend">
+    <span class="pill done">✓ Done / exceeds</span>
+    <span class="pill part">◐ Partial</span>
+    <span class="pill proto">◐ Prototype</span>
+    <span class="pill none">✗ Not started</span>
+  </div>
+
+  <!-- Roadmap -->
+  <h2><span class="num">2</span>Roadmap phases &amp; progress</h2>
+  <p class="sub">The confirmed rebuild order, with current status of each phase.</p>
+
+  <div class="phases">
+    <div class="phase"><div class="dot d-done"></div><div class="body"><div class="ttl">Phase 0 — Federation foundation</div><div class="desc">Org hierarchy + levels, field-definition engine, roles, terminology, custom fields.</div></div><span class="tag t-done">Largely done</span></div>
+    <div class="phase"><div class="dot d-part"></div><div class="body"><div class="ttl">Phase 1 — Membership core</div><div class="desc">People CRM + contacts/circles done. Squads + <b>Terms / Codes / Waitlist / Allocation / Term-transfer</b> still to build.</div></div><span class="tag t-part">In progress</span></div>
+    <div class="phase"><div class="dot d-none"></div><div class="body"><div class="ttl">Phase 2 — Billing engine</div><div class="desc">Invoices, pro-rata, prompt discounts, subscriptions, affiliation/family discounts, Stripe/Ezidebit, Xero sync, recurring/statement crons.</div></div><span class="tag t-none">Not started</span></div>
+    <div class="phase"><div class="dot d-none"></div><div class="body"><div class="ttl">Phase 3 — Registration wizard</div><div class="desc">Public signup tying Terms + Squads + Fees + payment (RegForm types: default/family/team/club/program/shop); embeds.</div></div><span class="tag t-none">Not started</span></div>
+    <div class="phase"><div class="dot d-part"></div><div class="body"><div class="ttl">Phase 4 — Attendance + Comms</div><div class="desc">Generate-from-schedule, coach hours, visitors; bulk mailer + history + templates + bounce/subscription.</div></div><span class="tag t-part">Partial</span></div>
+    <div class="phase"><div class="dot d-none"></div><div class="body"><div class="ttl">Phase 5 — Competitions</div><div class="desc">The large net-new module: divisions/pools/rounds/games/officials/per-sport scoring + individual sessions/judging + mobile score feed.</div></div><span class="tag t-none">Not started</span></div>
+    <div class="phase"><div class="dot d-none"></div><div class="body"><div class="ttl">Phase 6 — Secondary + compliance</div><div class="desc">Awards, Resources, Uniforms/merch, Programmes, Waivers, Vaccine/Vetting, Sponsors, Vouchers.</div></div><span class="tag t-none">Not started</span></div>
+    <div class="phase"><div class="dot d-none"></div><div class="body"><div class="ttl">Phase 7 — Platform hardening</div><div class="desc">Mobile API (<code>/app/*</code>), full embed suite, webhooks, NSO/HubSpot/Kamar integrations, RLS enforcement.</div></div><span class="tag t-none">Not started</span></div>
+  </div>
+
+  <!-- Where the value is -->
+  <h2><span class="num">3</span>Read-out</h2>
+  <div class="card pad">
+    <p style="margin-top:0"><strong>What's solid.</strong> Roughly Phase 0 and a good chunk of Phase 1 are delivered. In Events and Bookings the rebuild is materially <em>ahead</em> of the legacy platform — multi-session events, a reusable form engine, three booking flows, and access control have no equivalent in the old system. The federation, roles, custom-field and contacts/circles foundations are also in place.</p>
+    <p><strong>What's the critical path.</strong> Three workstreams gate "feature-parity with the old system":</p>
+    <div class="callout" style="margin-top:8px">
+      <ul style="margin:0">
+        <li><b>Terms / Squads spine</b> — the registration window + membership-over-time backbone the whole legacy app hangs off.</li>
+        <li><b>Billing engine</b> — a genuine engine (pro-rata, subscriptions, Xero, direct debit), not just fee lines.</li>
+        <li><b>Competitions</b> — ~30 tables of net-new, the largest single build.</li>
+      </ul>
+    </div>
+    <p style="margin-bottom:0">Everything else (secondary modules, mobile API, integrations, compliance) is additive and module-toggleable once those three land.</p>
+  </div>
+
+  <footer>
+    Generated from <code>PLATFORM_AUDIT.md</code> and <code>REBUILD_ROADMAP.md</code> · reconciled against migrations through 195 · supersedes <code>FriendlyManager_Rebuild_Report.pdf</code> (16 Jun snapshot). Print to PDF for sharing.
+  </footer>
+
+</div>
+</body>
+</html>

@@ -10,6 +10,7 @@ const tabs = [
   { label: 'Bookings', icon: 'pi-calendar', to: '/settings', tab: 'bookings' },
   { label: 'Events', icon: 'pi-megaphone', to: '/settings', tab: 'events' },
   { label: 'Resources', icon: 'pi-building', to: '/settings', tab: 'resources' },
+  { label: 'Terms & memberships', icon: 'pi-credit-card', to: '/settings/memberships' },
   { label: 'User type', icon: 'pi-lock', to: '/settings/permissions' },
   { label: 'Roles', icon: 'pi-users', to: '/settings/roles' },
   { label: 'Fields', icon: 'pi-id-card', to: '/settings/fields' },

@@ -1,174 +1,312 @@
 <template>
   <div class="w-full p-3 sm:p-6">
-    <NuxtLink to="/groups"
-      class="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-700 mb-4">
-      <i class="pi pi-arrow-left text-[10px]" /> Groups
-    </NuxtLink>
-
     <div v-if="loading" class="text-sm text-gray-400 py-8 text-center">Loading…</div>
     <div v-else-if="!group" class="text-sm text-gray-400 py-8 text-center">Group not found.</div>
     <template v-else>
-      <div class="mb-5 flex items-center gap-3 flex-wrap">
+      <!-- Tabs -->
+      <div class="mb-4 flex gap-1 border-b border-gray-200 overflow-x-auto overflow-y-hidden no-scrollbar">
+        <button v-for="t in groupTabs" :key="t.key" type="button"
+          class="px-3 sm:px-4 py-2.5 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors inline-flex items-center gap-1.5"
+          :class="activeTab === t.key ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-800'"
+          @click="activeTab = t.key"><i class="pi text-xs" :class="t.icon" />{{ t.label }}</button>
+      </div>
+
+      <!-- Title + Add person (Details tab) -->
+      <div v-show="activeTab === 'details'" class="mb-4 flex items-center gap-3 flex-wrap">
         <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: group.color || '#94a3b8' }" />
         <h1 class="text-xl font-semibold text-surface-900">{{ group.name }}</h1>
         <span v-for="r in myRoleLabels" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1976d2]/10 text-[#1976d2] font-semibold" title="Your role in this group">{{ r }}</span>
-        <div class="ml-auto flex items-center gap-2 w-full sm:w-auto">
-          <span v-if="trainingEventCount" class="text-xs text-gray-500">
-            <i class="pi pi-calendar text-[10px] mr-1" />{{ trainingEventCount }} training event{{ trainingEventCount === 1 ? '' : 's' }} linked
-          </span>
-          <span v-if="canManage && createBlockedReason && missingTrainingEvents.length" class="text-xs text-gray-400">{{ createBlockedReason }}</span>
-          <button v-if="canManage && missingTrainingEvents.length" type="button"
-            class="text-xs font-semibold text-white px-3 py-1.5 rounded inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            :class="!createBlockedReason ? 'bg-[#1976d2] hover:bg-[#125ea8]' : 'bg-gray-400'"
-            :disabled="creatingEvent || !!createBlockedReason"
-            @click="createAttendanceEvent">
-            <i class="pi pi-plus text-[10px]" />
-            {{ creatingEvent ? 'Creating…' : createButtonLabel }}
-          </button>
-        </div>
+        <Button v-if="canManage" label="Add person" icon="pi pi-user-plus"
+          class="ml-auto w-full sm:w-auto justify-center"
+          style="background:#1E2157;border-color:#1E2157" @click="openAdd('member')" />
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <!-- Left column: INFO + COACHES -->
-        <div class="md:col-span-1 flex flex-col gap-4">
-          <!-- Disciplines (NSO mapping) — manage-only -->
-          <div v-if="group?.id && canManage" class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div class="bg-[#1976d2] text-white text-xs font-bold tracking-widest text-center py-2">DISCIPLINES</div>
-            <div class="p-4">
-              <DisciplineLinker entity-type="group" :entity-id="group.id" />
-            </div>
-          </div>
+      <div v-show="activeTab === 'details'" class="flex flex-col lg:flex-row gap-4 items-start">
+        <!-- Left column: Info + Session Times -->
+        <div class="w-full lg:w-5/12 shrink-0 space-y-4">
           <!-- INFO -->
           <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div class="bg-[#1976d2] text-white text-xs font-bold tracking-widest text-center py-2">INFO</div>
-            <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3 text-sm">
-              <!-- Left half: labelled fields -->
+            <div class="bg-primary text-white text-xs font-bold tracking-widest py-3.5 px-5 flex items-center justify-between">
+              <span class="normal-case tracking-normal text-sm">Info</span>
+              <button v-if="canManage" type="button"
+                class="text-white/90 hover:text-white inline-flex items-center gap-1 text-[11px] font-semibold"
+                @click="openGroupEditor">
+                <i class="pi pi-pencil text-[10px]" /> Edit
+              </button>
+            </div>
+            <div class="p-5 text-sm">
+              <!-- Labelled fields -->
+              <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 items-baseline">
+                <dt class="text-left font-semibold text-gray-700">Code:</dt>
+                <dd class="text-gray-700">{{ group.code || group.name }}</dd>
+                <dt class="text-left font-semibold text-gray-700">Head:</dt>
+                <dd class="text-gray-700">{{ headCoach || '—' }}</dd>
+                <dt class="text-left font-semibold text-gray-700">Age Range:</dt>
+                <dd class="text-gray-700">{{ group.age_range || '—' }}</dd>
+                <dt class="text-left font-semibold text-gray-700">Members:</dt>
+                <dd class="text-gray-700">{{ members.length }}<span v-if="group.capacity">/{{ group.capacity }}</span></dd>
+                <dt class="text-left font-semibold text-gray-700">Current Term:</dt>
+                <dd class="text-gray-700">{{ group.current_term || '—' }}</dd>
+                <dt class="text-left font-semibold text-gray-700">Term Fee:</dt>
+                <dd class="text-gray-700">{{ group.term_fee != null ? `$${Number(group.term_fee).toFixed(2)}` : '—' }}</dd>
+                <template v-if="canManage && group?.id">
+                  <dt class="text-left font-semibold text-gray-700">Disciplines:</dt>
+                  <dd><DisciplineLinker entity-type="group" :entity-id="group.id" /></dd>
+                </template>
+              </dl>
+            </div>
+          </div>
+
+          <!-- MEMBERSHIP & TERMS (own card, below INFO) -->
+          <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div class="bg-primary text-white text-xs font-bold tracking-widest py-3.5 px-5 flex items-center justify-between">
+              <span class="normal-case tracking-normal text-sm">Membership & terms</span>
+              <button v-if="canManage" type="button"
+                class="text-white/90 hover:text-white inline-flex items-center gap-1 text-[11px] font-semibold"
+                @click="openBillingEditor">
+                <i class="pi pi-pencil text-[10px]" /> Edit
+              </button>
+            </div>
+            <div class="p-5 text-sm space-y-4">
+              <!-- Terms -->
               <div>
-                <dl class="text-sm">
-                  <div class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2">
-                    <dt class="text-right font-semibold text-gray-700">Code:</dt>
-                    <dd class="text-gray-700">{{ group.code || group.name }}</dd>
-                    <dt class="text-right font-semibold text-gray-700">Head:</dt>
-                    <dd class="text-gray-700">{{ headCoach || '—' }}</dd>
-                    <dt class="text-right font-semibold text-gray-700">Age Range:</dt>
-                    <dd class="text-gray-700">{{ group.age_range || '—' }}</dd>
-                    <dt class="text-right font-semibold text-gray-700">Members:</dt>
-                    <dd class="text-gray-700">{{ members.length }}<span v-if="group.capacity">/{{ group.capacity }}</span></dd>
-                    <dt class="text-right font-semibold text-gray-700">Current Term:</dt>
-                    <dd class="text-gray-700">{{ group.current_term || '—' }}</dd>
-                    <dt class="text-right font-semibold text-gray-700">Term Fee:</dt>
-                    <dd class="text-gray-700">{{ group.term_fee != null ? `$${Number(group.term_fee).toFixed(2)}` : '—' }}</dd>
+                <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Terms</div>
+                <div v-if="linkedTerms.length" class="space-y-1">
+                  <div v-for="l in linkedTerms" :key="l.term_id" class="flex items-center justify-between gap-2">
+                    <span class="text-gray-700">{{ l.term!.name }}</span>
+                    <span class="text-gray-500 tabular-nums">{{ l.fee != null ? tm.fmtMoney(l.fee, orgCurrency) : '—' }}</span>
                   </div>
-                </dl>
-              </div>
-              <!-- Right half: Session Times -->
-              <div>
-                <div class="flex items-center justify-between mb-2">
-                  <p class="font-bold text-gray-800">Session Times</p>
-                  <button v-if="canManage" type="button"
-                    class="text-xs font-semibold text-[#1976d2] hover:underline inline-flex items-center gap-1"
-                    @click="openScheduleEditor">
-                    <i class="pi pi-pencil text-[10px]" /> Edit
-                  </button>
                 </div>
-                <div v-if="!schedules.length" class="text-sm text-gray-400">—</div>
-                <div v-for="s in schedules" :key="s.id" class="text-sm text-gray-700 flex items-center gap-2">
-                  <span class="flex-1 min-w-0">{{ formatSchedule(s) }}</span>
-                  <NuxtLink v-if="trainingEventByScheduleId[s.id]"
-                    :to="`/events/${trainingEventByScheduleId[s.id].id}`"
-                    class="text-[11px] font-semibold text-[#1976d2] hover:underline shrink-0 inline-flex items-center gap-0.5"
-                    :title="`Open ${trainingEventByScheduleId[s.id].title}`">
-                    Open <i class="pi pi-arrow-right text-[9px]" />
+                <div v-else class="text-gray-400">Not run on terms</div>
+              </div>
+              <!-- Memberships -->
+              <div>
+                <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Memberships</div>
+                <div v-if="linkedPlans.length" class="space-y-2">
+                  <div v-for="p in linkedPlans" :key="p.id">
+                    <div class="flex items-center gap-2">
+                      <span class="inline-block w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: p.color || '#1E2157' }" />
+                      <span class="text-gray-700 font-medium">{{ p.name }}</span>
+                    </div>
+                    <div v-if="p.options.length" class="flex flex-wrap gap-1.5 mt-1 ml-[18px]">
+                      <span v-for="o in p.options" :key="o.id"
+                        class="text-xs bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">
+                        {{ tm.optionLabel(o, orgCurrency) }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="text-gray-400">No memberships connected</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SESSION TIMES (own card, below INFO) -->
+          <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div class="bg-primary text-white text-xs font-bold tracking-widest py-3.5 px-5 flex items-center justify-between">
+              <span class="normal-case tracking-normal text-sm">Session times</span>
+              <button v-if="canManage" type="button"
+                class="text-white/90 hover:text-white inline-flex items-center gap-1 text-[11px] font-semibold"
+                @click="openScheduleEditor">
+                <i class="pi pi-pencil text-[10px]" /> Edit
+              </button>
+            </div>
+            <div class="p-4 space-y-3">
+              <div v-if="!schedules.length" class="text-sm text-gray-400">—</div>
+              <div v-else class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="text-left text-xs font-bold text-gray-700 border-b border-gray-200">
+                      <th class="py-2 pr-3">Day</th>
+                      <th class="py-2 pr-3">Time</th>
+                      <th class="py-2 pr-3">Location</th>
+                      <th class="py-2 w-8" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="s in schedules" :key="s.id" class="border-b border-gray-100">
+                      <td class="py-2 pr-3 text-gray-700">{{ dayNames[s.day_of_week] }}</td>
+                      <td class="py-2 pr-3 text-gray-700 whitespace-nowrap">{{ formatTime(s.start_time) }} – {{ formatTime(s.end_time) }}</td>
+                      <td class="py-2 pr-3 text-gray-500">{{ locationLabel(s.location) || '—' }}</td>
+                      <td class="py-2 text-right">
+                        <NuxtLink v-if="trainingEventByScheduleId[s.id]"
+                          :to="`/events/${trainingEventByScheduleId[s.id].id}`"
+                          class="text-[11px] font-semibold text-[#1976d2] hover:underline inline-flex items-center gap-0.5"
+                          :title="`Open ${trainingEventByScheduleId[s.id].title}`">
+                          Open <i class="pi pi-arrow-right text-[9px]" />
+                        </NuxtLink>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <!-- Create / link training events -->
+              <div v-if="canManage && missingTrainingEvents.length" class="pt-1">
+                <button type="button"
+                  class="w-full text-xs font-semibold text-white px-3 py-2 rounded inline-flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                  :class="!createBlockedReason ? 'bg-[#1976d2] hover:bg-[#125ea8]' : 'bg-gray-400'"
+                  :disabled="creatingEvent || !!createBlockedReason"
+                  @click="createAttendanceEvent">
+                  <i class="pi pi-plus text-[10px]" />
+                  {{ creatingEvent ? 'Creating…' : createButtonLabel }}
+                </button>
+                <p v-if="createBlockedReason" class="text-[11px] text-gray-400 mt-1 text-center">{{ createBlockedReason }}</p>
+              </div>
+              <p v-else-if="trainingEventCount" class="text-[11px] text-gray-500 text-center">
+                <i class="pi pi-calendar text-[10px] mr-1" />{{ trainingEventCount }} training event{{ trainingEventCount === 1 ? '' : 's' }} linked
+              </p>
+
+              <!-- Upcoming events for this group -->
+              <div class="pt-3 border-t border-gray-100">
+                <div class="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">Upcoming events</div>
+                <div v-if="!upcomingEvents.length" class="text-sm text-gray-400">No upcoming events.</div>
+                <div v-else class="space-y-1">
+                  <NuxtLink v-for="e in upcomingEvents" :key="e.id" :to="`/events/${e.id}`"
+                    class="group flex items-center justify-between gap-2 rounded-lg px-2 -mx-2 py-1.5 hover:bg-gray-50">
+                    <div class="min-w-0">
+                      <div class="text-sm text-gray-800 truncate group-hover:text-[#1976d2]">{{ e.title }}</div>
+                      <div class="text-[11px] text-gray-400">{{ fmtEventWhen(e.start_at) }}<span v-if="e.location && locationLabel(e.location)"> · {{ locationLabel(e.location) }}</span></div>
+                    </div>
+                    <i class="pi pi-arrow-right text-[10px] text-gray-300 group-hover:text-[#1976d2] shrink-0" />
                   </NuxtLink>
                 </div>
               </div>
             </div>
           </div>
-
-          <!-- COACHES -->
-          <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div class="bg-[#1976d2] text-white text-xs font-bold tracking-widest text-center py-2 relative">
-              COACHES &amp; MANAGERS
-              <button v-if="canManage" type="button" class="absolute left-3 top-1/2 -translate-y-1/2 text-white/90 hover:text-white flex items-center gap-1 text-[11px] font-semibold"
-                title="Add a coach or manager" @click="openAdd('coach')">
-                <i class="pi pi-user-plus text-sm" /> Add
-              </button>
-              <i class="pi pi-envelope text-white/90 absolute right-3 top-1/2 -translate-y-1/2 text-sm" />
-            </div>
-            <div class="p-4">
-              <div v-if="!coaches.length" class="text-sm text-gray-400 py-6 text-center">
-                No coaches or managers assigned.
-                <button v-if="canManage" type="button" class="block mx-auto mt-3 text-[#1976d2] hover:underline font-medium" @click="openAdd('coach')">
-                  <i class="pi pi-user-plus text-xs mr-1" />Add a coach or manager
-                </button>
-              </div>
-              <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div v-for="(c, i) in coaches" :key="c.id"
-                  class="group relative rounded-md border border-gray-200 px-3 py-2.5"
-                  :class="i === 0 ? 'bg-blue-50 border-blue-200' : 'bg-gray-50'">
-                  <button v-if="canManage" type="button" class="absolute right-2 top-2 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                    :title="`Remove ${c.name}`" @click="removeCoach(c)"><i class="pi pi-times-circle text-sm" /></button>
-                  <NuxtLink :to="`/people/${c.id}`" class="text-sm font-bold text-gray-900 hover:text-[#1976d2] truncate block pr-5">{{ c.name }}</NuxtLink>
-                  <div class="flex flex-wrap gap-1 mt-1">
-                    <span v-for="r in c.roles" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1976d2]/10 text-[#1976d2] font-medium">{{ roleLabel(r) }}</span>
-                  </div>
-                  <p v-if="c.phone" class="text-xs text-[#1976d2] mt-1.5 inline-flex items-center gap-1">
-                    <i class="pi pi-phone text-[10px]" /> {{ c.phone }}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
-        <!-- Right column: MEMBERS -->
-        <div class="md:col-span-2">
+        <!-- People — coaches & members, two sections (Details tab) -->
+        <div class="flex-1 min-w-0 w-full">
           <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div class="bg-[#1976d2] text-white text-xs font-bold tracking-widest text-center py-2 relative">
-              MEMBERS
-              <button v-if="canManage" type="button" class="absolute left-3 top-1/2 -translate-y-1/2 text-white/90 hover:text-white flex items-center gap-1 text-[11px] font-semibold"
-                title="Add a member" @click="openAdd('member')">
-                <i class="pi pi-user-plus text-sm" /> Add
-              </button>
-              <i class="pi pi-envelope text-white/90 absolute right-3 top-1/2 -translate-y-1/2 text-sm" />
-            </div>
-            <div v-if="!members.length" class="p-8 text-center text-sm text-gray-400">
-              No members in this group yet.
-              <button v-if="canManage" type="button" class="block mx-auto mt-3 text-[#1976d2] hover:underline font-medium" @click="openAdd('member')">
-                <i class="pi pi-user-plus text-xs mr-1" />Add a member
-              </button>
-            </div>
-            <div v-else class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="text-left text-xs font-bold text-gray-700 border-b border-gray-200">
-                  <th class="px-4 py-2.5">Name</th>
-                  <th class="px-4 py-2.5">Roles</th>
-                  <th class="px-4 py-2.5">Phone</th>
-                  <th class="px-4 py-2.5">Email</th>
-                  <th v-if="canManage" class="px-4 py-2.5 w-8" />
-                </tr>
-              </thead>
+            <div class="overflow-x-auto">
+            <table class="w-full text-sm table-fixed">
+              <colgroup>
+                <col v-for="col in activeColumns" :key="col.key" :class="col.width" />
+                <col v-if="canManage" class="w-12" />
+              </colgroup>
+
+              <!-- COACHES & MANAGERS -->
               <tbody>
-                <tr v-for="m in members" :key="m.id" class="border-b border-gray-100 hover:bg-gray-50">
-                  <td class="px-4 py-2.5">
-                    <NuxtLink :to="`/people/${m.id}`" class="text-[#1976d2] hover:underline">{{ m.name }}</NuxtLink>
-                  </td>
-                  <td class="px-4 py-2.5">
-                    <div class="flex flex-wrap gap-1">
-                      <span v-for="r in m.roles" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">{{ roleLabel(r) }}</span>
-                      <span v-if="!m.roles.length" class="text-gray-300">—</span>
+                <tr>
+                  <td :colspan="colCount" class="bg-primary text-white text-xs font-bold tracking-widest py-3.5 px-5">
+                    <div class="flex items-center justify-between">
+                      <span class="normal-case tracking-normal text-sm">Coaches &amp; Managers</span>
+                      <div class="flex items-center gap-3">
+                        <i class="pi pi-envelope text-white/90 text-sm" />
+                        <i class="pi pi-mobile text-white/90 text-sm" />
+                      </div>
                     </div>
                   </td>
-                  <td class="px-4 py-2.5 text-gray-700">{{ m.phone || '' }}</td>
-                  <td class="px-4 py-2.5 text-gray-700">{{ m.email || '' }}</td>
-                  <td v-if="canManage" class="px-4 py-2.5 text-right">
-                    <button type="button"
-                      class="text-red-500 hover:text-red-700"
-                      :title="`Remove ${m.name} from ${group.name}`"
-                      @click="removeMember(m)">
+                </tr>
+                <tr class="text-left text-xs font-bold text-gray-700 border-b border-gray-200">
+                  <th v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 font-bold align-middle">
+                    <span v-if="col.key === 'name'" class="flex items-center gap-2">
+                      <span class="inline-flex items-center justify-center w-6 h-6 shrink-0">
+                        <Checkbox :modelValue="coachSelMode" binary @update:modelValue="setCoachSelMode" title="Select coaches" />
+                      </span>
+                      <span>{{ col.label }}<span v-if="coachSelMode && coachSel.length" class="text-gray-400 font-normal ml-1">({{ coachSel.length }})</span></span>
+                    </span>
+                    <template v-else>{{ col.label }}</template>
+                  </th>
+                  <th v-if="canManage" class="px-4 py-2.5" />
+                </tr>
+                <tr v-for="c in displayCoaches" :key="c.id" class="border-b border-gray-100 hover:bg-gray-50">
+                  <td v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 text-gray-700 align-top">
+                    <template v-if="col.key === 'name'">
+                      <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center justify-center w-6 h-6 shrink-0">
+                          <Checkbox v-if="coachSelMode" :modelValue="coachSel.includes(c.id)" binary
+                            @update:modelValue="v => toggleRowSel('coach', c.id, v)" />
+                          <NuxtLink v-else :to="`/people/${c.id}`" title="Open profile"
+                            class="w-6 h-6 rounded-full border border-gray-300 text-gray-400 hover:text-[#1976d2] hover:border-[#1976d2] inline-flex items-center justify-center">
+                            <i class="pi pi-user text-[11px]" />
+                          </NuxtLink>
+                        </span>
+                        <button type="button" class="text-[#1976d2] hover:underline text-left" @click="openAdd('coach', c)">{{ c.name }}</button>
+                      </div>
+                    </template>
+                    <template v-else-if="col.key === 'roles'">
+                      <div class="flex flex-wrap gap-1">
+                        <span v-for="r in c.roles" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1976d2]/10 text-[#1976d2] font-medium">{{ roleLabel(r) }}</span>
+                        <span v-if="!c.roles.length" class="text-gray-300">—</span>
+                      </div>
+                    </template>
+                    <template v-else>{{ (c as any)[col.key] || '' }}</template>
+                  </td>
+                  <td v-if="canManage" class="px-4 py-2.5 text-right align-top">
+                    <button type="button" class="text-red-500 hover:text-red-700"
+                      :title="`Remove ${c.name} from ${group.name}`" @click="removeCoach(c)">
                       <i class="pi pi-times-circle text-base" />
                     </button>
+                  </td>
+                </tr>
+                <tr v-if="!displayCoaches.length">
+                  <td :colspan="colCount" class="p-6 text-center text-sm text-gray-400">
+                    No coaches or managers assigned.
+                    <button v-if="canManage" type="button" class="ml-1 text-[#1976d2] hover:underline font-medium" @click="openAdd('coach')">Add one</button>
+                  </td>
+                </tr>
+              </tbody>
+
+              <!-- MEMBERS -->
+              <tbody>
+                <tr>
+                  <td :colspan="colCount" class="bg-primary text-white text-xs font-bold tracking-widest py-3.5 px-5 border-t-4 border-white">
+                    <div class="flex items-center justify-between">
+                      <span class="normal-case tracking-normal text-sm">Members</span>
+                      <div class="flex items-center gap-3">
+                        <i class="pi pi-envelope text-white/90 text-sm" />
+                        <i class="pi pi-mobile text-white/90 text-sm" />
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="text-left text-xs font-bold text-gray-700 border-b border-gray-200">
+                  <th v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 font-bold align-middle">
+                    <span v-if="col.key === 'name'" class="flex items-center gap-2">
+                      <span class="inline-flex items-center justify-center w-6 h-6 shrink-0">
+                        <Checkbox :modelValue="memberSelMode" binary @update:modelValue="setMemberSelMode" title="Select members" />
+                      </span>
+                      <span>{{ col.label }}<span v-if="memberSelMode && memberSel.length" class="text-gray-400 font-normal ml-1">({{ memberSel.length }})</span></span>
+                    </span>
+                    <template v-else>{{ col.label }}</template>
+                  </th>
+                  <th v-if="canManage" class="px-4 py-2.5" />
+                </tr>
+                <tr v-for="m in displayMembers" :key="m.id" class="border-b border-gray-100 hover:bg-gray-50">
+                  <td v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 text-gray-700 align-top">
+                    <template v-if="col.key === 'name'">
+                      <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center justify-center w-6 h-6 shrink-0">
+                          <Checkbox v-if="memberSelMode" :modelValue="memberSel.includes(m.id)" binary
+                            @update:modelValue="v => toggleRowSel('member', m.id, v)" />
+                          <NuxtLink v-else :to="`/people/${m.id}`" title="Open profile"
+                            class="w-6 h-6 rounded-full border border-gray-300 text-gray-400 hover:text-[#1976d2] hover:border-[#1976d2] inline-flex items-center justify-center">
+                            <i class="pi pi-user text-[11px]" />
+                          </NuxtLink>
+                        </span>
+                        <button type="button" class="text-[#1976d2] hover:underline text-left" @click="openAdd('member', m)">{{ m.name }}</button>
+                      </div>
+                    </template>
+                    <template v-else-if="col.key === 'roles'">
+                      <div class="flex flex-wrap gap-1">
+                        <span v-for="r in m.roles" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">{{ roleLabel(r) }}</span>
+                        <span v-if="!m.roles.length" class="text-gray-300">—</span>
+                      </div>
+                    </template>
+                    <template v-else>{{ (m as any)[col.key] || '' }}</template>
+                  </td>
+                  <td v-if="canManage" class="px-4 py-2.5 text-right align-top">
+                    <button type="button" class="text-red-500 hover:text-red-700"
+                      :title="`Remove ${m.name} from ${group.name}`" @click="removeMember(m)">
+                      <i class="pi pi-times-circle text-base" />
+                    </button>
+                  </td>
+                </tr>
+                <tr v-if="!displayMembers.length">
+                  <td :colspan="colCount" class="p-6 text-center text-sm text-gray-400">
+                    No members in this group yet.
+                    <button v-if="canManage" type="button" class="ml-1 text-[#1976d2] hover:underline font-medium" @click="openAdd('member')">Add one</button>
                   </td>
                 </tr>
               </tbody>
@@ -177,17 +315,538 @@
           </div>
         </div>
       </div>
+
+      <!-- PEOPLE tab — single PrimeVue DataTable -->
+      <div v-show="activeTab === 'people'" class="space-y-3">
+        <!-- Toolbar (search left, actions right) -->
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <IconField iconPosition="left">
+            <InputIcon class="pi pi-search" />
+            <InputText v-model="peopleSearch" placeholder="Search here" class="w-48 sm:w-60" />
+          </IconField>
+          <div class="flex flex-wrap items-center gap-2">
+            <Button outlined severity="secondary" icon="pi pi-filter" label="Filter"
+              :badge="roleFilter.length ? String(roleFilter.length) : undefined"
+              class="text-gray-700" @click="filterPanel.toggle($event)" />
+            <Button outlined severity="secondary" icon="pi pi-table" label="Columns"
+              class="text-gray-700" @click="colsPanel.toggle($event)" />
+            <Button icon="pi pi-download" label="Export"
+              style="background:#1E2157;border-color:#1E2157" @click="exportPeopleVisible" />
+          </div>
+        </div>
+
+        <!-- Filter popover (by role) -->
+        <Popover ref="filterPanel">
+          <div class="w-56 text-sm">
+            <div class="text-xs font-semibold text-gray-400 mb-2">Filter by role</div>
+            <div class="flex flex-col gap-1.5 max-h-64 overflow-auto">
+              <label v-for="r in groupRoleOptions" :key="r.value" class="flex items-center gap-2 cursor-pointer">
+                <Checkbox :modelValue="roleFilter.includes(r.value)" binary @update:modelValue="() => toggleRoleFilter(r.value)" />
+                <span>{{ r.label }}</span>
+              </label>
+              <p v-if="!groupRoleOptions.length" class="text-gray-400">No roles defined.</p>
+            </div>
+            <button v-if="roleFilter.length" type="button" class="mt-3 text-xs font-semibold text-[#1976d2]" @click="roleFilter = []">Clear filters</button>
+          </div>
+        </Popover>
+
+        <!-- Columns popover -->
+        <Popover ref="colsPanel">
+          <div class="w-52 text-sm">
+            <div class="text-xs font-semibold text-gray-400 mb-2">Show columns</div>
+            <div class="flex flex-col gap-1.5">
+              <label v-for="col in personColumns" :key="col.key" class="flex items-center gap-2"
+                :class="col.key === 'name' ? 'opacity-50' : 'cursor-pointer'">
+                <Checkbox :modelValue="!hiddenCols.includes(col.key)" binary :disabled="col.key === 'name'"
+                  @update:modelValue="() => toggleHiddenCol(col.key)" />
+                <span>{{ col.label }}</span>
+              </label>
+            </div>
+          </div>
+        </Popover>
+
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <DataTable ref="dt" :value="displayPeople" dataKey="id"
+            v-model:selection="peopleSelection" v-model:sortField="sortField" v-model:sortOrder="sortOrder"
+            :paginator="displayPeople.length > 25" :rows="25" :rowsPerPageOptions="[25, 50, 100]"
+            removableSort class="text-sm">
+            <Column selectionMode="multiple" headerStyle="width:3rem" :exportable="false" />
+            <Column field="name" header="Name" sortable>
+              <template #body="{ data }">
+                <NuxtLink :to="`/people/${data.id}`" class="text-[#1976d2] hover:underline">{{ data.name }}</NuxtLink>
+              </template>
+            </Column>
+            <Column v-if="!hiddenCols.includes('roles')" header="Roles" :exportable="false">
+              <template #body="{ data }">
+                <div class="flex flex-wrap gap-1">
+                  <span v-for="r in data.roles" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1976d2]/10 text-[#1976d2] font-medium">{{ roleLabel(r) }}</span>
+                  <span v-if="!data.roles.length" class="text-gray-300">—</span>
+                </div>
+              </template>
+            </Column>
+            <Column v-if="!hiddenCols.includes('phone')" field="phone" header="Phone" sortable />
+            <Column v-if="!hiddenCols.includes('email')" field="email" header="Email" sortable />
+            <Column v-if="canManage" headerStyle="width:3.5rem" :exportable="false">
+              <template #body="{ data }">
+                <button type="button" class="text-red-500 hover:text-red-700"
+                  :title="`Remove ${data.name} from ${group?.name}`" @click="removePerson(data)">
+                  <i class="pi pi-times-circle text-base" />
+                </button>
+              </template>
+            </Column>
+            <template #empty>
+              <div class="p-6 text-center text-sm text-gray-400">
+                No people in this group yet.
+                <button v-if="canManage" type="button" class="ml-1 text-[#1976d2] hover:underline font-medium" @click="openAdd('member')">Add one</button>
+              </div>
+            </template>
+          </DataTable>
+        </div>
+
+        <!-- Bulk action (appears when rows are selected) -->
+        <div v-if="peopleSelection.length" class="flex">
+          <Button label="Action" icon="pi pi-chevron-down" iconPos="right" outlined severity="secondary"
+            :badge="String(peopleSelection.length)" @click="actionMenu.toggle($event)" />
+          <Menu ref="actionMenu" :model="actionItems" popup />
+        </div>
+      </div>
+
+      <!-- SUB GROUPS tab — drag-and-drop assignment board -->
+      <div v-show="activeTab === 'subgroups'" class="space-y-3">
+        <!-- Top bar: view toggle + columns sit above the right (sub-group) panel -->
+        <div class="flex flex-wrap items-center gap-2">
+          <!-- drag hint, aligned above the left People column -->
+          <p class="w-full lg:w-72 shrink-0 text-xs text-gray-500"><i class="pi pi-arrows-alt text-[10px] mr-1" />Drag people into a sub-group to assign them.</p>
+          <SelectButton v-model="boardView" :allowEmpty="false" :options="boardViewOptions"
+            optionValue="value" dataKey="value">
+            <template #option="{ option }"><i :class="option.icon" :title="option.title" /></template>
+          </SelectButton>
+          <Button v-if="boardView === 'table'" outlined severity="secondary" icon="pi pi-table" label="Columns"
+            class="text-gray-700" @click="boardColsPanel.toggle($event)" />
+          <Button icon="pi pi-plus" label="New sub-group" class="ml-auto"
+            style="background:#1E2157;border-color:#1E2157" @click="addSubGroupPanel.toggle($event)" />
+        </div>
+
+        <!-- New sub-group popover -->
+        <Popover ref="addSubGroupPanel" @hide="newSubGroupName = ''">
+          <div class="w-64 space-y-3">
+            <div>
+              <label class="text-xs font-semibold text-gray-500">Name</label>
+              <InputText v-model="newSubGroupName" placeholder="e.g. Squad A" class="w-full mt-1" autofocus @keydown.enter="onAddSubGroup" />
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-500">Colour</label>
+              <div class="flex items-center gap-1.5 mt-1.5">
+                <button v-for="c in SUBGROUP_PALETTE" :key="c" type="button" class="w-6 h-6 rounded-full border-2 transition-transform"
+                  :class="newSubGroupColor === c ? 'border-gray-800 scale-110' : 'border-transparent'" :style="{ background: c }" @click="newSubGroupColor = c" />
+              </div>
+            </div>
+            <Button label="Add sub-group" icon="pi pi-plus" class="w-full justify-center" :disabled="!newSubGroupName.trim()"
+              style="background:#1E2157;border-color:#1E2157" @click="onAddSubGroup" />
+          </div>
+        </Popover>
+
+        <!-- Columns popover (table view) -->
+        <Popover ref="boardColsPanel">
+          <div class="w-52 text-sm">
+            <div class="text-xs font-semibold text-gray-400 mb-2">Show columns</div>
+            <div class="flex flex-col gap-1.5">
+              <label v-for="col in personColumns" :key="col.key" class="flex items-center gap-2"
+                :class="col.key === 'name' ? 'opacity-50' : 'cursor-pointer'">
+                <Checkbox :modelValue="!boardHiddenCols.includes(col.key)" binary :disabled="col.key === 'name'"
+                  @update:modelValue="() => toggleBoardCol(col.key)" />
+                <span>{{ col.label }}</span>
+              </label>
+            </div>
+          </div>
+        </Popover>
+
+        <div class="flex flex-col lg:flex-row gap-4 items-start">
+          <!-- Left: one people pool -->
+          <div class="w-full lg:w-72 shrink-0">
+            <div class="bg-white rounded-lg border-2 transition-colors overflow-hidden"
+              :class="dragOverTarget === '__unassigned__' ? 'border-primary' : 'border-gray-200'"
+              @dragover.prevent="dragOverTarget = '__unassigned__'" @dragleave="dragOverTarget = '__none__'" @drop.prevent="onDropToSubGroup(null)">
+            <div class="bg-primary text-white text-xs font-bold py-3 px-4 flex items-center justify-between">
+              <span class="uppercase tracking-wide">People</span>
+              <span class="bg-white/20 rounded-full px-2 py-0.5">{{ poolStaff.length + unassignedMembers.length }}</span>
+            </div>
+            <div class="p-2 min-h-[140px] space-y-1">
+              <!-- staff first (can join many sub-groups) -->
+              <div v-for="s in poolStaff" :key="'staff-' + s.id" draggable="true" @dragstart="onDragStartPerson($event, s.id, true)"
+                class="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-gray-100 bg-gray-50 cursor-grab active:cursor-grabbing hover:bg-gray-100 text-sm">
+                <i class="pi pi-shield text-[10px] text-gray-400 shrink-0" title="Staff member" />
+                <span class="truncate font-medium">{{ s.name }}</span>
+              </div>
+              <!-- divider between staff and members -->
+              <div v-if="poolStaff.length && unassignedMembers.length" class="border-t border-gray-200 !my-2" />
+              <!-- unassigned members -->
+              <div v-for="p in unassignedMembers" :key="p.id" draggable="true" @dragstart="onDragStartPerson($event, p.id, false)"
+                class="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-gray-100 bg-gray-50 cursor-grab active:cursor-grabbing hover:bg-gray-100 text-sm">
+                <i class="pi pi-bars text-[10px] text-gray-300 shrink-0" />
+                <span class="truncate">{{ p.name }}</span>
+              </div>
+              <p v-if="!poolStaff.length && !unassignedMembers.length" class="text-xs text-gray-400 italic px-2 py-4 text-center">Everyone is assigned.</p>
+            </div>
+            </div>
+          </div>
+
+          <!-- Right: sub-group columns (grid of cards) or stacked full-width (table) -->
+          <div class="flex-1 min-w-0" :class="boardView === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4' : 'flex flex-col gap-4'">
+            <div v-for="sg in subGroups" :key="sg.id"
+              class="bg-white rounded-lg border-2 transition-colors overflow-hidden flex flex-col"
+              :class="dragOverTarget === sg.id ? 'border-primary' : 'border-gray-200'"
+              @dragover.prevent="dragOverTarget = sg.id" @dragleave="dragOverTarget = '__none__'" @drop.prevent="onDropToSubGroup(sg.id)">
+              <div class="text-white text-xs font-bold py-3 px-4 flex items-center justify-between" :style="{ background: sg.color }">
+                <span>{{ sg.name }}</span>
+                <div class="flex items-center gap-2">
+                  <span class="bg-white/25 rounded-full px-2 py-0.5">{{ subGroupCount(sg.id) }}</span>
+                  <button type="button" class="text-white/80 hover:text-white" :title="`Delete ${sg.name}`" @click="removeSubGroupDef(sg.id)"><i class="pi pi-trash text-xs" /></button>
+                </div>
+              </div>
+              <div class="min-h-[140px] flex-1">
+                <!-- TABLE view -->
+                <div v-if="boardView === 'table'" class="overflow-x-auto">
+                  <table class="w-full text-sm table-fixed">
+                    <colgroup>
+                      <col v-for="col in boardColumns" :key="col.key" :class="col.width" />
+                      <col class="w-8" />
+                    </colgroup>
+                    <thead>
+                      <tr class="text-left text-xs font-semibold text-gray-500 border-b border-gray-100">
+                        <th v-for="col in boardColumns" :key="col.key" class="px-3 py-2">{{ col.label }}</th>
+                        <th class="w-8" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <!-- staff (attached, can belong to multiple sub-groups) -->
+                      <tr v-for="s in staffInSubGroup(sg.id)" :key="'staff-' + s.id" draggable="true" @dragstart="onDragStartPerson($event, s.id, true)"
+                        class="group border-b border-gray-50 hover:bg-gray-50 cursor-grab active:cursor-grabbing">
+                        <td v-for="col in boardColumns" :key="col.key" class="px-3 py-2 text-gray-700 align-top">
+                          <template v-if="col.key === 'name'">
+                            <span class="inline-flex items-center gap-1.5">
+                              <i class="pi pi-shield text-[10px] text-gray-400 shrink-0" title="Staff member" />
+                              <NuxtLink :to="`/people/${s.id}`" class="text-[#1976d2] hover:underline font-medium">{{ s.name }}</NuxtLink>
+                            </span>
+                          </template>
+                          <template v-else-if="col.key === 'roles'">
+                            <div class="flex flex-wrap gap-1">
+                              <span v-for="r in s.roles" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1976d2]/10 text-[#1976d2] font-medium">{{ roleLabel(r) }}</span>
+                              <span v-if="!s.roles.length" class="text-gray-300">—</span>
+                            </div>
+                          </template>
+                          <template v-else>{{ (s as any)[col.key] || '' }}</template>
+                        </td>
+                        <td class="px-2 text-right align-top">
+                          <button type="button" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100" title="Remove staff" @click="removeStaffFromSubGroup(sg.id, s.id)"><i class="pi pi-times-circle text-sm" /></button>
+                        </td>
+                      </tr>
+                      <!-- divider between staff and members -->
+                      <tr v-if="staffInSubGroup(sg.id).length && membersInSubGroup(sg.id).length">
+                        <td :colspan="boardColumns.length + 1" class="border-t border-gray-200 p-0" />
+                      </tr>
+                      <!-- members -->
+                      <tr v-for="p in membersInSubGroup(sg.id)" :key="p.id" draggable="true" @dragstart="onDragStartPerson($event, p.id, false)"
+                        class="group border-b border-gray-50 hover:bg-gray-50 cursor-grab active:cursor-grabbing">
+                        <td v-for="col in boardColumns" :key="col.key" class="px-3 py-2 text-gray-700 align-top">
+                          <template v-if="col.key === 'name'">
+                            <span class="inline-flex items-center gap-1.5">
+                              <span class="w-[10px] shrink-0" />
+                              <NuxtLink :to="`/people/${p.id}`" class="text-[#1976d2] hover:underline">{{ p.name }}</NuxtLink>
+                            </span>
+                          </template>
+                          <template v-else-if="col.key === 'roles'">
+                            <div class="flex flex-wrap gap-1">
+                              <span v-for="r in p.roles" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1976d2]/10 text-[#1976d2] font-medium">{{ roleLabel(r) }}</span>
+                              <span v-if="!p.roles.length" class="text-gray-300">—</span>
+                            </div>
+                          </template>
+                          <template v-else>{{ (p as any)[col.key] || '' }}</template>
+                        </td>
+                        <td class="px-2 text-right align-top">
+                          <button type="button" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100" title="Unassign" @click="assignSubGroup(p.id, null)"><i class="pi pi-times-circle text-sm" /></button>
+                        </td>
+                      </tr>
+                      <tr v-if="!subGroupCount(sg.id)">
+                        <td :colspan="boardColumns.length + 1" class="px-3 py-4 text-center text-xs text-gray-300 italic">Drop people here</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <!-- GRID view -->
+                <div v-else class="p-2 space-y-1">
+                  <!-- staff (attached, can belong to multiple sub-groups) -->
+                  <div v-for="s in staffInSubGroup(sg.id)" :key="'staff-' + s.id" draggable="true" @dragstart="onDragStartPerson($event, s.id, true)"
+                    class="group flex items-center gap-2 px-2 py-1.5 rounded-lg border border-gray-100 bg-gray-50 cursor-grab active:cursor-grabbing hover:bg-gray-100 text-sm">
+                    <i class="pi pi-shield text-[10px] text-gray-400 shrink-0" title="Staff member" />
+                    <span class="truncate flex-1 font-medium">{{ s.name }}</span>
+                    <button type="button" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 shrink-0" title="Remove staff" @click="removeStaffFromSubGroup(sg.id, s.id)"><i class="pi pi-times-circle text-xs" /></button>
+                  </div>
+                  <!-- divider between staff and members -->
+                  <div v-if="staffInSubGroup(sg.id).length && membersInSubGroup(sg.id).length" class="border-t border-gray-200 !my-2" />
+                  <!-- members -->
+                  <div v-for="p in membersInSubGroup(sg.id)" :key="p.id" draggable="true" @dragstart="onDragStartPerson($event, p.id, false)"
+                    class="group flex items-center gap-2 px-2 py-1.5 rounded-lg border border-gray-100 cursor-grab active:cursor-grabbing hover:bg-gray-50 text-sm">
+                    <i class="pi pi-bars text-[10px] text-gray-300 shrink-0" />
+                    <span class="truncate flex-1">{{ p.name }}</span>
+                    <button type="button" class="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 shrink-0" title="Unassign" @click="assignSubGroup(p.id, null)"><i class="pi pi-times-circle text-xs" /></button>
+                  </div>
+                  <p v-if="!subGroupCount(sg.id)" class="text-xs text-gray-300 italic px-2 py-4 text-center">Drop people here</p>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="!subGroups.length" class="col-span-full border-2 border-dashed border-gray-200 rounded-lg p-8 text-center text-sm text-gray-400">
+              No sub-groups yet. Name one above and click Add, then drag people in.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ASSETS -->
+      <div v-show="activeTab === 'assets'" class="bg-white rounded-lg border border-gray-200 p-10 text-center text-sm text-gray-400">
+        <i class="pi pi-box text-2xl text-gray-300 block mb-2" />
+        Assets for this group will appear here.
+      </div>
+
+      <!-- TRAININGS — attendance report matrix (people × sessions) -->
+      <div v-show="activeTab === 'trainings'" class="space-y-3">
+        <!-- Title + toolbar on one line -->
+        <div class="flex flex-wrap items-center gap-2">
+          <h2 class="text-base font-semibold text-gray-800 mr-auto">{{ group?.name }}</h2>
+          <template v-if="reportSessions.length">
+            <Button outlined severity="secondary" icon="pi pi-filter" label="Filter" class="text-gray-700" @click="reportFilterPanel.toggle($event)" />
+            <Button outlined severity="secondary" icon="pi pi-table" label="Columns" class="text-gray-700" @click="reportColsPanel.toggle($event)" />
+            <Button icon="pi pi-download" label="Export" style="background:#1E2157;border-color:#1E2157" @click="exportMenu.toggle($event)" />
+            <Menu ref="exportMenu" :model="exportItems" popup />
+          </template>
+        </div>
+        <Popover ref="reportFilterPanel">
+          <div class="w-64 text-sm space-y-4">
+            <div>
+              <div class="text-xs font-semibold text-gray-400 mb-2">View</div>
+              <Select v-model="reportGrouped" :options="[{ label: 'Complete list', value: false }, { label: 'By sub-group', value: true }]"
+                optionLabel="label" optionValue="value" class="w-full" />
+            </div>
+            <div v-if="slotPickOptions.length > 1">
+              <div class="text-xs font-semibold text-gray-400 mb-2">Session</div>
+              <Select v-model="selectedSlot" :options="slotPickOptions" optionLabel="label" optionValue="value"
+                showClear placeholder="All sessions" class="w-full" />
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-gray-400 mb-2">Show sections</div>
+              <div class="flex flex-col gap-1.5">
+                <label class="flex items-center gap-2 cursor-pointer"><Checkbox v-model="reportFilter.members" binary /><span>Members</span></label>
+                <label class="flex items-center gap-2 cursor-pointer"><Checkbox v-model="reportFilter.staff" binary /><span>Staff</span></label>
+                <label class="flex items-center gap-2 cursor-pointer"><Checkbox v-model="reportFilter.visitors" binary /><span>Visitors</span></label>
+              </div>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-gray-400 mb-2">Date range</div>
+              <div class="flex items-center gap-2">
+                <input type="date" v-model="reportFrom" class="flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-1.5 text-sm" style="-webkit-appearance:auto;appearance:auto" />
+                <span class="text-gray-400">–</span>
+                <input type="date" v-model="reportTo" class="flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-1.5 text-sm" style="-webkit-appearance:auto;appearance:auto" />
+              </div>
+              <button v-if="reportFrom || reportTo" type="button" class="mt-2 text-xs font-semibold text-[#1976d2]" @click="reportFrom = ''; reportTo = ''">Clear dates</button>
+            </div>
+          </div>
+        </Popover>
+        <Popover ref="reportColsPanel">
+          <div class="w-52 text-sm">
+            <div class="text-xs font-semibold text-gray-400 mb-2">Show columns</div>
+            <div class="flex flex-col gap-1.5">
+              <label v-for="col in personColumns" :key="col.key" class="flex items-center gap-2" :class="col.key === 'name' ? 'opacity-50' : 'cursor-pointer'">
+                <Checkbox :modelValue="!reportHiddenCols.includes(col.key)" binary :disabled="col.key === 'name'" @update:modelValue="() => toggleReportCol(col.key)" />
+                <span>{{ col.label }}</span>
+              </label>
+            </div>
+          </div>
+        </Popover>
+
+        <div v-if="!reportSessions.length" class="bg-white rounded-lg border border-gray-200 p-10 text-center text-sm text-gray-400">
+          <i class="pi pi-calendar text-2xl text-gray-300 block mb-2" />
+          No training sessions yet. Add session times (and set a season) on the Details tab.
+        </div>
+        <div v-else class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="text-sm border-collapse min-w-full">
+              <thead>
+                <tr class="border-b-2 border-gray-200">
+                  <th v-for="col in reportPersonCols" :key="col.key" class="text-left align-middle px-4 py-3 font-bold text-gray-700 whitespace-nowrap" :class="col.key === 'name' ? 'min-w-[16rem] border-r border-gray-200 sticky left-0 bg-white z-20' : ''">
+                    <template v-if="col.key === 'name'">
+                      <div class="flex items-center gap-2 h-8">
+                        <Transition mode="out-in" enter-active-class="transition-opacity duration-150" enter-from-class="opacity-0" leave-active-class="transition-opacity duration-100" leave-to-class="opacity-0" @after-enter="onSearchEntered">
+                          <InputText v-if="reportSearchOpen" key="input" ref="reportSearchInput" v-model="reportSearch" placeholder="Search name…"
+                            class="h-8 text-sm font-normal flex-1 min-w-0 !border-0 !border-b !border-gray-300 !rounded-none !shadow-none !ring-0 focus:!border-primary px-0"
+                            @keydown.esc="reportSearchOpen = false" />
+                          <span v-else key="label" class="flex-1">{{ col.label }}</span>
+                        </Transition>
+                        <button type="button" class="text-gray-400 hover:text-gray-700 shrink-0"
+                          :title="reportSearchOpen ? 'Close search' : 'Search'"
+                          @click="toggleReportSearch">
+                          <i class="pi" :class="reportSearchOpen ? 'pi-times' : 'pi-search'" />
+                        </button>
+                      </div>
+                    </template>
+                    <template v-else>{{ col.label }}</template>
+                  </th>
+                  <th v-for="s in visibleSessions" :key="s.key" class="px-2 py-2 text-center font-semibold whitespace-nowrap border-l border-gray-200">
+                    <NuxtLink v-if="s.eventId" :to="`/events/${s.eventId}?tab=attendance`" class="text-[#1976d2] hover:underline text-xs leading-tight block">
+                      {{ sessDate(s.start_at) }}<br>{{ sessTime(s.start_at) }}
+                    </NuxtLink>
+                    <span v-else class="text-gray-500 text-xs leading-tight block">{{ sessDate(s.start_at) }}<br>{{ sessTime(s.start_at) }}</span>
+                  </th>
+                  <th class="px-3 py-2 text-center font-bold sticky right-0 bg-gray-50 z-10 shadow-[inset_2px_0_0_#d1d5db]">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- MEMBERS -->
+                <template v-if="reportFilter.members && (!hasSearch || filteredMembers.length)">
+                  <tr class="bg-gray-100/70 border-y border-gray-200">
+                    <td :colspan="reportPersonCols.length + visibleSessions.length + 1" class="px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-gray-500">Members</td>
+                  </tr>
+                  <template v-for="it in memberRowItems" :key="it.kind === 'person' ? 'm-' + it.p.id : 'h-' + it.label">
+                    <tr v-if="it.kind === 'header'" class="bg-white border-b border-gray-200">
+                      <td :colspan="reportPersonCols.length + visibleSessions.length + 1" class="px-4 py-1.5 text-xs font-semibold text-gray-600">
+                        <span class="inline-flex items-center gap-2"><span class="w-2 h-2 rounded-full" :style="{ background: it.color }" />{{ it.label }}</span>
+                      </td>
+                    </tr>
+                    <tr v-else class="border-b border-gray-200 hover:bg-gray-50/60">
+                      <td v-for="col in reportPersonCols" :key="col.key" class="px-4 py-2 align-top text-gray-700" :class="col.key === 'name' ? 'border-r border-gray-200 sticky left-0 bg-white z-10' : ''">
+                        <NuxtLink v-if="col.key === 'name'" :to="`/people/${it.p.id}`" class="text-[#1976d2] hover:underline">{{ it.p.name }}</NuxtLink>
+                        <div v-else-if="col.key === 'roles'" class="flex flex-wrap gap-1"><span v-for="r in it.p.roles" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1976d2]/10 text-[#1976d2] font-medium">{{ roleLabel(r) }}</span><span v-if="!it.p.roles.length" class="text-gray-300">—</span></div>
+                        <template v-else>{{ (it.p as any)[col.key] || '' }}</template>
+                      </td>
+                      <td v-for="s in visibleSessions" :key="s.key" class="px-2 py-2 text-center border-l border-gray-200" :class="attended(it.p.id, s.eventId) ? 'bg-green-50' : ''">
+                        <i v-if="attended(it.p.id, s.eventId)" class="pi pi-check text-green-600 text-xs" />
+                      </td>
+                      <td class="px-3 py-2 text-center font-medium sticky right-0 bg-gray-50 z-10 shadow-[inset_2px_0_0_#d1d5db]">{{ personTotal(it.p.id) }}</td>
+                    </tr>
+                  </template>
+                  <tr class="bg-gray-50 border-y-2 border-gray-200 font-bold">
+                    <td :colspan="reportPersonCols.length" class="px-4 py-2.5 border-r border-gray-200 sticky left-0 bg-gray-50 z-10">Total members</td>
+                    <td v-for="s in visibleSessions" :key="s.key" class="px-2 py-2.5 text-center border-l border-gray-200">{{ sectionTotal(members, s.eventId) }}</td>
+                    <td class="px-3 py-2.5 text-center sticky right-0 bg-gray-50 z-10 shadow-[inset_2px_0_0_#d1d5db]">{{ sectionGrand(members) }}</td>
+                  </tr>
+                </template>
+
+                <!-- STAFF -->
+                <template v-if="reportFilter.staff && (!hasSearch || filteredStaff.length)">
+                  <tr class="bg-gray-100/70 border-y border-gray-200">
+                    <td :colspan="reportPersonCols.length + visibleSessions.length + 1" class="px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-gray-500">Staff</td>
+                  </tr>
+                  <tr v-for="p in filteredStaff" :key="'s-' + p.id" class="border-b border-gray-200 hover:bg-gray-50/60">
+                    <td v-for="col in reportPersonCols" :key="col.key" class="px-4 py-2 align-top text-gray-700" :class="col.key === 'name' ? 'border-r border-gray-200 sticky left-0 bg-white z-10' : ''">
+                      <NuxtLink v-if="col.key === 'name'" :to="`/people/${p.id}`" class="text-[#1976d2] hover:underline">{{ p.name }}</NuxtLink>
+                      <div v-else-if="col.key === 'roles'" class="flex flex-wrap gap-1"><span v-for="r in p.roles" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1976d2]/10 text-[#1976d2] font-medium">{{ roleLabel(r) }}</span><span v-if="!p.roles.length" class="text-gray-300">—</span></div>
+                      <template v-else>{{ (p as any)[col.key] || '' }}</template>
+                    </td>
+                    <td v-for="s in visibleSessions" :key="s.key" class="px-2 py-2 text-center border-l border-gray-200" :class="attended(p.id, s.eventId) ? 'bg-green-50' : ''">
+                      <i v-if="attended(p.id, s.eventId)" class="pi pi-check text-green-600 text-xs" />
+                    </td>
+                    <td class="px-3 py-2 text-center font-medium sticky right-0 bg-gray-50 z-10 shadow-[inset_2px_0_0_#d1d5db]">{{ personTotal(p.id) }}</td>
+                  </tr>
+                  <tr class="bg-gray-50 border-y-2 border-gray-200 font-bold">
+                    <td :colspan="reportPersonCols.length" class="px-4 py-2.5 border-r border-gray-200 sticky left-0 bg-gray-50 z-10">Total staff</td>
+                    <td v-for="s in visibleSessions" :key="s.key" class="px-2 py-2.5 text-center border-l border-gray-200">{{ sectionTotal(coaches, s.eventId) }}</td>
+                    <td class="px-3 py-2.5 text-center sticky right-0 bg-gray-50 z-10 shadow-[inset_2px_0_0_#d1d5db]">{{ sectionGrand(coaches) }}</td>
+                  </tr>
+                </template>
+
+                <!-- VISITORS (only when present) -->
+                <template v-if="reportFilter.visitors && visitorPeople.length && (!hasSearch || filteredVisitors.length)">
+                  <tr class="bg-gray-100/70 border-y border-gray-200">
+                    <td :colspan="reportPersonCols.length + visibleSessions.length + 1" class="px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-gray-500">Visitors</td>
+                  </tr>
+                  <tr v-for="p in filteredVisitors" :key="'v-' + p.id" class="border-b border-gray-200 hover:bg-gray-50/60">
+                    <td v-for="col in reportPersonCols" :key="col.key" class="px-4 py-2 align-top text-gray-700" :class="col.key === 'name' ? 'border-r border-gray-200 sticky left-0 bg-white z-10' : ''">
+                      <NuxtLink v-if="col.key === 'name'" :to="`/people/${p.id}`" class="text-[#1976d2] hover:underline">{{ p.name }}</NuxtLink>
+                      <span v-else-if="col.key === 'roles'" class="text-gray-300">—</span>
+                      <template v-else>{{ (p as any)[col.key] || '' }}</template>
+                    </td>
+                    <td v-for="s in visibleSessions" :key="s.key" class="px-2 py-2 text-center border-l border-gray-200" :class="attended(p.id, s.eventId) ? 'bg-green-50' : ''">
+                      <i v-if="attended(p.id, s.eventId)" class="pi pi-check text-green-600 text-xs" />
+                    </td>
+                    <td class="px-3 py-2 text-center font-medium sticky right-0 bg-gray-50 z-10 shadow-[inset_2px_0_0_#d1d5db]">{{ personTotal(p.id) }}</td>
+                  </tr>
+                  <tr class="bg-gray-50 border-y-2 border-gray-200 font-bold">
+                    <td :colspan="reportPersonCols.length" class="px-4 py-2.5 border-r border-gray-200 sticky left-0 bg-gray-50 z-10">Total visitors</td>
+                    <td v-for="s in visibleSessions" :key="s.key" class="px-2 py-2.5 text-center border-l border-gray-200">{{ sectionTotal(visitorPeople, s.eventId) }}</td>
+                    <td class="px-3 py-2.5 text-center sticky right-0 bg-gray-50 z-10 shadow-[inset_2px_0_0_#d1d5db]">{{ sectionGrand(visitorPeople) }}</td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <!-- Footer stats -->
+          <div v-if="attendanceStats" class="border-t-2 border-gray-200 px-4 sm:px-5 py-3 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-8 text-sm text-gray-600">
+            <span><span class="font-semibold text-gray-800">Highest attendance:</span> {{ attendanceStats.high.n }} ({{ fmtDayMonth(attendanceStats.high.at) }})</span>
+            <span><span class="font-semibold text-gray-800">Lowest attendance:</span> {{ attendanceStats.low.n }} ({{ fmtDayMonth(attendanceStats.low.at) }})</span>
+            <span><span class="font-semibold text-gray-800">Average:</span> {{ attendanceStats.avg }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- TRACKER -->
+      <div v-show="activeTab === 'tracker'" class="bg-white rounded-lg border border-gray-200 p-10 text-center text-sm text-gray-400">
+        <i class="pi pi-chart-line text-2xl text-gray-300 block mb-2" />
+        Tracker for this group will appear here.
+      </div>
     </template>
 
+    <!-- Attendance graph -->
+    <Dialog v-model:visible="showGraph" modal header="Attendance graph" :style="{ width: '95vw', maxWidth: '900px' }">
+      <div v-if="visibleSessions.length" class="h-80">
+        <Chart type="bar" :data="attendanceChartData" :options="attendanceChartOptions" class="h-full w-full" />
+      </div>
+      <p v-else class="text-sm text-gray-400 text-center py-8">No sessions to chart.</p>
+    </Dialog>
+
+    <!-- Manage sub-groups -->
+    <Dialog v-model:visible="showSubGroupsDialog" modal header="Manage sub-groups" :style="{ width: '95vw', maxWidth: '460px' }">
+      <div class="flex flex-col gap-4">
+        <!-- Add a sub-group -->
+        <div class="flex items-end gap-2">
+          <div class="flex-1">
+            <label class="text-xs font-semibold text-gray-500">New sub-group</label>
+            <InputText v-model="newSubGroupName" placeholder="e.g. Squad A" class="w-full mt-1" @keydown.enter="addSubGroup" />
+          </div>
+          <div class="flex items-center gap-1">
+            <button v-for="c in SUBGROUP_PALETTE" :key="c" type="button"
+              class="w-6 h-6 rounded-full border-2 transition-transform"
+              :class="newSubGroupColor === c ? 'border-gray-800 scale-110' : 'border-transparent'"
+              :style="{ background: c }" @click="newSubGroupColor = c" />
+          </div>
+          <Button label="Add" :disabled="!newSubGroupName.trim()" @click="addSubGroup"
+            style="background:#1E2157;border-color:#1E2157" />
+        </div>
+
+        <!-- Existing sub-groups -->
+        <div v-if="subGroups.length" class="flex flex-col gap-1.5">
+          <div v-for="sg in subGroups" :key="sg.id" class="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 border border-gray-100">
+            <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: sg.color }" />
+            <span class="text-sm text-gray-800 flex-1">{{ sg.name }}</span>
+            <button type="button" class="text-red-500 hover:text-red-700" :title="`Delete ${sg.name}`" @click="removeSubGroupDef(sg.id)">
+              <i class="pi pi-trash text-sm" />
+            </button>
+          </div>
+        </div>
+        <p v-else class="text-sm text-gray-400 text-center py-2">No sub-groups yet. Add one above, then assign people from the Sub-group column.</p>
+      </div>
+      <template #footer>
+        <Button label="Done" text @click="showSubGroupsDialog = false" />
+      </template>
+    </Dialog>
+
     <!-- Add a person (with one or more roles) -->
-    <Dialog v-model:visible="addOpen" modal :style="{ width: '95vw', maxWidth: '440px' }" :header="`Add to ${group ? group.name : 'group'}`">
+    <Dialog v-model:visible="addOpen" modal :style="{ width: '95vw', maxWidth: '880px' }" :header="`Add to ${group ? group.name : 'group'}`">
       <div class="flex flex-col gap-3">
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Person</label>
           <AutoComplete v-model="personQuery" :suggestions="personResults" optionLabel="label"
-            placeholder="Type a name or email…" class="w-full" dropdown forceSelection
+            placeholder="Type a name…" class="w-full" dropdown forceSelection
             @complete="searchPersons" @item-select="onPickPerson" />
-          <p class="text-xs text-gray-400">People already in the group aren't shown. <NuxtLink to="/people" class="text-[#1976d2] hover:underline">Manage people →</NuxtLink></p>
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Roles</label>
@@ -195,11 +854,117 @@
             display="chip" :showToggleAll="false" placeholder="Pick role(s)" class="w-full" />
           <p class="text-xs text-gray-400">A person can hold several roles (e.g. Coach + Player). Coach/Manager can manage this group.</p>
         </div>
+        <div v-if="enrolOptions.length" class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Enrol on</label>
+          <Select v-model="addEnrol" :options="enrolOptions" optionLabel="label" optionValue="value"
+            placeholder="No term / membership" showClear class="w-full" />
+          <p class="text-xs text-gray-400">Optional — record which term or membership they're joining under. Dates are set automatically.</p>
+        </div>
       </div>
       <template #footer>
         <Button label="Cancel" text @click="addOpen = false" />
         <Button label="Add" :disabled="!pendingPerson || !addRoles.length"
           style="background:#1976d2;border-color:#1976d2" @click="addPerson" />
+      </template>
+    </Dialog>
+
+    <!-- Edit group details -->
+    <Dialog v-model:visible="billingEditOpen" modal :style="{ width: '95vw', maxWidth: '560px' }" header="Membership & terms">
+      <div class="space-y-5">
+        <!-- Terms -->
+        <div>
+          <div class="text-sm font-semibold text-gray-800 mb-1">Terms</div>
+          <p class="text-xs text-gray-500 mb-2">Tick each term this group runs in and set its fee.</p>
+          <div v-if="orgTerms.length" class="space-y-2">
+            <div v-for="t in orgTerms" :key="t.id" class="flex items-center gap-3">
+              <div class="flex items-center gap-2 flex-1 min-w-0">
+                <Checkbox v-model="termDraft[t.id].on" :binary="true" :inputId="`term-${t.id}`" />
+                <label :for="`term-${t.id}`" class="text-sm text-gray-700 truncate cursor-pointer">
+                  {{ t.name }}
+                  <span class="text-gray-400">· {{ t.start_date }} → {{ t.end_date }}</span>
+                </label>
+              </div>
+              <InputNumber v-if="termDraft[t.id].on" v-model="termDraft[t.id].fee"
+                mode="currency" :currency="orgCurrency" locale="en-NZ" :min="0" placeholder="Fee"
+                class="w-32 shrink-0" :inputStyle="{ width: '8rem' }" />
+            </div>
+          </div>
+          <p v-else class="text-xs text-gray-400">No terms defined yet —
+            <NuxtLink to="/settings/memberships" class="text-primary hover:underline">create terms in Settings</NuxtLink>.
+          </p>
+        </div>
+
+        <!-- Memberships -->
+        <div>
+          <div class="text-sm font-semibold text-gray-800 mb-1">Memberships</div>
+          <p class="text-xs text-gray-500 mb-2">Connect the recurring membership plans this group offers.</p>
+          <div v-if="orgPlans.length" class="space-y-2">
+            <div v-for="p in orgPlans" :key="p.id" class="flex items-start gap-2">
+              <Checkbox v-model="planDraft[p.id]" :binary="true" :inputId="`plan-${p.id}`" class="mt-0.5" />
+              <label :for="`plan-${p.id}`" class="text-sm text-gray-700 cursor-pointer">
+                <span class="inline-flex items-center gap-2">
+                  <span class="inline-block w-2.5 h-2.5 rounded-full" :style="{ background: p.color || '#1E2157' }" />
+                  {{ p.name }}
+                </span>
+                <span v-if="p.options.length" class="block text-xs text-gray-400 ml-[18px]">
+                  {{ p.options.map(o => tm.optionLabel(o, orgCurrency)).join(' · ') }}
+                </span>
+              </label>
+            </div>
+          </div>
+          <p v-else class="text-xs text-gray-400">No membership plans yet —
+            <NuxtLink to="/settings/memberships" class="text-primary hover:underline">create memberships in Settings</NuxtLink>.
+          </p>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" text @click="billingEditOpen = false" />
+        <Button label="Save" :loading="savingBilling" style="background:#1E2157;border-color:#1E2157" @click="saveBilling" />
+      </template>
+    </Dialog>
+
+    <Dialog v-model:visible="groupEditOpen" modal :style="{ width: '95vw', maxWidth: '480px' }" header="Edit group">
+      <div class="flex flex-col gap-3.5">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Name</label>
+          <InputText v-model="groupDraft.name" class="w-full" placeholder="Group name" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Colour</label>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="c in GROUP_PALETTE" :key="c" type="button"
+              class="w-7 h-7 rounded-full border-2 transition"
+              :class="groupDraft.color === c ? 'border-gray-800 scale-110' : 'border-white shadow'"
+              :style="{ background: c }" @click="groupDraft.color = c" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium">Code</label>
+            <InputText v-model="groupDraft.code" class="w-full" placeholder="e.g. DEV3" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium">Age range</label>
+            <InputText v-model="groupDraft.age_range" class="w-full" placeholder="e.g. 6–9" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium">Capacity</label>
+            <InputNumber v-model="groupDraft.capacity" class="w-full" :min="0" :useGrouping="false" placeholder="—" showButtons />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium">Current term</label>
+            <InputText v-model="groupDraft.current_term" class="w-full" placeholder="e.g. Term 1 2026" />
+          </div>
+          <div class="flex flex-col gap-1.5 col-span-2">
+            <label class="text-sm font-medium">Term fee</label>
+            <InputNumber v-model="groupDraft.term_fee" class="w-full" mode="currency" currency="NZD" locale="en-NZ" :min="0" placeholder="—" />
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" text @click="groupEditOpen = false" />
+        <Button label="Save" :disabled="!groupDraft.name?.trim() || savingGroup"
+          style="background:#1976d2;border-color:#1976d2" @click="saveGroup" />
       </template>
     </Dialog>
 
@@ -294,6 +1059,7 @@
 </template>
 
 <script setup lang="ts">
+import type { OrgTerm, MembershipPlan } from '~/composables/useTermsMemberships'
 const route = useRoute()
 const router = useRouter()
 const db = useDb()
@@ -309,8 +1075,8 @@ interface Group {
   term_fee?: number | null
   capacity?: number | null
 }
-interface Member { id: string; name: string; email: string | null; phone: string | null; roles: string[] }
-interface Coach { id: string; name: string; phone: string | null; roles: string[] }
+interface Member { id: string; name: string; email: string | null; phone: string | null; roles: string[]; allRoles: string[]; subGroupId?: string | null }
+interface Coach { id: string; name: string; email: string | null; phone: string | null; roles: string[]; allRoles: string[]; subGroupId?: string | null }
 import type { LocationEntry } from '~/composables/useLocation'
 interface Schedule {
   id: string
@@ -325,12 +1091,270 @@ const group = ref<Group | null>(null)
 const members = ref<Member[]>([])
 const coaches = ref<Coach[]>([])
 
+// Site-wide top-bar breadcrumb (Groups › {group name}), like the People profile.
+useBreadcrumbs([
+  { label: 'Groups', to: '/groups' },
+  { label: computed(() => group.value?.name || '…') },
+])
+
 // Scoped per-resource roles (coach/manager of THIS group can manage it).
 const scoped = useScopedRoles()
 const groupRoleOptions = computed(() => scoped.rolesFor('group').map(r => ({ label: r.label, value: r.key })))
 const roleLabel = (key: string) => scoped.roleDef('group', key)?.label ?? key
+// A person can hold both staff (coach/manager) and member (player/…) roles and
+// therefore appear in BOTH tables. Split a role array into the two sides.
+const staffRolesOf = (roles: string[]) => roles.filter(r => scoped.roleDef('group', r)?.group === 'staff')
+const memberRolesOf = (roles: string[]) => roles.filter(r => scoped.roleDef('group', r)?.group !== 'staff')
 const canManage = computed(() => group.value ? scoped.canManageGroup(group.value.id) : false)
 const myRoleLabels = computed(() => group.value ? scoped.rolesOnGroup(group.value.id).map(roleLabel) : [])
+
+// Shared column definitions for the People table (coaches + members). Both sections
+// render from this one list so columns stay aligned and adding a column is a one-liner.
+// `name`/`roles` have bespoke cells; every other key reads `row[key]` (extensible).
+type PersonCol = { key: string; label: string; width?: string }
+const personColumns = ref<PersonCol[]>([
+  { key: 'name', label: 'Name', width: 'w-[24%]' },
+  { key: 'roles', label: 'Roles', width: 'w-[20%]' },
+  { key: 'phone', label: 'Phone', width: 'w-[18%]' },
+  { key: 'email', label: 'Email' },
+])
+// People-tab toolbar: search / filter / sort / columns / export. These only affect
+// the People tab — on Details the table shows the raw, unfiltered data.
+const peopleSearch = ref('')
+const peopleSort = ref<'name-asc' | 'name-desc'>('name-asc')
+const roleFilter = ref<string[]>([])
+// Hidden-column choices persist in localStorage (per browser) so they survive reloads.
+const colsKey = (which: string) => `fm:group-cols:${which}`
+function loadHiddenCols(which: string, fallback: string[]) {
+  if (!import.meta.client) return fallback
+  try { const v = localStorage.getItem(colsKey(which)); return v ? JSON.parse(v) : fallback } catch { return fallback }
+}
+function saveHiddenCols(which: string, val: string[]) {
+  if (import.meta.client) { try { localStorage.setItem(colsKey(which), JSON.stringify(val)) } catch {} }
+}
+const hiddenCols = ref<string[]>(loadHiddenCols('people', []))
+// The People DataTable owns search/filter/column logic.
+const inPeopleView = computed(() => activeTab.value === 'people')
+const activeColumns = computed(() => inPeopleView.value
+  ? personColumns.value.filter(c => !hiddenCols.value.includes(c.key))
+  : personColumns.value)
+const colCount = computed(() => activeColumns.value.length + (canManage.value ? 1 : 0))
+function applyPeopleView(list: any[]) {
+  if (!inPeopleView.value) return list
+  let out = [...list]
+  const q = peopleSearch.value.trim().toLowerCase()
+  if (q) out = out.filter(p => `${p.name ?? ''} ${p.email ?? ''} ${p.phone ?? ''}`.toLowerCase().includes(q))
+  if (roleFilter.value.length) out = out.filter(p => (p.allRoles ?? p.roles ?? []).some((r: string) => roleFilter.value.includes(r)))
+  out.sort((a, b) => peopleSort.value === 'name-desc' ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name))
+  return out
+}
+const displayCoaches = computed(() => applyPeopleView(coaches.value))
+const displayMembers = computed(() => applyPeopleView(members.value))
+// Coaches + members merged into one deduped list for the single People table.
+// allRoles is the full role set per person, so the Roles column shows everything.
+const allPeople = computed(() => {
+  const map = new Map<string, any>()
+  for (const p of [...coaches.value, ...members.value]) {
+    if (!map.has(p.id)) map.set(p.id, { id: p.id, name: p.name, email: p.email, phone: p.phone, allRoles: p.allRoles, roles: p.allRoles, subGroupId: p.subGroupId ?? null })
+  }
+  return Array.from(map.values())
+})
+const displayPeople = computed(() => applyPeopleView(allPeople.value))
+// PrimeVue DataTable selection + export ref + live sort state (so export matches the
+// on-screen order: search + role filter via displayPeople, plus the active column sort).
+const peopleSelection = ref<any[]>([])
+const dt = ref()
+const sortField = ref<string>('name')
+const sortOrder = ref<number>(1)
+const exportRows = computed(() => {
+  const rows = [...displayPeople.value]
+  const f = sortField.value
+  if (f) rows.sort((a, b) => String(a[f] ?? '').localeCompare(String(b[f] ?? '')) * (sortOrder.value || 1))
+  return rows
+})
+// ── Sub-groups (mirrors the event attendance sub-group model) ──
+// Stored on member_groups.sub_groups jsonb; per-person assignment lives on
+// member_group_memberships.sub_group_id.
+// Members assign to ONE sub-group (member_group_memberships.sub_group_id); staff
+// (coaches) can be attached to MANY sub-groups, tracked per-sub-group in staffIds.
+const subGroups = ref<Array<{ id: string; name: string; color: string; staffIds?: string[] }>>([])
+const isStaffPerson = (p: any) => scoped.isStaff('group', p.allRoles ?? [])
+async function addStaffToSubGroup(sgId: string, staffId: string) {
+  subGroups.value = subGroups.value.map(s => s.id === sgId
+    ? { ...s, staffIds: Array.from(new Set([...(s.staffIds ?? []), staffId])) } : s)
+  await persistSubGroups()
+}
+async function removeStaffFromSubGroup(sgId: string, staffId: string) {
+  subGroups.value = subGroups.value.map(s => s.id === sgId
+    ? { ...s, staffIds: (s.staffIds ?? []).filter(x => x !== staffId) } : s)
+  await persistSubGroups()
+}
+const subGroupBy = computed<Record<string, { id: string; name: string; color: string }>>(() =>
+  Object.fromEntries(subGroups.value.map(s => [s.id, s])))
+const subGroupOptions = computed(() => [
+  { label: '—', value: null },
+  ...subGroups.value.map(s => ({ label: s.name, value: s.id, color: s.color })),
+])
+const showSubGroupsDialog = ref(false)
+const addSubGroupPanel = ref()
+const newSubGroupName = ref('')
+const SUBGROUP_PALETTE = ['#3B82F6', '#8B5CF6', '#EC4899', '#EF4444', '#F59E0B', '#10B981', '#06B6D4', '#F97316']
+const newSubGroupColor = ref(SUBGROUP_PALETTE[0])
+async function persistSubGroups() {
+  if (!group.value) return
+  await (db.from as any)('member_groups').update({ sub_groups: subGroups.value }).eq('id', group.value.id)
+}
+async function addSubGroup() {
+  const name = newSubGroupName.value.trim(); if (!name) return
+  subGroups.value = [...subGroups.value, { id: crypto.randomUUID(), name, color: newSubGroupColor.value }]
+  newSubGroupName.value = ''
+  newSubGroupColor.value = SUBGROUP_PALETTE[subGroups.value.length % SUBGROUP_PALETTE.length]
+  await persistSubGroups()
+}
+async function onAddSubGroup() {
+  if (!newSubGroupName.value.trim()) return
+  await addSubGroup()
+  addSubGroupPanel.value?.hide()
+}
+async function removeSubGroupDef(sgId: string) {
+  subGroups.value = subGroups.value.filter(s => s.id !== sgId)
+  await persistSubGroups()
+  if (group.value) {
+    await (db.from as any)('member_group_memberships').update({ sub_group_id: null })
+      .eq('group_id', group.value.id).eq('sub_group_id', sgId)
+  }
+  const clear = (arr: any[]) => arr.forEach(p => { if (p.subGroupId === sgId) p.subGroupId = null })
+  clear(coaches.value); clear(members.value)
+}
+async function assignSubGroup(personId: string, sgId: string | null) {
+  if (!group.value) return
+  await (db.from as any)('member_group_memberships').update({ sub_group_id: sgId })
+    .eq('group_id', group.value.id).eq('person_id', personId)
+  const set = (arr: any[]) => { const r = arr.find(p => p.id === personId); if (r) r.subGroupId = sgId }
+  set(coaches.value); set(members.value)
+}
+
+// ── Sub Groups drag-and-drop board ──
+const boardView = ref<'table' | 'grid'>('grid')
+const boardViewOptions = [
+  { value: 'table', icon: 'pi pi-list', title: 'Table view' },
+  { value: 'grid', icon: 'pi pi-th-large', title: 'Grid view' },
+]
+const boardHiddenCols = ref<string[]>(loadHiddenCols('subgroups', ['email'])) // table-view columns
+const boardColsPanel = ref()
+const boardColumns = computed(() => personColumns.value.filter(c => !boardHiddenCols.value.includes(c.key)))
+function toggleBoardCol(key: string) {
+  boardHiddenCols.value = boardHiddenCols.value.includes(key) ? boardHiddenCols.value.filter(k => k !== key) : [...boardHiddenCols.value, key]
+  saveHiddenCols('subgroups', boardHiddenCols.value)
+}
+const draggingPersonId = ref<string | null>(null)
+const draggingIsStaff = ref(false)
+const dragOverTarget = ref<string>('__none__') // sub-group id or '__unassigned__'
+const sortByName = (a: any, b: any) => a.name.localeCompare(b.name)
+// Left pool: members not yet assigned + every staff member (staff can join many).
+const unassignedMembers = computed(() => allPeople.value.filter(p => !isStaffPerson(p) && !p.subGroupId).sort(sortByName))
+const poolStaff = computed(() => allPeople.value.filter(isStaffPerson).sort(sortByName))
+function membersInSubGroup(sgId: string) {
+  return allPeople.value.filter(p => !isStaffPerson(p) && p.subGroupId === sgId).sort(sortByName)
+}
+function staffInSubGroup(sgId: string) {
+  const ids = (subGroupBy.value[sgId] as any)?.staffIds ?? []
+  return poolStaff.value.filter(p => ids.includes(p.id))
+}
+function subGroupCount(sgId: string) { return membersInSubGroup(sgId).length + staffInSubGroup(sgId).length }
+function onDragStartPerson(e: DragEvent, personId: string, isStaff: boolean) {
+  draggingPersonId.value = personId; draggingIsStaff.value = isStaff
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+}
+async function onDropToSubGroup(sgId: string | null) {
+  const pid = draggingPersonId.value, staff = draggingIsStaff.value
+  draggingPersonId.value = null; dragOverTarget.value = '__none__'
+  if (!pid) return
+  if (staff) {
+    // Staff: add to the target (multi); dropping on the pool is a no-op (they live there).
+    if (sgId) await addStaffToSubGroup(sgId, pid)
+  } else {
+    await assignSubGroup(pid, sgId) // member: single assignment (null = back to pool)
+  }
+}
+
+// Bulk actions on the selected rows (People tab).
+const toast = useToast()
+const actionMenu = ref()
+const actionItems = computed(() => [
+  { label: 'Create Event', icon: 'pi pi-calendar-plus', command: () => bulkAction('Create Event') },
+  { label: 'Invoice', icon: 'pi pi-dollar', command: () => bulkAction('Invoice') },
+  { label: 'Email', icon: 'pi pi-envelope', command: () => bulkAction('Email') },
+  { label: 'Notify', icon: 'pi pi-bell', command: () => bulkAction('Notify') },
+])
+function bulkAction(name: string) {
+  const n = peopleSelection.value.length
+  toast.add({ severity: 'info', summary: name, detail: `${name} for ${n} selected ${n === 1 ? 'person' : 'people'} (coming soon)`, life: 2500 })
+}
+function exportPeopleVisible() {
+  const cols = personColumns.value.filter(c => !hiddenCols.value.includes(c.key))
+  const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const cell = (p: any, key: string) => key === 'roles' ? (p.roles ?? []).map(roleLabel).join('; ') : (p[key] ?? '')
+  const csv = [cols.map(c => c.label), ...exportRows.value.map(p => cols.map(c => cell(p, c.key)))]
+    .map(r => r.map(esc).join(',')).join('\n')
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = `${(group.value?.name ?? 'group').replace(/\s+/g, '-')}-people.csv`; a.click()
+  URL.revokeObjectURL(url)
+}
+function toggleHiddenCol(key: string) {
+  hiddenCols.value = hiddenCols.value.includes(key) ? hiddenCols.value.filter(k => k !== key) : [...hiddenCols.value, key]
+  saveHiddenCols('people', hiddenCols.value)
+}
+function toggleRoleFilter(key: string) {
+  roleFilter.value = roleFilter.value.includes(key) ? roleFilter.value.filter(k => k !== key) : [...roleFilter.value, key]
+}
+const sortPanel = ref()
+const filterPanel = ref()
+const colsPanel = ref()
+function exportPeopleCsv() {
+  const cols = activeColumns.value
+  const head = ['Section', ...cols.map(c => c.label)]
+  const rowFor = (p: any, section: string) => [section, ...cols.map(c =>
+    c.key === 'roles' ? (p.roles ?? []).map(roleLabel).join('; ') : (p[c.key] ?? ''))]
+  const rows = [
+    ...coaches.value.map(c => rowFor(c, 'Coach/Manager')),
+    ...members.value.map(m => rowFor(m, 'Member')),
+  ]
+  const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const csv = [head, ...rows].map(r => r.map(esc).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = `${(group.value?.name ?? 'group').replace(/\s+/g, '-')}-people.csv`; a.click()
+  URL.revokeObjectURL(url)
+}
+
+// Per-section selection. The band checkbox toggles "select mode" (turns each row's
+// profile icon into a checkbox); row checkboxes collect ids into the sel arrays.
+const coachSelMode = ref(false)
+const memberSelMode = ref(false)
+const coachSel = ref<string[]>([])
+const memberSel = ref<string[]>([])
+function setCoachSelMode(v: boolean) { coachSelMode.value = v; if (!v) coachSel.value = [] }
+function setMemberSelMode(v: boolean) { memberSelMode.value = v; if (!v) memberSel.value = [] }
+function toggleRowSel(section: 'coach' | 'member', id: string, checked: boolean) {
+  const arr = section === 'coach' ? coachSel : memberSel
+  arr.value = checked ? Array.from(new Set([...arr.value, id])) : arr.value.filter(x => x !== id)
+}
+
+// Page tabs (Details holds the current INFO/sessions/people; the rest are stubs for now).
+const groupTabs = [
+  { key: 'details', label: 'Details', icon: 'pi-info-circle' },
+  { key: 'people', label: 'People', icon: 'pi-users' },
+  { key: 'subgroups', label: 'Sub Groups', icon: 'pi-sitemap' },
+  { key: 'assets', label: 'Assets', icon: 'pi-box' },
+  { key: 'trainings', label: 'Trainings', icon: 'pi-check-square' },
+  { key: 'tracker', label: 'Tracker', icon: 'pi-chart-line' },
+]
+const activeTab = ref<string>((typeof route.hash === 'string' && route.hash.slice(1)) || 'details')
+watch(activeTab, t => router.replace({ hash: t === 'details' ? '' : `#${t}` }))
 const schedules = ref<Schedule[]>([])
 const bookableNameById = ref<Record<string, string>>({})
 const trainingEventByScheduleId = ref<Record<string, { id: string; title: string }>>({})
@@ -339,6 +1363,97 @@ const seasonEnd = ref<string | null>(null)
 const loading = ref(true)
 const creatingEvent = ref(false)
 
+// ---- Terms & memberships (billing) ----
+const tm = useTermsMemberships()
+const orgTerms = ref<OrgTerm[]>([])
+const orgPlans = ref<MembershipPlan[]>([])
+const groupTermLinks = ref<{ term_id: string; fee: number | null }[]>([])
+const groupPlanLinks = ref<{ plan_id: string }[]>([])
+const orgCurrency = ref('NZD')
+const billingEditOpen = ref(false)
+const savingBilling = ref(false)
+// drafts edited in the dialog
+const termDraft = ref<Record<string, { on: boolean; fee: number | null }>>({})
+const planDraft = ref<Record<string, boolean>>({})
+
+const linkedTerms = computed(() =>
+  groupTermLinks.value
+    .map(l => ({ ...l, term: orgTerms.value.find(t => t.id === l.term_id) }))
+    .filter(l => l.term)
+)
+// Enrolment options for the add-person dialog (term + each membership option).
+const addEnrol = ref<string | null>(null) // 'term:<id>' | 'opt:<id>' | null
+const enrolOptions = computed(() => {
+  const out: { label: string; value: string }[] = []
+  for (const l of linkedTerms.value)
+    out.push({ label: `Term · ${l.term!.name}${l.fee != null ? ' · ' + tm.fmtMoney(l.fee, orgCurrency.value) : ''}`, value: `term:${l.term_id}` })
+  for (const p of linkedPlans.value)
+    for (const o of p.options)
+      out.push({ label: `${p.name} · ${tm.optionLabel(o, orgCurrency.value)}`, value: `opt:${o.id}` })
+  return out
+})
+// Build the enrolment columns for a chosen option (null = leave unset).
+function enrolPatch(): Record<string, any> | null {
+  const v = addEnrol.value
+  if (!v) return null
+  if (v.startsWith('term:')) {
+    const t = orgTerms.value.find(x => x.id === v.slice(5))
+    return { term_id: v.slice(5), plan_option_id: null, start_date: t?.start_date ?? null, end_date: t?.end_date ?? null, auto_renew: false, membership_status: 'active' }
+  }
+  const opt = orgPlans.value.flatMap(p => p.options).find(o => o.id === v.slice(4))
+  const start = tm.toIso(new Date())
+  return { term_id: null, plan_option_id: v.slice(4), start_date: start, end_date: opt ? tm.addPeriod(start, opt.period_unit, opt.period_count) : null, auto_renew: opt?.auto_renew ?? false, membership_status: 'active' }
+}
+const linkedPlans = computed(() =>
+  groupPlanLinks.value
+    .map(l => orgPlans.value.find(p => p.id === l.plan_id))
+    .filter(Boolean) as MembershipPlan[]
+)
+
+async function loadBilling() {
+  if (!group.value?.id) return
+  ;[orgTerms.value, orgPlans.value] = await Promise.all([tm.loadTerms(), tm.loadPlans()])
+  const billing = await tm.loadGroupBilling(group.value.id)
+  groupTermLinks.value = billing.terms
+  groupPlanLinks.value = billing.plans
+}
+
+function openBillingEditor() {
+  termDraft.value = Object.fromEntries(orgTerms.value.map(t => {
+    const link = groupTermLinks.value.find(l => l.term_id === t.id)
+    return [t.id, { on: !!link, fee: link?.fee ?? null }]
+  }))
+  planDraft.value = Object.fromEntries(orgPlans.value.map(p => [p.id, groupPlanLinks.value.some(l => l.plan_id === p.id)]))
+  billingEditOpen.value = true
+}
+
+async function saveBilling() {
+  if (!group.value?.id) return
+  savingBilling.value = true
+  try {
+    const gid = group.value.id
+    // delete-then-insert both link tables
+    await (db.from as any)('member_group_terms').delete().eq('group_id', gid)
+    await (db.from as any)('member_group_plans').delete().eq('group_id', gid)
+    const termRows = orgTerms.value
+      .filter(t => termDraft.value[t.id]?.on)
+      .map(t => ({ group_id: gid, term_id: t.id, fee: termDraft.value[t.id].fee }))
+    const planRows = orgPlans.value
+      .filter(p => planDraft.value[p.id])
+      .map(p => ({ group_id: gid, plan_id: p.id }))
+    if (termRows.length) await (db.from as any)('member_group_terms').insert(termRows)
+    if (planRows.length) await (db.from as any)('member_group_plans').insert(planRows)
+    groupTermLinks.value = termRows.map(r => ({ term_id: r.term_id, fee: r.fee }))
+    groupPlanLinks.value = planRows.map(r => ({ plan_id: r.plan_id }))
+    billingEditOpen.value = false
+    toast.add({ severity: 'success', summary: 'Membership & terms saved', life: 2500 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not save', detail: e?.message, life: 4000 })
+  } finally {
+    savingBilling.value = false
+  }
+}
+
 const missingTrainingEvents = computed(() =>
   schedules.value.filter(s => !trainingEventByScheduleId.value[s.id])
 )
@@ -346,10 +1461,17 @@ const trainingEventCount = computed(() => Object.keys(trainingEventByScheduleId.
 
 const createBlockedReason = computed(() => {
   if (!schedules.value.length) return 'Add session times first'
-  if (!seasonStart.value || !seasonEnd.value) return 'Set the season in Settings → General'
   if (!missingTrainingEvents.value.length) return 'All training events created'
   return ''
 })
+// Org season is the preferred window; fall back to today → +4 months if unset.
+function effectiveSeason() {
+  const today = new Date()
+  const start = seasonStart.value || `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  let endIso = seasonEnd.value
+  if (!endIso) { const e = new Date(today); e.setMonth(e.getMonth() + 4); endIso = `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, '0')}-${String(e.getDate()).padStart(2, '0')}` }
+  return { start, end: endIso }
+}
 
 const createButtonLabel = computed(() => {
   const total = schedules.value.length
@@ -379,31 +1501,34 @@ async function load() {
 
   // Group
   const { data: g } = await (db.from as any)('member_groups')
-    .select('id, name, color')
+    .select('id, name, color, code, age_range, capacity, current_term, term_fee, sub_groups')
     .eq('id', id)
     .eq('org_id', orgId.value)
     .maybeSingle()
   group.value = g ?? null
 
   if (!g) { members.value = []; loading.value = false; return }
+  subGroups.value = Array.isArray(g.sub_groups) ? g.sub_groups : []
 
   // Members + coaches — both are member_group_memberships rows. A person can
   // hold multiple roles; anyone with a 'staff' role (Coach/Manager/Assistant)
   // shows in the COACHES & MANAGERS card, everyone else in MEMBERS.
   const { data: rows } = await (db.from as any)('member_group_memberships')
-    .select('roles, role, person:persons!inner(id, first_name, last_name, email, phone)')
+    .select('roles, role, sub_group_id, person:persons!inner(id, first_name, last_name, email, phone)')
     .eq('group_id', id)
   const mapped = (rows ?? [])
-    .map((r: any) => ({ roles: scoped.normalizeRoles('group', r.roles, r.role), p: r.person }))
+    .map((r: any) => ({ roles: scoped.normalizeRoles('group', r.roles, r.role), subGroupId: r.sub_group_id ?? null, p: r.person }))
     .filter((x: any) => x.p)
   const named = (x: any) => `${x.p.first_name ?? ''} ${x.p.last_name ?? ''}`.trim() || '—'
+  // A person appears in MEMBERS if they have a non-staff role (or no roles), and
+  // in COACHES if they have a staff role — so coach+player shows in both.
   members.value = mapped
-    .filter((x: any) => !scoped.isStaff('group', x.roles))
-    .map((x: any) => ({ id: x.p.id, name: named(x), email: x.p.email ?? null, phone: x.p.phone ?? null, roles: x.roles }))
+    .filter((x: any) => !x.roles.length || memberRolesOf(x.roles).length)
+    .map((x: any) => ({ id: x.p.id, name: named(x), email: x.p.email ?? null, phone: x.p.phone ?? null, roles: memberRolesOf(x.roles), allRoles: x.roles, subGroupId: x.subGroupId }))
     .sort((a: Member, b: Member) => a.name.localeCompare(b.name))
   coaches.value = mapped
     .filter((x: any) => scoped.isStaff('group', x.roles))
-    .map((x: any) => ({ id: x.p.id, name: named(x), phone: x.p.phone ?? null, roles: x.roles }))
+    .map((x: any) => ({ id: x.p.id, name: named(x), email: x.p.email ?? null, phone: x.p.phone ?? null, roles: staffRolesOf(x.roles), allRoles: x.roles, subGroupId: x.subGroupId }))
     .sort((a: Coach, b: Coach) => a.name.localeCompare(b.name))
 
   // Training events for this group (one event per schedule row).
@@ -429,11 +1554,15 @@ async function load() {
 
   // Org-level season range (set in /settings General tab).
   const { data: orgRow } = await (db.from as any)('organisations')
-    .select('season_start, season_end')
+    .select('season_start, season_end, currency')
     .eq('id', orgId.value)
     .maybeSingle()
   seasonStart.value = orgRow?.season_start ?? null
   seasonEnd.value = orgRow?.season_end ?? null
+  orgCurrency.value = orgRow?.currency || 'NZD'
+
+  // Terms & memberships this group offers.
+  await loadBilling()
 
   loading.value = false
 }
@@ -452,6 +1581,257 @@ async function loadTrainingEvents() {
     if (e.member_group_schedule_id) map[e.member_group_schedule_id] = { id: e.id, title: e.title }
   }
   trainingEventByScheduleId.value = map
+  await loadUpcomingEvents()
+}
+
+// All future events linked to this group (master + child occurrences), soonest first.
+const upcomingEvents = ref<Array<{ id: string; title: string; start_at: string; end_at: string | null; location: any }>>([])
+async function loadUpcomingEvents() {
+  if (!group.value) { upcomingEvents.value = []; return }
+  const nowIso = new Date().toISOString()
+  const { data } = await (db.from as any)('events')
+    .select('id, title, start_at, end_at, location')
+    .eq('member_group_id', group.value.id)
+    .gte('start_at', nowIso)
+    .order('start_at', { ascending: true })
+    .limit(50)
+  upcomingEvents.value = data ?? []
+  await loadTrainingSessions()
+}
+// All training sessions (events) for this group — past + future — for the Trainings tab.
+const trainingSessions = ref<Array<{ id: string; title: string; start_at: string; end_at: string | null; location: any }>>([])
+async function loadTrainingSessions() {
+  if (!group.value) { trainingSessions.value = []; return }
+  const { data } = await (db.from as any)('events')
+    .select('id, title, start_at, end_at, location')
+    .eq('member_group_id', group.value.id)
+    .order('start_at', { ascending: true })
+  trainingSessions.value = data ?? []
+  await loadAttendance()
+}
+const nowMs = ref(Date.now())
+const upcomingSessions = computed(() => trainingSessions.value.filter(e => new Date(e.start_at).getTime() >= nowMs.value))
+const pastSessions = computed(() => trainingSessions.value.filter(e => new Date(e.start_at).getTime() < nowMs.value).reverse())
+// Columns for the attendance report: real event occurrences if any exist, otherwise
+// the weekly schedules projected across the season term (so the report still shows).
+// A "slot" identifies a weekly session by weekday + start time (e.g. Mon 13:00),
+// so the two Monday sessions (1pm vs 3pm) are distinct choices.
+const slotOf = (iso: string) => { const d = new Date(iso); return `${d.getDay()}-${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
+const reportSessions = computed<Array<{ key: string; eventId: string | null; start_at: string; slot: string }>>(() => {
+  if (trainingSessions.value.length) {
+    return trainingSessions.value.map(s => ({ key: s.id, eventId: s.id, start_at: s.start_at, slot: slotOf(s.start_at) }))
+  }
+  const { start, end } = effectiveSeason()
+  const startD = new Date(start + 'T00:00:00'); const endD = new Date(end + 'T23:59:59')
+  if (isNaN(startD.getTime())) return []
+  const out: Array<{ key: string; eventId: string | null; start_at: string; slot: string }> = []
+  for (const sch of schedules.value) {
+    const d = new Date(startD)
+    d.setDate(d.getDate() + (((sch.day_of_week ?? 0) - d.getDay() + 7) % 7))
+    while (d <= endD) {
+      const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const at = `${ymd}T${(sch.start_time || '00:00')}`
+      out.push({ key: `${sch.id}-${ymd}`, eventId: null, start_at: at, slot: slotOf(at) })
+      d.setDate(d.getDate() + 7)
+    }
+  }
+  return out.sort((a, b) => a.start_at.localeCompare(b.start_at))
+})
+// Session-column filters: pick a weekly slot (e.g. Monday 1–2pm) + date range.
+const reportFrom = ref<string>('')
+const reportTo = ref<string>('')
+// Pick one weekly session slot to view (null = all). One option per schedule row.
+const selectedSlot = ref<string | null>(null)
+const slotPickOptions = computed(() => schedules.value.map(sch => ({
+  value: `${sch.day_of_week}-${(sch.start_time || '').slice(0, 5)}`,
+  label: `${dayNames[sch.day_of_week]} ${formatTime(sch.start_time)} – ${formatTime(sch.end_time)}`,
+})))
+const visibleSessions = computed(() => reportSessions.value.filter(s => {
+  if (selectedSlot.value && s.slot !== selectedSlot.value) return false
+  const ymd = s.start_at.slice(0, 10)
+  if (reportFrom.value && ymd < reportFrom.value) return false
+  if (reportTo.value && ymd > reportTo.value) return false
+  return true
+}))
+
+// Attendance matrix (Trainings tab) — `attendance` rows (person_id, event_id, attended).
+const attendanceRows = ref<Array<{ person_id: string; event_id: string }>>([])
+// People who attended but aren't members or staff of the group = visitors.
+const visitorPeople = ref<Array<{ id: string; name: string; roles: string[] }>>([])
+async function loadAttendance() {
+  const ids = trainingSessions.value.map(s => s.id)
+  if (!ids.length) { attendanceRows.value = []; visitorPeople.value = []; return }
+  const { data } = await (db.from as any)('attendance')
+    .select('person_id, event_id').in('event_id', ids).eq('attended', true)
+  attendanceRows.value = data ?? []
+  const onRoster = new Set([...members.value, ...coaches.value].map(p => p.id))
+  const visitorIds = [...new Set(attendanceRows.value.map(r => r.person_id))].filter(pid => !onRoster.has(pid))
+  if (!visitorIds.length) { visitorPeople.value = []; return }
+  const { data: vp } = await (db.from as any)('persons')
+    .select('id, first_name, last_name, email, phone').in('id', visitorIds)
+  visitorPeople.value = (vp ?? []).map((p: any) => ({
+    id: p.id, name: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || '—', email: p.email ?? null, phone: p.phone ?? null, roles: [],
+  }))
+}
+const attendedByPerson = computed(() => {
+  const m: Record<string, Set<string>> = {}
+  for (const r of attendanceRows.value) (m[r.person_id] ??= new Set()).add(r.event_id)
+  return m
+})
+const attended = (personId: string, eventId: string | null) => !!(eventId && attendedByPerson.value[personId]?.has(eventId))
+const personTotal = (personId: string) => attendedByPerson.value[personId]?.size ?? 0
+const sessionTotal = (eventId: string | null) => eventId ? members.value.filter(m => attended(m.id, eventId)).length : 0
+const attendedMembers = computed(() => members.value.filter(m => personTotal(m.id) > 0).slice().sort((a, b) => a.name.localeCompare(b.name)))
+const nonAttendees = computed(() => members.value.filter(m => personTotal(m.id) === 0).slice().sort((a, b) => a.name.localeCompare(b.name)))
+const totalAttendances = computed(() => visibleSessions.value.reduce((sum, s) => sum + sessionTotal(s.eventId), 0))
+const attendanceStats = computed(() => {
+  const rows = visibleSessions.value.map(s => ({ n: sessionTotal(s.eventId), at: s.start_at }))
+  if (!rows.length) return null
+  const high = rows.reduce((a, b) => b.n > a.n ? b : a)
+  const low = rows.reduce((a, b) => b.n < a.n ? b : a)
+  const avg = Math.round(rows.reduce((s, r) => s + r.n, 0) / rows.length)
+  return { high, low, avg }
+})
+const sessDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' })
+const sessTime = (iso: string) => {
+  const d = new Date(iso); let h = d.getHours(); const m = d.getMinutes()
+  const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ap}`
+}
+const fmtDayMonth = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+// Report search + filters + export.
+const reportFilterPanel = ref()
+const reportFilter = reactive({ members: true, staff: true, visitors: true })
+const reportSearch = ref('')
+const reportSearchOpen = ref(false)
+const reportSearchInput = ref<any>(null)
+function toggleReportSearch() {
+  reportSearch.value = ''
+  reportSearchOpen.value = !reportSearchOpen.value
+}
+// Focus the field once it has finished transitioning in.
+function onSearchEntered(el: any) {
+  if (reportSearchOpen.value && el && typeof el.focus === 'function') el.focus()
+}
+// Extra person columns on the report (Name always shown; Roles/Phone/Email opt-in).
+const reportColsPanel = ref()
+const reportHiddenCols = ref<string[]>(['roles', 'phone', 'email'])
+const reportPersonCols = computed(() => personColumns.value.filter(c => !reportHiddenCols.value.includes(c.key)))
+function toggleReportCol(key: string) {
+  reportHiddenCols.value = reportHiddenCols.value.includes(key) ? reportHiddenCols.value.filter(k => k !== key) : [...reportHiddenCols.value, key]
+}
+const matchName = (p: any) => !reportSearch.value.trim() || (p.name ?? '').toLowerCase().includes(reportSearch.value.trim().toLowerCase())
+const byNameRep = (a: any, b: any) => a.name.localeCompare(b.name)
+const filteredMembers = computed(() => members.value.filter(matchName).slice().sort(byNameRep))
+// View members as a flat list or grouped by their sub-group.
+const reportGrouped = ref(false)
+const memberRowItems = computed<Array<{ kind: 'header' | 'person'; label?: string; color?: string; p?: any }>>(() => {
+  if (!reportGrouped.value) return filteredMembers.value.map(p => ({ kind: 'person', p }))
+  const items: Array<{ kind: 'header' | 'person'; label?: string; color?: string; p?: any }> = []
+  for (const sg of subGroups.value) {
+    const ppl = filteredMembers.value.filter(m => m.subGroupId === sg.id)
+    if (!ppl.length) continue
+    items.push({ kind: 'header', label: sg.name, color: sg.color })
+    ppl.forEach(p => items.push({ kind: 'person', p }))
+  }
+  const un = filteredMembers.value.filter(m => !m.subGroupId)
+  if (un.length) { items.push({ kind: 'header', label: 'Unassigned', color: '#94a3b8' }); un.forEach(p => items.push({ kind: 'person', p })) }
+  return items
+})
+const filteredStaff = computed(() => coaches.value.filter(matchName).slice().sort(byNameRep))
+const filteredVisitors = computed(() => visitorPeople.value.filter(matchName).slice().sort(byNameRep))
+// When a search is active, only show sections that actually have a match.
+const hasSearch = computed(() => !!reportSearch.value.trim())
+// Per-section attendance totals.
+const sectionTotal = (list: any[], eventId: string | null) => eventId ? list.filter(p => attended(p.id, eventId)).length : 0
+const sectionGrand = (list: any[]) => visibleSessions.value.reduce((s, c) => s + sectionTotal(list, c.eventId), 0)
+// Shared matrix used by all three exporters (respects filters + search).
+const personCellValue = (p: any, key: string) => key === 'roles' ? (p.roles ?? []).map(roleLabel).join('; ') : (p[key] ?? '')
+function reportRows() {
+  const cols = visibleSessions.value
+  const pcols = reportPersonCols.value
+  const head = [...pcols.map(c => c.label), ...cols.map(c => `${sessDate(c.start_at)} ${sessTime(c.start_at)}`), 'Total']
+  const line = (p: any) => [...pcols.map(c => personCellValue(p, c.key)), ...cols.map(c => attended(p.id, c.eventId) ? '✓' : ''), String(personTotal(p.id))]
+  const rows: string[][] = []
+  if (reportFilter.members) filteredAttended.value.forEach(m => rows.push(line(m)))
+  if (reportFilter.nonAttendees) filteredNonAttendees.value.forEach(m => rows.push(line(m)))
+  rows.push(['Total members', ...pcols.slice(1).map(() => ''), ...cols.map(c => String(sessionTotal(c.eventId))), String(totalAttendances.value)])
+  if (reportFilter.staff) filteredStaff.value.forEach(c => rows.push(line(c)))
+  return { head, rows }
+}
+const reportFileBase = () => `${(group.value?.name ?? 'group').replace(/\s+/g, '-')}-attendance`
+function downloadBlob(content: BlobPart, mime: string, ext: string) {
+  const url = URL.createObjectURL(new Blob([content], { type: mime }))
+  const a = document.createElement('a')
+  a.href = url; a.download = `${reportFileBase()}.${ext}`; a.click()
+  URL.revokeObjectURL(url)
+}
+function exportCsv() {
+  const { head, rows } = reportRows()
+  const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const csv = [head, ...rows].map(r => r.map(esc).join(',')).join('\n')
+  downloadBlob('﻿' + csv, 'text/csv;charset=utf-8;', 'csv')
+}
+function reportTableHtml() {
+  const { head, rows } = reportRows()
+  const th = head.map(h => `<th style="border:1px solid #ccc;padding:4px 8px;background:#1E2157;color:#fff;font-size:11px">${h}</th>`).join('')
+  const trs = rows.map(r => {
+    const isTotal = r[0] === 'Total members'
+    return `<tr${isTotal ? ' style="font-weight:bold;background:#f1f3f6"' : ''}>` + r.map((c, i) =>
+      `<td style="border:1px solid #ccc;padding:4px 8px;font-size:11px;${i > 1 && i < r.length - 1 ? 'text-align:center;' : ''}${c === '✓' ? 'color:#16a34a;background:#f0fdf4;' : ''}">${c}</td>`).join('') + '</tr>'
+  }).join('')
+  return `<table style="border-collapse:collapse;font-family:Arial,sans-serif"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table>`
+}
+function exportExcel() {
+  const html = `<html><head><meta charset="utf-8"></head><body><h3>${group.value?.name ?? 'Group'} — Attendance</h3>${reportTableHtml()}</body></html>`
+  downloadBlob('﻿' + html, 'application/vnd.ms-excel', 'xls')
+}
+function exportPdf() {
+  // Print via a hidden iframe (no popup blocker, no new tab) → user picks "Save as PDF".
+  const iframe = document.createElement('iframe')
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0'
+  document.body.appendChild(iframe)
+  const doc = iframe.contentWindow?.document
+  if (!doc) { document.body.removeChild(iframe); return }
+  doc.open()
+  doc.write(`<!doctype html><html><head><meta charset="utf-8"><title>${reportFileBase()}</title>
+    <style>@page{size:landscape;margin:14mm} body{margin:0;font-family:Arial,sans-serif}</style></head>
+    <body><h2 style="color:#1E2157;margin:0 0 12px">${group.value?.name ?? 'Group'} — Attendance</h2>${reportTableHtml()}</body></html>`)
+  doc.close()
+  const win = iframe.contentWindow!
+  setTimeout(() => {
+    win.focus(); win.print()
+    setTimeout(() => document.body.removeChild(iframe), 1500)
+  }, 300)
+}
+const exportMenu = ref()
+const exportItems = [
+  { label: 'CSV', icon: 'pi pi-file', command: () => exportCsv() },
+  { label: 'Excel', icon: 'pi pi-file-excel', command: () => exportExcel() },
+  { label: 'PDF', icon: 'pi pi-file-pdf', command: () => exportPdf() },
+  { separator: true },
+  { label: 'Print', icon: 'pi pi-print', command: () => exportPdf() },
+  { label: 'Graph', icon: 'pi pi-chart-bar', command: () => { showGraph.value = true } },
+]
+// Attendance graph (per visible session, members + staff).
+const showGraph = ref(false)
+const attendanceChartData = computed(() => ({
+  labels: visibleSessions.value.map(s => `${sessDate(s.start_at)} ${sessTime(s.start_at)}`),
+  datasets: [
+    { label: 'Members', backgroundColor: '#1E2157', borderRadius: 4, data: visibleSessions.value.map(s => sectionTotal(members.value, s.eventId)) },
+    { label: 'Staff', backgroundColor: '#1976d2', borderRadius: 4, data: visibleSessions.value.map(s => sectionTotal(coaches.value, s.eventId)) },
+  ],
+}))
+const attendanceChartOptions = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { position: 'bottom' } },
+  scales: { x: { stacked: false }, y: { beginAtZero: true, ticks: { precision: 0 } } },
+}
+function fmtEventWhen(iso: string) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) +
+    ' · ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 }
 
 function emptyLocation(): LocationEntry {
@@ -590,13 +1970,59 @@ async function saveSchedules() {
 
 async function removeMember(m: Member) {
   if (!group.value) return
-  const ok = window.confirm(`Remove ${m.name} from ${group.value.name}?`)
-  if (!ok) return
-  await (db.from as any)('member_group_memberships')
-    .delete()
-    .eq('group_id', group.value.id)
-    .eq('person_id', m.id)
+  const keep = staffRolesOf(m.allRoles) // roles to retain if they're also a coach/manager
+  const msg = keep.length
+    ? `Remove ${m.name} as a member? They'll stay as ${keep.map(roleLabel).join(', ')}.`
+    : `Remove ${m.name} from ${group.value.name}?`
+  if (!window.confirm(msg)) return
+  if (keep.length) {
+    await (db.from as any)('member_group_memberships')
+      .update({ roles: keep, role: keep[0] })
+      .eq('group_id', group.value.id).eq('person_id', m.id)
+  } else {
+    await (db.from as any)('member_group_memberships')
+      .delete().eq('group_id', group.value.id).eq('person_id', m.id)
+  }
   members.value = members.value.filter(x => x.id !== m.id)
+  const c = coaches.value.find(x => x.id === m.id); if (c) { c.allRoles = keep; c.roles = staffRolesOf(keep) }
+}
+// Single-table remove: drops the person from the group entirely (all roles).
+async function removePerson(p: any) {
+  if (!group.value) return
+  if (!window.confirm(`Remove ${p.name} from ${group.value.name}?`)) return
+  await (db.from as any)('member_group_memberships').delete().eq('group_id', group.value.id).eq('person_id', p.id)
+  coaches.value = coaches.value.filter(x => x.id !== p.id)
+  members.value = members.value.filter(x => x.id !== p.id)
+  peopleSelection.value = peopleSelection.value.filter((x: any) => x.id !== p.id)
+}
+
+// ── Edit group details ──
+const GROUP_PALETTE = ['#1976d2', '#0f766e', '#16a34a', '#ca8a04', '#ea580c', '#dc2626', '#db2777', '#7c3aed', '#475569', '#0891b2']
+const groupEditOpen = ref(false)
+const savingGroup = ref(false)
+const groupDraft = reactive<{ name: string; color: string | null; code: string | null; age_range: string | null; capacity: number | null; current_term: string | null; term_fee: number | null }>({
+  name: '', color: null, code: null, age_range: null, capacity: null, current_term: null, term_fee: null,
+})
+function openGroupEditor() {
+  if (!group.value) return
+  Object.assign(groupDraft, {
+    name: group.value.name, color: group.value.color ?? null, code: group.value.code ?? null,
+    age_range: group.value.age_range ?? null, capacity: group.value.capacity ?? null,
+    current_term: group.value.current_term ?? null, term_fee: group.value.term_fee ?? null,
+  })
+  groupEditOpen.value = true
+}
+async function saveGroup() {
+  if (!group.value || !groupDraft.name.trim()) return
+  savingGroup.value = true
+  const patch = {
+    name: groupDraft.name.trim(), color: groupDraft.color, code: groupDraft.code || null,
+    age_range: groupDraft.age_range || null, capacity: groupDraft.capacity ?? null,
+    current_term: groupDraft.current_term || null, term_fee: groupDraft.term_fee ?? null,
+  }
+  const { error } = await (db.from as any)('member_groups').update(patch).eq('id', group.value.id)
+  savingGroup.value = false
+  if (!error) { Object.assign(group.value, patch); groupEditOpen.value = false }
 }
 
 // ── Add a person to the group with one or more roles ──
@@ -605,41 +2031,64 @@ const addRoles = ref<string[]>(['member'])
 const pendingPerson = ref<any>(null)
 const personQuery = ref<any>('')
 const personResults = ref<any[]>([])
-function openAdd(mode: 'member' | 'coach') {
+function openAdd(mode: 'member' | 'coach', person?: any) {
   // Seed sensible default roles depending on which card's Add was clicked.
   addRoles.value = mode === 'coach' ? ['coach'] : ['member']
-  pendingPerson.value = null
-  personQuery.value = ''
+  addEnrol.value = null
+  if (person?.id) {
+    // Clicking an existing person's name → pre-select them in the picker.
+    const name = person.name || `${person.first_name ?? ''} ${person.last_name ?? ''}`.trim()
+    const picked = { id: person.id, name, first_name: person.first_name, last_name: person.last_name, email: person.email, phone: person.phone, label: name }
+    personQuery.value = picked
+    pendingPerson.value = picked
+    if (Array.isArray(person.roles) && person.roles.length) addRoles.value = [...person.roles]
+  } else {
+    pendingPerson.value = null
+    personQuery.value = ''
+  }
   personResults.value = []
   addOpen.value = true
 }
 async function searchPersons(e: { query: string }) {
   const q = (e.query || '').trim()
-  // Exclude anyone already in the group (members or coaches).
-  const existing = new Set([...members.value.map(m => m.id), ...coaches.value.map(c => c.id)])
+  // Existing members CAN be picked again — adding a role merges into their
+  // membership (e.g. give a coach the Player role so they're both).
   let query = (db.from as any)('persons')
     .select('id, first_name, last_name, email, phone')
     .eq('org_id', orgId.value).order('last_name').limit(25)
   if (q) query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`)
   const { data } = await query
   personResults.value = (data ?? [])
-    .filter((p: any) => !existing.has(p.id))
-    .map((p: any) => ({ ...p, label: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() + (p.email ? ` · ${p.email}` : '') }))
+    .map((p: any) => {
+      const inGroup = members.value.some(m => m.id === p.id) || coaches.value.some(c => c.id === p.id)
+      return { ...p, label: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() + (inGroup ? ' · in group' : '') }
+    })
 }
 function onPickPerson(e: { value: any }) { pendingPerson.value = e.value }
 async function addPerson() {
   const p = pendingPerson.value
   if (!p?.id || !group.value || !addRoles.value.length) return
-  const roles = [...addRoles.value]
+  // Merge with any roles they already hold so adding a role to an existing
+  // member keeps the others (coach picking up Player → both, not replaced).
+  const prev = coaches.value.find(x => x.id === p.id)?.allRoles
+    ?? members.value.find(x => x.id === p.id)?.allRoles ?? []
+  const merged = Array.from(new Set([...prev, ...addRoles.value]))
+  const enrol = enrolPatch()
   const { error } = await (db.from as any)('member_group_memberships')
-    .insert({ group_id: group.value.id, person_id: p.id, roles, role: roles[0] ?? null })
+    .upsert({ group_id: group.value.id, person_id: p.id, roles: merged, role: merged[0] ?? null, ...(enrol ?? {}) },
+      { onConflict: 'group_id,person_id' })
   if (!error) {
-    const name = `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || '—'
-    if (scoped.isStaff('group', roles)) {
-      coaches.value.push({ id: p.id, name, phone: p.phone ?? null, roles })
+    const name = `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || p.name || '—'
+    const base = { id: p.id, name, email: p.email ?? null, phone: p.phone ?? null, allRoles: merged }
+    // Rebuild this person's presence across both tables from the merged roles.
+    coaches.value = coaches.value.filter(x => x.id !== p.id)
+    members.value = members.value.filter(x => x.id !== p.id)
+    if (scoped.isStaff('group', merged)) {
+      coaches.value.push({ ...base, roles: staffRolesOf(merged) })
       coaches.value.sort((a, b) => a.name.localeCompare(b.name))
-    } else {
-      members.value.push({ id: p.id, name, email: p.email ?? null, phone: p.phone ?? null, roles })
+    }
+    if (!merged.length || memberRolesOf(merged).length) {
+      members.value.push({ ...base, roles: memberRolesOf(merged) })
       members.value.sort((a, b) => a.name.localeCompare(b.name))
     }
   }
@@ -650,16 +2099,27 @@ async function addPerson() {
 }
 async function removeCoach(c: Coach) {
   if (!group.value) return
-  if (!window.confirm(`Remove ${c.name} as a coach of ${group.value.name}?`)) return
-  await (db.from as any)('member_group_memberships')
-    .delete().eq('group_id', group.value.id).eq('person_id', c.id)
+  const keep = memberRolesOf(c.allRoles) // roles to retain if they're also a member/player
+  const msg = keep.length
+    ? `Remove ${c.name} as a coach/manager? They'll stay as ${keep.map(roleLabel).join(', ') || 'a member'}.`
+    : `Remove ${c.name} as a coach of ${group.value.name}?`
+  if (!window.confirm(msg)) return
+  if (keep.length) {
+    await (db.from as any)('member_group_memberships')
+      .update({ roles: keep, role: keep[0] ?? null })
+      .eq('group_id', group.value.id).eq('person_id', c.id)
+  } else {
+    await (db.from as any)('member_group_memberships')
+      .delete().eq('group_id', group.value.id).eq('person_id', c.id)
+  }
   coaches.value = coaches.value.filter(x => x.id !== c.id)
+  const m = members.value.find(x => x.id === c.id); if (m) { m.allRoles = keep; m.roles = memberRolesOf(keep) }
 }
 
 async function createAttendanceEvent() {
   if (!group.value || !orgId.value) return
   if (createBlockedReason.value) return
-  if (!seasonStart.value || !seasonEnd.value) return
+  const season = effectiveSeason()
   creatingEvent.value = true
   try {
     const { expandRrule, dateKey } = await import('~/composables/useRecurrence')
@@ -669,13 +2129,13 @@ async function createAttendanceEvent() {
     await loadTrainingEvents()
     const toCreate = schedules.value.filter(s => !trainingEventByScheduleId.value[s.id])
 
-    const untilStr = `${seasonEnd.value.replace(/-/g, '')}T235959Z`
-    const [ey, em, ed] = seasonEnd.value.split('-').map(Number)
+    const untilStr = `${season.end.replace(/-/g, '')}T235959Z`
+    const [ey, em, ed] = season.end.split('-').map(Number)
     const seasonEndDate = new Date(ey, (em ?? 1) - 1, ed ?? 1, 23, 59, 59)
     const byDayCodes = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
 
     for (const sched of toCreate) {
-      const firstDate = findFirstOccurrence(sched.day_of_week)
+      const firstDate = findFirstOccurrence(sched.day_of_week, season.start)
       if (!firstDate || firstDate > seasonEndDate) continue
 
       const [sh, smin] = sched.start_time.split(':').map(Number)
@@ -759,9 +2219,10 @@ async function createAttendanceEvent() {
   }
 }
 
-function findFirstOccurrence(dow: number): Date | null {
-  if (!seasonStart.value) return null
-  const [sy, sm, sd] = seasonStart.value.split('-').map(Number)
+function findFirstOccurrence(dow: number, startIso?: string | null): Date | null {
+  const start = startIso || seasonStart.value
+  if (!start) return null
+  const [sy, sm, sd] = start.split('-').map(Number)
   const d = new Date(sy, (sm ?? 1) - 1, sd ?? 1)
   while (d.getDay() !== dow) d.setDate(d.getDate() + 1)
   return d

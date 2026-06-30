@@ -68,6 +68,14 @@
           </nav>
           <h1 v-else class="hidden sm:block text-base font-semibold text-gray-900 truncate">{{ pageTitle }}</h1>
         </div>
+        <!-- Quick create -->
+        <button type="button"
+          class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-500 shrink-0"
+          v-tooltip.bottom="'Create'" @click="createMenu.toggle($event)">
+          <i class="pi pi-plus text-base" />
+        </button>
+        <Menu ref="createMenu" :model="createItems" popup />
+
         <!-- Notifications bell -->
         <div ref="bellWrapper" class="relative">
           <button type="button"
@@ -374,6 +382,17 @@ function onDocClick(e: MouseEvent) {
   if (bellOpen.value && bellWrapper.value && !bellWrapper.value.contains(e.target as Node)) bellOpen.value = false
   if (userMenuOpen.value && userMenuWrapper.value && !userMenuWrapper.value.contains(e.target as Node)) userMenuOpen.value = false
 }
+
+// Quick-create menu (top-right "+").
+const createMenu = ref()
+const createItems = [
+  { label: 'Person', icon: 'pi pi-user', command: () => navigateTo('/people?new=1') },
+  { label: 'Event', icon: 'pi pi-calendar', command: () => navigateTo('/events/new') },
+  { label: 'Invoice', icon: 'pi pi-file', command: () => navigateTo('/finances') },
+  { label: 'Email', icon: 'pi pi-envelope', command: () => navigateTo('/settings/communications') },
+  { label: 'Notification', icon: 'pi pi-bell', command: () => navigateTo('/settings/communications') },
+  { label: 'Group', icon: 'pi pi-users', command: () => navigateTo('/groups?new=1') },
+]
 
 const reviewPanel = useReviewPanel()
 const reviewCount = useReviewCount()

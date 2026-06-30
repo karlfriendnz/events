@@ -60,18 +60,59 @@ const layout = ref<any[]>([])
 
 // Narrow screens: VIEW-ONLY, widgets stack full-width in order (editing desktop-only).
 const isNarrow = ref(false)
-function updateNarrow() { if (import.meta.client) isNarrow.value = window.innerWidth < 768 }
-onMounted(updateNarrow)
-if (import.meta.client) {
-  window.addEventListener('resize', updateNarrow)
-  onBeforeUnmount(() => window.removeEventListener('resize', updateNarrow))
+function updateNarrow() { if (import.meta.client) isNarrow.value = window.innerWidth < 1024 }
+
+// Desktop: the dashboard fills the viewport so the Notes rail can run full-height
+// (its feed scrolls internally) and the widget grid scrolls on its own. We measure
+// from the grid row's top down to the viewport bottom.
+const rowEl = ref<HTMLElement | null>(null)
+const availH = ref(640)
+function measure() {
+  if (!import.meta.client || !rowEl.value) return
+  const top = rowEl.value.getBoundingClientRect().top
+  availH.value = Math.max(440, window.innerHeight - top - 20)
 }
-const displayLayout = computed(() => {
-  if (!isNarrow.value) return layout.value
-  const sorted = [...layout.value].sort((a, b) => (a.y - b.y) || (a.x - b.x))
-  let y = 0
-  return sorted.map(it => { const o = { ...it, x: 0, w: 12, y }; y += (it.h || 1); return o })
+function onResize() { updateNarrow(); measure() }
+let ro: ResizeObserver | null = null
+onMounted(() => {
+  updateNarrow(); nextTick(measure)
+  // Re-measure when the row becomes visible (the dashboard lives in a v-show tab)
+  // or its box changes — top is fixed by content above, so this never loops.
+  if (import.meta.client && rowEl.value && 'ResizeObserver' in window) {
+    ro = new ResizeObserver(() => measure()); ro.observe(rowEl.value)
+  }
 })
+if (import.meta.client) {
+  window.addEventListener('resize', onResize)
+  onBeforeUnmount(() => { window.removeEventListener('resize', onResize); ro?.disconnect() })
+}
+
+// The grid holds every widget EXCEPT notes (notes is a pinned full-height rail,
+// outside the grid). identity/flags form a narrow left column; every other widget
+// is a full-width middle column, stacked in order (drag reorders, no resize).
+const LEFT_KEYS = new Set(['identity', 'flags'])
+const displayLayout = computed(() => {
+  const items = layout.value.filter(l => l.i !== 'notes')
+  if (isNarrow.value) {
+    const sorted = [...items].sort((a, b) => (a.y - b.y) || (a.x - b.x))
+    let y = 0
+    return sorted.map(it => { const o = { ...it, x: 0, w: 12, y }; y += (it.h || 1); return o })
+  }
+  const left = items.filter(i => LEFT_KEYS.has(i.i)).sort((a, b) => a.y - b.y)
+  const mid = items.filter(i => !LEFT_KEYS.has(i.i)).sort((a, b) => (a.y - b.y) || (a.x - b.x))
+  const leftW = left.length ? Math.max(...left.map(i => i.w || 3)) : 0
+  let ly = 0
+  const leftOut = left.map(it => { const o = { ...it, x: 0, w: leftW, y: ly }; ly += (it.h || 1); return o })
+  let my = 0
+  const midOut = mid.map(it => { const o = { ...it, x: leftW, w: 12 - leftW, y: my }; my += (it.h || 1); return o })
+  return [...leftOut, ...midOut]
+})
+// Grid emits its layout without the notes entry — keep notes in `layout` for persistence.
+function onGridLayout(v: any[]) {
+  if (isNarrow.value) return
+  const notes = layout.value.find(l => l.i === 'notes')
+  layout.value = notes ? [...v, notes] : v
+}
 
 function defaultConfig(): CfgItem[] {
   return PROFILE_WIDGETS.map(w => ({ key: w.key, enabled: true, x: w.x, y: w.y, w: w.w, h: w.h, settings: w.defaultFields ? { fields: [...w.defaultFields] } : {} }))
@@ -116,6 +157,7 @@ function cfgFor(key: string) { return config.value.find(c => c.key === key) }
 const editing = ref(false)
 const saving = ref(false)
 const selectedKey = ref<string | null>(null)
+watch(editing, () => nextTick(measure))
 function startEdit() { editing.value = true }
 function cancelEdit() { editing.value = false; selectedKey.value = null; hydrate() }
 function removeWidget(key: string) {
@@ -229,6 +271,20 @@ type NoteLink = { type: string; id: string; label: string }
 const notesTab = ref<'notes' | 'activity'>('notes')
 const newNoteBody = ref('')
 const newNoteLinks = ref<NoteLink[]>([])
+// Composer starts collapsed (just the textarea); the Connect-to + Add controls
+// reveal once the box is focused, and re-collapse when focus leaves it empty.
+const composerOpen = ref(false)
+const composerEl = ref<HTMLElement | null>(null)
+function maybeCollapseComposer() {
+  // Defer so a click on Add / the dropdown (which may teleport its panel) registers first.
+  setTimeout(() => {
+    if (newNoteBody.value.trim()) return
+    const ae = document.activeElement as HTMLElement | null
+    if (composerEl.value?.contains(ae)) return
+    if (ae?.closest?.('.p-multiselect-overlay, .p-multiselect-panel')) return
+    composerOpen.value = false
+  }, 120)
+}
 // Things a note can connect to — sourced from the person's related entities.
 const connectOptions = computed<NoteLink[]>(() => {
   const out: NoteLink[] = []
@@ -244,7 +300,7 @@ const connectIcon = (type: string) => type === 'group' ? 'pi-users' : type === '
 function submitNote() {
   const body = newNoteBody.value.trim(); if (!body) return
   emit('add-note', { body, links: [...newNoteLinks.value] })
-  newNoteBody.value = ''; newNoteLinks.value = []
+  newNoteBody.value = ''; newNoteLinks.value = []; composerOpen.value = false
 }
 function fmtDateTime(iso: string) {
   if (!iso) return ''
@@ -260,7 +316,7 @@ function statusSeverity(s: string) {
   <div>
     <!-- toolbar (builder only) -->
     <div v-if="editable" class="flex items-center justify-between mb-3">
-      <div v-if="editing" class="text-xs text-gray-400"><i class="pi pi-arrows-alt mr-1" />Drag to move · drag the corner to resize · click the gear to configure a widget.</div>
+      <div v-if="editing" class="text-xs text-gray-400"><i class="pi pi-arrows-alt mr-1" />Drag to reorder · click the gear to configure a widget · Notes is pinned to the side.</div>
       <div v-else class="text-xs text-gray-400">This layout applies to every member profile.</div>
       <div class="flex items-center gap-2">
         <template v-if="editing">
@@ -286,16 +342,20 @@ function statusSeverity(s: string) {
       </button>
     </div>
 
-    <GridLayout
-      :layout="displayLayout" @update:layout="v => { if (!isNarrow) layout = v }"
-      :col-num="12" :row-height="56" :margin="[16, 16]"
-      :is-draggable="editable && editing && !isNarrow" :is-resizable="editable && editing && !isNarrow"
-      :is-bounded="false" :vertical-compact="true" :use-css-transforms="true"
-      :style="{ marginLeft: '-16px', marginRight: '-16px' }"
-      :class="editable && editing ? 'is-editing' : ''">
-      <GridItem v-for="item in displayLayout" :key="item.i"
-        :i="item.i" :x="item.x" :y="item.y" :w="item.w" :h="item.h" :min-w="item.minW" :min-h="item.minH"
-        :static="item.i === 'notes'">
+    <div ref="rowEl" class="flex flex-col lg:flex-row gap-4 lg:gap-5 lg:overflow-hidden"
+      :style="isNarrow ? {} : { height: availH + 'px' }">
+
+      <!-- widgets — drag to reorder, never resized -->
+      <div class="flex-1 min-w-0 lg:min-h-0 lg:overflow-y-auto lg:overflow-x-hidden lg:pr-1">
+        <GridLayout
+          :layout="displayLayout" @update:layout="onGridLayout"
+          :col-num="12" :row-height="56" :margin="[16, 16]"
+          :is-draggable="editable && editing && !isNarrow" :is-resizable="false"
+          :is-bounded="false" :vertical-compact="true" :use-css-transforms="true"
+          :style="{ marginLeft: '-16px', marginRight: '-16px', marginTop: '-16px' }"
+          :class="editable && editing ? 'is-editing' : ''">
+          <GridItem v-for="item in displayLayout" :key="item.i"
+            :i="item.i" :x="item.x" :y="item.y" :w="item.w" :h="item.h" :min-w="item.minW" :min-h="item.minH">
         <div class="relative h-full w-full overflow-hidden rounded-xl"
           :class="editable && editing ? (selectedKey === item.i ? 'ring-2 ring-primary' : 'ring-2 ring-primary/20') : ''">
           <!-- edit controls -->
@@ -435,52 +495,6 @@ function statusSeverity(s: string) {
               </div>
             </AppCard>
 
-            <!-- NOTES -->
-            <div v-else-if="item.i === 'notes'" class="card h-full flex flex-col overflow-hidden">
-              <!-- Notes / Activity tabs -->
-              <div class="flex items-center gap-1 px-3 pt-1.5 border-b border-gray-100 shrink-0">
-                <button type="button" class="px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
-                  :class="notesTab === 'notes' ? 'border-[#1E2157] text-[#1E2157]' : 'border-transparent text-gray-500 hover:text-gray-800'"
-                  @click="notesTab = 'notes'">Notes</button>
-                <button type="button" class="px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
-                  :class="notesTab === 'activity' ? 'border-[#1E2157] text-[#1E2157]' : 'border-transparent text-gray-500 hover:text-gray-800'"
-                  @click="notesTab = 'activity'">Activity</button>
-              </div>
-
-              <!-- NOTES tab -->
-              <div v-if="notesTab === 'notes'" class="p-4 flex flex-col flex-1 min-h-0">
-                <div v-if="liveNotes" class="mb-3 space-y-2">
-                  <Textarea v-model="newNoteBody" rows="2" autoResize placeholder="Add a note…" class="w-full text-sm" />
-                  <div class="flex items-center gap-2">
-                    <MultiSelect v-model="newNoteLinks" :options="connectOptions" optionLabel="label" dataKey="id"
-                      display="chip" :showToggleAll="false" placeholder="Connect to…" class="flex-1 text-xs" filter>
-                      <template #option="{ option }">
-                        <span class="flex items-center gap-2"><i class="pi text-xs text-gray-400" :class="connectIcon(option.type)" />{{ option.label }}</span>
-                      </template>
-                    </MultiSelect>
-                    <Button label="Add" size="small" :disabled="!newNoteBody.trim()" style="background:#1E2157;border-color:#1E2157" @click="submitNote" />
-                  </div>
-                </div>
-                <div class="flex-1 overflow-auto space-y-3">
-                  <div v-for="n in (data.notes || [])" :key="n.id" class="group">
-                    <p class="text-sm text-gray-700">{{ n.body }}</p>
-                    <div class="flex items-center gap-2 mt-1 flex-wrap">
-                      <span class="text-[11px] text-gray-400">{{ fmtDateTime(n.created_at) }}</span>
-                      <span v-if="n.author_name" class="text-[11px] text-gray-400">· {{ n.author_name }}</span>
-                      <span v-for="l in (n.links || [])" :key="l.id" class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary"><i class="pi text-[9px]" :class="connectIcon(l.type)" />{{ l.label }}</span>
-                      <button v-if="liveNotes" class="text-[11px] text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 ml-auto" @click="emit('delete-note', n.id)"><i class="pi pi-trash" /></button>
-                    </div>
-                  </div>
-                  <div v-if="!(data.notes || []).length" class="text-sm text-gray-400 text-center py-4">No notes yet.</div>
-                </div>
-              </div>
-
-              <!-- ACTIVITY tab — the rich activity feed -->
-              <div v-else class="flex-1 overflow-auto p-4">
-                <ActivityFeed :items="data.activityFeed || []" />
-              </div>
-            </div>
-
             <!-- ACTIVITY -->
             <AppCard v-else-if="item.i === 'activity'" title="Activity" class="h-full">
               <div class="p-4">
@@ -504,7 +518,58 @@ function statusSeverity(s: string) {
           </div>
         </div>
       </GridItem>
-    </GridLayout>
+        </GridLayout>
+      </div>
+
+      <!-- NOTES rail — pinned, full height, scrolls internally -->
+      <aside class="shrink-0 w-full lg:w-[340px] lg:h-full">
+        <div class="card flex flex-col overflow-hidden lg:h-full max-lg:max-h-[70vh]">
+          <!-- Notes / Activity tabs -->
+          <div class="flex items-center gap-1 px-3 pt-1.5 border-b border-gray-100 shrink-0">
+            <button type="button" class="px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+              :class="notesTab === 'notes' ? 'border-[#1E2157] text-[#1E2157]' : 'border-transparent text-gray-500 hover:text-gray-800'"
+              @click="notesTab = 'notes'">Notes</button>
+            <button type="button" class="px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+              :class="notesTab === 'activity' ? 'border-[#1E2157] text-[#1E2157]' : 'border-transparent text-gray-500 hover:text-gray-800'"
+              @click="notesTab = 'activity'">Activity</button>
+          </div>
+
+          <!-- NOTES tab -->
+          <div v-if="notesTab === 'notes'" class="p-4 flex flex-col flex-1 min-h-0">
+            <div v-if="liveNotes" ref="composerEl" class="mb-3 space-y-2" @focusout="maybeCollapseComposer">
+              <Textarea v-model="newNoteBody" :rows="composerOpen || newNoteBody.trim() ? 2 : 1" autoResize
+                placeholder="Add a note…" class="w-full text-sm" @focus="composerOpen = true" />
+              <div v-if="composerOpen || newNoteBody.trim()" class="flex items-center gap-2">
+                <MultiSelect v-model="newNoteLinks" :options="connectOptions" optionLabel="label" dataKey="id"
+                  display="chip" :showToggleAll="false" placeholder="Connect to…" class="flex-1 text-xs" filter>
+                  <template #option="{ option }">
+                    <span class="flex items-center gap-2"><i class="pi text-xs text-gray-400" :class="connectIcon(option.type)" />{{ option.label }}</span>
+                  </template>
+                </MultiSelect>
+                <Button label="Add" size="small" :disabled="!newNoteBody.trim()" style="background:#1E2157;border-color:#1E2157" @click="submitNote" />
+              </div>
+            </div>
+            <div class="flex-1 overflow-auto space-y-3 min-h-0">
+              <div v-for="n in (data.notes || [])" :key="n.id" class="group">
+                <p class="text-sm text-gray-700">{{ n.body }}</p>
+                <div class="flex items-center gap-2 mt-1 flex-wrap">
+                  <span class="text-[11px] text-gray-400">{{ fmtDateTime(n.created_at) }}</span>
+                  <span v-if="n.author_name" class="text-[11px] text-gray-400">· {{ n.author_name }}</span>
+                  <span v-for="l in (n.links || [])" :key="l.id" class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary"><i class="pi text-[9px]" :class="connectIcon(l.type)" />{{ l.label }}</span>
+                  <button v-if="liveNotes" class="text-[11px] text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 ml-auto" @click="emit('delete-note', n.id)"><i class="pi pi-trash" /></button>
+                </div>
+              </div>
+              <div v-if="!(data.notes || []).length" class="text-sm text-gray-400 text-center py-4">No notes yet.</div>
+            </div>
+          </div>
+
+          <!-- ACTIVITY tab — the rich activity feed -->
+          <div v-else class="flex-1 overflow-auto p-4 min-h-0">
+            <ActivityFeed :items="data.activityFeed || []" />
+          </div>
+        </div>
+      </aside>
+    </div>
 
     <!-- per-widget config panel (builder) -->
     <div v-if="editable && editing && selectedCfg && selectedDef" class="card p-4 mt-4">

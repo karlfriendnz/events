@@ -220,7 +220,7 @@
       <!-- ── MEMBERSHIP ── -->
       <div v-show="activeTab === 'membership'">
         <AppCard title="Member groups" description="Groups this person belongs to and their role in each.">
-          <div class="space-y-3">
+          <div class="p-4 sm:p-5 space-y-3">
             <MultiSelect v-if="editing" v-model="form.group_ids" :options="allGroups" optionLabel="name" optionValue="id"
               placeholder="Add to groups…" display="chip" filter class="w-full" :showToggleAll="false">
               <template #option="{ option }">
