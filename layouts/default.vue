@@ -74,7 +74,7 @@
     <!-- Right panel: top bar + page content. Pushes left when the review
          drawer slides out on the right (desktop only; it overlays on mobile). -->
     <div class="flex flex-col flex-1 min-w-0 transition-[margin] duration-300 ease-out"
-      :class="reviewPanel ? 'md:mr-[440px]' : ''">
+      :class="(reviewPanel || notesPanel) ? 'md:mr-[440px]' : ''">
       <!-- Top header bar -->
       <header class="h-14 shrink-0 bg-white border-b border-gray-200 flex items-center px-3 sm:px-6 gap-2 sm:gap-4 z-10">
         <!-- Mobile brand mark (icon rail is hidden on mobile) — tap to go home -->
@@ -419,6 +419,7 @@ const createItems = [
 ]
 
 const reviewPanel = useReviewPanel()
+const notesPanel = usePersonNotesPanel()
 const reviewCount = useReviewCount()
 function openReviewFromMobile() { mobileMenuOpen.value = false; reviewPanel.value = true }
 const userMenuOpen = ref(false)
