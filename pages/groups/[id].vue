@@ -283,10 +283,17 @@
                     <template v-else>{{ (c as any)[col.key] || '' }}</template>
                   </td>
                   <td v-if="canManage" class="px-4 py-2.5 text-right align-top">
-                    <button type="button" class="text-red-500 hover:text-red-700"
-                      :title="`Remove ${c.name} from ${group.name}`" @click="removeCoach(c)">
-                      <i class="pi pi-times-circle text-base" />
-                    </button>
+                    <div class="inline-flex items-center gap-3">
+                      <button type="button" class="text-gray-400 hover:text-[#1976d2] relative"
+                        :title="`Notes for ${c.name}`" @click="openNotes(c)">
+                        <i class="pi pi-comment text-base" />
+                        <span v-if="noteCounts[c.id]" class="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[#1976d2] text-white text-[9px] font-bold flex items-center justify-center">{{ noteCounts[c.id] }}</span>
+                      </button>
+                      <button type="button" class="text-red-500 hover:text-red-700"
+                        :title="`Remove ${c.name} from ${group.name}`" @click="removeCoach(c)">
+                        <i class="pi pi-times-circle text-base" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
                 <tr v-if="!displayCoaches.length">
@@ -346,10 +353,17 @@
                     <template v-else>{{ (m as any)[col.key] || '' }}</template>
                   </td>
                   <td v-if="canManage" class="px-4 py-2.5 text-right align-top">
-                    <button type="button" class="text-red-500 hover:text-red-700"
-                      :title="`Remove ${m.name} from ${group.name}`" @click="removeMember(m)">
-                      <i class="pi pi-times-circle text-base" />
-                    </button>
+                    <div class="inline-flex items-center gap-3">
+                      <button type="button" class="text-gray-400 hover:text-[#1976d2] relative"
+                        :title="`Notes for ${m.name}`" @click="openNotes(m)">
+                        <i class="pi pi-comment text-base" />
+                        <span v-if="noteCounts[m.id]" class="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[#1976d2] text-white text-[9px] font-bold flex items-center justify-center">{{ noteCounts[m.id] }}</span>
+                      </button>
+                      <button type="button" class="text-red-500 hover:text-red-700"
+                        :title="`Remove ${m.name} from ${group.name}`" @click="removeMember(m)">
+                        <i class="pi pi-times-circle text-base" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
                 <tr v-if="!displayMembers.length">
@@ -1032,6 +1046,41 @@
         <Button label="Save" :disabled="!groupDraft.name?.trim() || savingGroup"
           style="background:#1976d2;border-color:#1976d2" @click="saveGroup" />
       </template>
+    </Dialog>
+
+    <!-- Person notes — attached to person + this group + term; also shown on the profile -->
+    <Dialog v-model:visible="notesOpen" modal :style="{ width: '95vw', maxWidth: '520px' }"
+      :header="notesPerson ? `Notes — ${notesPerson.name}` : 'Notes'">
+      <div class="space-y-3">
+        <p class="text-xs text-gray-500">
+          Saved on {{ notesPerson?.name }} for <b>{{ group?.name }}</b><span v-if="groupTerm"> · {{ groupTerm.name }}</span>.
+          They also appear in the person's profile Notes.
+        </p>
+        <div class="flex flex-col gap-2">
+          <Textarea v-model="newNote" rows="3" autoResize class="w-full" placeholder="Write a note…"
+            @keydown.meta.enter="addNote" @keydown.ctrl.enter="addNote" />
+          <div class="flex justify-end">
+            <Button label="Add note" icon="pi pi-plus" :disabled="!newNote.trim() || savingNote"
+              style="background:#1976d2;border-color:#1976d2" @click="addNote" />
+          </div>
+        </div>
+        <div v-if="loadingNotes" class="text-sm text-gray-400 py-4 text-center">Loading…</div>
+        <div v-else-if="!personNotes.length" class="text-sm text-gray-400 py-4 text-center">No notes yet.</div>
+        <div v-else class="space-y-2 max-h-[45vh] overflow-y-auto">
+          <div v-for="n in personNotes" :key="n.id" class="border border-gray-200 rounded-lg p-3">
+            <div class="flex items-start justify-between gap-2">
+              <p class="text-sm text-gray-800 whitespace-pre-wrap flex-1">{{ n.body }}</p>
+              <button type="button" class="text-gray-300 hover:text-red-500 shrink-0" title="Delete note" @click="deleteNote(n.id)">
+                <i class="pi pi-trash text-xs" />
+              </button>
+            </div>
+            <div class="mt-1.5 text-[11px] text-gray-400 flex items-center gap-2 flex-wrap">
+              <span>{{ fmtNoteDate(n.created_at) }}</span>
+              <span v-if="n.author_name">· {{ n.author_name }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </Dialog>
 
     <!-- Fees editor — define the ways a member can pay to join (migration 204) -->
@@ -1756,6 +1805,77 @@ const headCoach = computed(() => {
   return coaches.value[0]?.name ?? ''
 })
 
+// ── Person notes (Details tab) — notes attached to a person + this group + term.
+// Stored as `person_notes` rows (migration 162/180) with a `links` array carrying
+// the group + term, so the same note surfaces in the person's profile Notes feed.
+const noteUser = useSupabaseUser()
+const notesOpen = ref(false)
+const notesPerson = ref<{ id: string; name: string } | null>(null)
+const personNotes = ref<any[]>([])
+const newNote = ref('')
+const savingNote = ref(false)
+const loadingNotes = ref(false)
+const noteCounts = ref<Record<string, number>>({})
+
+const noteLinks = computed(() => {
+  const links: any[] = []
+  if (group.value) links.push({ type: 'group', id: group.value.id, label: group.value.name })
+  const t = groupTerm.value
+  if (t) links.push({ type: 'term', id: t.id, label: t.name })
+  return links
+})
+const noteInThisGroup = (n: any) => Array.isArray(n.links) && n.links.some((l: any) => l.type === 'group' && l.id === group.value?.id)
+
+async function loadNoteCounts() {
+  const ids = [...coaches.value, ...members.value].map(p => p.id)
+  if (!group.value || !ids.length) { noteCounts.value = {}; return }
+  const { data } = await (db.from as any)('person_notes').select('person_id, links').in('person_id', ids)
+  const counts: Record<string, number> = {}
+  for (const n of (data ?? [])) if (noteInThisGroup(n)) counts[n.person_id] = (counts[n.person_id] || 0) + 1
+  noteCounts.value = counts
+}
+
+async function openNotes(p: { id: string; name: string }) {
+  notesPerson.value = { id: p.id, name: p.name }
+  newNote.value = ''
+  personNotes.value = []
+  notesOpen.value = true
+  loadingNotes.value = true
+  const { data } = await (db.from as any)('person_notes')
+    .select('*').eq('person_id', p.id).order('created_at', { ascending: false })
+  personNotes.value = (data ?? []).filter(noteInThisGroup)
+  loadingNotes.value = false
+}
+
+async function addNote() {
+  const body = newNote.value.trim()
+  if (!body || !notesPerson.value) return
+  savingNote.value = true
+  const { data, error } = await (db.from as any)('person_notes').insert({
+    org_id: orgId.value, person_id: notesPerson.value.id, body, links: noteLinks.value,
+    author_id: noteUser.value?.id ?? null,
+    author_name: (noteUser.value?.user_metadata as any)?.full_name || noteUser.value?.email || null,
+  }).select('*').single()
+  savingNote.value = false
+  if (!error && data) {
+    personNotes.value.unshift(data)
+    newNote.value = ''
+    noteCounts.value = { ...noteCounts.value, [notesPerson.value.id]: (noteCounts.value[notesPerson.value.id] || 0) + 1 }
+  }
+}
+
+async function deleteNote(id: string) {
+  await (db.from as any)('person_notes').delete().eq('id', id)
+  personNotes.value = personNotes.value.filter(n => n.id !== id)
+  const pid = notesPerson.value?.id
+  if (pid) noteCounts.value = { ...noteCounts.value, [pid]: Math.max(0, (noteCounts.value[pid] || 1) - 1) }
+}
+
+function fmtNoteDate(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) +
+    ' · ' + new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+}
+
 async function load() {
   if (!orgId.value) return
   const id = route.params.id as string
@@ -1835,6 +1955,7 @@ async function load() {
 
   // Attendance needs both the event list (loadEvents) and the resolved roster.
   await loadAttendance()
+  await loadNoteCounts()
 
   loading.value = false
 }
