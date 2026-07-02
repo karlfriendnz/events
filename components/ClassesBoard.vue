@@ -28,6 +28,7 @@ const gc = useGroupCodes()
 const scoped = useScopedRoles()
 const gf = useGroupFees()
 const tm = useTermsMemberships()
+const wl = useWaitlists()
 
 const showCol = (k: ViewColumnKey) => props.columns.includes(k)
 
@@ -126,14 +127,15 @@ async function load() {
   if (!orgId.value) return
   loading.value = true
   await scoped.loadRoleDefs()
-  const [loadedCodes, loadedTerms, { data: gs }, { data: mems }, { data: discs }, { data: feeOpts }, { data: evs }] = await Promise.all([
+  const [loadedCodes, loadedTerms, { data: gs }, { data: mems }, { data: discs }, { data: feeOpts }, { data: evs }, wlCounts] = await Promise.all([
     gc.loadCodes(),
     tm.loadTerms(),
-    (db.from as any)('member_groups').select('id, name, code_id, term_id, capacity, color, gender_restriction').eq('org_id', orgId.value),
+    (db.from as any)('member_groups').select('id, name, code_id, term_id, capacity, color, gender_restriction, waitlist_id').eq('org_id', orgId.value),
     (db.from as any)('member_group_memberships').select('group_id, role, roles, person:persons!inner(first_name, last_name)'),
     (db.from as any)('member_group_disciplines').select('group_id, discipline:disciplines(sport, name)'),
     (db.from as any)('group_fee_options').select('id, group_id, name, fee_type, period_unit, period_count, instalment_count, session_count, prorata, items:group_fee_option_items(amount)').eq('org_id', orgId.value),
     (db.from as any)('events').select('member_group_id').eq('org_id', orgId.value).not('member_group_id', 'is', null),
+    wl.entryCounts(),
   ])
   codes.value = loadedCodes
   terms.value = (loadedTerms ?? []).map((t: any) => ({ id: t.id, name: t.name, start_date: t.start_date ?? null, end_date: t.end_date ?? null }))
@@ -160,7 +162,7 @@ async function load() {
     return {
       id: g.id, name: g.name, code_id: g.code_id ?? null, term_id: g.term_id ?? null, capacity: g.capacity ?? null, color: g.color ?? null,
       headName: head ? `${head.first_name ?? ''} ${head.last_name ?? ''}`.trim() || null : null,
-      gymnasts, waitlist: null, sport: sportByGroup[g.id] || null,
+      gymnasts, waitlist: g.waitlist_id ? (wlCounts[g.waitlist_id] ?? 0) : null, sport: sportByGroup[g.id] || null,
       gender: g.gender_restriction ?? null,
       feeCount: opts.length,
       feeLabel: opts.length === 1 ? gf.priceLabel({ ...opts[0], items: opts[0].items ?? [] } as any) : null,

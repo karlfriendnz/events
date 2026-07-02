@@ -20,6 +20,15 @@ export interface GroupCode {
   created_at?: string
   member_type_key?: string | null
   lineage_id?: string | null
+  // Per-role minimum people per group in this code — { roleKey: minCount }.
+  // Resolved closest-wins up the code parent chain (migration 215).
+  role_minimums?: Record<string, number> | null
+  // Member POSITIONS available to groups in this code (Captain, Wing…) — a
+  // catalogue, resolved as the UNION up the code chain (migration 216).
+  member_positions?: string[] | null
+  // Per-position minimum people per group — { position: minCount }. Resolved
+  // closest-wins up the code parent chain (migration 217).
+  position_minimums?: Record<string, number> | null
 }
 
 // A code's stable identity across term rollovers (falls back to its own id).
@@ -29,11 +38,31 @@ export function useGroupCodes() {
   const db = useDb()
   const { orgId } = useOrg()
 
+  // Org-wide DEFAULT positions (Member, …) every group inherits (migration 217).
+  const defaultPositions = useState<string[]>('fm_default_positions', () => [])
+  const defaultPositionsLoaded = useState<boolean>('fm_default_positions_loaded', () => false)
+  async function loadDefaultPositions(force = false): Promise<string[]> {
+    if (defaultPositionsLoaded.value && !force) return defaultPositions.value
+    if (!orgId.value) return []
+    const { data } = await (db.from as any)('organisations')
+      .select('default_member_positions').eq('id', orgId.value).maybeSingle()
+    defaultPositions.value = Array.isArray(data?.default_member_positions) ? data.default_member_positions : []
+    defaultPositionsLoaded.value = true
+    return defaultPositions.value
+  }
+  async function saveDefaultPositions(list: string[]): Promise<void> {
+    if (!orgId.value) return
+    const clean = list.map(p => p.trim()).filter(Boolean)
+    await (db.from as any)('organisations').update({ default_member_positions: clean }).eq('id', orgId.value)
+    defaultPositions.value = clean
+    defaultPositionsLoaded.value = true
+  }
+
   // All codes for the org, in sort order (then name) — shape callers into a tree.
   async function loadCodes(): Promise<GroupCode[]> {
     if (!orgId.value) return []
     const { data } = await (db.from as any)('group_codes')
-      .select('id, org_id, name, color, parent_id, term_id, sort_order, created_at, member_type_key, lineage_id')
+      .select('id, org_id, name, color, parent_id, term_id, sort_order, created_at, member_type_key, lineage_id, role_minimums, member_positions, position_minimums')
       .eq('org_id', orgId.value)
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('name')
@@ -53,7 +82,7 @@ export function useGroupCodes() {
     return data as GroupCode
   }
 
-  async function updateCode(id: string, patch: Partial<Pick<GroupCode, 'name' | 'color' | 'parent_id' | 'term_id' | 'sort_order' | 'member_type_key'>>): Promise<void> {
+  async function updateCode(id: string, patch: Partial<Pick<GroupCode, 'name' | 'color' | 'parent_id' | 'term_id' | 'sort_order' | 'member_type_key' | 'role_minimums' | 'member_positions' | 'position_minimums'>>): Promise<void> {
     await (db.from as any)('group_codes').update(patch).eq('id', id)
   }
 
@@ -110,6 +139,85 @@ export function useGroupCodes() {
     return null
   }
 
+  // The minimum #-of-people-per-role a group should have, resolved CLOSEST-WINS
+  // up the code parent chain: start at the group's code and walk to the root,
+  // keeping the first value seen for each role key. So a child code's "Coach: 1"
+  // overrides a parent code's "Coach: 2" (migration 215).
+  function effectiveRoleMins(
+    group: { code_id?: string | null } | null | undefined,
+    codesById: Record<string, GroupCode>,
+  ): Record<string, number> {
+    const out: Record<string, number> = {}
+    let codeId = group?.code_id ?? null
+    let guard = 0
+    while (codeId && guard++ < 20) {
+      const code = codesById[codeId]
+      if (!code) break
+      const mins = code.role_minimums || {}
+      for (const [k, v] of Object.entries(mins)) {
+        if (!(k in out) && typeof v === 'number' && v > 0) out[k] = v
+      }
+      codeId = code.parent_id
+    }
+    return out
+  }
+
+  // The member positions available to a group (Captain, Wing…): the UNION of its
+  // code's catalogue, every ancestor code's, and the org-wide DEFAULT positions —
+  // deduped case-insensitively, code positions first then defaults (migrations
+  // 216 + 217). Reads the shared `defaultPositions` state (loadDefaultPositions()).
+  function effectivePositions(
+    group: { code_id?: string | null } | null | undefined,
+    codesById: Record<string, GroupCode>,
+  ): string[] {
+    const out: string[] = []
+    const seen = new Set<string>()
+    const push = (p: string) => { const k = p.trim().toLowerCase(); if (p.trim() && !seen.has(k)) { seen.add(k); out.push(p.trim()) } }
+    let codeId = group?.code_id ?? null
+    let guard = 0
+    while (codeId && guard++ < 20) {
+      const code = codesById[codeId]
+      if (!code) break
+      for (const p of (code.member_positions || [])) push(p)
+      codeId = code.parent_id
+    }
+    for (const p of defaultPositions.value) push(p)
+    return out
+  }
+
+  // Per-position minimum people per group, resolved closest-wins up the code
+  // chain (mirrors effectiveRoleMins; migration 217).
+  function effectivePositionMins(
+    group: { code_id?: string | null } | null | undefined,
+    codesById: Record<string, GroupCode>,
+  ): Record<string, number> {
+    const out: Record<string, number> = {}
+    let codeId = group?.code_id ?? null
+    let guard = 0
+    while (codeId && guard++ < 20) {
+      const code = codesById[codeId]
+      if (!code) break
+      for (const [k, v] of Object.entries(code.position_minimums || {})) {
+        if (!(k in out) && typeof v === 'number' && v > 0) out[k] = v
+      }
+      codeId = code.parent_id
+    }
+    return out
+  }
+
+  // Add a position to a code's own catalogue (idempotent, case-insensitive).
+  // Returns the updated list, or null if it already existed / no code.
+  async function addPositionToCode(codeId: string, position: string, codesById: Record<string, GroupCode>): Promise<string[] | null> {
+    const name = position.trim()
+    const code = codesById[codeId]
+    if (!name || !code) return null
+    const existing = code.member_positions || []
+    if (existing.some(p => p.trim().toLowerCase() === name.toLowerCase())) return null
+    const next = [...existing, name]
+    await updateCode(codeId, { member_positions: next })
+    return next
+  }
+
   // Indented { label, value } options for EVERY code (any depth) — for pickers
   // where the user chooses any code, not just top-level ones. Uses nbsp for
   // indentation so the hierarchy shows in the dropdown (regular spaces collapse).
@@ -143,5 +251,5 @@ export function useGroupCodes() {
     return [...set]
   }
 
-  return { loadCodes, createCode, updateCode, deleteCode, effectiveTermId, effectiveMemberType, treeOptions, closeSelection }
+  return { loadCodes, createCode, updateCode, deleteCode, effectiveTermId, effectiveMemberType, effectiveRoleMins, effectivePositions, effectivePositionMins, addPositionToCode, defaultPositions, loadDefaultPositions, saveDefaultPositions, treeOptions, closeSelection }
 }

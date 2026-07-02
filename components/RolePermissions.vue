@@ -57,18 +57,21 @@ watch(() => props.roles.map(r => r._uid).join(','), () => {
 
     <!-- editor -->
     <div v-if="selected" class="space-y-4">
-      <div v-if="selectedGroup?.note" class="bg-blue-50 border border-blue-100 rounded-lg px-4 py-2.5 text-sm text-blue-800 flex items-center gap-1.5">
-        <i class="pi pi-lock text-xs" />{{ selectedGroup.note }}
-      </div>
-
-      <div class="card p-5">
-        <div class="flex flex-col gap-1.5 sm:max-w-sm">
-          <label class="text-sm font-medium">Role name</label>
-          <InputText v-model="selected.label" :disabled="!selected.editable" placeholder="e.g. Manager" />
-        </div>
-      </div>
-
       <div class="card p-0 overflow-hidden">
+        <!-- header: role name (+ read-only lock note) -->
+        <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3">
+          <InputText v-if="selected.editable" v-model="selected.label" placeholder="Role name" class="w-full sm:max-w-xs" />
+          <span v-else class="text-sm font-semibold text-gray-800 truncate">{{ selected.label }}</span>
+          <span v-if="!selected.editable && selectedGroup?.note" class="text-[11px] text-gray-400 inline-flex items-center gap-1 shrink-0">
+            <i class="pi pi-lock text-[10px]" />{{ selectedGroup.note }}
+          </span>
+          <button v-if="selected.editable" type="button" class="text-gray-300 hover:text-red-500 shrink-0" title="Delete role" @click="emit('remove', selected)">
+            <i class="pi pi-trash text-sm" />
+          </button>
+        </div>
+        <!-- optional per-role meta (e.g. min-per-group on the code page) -->
+        <slot name="role-meta" :role="selected" />
+        <!-- capability matrix -->
         <table class="w-full text-sm">
           <thead>
             <tr class="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
@@ -94,10 +97,6 @@ watch(() => props.roles.map(r => r._uid).join(','), () => {
 
       <!-- e.g. people assigned to this role -->
       <slot name="role-footer" :role="selected" />
-
-      <div v-if="selected.editable" class="flex">
-        <button class="text-sm text-red-600 hover:underline" @click="emit('remove', selected)">Delete role</button>
-      </div>
     </div>
     <div v-else class="card p-8 text-center text-gray-400 text-sm">Select a role.</div>
   </div>

@@ -15,6 +15,7 @@ const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
 const gc = useGroupCodes()
+const cr = useCodeRoles()
 const tm = useTermsMemberships()
 
 const PALETTE = ['#1E2157', '#2563EB', '#0f766e', '#059669', '#9333ea', '#EC4899', '#c2410c', '#be123c', '#8B5CF6', '#64748b']
@@ -22,7 +23,22 @@ const PALETTE = ['#1E2157', '#2563EB', '#0f766e', '#059669', '#9333ea', '#EC4899
 const codes = ref<GroupCode[]>([])
 const groups = ref<Array<{ id: string; code_id: string | null }>>([])
 const terms = ref<Array<{ id: string; name: string }>>([])
+const roleDefs = ref<any[]>([])
+const codeStaff = ref<any[]>([])
 const loading = ref(true)
+const codesById = computed(() => Object.fromEntries(codes.value.map(c => [c.id, c])) as Record<string, GroupCode>)
+
+// Per-code staff coverage: for each effective staff role, how many people are
+// assigned at code level (own + inherited) vs the required minimum (role_minimums,
+// resolved up the code chain). Only roles with someone assigned or a requirement.
+function roleCoverage(c: GroupCode) {
+  const roles = cr.rolesForCode(c, codesById.value, roleDefs.value)
+  const mins = gc.effectiveRoleMins({ code_id: c.id }, codesById.value)
+  const counts: Record<string, number> = {}
+  for (const s of cr.staffForCode(c, codesById.value, codeStaff.value, codes.value)) counts[s.role_key] = (counts[s.role_key] ?? 0) + 1
+  return roles.map((r: any) => ({ key: r.key, label: r.label, have: counts[r.key] ?? 0, need: mins[r.key] ?? 0 }))
+    .filter((x: any) => x.have > 0 || x.need > 0)
+}
 
 const form = reactive<{ name: string; color: string; parent_id: string | null; term_id: string | null }>({
   name: '', color: PALETTE[0], parent_id: null, term_id: null,
@@ -127,14 +143,18 @@ const parentOptions = computed(() => {
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [loaded, { data: gs }, loadedTerms] = await Promise.all([
+  const [loaded, { data: gs }, loadedTerms, defs, staff] = await Promise.all([
     gc.loadCodes(),
     (db.from as any)('member_groups').select('id, code_id').eq('org_id', orgId.value),
     tm.loadTerms(),
+    cr.ensureDefaults(),
+    cr.loadStaff(),
   ])
   codes.value = loaded
   groups.value = gs ?? []
   terms.value = loadedTerms ?? []
+  roleDefs.value = defs ?? []
+  codeStaff.value = staff ?? []
   loading.value = false
 }
 
@@ -175,7 +195,12 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Code hierarchy</h1>
         <p class="text-sm text-gray-500">Drag a code onto another to nest it; drag to a row's top/bottom edge to reorder. Codes hold your groups and pass down their term.</p>
       </div>
-      <NuxtLink to="/groups" class="text-sm text-primary hover:underline whitespace-nowrap shrink-0 mt-1">← Groups</NuxtLink>
+      <div class="flex items-center gap-3 shrink-0 mt-1">
+        <NuxtLink to="/groups/codes/default-roles" class="text-sm font-semibold text-primary hover:underline whitespace-nowrap inline-flex items-center gap-1">
+          <i class="pi pi-users text-xs" /> Default roles
+        </NuxtLink>
+        <NuxtLink to="/groups" class="text-sm text-primary hover:underline whitespace-nowrap">← Groups</NuxtLink>
+      </div>
     </div>
 
     <!-- Add / edit -->
@@ -237,6 +262,16 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
                 <span v-else class="text-xs text-gray-300">no term</span>
               </td>
               <td class="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{{ groupCount(c.id) }} {{ groupCount(c.id) === 1 ? 'group' : 'groups' }}</td>
+              <td class="px-3 py-2.5">
+                <div v-if="roleCoverage(c).length" class="flex flex-wrap gap-1" v-tooltip.top="'Code staff assigned / minimum required per role'">
+                  <span v-for="rc in roleCoverage(c)" :key="rc.key"
+                    class="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                    :class="rc.need && rc.have < rc.need ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'">
+                    {{ rc.label }} {{ rc.have }}<template v-if="rc.need">/{{ rc.need }}</template>
+                  </span>
+                </div>
+                <span v-else class="text-xs text-gray-300">—</span>
+              </td>
               <td class="px-5 py-2.5 text-right whitespace-nowrap">
                 <NuxtLink :to="`/groups/codes/${c.id}`" class="text-xs text-primary hover:underline mr-3">Settings</NuxtLink>
                 <button class="text-xs text-red-600 hover:underline" @click="remove(c)">Delete</button>

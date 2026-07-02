@@ -1,0 +1,3 @@
+-- How an interaction happened, on a note: in person, phone, email, sms, mail…
+-- (null = unspecified / general note). Captured wherever a note is written.
+alter table person_notes add column if not exists channel text;

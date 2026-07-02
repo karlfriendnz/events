@@ -179,7 +179,53 @@ export function useTermRollover() {
       idToNew.set(p.source.id, newId)
       created++
     }
+    await rollOverWaitlists(targetTerm, idToNew)
     return { created }
+  }
+
+  // Roll the source groups' waitlists into the target term: for each waitlist
+  // connected to any rolled group, clone it into the target term under the same
+  // lineage (idempotent), reconnect the NEW groups, and carry the people waiting.
+  async function rollOverWaitlists(targetTerm: OrgTerm, idToNew: Map<string, string>) {
+    const srcGroupIds = [...idToNew.keys()]
+    if (!srcGroupIds.length) return
+    const { data: linked } = await (db.from as any)('member_groups')
+      .select('id, waitlist_id').in('id', srcGroupIds).not('waitlist_id', 'is', null)
+    if (!linked?.length) return
+    // source waitlist id → the NEW (cloned) group ids that should connect to it
+    const newGroupsByWl: Record<string, string[]> = {}
+    for (const g of linked) (newGroupsByWl[g.waitlist_id] ??= []).push(idToNew.get(g.id)!)
+
+    const srcWlIds = Object.keys(newGroupsByWl)
+    const [{ data: srcWls }, { data: existing }] = await Promise.all([
+      (db.from as any)('waitlists').select('*').in('id', srcWlIds),
+      (db.from as any)('waitlists').select('id, lineage_id').eq('org_id', orgId.value).eq('term_id', targetTerm.id),
+    ])
+    const existingByLineage: Record<string, string> = {}
+    for (const w of (existing ?? [])) if (w.lineage_id) existingByLineage[w.lineage_id] = w.id
+
+    for (const src of (srcWls ?? [])) {
+      const lineage = src.lineage_id || src.id
+      let targetId = existingByLineage[lineage]
+      if (!targetId) {
+        const { data: created } = await (db.from as any)('waitlists').insert({
+          org_id: orgId.value, name: src.name, order_mode: src.order_mode ?? 'custom',
+          term_id: targetTerm.id, lineage_id: lineage, rolled_from_id: src.id,
+        }).select('id').single()
+        targetId = created?.id
+        if (!targetId) continue
+      }
+      // connect the new groups to the target waitlist
+      await (db.from as any)('member_groups').update({ waitlist_id: targetId }).in('id', newGroupsByWl[src.id])
+      // carry the people still waiting (idempotent on waitlist_id+person_id)
+      const { data: entries } = await (db.from as any)('waitlist_entries')
+        .select('person_id, status, priority, sort_order').eq('waitlist_id', src.id)
+      if (entries?.length) {
+        await (db.from as any)('waitlist_entries').upsert(
+          entries.map((e: any) => ({ org_id: orgId.value, waitlist_id: targetId, person_id: e.person_id, status: e.status, priority: e.priority, sort_order: e.sort_order })),
+          { onConflict: 'waitlist_id,person_id' })
+      }
+    }
   }
 
   async function cloneOne(

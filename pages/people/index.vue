@@ -1,5 +1,16 @@
 <template>
   <div class="p-3 sm:p-6">
+    <div class="flex items-center justify-between gap-3 mb-4">
+      <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">People and organisations</h1>
+    </div>
+    <div class="inline-flex rounded-lg border border-gray-200 p-0.5 mb-4">
+      <button v-for="v in (['people','organisations'] as const)" :key="v" type="button"
+        class="px-4 py-1.5 text-sm font-medium rounded-md transition-colors"
+        :class="view === v ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:text-gray-800'"
+        @click="view = v">{{ v === 'people' ? 'People' : 'Organisations' }}</button>
+    </div>
+
+    <template v-if="view === 'people'">
     <div class="flex items-center justify-between mb-6 gap-4 flex-wrap">
       <IconField iconPosition="left">
         <InputIcon class="pi pi-search" />
@@ -202,6 +213,62 @@
           style="background:#1E2157;border-color:#1E2157" @click="handleCreate" />
       </template>
     </Dialog>
+    </template>
+
+    <!-- ORGANISATIONS view (entity records) -->
+    <template v-else>
+      <div class="flex items-center justify-between gap-3 mb-4">
+        <p class="text-sm text-gray-500">Teams, businesses, schools and families your club tracks.</p>
+        <Button label="New" icon="pi pi-plus" size="small" :disabled="!entityTypes.length"
+          style="background:#1E2157;border-color:#1E2157" @click="openNewEntity" />
+      </div>
+
+      <div v-if="entityTypes.length" class="flex gap-1 overflow-x-auto no-scrollbar border-b border-gray-200 mb-4">
+        <button type="button" class="px-3 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors"
+          :class="!activeEntityType ? 'border-[#1E2157] text-[#1E2157]' : 'border-transparent text-gray-500 hover:text-gray-700'"
+          @click="activeEntityType = null">All</button>
+        <button v-for="t in entityTypes" :key="t.key" type="button"
+          class="px-3 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors"
+          :class="activeEntityType === t.key ? 'border-[#1E2157] text-[#1E2157]' : 'border-transparent text-gray-500 hover:text-gray-700'"
+          @click="activeEntityType = t.key">{{ t.label }}</button>
+      </div>
+
+      <div v-if="!entityTypes.length && !entLoading" class="card p-8 text-center text-sm text-gray-500">
+        No entity types defined yet. <NuxtLink to="/settings/fields" class="text-[#1E2157] hover:underline">Create one in Settings → Types &amp; fields (Entities) →</NuxtLink>
+      </div>
+      <div v-else-if="entLoading" class="text-sm text-gray-400">Loading…</div>
+      <div v-else-if="!entityRows.length" class="card p-8 text-center text-sm text-gray-400">No organisations yet. Create one to get started.</div>
+
+      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <NuxtLink v-for="r in entityRows" :key="r.id" :to="`/organisations/${r.id}`" class="card p-4 hover:shadow-md transition-shadow block">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="font-semibold text-gray-900 truncate">{{ r.name }}</p>
+              <p class="text-[11px] uppercase tracking-wide text-violet-500 mt-0.5">{{ entityTypeLabel(r.type_key) }}</p>
+            </div>
+            <i class="pi pi-building text-gray-300" />
+          </div>
+          <p class="text-xs text-gray-500 mt-3"><i class="pi pi-users text-[10px] mr-1" />{{ entityCounts[r.id] || 0 }} attached</p>
+        </NuxtLink>
+      </div>
+
+      <Dialog v-model:visible="showNewEntity" modal header="New organisation" :style="{ width: '95vw', maxWidth: '420px' }">
+        <div class="space-y-3">
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium">Type</label>
+            <Select v-model="newEntityType" :options="entityTypes" optionLabel="label" optionValue="key" class="w-full" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium">Name</label>
+            <InputText v-model="newEntityName" placeholder="e.g. U12 Tigers" class="w-full" autofocus @keyup.enter="createEntityRow" />
+          </div>
+        </div>
+        <template #footer>
+          <Button label="Cancel" text size="small" @click="showNewEntity = false" />
+          <Button label="Create" size="small" :disabled="!newEntityName.trim() || !newEntityType" @click="createEntityRow" style="background:#1E2157;border-color:#1E2157" />
+        </template>
+      </Dialog>
+    </template>
 
     <Toast />
   </div>
@@ -213,13 +280,51 @@ import { useToast } from 'primevue/usetoast'
 const { orgId } = useOrg()
 const db = useDb()
 const toast = useToast()
-useBreadcrumbs([{ label: 'People' }])
-const { resolvePersonTypes, resolveFields, fieldAppliesTo } = useOrgFieldPolicy()
+useBreadcrumbs([{ label: 'People and organisations' }])
+const { resolvePersonTypes, resolveFields, fieldAppliesTo, loadOrgTypes } = useOrgFieldPolicy()
+const { loadEntities, memberCounts, createEntity } = useEntities()
+const route = useRoute()
 
 const people = ref<any[]>([])
 const personTypes = ref<any[]>([])
 const customFields = ref<any[]>([])
 const activeType = ref('all')
+
+// ── People | Organisations top-level view (entities live as a tab here) ──
+const view = ref<'people' | 'organisations'>('people')
+const entityTypes = ref<any[]>([])
+const entityRows = ref<any[]>([])
+const entityCounts = ref<Record<string, number>>({})
+const activeEntityType = ref<string | null>(null)
+const entLoading = ref(false)
+const showNewEntity = ref(false)
+const newEntityName = ref('')
+const newEntityType = ref<string | null>(null)
+const entityTypeLabel = (key: string) => entityTypes.value.find(t => t.key === key)?.label || key
+async function loadEntitiesView() {
+  entLoading.value = true
+  const all = await loadOrgTypes(orgId.value as string)
+  entityTypes.value = (all ?? []).filter((t: any) => t.kind === 'entity')
+  const [rows, counts] = await Promise.all([loadEntities(activeEntityType.value || undefined), memberCounts()])
+  entityRows.value = rows; entityCounts.value = counts
+  entLoading.value = false
+}
+function openNewEntity() {
+  newEntityName.value = ''
+  newEntityType.value = activeEntityType.value || entityTypes.value[0]?.key || null
+  showNewEntity.value = true
+}
+async function createEntityRow() {
+  if (!newEntityName.value.trim() || !newEntityType.value) return
+  try {
+    const id = await createEntity(newEntityType.value, newEntityName.value.trim())
+    showNewEntity.value = false
+    navigateTo(`/organisations/${id}`)
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not create', detail: e?.message, life: 4000 })
+  }
+}
+watch([view, activeEntityType], () => { if (view.value === 'organisations') loadEntitiesView() })
 
 // ── Per-tab column configuration ──
 // Toggleable core columns (Name is always shown). Custom fields are added per
@@ -487,6 +592,10 @@ function openMenu(event: Event, row: any) {
 }
 
 onMounted(() => {
+  if (route.query.view === 'organisations') {
+    view.value = 'organisations'
+    if (typeof route.query.type === 'string') activeEntityType.value = route.query.type
+  }
   load(); loadTypes(); loadColumns()
   document.addEventListener('click', onColDocClick)
 })

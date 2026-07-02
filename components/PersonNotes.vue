@@ -58,6 +58,9 @@ const aud = useNoteAudiences()
 const noteAudiences = ref<string[]>(['staff'])
 const noteImportant = ref(false)
 const noteDue = ref<Date | null>(null)
+// How the interaction happened (in person / phone / email…), migration 224.
+const { NOTE_CHANNELS, channelLabel, channelIcon } = useNoteChannels()
+const noteChannel = ref<string | null>(null)
 
 // The subject's parents/contacts — lazy-loaded so a "specific parent" can be
 // picked in the same audience multi-select (value `person:<id>`).
@@ -123,7 +126,7 @@ async function add() {
   if (!body) return
   saving.value = true
   const { data, error } = await (db.from as any)('person_notes').insert({
-    org_id: orgId.value, person_id: props.personId, body, links: props.links ?? [],
+    org_id: orgId.value, person_id: props.personId, body, links: props.links ?? [], channel: noteChannel.value,
     visible_to: buildVisibleTo(), visibility: noteAudiences.value[0] || 'staff', is_important: noteImportant.value,
     due_date: aud.toISODate(noteDue.value),
     author_id: user.value?.id ?? null,
@@ -136,6 +139,7 @@ async function add() {
     noteAudiences.value = ['staff']
     noteImportant.value = false
     noteDue.value = null
+    noteChannel.value = null
     latestNote.value = body
     if (matchesScope(data)) setCount(count.value + 1)
   }
@@ -236,6 +240,10 @@ onBeforeUnmount(() => { if (open.value) activePanel.value = null })
                   <i class="pi text-[11px]" :class="noteImportant ? 'pi-flag-fill' : 'pi-flag'" /> Important
                 </button>
                 <DatePicker v-model="noteDue" dateFormat="d M yy" showButtonBar placeholder="Due date" size="small" class="w-36" showIcon iconDisplay="input" />
+                <Select v-model="noteChannel" :options="NOTE_CHANNELS" optionLabel="label" optionValue="value"
+                  placeholder="How" showClear size="small" class="w-36">
+                  <template #option="{ option }"><i :class="['pi', option.icon, 'text-xs mr-2 text-gray-400']" />{{ option.label }}</template>
+                </Select>
               </div>
               <Button label="Add note" icon="pi pi-plus" size="small" :disabled="!newNote.trim() || saving"
                 style="background:#1976d2;border-color:#1976d2" @click="add" />
@@ -297,6 +305,9 @@ onBeforeUnmount(() => { if (open.value) activePanel.value = null })
                   </span>
                 </div>
                 <div class="mt-1.5 text-[11px] text-gray-400 flex items-center gap-2 flex-wrap">
+                  <span v-if="n.channel" class="rounded px-1.5 py-0.5 bg-gray-100 text-gray-600 inline-flex items-center gap-1">
+                    <i :class="['pi', channelIcon(n.channel), 'text-[9px]']" />{{ channelLabel(n.channel) }}
+                  </span>
                   <span>{{ fmtDate(n.created_at) }}</span>
                   <span v-if="n.author_name">· {{ n.author_name }}</span>
                 </div>

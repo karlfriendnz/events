@@ -1,297 +1,329 @@
 <!--
-  Field library + rules + person types. Fields are first-class, assigned to a
-  "person type" (who they capture data about — Member / Parent / Coach / …), and
-  carry conditional rules. Person types are configurable with min/max counts and
-  inherit down the org hierarchy. So a child sub-form can ask for an address
-  while the parent's doesn't.
+  Settings · Types & fields. The live "two screens, one engine" editor (promoted
+  from the /proto prototype). ONE source of truth = the club's OWN person/entity
+  types (no NSO type-inheritance confusion; field-level NSO inheritance still
+  applies via resolveFields). A top toggle switches People ↔ Entities.
+
+  Each type: Layout · Fields · (Permissions for people / Members for entities) ·
+  Reports — the shared engine. Permissions are a facet of a PERSON type
+  (person_target_types.permissions + is_access); member slots define an ENTITY's
+  roster (person_target_types.member_slots).
 -->
 <script setup lang="ts">
 const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
-const { resolveFields, resolvePersonTypes, fieldAppliesTo } = useOrgFieldPolicy()
-const { ancestors } = useOrgHierarchy()
+const { loadOrgTypes, resolveFields, fieldAppliesTo } = useOrgFieldPolicy()
+const { CORE_SECTIONS, coreStatus, loadConfig } = useCoreFields()
 
-const TYPE_LABEL: Record<string, string> = {
-  text: 'Short Text', textarea: 'Long Text', email: 'Email', phone: 'Phone',
-  number: 'Number', date: 'Date', select: 'Dropdown', checkbox: 'Checkbox',
-}
-const fieldTypes = Object.entries(TYPE_LABEL).map(([value, label]) => ({ value, label }))
-const SUBJECTS = [
-  { label: 'Discipline', value: 'discipline' }, { label: 'Registrant age', value: 'age' },
-  { label: 'Gender', value: 'gender' }, { label: 'Another field', value: 'field' },
+const STANDARD = [
+  { key: 'member', label: 'Member', is_access: false },
+  { key: 'parent', label: 'Parent', is_access: false },
+  { key: 'emergency_contact', label: 'Emergency contact', is_access: false },
+  { key: 'committee', label: 'Committee', is_access: true },
+  { key: 'manager', label: 'Manager', is_access: true },
+  { key: 'admin', label: 'Admin', is_access: true },
 ]
-const OPS: Record<string, { label: string; value: string }[]> = {
-  discipline: [{ label: 'is', value: 'is' }, { label: 'is not', value: 'is_not' }],
-  age: [{ label: 'is under', value: 'lt' }, { label: 'is at most', value: 'lte' }, { label: 'is over', value: 'gt' }, { label: 'is at least', value: 'gte' }],
-  gender: [{ label: 'is', value: 'is' }, { label: 'is not', value: 'is_not' }],
-  field: [{ label: 'is filled in', value: 'is_set' }, { label: 'is', value: 'is' }, { label: 'is not', value: 'is_not' }],
-}
-const GENDERS = ['MALE', 'FEMALE', 'NON_BINARY']
 
-const view = ref<'types' | 'matrix'>('types')
-const creating = ref(false)
-const own = ref<any[]>([])
-const inherited = ref<any[]>([])
-const disciplines = ref<{ id: string; label: string }[]>([])
-const personTypes = ref<any[]>([])
+const kind = ref<'person' | 'entity'>('person')
+const allTypes = ref<any[]>([])
+const fields = ref<any[]>([])
+const coreConfig = ref<any>({ required: {}, enabled: {} })
+const coreSections = computed(() => CORE_SECTIONS.map(s => ({
+  ...s, fields: s.fields.map(f => ({ ...f, status: coreStatus(coreConfig.value, f) })).filter(f => f.status !== 'off'),
+})))
+
+const personTypes = computed(() => allTypes.value.filter(t => (t.kind ?? 'person') === 'person'))
+const entityTypes = computed(() => allTypes.value.filter(t => t.kind === 'entity'))
+const types = computed(() => kind.value === 'person' ? personTypes.value : entityTypes.value)
+
+// editingKey null = the TYPES TABLE; set = the editor for that type.
+const editingKey = ref<string | null>(null)
+const selected = computed(() => types.value.find(t => t.key === editingKey.value) || null)
+const tab = ref<'layout' | 'fields' | 'access'>('layout')
+function openEditor(key: string, t: 'layout' | 'fields' | 'access') { editingKey.value = key; tab.value = t }
+function backToTable() { editingKey.value = null }
+const accessTabLabel = computed(() => kind.value === 'person' ? 'permissions' : 'members')
+const editingField = ref<any>(null)
 const loading = ref(true)
-const editing = ref<any | null>(null)
-// When set, the full per-person-type form builder takes over the page.
-const builderTarget = ref<{ key: string; label: string; kind?: string } | null>(null)
-function openBuilder(t: any) { builderTarget.value = { key: t.key, label: t.label, kind: t.kind } }
-function closeBuilder() { builderTarget.value = null; load() }
+const saving = ref(false)
+const adding = ref(false)
+const newLabel = ref('')
 
-const ownTypes = computed(() => personTypes.value.filter(t => !t.inherited))
-const inheritedTypes = computed(() => personTypes.value.filter(t => t.inherited))
-const typeByKey = computed(() => Object.fromEntries(personTypes.value.map(t => [t.key, t])))
-const targetOptions = computed(() => personTypes.value.map(t => ({ key: t.key, label: t.label })))
-// Fields grouped by person type — inherited AND own fields together, so an
-// inherited field lands in the same section as its person type (e.g. an inherited
-// "National Cricket ID" sits under Member, not in a separate top-of-page block).
-const fieldsByType = computed(() => {
-  const groups = personTypes.value.map(t => ({
-    type: t,
-    // A shared field appears under EVERY type it targets.
-    inherited: inherited.value.filter(f => fieldAppliesTo(f, t.key)),
-    own: own.value.filter(f => fieldAppliesTo(f, t.key)),
-  }))
-  // Catch-all for fields that apply to no known person type.
-  const matchesAny = (f: any) => personTypes.value.some(t => fieldAppliesTo(f, t.key))
-  const orphInh = inherited.value.filter(f => !matchesAny(f))
-  const orphOwn = own.value.filter(f => !matchesAny(f))
-  if (orphInh.length || orphOwn.length) groups.push({ type: { key: '_', label: 'Unassigned', min_count: 0, max_count: null }, inherited: orphInh, own: orphOwn })
-  return groups
-})
+const applicableFields = computed(() =>
+  selected.value ? fields.value.filter(f => fieldAppliesTo(f, selected.value!.key)) : [])
+const fieldTargetOptions = computed(() =>
+  selected.value ? [{ key: selected.value.key, label: selected.value.label }] : [])
+const personTypeOptions = computed(() => personTypes.value.map(t => ({ label: t.label, value: t.key })))
 
-// Accordion open/closed state per person-type section (default: open).
-const openTypes = ref<Record<string, boolean>>({})
-function typeOpen(key: string) { return key in openTypes.value ? openTypes.value[key] : true }
-function toggleType(key: string) { openTypes.value = { ...openTypes.value, [key]: !typeOpen(key) } }
+function slugify(s: string) { return s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') }
 
 async function load() {
   loading.value = true
-  const [all, pts] = await Promise.all([resolveFields(orgId.value as string), resolvePersonTypes(orgId.value as string)])
-  // Effective targets — always ≥1 (falls back to the legacy single `target`), so
-  // the matrix checkboxes are authoritative.
-  const norm = (f: any) => ({ ...f, target: (f.target || 'member').toLowerCase(), targets: (Array.isArray(f.targets) && f.targets.length ? f.targets : [f.target || 'member']).map((t: string) => (t || '').toLowerCase()) })
-  own.value = all.filter((f: any) => !f.inherited).map(norm)
-  inherited.value = all.filter((f: any) => f.inherited).map(norm)
-  personTypes.value = pts
-  const anc = await ancestors(orgId.value as string)
-  const ids = [orgId.value, ...anc.map(a => a.id)]
-  const { data: discs } = await (db.from as any)('disciplines').select('id, name, sport').in('org_id', ids).order('name')
-  disciplines.value = (discs ?? []).map((x: any) => ({ id: x.id, label: x.sport ? `${x.name} (${x.sport})` : x.name }))
+  const id = orgId.value
+  if (!id) { loading.value = false; return }
+  const [all, flds, ce] = await Promise.all([loadOrgTypes(id), resolveFields(id), loadConfig()])
+  coreConfig.value = ce
+  allTypes.value = (all ?? []).map((t: any) => ({
+    ...t, permissions: t.permissions ?? {}, member_slots: t.member_slots ?? [],
+  }))
+  fields.value = flds
   loading.value = false
+}
+
+function switchKind(k: 'person' | 'entity') {
+  kind.value = k
+  editingKey.value = null
+}
+
+async function seedStandard() {
+  const existing = new Set(personTypes.value.map(t => t.key))
+  const rows = STANDARD.filter(s => !existing.has(s.key)).map((s, i) => ({
+    org_id: orgId.value, key: s.key, label: s.label, kind: 'person',
+    is_access: s.is_access, min_count: 0, max_count: null, sort_order: personTypes.value.length + i,
+  }))
+  if (rows.length) {
+    const { error } = await (db.from as any)('person_target_types').insert(rows)
+    if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
+  }
+  await load()
+  toast.add({ severity: 'success', summary: 'Standard types added', life: 2000 })
+}
+
+async function addType() {
+  const label = newLabel.value.trim()
+  if (!label || !orgId.value) return
+  const { error } = await (db.from as any)('person_target_types').insert({
+    org_id: orgId.value, key: slugify(label) || 'type_' + Date.now(), label,
+    kind: kind.value, is_access: false, min_count: 0, max_count: null, sort_order: types.value.length,
+  })
+  if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
+  newLabel.value = ''; adding.value = false
+  await load(); openEditor(slugify(label), 'layout')
+}
+async function removeType(t: any) {
+  if (!confirm(`Delete the "${t.label}" type?`)) return
+  await (db.from as any)('person_target_types').delete().eq('id', t.id)
+  editingKey.value = null; await load()
 }
 
 async function addField(p: any) {
   const { error } = await (db.from as any)('field_definitions').insert({
     org_id: orgId.value, label: p.label, field_type: p.type, is_required: p.required,
     options: p.options, help_text: p.placeholder || null,
-    targets: (p.targets?.length ? p.targets : [p.target || 'member']),
-    target: (p.targets?.length ? p.targets[0] : (p.target || 'member')),
-    rules: [], sort_order: own.value.length,
+    targets: (p.targets?.length ? p.targets : [selected.value?.key]),
+    target: (p.targets?.length ? p.targets[0] : selected.value?.key),
+    rules: [], sort_order: fields.value.length,
   })
   if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
-  toast.add({ severity: 'success', summary: `Field "${p.label}" created`, life: 2000 })
-  creating.value = false; await load()
+  toast.add({ severity: 'success', summary: `Field "${p.label}" added`, life: 2000 })
+  fields.value = await resolveFields(orgId.value!)
+}
+async function onFieldChanged() { fields.value = await resolveFields(orgId.value!); editingField.value = null }
+watch(editingKey, () => { editingField.value = null })
+
+async function savePermissions() {
+  const t = selected.value
+  if (!t) return
+  saving.value = true
+  await (db.from as any)('person_target_types').update({ permissions: t.permissions, is_access: !!t.is_access }).eq('id', t.id)
+  saving.value = false
+  toast.add({ severity: 'success', summary: 'Saved', life: 2000 })
 }
 
-// Matrix: all fields (own + inherited) as rows; all person types as columns.
-const allFields = computed(() => [...own.value, ...inherited.value])
-function hasType(f: any, key: string) { return (f.targets || []).includes(key) }
-async function toggleFieldType(f: any, key: string, on: boolean) {
-  if (f.inherited) return  // governing-body fields are locked
-  const set = new Set<string>(f.targets || [])
-  on ? set.add(key) : set.delete(key)
-  const targets = [...set]
-  f.targets = targets
-  await (db.from as any)('field_definitions').update({ targets, target: targets[0] ?? null }).eq('id', f.id)
+// Entity member slots
+function addSlot() {
+  selected.value!.member_slots.push({ person_type: personTypes.value[0]?.key ?? 'member', label: '', min: 1, max: null, role: '' })
+}
+function removeSlot(i: number) { selected.value!.member_slots.splice(i, 1) }
+async function saveMembers() {
+  const t = selected.value
+  if (!t) return
+  saving.value = true
+  await (db.from as any)('person_target_types').update({ member_slots: t.member_slots }).eq('id', t.id)
+  saving.value = false
+  toast.add({ severity: 'success', summary: 'Members saved', life: 2000 })
 }
 
-function startEdit(f: any) {
-  editing.value = { id: f.id, label: f.label, field_type: f.field_type, is_required: f.is_required, targets: (f.targets?.length ? [...f.targets] : [f.target || 'member']), optionsText: (f.options || []).join('\n'), rules: JSON.parse(JSON.stringify(f.rules || [])) }
-}
-function addRule() { editing.value.rules.push({ subject: 'discipline', op: 'is', value: null, value2: '' }) }
-function onSubject(r: any) { r.op = OPS[r.subject][0].value; r.value = r.subject === 'age' ? 16 : null; r.value2 = '' }
-const fieldOptions = computed(() => [...own.value, ...inherited.value].filter(f => !editing.value || f.id !== editing.value.id).map(f => ({ id: f.id, label: f.label })))
-
-async function saveEdit() {
-  const e = editing.value
-  if (!e.label.trim()) return
-  const { error } = await (db.from as any)('field_definitions').update({
-    label: e.label.trim(), field_type: e.field_type, is_required: e.is_required,
-    targets: (e.targets?.length ? e.targets : ['member']),
-    target: (e.targets?.length ? e.targets[0] : 'member'),
-    options: e.field_type === 'select' ? e.optionsText.split('\n').map((s: string) => s.trim()).filter(Boolean) : [],
-    rules: e.rules.filter((r: any) => r.value !== null && r.value !== '' && r.value !== undefined),
-  }).eq('id', e.id)
-  if (error) { toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 6000 }); return }
-  toast.add({ severity: 'success', summary: 'Field saved', life: 2000 })
-  editing.value = null; await load()
-}
-async function removeField(id: string) { await (db.from as any)('field_definitions').delete().eq('id', id); editing.value = null; await load() }
-
-// ── Person types ──
-function slugify(s: string) { return s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') }
-const newType = reactive({ label: '', kind: 'person' as 'person' | 'entity', min_count: 0, max_count: null as number | null })
-const KIND_OPTIONS = [{ label: 'Person', value: 'person' }, { label: 'Entity (team, club…)', value: 'entity' }]
-async function addPersonType() {
-  if (!newType.label.trim()) return
-  const { error } = await (db.from as any)('person_target_types').insert({
-    org_id: orgId.value, key: slugify(newType.label) || 'type_' + Date.now(), label: newType.label.trim(),
-    kind: newType.kind, min_count: newType.min_count ?? 0, max_count: newType.max_count, sort_order: ownTypes.value.length,
-  })
-  if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
-  newType.label = ''; newType.kind = 'person'; newType.min_count = 0; newType.max_count = null
-  await load()
-}
-async function savePersonType(t: any) {
-  await (db.from as any)('person_target_types').update({ label: t.label, min_count: t.min_count ?? 0, max_count: t.max_count }).eq('id', t.id)
-  toast.add({ severity: 'success', summary: 'Saved', life: 1500 })
-}
-async function removePersonType(id: string) { await (db.from as any)('person_target_types').delete().eq('id', id); await load() }
-
-watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
+watch(orgId, load, { immediate: true })
 </script>
 
 <template>
-  <div class="p-3 sm:p-6 min-h-full flex flex-col">
-    <div class="flex flex-col md:flex-row gap-4 md:gap-6 flex-1 min-h-0">
-      <!-- Hide the settings menu while the form designer is open, for full width -->
-      <SettingsNav v-if="!builderTarget" />
-      <div class="flex-1 min-w-0 settings-fill">
-        <PersonFormBuilder v-if="builderTarget" :target="builderTarget.key" :target-label="builderTarget.label" :entity="builderTarget.kind === 'entity'" :org-id="(orgId as string)" @back="closeBuilder" />
-        <div v-else class="space-y-4">
-    <!-- Header -->
-    <div class="flex items-start justify-between gap-3 flex-wrap">
-      <div>
-        <h1 class="text-xl font-semibold text-gray-900">Person types &amp; fields</h1>
-        <p class="text-sm text-gray-500">The kinds of people and entities you register. Configure each one’s form, or view all fields across types.</p>
-      </div>
-      <Button :label="view === 'matrix' ? 'Person types' : 'All fields'" :icon="view === 'matrix' ? 'pi pi-users' : 'pi pi-table'" severity="secondary" outlined size="small" @click="view = view === 'matrix' ? 'types' : 'matrix'" />
-    </div>
-
-    <!-- EDIT a field -->
-    <div v-if="editing" class="card p-5 space-y-4">
-      <div class="flex items-center justify-between">
-        <h2 class="text-sm font-semibold text-gray-700">Edit field</h2>
-        <button class="text-xs text-gray-400 hover:text-gray-600" @click="editing = null"><i class="pi pi-times" /></button>
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div class="flex flex-col gap-1.5"><label class="text-xs font-medium text-gray-600">Label</label><InputText v-model="editing.label" /></div>
-        <div class="flex flex-col gap-1.5"><label class="text-xs font-medium text-gray-600">Capturing about</label><MultiSelect v-model="editing.targets" :options="targetOptions" option-label="label" option-value="key" display="chip" placeholder="Pick one or more types" class="w-full" /></div>
-        <div class="flex items-end"><label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" v-model="editing.is_required" class="w-4 h-4 accent-primary" /><span class="text-sm">Always required</span></label></div>
-      </div>
-      <div>
-        <label class="text-xs font-medium text-gray-600">Type</label>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mt-1">
-          <button v-for="ft in fieldTypes" :key="ft.value" type="button" class="px-2 py-1.5 rounded-lg border text-xs font-semibold"
-            :class="editing.field_type === ft.value ? 'bg-primary border-primary text-white' : 'border-gray-200 text-gray-700 hover:bg-gray-50'"
-            @click="editing.field_type = ft.value">{{ ft.label }}</button>
+  <div class="p-6 flex gap-6">
+    <SettingsNav />
+    <div class="flex-1 min-w-0">
+      <div class="mb-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div>
+          <h1 class="text-xl font-semibold text-gray-900">Types &amp; fields</h1>
+          <p class="text-sm text-gray-500">The kinds of people and entities your club tracks — their fields, profile layout, and {{ kind === 'person' ? 'what they can do' : "who's in them" }}.</p>
         </div>
+        <button v-if="kind === 'person' && personTypes.length" class="text-xs text-primary hover:underline shrink-0 self-start sm:self-auto" @click="seedStandard">+ Add standard set</button>
       </div>
-      <div v-if="editing.field_type === 'select'" class="flex flex-col gap-1.5">
-        <label class="text-xs font-medium text-gray-600">Dropdown options (one per line)</label>
-        <textarea v-model="editing.optionsText" rows="3" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-primary" />
-      </div>
-      <div class="border-t border-gray-100 pt-3">
-        <p class="text-xs font-semibold text-gray-600 mb-1">Also required when <span class="text-gray-400 font-normal">(any of these match)</span></p>
-        <div v-for="(r, i) in editing.rules" :key="i" class="flex flex-wrap items-center gap-2 mb-2">
-          <Select v-model="r.subject" :options="SUBJECTS" option-label="label" option-value="value" class="w-full sm:w-40" @update:modelValue="onSubject(r)" />
-          <Select v-model="r.op" :options="OPS[r.subject]" option-label="label" option-value="value" class="w-full sm:w-32" />
-          <Select v-if="r.subject === 'discipline'" v-model="r.value" :options="disciplines" option-label="label" option-value="id" filter placeholder="discipline" class="flex-1" />
-          <Select v-else-if="r.subject === 'gender'" v-model="r.value" :options="GENDERS" placeholder="gender" class="flex-1" />
-          <template v-else-if="r.subject === 'field'">
-            <Select v-model="r.value" :options="fieldOptions" option-label="label" option-value="id" filter placeholder="field" class="flex-1" />
-            <InputText v-if="r.op === 'is' || r.op === 'is_not'" v-model="r.value2" placeholder="value" class="w-full sm:w-28" />
-          </template>
-          <InputNumber v-else v-model="r.value" :min="0" :max="120" class="w-full sm:w-24" />
-          <button class="text-gray-300 hover:text-red-500" @click="editing.rules.splice(i, 1)"><i class="pi pi-trash text-xs" /></button>
-        </div>
-        <button class="text-xs text-primary hover:underline" @click="addRule"><i class="pi pi-plus text-[10px] mr-1" />Add rule</button>
-      </div>
-      <div class="flex items-center justify-between border-t border-gray-100 pt-3">
-        <button class="text-sm text-red-600 hover:underline" @click="removeField(editing.id)">Delete field</button>
-        <Button label="Save" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveEdit" />
-      </div>
-    </div>
 
-    <!-- PERSON TYPES (default view) — cards -->
-    <div v-else-if="view === 'types'" class="space-y-3">
-      <p class="text-xs text-gray-500">Who/what a registration captures. Inherited types come from your governing bodies. <span class="text-gray-400">How many of each is set per-form in the form builder.</span></p>
+      <!-- People / Entities toggle -->
+      <div class="inline-flex rounded-lg border border-gray-200 p-0.5 mb-4">
+        <button v-for="k in (['person','entity'] as const)" :key="k" type="button"
+          class="px-4 py-1.5 text-sm font-medium rounded-md transition-colors"
+          :class="kind === k ? 'bg-primary text-white' : 'text-gray-500 hover:text-gray-800'"
+          @click="switchKind(k)">{{ k === 'person' ? 'People' : 'Entities' }}</button>
+      </div>
+
       <div v-if="loading" class="text-sm text-gray-400">Loading…</div>
-      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        <!-- Inherited (locked) -->
-        <div v-for="t in inheritedTypes" :key="t.id" class="card p-4 bg-blue-50/40 border-blue-100 flex flex-col gap-2">
-          <div class="flex items-center gap-2">
-            <i class="pi pi-lock text-blue-400 shrink-0" />
-            <span class="font-semibold text-gray-800 truncate">{{ t.label }}</span>
-            <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 capitalize shrink-0">{{ t.kind || 'person' }}</span>
-          </div>
-          <p class="text-xs text-blue-500">{{ t.ownerName }} · inherited</p>
-          <button class="mt-auto text-xs font-medium text-primary hover:underline text-left" @click="openBuilder(t)">Configure form →</button>
-        </div>
-        <!-- Own (editable) -->
-        <div v-for="t in ownTypes" :key="t.id" class="card p-4 flex flex-col gap-2">
-          <div class="flex items-center gap-2">
-            <i class="pi text-gray-400 shrink-0" :class="t.kind === 'entity' ? 'pi-building' : 'pi-user'" />
-            <InputText v-model="t.label" class="flex-1 !text-sm !font-semibold" @blur="savePersonType(t)" />
-            <button class="text-gray-300 hover:text-red-500 shrink-0" title="Delete type" @click="removePersonType(t.id)"><i class="pi pi-trash text-xs" /></button>
-          </div>
-          <span class="text-[10px] text-gray-400 capitalize">{{ t.kind || 'person' }}</span>
-          <button class="mt-auto text-xs font-medium text-primary hover:underline text-left" @click="openBuilder(t)">Configure form →</button>
-        </div>
-        <!-- Add a new type (dashed card) -->
-        <div class="rounded-xl border-2 border-dashed border-gray-200 p-4 flex flex-col gap-2">
-          <p class="text-xs font-semibold text-gray-500 flex items-center gap-1.5"><i class="pi pi-plus text-[10px]" />New type</p>
-          <InputText v-model="newType.label" placeholder="e.g. Coach, Team" class="w-full" @keyup.enter="addPersonType" />
-          <Select v-model="newType.kind" :options="KIND_OPTIONS" option-label="label" option-value="value" class="w-full" />
-          <Button label="Add type" icon="pi pi-plus" size="small" class="mt-auto w-full justify-center" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="addPersonType" />
-        </div>
-      </div>
-    </div>
 
-    <!-- ALL FIELDS — matrix of fields (rows) × person types (columns) -->
-    <div v-else class="card p-0 overflow-hidden">
-      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-        <span class="text-sm font-semibold text-gray-700">Tick which fields apply to each type</span>
-        <Button :label="creating ? 'Close' : 'New field'" :icon="creating ? 'pi pi-times' : 'pi pi-plus'" severity="secondary" outlined size="small" @click="creating = !creating" />
+      <!-- empty state -->
+      <div v-else-if="!types.length" class="card p-8 text-center">
+        <p class="text-sm text-gray-600 mb-1">No {{ kind === 'person' ? 'people' : 'entity' }} types yet.</p>
+        <p class="text-xs text-gray-400 mb-4">{{ kind === 'person' ? 'Start from the standard set, or add your own.' : 'Add one (Team, Business, Family…).' }}</p>
+        <Button v-if="kind === 'person'" label="Add standard set (Member, Parent, Coach…)" size="small" @click="seedStandard" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+        <div v-else class="flex items-center gap-2 justify-center max-w-sm mx-auto">
+          <InputText v-model="newLabel" placeholder="e.g. Team" size="small" @keyup.enter="addType" />
+          <Button label="Add" size="small" @click="addType" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+        </div>
       </div>
-      <FieldCreator v-if="creating" :person-types="targetOptions" @add="addField" />
-      <div v-else class="overflow-x-auto">
-        <table class="w-full text-sm border-collapse">
+
+      <!-- TABLE of types: Name · Layout · Fields · Permissions/Members -->
+      <div v-else-if="!editingKey" class="card p-0 overflow-hidden max-w-3xl">
+        <table class="w-full text-sm">
           <thead>
-            <tr class="border-b border-gray-100">
-              <th class="sticky left-0 bg-white z-10 text-left font-semibold text-gray-500 text-xs uppercase tracking-wide px-4 py-2.5 min-w-[13rem]">Field</th>
-              <th v-for="t in personTypes" :key="t.key" class="px-2 py-2.5 text-center">
-                <span class="text-xs font-semibold text-gray-600 whitespace-nowrap">{{ t.label }}</span>
-                <span v-if="t.inherited" class="block text-[10px] text-blue-400 font-normal">inherited</span>
-              </th>
+            <tr class="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
+              <th class="text-left px-4 sm:px-5 py-2.5 font-medium">{{ kind === 'person' ? 'Person type' : 'Entity type' }}</th>
+              <th class="text-left px-3 py-2.5 font-medium w-28">Layout</th>
+              <th class="text-left px-3 py-2.5 font-medium w-24">Fields</th>
+              <th class="text-left px-3 py-2.5 font-medium w-36">{{ kind === 'person' ? 'Permissions' : 'Members' }}</th>
+              <th class="w-10" />
             </tr>
           </thead>
           <tbody>
-            <tr v-for="f in allFields" :key="f.id" class="border-b border-gray-50">
-              <td class="sticky left-0 bg-white z-10 px-4 py-2">
-                <button type="button" class="flex items-center gap-1.5 text-left" :disabled="f.inherited" @click="!f.inherited && startEdit(f)">
-                  <i v-if="f.inherited" class="pi pi-lock text-[10px] text-blue-400 shrink-0" />
-                  <span class="font-medium text-gray-800">{{ f.label }}</span>
-                  <span class="text-[10px] text-gray-400">{{ TYPE_LABEL[f.field_type] || f.field_type }}</span>
-                  <i v-if="!f.inherited" class="pi pi-pencil text-[10px] text-gray-300" />
-                </button>
+            <tr v-for="t in types" :key="t.key" class="border-b border-gray-50 hover:bg-gray-50/60">
+              <td class="px-4 sm:px-5 py-2.5">
+                <span class="font-medium text-gray-800 inline-flex items-center gap-1.5">{{ t.label }}<i v-if="t.is_access" v-tooltip.top="'Grants access (permissions)'" class="pi pi-shield text-[10px] text-emerald-400" /></span>
               </td>
-              <td v-for="t in personTypes" :key="t.key" class="px-2 py-2 text-center">
-                <Checkbox :modelValue="hasType(f, t.key)" :binary="true" :disabled="f.inherited" @update:modelValue="v => toggleFieldType(f, t.key, v)" />
+              <td class="px-3 py-2.5">
+                <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'layout')"><i class="pi pi-window-maximize text-[10px]" />Layout</button>
+              </td>
+              <td class="px-3 py-2.5">
+                <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'fields')"><i class="pi pi-list text-[10px]" />Fields</button>
+              </td>
+              <td class="px-3 py-2.5">
+                <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'access')"><i class="pi pi-shield text-[10px]" />{{ kind === 'person' ? 'Permissions' : 'Members' }}</button>
+              </td>
+              <td class="px-3 py-2.5 text-center">
+                <button class="text-gray-300 hover:text-red-500" title="Delete type" @click="removeType(t)"><i class="pi pi-trash text-sm" /></button>
               </td>
             </tr>
-            <tr v-if="!loading && !allFields.length"><td :colspan="personTypes.length + 1" class="px-4 py-6 text-center text-sm text-gray-400">No fields yet — add one with “New field”.</td></tr>
+            <!-- add-a-type row -->
+            <tr class="bg-gray-50/40">
+              <td colspan="5" class="px-4 sm:px-5 py-2.5">
+                <div class="flex items-center gap-2 max-w-md">
+                  <InputText v-model="newLabel" :placeholder="kind === 'person' ? 'Add a person type (e.g. Coach)' : 'Add an entity type (e.g. Team)'" class="flex-1" size="small" @keyup.enter="addType" />
+                  <Button icon="pi pi-plus" label="Add" size="small" :disabled="!newLabel.trim()" @click="addType" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+                </div>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
-    </div>
+
+      <!-- EDITOR for one type -->
+      <div v-else-if="selected" class="space-y-3">
+        <div class="flex items-center gap-2 flex-wrap">
+          <button class="text-sm text-gray-500 hover:text-primary inline-flex items-center gap-1" @click="backToTable"><i class="pi pi-arrow-left text-xs" /> All {{ kind === 'person' ? 'types' : 'entity types' }}</button>
+          <span class="text-gray-300">/</span>
+          <span class="text-sm font-semibold text-gray-800 inline-flex items-center gap-1.5">{{ selected.label }}<i v-if="selected.is_access" v-tooltip.top="'Grants access'" class="pi pi-shield text-[10px] text-emerald-400" /></span>
         </div>
-      </div>
+        <div class="flex gap-1 border-b border-gray-200">
+          <button v-for="tb in (['layout','fields','access'] as const)" :key="tb"
+            class="px-3 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition-colors"
+            :class="tab === tb ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
+            @click="tab = tb">{{ tb === 'access' ? accessTabLabel : tb }}</button>
+        </div>
+
+          <!-- LAYOUT -->
+          <div v-show="tab === 'layout'">
+            <PersonFormBuilder :key="selected.key" :target="selected.key" :target-label="selected.label" :org-id="orgId!" :entity="kind === 'entity'" />
+          </div>
+
+          <!-- FIELDS -->
+          <div v-show="tab === 'fields'" class="space-y-3">
+            <!-- global core fields block (people only) -->
+            <div v-if="kind === 'person'" class="card p-0 overflow-hidden border-dashed">
+              <div class="px-4 py-2 bg-gray-50 border-b border-gray-100">
+                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide"><i class="pi pi-lock text-[10px] mr-1" />Global fields</span>
+              </div>
+              <div v-for="s in coreSections" :key="s.key">
+                <div class="px-4 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">{{ s.label }}</div>
+                <div v-for="f in s.fields" :key="f.key" class="px-4 py-1.5 border-b border-gray-50 flex items-center justify-between text-sm text-gray-500">
+                  <span>{{ f.label }}</span>
+                  <span class="text-[10px] uppercase tracking-wide font-medium"
+                    :class="f.status === 'required' ? 'text-rose-500' : f.status === 'conditional' ? 'text-amber-500' : 'text-gray-300'">
+                    {{ f.status === 'required' ? 'required' : f.status === 'conditional' ? 'when needed' : 'optional' }}
+                  </span>
+                </div>
+              </div>
+              <p class="px-4 py-2 text-[11px] text-gray-400">Personal details &amp; communication are the same for every person type and always show on the profile.</p>
+            </div>
+
+            <div class="card p-0 overflow-hidden">
+              <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">{{ selected.label }} fields</div>
+              <div v-if="!applicableFields.length" class="px-4 py-3 text-sm text-gray-400">No fields yet.</div>
+              <button v-for="f in applicableFields" :key="f.id" type="button"
+                class="w-full text-left px-4 py-2 border-b border-gray-50 flex items-center justify-between text-sm hover:bg-gray-50 transition-colors"
+                :class="editingField?.id === f.id ? 'bg-gray-50' : ''" @click="editingField = f">
+                <span class="flex items-center gap-1.5 text-gray-800">
+                  <i v-if="f.inherited" class="pi pi-lock text-[10px] text-blue-400" />{{ f.label }}
+                </span>
+                <span class="flex items-center gap-2">
+                  <span class="text-[11px] text-gray-400">{{ f.field_type }}</span>
+                  <span v-if="f.is_required" class="text-[9px] uppercase tracking-wide text-rose-500">required</span>
+                  <span v-if="f.inherited" class="text-[9px] uppercase tracking-wide text-blue-400">NSO</span>
+                  <i v-else class="pi pi-pencil text-[10px] text-gray-300" />
+                </span>
+              </button>
+            </div>
+            <ProtoFieldEditor v-if="editingField" :key="editingField.id" :field="editingField"
+              @saved="onFieldChanged" @deleted="onFieldChanged" @close="editingField = null" />
+            <FieldCreator v-else :person-types="fieldTargetOptions" @add="addField" />
+          </div>
+
+          <!-- ACCESS: permissions (people) / members (entities) -->
+          <div v-show="tab === 'access'" class="space-y-3">
+            <template v-if="kind === 'person'">
+              <div class="flex items-center justify-between">
+                <p class="text-xs text-gray-500">What a {{ selected.label }} can do across the club. A person's real access is the union of all their people types.</p>
+                <label class="flex items-center gap-2 text-xs text-gray-600 shrink-0"><ToggleSwitch v-model="selected.is_access" />Grants access</label>
+              </div>
+              <PermissionGrid v-model="selected.permissions" />
+              <div class="flex justify-end">
+                <Button label="Save permissions" size="small" :loading="saving" @click="savePermissions" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+              </div>
+            </template>
+            <template v-else>
+              <p class="text-xs text-gray-500">A {{ selected.label }} is made up of these people — pick the type, how many, and the role each gets.</p>
+              <div class="card p-0 overflow-hidden">
+                <div class="hidden sm:grid grid-cols-[1fr_90px_90px_1fr_32px] gap-2 px-4 py-2 bg-gray-50 border-b border-gray-100 text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                  <span>People type</span><span>Min</span><span>Max</span><span>Default role</span><span></span>
+                </div>
+                <div v-for="(s, i) in selected.member_slots" :key="i" class="grid grid-cols-2 sm:grid-cols-[1fr_90px_90px_1fr_32px] gap-2 px-4 py-2.5 border-b border-gray-50 items-center">
+                  <Select v-model="s.person_type" :options="personTypeOptions" optionLabel="label" optionValue="value" class="w-full" size="small" />
+                  <InputNumber v-model="s.min" :min="0" class="w-full" size="small" inputClass="w-full" />
+                  <InputNumber v-model="s.max" :min="0" class="w-full" size="small" inputClass="w-full" placeholder="∞" />
+                  <InputText v-model="s.role" placeholder="e.g. Player" class="w-full" size="small" />
+                  <button class="w-7 h-7 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50" @click="removeSlot(i)"><i class="pi pi-trash text-xs" /></button>
+                </div>
+                <div v-if="!selected.member_slots.length" class="px-4 py-3 text-sm text-gray-400">No member slots yet.</div>
+              </div>
+              <div class="flex items-center justify-between">
+                <button class="text-sm font-medium text-primary hover:underline" @click="addSlot"><i class="pi pi-plus text-xs mr-1" />Add member slot</button>
+                <Button label="Save members" size="small" :loading="saving" @click="saveMembers" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+              </div>
+            </template>
+          </div>
+
+          <div class="pt-1">
+            <button class="text-sm text-red-600 hover:underline" @click="removeType(selected)">Delete this type</button>
+          </div>
+        </div>
+      <Toast />
     </div>
   </div>
 </template>

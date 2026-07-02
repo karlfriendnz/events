@@ -65,6 +65,14 @@
                 <dd class="text-gray-700">{{ genderRestrictionLabel(group.gender_restriction) || 'Open to all' }}</dd>
                 <dt class="text-left font-semibold text-gray-700">Members:</dt>
                 <dd class="text-gray-700">{{ members.length }}<span v-if="group.capacity">/{{ group.capacity }}</span></dd>
+                <dt class="text-left font-semibold text-gray-700">Waitlist:</dt>
+                <dd class="text-gray-700">
+                  <NuxtLink v-if="groupWaitlist" to="/groups/waitlists" class="text-[#1976d2] hover:underline inline-flex items-center gap-1">
+                    <i class="pi pi-hourglass text-[10px]" />{{ groupWaitlist.name }}
+                    <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">{{ groupWaitlist.count }} waiting</span>
+                  </NuxtLink>
+                  <span v-else class="text-gray-400">None</span>
+                </dd>
                 <dt class="text-left font-semibold text-gray-700">Current Term:</dt>
                 <dd class="text-gray-700">
                   {{ groupTerm?.name || group.current_term || '—' }}
@@ -251,6 +259,14 @@
                     </div>
                   </td>
                 </tr>
+                <tr v-if="staffRoleShortfalls.length">
+                  <td :colspan="colCount" class="bg-amber-50 border-b border-amber-100 px-5 py-2 text-xs text-amber-800">
+                    <i class="pi pi-exclamation-triangle text-[10px] mr-1" />
+                    Needs
+                    <span v-for="(s, i) in staffRoleShortfalls" :key="s.key">{{ i ? ', ' : ' ' }}<span class="font-semibold">{{ s.need - s.have }} more {{ s.label }}</span> ({{ s.have }}/{{ s.need }})</span>
+                    <span class="text-amber-500"> — minimum set on this group's code.</span>
+                  </td>
+                </tr>
                 <tr class="text-left text-xs font-bold text-gray-700 border-b border-gray-200">
                   <th v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 font-bold align-middle">
                     <span v-if="col.key === 'name'" class="flex items-center gap-2">
@@ -280,10 +296,7 @@
                       </div>
                     </template>
                     <template v-else-if="col.key === 'roles'">
-                      <div class="flex flex-wrap gap-1">
-                        <span v-for="r in c.roles" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1976d2]/10 text-[#1976d2] font-medium">{{ roleLabel(r) }}</span>
-                        <span v-if="!c.roles.length" class="text-gray-300">—</span>
-                      </div>
+                      <InlineChips :items="(c.roles ?? []).map(roleLabel)" variant="blue" />
                     </template>
                     <template v-else>{{ (c as any)[col.key] || '' }}</template>
                   </td>
@@ -298,12 +311,43 @@
                     </div>
                   </td>
                 </tr>
-                <tr v-if="!displayCoaches.length">
+                <tr v-if="!displayCoaches.length && !codeStaffForGroup.length">
                   <td :colspan="colCount" class="p-6 text-center text-sm text-gray-400">
                     No coaches or managers assigned.
                     <button v-if="canManage" type="button" class="ml-1 text-[#1976d2] hover:underline font-medium" @click="openAdd('coach')">Add one</button>
                   </td>
                 </tr>
+
+                <!-- Staff assigned at CODE level (cascade to this group) — read-only, collapsible -->
+                <template v-if="codeStaffForGroup.length">
+                  <tr>
+                    <td :colspan="colCount" class="bg-gray-100/70 border-y border-gray-200 p-0">
+                      <button type="button" class="w-full flex items-center gap-1.5 px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 hover:text-gray-700"
+                        @click="codeStaffOpen = !codeStaffOpen">
+                        <i class="pi text-[10px] transition-transform" :class="codeStaffOpen ? 'pi-chevron-down' : 'pi-chevron-right'" />
+                        <i class="pi pi-sitemap text-[10px]" /> Assigned at code level
+                        <span class="text-gray-400 font-normal normal-case tracking-normal">({{ codeStaffForGroup.length }})</span>
+                      </button>
+                    </td>
+                  </tr>
+                  <tr v-for="s in codeStaffForGroup" v-show="codeStaffOpen" :key="`cs-${s.id}`" class="border-b border-gray-100 bg-gray-50/40">
+                    <td v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 text-gray-700 align-top">
+                      <template v-if="col.key === 'name'">
+                        <div class="flex items-center gap-2">
+                          <span class="inline-flex items-center justify-center w-6 h-6 shrink-0"><i class="pi pi-shield-o text-gray-300 text-[11px]" /></span>
+                          <NuxtLink :to="`/people/${s.person_id}`" class="text-[#1976d2] hover:underline">{{ codeStaffName(s) }}</NuxtLink>
+                        </div>
+                      </template>
+                      <template v-else-if="col.key === 'roles'">
+                        <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium"
+                          v-tooltip.top="s.scope === 'inherited' ? `Assigned on code ${s.fromLabel}` : 'Assigned on this code'">{{ roleLabel(s.role_key) }}</span>
+                      </template>
+                      <template v-else-if="col.key === 'email'">{{ s.person?.email || '—' }}</template>
+                      <template v-else>—</template>
+                    </td>
+                    <td v-if="canManage" class="px-4 py-2.5" />
+                  </tr>
+                </template>
               </tbody>
 
               <!-- MEMBERS -->
@@ -319,6 +363,14 @@
                     </div>
                   </td>
                 </tr>
+                <tr v-if="positionShortfalls.length">
+                  <td :colspan="colCount" class="bg-amber-50 border-b border-amber-100 px-5 py-2 text-xs text-amber-800">
+                    <i class="pi pi-exclamation-triangle text-[10px] mr-1" />
+                    Needs
+                    <span v-for="(s, i) in positionShortfalls" :key="s.name">{{ i ? ', ' : ' ' }}<span class="font-semibold">{{ s.need - s.have }} more {{ s.name }}</span> ({{ s.have }}/{{ s.need }})</span>
+                    <span class="text-amber-500"> — minimum set on this group's code.</span>
+                  </td>
+                </tr>
                 <tr class="text-left text-xs font-bold text-gray-700 border-b border-gray-200">
                   <th v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 font-bold align-middle">
                     <span v-if="col.key === 'name'" class="flex items-center gap-2">
@@ -327,7 +379,7 @@
                       </span>
                       <span>{{ col.label }}<span v-if="memberSelMode && memberSel.length" class="text-gray-400 font-normal ml-1">({{ memberSel.length }})</span></span>
                     </span>
-                    <template v-else>{{ col.label }}</template>
+                    <template v-else>{{ col.key === 'roles' ? 'Positions' : col.label }}</template>
                   </th>
                   <th v-if="canManage" class="px-4 py-2.5" />
                 </tr>
@@ -348,10 +400,7 @@
                       </div>
                     </template>
                     <template v-else-if="col.key === 'roles'">
-                      <div class="flex flex-wrap gap-1">
-                        <span v-for="r in m.roles" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">{{ roleLabel(r) }}</span>
-                        <span v-if="!m.roles.length" class="text-gray-300">—</span>
-                      </div>
+                      <InlineChips :items="m.positions ?? []" variant="green" />
                     </template>
                     <template v-else>{{ (m as any)[col.key] || '' }}</template>
                   </td>
@@ -403,11 +452,11 @@
           <div class="w-56 text-sm">
             <div class="text-xs font-semibold text-gray-400 mb-2">Filter by role</div>
             <div class="flex flex-col gap-1.5 max-h-64 overflow-auto">
-              <label v-for="r in groupRoleOptions" :key="r.value" class="flex items-center gap-2 cursor-pointer">
+              <label v-for="r in filterRoleOptions" :key="r.value" class="flex items-center gap-2 cursor-pointer">
                 <Checkbox :modelValue="roleFilter.includes(r.value)" binary @update:modelValue="() => toggleRoleFilter(r.value)" />
                 <span>{{ r.label }}</span>
               </label>
-              <p v-if="!groupRoleOptions.length" class="text-gray-400">No roles defined.</p>
+              <p v-if="!filterRoleOptions.length" class="text-gray-400">No roles defined.</p>
             </div>
             <button v-if="roleFilter.length" type="button" class="mt-3 text-xs font-semibold text-[#1976d2]" @click="roleFilter = []">Clear filters</button>
           </div>
@@ -441,10 +490,12 @@
             </Column>
             <Column v-if="!hiddenCols.includes('roles')" header="Roles" :exportable="false">
               <template #body="{ data }">
-                <div class="flex flex-wrap gap-1">
-                  <span v-for="r in data.roles" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1976d2]/10 text-[#1976d2] font-medium">{{ roleLabel(r) }}</span>
-                  <span v-if="!data.roles.length" class="text-gray-300">—</span>
-                </div>
+                <InlineChips :items="(data.roles ?? []).map(roleLabel)" variant="blue" />
+              </template>
+            </Column>
+            <Column header="Positions" :exportable="false">
+              <template #body="{ data }">
+                <InlineChips :items="data.positions ?? []" variant="green" />
               </template>
             </Column>
             <Column v-if="!hiddenCols.includes('phone')" field="phone" header="Phone" sortable />
@@ -902,31 +953,87 @@
       </template>
     </Dialog>
 
-    <!-- Add a person (with one or more roles) -->
-    <Dialog v-model:visible="addOpen" modal :style="{ width: '95vw', maxWidth: '880px' }" :header="`Add to ${group ? group.name : 'group'}`">
-      <div class="flex flex-col gap-3">
+    <!-- Add a person (member and/or staff) -->
+    <Dialog v-model:visible="addOpen" modal :style="{ width: '95vw', maxWidth: '520px' }" :header="`Add to ${group ? group.name : 'group'}`">
+      <div class="flex flex-col gap-4">
+        <!-- Person -->
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Person</label>
           <AutoComplete v-model="personQuery" :suggestions="personResults" optionLabel="label"
             placeholder="Type a name…" class="w-full" dropdown forceSelection
             @complete="searchPersons" @item-select="onPickPerson" />
         </div>
-        <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Roles</label>
-          <MultiSelect v-model="addRoles" :options="groupRoleOptions" optionLabel="label" optionValue="value"
-            display="chip" :showToggleAll="false" placeholder="Pick role(s)" class="w-full" />
-          <p class="text-xs text-gray-400">A person can hold several roles (e.g. Coach + Player). Coach/Manager can manage this group.</p>
+
+        <!-- capacity → waitlist warning -->
+        <div v-if="addWaitlistWarn" class="rounded-lg bg-amber-50 border border-amber-200 px-3.5 py-2.5 text-sm text-amber-800">
+          <div class="flex items-start gap-2">
+            <i class="pi pi-exclamation-triangle text-amber-500 mt-0.5 shrink-0" />
+            <p>This group is <span class="font-semibold">full ({{ members.length }}/{{ group?.capacity }})</span> — add them to the waitlist <span class="font-semibold">{{ groupWaitlist?.name || '—' }}</span>, or to the group anyway.</p>
+          </div>
+
+          <!-- equivalent groups with space -->
+          <div v-if="siblingsWithSpace.length" class="mt-2.5 pt-2.5 border-t border-amber-200/70">
+            <p class="text-[13px] font-medium text-amber-800 mb-1.5">These equivalent groups have space — add them to one instead:</p>
+            <div class="flex flex-col gap-1.5">
+              <button v-for="s in siblingsWithSpace" :key="s.id" type="button"
+                class="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md bg-white border border-amber-200 hover:border-primary text-left"
+                @click="addToSiblingGroup(s)">
+                <span class="text-sm text-gray-800 truncate">{{ s.name }}</span>
+                <span class="text-xs text-gray-500 shrink-0">{{ s.count }}<span v-if="s.capacity">/{{ s.capacity }}</span> · <span class="text-primary font-medium">Add here</span></span>
+              </button>
+            </div>
+          </div>
         </div>
+
+        <!-- Position(s) — the member field (most people are members) -->
+        <div class="flex flex-col gap-1.5">
+          <div class="flex items-center justify-between">
+            <label class="text-sm font-medium">Position(s) <span class="text-gray-400 font-normal">— optional</span></label>
+            <button type="button" class="text-xs text-primary hover:underline" @click="showNewPosition = !showNewPosition">+ New position</button>
+          </div>
+          <MultiSelect v-model="addPositions" :options="positionOptions" optionLabel="label" optionValue="value"
+            display="chip" :showToggleAll="false" placeholder="Captain, Vice, Wing…" class="w-full"
+            :emptyMessage="'No positions yet — add one with “+ New position”'" />
+          <div v-if="showNewPosition" class="flex items-center gap-2">
+            <InputText v-model="newAddPosition" placeholder="New position name" class="flex-1" size="small"
+              @keydown.enter.prevent="addNewPosition" />
+            <Button label="Add" outlined size="small" :disabled="!newAddPosition.trim()" @click="addNewPosition" />
+          </div>
+        </div>
+
+        <!-- Fee -->
         <div v-if="enrolOptions.length" class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">How do you want to pay?</label>
+          <label class="text-sm font-medium">Fee <span class="text-gray-400 font-normal">— optional</span></label>
           <Select v-model="addEnrol" :options="enrolOptions" optionLabel="label" optionValue="value"
             placeholder="No fee" showClear class="w-full" />
-          <p class="text-xs text-gray-400">Optional — the fee option they're joining under. Term dates are set automatically.</p>
+        </div>
+
+        <!-- Staff — tucked behind a disclosure (most people aren't staff) -->
+        <div class="border-t border-gray-100 pt-3">
+          <button v-if="!showStaffRoles" type="button" class="text-sm text-primary hover:underline inline-flex items-center gap-1.5" @click="showStaffRoles = true">
+            <i class="pi pi-shield text-xs" /> Also a coach or manager?
+          </button>
+          <div v-else class="flex flex-col gap-1.5">
+            <div class="flex items-center justify-between">
+              <label class="text-sm font-medium">Staff role(s)</label>
+              <button type="button" class="text-xs text-gray-400 hover:text-gray-600" @click="showStaffRoles = false; addRoles = []">Not staff</button>
+            </div>
+            <MultiSelect v-model="addRoles" :options="codeRoleOptions" optionLabel="label" optionValue="value"
+              display="chip" :showToggleAll="false" placeholder="Coach, Manager…" class="w-full" />
+            <p class="text-xs text-gray-400">Staff can run this group.
+              <NuxtLink v-if="groupCode" :to="`/groups/codes/${groupCode.id}`" class="text-primary hover:underline">Manage code roles →</NuxtLink>
+            </p>
+          </div>
         </div>
       </div>
       <template #footer>
         <Button label="Cancel" text @click="addOpen = false" />
-        <Button label="Add" :disabled="!pendingPerson || !addRoles.length"
+        <template v-if="addWaitlistWarn">
+          <Button label="Add to group anyway" text severity="secondary" :disabled="!pendingPerson" @click="addPerson" />
+          <Button label="Add to waitlist" icon="pi pi-hourglass" :disabled="!pendingPerson"
+            style="background:#1976d2;border-color:#1976d2" @click="addToWaitlist" />
+        </template>
+        <Button v-else label="Add" :disabled="!pendingPerson"
           style="background:#1976d2;border-color:#1976d2" @click="addPerson" />
       </template>
     </Dialog>
@@ -1198,6 +1305,7 @@
 import type { OrgTerm, MembershipPlan } from '~/composables/useTermsMemberships'
 import type { GroupFeeOption } from '~/composables/useGroupFees'
 import type { GroupCode } from '~/composables/useGroupCodes'
+import type { CodeRoleDef } from '~/composables/useCodeRoles'
 const route = useRoute()
 const router = useRouter()
 const db = useDb()
@@ -1220,8 +1328,8 @@ interface Group {
   image_url?: string | null
   head_person_id?: string | null
 }
-interface Member { id: string; name: string; email: string | null; phone: string | null; roles: string[]; allRoles: string[]; subGroupId?: string | null }
-interface Coach { id: string; name: string; email: string | null; phone: string | null; roles: string[]; allRoles: string[]; subGroupId?: string | null }
+interface Member { id: string; name: string; email: string | null; phone: string | null; roles: string[]; allRoles: string[]; positions?: string[]; subGroupId?: string | null }
+interface Coach { id: string; name: string; email: string | null; phone: string | null; roles: string[]; allRoles: string[]; positions?: string[]; subGroupId?: string | null }
 import type { LocationEntry } from '~/composables/useLocation'
 interface Schedule {
   id: string
@@ -1246,11 +1354,54 @@ useBreadcrumbs([
 // Scoped per-resource roles (coach/manager of THIS group can manage it).
 const scoped = useScopedRoles()
 const groupRoleOptions = computed(() => scoped.rolesFor('group').map(r => ({ label: r.label, value: r.key })))
-const roleLabel = (key: string) => scoped.roleDef('group', key)?.label ?? key
+// Staff roles for THIS group come from its CODE (migration 213): the effective
+// roles of the code's lineage = org defaults (Manager/Coach) + inherited + own.
+// So adding a staff member offers the roles configured on /groups/codes/:id.
+const cr = useCodeRoles()
+const codeRoleDefs = ref<CodeRoleDef[]>([])
+// Staff assigned at the CODE level (cascade down to this group) — read-only here,
+// managed on the code's settings page. Shown below the group-level coaches.
+const codeStaffRows = ref<any[]>([])
+const codeStaffForGroup = computed(() => groupCode.value
+  ? cr.staffForCode(groupCode.value, codesById.value, codeStaffRows.value, codes.value)
+  : [])
+const codeStaffName = (s: any) => `${s.person?.first_name ?? ''} ${s.person?.last_name ?? ''}`.trim() || s.person?.email || 'Person'
+const codeStaffOpen = ref(false)
+const codeStaffRoles = computed(() => groupCode.value
+  ? cr.rolesForCode(groupCode.value, codesById.value, codeRoleDefs.value)
+  // No code → only the org-wide default roles (Manager/Coach) apply.
+  : codeRoleDefs.value.filter(d => d.code_lineage_id == null).map(d => ({ ...d, scope: 'default' as const })))
+const codeRoleByKey = computed<Record<string, string>>(() =>
+  Object.fromEntries(codeStaffRoles.value.map(r => [r.key, r.label])))
+const isCodeStaffKey = (k: string) => Object.prototype.hasOwnProperty.call(codeRoleByKey.value, (k || '').toLowerCase())
+const codeRoleOptions = computed(() => codeStaffRoles.value.map(r => ({ label: r.label, value: r.key })))
+// Filter popover = member roles + this code's staff roles, de-duped by key.
+const filterRoleOptions = computed(() => {
+  const seen = new Set<string>()
+  return [...groupRoleOptions.value, ...codeRoleOptions.value].filter(o => !seen.has(o.value) && seen.add(o.value))
+})
+// A group staff role = any scoped 'staff' role OR any of this code's staff roles.
+const isStaffKey = (k: string) => scoped.roleDef('group', k)?.group === 'staff' || isCodeStaffKey(k)
+const rolesAreStaff = (roles: string[]) => roles.some(isStaffKey)
+const roleLabel = (key: string) => scoped.roleDef('group', key)?.label ?? codeRoleByKey.value[(key || '').toLowerCase()] ?? key
 // A person can hold both staff (coach/manager) and member (player/…) roles and
 // therefore appear in BOTH tables. Split a role array into the two sides.
-const staffRolesOf = (roles: string[]) => roles.filter(r => scoped.roleDef('group', r)?.group === 'staff')
-const memberRolesOf = (roles: string[]) => roles.filter(r => scoped.roleDef('group', r)?.group !== 'staff')
+const staffRolesOf = (roles: string[]) => roles.filter(isStaffKey)
+const memberRolesOf = (roles: string[]) => roles.filter(r => !isStaffKey(r))
+// Normalise stored role keys, preserving this code's staff-role keys (which the
+// scoped normaliser would otherwise drop) so custom code roles survive a reload.
+function normalizeGroupRoles(rawRoles: any, legacy?: string | null): string[] {
+  const arr: any[] = Array.isArray(rawRoles) ? rawRoles : (legacy ? [legacy] : [])
+  const out: string[] = []
+  for (const raw of arr) {
+    const k = String(raw ?? '').trim().toLowerCase()
+    if (!k) continue
+    if (scoped.roleDef('group', k)) out.push(k)          // exact scoped role
+    else if (isCodeStaffKey(k)) out.push(k)              // exact code staff role
+    else { const n = scoped.normalizeRole('group', k); if (n) out.push(n) }  // legacy fallback
+  }
+  return [...new Set(out)]
+}
 // The org term this group runs on — inherited from its Code (walking up the code
 // chain via effectiveTermId), falling back to the group's own term_id.
 const groupTerm = computed(() => {
@@ -1311,12 +1462,37 @@ function applyPeopleView(list: any[]) {
 }
 const displayCoaches = computed(() => applyPeopleView(coaches.value))
 const displayMembers = computed(() => applyPeopleView(members.value))
+// Required staff-per-role minimums, resolved from this group's code chain
+// (closest code wins — migration 215). Flag any role that's under its minimum.
+const roleMinimums = computed(() => group.value ? gc.effectiveRoleMins(group.value, codesById.value) : {})
+const staffRoleShortfalls = computed(() => {
+  const counts: Record<string, number> = {}
+  for (const c of coaches.value) for (const r of (c.roles ?? [])) counts[r] = (counts[r] ?? 0) + 1
+  return Object.entries(roleMinimums.value)
+    .map(([key, need]) => ({ key, label: roleLabel(key), need, have: counts[key] ?? 0 }))
+    .filter(x => x.have < x.need)
+})
+// Required per-position minimums (e.g. 2 Wings), resolved from the code chain
+// (closest wins — migration 217). Count each position across everyone in the group.
+const positionMinimums = computed(() => group.value ? gc.effectivePositionMins(group.value, codesById.value) : {})
+const positionShortfalls = computed(() => {
+  const counts: Record<string, number> = {}
+  const seen = new Set<string>()
+  for (const p of [...members.value, ...coaches.value]) {
+    if (seen.has(p.id)) continue
+    seen.add(p.id)
+    for (const pos of (p.positions ?? [])) counts[pos] = (counts[pos] ?? 0) + 1
+  }
+  return Object.entries(positionMinimums.value)
+    .map(([name, need]) => ({ name, need, have: counts[name] ?? 0 }))
+    .filter(x => x.have < x.need)
+})
 // Coaches + members merged into one deduped list for the single People table.
 // allRoles is the full role set per person, so the Roles column shows everything.
 const allPeople = computed(() => {
   const map = new Map<string, any>()
   for (const p of [...coaches.value, ...members.value]) {
-    if (!map.has(p.id)) map.set(p.id, { id: p.id, name: p.name, email: p.email, phone: p.phone, allRoles: p.allRoles, roles: p.allRoles, subGroupId: p.subGroupId ?? null })
+    if (!map.has(p.id)) map.set(p.id, { id: p.id, name: p.name, email: p.email, phone: p.phone, allRoles: p.allRoles, roles: p.allRoles, positions: p.positions ?? [], subGroupId: p.subGroupId ?? null })
   }
   return Array.from(map.values())
 })
@@ -1339,7 +1515,7 @@ const exportRows = computed(() => {
 // Members assign to ONE sub-group (member_group_memberships.sub_group_id); staff
 // (coaches) can be attached to MANY sub-groups, tracked per-sub-group in staffIds.
 const subGroups = ref<Array<{ id: string; name: string; color: string; staffIds?: string[] }>>([])
-const isStaffPerson = (p: any) => scoped.isStaff('group', p.allRoles ?? [])
+const isStaffPerson = (p: any) => rolesAreStaff(p.allRoles ?? [])
 async function addStaffToSubGroup(sgId: string, staffId: string) {
   subGroups.value = subGroups.value.map(s => s.id === sgId
     ? { ...s, staffIds: Array.from(new Set([...(s.staffIds ?? []), staffId])) } : s)
@@ -1528,6 +1704,15 @@ const creatingEvent = ref(false)
 const tm = useTermsMemberships()
 const gf = useGroupFees()
 const gc = useGroupCodes()
+const wl = useWaitlists()
+// The waitlist this group is connected to (migration 221) — shown in INFO.
+const groupWaitlist = ref<{ id: string; name: string; count: number } | null>(null)
+async function loadGroupWaitlist(waitlistId: string | null | undefined) {
+  if (!waitlistId) { groupWaitlist.value = null; return }
+  const [lists, counts] = await Promise.all([wl.loadWaitlists(), wl.entryCounts()])
+  const w = lists.find(x => x.id === waitlistId)
+  groupWaitlist.value = w ? { id: w.id, name: w.name, count: counts[w.id] ?? 0 } : null
+}
 const { uploadFile } = useUpload()
 // Global notes permission (edit/delete). Author edit is handled in <PersonNotes>.
 const rbac = useCan()
@@ -1840,14 +2025,14 @@ async function load() {
   // load as ONE parallel wave instead of gating the batch behind the group fetch.
   // loadEvents/loadBilling populate their own refs; attendance runs afterwards
   // since it needs both the event list and the resolved roster.
-  const [gRes, membersRes, , schedsRes, bkblsRes, orgRes, , codesList] = await Promise.all([
+  const [gRes, membersRes, , schedsRes, bkblsRes, orgRes, , codesList, codeDefs, codeStaffList] = await Promise.all([
     (db.from as any)('member_groups')
-      .select('id, name, color, code, code_id, age_range, capacity, current_term, term_fee, sub_groups, term_id, lineage_id, rolled_from_group_id, gender_restriction, image_url, head_person_id')
+      .select('id, name, color, code, code_id, age_range, capacity, current_term, term_fee, sub_groups, term_id, lineage_id, rolled_from_group_id, gender_restriction, image_url, head_person_id, waitlist_id')
       .eq('id', id)
       .eq('org_id', orgId.value)
       .maybeSingle(),
     (db.from as any)('member_group_memberships')
-      .select('roles, role, sub_group_id, person:persons!inner(id, first_name, last_name, email, phone)')
+      .select('roles, role, positions, sub_group_id, person:persons!inner(id, first_name, last_name, email, phone)')
       .eq('group_id', id),
     loadEvents(id),
     (db.from as any)('member_group_schedules')
@@ -1865,9 +2050,13 @@ async function load() {
       .maybeSingle(),
     loadBilling(id),
     gc.loadCodes(),
+    cr.ensureDefaults(),
+    cr.loadStaff(),
   ])
 
   codes.value = codesList ?? []
+  codeRoleDefs.value = codeDefs ?? []
+  codeStaffRows.value = codeStaffList ?? []
   if (orgId.value && !Object.keys(personTypeLabels.value).length) {
     const types = await policy.resolvePersonTypes(orgId.value)
     personTypeLabels.value = Object.fromEntries((types ?? []).map((t: any) => [t.key, t.label]))
@@ -1876,24 +2065,26 @@ async function load() {
   group.value = g ?? null
   if (!g) { members.value = []; loading.value = false; return }
   subGroups.value = Array.isArray(g.sub_groups) ? g.sub_groups : []
+  loadGroupWaitlist(g.waitlist_id)
 
   // Members + coaches — both are member_group_memberships rows. A person can
   // hold multiple roles; anyone with a 'staff' role (Coach/Manager/Assistant)
   // shows in the COACHES & MANAGERS card, everyone else in MEMBERS.
   const rows = membersRes?.data
   const mapped = (rows ?? [])
-    .map((r: any) => ({ roles: scoped.normalizeRoles('group', r.roles, r.role), subGroupId: r.sub_group_id ?? null, p: r.person }))
+    .map((r: any) => ({ roles: normalizeGroupRoles(r.roles, r.role), positions: Array.isArray(r.positions) ? r.positions : [], subGroupId: r.sub_group_id ?? null, p: r.person }))
     .filter((x: any) => x.p)
   const named = (x: any) => `${x.p.first_name ?? ''} ${x.p.last_name ?? ''}`.trim() || '—'
-  // A person appears in MEMBERS if they have a non-staff role (or no roles), and
-  // in COACHES if they have a staff role — so coach+player shows in both.
+  // A person appears in MEMBERS if they hold a position, a non-staff role, or no
+  // staff role at all; and in COACHES if they hold a staff role — so a person can
+  // be BOTH staff and a member (e.g. a coach who also plays Wing).
   members.value = mapped
-    .filter((x: any) => !x.roles.length || memberRolesOf(x.roles).length)
-    .map((x: any) => ({ id: x.p.id, name: named(x), email: x.p.email ?? null, phone: x.p.phone ?? null, roles: memberRolesOf(x.roles), allRoles: x.roles, subGroupId: x.subGroupId }))
+    .filter((x: any) => x.positions?.length || !rolesAreStaff(x.roles) || memberRolesOf(x.roles).length)
+    .map((x: any) => ({ id: x.p.id, name: named(x), email: x.p.email ?? null, phone: x.p.phone ?? null, roles: memberRolesOf(x.roles), allRoles: x.roles, positions: x.positions, subGroupId: x.subGroupId }))
     .sort((a: Member, b: Member) => a.name.localeCompare(b.name))
   coaches.value = mapped
-    .filter((x: any) => scoped.isStaff('group', x.roles))
-    .map((x: any) => ({ id: x.p.id, name: named(x), email: x.p.email ?? null, phone: x.p.phone ?? null, roles: staffRolesOf(x.roles), allRoles: x.roles, subGroupId: x.subGroupId }))
+    .filter((x: any) => rolesAreStaff(x.roles))
+    .map((x: any) => ({ id: x.p.id, name: named(x), email: x.p.email ?? null, phone: x.p.phone ?? null, roles: staffRolesOf(x.roles), allRoles: x.roles, positions: x.positions, subGroupId: x.subGroupId }))
     .sort((a: Coach, b: Coach) => a.name.localeCompare(b.name))
 
   // Weekly training schedules for this group.
@@ -2411,13 +2602,112 @@ async function saveGroup() {
 
 // ── Add a person to the group with one or more roles ──
 const addOpen = ref(false)
+const addMode = ref<'member' | 'coach'>('member')
 const addRoles = ref<string[]>(['member'])
 const pendingPerson = ref<any>(null)
 const personQuery = ref<any>('')
 const personResults = ref<any[]>([])
+// Member POSITIONS (Captain, Wing…) — catalogue resolved from the group's code
+// chain; new ones can be added inline (written to the group's own code).
+const addPositions = ref<string[]>([])
+const newAddPosition = ref('')
+const showNewPosition = ref(false)
+// Optional note captured while adding a person — saved as a person_note linked to
+// the group/waitlist context (also surfaces on the person's profile Notes feed).
+// Most people are members, so the Staff-role picker is tucked behind a disclosure
+// (opened automatically when adding via the Coaches card or editing existing staff).
+const showStaffRoles = ref(false)
+// Resolved position catalogue = code chain + org default positions (incl. Member).
+const positionOptions = computed(() =>
+  (group.value ? gc.effectivePositions(group.value, codesById.value) : []).map(p => ({ label: p, value: p })))
+
+// Capacity → waitlist warning, shown INLINE in the Add-person dialog. Fires when
+// the picked person would be a NEW member, the group is full, and it has a waitlist.
+const addWillBeMember = computed(() => {
+  const prev = coaches.value.find(x => x.id === pendingPerson.value?.id)?.allRoles
+    ?? members.value.find(x => x.id === pendingPerson.value?.id)?.allRoles ?? []
+  const merged = Array.from(new Set([...prev, ...addRoles.value]))
+  return addPositions.value.length > 0 || !rolesAreStaff(merged) || memberRolesOf(merged).length > 0
+})
+const groupFull = computed(() => !!group.value?.capacity && members.value.length >= (group.value!.capacity as number))
+const addWaitlistWarn = computed(() =>
+  !!pendingPerson.value?.id && addWillBeMember.value
+  && !members.value.some(m => m.id === pendingPerson.value?.id)
+  && groupFull.value && !!group.value?.waitlist_id)
+
+// Equivalent groups on the same waitlist — with their spare capacity — so a full
+// Thursday can offer "put them in Friday instead". Loaded when the dialog opens.
+const waitlistSiblings = ref<{ id: string; name: string; capacity: number | null; count: number }[]>([])
+const siblingsWithSpace = computed(() => waitlistSiblings.value.filter(s => s.capacity == null || s.count < s.capacity))
+async function loadWaitlistSiblings() {
+  waitlistSiblings.value = []
+  const wid = group.value?.waitlist_id
+  if (!wid) return
+  const { data: sibs } = await (db.from as any)('member_groups')
+    .select('id, name, capacity').eq('waitlist_id', wid).neq('id', group.value!.id)
+  if (!sibs?.length) return
+  const ids = sibs.map((s: any) => s.id)
+  const { data: mems } = await (db.from as any)('member_group_memberships').select('group_id, role, roles').in('group_id', ids)
+  const counts: Record<string, number> = {}
+  for (const m of mems ?? []) {
+    const roleKeys = scoped.normalizeRoles('group', m.roles, m.role)
+    if (!scoped.isStaff('group', roleKeys)) counts[m.group_id] = (counts[m.group_id] ?? 0) + 1
+  }
+  waitlistSiblings.value = sibs.map((s: any) => ({ id: s.id, name: s.name, capacity: s.capacity ?? null, count: counts[s.id] ?? 0 }))
+}
+
+// Add the picked person to the connected waitlist instead of the group.
+async function addToWaitlist() {
+  const p = pendingPerson.value
+  if (!p?.id || !group.value?.waitlist_id) return
+  const wlName = groupWaitlist.value?.name || 'the waitlist'
+  const r = await wl.addEntry(group.value.waitlist_id, p.id, groupWaitlist.value?.count ?? 0)
+  toast.add(r.ok
+    ? { severity: 'success', summary: `Added to waitlist "${wlName}"`, life: 2500 }
+    : { severity: 'warn', summary: 'Already on this waitlist', life: 2500 })
+  pendingPerson.value = null; personQuery.value = ''; personResults.value = []; addOpen.value = false
+  if (r.ok) navigateTo('/groups/waitlists')
+}
+// Add the picked person to an EQUIVALENT group (same waitlist) that has space.
+async function addToSiblingGroup(s: { id: string; name: string }) {
+  const p = pendingPerson.value
+  if (!p?.id) return
+  const positions = [...addPositions.value]
+  const { error } = await (db.from as any)('member_group_memberships')
+    .upsert({ group_id: s.id, person_id: p.id, roles: [], role: null, positions }, { onConflict: 'group_id,person_id' })
+  toast.add(error
+    ? { severity: 'error', summary: 'Could not add', detail: error.message, life: 4000 }
+    : { severity: 'success', summary: `Added to ${s.name}`, life: 2500 })
+  if (!error) { pendingPerson.value = null; personQuery.value = ''; personResults.value = []; addOpen.value = false }
+}
+async function addNewPosition() {
+  const n = newAddPosition.value.trim()
+  newAddPosition.value = ''
+  if (!n || !group.value?.code_id) return
+  // Case-insensitive: reuse an existing option, else append it to the group's code.
+  const existing = positionOptions.value.find(o => o.value.toLowerCase() === n.toLowerCase())
+  const value = existing?.value ?? n
+  if (!existing) {
+    const next = await gc.addPositionToCode(group.value.code_id, n, codesById.value)
+    if (next) { const c = codesById.value[group.value.code_id]; if (c) c.member_positions = next }
+  }
+  if (!addPositions.value.some(p => p.toLowerCase() === value.toLowerCase())) addPositions.value.push(value)
+}
 function openAdd(mode: 'member' | 'coach', person?: any) {
-  // Seed sensible default roles depending on which card's Add was clicked.
-  addRoles.value = mode === 'coach' ? ['coach'] : ['member']
+  addMode.value = mode
+  // Seed sensible default roles depending on which card's Add was clicked. For
+  // staff, prefer the code's "Coach" role, else its first configured staff role.
+  const coachSeed = codeStaffRoles.value.some(r => r.key === 'coach') ? 'coach' : codeStaffRoles.value[0]?.key
+  // One unified screen: Staff roles + Positions are both optional. Editing an
+  // existing person seeds their current staff roles + positions; a fresh add from
+  // the Coaches card conveniently pre-picks the default staff role.
+  addRoles.value = person?.id ? staffRolesOf(person.allRoles ?? person.roles ?? [])
+    : (mode === 'coach' && coachSeed ? [coachSeed] : [])
+  addPositions.value = Array.isArray(person?.positions) ? [...person.positions] : []
+  // Reveal the staff-role picker only when relevant (coach card / existing staff).
+  showStaffRoles.value = mode === 'coach' || addRoles.value.length > 0
+  newAddPosition.value = ''
+  showNewPosition.value = false
   addEnrol.value = null
   if (person?.id) {
     // Clicking an existing person's name → pre-select them in the picker.
@@ -2425,13 +2715,13 @@ function openAdd(mode: 'member' | 'coach', person?: any) {
     const picked = { id: person.id, name, first_name: person.first_name, last_name: person.last_name, email: person.email, phone: person.phone, label: name }
     personQuery.value = picked
     pendingPerson.value = picked
-    if (Array.isArray(person.roles) && person.roles.length) addRoles.value = [...person.roles]
   } else {
     pendingPerson.value = null
     personQuery.value = ''
   }
   personResults.value = []
   addOpen.value = true
+  loadWaitlistSiblings()
 }
 async function searchPersons(e: { query: string }) {
   const q = (e.query || '').trim()
@@ -2451,7 +2741,9 @@ async function searchPersons(e: { query: string }) {
 function onPickPerson(e: { value: any }) { pendingPerson.value = e.value }
 async function addPerson() {
   const p = pendingPerson.value
-  if (!p?.id || !group.value || !addRoles.value.length) return
+  // Staff roles + positions are both optional — a person can be staff, a member,
+  // or both. Only a picked person is required.
+  if (!p?.id || !group.value) return
   // Merge with any roles they already hold so adding a role to an existing
   // member keeps the others (coach picking up Player → both, not replaced).
   const prev = coaches.value.find(x => x.id === p.id)?.allRoles
@@ -2464,8 +2756,13 @@ async function addPerson() {
     if (!window.confirm(`${name}'s gender doesn't match this group's restriction (${genderRestrictionLabel(restrict)}). Add them anyway?`)) return
   }
   const enrol = enrolPatch()
+  // Union with any positions they already hold (like roles, this dialog adds —
+  // positions are removed via the person's own edit, not by re-adding).
+  const prevPositions = coaches.value.find(x => x.id === p.id)?.positions
+    ?? members.value.find(x => x.id === p.id)?.positions ?? []
+  const positions = Array.from(new Set([...prevPositions, ...addPositions.value]))
   const { error } = await (db.from as any)('member_group_memberships')
-    .upsert({ group_id: group.value.id, person_id: p.id, roles: merged, role: merged[0] ?? null, ...(enrol ?? {}) },
+    .upsert({ group_id: group.value.id, person_id: p.id, roles: merged, role: merged[0] ?? null, positions, ...(enrol ?? {}) },
       { onConflict: 'group_id,person_id' })
   if (!error) {
     // Stamp the code's member type on the person (joining as a member) so they
@@ -2473,15 +2770,16 @@ async function addPerson() {
     if (groupMemberType.value && (!merged.length || memberRolesOf(merged).length)) {
       await ensurePersonType(p.id, groupMemberType.value)
     }
-    const base = { id: p.id, name, email: p.email ?? null, phone: p.phone ?? null, allRoles: merged }
+    const base = { id: p.id, name, email: p.email ?? null, phone: p.phone ?? null, allRoles: merged, positions }
     // Rebuild this person's presence across both tables from the merged roles.
     coaches.value = coaches.value.filter(x => x.id !== p.id)
     members.value = members.value.filter(x => x.id !== p.id)
-    if (scoped.isStaff('group', merged)) {
+    if (rolesAreStaff(merged)) {
       coaches.value.push({ ...base, roles: staffRolesOf(merged) })
       coaches.value.sort((a, b) => a.name.localeCompare(b.name))
     }
-    if (!merged.length || memberRolesOf(merged).length) {
+    // Member if they hold a position, a non-staff role, or aren't staff at all.
+    if (positions.length || !rolesAreStaff(merged) || memberRolesOf(merged).length) {
       members.value.push({ ...base, roles: memberRolesOf(merged) })
       members.value.sort((a, b) => a.name.localeCompare(b.name))
     }
@@ -2623,6 +2921,6 @@ function findFirstOccurrence(dow: number, startIso?: string | null): Date | null
   return d
 }
 
-watch(orgId, () => { load(); scoped.load(); scoped.loadRoleDefs() }, { immediate: true })
+watch(orgId, () => { load(); scoped.load(); scoped.loadRoleDefs(); gc.loadDefaultPositions() }, { immediate: true })
 watch(() => route.params.id, () => { if (orgId.value) load() })
 </script>

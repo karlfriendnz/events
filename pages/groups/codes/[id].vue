@@ -24,7 +24,7 @@ const toast = useToast()
 const PALETTE = ['#1E2157', '#2563EB', '#0f766e', '#059669', '#9333ea', '#EC4899', '#c2410c', '#be123c', '#8B5CF6', '#64748b']
 const terms = ref<any[]>([])
 const detail = reactive<{ name: string; color: string; parent_id: string | null; term_id: string | null }>({ name: '', color: PALETTE[0], parent_id: null, term_id: null })
-const savingDetail = ref(false)
+const savingAll = ref(false)
 // Valid parents = every code except this one + its descendants (no cycles).
 const parentOptions = computed(() => {
   const banned = new Set<string>([codeId])
@@ -49,10 +49,64 @@ let ruid = 1
 const roleItems = ref<RoleItem[]>([])
 const allDefs = ref<CodeRoleDef[]>([])
 const staff = ref<CodeStaff[]>([])
-const savingOwn = ref(false)
+// This code's OWN per-role minimums (people per group). Keyed by role key.
+const roleMins = ref<Record<string, number>>({})
+function setRoleMin(key: string, v: number | null | undefined) {
+  if (!key) return
+  if (typeof v === 'number' && v > 0) roleMins.value[key] = v
+  else delete roleMins.value[key]
+}
+// The minimum for a role INHERITED from parent codes (this code's own value
+// aside) — shown as a hint so the user sees what they'd be overriding.
+function inheritedMin(key: string): number | null {
+  if (!code.value) return null
+  return gc.effectiveRoleMins({ code_id: code.value.parent_id }, codesById.value)[key] ?? null
+}
+// Member POSITIONS (Captain, Wing…) — this code's own catalogue (editable) plus a
+// read-only view of positions inherited from parent codes (migration 216).
+const positions = ref<string[]>([])
+const newPosition = ref('')
+const newPositionMin = ref<number | null>(null)
+// This code's own per-position minimums (people per group). Keyed by position.
+const positionMins = ref<Record<string, number>>({})
+const inheritedPositions = computed(() => code.value
+  ? gc.effectivePositions({ code_id: code.value.parent_id }, codesById.value)
+  : [])
+// Every position available on THIS code (own + inherited + org defaults), for the
+// minimum-per-position table — with where each one comes from.
+const effectivePositionRows = computed(() => {
+  const rows: { name: string; own: boolean }[] = []
+  const seen = new Set<string>()
+  for (const p of positions.value) { const k = p.toLowerCase(); if (!seen.has(k)) { seen.add(k); rows.push({ name: p, own: true }) } }
+  for (const p of inheritedPositions.value) { const k = p.toLowerCase(); if (!seen.has(k)) { seen.add(k); rows.push({ name: p, own: false }) } }
+  return rows
+})
+function addPosition() {
+  const n = newPosition.value.trim()
+  if (n && !positions.value.some(p => p.toLowerCase() === n.toLowerCase())
+        && !inheritedPositions.value.some(p => p.toLowerCase() === n.toLowerCase())) {
+    positions.value.push(n)
+    if (typeof newPositionMin.value === 'number' && newPositionMin.value > 0) positionMins.value[n] = newPositionMin.value
+  }
+  newPosition.value = ''
+  newPositionMin.value = null
+}
+function removePosition(i: number) {
+  const removed = positions.value.splice(i, 1)[0]
+  if (removed) delete positionMins.value[removed]
+}
+function setPositionMin(name: string, v: number | null | undefined) {
+  if (typeof v === 'number' && v > 0) positionMins.value[name] = v
+  else delete positionMins.value[name]
+}
+// A position's minimum INHERITED from parent codes (this code's own aside).
+function inheritedPositionMin(name: string): number | null {
+  if (!code.value) return null
+  return gc.effectivePositionMins({ code_id: code.value.parent_id }, codesById.value)[name] ?? null
+}
 const hasInherited = computed(() => roleItems.value.some(r => r.groupKey === 'inherited'))
 const roleGroups = computed(() => [
-  { key: 'own', label: `This code — ${code.value?.name ?? ''}`, addable: true },
+  { key: 'own', label: 'This code', addable: true },
   ...(hasInherited.value ? [{ key: 'inherited', label: 'Inherited from parent codes', note: 'Set on a parent code — edit it there.' }] : []),
   { key: 'default', label: 'Default (all codes)', note: 'Applies to every code — edit on the Default roles page.' },
 ])
@@ -68,10 +122,12 @@ async function load() {
   loading.value = true
   const [loadedCodes, types, defs, staffRows, loadedTerms] = await Promise.all([
     gc.loadCodes(),
-    policy.resolvePersonTypes(orgId.value),
+    // Only THIS club's own person types (not inherited from an NSO/parent org).
+    policy.loadOrgTypes(orgId.value),
     cr.ensureDefaults(),
     cr.loadStaff(),
     tm.loadTerms(),
+    gc.loadDefaultPositions(true),
   ])
   codes.value = loadedCodes
   allDefs.value = defs
@@ -79,6 +135,9 @@ async function load() {
   terms.value = loadedTerms ?? []
   personTypeOptions.value = (types ?? []).filter((t: any) => (t.kind ?? 'person') === 'person').map((t: any) => ({ label: t.label, value: t.key }))
   memberType.value = code.value?.member_type_key ?? null
+  roleMins.value = { ...(code.value?.role_minimums || {}) }
+  positions.value = [...(code.value?.member_positions || [])]
+  positionMins.value = { ...(code.value?.position_minimums || {}) }
   if (code.value) Object.assign(detail, { name: code.value.name, color: code.value.color || PALETTE[0], parent_id: code.value.parent_id, term_id: code.value.term_id })
 
   const ln = lineage.value
@@ -94,34 +153,37 @@ async function load() {
   loading.value = false
 }
 
-async function saveDetails() {
-  if (!code.value || !detail.name.trim()) return
-  savingDetail.value = true
-  await gc.updateCode(code.value.id, {
-    name: detail.name.trim(), color: detail.color, parent_id: detail.parent_id, term_id: detail.term_id,
-    member_type_key: memberType.value || null,
-  })
-  savingDetail.value = false
-  await load()
-  toast.add({ severity: 'success', summary: 'Details saved', life: 1600 })
-}
-
 function addOwnRole(groupKey: string) {
   if (groupKey !== 'own') return
   roleItems.value.push({ _uid: ruid++, groupKey: 'own', editable: true, key: '', label: 'New role', capabilities: [] })
 }
 function removeOwnRole(role: RoleItem) { roleItems.value = roleItems.value.filter(r => r._uid !== role._uid) }
 
-async function saveOwn() {
-  if (!lineage.value) return
-  savingOwn.value = true
-  const own = roleItems.value.filter(r => r.groupKey === 'own' && r.label.trim())
-  await cr.saveRolesForScope(lineage.value, own.map((r, i) => ({
-    code_lineage_id: lineage.value, key: r.key || cr.slug(r.label), label: r.label.trim(), capabilities: r.capabilities, sort_order: i,
-  })))
-  savingOwn.value = false
+// One Save for the whole page — details + member type + this code's own roles.
+// (Assigning people saves instantly and isn't part of this.)
+async function saveAll() {
+  if (!code.value || !detail.name.trim()) return
+  savingAll.value = true
+  // Keep only positive minimums so an empty map means "inherit / no minimum".
+  const mins: Record<string, number> = {}
+  for (const [k, v] of Object.entries(roleMins.value)) if (typeof v === 'number' && v > 0) mins[k] = v
+  const posMins: Record<string, number> = {}
+  for (const [k, v] of Object.entries(positionMins.value)) if (typeof v === 'number' && v > 0) posMins[k] = v
+  await gc.updateCode(code.value.id, {
+    name: detail.name.trim(), color: detail.color, parent_id: detail.parent_id, term_id: detail.term_id,
+    member_type_key: memberType.value || null, role_minimums: mins,
+    member_positions: positions.value.map(p => p.trim()).filter(Boolean),
+    position_minimums: posMins,
+  })
+  if (lineage.value) {
+    const own = roleItems.value.filter(r => r.groupKey === 'own' && r.label.trim())
+    await cr.saveRolesForScope(lineage.value, own.map((r, i) => ({
+      code_lineage_id: lineage.value, key: r.key || cr.slug(r.label), label: r.label.trim(), capabilities: r.capabilities, sort_order: i,
+    })))
+  }
+  savingAll.value = false
   await load()
-  toast.add({ severity: 'success', summary: 'Roles saved', life: 1600 })
+  toast.add({ severity: 'success', summary: 'Saved', life: 1600 })
 }
 // Assign a person to a role (at this code's lineage).
 const assignOpen = ref(false)
@@ -165,6 +227,8 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: code?.color || '#94a3b8' }" />
         <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">{{ code?.name || 'Code' }}</h1>
         <span class="text-xs text-gray-400">settings</span>
+        <Button v-if="code" label="Save" class="ml-auto shrink-0" :disabled="savingAll || !detail.name.trim()"
+          style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveAll" />
       </div>
     </div>
 
@@ -197,32 +261,95 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
                 placeholder="No term" show-clear class="w-full" />
             </div>
           </div>
-          <div class="flex items-center justify-between gap-3 flex-wrap">
-            <div class="flex items-center gap-2">
-              <span class="text-xs font-medium text-gray-600 mr-1">Colour</span>
-              <button v-for="c in PALETTE" :key="c" type="button" @click="detail.color = c"
-                class="w-6 h-6 rounded-full border-2 transition"
-                :class="detail.color === c ? 'border-gray-800 scale-110' : 'border-transparent'"
-                :style="{ background: c }" />
-            </div>
-            <Button label="Save" :disabled="savingDetail || !detail.name.trim()" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveDetails" />
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-medium text-gray-600 mr-1">Colour</span>
+            <button v-for="c in PALETTE" :key="c" type="button" @click="detail.color = c"
+              class="w-6 h-6 rounded-full border-2 transition"
+              :class="detail.color === c ? 'border-gray-800 scale-110' : 'border-transparent'"
+              :style="{ background: c }" />
           </div>
         </div>
       </AppCard>
 
-      <!-- STAFF ROLES — this code's own (editable) + inherited + default (read-only) -->
-      <div class="space-y-3">
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <h2 class="text-sm font-semibold text-gray-800">Staff roles</h2>
-            <p class="text-xs text-gray-400">This code's own roles (apply to its sub-codes + groups), plus inherited &amp; default roles (read-only).</p>
-          </div>
-          <div class="flex items-center gap-3 shrink-0">
-            <NuxtLink to="/groups/codes/default-roles" class="text-xs font-semibold text-primary hover:underline whitespace-nowrap">Edit default roles →</NuxtLink>
-            <Button label="Save roles" size="small" :disabled="savingOwn" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveOwn" />
-          </div>
+      <!-- MEMBER POSITIONS — labels (Captain, Wing…) with no permissions -->
+      <AppCard title="Member positions" description="Positions a member can hold in these groups (Captain, Vice, Wing…). These are labels — no permissions. Set an optional minimum per group (e.g. 2 Wings). Available when you add a member to a group.">
+        <div class="overflow-hidden">
+          <!-- two columns: Position | Minimum per group -->
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-gray-50 text-xs text-gray-500 border-y border-gray-100">
+                <th class="text-left px-4 sm:px-5 py-2 font-medium">Position</th>
+                <th class="text-left px-4 py-2 font-medium w-40">Minimum per group</th>
+                <th class="w-10" />
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in effectivePositionRows" :key="row.name" class="border-b border-gray-50 hover:bg-gray-50/60">
+                <td class="px-4 sm:px-5 py-2 align-middle">
+                  <span class="text-gray-800 inline-flex items-center gap-1.5">
+                    {{ row.name }}
+                    <span v-if="!row.own" class="text-[9px] text-gray-400 inline-flex items-center gap-0.5"><i class="pi pi-lock text-[8px]" />inherited</span>
+                  </span>
+                </td>
+                <td class="px-4 py-2 align-middle">
+                  <InputNumber :modelValue="positionMins[row.name] ?? null" :min="0" :max="99" showButtons buttonLayout="horizontal"
+                    :placeholder="inheritedPositionMin(row.name) != null ? String(inheritedPositionMin(row.name)) : 'None'"
+                    class="w-32" :inputStyle="{ width: '3.5rem' }"
+                    @update:modelValue="v => setPositionMin(row.name, v)" />
+                </td>
+                <td class="px-3 py-2 text-center align-middle">
+                  <button v-if="row.own" type="button" class="text-gray-300 hover:text-red-500" title="Remove position"
+                    @click="removePosition(positions.indexOf(row.name))"><i class="pi pi-trash text-sm" /></button>
+                </td>
+              </tr>
+              <!-- add row: two fields (name + minimum) -->
+              <tr class="bg-gray-50/40">
+                <td class="px-4 sm:px-5 py-2.5 align-middle">
+                  <InputText v-model="newPosition" placeholder="Add a position (e.g. Captain)" class="w-full" @keydown.enter.prevent="addPosition" />
+                </td>
+                <td class="px-4 py-2.5 align-middle">
+                  <InputNumber v-model="newPositionMin" :min="0" :max="99" showButtons buttonLayout="horizontal"
+                    placeholder="None" class="w-32" :inputStyle="{ width: '3.5rem' }" @keydown.enter.prevent="addPosition" />
+                </td>
+                <td class="px-3 py-2.5 text-center align-middle">
+                  <Button icon="pi pi-plus" text rounded size="small" :disabled="!newPosition.trim()" title="Add position" @click="addPosition" />
+                </td>
+              </tr>
+              <tr v-if="!effectivePositionRows.length && !newPosition">
+                <td colspan="3" class="px-4 sm:px-5 py-3 text-xs text-gray-400">No positions yet — add one above.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
+      </AppCard>
+
+      <!-- STAFF ROLES — this code's own (editable) + inherited + default (read-only) -->
+      <AppCard title="Staff roles" description="This code's own roles (apply to its sub-codes + groups), plus inherited & default roles (read-only).">
+        <template #header-action>
+          <NuxtLink to="/groups/codes/default-roles" class="text-xs font-semibold text-primary hover:underline whitespace-nowrap">Edit default roles →</NuxtLink>
+        </template>
+        <div class="p-4 sm:p-5">
         <RolePermissions :groups="roleGroups" :roles="roleItems" :caps="cr.CODE_CAPABILITIES" @add="addOwnRole" @remove="removeOwnRole">
+          <template #role-meta="{ role }">
+            <div class="px-4 py-3 border-b border-gray-100 bg-gray-50/40">
+              <div class="flex items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-sm font-medium text-gray-800">Minimum per group</p>
+                  <p class="text-[11px] text-gray-400 leading-snug">
+                    How many people should hold this role in each group in this code.
+                    <template v-if="role.key && inheritedMin(role.key) != null && roleMins[role.key] == null">
+                      Inherited: <span class="font-medium text-gray-500">{{ inheritedMin(role.key) }}</span> (from a parent code).
+                    </template>
+                  </p>
+                </div>
+                <InputNumber v-if="role.key" :modelValue="roleMins[role.key] ?? null" :min="0" :max="99" showButtons
+                  :placeholder="inheritedMin(role.key) != null ? String(inheritedMin(role.key)) : 'None'"
+                  class="w-28 shrink-0" :inputStyle="{ width: '5rem' }"
+                  @update:modelValue="v => setRoleMin(role.key, v)" />
+                <span v-else class="text-[11px] text-gray-400 shrink-0">Save the role first</span>
+              </div>
+            </div>
+          </template>
           <template #role-footer="{ role }">
             <div class="card p-4">
               <div class="flex items-center justify-between gap-2">
@@ -246,7 +373,8 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
             </div>
           </template>
         </RolePermissions>
-      </div>
+        </div>
+      </AppCard>
     </template>
 
     <!-- Assign person to a role -->
