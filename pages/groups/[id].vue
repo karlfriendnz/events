@@ -81,10 +81,6 @@
                     <i class="pi pi-plus text-[9px]" /> Add a fee
                   </button>
                 </dd>
-                <template v-if="canManage && group?.id">
-                  <dt class="text-left font-semibold text-gray-700">Disciplines:</dt>
-                  <dd><DisciplineLinker entity-type="group" :entity-id="group.id" /></dd>
-                </template>
               </dl>
 
               <!-- Signup readiness — flag anything blocking members from signing up -->
@@ -1025,6 +1021,10 @@
             <Select v-model="groupDraft.gender_restriction" :options="GENDER_RESTRICTION_OPTIONS"
               optionLabel="label" optionValue="value" placeholder="Open to all" class="w-full" showClear />
           </div>
+        </div>
+        <div v-if="group?.id" class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Disciplines</label>
+          <DisciplineLinker entity-type="group" :entity-id="group.id" />
         </div>
       </div>
       <template #footer>
