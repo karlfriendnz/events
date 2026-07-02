@@ -22,11 +22,6 @@
       <div v-show="activeTab === 'details'" class="mb-4 flex items-center gap-3 flex-wrap">
         <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: group.color || '#94a3b8' }" />
         <h1 class="text-xl font-semibold text-surface-900">{{ group.name }}</h1>
-        <NuxtLink v-if="groupCode" to="/groups"
-          class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold text-white hover:opacity-90"
-          :style="{ background: groupCode.color || '#64748b' }" title="This group's code">
-          <i class="pi pi-sitemap text-[9px]" />{{ groupCode.name }}
-        </NuxtLink>
         <span v-for="r in myRoleLabels" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1976d2]/10 text-[#1976d2] font-semibold" title="Your role in this group">{{ r }}</span>
         <Button v-if="canManage" label="Add person" icon="pi pi-user-plus"
           class="ml-auto w-full sm:w-auto justify-center"
