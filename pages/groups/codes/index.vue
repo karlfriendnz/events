@@ -175,7 +175,10 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Code hierarchy</h1>
         <p class="text-sm text-gray-500">Drag a code onto another to nest it; drag to a row's top/bottom edge to reorder. Codes hold your groups and pass down their term.</p>
       </div>
-      <NuxtLink to="/groups" class="text-sm text-primary hover:underline whitespace-nowrap shrink-0 mt-1">← Groups</NuxtLink>
+      <div class="flex items-center gap-4 shrink-0 mt-1">
+        <NuxtLink to="/groups/codes/default-roles" class="text-sm text-primary hover:underline whitespace-nowrap">Default staff roles →</NuxtLink>
+        <NuxtLink to="/groups" class="text-sm text-primary hover:underline whitespace-nowrap">← Groups</NuxtLink>
+      </div>
     </div>
 
     <!-- Add / edit -->

@@ -29,13 +29,13 @@ const personTypeOptions = ref<{ label: string; value: string }[]>([])
 const memberType = ref<string | null>(null)
 
 const ownRoles = ref<CodeRoleDef[]>([])
-const defaultRoles = ref<CodeRoleDef[]>([])
 const inheritedRoles = ref<(CodeRoleDef & { fromLabel: string })[]>([])
 const allDefs = ref<CodeRoleDef[]>([])
 const staff = ref<CodeStaff[]>([])
 const savingMember = ref(false)
 const savingOwn = ref(false)
-const savingDefault = ref(false)
+// Org-wide default roles are read-only here — edited on /groups/codes/default-roles.
+const defaultRolesRO = computed(() => allDefs.value.filter(d => d.code_lineage_id == null))
 
 // Effective roles (defaults + own + inherited) to assign people to.
 const effectiveRoles = computed(() => code.value ? cr.rolesForCode(code.value, codesById.value, allDefs.value) : [])
@@ -59,7 +59,6 @@ async function load() {
   memberType.value = code.value?.member_type_key ?? null
 
   const ln = lineage.value
-  defaultRoles.value = clone(defs.filter(d => d.code_lineage_id == null))
   ownRoles.value = clone(defs.filter(d => d.code_lineage_id === ln))
   // ancestor lineages (excluding this code's own) → inherited, read-only.
   const chain = code.value ? cr.lineageChain(code.value, codesById.value).filter(l => l !== ln) : []
@@ -79,14 +78,10 @@ async function saveMemberType() {
   toast.add({ severity: 'success', summary: 'Member type saved', life: 1600 })
 }
 
-function addRole(scope: 'own' | 'default') {
-  const list = scope === 'own' ? ownRoles : defaultRoles
-  const codeLineageId = scope === 'own' ? lineage.value : null
-  list.value.push({ code_lineage_id: codeLineageId, key: '', label: '', capabilities: [], sort_order: list.value.length })
+function addRole() {
+  ownRoles.value.push({ code_lineage_id: lineage.value, key: '', label: '', capabilities: [], sort_order: ownRoles.value.length })
 }
-function removeRole(scope: 'own' | 'default', i: number) {
-  (scope === 'own' ? ownRoles : defaultRoles).value.splice(i, 1)
-}
+function removeRole(i: number) { ownRoles.value.splice(i, 1) }
 function toggleCap(role: CodeRoleDef, capKey: string, on: boolean) {
   const set = new Set(role.capabilities)
   on ? set.add(capKey) : set.delete(capKey)
@@ -105,14 +100,6 @@ async function saveOwn() {
   await load()
   toast.add({ severity: 'success', summary: 'Roles saved', life: 1600 })
 }
-async function saveDefaults() {
-  savingDefault.value = true
-  await cr.saveRolesForScope(null, defaultRoles.value.filter(r => r.label.trim()))
-  savingDefault.value = false
-  await load()
-  toast.add({ severity: 'success', summary: 'Default roles saved', life: 1600 })
-}
-
 // Assign a person to a role (at this code's lineage).
 const assignOpen = ref(false)
 const assignRoleKey = ref<string>('')
@@ -178,7 +165,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         </template>
         <div class="p-4 sm:p-5">
           <RoleMatrix :roles="ownRoles" :caps="cr.CODE_CAPABILITIES" empty="No code-specific roles yet — the default roles below still apply."
-            @add="addRole('own')" @remove="i => removeRole('own', i)" @toggle="(r, c, v) => toggleCap(r, c, v)" :runs="roleRuns" />
+            @add="addRole" @remove="removeRole" @toggle="(r, c, v) => toggleCap(r, c, v)" :runs="roleRuns" />
         </div>
       </AppCard>
 
@@ -219,14 +206,22 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         </div>
       </AppCard>
 
-      <!-- DEFAULT ROLES (all codes) -->
-      <AppCard title="Default roles (all codes)" description="Applied to every code. Editing these changes them everywhere.">
+      <!-- DEFAULT ROLES (all codes) — read-only; edited on the shared page -->
+      <AppCard title="Default roles (all codes)" description="These apply to every code. Edit them on the shared Default roles page.">
         <template #header-action>
-          <Button label="Save defaults" size="small" severity="secondary" outlined :disabled="savingDefault" @click="saveDefaults" />
+          <NuxtLink to="/groups/codes/default-roles" class="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1">
+            Edit default roles <i class="pi pi-arrow-right text-[9px]" />
+          </NuxtLink>
         </template>
-        <div class="p-4 sm:p-5">
-          <RoleMatrix :roles="defaultRoles" :caps="cr.CODE_CAPABILITIES" empty="No default roles."
-            @add="addRole('default')" @remove="i => removeRole('default', i)" @toggle="(r, c, v) => toggleCap(r, c, v)" :runs="roleRuns" />
+        <div class="p-4 sm:p-5 space-y-2">
+          <div v-for="r in defaultRolesRO" :key="r.id" class="flex items-center gap-2 flex-wrap border border-gray-100 rounded-lg px-3 py-2">
+            <span class="font-medium text-gray-700 text-sm">{{ r.label }}</span>
+            <div class="flex flex-wrap gap-1 ml-auto">
+              <span v-for="cap in r.capabilities" :key="cap" class="text-[10px] bg-gray-100 text-gray-500 rounded px-1.5 py-0.5">{{ cr.CODE_CAPABILITIES.find(c => c.key === cap)?.label || cap }}</span>
+              <span v-if="!r.capabilities.length" class="text-[10px] text-gray-300">no permissions</span>
+            </div>
+          </div>
+          <div v-if="!defaultRolesRO.length" class="text-sm text-gray-400">No default roles.</div>
         </div>
       </AppCard>
     </template>
