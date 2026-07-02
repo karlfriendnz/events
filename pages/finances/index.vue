@@ -1,11 +1,6 @@
 <template>
   <div class="p-3 sm:p-6">
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h1 class="text-xl font-semibold text-surface-900">Finances</h1>
-        <p class="text-sm text-surface-500 mt-0.5">Fee components, discounts, and financial reporting.</p>
-      </div>
-    </div>
+    <!-- Title lives in the control bar (pageTitles map). -->
 
     <!-- Summary cards -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">

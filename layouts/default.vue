@@ -86,14 +86,17 @@
           <i v-else class="pi pi-calendar text-white text-sm" />
         </NuxtLink>
         <div class="flex items-center gap-2 flex-1 min-w-0">
-          <nav v-if="breadcrumbs.length" class="hidden sm:flex items-center gap-1.5 text-sm min-w-0">
+          <!-- The control bar OWNS the page title. Visible on mobile too (only the
+               current/last crumb shows on mobile; parent links collapse) so pages
+               never need to repeat their own name as an in-page <h1>. -->
+          <nav v-if="breadcrumbs.length" class="flex items-center gap-1.5 text-sm min-w-0">
             <template v-for="(crumb, i) in breadcrumbs" :key="i">
-              <i v-if="i > 0" class="pi pi-chevron-right text-[10px] text-gray-300 shrink-0" />
-              <NuxtLink v-if="crumb.to" :to="crumb.to" class="text-gray-400 hover:text-gray-700 transition-colors shrink-0">{{ crumb.label }}</NuxtLink>
+              <i v-if="i > 0" class="pi pi-chevron-right text-[10px] text-gray-300 shrink-0 hidden sm:block" />
+              <NuxtLink v-if="crumb.to" :to="crumb.to" class="hidden sm:block text-gray-400 hover:text-gray-700 transition-colors shrink-0">{{ crumb.label }}</NuxtLink>
               <span v-else class="font-semibold text-gray-800 truncate">{{ crumb.label }}</span>
             </template>
           </nav>
-          <h1 v-else class="hidden sm:block text-base font-semibold text-gray-900 truncate">{{ pageTitle }}</h1>
+          <h1 v-else class="text-base font-semibold text-gray-900 truncate">{{ pageTitle }}</h1>
         </div>
         <!-- Quick create -->
         <button type="button"

@@ -1,10 +1,7 @@
 <template>
   <div class="p-3 sm:p-6">
-    <div class="flex items-center justify-between flex-wrap gap-2 mb-6">
-      <div>
-        <h1 class="text-xl font-semibold text-surface-900">Reporting</h1>
-        <p class="text-sm text-surface-500 mt-0.5">Cross-event analytics, attendance trends, and financial summaries.</p>
-      </div>
+    <!-- Title lives in the control bar (pageTitles map). -->
+    <div class="flex items-center justify-end flex-wrap gap-2 mb-6">
       <Button label="Export" icon="pi pi-download" severity="secondary" size="small" @click="exportAll" />
     </div>
 

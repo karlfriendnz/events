@@ -19,12 +19,21 @@ const view = ref<GroupView | null>(null)
 const loading = ref(true)
 const editing = ref(false)
 
+// Control bar owns the title (Classes › {view name}); no in-page <h1>.
+useBreadcrumbs([{ label: 'Classes', to: '/groups' }, { label: () => view.value?.name || 'View' }])
+
 // Live-editable config — bound directly to <ClassesBoard>, so toggling a column
 // or tab re-renders the board immediately (no reload). Autosaved on change.
 const name = ref('')
 const columns = ref<ViewColumnKey[]>([])
 const codeIds = ref<string[]>([])
 const allCodes = ref<GroupCode[]>([])
+
+// "Week View" of this view — the timetable scoped to the view's codes.
+const weekViewLink = computed(() => {
+  const ids = codeIds.value.filter(Boolean)
+  return ids.length ? `/groups/timetable?codes=${ids.join(',')}` : '/groups/timetable'
+})
 
 const hydrating = ref(false)      // suppress autosave while we seed from the DB
 const saveState = ref<'idle' | 'saving' | 'saved'>('idle')
@@ -74,25 +83,20 @@ watch(() => route.params.id, load, { immediate: true })
 
 <template>
   <div class="p-3 sm:p-6 space-y-4">
-    <div class="flex items-start justify-between gap-3">
-      <div class="min-w-0 flex-1">
-        <h1 class="text-lg sm:text-2xl font-semibold text-gray-900 truncate">{{ view?.name || 'View' }}</h1>
-        <p class="text-sm text-gray-500 flex items-center gap-2">
-          Saved classes view.
-          <span v-if="saveState === 'saving'" class="text-xs text-gray-400"><i class="pi pi-spin pi-spinner text-[10px]" /> Saving…</span>
-          <span v-else-if="saveState === 'saved'" class="text-xs text-emerald-600"><i class="pi pi-check text-[10px]" /> Saved</span>
-        </p>
-      </div>
-      <div class="flex items-center gap-3 shrink-0">
-        <Button v-if="view" label="Edit" icon="pi pi-pencil" size="small" outlined @click="editing = true" />
-      </div>
-    </div>
-
     <div v-if="loading" class="card p-6 text-sm text-gray-400">Loading…</div>
     <div v-else-if="!view" class="card p-6 text-sm text-gray-500">
       This view no longer exists. <NuxtLink to="/groups/views" class="text-primary hover:underline">Manage views</NuxtLink>.
     </div>
-    <ClassesBoard v-else :columns="columns" :code-ids="codeIds" />
+    <ClassesBoard v-else :columns="columns" :code-ids="codeIds">
+      <template #toolbar>
+        <span v-if="saveState === 'saving'" class="text-xs text-gray-400"><i class="pi pi-spin pi-spinner text-[10px]" /> Saving…</span>
+        <span v-else-if="saveState === 'saved'" class="text-xs text-emerald-600"><i class="pi pi-check text-[10px]" /> Saved</span>
+        <NuxtLink :to="weekViewLink" class="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-primary px-3 py-2 rounded-lg border border-gray-200 hover:border-gray-300">
+          <i class="pi pi-calendar text-xs" /> Week View
+        </NuxtLink>
+        <Button label="Edit" icon="pi pi-pencil" size="small" outlined @click="editing = true" />
+      </template>
+    </ClassesBoard>
 
     <!-- Edit dialog — changes autosave; the board updates live behind it. -->
     <Dialog v-model:visible="editing" modal header="Edit view" :style="{ width: '95vw', maxWidth: '520px' }">

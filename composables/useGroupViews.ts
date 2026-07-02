@@ -11,6 +11,7 @@ export const VIEW_COLUMNS = [
   { key: 'waitlist', label: 'Waitlist' },
   { key: 'attendances', label: 'Attendances' },
   { key: 'termfee', label: 'Term fee' },
+  { key: 'age', label: 'Age' },
   { key: 'gender', label: 'Gender' },
   { key: 'signup', label: 'Signup' },
   { key: 'sport', label: 'Sport' },

@@ -1,12 +1,7 @@
 <template>
   <div class="p-3 sm:p-6 max-w-6xl mx-auto">
-    <div class="flex items-start justify-between gap-4 mb-6">
-      <div>
-        <h1 class="text-xl font-semibold text-gray-900">Pending bookings</h1>
-        <p class="text-sm text-gray-500 mt-0.5">
-          Bookings waiting on your approval. Approve to confirm the slot, decline to free it up.
-        </p>
-      </div>
+    <!-- Title lives in the control bar (useBreadcrumbs: Bookings › Pending). -->
+    <div class="flex items-center justify-end gap-4 mb-6">
       <span v-if="rows.length"
         class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
         <i class="pi pi-clock text-[10px]" />

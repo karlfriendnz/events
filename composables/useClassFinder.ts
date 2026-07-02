@@ -13,6 +13,7 @@ export interface FinderParams {
   days: number[]           // 0=Sun..6=Sat; empty = any day
   timeBand: TimeBand
   codeIds: string[]        // empty = any programme
+  disciplineIds: string[]  // empty = any discipline
   gender: string | null    // MALE | FEMALE | NON_BINARY | null(any)
   venue: string | null     // venue label | null(any)
   termId: string | null    // effective term | null(any)
@@ -36,6 +37,8 @@ export interface FinderClass {
   ageMax: number | null
   ageRange: string | null
   termId: string | null
+  disciplineIds: string[]
+  disciplines: { id: string; name: string }[]
   sessions: FinderSession[]
   score: number
 }
@@ -64,7 +67,7 @@ export const WEEKDAYS = [
 ]
 
 export function defaultFinderParams(): FinderParams {
-  return { age: null, days: [], timeBand: 'any', codeIds: [], gender: null, venue: null, termId: null, onlyWithSpace: true }
+  return { age: null, days: [], timeBand: 'any', codeIds: [], disciplineIds: [], gender: null, venue: null, termId: null, onlyWithSpace: true }
 }
 
 // Best-effort parse of a free-text age_range ("5-8", "Under 12", "10+", "6").
@@ -81,6 +84,7 @@ export function parseAgeRange(s: string | null): { min: number | null; max: numb
 
 export function useClassFinder() {
   const ct = useClassTimetable()
+  const db = useDb()
 
   // Shared state (persists across route changes; the drawer is mounted once in the layout).
   const open = useState<boolean>('classFinder.open', () => false)
@@ -96,7 +100,7 @@ export function useClassFinder() {
   function resetParams() { params.value = defaultFinderParams() }
 
   // Aggregate the timetable's per-schedule sessions into one row per class (group).
-  async function loadClasses(): Promise<{ classes: FinderClass[]; codes: any[] }> {
+  async function loadClasses(): Promise<{ classes: FinderClass[]; codes: any[]; disciplines: { id: string; name: string; sport: string | null }[] }> {
     const { sessions, codes } = await ct.loadSessions()
     const byGroup = new Map<string, FinderClass>()
     for (const s of sessions as TimetableSession[]) {
@@ -108,14 +112,30 @@ export function useClassFinder() {
           venues: [], coach: s.coach, count: s.count, capacity: s.capacity,
           spaces: s.capacity == null ? null : Math.max(s.capacity - s.count, 0),
           gender: s.genderRestriction, ageMin: min, ageMax: max, ageRange: s.ageRange, termId: s.termId,
-          sessions: [], score: 0,
+          disciplineIds: [], disciplines: [], sessions: [], score: 0,
         }
         byGroup.set(s.groupId, g)
       }
       g.sessions.push({ day: s.day, startMin: s.startMin, endMin: s.endMin, label: `${dayShort(s.day)} ${minLabel(s.startMin)}–${minLabel(s.endMin)}` })
       if (s.venue && !g.venues.includes(s.venue)) g.venues.push(s.venue)
     }
-    return { classes: [...byGroup.values()], codes }
+
+    // Disciplines each class is mapped to (member_group_disciplines → disciplines).
+    // Only disciplines actually in use become chooser options.
+    const groupIds = [...byGroup.keys()]
+    const discOptions = new Map<string, { id: string; name: string; sport: string | null }>()
+    if (groupIds.length) {
+      const { data: links } = await (db.from as any)('member_group_disciplines')
+        .select('group_id, discipline_id, discipline:disciplines(id, name, sport)').in('group_id', groupIds)
+      for (const l of links ?? []) {
+        const g = byGroup.get(l.group_id); const d = l.discipline
+        if (!g || !d) continue
+        if (!g.disciplineIds.includes(d.id)) { g.disciplineIds.push(d.id); g.disciplines.push({ id: d.id, name: d.name }) }
+        if (!discOptions.has(d.id)) discOptions.set(d.id, { id: d.id, name: d.name, sport: d.sport ?? null })
+      }
+    }
+    const disciplines = [...discOptions.values()].sort((a, b) => a.name.localeCompare(b.name))
+    return { classes: [...byGroup.values()], codes, disciplines }
   }
 
   // Pure filter + rank. Hard filters exclude; soft matches boost the score.
@@ -127,6 +147,8 @@ export function useClassFinder() {
       if (p.termId && c.termId !== p.termId) continue
       // programme/code (hard)
       if (p.codeIds.length && !(c.codeId && p.codeIds.includes(c.codeId))) continue
+      // discipline (hard)
+      if (p.disciplineIds.length && !c.disciplineIds.some(id => p.disciplineIds.includes(id))) continue
       // venue (hard)
       if (p.venue && !c.venues.includes(p.venue)) continue
       // gender (hard) — a restricted class must not conflict with the requested gender

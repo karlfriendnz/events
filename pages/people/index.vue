@@ -1,8 +1,6 @@
 <template>
   <div class="p-3 sm:p-6">
-    <div class="flex items-center justify-between gap-3 mb-4">
-      <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">People and organisations</h1>
-    </div>
+    <!-- Title lives in the control bar (useBreadcrumbs). -->
     <div class="inline-flex rounded-lg border border-gray-200 p-0.5 mb-4">
       <button v-for="v in (['people','organisations'] as const)" :key="v" type="button"
         class="px-4 py-1.5 text-sm font-medium rounded-md transition-colors"

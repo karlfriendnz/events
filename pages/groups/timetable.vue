@@ -11,11 +11,12 @@ const ct = useClassTimetable()
 const gc = useGroupCodes()
 const tm = useTermsMemberships()
 const finder = useClassFinder()
+const route = useRoute()
 const { orgReady } = useOrg()
 
 // Breadcrumb trail lives in the top control bar (like the rest of the app) —
 // the page no longer repeats a title/subtitle in its body.
-useBreadcrumbs([{ label: 'Classes', to: '/groups' }, { label: 'Week view' }])
+useBreadcrumbs([{ label: 'Classes', to: '/groups' }, { label: 'Week View' }])
 
 const loading = ref(true)
 const allSessions = ref<TimetableSession[]>([])
@@ -36,6 +37,10 @@ async function load() {
   const { sessions, codes: cs } = await ct.loadSessions()
   allSessions.value = sessions
   codes.value = cs
+  // Scoped entry (e.g. a saved view's "Week View" button): ?codes=id1,id2 pre-filters
+  // to those programmes (expanded to include their sub-codes, like the saved views do).
+  const qc = route.query.codes
+  if (qc && !codeIds.value.length) codeIds.value = gc.closeSelection(String(qc).split(',').filter(Boolean), cs)
   terms.value = await tm.loadTerms()
   // Default to the active term (today within range), else the latest term with sessions.
   const today = new Date().toISOString().slice(0, 10)

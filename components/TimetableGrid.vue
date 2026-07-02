@@ -120,6 +120,9 @@ const openSummaryRef = ref<Summary | null>(null)
 const dayLabelOf = ref('')
 function openSummary(sm: Summary, dayLabel: string) { openSummaryRef.value = sm; dayLabelOf.value = dayLabel }
 function pickFromSummary(s: TimetableSession) { openSummaryRef.value = null; emit('select', s) }
+// When a class has space, jump to the group with its Add-person dialog open.
+function addToGroup(s: TimetableSession) { openSummaryRef.value = null; navigateTo(`/groups/${s.groupId}?add=member`) }
+function hasSpace(s: TimetableSession) { return s.capacity == null || s.count < s.capacity }
 // Flatten the open cluster's start-groups into one time-sorted list for the table.
 const summaryRows = computed(() => (openSummaryRef.value?.starts ?? []).flatMap(g => g.items))
 // Consistent clock format for the modal — always H:MM AM/PM (e.g. "4:00 PM").
@@ -275,10 +278,13 @@ const nowTop = computed(() => {
                 <span v-else class="text-xs text-gray-400">{{ s.count || '—' }}</span>
               </td>
               <td class="pr-2 text-right whitespace-nowrap">
-                <span v-if="s.capacity != null && s.count < s.capacity" class="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">
-                  {{ s.capacity - s.count }} {{ s.capacity - s.count === 1 ? 'space' : 'spaces' }}
-                </span>
-                <span v-else-if="s.capacity == null" class="text-[11px] text-gray-400">Open</span>
+                <button v-if="hasSpace(s)" type="button" @click.stop="addToGroup(s)"
+                  v-tooltip.top="'Add someone — space available'"
+                  class="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors inline-flex items-center gap-1">
+                  <i class="pi pi-user-plus text-[9px]" />
+                  <template v-if="s.capacity != null">{{ s.capacity - s.count }} {{ s.capacity - s.count === 1 ? 'space' : 'spaces' }}</template>
+                  <template v-else>Open</template>
+                </button>
                 <span v-else class="text-[11px] font-medium text-gray-400">Full</span>
               </td>
               <td class="pr-2 text-right"><i class="pi pi-angle-right text-gray-300 text-xs" /></td>

@@ -1,9 +1,7 @@
 <template>
   <div class="p-3 sm:p-6">
-    <div class="mb-6">
-      <h1 class="text-xl font-semibold text-surface-900">Attendance</h1>
-      <p class="text-sm text-surface-500 mt-0.5">Today's training sessions and what's coming up across every group.</p>
-    </div>
+    <!-- Title lives in the control bar (pageTitles map). -->
+
 
     <div v-if="loading" class="text-sm text-gray-400 py-12 text-center">Loading…</div>
 

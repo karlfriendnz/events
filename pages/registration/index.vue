@@ -1,10 +1,7 @@
 <template>
   <div class="p-3 sm:p-6">
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h1 class="text-xl font-semibold text-surface-900">Registration</h1>
-        <p class="text-sm text-surface-500 mt-0.5">Registration forms, custom fields, and terms & conditions.</p>
-      </div>
+    <!-- Title lives in the control bar (pageTitles map). -->
+    <div class="flex items-center justify-end mb-6">
       <Button label="New Form" icon="pi pi-plus" size="small" @click="showCreate = true" />
     </div>
 

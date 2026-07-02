@@ -16,19 +16,21 @@ const loaded = ref(false)
 const classes = ref<FinderClass[]>([])
 const codes = ref<any[]>([])
 const terms = ref<any[]>([])
+const disciplines = ref<{ id: string; name: string; sport: string | null }[]>([])
 
 // Only reveal matches once the user has actually entered something to search on
 // (term + only-with-space are defaults, so they don't count as "started filling in").
 const hasCriteria = computed(() => {
   const p = params.value
-  return p.age != null || p.days.length > 0 || p.timeBand !== 'any' || p.codeIds.length > 0 || !!p.gender || !!p.venue
+  return p.age != null || p.days.length > 0 || p.timeBand !== 'any' || p.codeIds.length > 0 || p.disciplineIds.length > 0 || !!p.gender || !!p.venue
 })
 
 async function load() {
   loading.value = true
-  const [{ classes: cs, codes: cd }, ts] = await Promise.all([finder.loadClasses(), tm.loadTerms()])
+  const [{ classes: cs, codes: cd, disciplines: ds }, ts] = await Promise.all([finder.loadClasses(), tm.loadTerms()])
   classes.value = cs
   codes.value = cd
+  disciplines.value = ds
   terms.value = ts
   // Default the term to the one active today (if not already set).
   if (params.value.termId == null) {
@@ -42,6 +44,7 @@ async function load() {
 watch(open, o => { if (o && !loaded.value) load() })
 
 const codeOptions = computed(() => gc.treeOptions(codes.value))
+const disciplineOptions = computed(() => disciplines.value.map(d => ({ label: d.name, value: d.id })))
 const termOptions = computed(() => [{ label: 'Any term', value: null }, ...terms.value.map((t: any) => ({ label: t.name, value: t.id }))])
 const venueOptions = computed(() => {
   const set = new Set<string>()
@@ -134,6 +137,11 @@ function addPersonToClass(c: FinderClass) { finder.close(); navigateTo(`/groups/
               <label class="text-xs font-medium text-gray-500 block mb-1">Programme</label>
               <MultiSelect v-model="params.codeIds" :options="codeOptions" optionLabel="label" optionValue="value" display="chip"
                 placeholder="Any programme" :maxSelectedLabels="2" class="w-full" :showToggleAll="false" filter />
+            </div>
+            <div v-if="disciplineOptions.length">
+              <label class="text-xs font-medium text-gray-500 block mb-1">Discipline</label>
+              <MultiSelect v-model="params.disciplineIds" :options="disciplineOptions" optionLabel="label" optionValue="value" display="chip"
+                placeholder="Any discipline" :maxSelectedLabels="2" class="w-full" :showToggleAll="false" filter />
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>

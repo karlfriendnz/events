@@ -7,22 +7,19 @@
 -->
 <template>
   <div class="p-3 sm:p-6 space-y-4">
-    <div class="flex items-start justify-between gap-4">
-      <div>
-        <h1 class="text-lg sm:text-2xl font-semibold text-surface-900">Classes</h1>
-        <p class="text-sm text-surface-500 mt-0.5">Every class grouped under its code. Tabs are your top-level codes.</p>
-      </div>
-      <div class="flex items-center gap-2 shrink-0">
+    <ClassesBoard ref="board" allow-new-tab>
+      <template #toolbar>
+        <NuxtLink to="/groups/timetable" class="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-primary px-3 py-2 rounded-lg border border-gray-200 hover:border-gray-300">
+          <i class="pi pi-calendar text-xs" /> Week View
+        </NuxtLink>
         <Button label="Find a class" icon="pi pi-search" size="small" outlined severity="secondary"
           class="text-gray-700" @click="finder.openFinder()" />
         <Button label="New code" icon="pi pi-sitemap" size="small" outlined severity="secondary"
           class="text-gray-700" @click="openCreateCode()" />
         <Button label="New group" icon="pi pi-plus" size="small"
           style="background:#1E2157;border-color:#1E2157" @click="openCreateGroup()" />
-      </div>
-    </div>
-
-    <ClassesBoard ref="board" allow-new-tab />
+      </template>
+    </ClassesBoard>
 
     <!-- New group dialog -->
     <Dialog v-model:visible="createGroupOpen" modal :style="{ width: '95vw', maxWidth: '420px' }" header="New group">
@@ -101,6 +98,8 @@ const { orgId } = useOrg()
 const toast = useToast()
 const gc = useGroupCodes()
 const finder = useClassFinder()
+// Control bar owns the page title (see the "control bar owns the title" rule).
+useBreadcrumbs([{ label: 'Classes' }])
 const tm = useTermsMemberships()
 
 const PALETTE = ['#1E2157', '#2563EB', '#0f766e', '#059669', '#9333ea', '#EC4899', '#c2410c', '#be123c', '#8B5CF6', '#64748b']
