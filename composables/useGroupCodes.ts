@@ -61,11 +61,16 @@ export function useGroupCodes() {
   // is orphaned: child GROUPS move up to parent_id, child CODES re-parent likewise.
   async function deleteCode(id: string): Promise<void> {
     const { data: row } = await (db.from as any)('group_codes')
-      .select('parent_id').eq('id', id).maybeSingle()
+      .select('parent_id, lineage_id').eq('id', id).maybeSingle()
     const newParent = row?.parent_id ?? null
+    const lineage = row?.lineage_id ?? id
     await Promise.all([
       (db.from as any)('member_groups').update({ code_id: newParent }).eq('code_id', id),
       (db.from as any)('group_codes').update({ parent_id: newParent }).eq('parent_id', id),
+      // The deleted code's own staff config goes with it (its groups re-home to the
+      // parent, which carries the parent's/default roles). Migration 213/214.
+      (db.from as any)('code_role_defs').delete().eq('code_lineage_id', lineage),
+      (db.from as any)('code_staff').delete().eq('code_lineage_id', lineage),
     ])
     await (db.from as any)('group_codes').delete().eq('id', id)
   }
