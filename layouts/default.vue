@@ -36,6 +36,30 @@
           </div>
         </div>
 
+        <!-- Groups: icon + flyout (Groups, Classes, saved views, manage) -->
+        <div v-else-if="item.groups" class="relative" @mouseenter="onGroupsEnter" @mouseleave="onGroupsLeave">
+          <NuxtLink :to="item.href"
+            class="flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
+            :class="isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white'">
+            <i :class="['pi', item.icon, 'text-lg']" />
+          </NuxtLink>
+          <div v-show="groupsHover" class="absolute left-full top-0 z-[70]" style="padding-left:10px"
+            @mouseenter="onGroupsEnter" @mouseleave="onGroupsLeave">
+            <div class="bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden" style="width:220px">
+              <template v-if="groupViews.length"><div class="py-1">
+                <NuxtLink v-for="v in groupViews" :key="v.id" :to="`/groups/view/${v.id}`" class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false">
+                  <i class="pi pi-th-large text-gray-300 text-xs" /><span class="truncate">{{ v.name }}</span>
+                </NuxtLink></div><div class="border-t border-gray-100" /></template>
+              <NuxtLink to="/groups" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-table text-gray-400 text-xs" />Classes</NuxtLink>
+              <NuxtLink to="/groups/views" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-th-large text-gray-400 text-xs" />Manage views</NuxtLink>
+              <NuxtLink to="/groups/fees" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-dollar text-gray-400 text-xs" />Fees</NuxtLink>
+              <NuxtLink to="/groups/allocator" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-arrows-h text-gray-400 text-xs" />Allocate</NuxtLink>
+              <NuxtLink to="/groups/codes" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-sitemap text-gray-400 text-xs" />Organise codes</NuxtLink>
+              <NuxtLink to="/groups/rollover" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-copy text-gray-400 text-xs" />Roll over a term</NuxtLink>
+            </div>
+          </div>
+        </div>
+
         <!-- Other items: icon + hover tooltip -->
         <NuxtLink v-else :to="item.href"
           class="group relative flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
@@ -486,6 +510,27 @@ function onEventsLeave() {
   }, 180)
 }
 
+// ── Groups flyout (Classes + saved views) ──
+const groupsHover = ref(false)
+let groupsLeaveTimer: ReturnType<typeof setTimeout> | null = null
+function onGroupsEnter() {
+  if (groupsLeaveTimer) { clearTimeout(groupsLeaveTimer); groupsLeaveTimer = null }
+  groupsHover.value = true
+}
+function onGroupsLeave() {
+  groupsLeaveTimer = setTimeout(() => { groupsHover.value = false }, 180)
+}
+const groupViews = ref<{ id: string; name: string }[]>([])
+const gvComposable = useGroupViews()
+async function loadGroupViews() {
+  if (!orgId.value) { groupViews.value = []; return }
+  const vs = await gvComposable.loadViews()
+  groupViews.value = vs.map(v => ({ id: v.id, name: v.name }))
+}
+watch(orgId, loadGroupViews, { immediate: true })
+// Refresh the flyout list after a view is created/edited/deleted on /groups/views.
+watch(() => route.path, (p) => { if (p.startsWith('/groups')) loadGroupViews() })
+
 function openNewCalendarModal() {
   eventsHover.value = false
   calSettingsOpen.value = true
@@ -511,7 +556,7 @@ const navItems = [
 const clubMenu = [
   { label: 'Dashboard',   icon: 'pi-th-large',      href: '/dashboard',               chevron: false },
   { label: 'People',      icon: 'pi-users',         href: '/people',                  chevron: true },
-  { label: 'Classes',     icon: 'pi-sitemap',       href: '/groups',                  chevron: true },
+  { label: 'Classes',     icon: 'pi-sitemap',       href: '/groups',                  chevron: true, groups: true },
   { label: 'Fees',        icon: 'pi-dollar',        href: '/finances',                chevron: true },
   { label: 'Events',      icon: 'pi-calendar',      href: '/events',                  chevron: true, events: true },
   { label: 'Bookings',    icon: 'pi-bookmark',      href: '/bookables?tab=bookings',  chevron: true },

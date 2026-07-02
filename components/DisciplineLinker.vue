@@ -37,15 +37,22 @@ const sportById = computed(() => Object.fromEntries(allDisciplines.value.map(d =
 
 async function load() {
   loading.value = true
-  // 1. The club's sports + which are connected to a governing body.
-  const { data: sportsData } = await (db.from as any)('org_sports')
-    .select('sport, nso_org_id').eq('org_id', orgId.value).order('sort_order')
-  orgSports.value = sportsData ?? []
+  // Steps 1, 2 and the existing-links lookup are all independent (keyed only by
+  // org + entity, both known upfront), so fire them together instead of chaining
+  // three serial round-trips. Only the disciplines fetch depends on step 2.
+  const [sportsRes, ancRes, linksRes] = await Promise.all([
+    // 1. The club's sports + which are connected to a governing body.
+    (db.from as any)('org_sports')
+      .select('sport, nso_org_id').eq('org_id', orgId.value).order('sort_order'),
+    // 2. Every governing body reachable from the club's connected sports.
+    (db.rpc as any)('org_sport_ancestors', { p_org: orgId.value, p_sport: null }),
+    // 3. Existing links (to derive the chosen sport from).
+    (db.from as any)(joinTable).select('discipline_id').eq(fk, props.entityId),
+  ])
+  orgSports.value = sportsRes?.data ?? []
 
-  // 2. Every governing body reachable from the club's connected sports, then
-  //    that whole set's disciplines.
-  const { data: anc } = await (db.rpc as any)('org_sport_ancestors', { p_org: orgId.value, p_sport: null })
-  const govIds = (anc ?? []).map((a: any) => a.id)
+  // That governing-body set's disciplines (depends on step 2).
+  const govIds = (ancRes?.data ?? []).map((a: any) => a.id)
   if (govIds.length) {
     const { data: discs } = await (db.from as any)('disciplines')
       .select('id, name, sport, organisations(name)').in('org_id', govIds).order('sport').order('sort_order').order('name')
@@ -54,9 +61,8 @@ async function load() {
     allDisciplines.value = []
   }
 
-  // 3. Existing links → derive the chosen sport from them; else auto-pick the sole sport.
-  const { data: links } = await (db.from as any)(joinTable).select('discipline_id').eq(fk, props.entityId)
-  const linkedIds = (links ?? []).map((l: any) => l.discipline_id)
+  // Derive the chosen sport from the links; else auto-pick the sole sport.
+  const linkedIds = (linksRes?.data ?? []).map((l: any) => l.discipline_id)
   selectedSport.value = (linkedIds.length && sportById.value[linkedIds[0]])
     || (orgSports.value.length === 1 ? orgSports.value[0].sport : null)
   selected.value = linkedIds

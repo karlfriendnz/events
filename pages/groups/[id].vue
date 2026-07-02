@@ -3,6 +3,13 @@
     <div v-if="loading" class="text-sm text-gray-400 py-8 text-center">Loading…</div>
     <div v-else-if="!group" class="text-sm text-gray-400 py-8 text-center">Group not found.</div>
     <template v-else>
+      <!-- Frozen-term (history) banner -->
+      <div v-if="isHistory" class="mb-4 flex items-center gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-sm text-amber-800">
+        <i class="pi pi-history" />
+        <span><strong>{{ groupTerm?.name }}</strong> has ended — this group is history and is read-only.</span>
+        <NuxtLink to="/groups/rollover" class="ml-auto text-primary hover:underline whitespace-nowrap text-xs font-medium">Roll over →</NuxtLink>
+      </div>
+
       <!-- Tabs -->
       <div class="mb-4 flex gap-1 border-b border-gray-200 overflow-x-auto overflow-y-hidden no-scrollbar">
         <button v-for="t in groupTabs" :key="t.key" type="button"
@@ -15,6 +22,11 @@
       <div v-show="activeTab === 'details'" class="mb-4 flex items-center gap-3 flex-wrap">
         <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: group.color || '#94a3b8' }" />
         <h1 class="text-xl font-semibold text-surface-900">{{ group.name }}</h1>
+        <NuxtLink v-if="groupCode" to="/groups"
+          class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold text-white hover:opacity-90"
+          :style="{ background: groupCode.color || '#64748b' }" title="This group's code">
+          <i class="pi pi-sitemap text-[9px]" />{{ groupCode.name }}
+        </NuxtLink>
         <span v-for="r in myRoleLabels" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1976d2]/10 text-[#1976d2] font-semibold" title="Your role in this group">{{ r }}</span>
         <Button v-if="canManage" label="Add person" icon="pi pi-user-plus"
           class="ml-auto w-full sm:w-auto justify-center"
@@ -43,10 +55,15 @@
                 <dd class="text-gray-700">{{ headCoach || '—' }}</dd>
                 <dt class="text-left font-semibold text-gray-700">Age Range:</dt>
                 <dd class="text-gray-700">{{ group.age_range || '—' }}</dd>
+                <dt class="text-left font-semibold text-gray-700">Gender:</dt>
+                <dd class="text-gray-700">{{ genderRestrictionLabel(group.gender_restriction) || 'Open to all' }}</dd>
                 <dt class="text-left font-semibold text-gray-700">Members:</dt>
                 <dd class="text-gray-700">{{ members.length }}<span v-if="group.capacity">/{{ group.capacity }}</span></dd>
                 <dt class="text-left font-semibold text-gray-700">Current Term:</dt>
-                <dd class="text-gray-700">{{ group.current_term || '—' }}</dd>
+                <dd class="text-gray-700">
+                  {{ groupTerm?.name || group.current_term || '—' }}
+                  <span v-if="isHistory" class="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">ended</span>
+                </dd>
                 <dt class="text-left font-semibold text-gray-700">Term Fee:</dt>
                 <dd class="text-gray-700">{{ group.term_fee != null ? `$${Number(group.term_fee).toFixed(2)}` : '—' }}</dd>
                 <template v-if="canManage && group?.id">
@@ -70,14 +87,14 @@
             <div class="p-5 text-sm space-y-4">
               <!-- Terms -->
               <div>
-                <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Terms</div>
+                <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Term</div>
                 <div v-if="linkedTerms.length" class="space-y-1">
                   <div v-for="l in linkedTerms" :key="l.term_id" class="flex items-center justify-between gap-2">
                     <span class="text-gray-700">{{ l.term!.name }}</span>
                     <span class="text-gray-500 tabular-nums">{{ l.fee != null ? tm.fmtMoney(l.fee, orgCurrency) : '—' }}</span>
                   </div>
                 </div>
-                <div v-else class="text-gray-400">Not run on terms</div>
+                <div v-else class="text-gray-400">Not run on a term</div>
               </div>
               <!-- Memberships -->
               <div>
@@ -97,6 +114,35 @@
                   </div>
                 </div>
                 <div v-else class="text-gray-400">No memberships connected</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- FEES (multiple ways to pay to join — migration 204) -->
+          <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div class="bg-primary text-white text-xs font-bold tracking-widest py-3.5 px-5 flex items-center justify-between">
+              <span class="normal-case tracking-normal text-sm">Fees</span>
+              <button v-if="canManage" type="button"
+                class="text-white/90 hover:text-white inline-flex items-center gap-1 text-[11px] font-semibold"
+                @click="openFeesEditor">
+                <i class="pi pi-pencil text-[10px]" /> Edit
+              </button>
+            </div>
+            <div class="p-5 text-sm space-y-3">
+              <p class="text-xs text-gray-500">How a member can choose to pay to join this group.</p>
+              <div v-if="!feeOptions.length" class="text-gray-400">No fee options yet.</div>
+              <div v-for="o in feeOptions" :key="o.id" class="border border-gray-200 rounded-lg p-3">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-medium text-gray-800">{{ o.name }}</span>
+                  <span class="font-semibold text-gray-900 tabular-nums whitespace-nowrap">{{ gf.priceLabel(o, orgCurrency) }}</span>
+                </div>
+                <div class="text-[11px] text-gray-400 mt-0.5">{{ gf.feeTypeLabel(o.fee_type) }}</div>
+                <div v-if="o.items.length" class="mt-2 space-y-0.5 border-t border-gray-100 pt-2">
+                  <div v-for="it in o.items" :key="it.id" class="flex items-center justify-between text-xs text-gray-600">
+                    <span>{{ it.name || '—' }}</span>
+                    <span class="tabular-nums">{{ gf.fmtMoney(it.amount, orgCurrency) }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -855,10 +901,10 @@
           <p class="text-xs text-gray-400">A person can hold several roles (e.g. Coach + Player). Coach/Manager can manage this group.</p>
         </div>
         <div v-if="enrolOptions.length" class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Enrol on</label>
+          <label class="text-sm font-medium">How do you want to pay?</label>
           <Select v-model="addEnrol" :options="enrolOptions" optionLabel="label" optionValue="value"
-            placeholder="No term / membership" showClear class="w-full" />
-          <p class="text-xs text-gray-400">Optional — record which term or membership they're joining under. Dates are set automatically.</p>
+            placeholder="No fee" showClear class="w-full" />
+          <p class="text-xs text-gray-400">Optional — the fee option they're joining under. Term dates are set automatically.</p>
         </div>
       </div>
       <template #footer>
@@ -871,23 +917,16 @@
     <!-- Edit group details -->
     <Dialog v-model:visible="billingEditOpen" modal :style="{ width: '95vw', maxWidth: '560px' }" header="Membership & terms">
       <div class="space-y-5">
-        <!-- Terms -->
+        <!-- Term (a group belongs to ONE term; roll it over to start a new term) -->
         <div>
-          <div class="text-sm font-semibold text-gray-800 mb-1">Terms</div>
-          <p class="text-xs text-gray-500 mb-2">Tick each term this group runs in and set its fee.</p>
-          <div v-if="orgTerms.length" class="space-y-2">
-            <div v-for="t in orgTerms" :key="t.id" class="flex items-center gap-3">
-              <div class="flex items-center gap-2 flex-1 min-w-0">
-                <Checkbox v-model="termDraft[t.id].on" :binary="true" :inputId="`term-${t.id}`" />
-                <label :for="`term-${t.id}`" class="text-sm text-gray-700 truncate cursor-pointer">
-                  {{ t.name }}
-                  <span class="text-gray-400">· {{ t.start_date }} → {{ t.end_date }}</span>
-                </label>
-              </div>
-              <InputNumber v-if="termDraft[t.id].on" v-model="termDraft[t.id].fee"
-                mode="currency" :currency="orgCurrency" locale="en-NZ" :min="0" placeholder="Fee"
-                class="w-32 shrink-0" :inputStyle="{ width: '8rem' }" />
-            </div>
+          <div class="text-sm font-semibold text-gray-800 mb-1">Term</div>
+          <p class="text-xs text-gray-500 mb-2">The term this group runs in. At the end of the term you roll it over to create the next term's group.</p>
+          <div v-if="orgTerms.length" class="flex flex-col sm:flex-row sm:items-center gap-3">
+            <Select v-model="termDraft.termId" :options="orgTerms" optionLabel="name" optionValue="id"
+              showClear placeholder="Not run on a term" class="flex-1" />
+            <InputNumber v-if="termDraft.termId" v-model="termDraft.fee"
+              mode="currency" :currency="orgCurrency" locale="en-NZ" :min="0" placeholder="Fee"
+              class="w-32 shrink-0" :inputStyle="{ width: '8rem' }" />
           </div>
           <p v-else class="text-xs text-gray-400">No terms defined yet —
             <NuxtLink to="/settings/memberships" class="text-primary hover:underline">create terms in Settings</NuxtLink>.
@@ -938,14 +977,25 @@
               :style="{ background: c }" @click="groupDraft.color = c" />
           </div>
         </div>
+        <div v-if="codeSelectOptions.length" class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Code</label>
+          <Select v-model="groupDraft.code_id" :options="codeSelectOptions" optionLabel="label" optionValue="value"
+            placeholder="Ungrouped" class="w-full" showClear />
+          <p class="text-xs text-gray-400">The container this group lives in — it inherits the code's term.</p>
+        </div>
         <div class="grid grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
-            <label class="text-sm font-medium">Code</label>
+            <label class="text-sm font-medium">Code label</label>
             <InputText v-model="groupDraft.code" class="w-full" placeholder="e.g. DEV3" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium">Age range</label>
             <InputText v-model="groupDraft.age_range" class="w-full" placeholder="e.g. 6–9" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium">Gender restriction</label>
+            <Select v-model="groupDraft.gender_restriction" :options="GENDER_RESTRICTION_OPTIONS"
+              optionLabel="label" optionValue="value" placeholder="Open to all" class="w-full" showClear />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium">Capacity</label>
@@ -965,6 +1015,54 @@
         <Button label="Cancel" text @click="groupEditOpen = false" />
         <Button label="Save" :disabled="!groupDraft.name?.trim() || savingGroup"
           style="background:#1976d2;border-color:#1976d2" @click="saveGroup" />
+      </template>
+    </Dialog>
+
+    <!-- Fees editor — define the ways a member can pay to join (migration 204) -->
+    <Dialog v-model:visible="feesEditOpen" modal :style="{ width: '95vw', maxWidth: '660px' }" header="Fees">
+      <div class="space-y-4">
+        <p class="text-xs text-gray-500">Add each way a member can choose to pay. Every option can have multiple line items (e.g. Coaching, Registration, Uniform levy).</p>
+        <div v-for="(o, oi) in feeDraft" :key="o.id" class="border border-gray-200 rounded-lg p-3 space-y-3">
+          <div class="flex items-center gap-2">
+            <InputText v-model="o.name" placeholder="Option name (e.g. Full upfront)" class="flex-1" />
+            <Button icon="pi pi-trash" text severity="danger" @click="removeFeeOption(oi)" />
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Select v-model="o.fee_type" :options="gf.FEE_TYPES" optionLabel="label" optionValue="value" class="w-full" />
+            <div v-if="o.fee_type === 'recurring'" class="flex gap-2">
+              <InputNumber v-model="o.period_count" :min="1" class="w-16" :useGrouping="false" showButtons />
+              <Select v-model="o.period_unit" :options="PERIOD_UNITS" optionLabel="label" optionValue="value" class="flex-1" />
+            </div>
+            <InputNumber v-else-if="o.fee_type === 'instalment'" v-model="o.instalment_count" :min="1" placeholder="Number of payments" class="w-full" :useGrouping="false" showButtons />
+            <InputNumber v-else-if="o.fee_type === 'concession' || o.fee_type === 'per_session'" v-model="o.session_count" :min="1" placeholder="Number of sessions" class="w-full" :useGrouping="false" showButtons />
+          </div>
+          <div v-if="o.fee_type === 'recurring'" class="flex items-center gap-2 text-sm text-gray-600">
+            <ToggleSwitch v-model="o.auto_renew" /> Auto-renew each period
+          </div>
+          <div v-if="o.fee_type === 'upfront'" class="flex items-center gap-2 text-sm text-gray-600">
+            <ToggleSwitch v-model="o.prorata" /> Pro-rata (reduce the fee when joining mid-term)
+          </div>
+
+          <!-- line items -->
+          <div>
+            <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Line items</div>
+            <div v-for="(it, ii) in o.items" :key="it.id" class="flex items-center gap-2 mb-1.5">
+              <InputText v-model="it.name" placeholder="e.g. Coaching" class="flex-1 min-w-0" />
+              <InputNumber v-model="it.amount" mode="currency" :currency="orgCurrency" locale="en-NZ" :min="0" class="w-28 shrink-0" :inputStyle="{ width: '7rem' }" />
+              <InputText v-model="it.account" placeholder="GL" class="w-16 shrink-0" title="GL / Xero account code" />
+              <Button icon="pi pi-times" text severity="secondary" class="shrink-0" @click="removeFeeItem(o, ii)" />
+            </div>
+            <div class="flex items-center justify-between mt-1">
+              <button type="button" class="text-xs text-primary hover:underline" @click="addFeeItem(o)">+ Add line item</button>
+              <span class="text-sm font-semibold text-gray-800">Total {{ gf.priceLabel(o, orgCurrency) }}</span>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="text-sm text-primary hover:underline font-medium" @click="addFeeOption">+ Add fee option</button>
+      </div>
+      <template #footer>
+        <Button label="Cancel" text @click="feesEditOpen = false" />
+        <Button label="Save" :loading="savingFees" style="background:#1E2157;border-color:#1E2157" @click="saveFees" />
       </template>
     </Dialog>
 
@@ -1060,6 +1158,8 @@
 
 <script setup lang="ts">
 import type { OrgTerm, MembershipPlan } from '~/composables/useTermsMemberships'
+import type { GroupFeeOption } from '~/composables/useGroupFees'
+import type { GroupCode } from '~/composables/useGroupCodes'
 const route = useRoute()
 const router = useRouter()
 const db = useDb()
@@ -1074,6 +1174,11 @@ interface Group {
   current_term?: string | null
   term_fee?: number | null
   capacity?: number | null
+  term_id?: string | null
+  code_id?: string | null
+  lineage_id?: string | null
+  rolled_from_group_id?: string | null
+  gender_restriction?: string | null
 }
 interface Member { id: string; name: string; email: string | null; phone: string | null; roles: string[]; allRoles: string[]; subGroupId?: string | null }
 interface Coach { id: string; name: string; email: string | null; phone: string | null; roles: string[]; allRoles: string[]; subGroupId?: string | null }
@@ -1105,7 +1210,22 @@ const roleLabel = (key: string) => scoped.roleDef('group', key)?.label ?? key
 // therefore appear in BOTH tables. Split a role array into the two sides.
 const staffRolesOf = (roles: string[]) => roles.filter(r => scoped.roleDef('group', r)?.group === 'staff')
 const memberRolesOf = (roles: string[]) => roles.filter(r => scoped.roleDef('group', r)?.group !== 'staff')
-const canManage = computed(() => group.value ? scoped.canManageGroup(group.value.id) : false)
+// The org term this group runs on — inherited from its Code (walking up the code
+// chain via effectiveTermId), falling back to the group's own term_id.
+const groupTerm = computed(() => {
+  const tid = gc.effectiveTermId(group.value, codesById.value)
+  return tid ? orgTerms.value.find(t => t.id === tid) ?? null : null
+})
+// The Code this group belongs to (migration 205) — shown as a badge by the title.
+const groupCode = computed<GroupCode | null>(() =>
+  group.value?.code_id ? codesById.value[group.value.code_id] ?? null : null)
+// A group whose term has ended is frozen history — soft-locked (no edits).
+const isHistory = computed(() => {
+  const end = groupTerm.value?.end_date
+  return !!end && end < new Date().toISOString().slice(0, 10)
+})
+const canManage = computed(() =>
+  (group.value ? scoped.canManageGroup(group.value.id) : false) && !isHistory.value)
 const myRoleLabels = computed(() => group.value ? scoped.rolesOnGroup(group.value.id).map(roleLabel) : [])
 
 // Shared column definitions for the People table (coaches + members). Both sections
@@ -1365,6 +1485,25 @@ const creatingEvent = ref(false)
 
 // ---- Terms & memberships (billing) ----
 const tm = useTermsMemberships()
+const gf = useGroupFees()
+const gc = useGroupCodes()
+// Codes (migration 205) — for the code badge + inherited term. Loaded in load().
+const codes = ref<GroupCode[]>([])
+const codesById = computed<Record<string, GroupCode>>(() =>
+  Object.fromEntries(codes.value.map(c => [c.id, c])))
+const codeSelectOptions = computed(() => {
+  // Indented tree order so nesting reads clearly in the move-to-code Select.
+  const byParent: Record<string, GroupCode[]> = {}
+  for (const c of [...codes.value].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)))
+    (byParent[c.parent_id ?? '__root'] ??= []).push(c)
+  const out: { label: string; value: string }[] = []
+  const walk = (key: string, depth: number) => {
+    for (const c of (byParent[key] ?? [])) { out.push({ label: `${'  '.repeat(depth)}${c.name}`, value: c.id }); walk(c.id, depth + 1) }
+  }
+  walk('__root', 0)
+  return out
+})
+const feeOptions = ref<GroupFeeOption[]>([])
 const orgTerms = ref<OrgTerm[]>([])
 const orgPlans = ref<MembershipPlan[]>([])
 const groupTermLinks = ref<{ term_id: string; fee: number | null }[]>([])
@@ -1373,7 +1512,7 @@ const orgCurrency = ref('NZD')
 const billingEditOpen = ref(false)
 const savingBilling = ref(false)
 // drafts edited in the dialog
-const termDraft = ref<Record<string, { on: boolean; fee: number | null }>>({})
+const termDraft = ref<{ termId: string | null; fee: number | null }>({ termId: null, fee: null })
 const planDraft = ref<Record<string, boolean>>({})
 
 const linkedTerms = computed(() =>
@@ -1381,28 +1520,22 @@ const linkedTerms = computed(() =>
     .map(l => ({ ...l, term: orgTerms.value.find(t => t.id === l.term_id) }))
     .filter(l => l.term)
 )
-// Enrolment options for the add-person dialog (term + each membership option).
-const addEnrol = ref<string | null>(null) // 'term:<id>' | 'opt:<id>' | null
-const enrolOptions = computed(() => {
-  const out: { label: string; value: string }[] = []
-  for (const l of linkedTerms.value)
-    out.push({ label: `Term · ${l.term!.name}${l.fee != null ? ' · ' + tm.fmtMoney(l.fee, orgCurrency.value) : ''}`, value: `term:${l.term_id}` })
-  for (const p of linkedPlans.value)
-    for (const o of p.options)
-      out.push({ label: `${p.name} · ${tm.optionLabel(o, orgCurrency.value)}`, value: `opt:${o.id}` })
-  return out
-})
-// Build the enrolment columns for a chosen option (null = leave unset).
+// "How do you want to pay?" — the fee options this group offers (migration 204).
+const addEnrol = ref<string | null>(null) // a group_fee_options.id | null
+const enrolOptions = computed(() =>
+  feeOptions.value.map(o => ({ label: `${o.name} · ${gf.priceLabel(o, orgCurrency.value)}`, value: o.id })))
+// Stamp the chosen fee option + the group's term window onto the membership row.
 function enrolPatch(): Record<string, any> | null {
-  const v = addEnrol.value
-  if (!v) return null
-  if (v.startsWith('term:')) {
-    const t = orgTerms.value.find(x => x.id === v.slice(5))
-    return { term_id: v.slice(5), plan_option_id: null, start_date: t?.start_date ?? null, end_date: t?.end_date ?? null, auto_renew: false, membership_status: 'active' }
+  const id = addEnrol.value
+  if (!id) return null
+  const t = groupTerm.value
+  return {
+    fee_option_id: id,
+    term_id: group.value?.term_id ?? null,
+    start_date: t?.start_date ?? null,
+    end_date: t?.end_date ?? null,
+    membership_status: 'active',
   }
-  const opt = orgPlans.value.flatMap(p => p.options).find(o => o.id === v.slice(4))
-  const start = tm.toIso(new Date())
-  return { term_id: null, plan_option_id: v.slice(4), start_date: start, end_date: opt ? tm.addPeriod(start, opt.period_unit, opt.period_count) : null, auto_renew: opt?.auto_renew ?? false, membership_status: 'active' }
 }
 const linkedPlans = computed(() =>
   groupPlanLinks.value
@@ -1410,19 +1543,74 @@ const linkedPlans = computed(() =>
     .filter(Boolean) as MembershipPlan[]
 )
 
-async function loadBilling() {
-  if (!group.value?.id) return
-  ;[orgTerms.value, orgPlans.value] = await Promise.all([tm.loadTerms(), tm.loadPlans()])
-  const billing = await tm.loadGroupBilling(group.value.id)
+async function loadBilling(gid = group.value?.id) {
+  if (!gid) return
+  // All four are independent (terms/plans key off org, the group links off gid),
+  // so fire them in one wave rather than gating loadGroupBilling behind the rest.
+  const [terms, plans, fees, billing] = await Promise.all([
+    tm.loadTerms(), tm.loadPlans(), gf.loadFeeOptions(gid), tm.loadGroupBilling(gid),
+  ])
+  orgTerms.value = terms
+  orgPlans.value = plans
+  feeOptions.value = fees
   groupTermLinks.value = billing.terms
   groupPlanLinks.value = billing.plans
 }
 
-function openBillingEditor() {
-  termDraft.value = Object.fromEntries(orgTerms.value.map(t => {
-    const link = groupTermLinks.value.find(l => l.term_id === t.id)
-    return [t.id, { on: !!link, fee: link?.fee ?? null }]
+// ── Fees editor (group_fee_options + line items, migration 204) ──
+const PERIOD_UNITS = [{ label: 'week', value: 'week' }, { label: 'month', value: 'month' }, { label: 'year', value: 'year' }]
+const feesEditOpen = ref(false)
+const savingFees = ref(false)
+const feeDraft = ref<GroupFeeOption[]>([])
+let feeTmpId = 0
+const nextFeeId = () => `tmp-${feeTmpId++}`
+
+function blankFeeOption(): GroupFeeOption {
+  return {
+    id: nextFeeId(), name: '', fee_type: 'upfront', period_unit: 'month', period_count: 1,
+    auto_renew: false, instalment_count: 1, session_count: 10, prorata: false,
+    description: null, sort_order: feeDraft.value.length, status: 'active',
+    items: [{ id: nextFeeId(), name: '', amount: 0, account: null, sort_order: 0 }],
+  }
+}
+function openFeesEditor() {
+  // deep clone so Cancel discards
+  feeDraft.value = feeOptions.value.map(o => ({
+    ...o,
+    items: (o.items || []).map(i => ({ ...i })),
   }))
+  if (!feeDraft.value.length) feeDraft.value = [blankFeeOption()]
+  feesEditOpen.value = true
+}
+function addFeeOption() { feeDraft.value.push(blankFeeOption()) }
+function removeFeeOption(i: number) { feeDraft.value.splice(i, 1) }
+function addFeeItem(o: GroupFeeOption) {
+  o.items.push({ id: nextFeeId(), name: '', amount: 0, account: null, sort_order: o.items.length })
+}
+function removeFeeItem(o: GroupFeeOption, i: number) { o.items.splice(i, 1) }
+async function saveFees() {
+  if (!group.value?.id) return
+  savingFees.value = true
+  try {
+    await gf.saveFeeOptions(group.value.id, feeDraft.value.filter(o => o.name?.trim() || o.items.some(i => i.name || i.amount)))
+    feeOptions.value = await gf.loadFeeOptions(group.value.id)
+    feesEditOpen.value = false
+    toast.add({ severity: 'success', summary: 'Fees saved', life: 2500 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not save fees', detail: e?.message, life: 4000 })
+  } finally {
+    savingFees.value = false
+  }
+}
+
+function openBillingEditor() {
+  // The group's term comes from member_groups.term_id; fall back to a legacy
+  // member_group_terms link (pre-clone-per-term groups) for the fee.
+  const legacy = groupTermLinks.value[0]
+  termDraft.value = {
+    termId: group.value?.term_id ?? legacy?.term_id ?? null,
+    fee: group.value?.term_fee ?? legacy?.fee ?? null,
+  }
   planDraft.value = Object.fromEntries(orgPlans.value.map(p => [p.id, groupPlanLinks.value.some(l => l.plan_id === p.id)]))
   billingEditOpen.value = true
 }
@@ -1432,18 +1620,26 @@ async function saveBilling() {
   savingBilling.value = true
   try {
     const gid = group.value.id
-    // delete-then-insert both link tables
+    const termId = termDraft.value.termId
+    const fee = termDraft.value.fee ?? null
+    const termName = termId ? (orgTerms.value.find(t => t.id === termId)?.name ?? null) : null
+
+    // The group's single term lives on member_groups (drives the term filter,
+    // history and rollover). Keep member_group_terms in sync (one row) so the
+    // enrol picker + read-side card keep working.
+    await (db.from as any)('member_groups')
+      .update({ term_id: termId, term_fee: fee, current_term: termName })
+      .eq('id', gid)
     await (db.from as any)('member_group_terms').delete().eq('group_id', gid)
     await (db.from as any)('member_group_plans').delete().eq('group_id', gid)
-    const termRows = orgTerms.value
-      .filter(t => termDraft.value[t.id]?.on)
-      .map(t => ({ group_id: gid, term_id: t.id, fee: termDraft.value[t.id].fee }))
+    if (termId) await (db.from as any)('member_group_terms').insert({ group_id: gid, term_id: termId, fee })
     const planRows = orgPlans.value
       .filter(p => planDraft.value[p.id])
       .map(p => ({ group_id: gid, plan_id: p.id }))
-    if (termRows.length) await (db.from as any)('member_group_terms').insert(termRows)
     if (planRows.length) await (db.from as any)('member_group_plans').insert(planRows)
-    groupTermLinks.value = termRows.map(r => ({ term_id: r.term_id, fee: r.fee }))
+    // Reflect locally so the INFO card / term badge / filter update immediately.
+    if (group.value) { group.value.term_id = termId; group.value.term_fee = fee; group.value.current_term = termName }
+    groupTermLinks.value = termId ? [{ term_id: termId, fee }] : []
     groupPlanLinks.value = planRows.map(r => ({ plan_id: r.plan_id }))
     billingEditOpen.value = false
     toast.add({ severity: 'success', summary: 'Membership & terms saved', life: 2500 })
@@ -1499,23 +1695,48 @@ async function load() {
   const id = route.params.id as string
   loading.value = true
 
-  // Group
-  const { data: g } = await (db.from as any)('member_groups')
-    .select('id, name, color, code, age_range, capacity, current_term, term_fee, sub_groups')
-    .eq('id', id)
-    .eq('org_id', orgId.value)
-    .maybeSingle()
-  group.value = g ?? null
+  // The group row is looked up by its own id, and everything else keys off that
+  // same id (or the org), all of which are known upfront — so fire the whole
+  // load as ONE parallel wave instead of gating the batch behind the group fetch.
+  // loadEvents/loadBilling populate their own refs; attendance runs afterwards
+  // since it needs both the event list and the resolved roster.
+  const [gRes, membersRes, , schedsRes, bkblsRes, orgRes, , codesList] = await Promise.all([
+    (db.from as any)('member_groups')
+      .select('id, name, color, code, code_id, age_range, capacity, current_term, term_fee, sub_groups, term_id, lineage_id, rolled_from_group_id, gender_restriction')
+      .eq('id', id)
+      .eq('org_id', orgId.value)
+      .maybeSingle(),
+    (db.from as any)('member_group_memberships')
+      .select('roles, role, sub_group_id, person:persons!inner(id, first_name, last_name, email, phone)')
+      .eq('group_id', id),
+    loadEvents(id),
+    (db.from as any)('member_group_schedules')
+      .select('id, day_of_week, start_time, end_time, location, sort_order')
+      .eq('group_id', id)
+      .order('day_of_week')
+      .order('start_time'),
+    (db.from as any)('bookables')
+      .select('id, name')
+      .eq('org_id', orgId.value)
+      .eq('type', 'VENUE'),
+    (db.from as any)('organisations')
+      .select('season_start, season_end, currency')
+      .eq('id', orgId.value)
+      .maybeSingle(),
+    loadBilling(id),
+    gc.loadCodes(),
+  ])
 
+  codes.value = codesList ?? []
+  const g = gRes?.data
+  group.value = g ?? null
   if (!g) { members.value = []; loading.value = false; return }
   subGroups.value = Array.isArray(g.sub_groups) ? g.sub_groups : []
 
   // Members + coaches — both are member_group_memberships rows. A person can
   // hold multiple roles; anyone with a 'staff' role (Coach/Manager/Assistant)
   // shows in the COACHES & MANAGERS card, everyone else in MEMBERS.
-  const { data: rows } = await (db.from as any)('member_group_memberships')
-    .select('roles, role, sub_group_id, person:persons!inner(id, first_name, last_name, email, phone)')
-    .eq('group_id', id)
+  const rows = membersRes?.data
   const mapped = (rows ?? [])
     .map((r: any) => ({ roles: scoped.normalizeRoles('group', r.roles, r.role), subGroupId: r.sub_group_id ?? null, p: r.person }))
     .filter((x: any) => x.p)
@@ -1531,83 +1752,63 @@ async function load() {
     .map((x: any) => ({ id: x.p.id, name: named(x), email: x.p.email ?? null, phone: x.p.phone ?? null, roles: staffRolesOf(x.roles), allRoles: x.roles, subGroupId: x.subGroupId }))
     .sort((a: Coach, b: Coach) => a.name.localeCompare(b.name))
 
-  // Training events for this group (one event per schedule row).
-  await loadTrainingEvents()
-
   // Weekly training schedules for this group.
-  const { data: scheds } = await (db.from as any)('member_group_schedules')
-    .select('id, day_of_week, start_time, end_time, location, sort_order')
-    .eq('group_id', id)
-    .order('day_of_week')
-    .order('start_time')
-  schedules.value = (scheds ?? []).map((s: any) => ({
+  schedules.value = ((schedsRes?.data) ?? []).map((s: any) => ({
     ...s,
     location: normalizeLocation(s.location),
   })) as Schedule[]
 
   // Bookable names for the read-only summary line in the panel.
-  const { data: bkbls } = await (db.from as any)('bookables')
-    .select('id, name')
-    .eq('org_id', orgId.value)
-    .eq('type', 'VENUE')
-  bookableNameById.value = Object.fromEntries((bkbls ?? []).map((b: any) => [b.id, b.name]))
+  bookableNameById.value = Object.fromEntries(((bkblsRes?.data) ?? []).map((b: any) => [b.id, b.name]))
 
   // Org-level season range (set in /settings General tab).
-  const { data: orgRow } = await (db.from as any)('organisations')
-    .select('season_start, season_end, currency')
-    .eq('id', orgId.value)
-    .maybeSingle()
+  const orgRow = orgRes?.data
   seasonStart.value = orgRow?.season_start ?? null
   seasonEnd.value = orgRow?.season_end ?? null
   orgCurrency.value = orgRow?.currency || 'NZD'
 
-  // Terms & memberships this group offers.
-  await loadBilling()
+  // Attendance needs both the event list (loadEvents) and the resolved roster.
+  await loadAttendance()
 
   loading.value = false
 }
 
-async function loadTrainingEvents() {
-  if (!group.value) return
-  // Each schedule row maps to its master event via member_group_schedule_id;
-  // child events inherit member_group_id but leave that column null, so this
-  // query naturally returns one master per schedule.
-  const { data: evs } = await (db.from as any)('events')
-    .select('id, title, member_group_schedule_id')
-    .eq('member_group_id', group.value.id)
-    .not('member_group_schedule_id', 'is', null)
+// All future events linked to this group (master + child occurrences), soonest first.
+const upcomingEvents = ref<Array<{ id: string; title: string; start_at: string; end_at: string | null; location: any }>>([])
+// All training sessions (events) for this group — past + future — for the Trainings tab.
+const trainingSessions = ref<Array<{ id: string; title: string; start_at: string; end_at: string | null; location: any }>>([])
+
+// ONE query for every event linked to this group, from which we derive the
+// per-schedule master map, the upcoming list, and the full session list —
+// collapsing what used to be three separate round-trips on the events table.
+// Master events carry member_group_schedule_id (one per schedule row); child
+// occurrences inherit member_group_id but leave that column null.
+async function loadEvents(gid = group.value?.id) {
+  if (!gid) {
+    trainingEventByScheduleId.value = {}
+    upcomingEvents.value = []
+    trainingSessions.value = []
+    return
+  }
+  const { data } = await (db.from as any)('events')
+    .select('id, title, start_at, end_at, locations, member_group_schedule_id')
+    .eq('member_group_id', gid)
+    .order('start_at', { ascending: true })
+  // events.locations is a jsonb array of LocationEntry; consumers here render a
+  // single `.location`, so surface the first entry. (The old code selected a
+  // non-existent `location` column and silently got empty lists.)
+  const rows = (data ?? []).map((e: any) => ({
+    ...e,
+    location: Array.isArray(e.locations) ? (e.locations[0] ?? null) : (e.locations ?? null),
+  }))
   const map: Record<string, { id: string; title: string }> = {}
-  for (const e of evs ?? []) {
+  for (const e of rows) {
     if (e.member_group_schedule_id) map[e.member_group_schedule_id] = { id: e.id, title: e.title }
   }
   trainingEventByScheduleId.value = map
-  await loadUpcomingEvents()
-}
-
-// All future events linked to this group (master + child occurrences), soonest first.
-const upcomingEvents = ref<Array<{ id: string; title: string; start_at: string; end_at: string | null; location: any }>>([])
-async function loadUpcomingEvents() {
-  if (!group.value) { upcomingEvents.value = []; return }
-  const nowIso = new Date().toISOString()
-  const { data } = await (db.from as any)('events')
-    .select('id, title, start_at, end_at, location')
-    .eq('member_group_id', group.value.id)
-    .gte('start_at', nowIso)
-    .order('start_at', { ascending: true })
-    .limit(50)
-  upcomingEvents.value = data ?? []
-  await loadTrainingSessions()
-}
-// All training sessions (events) for this group — past + future — for the Trainings tab.
-const trainingSessions = ref<Array<{ id: string; title: string; start_at: string; end_at: string | null; location: any }>>([])
-async function loadTrainingSessions() {
-  if (!group.value) { trainingSessions.value = []; return }
-  const { data } = await (db.from as any)('events')
-    .select('id, title, start_at, end_at, location')
-    .eq('member_group_id', group.value.id)
-    .order('start_at', { ascending: true })
-  trainingSessions.value = data ?? []
-  await loadAttendance()
+  const nowT = Date.now()
+  upcomingEvents.value = rows.filter((e: any) => new Date(e.start_at).getTime() >= nowT).slice(0, 50)
+  trainingSessions.value = rows
 }
 const nowMs = ref(Date.now())
 const upcomingSessions = computed(() => trainingSessions.value.filter(e => new Date(e.start_at).getTime() >= nowMs.value))
@@ -1963,7 +2164,8 @@ async function saveSchedules() {
     ...s,
     location: normalizeLocation(s.location),
   })) as Schedule[]
-  await loadTrainingEvents()
+  await loadEvents()
+  await loadAttendance()
   savingSchedules.value = false
   editorOpen.value = false
 }
@@ -2000,15 +2202,25 @@ async function removePerson(p: any) {
 const GROUP_PALETTE = ['#1976d2', '#0f766e', '#16a34a', '#ca8a04', '#ea580c', '#dc2626', '#db2777', '#7c3aed', '#475569', '#0891b2']
 const groupEditOpen = ref(false)
 const savingGroup = ref(false)
-const groupDraft = reactive<{ name: string; color: string | null; code: string | null; age_range: string | null; capacity: number | null; current_term: string | null; term_fee: number | null }>({
-  name: '', color: null, code: null, age_range: null, capacity: null, current_term: null, term_fee: null,
+const GENDER_RESTRICTION_OPTIONS = [
+  { label: 'Open to all', value: null },
+  { label: 'Male only', value: 'MALE' },
+  { label: 'Female only', value: 'FEMALE' },
+  { label: 'Non-binary only', value: 'NON_BINARY' },
+]
+const genderRestrictionLabel = (v: string | null | undefined) =>
+  v ? (GENDER_RESTRICTION_OPTIONS.find(o => o.value === v)?.label ?? v) : ''
+const groupDraft = reactive<{ name: string; color: string | null; code: string | null; code_id: string | null; age_range: string | null; capacity: number | null; current_term: string | null; term_fee: number | null; gender_restriction: string | null }>({
+  name: '', color: null, code: null, code_id: null, age_range: null, capacity: null, current_term: null, term_fee: null, gender_restriction: null,
 })
 function openGroupEditor() {
   if (!group.value) return
   Object.assign(groupDraft, {
     name: group.value.name, color: group.value.color ?? null, code: group.value.code ?? null,
+    code_id: group.value.code_id ?? null,
     age_range: group.value.age_range ?? null, capacity: group.value.capacity ?? null,
     current_term: group.value.current_term ?? null, term_fee: group.value.term_fee ?? null,
+    gender_restriction: group.value.gender_restriction ?? null,
   })
   groupEditOpen.value = true
 }
@@ -2017,8 +2229,10 @@ async function saveGroup() {
   savingGroup.value = true
   const patch = {
     name: groupDraft.name.trim(), color: groupDraft.color, code: groupDraft.code || null,
+    code_id: groupDraft.code_id || null,
     age_range: groupDraft.age_range || null, capacity: groupDraft.capacity ?? null,
     current_term: groupDraft.current_term || null, term_fee: groupDraft.term_fee ?? null,
+    gender_restriction: groupDraft.gender_restriction || null,
   }
   const { error } = await (db.from as any)('member_groups').update(patch).eq('id', group.value.id)
   savingGroup.value = false
@@ -2054,7 +2268,7 @@ async function searchPersons(e: { query: string }) {
   // Existing members CAN be picked again — adding a role merges into their
   // membership (e.g. give a coach the Player role so they're both).
   let query = (db.from as any)('persons')
-    .select('id, first_name, last_name, email, phone')
+    .select('id, first_name, last_name, email, phone, gender')
     .eq('org_id', orgId.value).order('last_name').limit(25)
   if (q) query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`)
   const { data } = await query
@@ -2073,12 +2287,17 @@ async function addPerson() {
   const prev = coaches.value.find(x => x.id === p.id)?.allRoles
     ?? members.value.find(x => x.id === p.id)?.allRoles ?? []
   const merged = Array.from(new Set([...prev, ...addRoles.value]))
+  const name = `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || p.name || 'This person'
+  // Gender restriction — only when they're joining AS A MEMBER (staff are exempt).
+  const restrict = group.value.gender_restriction
+  if (restrict && memberRolesOf(merged).length && p.gender && p.gender !== 'UNSPECIFIED' && p.gender !== restrict) {
+    if (!window.confirm(`${name}'s gender doesn't match this group's restriction (${genderRestrictionLabel(restrict)}). Add them anyway?`)) return
+  }
   const enrol = enrolPatch()
   const { error } = await (db.from as any)('member_group_memberships')
     .upsert({ group_id: group.value.id, person_id: p.id, roles: merged, role: merged[0] ?? null, ...(enrol ?? {}) },
       { onConflict: 'group_id,person_id' })
   if (!error) {
-    const name = `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || p.name || '—'
     const base = { id: p.id, name, email: p.email ?? null, phone: p.phone ?? null, allRoles: merged }
     // Rebuild this person's presence across both tables from the merged roles.
     coaches.value = coaches.value.filter(x => x.id !== p.id)
@@ -2126,7 +2345,7 @@ async function createAttendanceEvent() {
     // Re-fetch existing event links right before iterating so a stale
     // local cache (e.g. a previous click that already created events
     // but the watcher hasn't repainted) can't double-create.
-    await loadTrainingEvents()
+    await loadEvents()
     const toCreate = schedules.value.filter(s => !trainingEventByScheduleId.value[s.id])
 
     const untilStr = `${season.end.replace(/-/g, '')}T235959Z`
@@ -2213,7 +2432,8 @@ async function createAttendanceEvent() {
       }
     }
 
-    await loadTrainingEvents()
+    await loadEvents()
+    await loadAttendance()
   } finally {
     creatingEvent.value = false
   }

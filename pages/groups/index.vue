@@ -1,73 +1,38 @@
+<!--
+  Groups landing = the Classes view. The tabbed <ClassesBoard> (top-level codes
+  as tabs, class tables inside) IS this page — the old codes/groups tree was
+  redundant with it + /groups/codes. Group + code creation (the one thing only
+  this landing had) is kept as header dialogs; everything else (organise codes,
+  allocate, fees, rollover, saved views) is a header link / the nav flyout.
+-->
 <template>
-  <div class="p-3 sm:p-6">
-    <div class="mb-6 flex items-start justify-between gap-4">
+  <div class="p-3 sm:p-6 space-y-4">
+    <div class="flex items-start justify-between gap-4">
       <div>
-        <h1 class="text-xl font-semibold text-surface-900">Groups</h1>
-        <p class="text-sm text-surface-500 mt-0.5">Member groups and audiences — up to {{ MAX_DEPTH }} levels deep.</p>
+        <h1 class="text-lg sm:text-2xl font-semibold text-surface-900">Classes</h1>
+        <p class="text-sm text-surface-500 mt-0.5">Every class grouped under its code. Tabs are your top-level codes.</p>
       </div>
-      <Button label="New group" icon="pi pi-plus" size="small"
-        style="background:#1E2157;border-color:#1E2157" @click="openCreate(null)" />
-    </div>
-
-    <!-- Location tabs (NHG venues) -->
-    <div class="mb-4 border-b border-gray-200">
-      <div class="flex gap-1 overflow-x-auto overflow-y-hidden no-scrollbar -mb-px">
-        <button v-for="loc in LOCATIONS" :key="loc" type="button"
-          class="px-3 sm:px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap transition-colors"
-          :class="activeLocation === loc
-            ? 'border-primary text-primary'
-            : 'border-transparent text-gray-500 hover:text-gray-700'"
-          @click="activeLocation = loc">
-          {{ loc }}
-        </button>
+      <div class="flex items-center gap-2 shrink-0">
+        <Button label="New code" icon="pi pi-sitemap" size="small" outlined severity="secondary"
+          class="text-gray-700" @click="openCreateCode()" />
+        <Button label="New group" icon="pi pi-plus" size="small"
+          style="background:#1E2157;border-color:#1E2157" @click="openCreateGroup()" />
       </div>
     </div>
 
-    <AppCard title="Member Groups">
-      <div v-if="loading" class="py-8 text-center text-sm text-surface-400">Loading…</div>
-      <div v-else-if="!flatTree.length" class="py-8 text-center text-sm text-surface-400">
-        No groups yet. <button class="text-primary hover:underline" @click="openCreate(null)">Create your first group →</button>
-      </div>
-      <ul v-else class="divide-y divide-gray-100">
-        <li v-for="node in flatTree" :key="node.id">
-          <div class="flex items-center gap-2 px-2 py-2.5 hover:bg-gray-50 transition-colors rounded"
-            :style="{ paddingLeft: `${0.5 + (node.depth - 1) * 1.5}rem` }">
-            <!-- expand toggle -->
-            <button type="button" class="w-4 h-4 flex items-center justify-center shrink-0"
-              @click="node.hasChildren && toggle(node.id)">
-              <i v-if="node.hasChildren"
-                :class="`pi text-[10px] text-gray-400 ${isExpanded(node.id) ? 'pi-chevron-down' : 'pi-chevron-right'}`" />
-            </button>
-            <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: node.color || '#94a3b8' }" />
-            <NuxtLink :to="`/groups/${node.id}`" class="flex-1 text-sm font-semibold text-gray-800 truncate hover:text-primary">
-              {{ node.name }}
-            </NuxtLink>
-            <span class="text-xs text-gray-400 tabular-nums">{{ node.member_count }}</span>
-            <!-- add sub-group -->
-            <button v-if="node.depth < MAX_DEPTH" type="button"
-              class="text-gray-300 hover:text-primary transition-colors"
-              :title="`Add a sub-group under ${node.name}`" @click="openCreate(node)">
-              <i class="pi pi-plus text-xs" />
-            </button>
-            <span v-else class="w-4 shrink-0" />
-            <NuxtLink :to="`/groups/${node.id}`" class="text-gray-300 hover:text-gray-500">
-              <i class="pi pi-chevron-right text-[10px]" />
-            </NuxtLink>
-          </div>
-        </li>
-      </ul>
-    </AppCard>
+    <ClassesBoard ref="board" allow-new-tab />
 
     <!-- New group dialog -->
-    <Dialog v-model:visible="createOpen" modal :style="{ width: '95vw', maxWidth: '420px' }"
-      :header="createParent ? `New sub-group under ${createParent.name}` : 'New group'">
+    <Dialog v-model:visible="createGroupOpen" modal :style="{ width: '95vw', maxWidth: '420px' }" header="New group">
       <div class="flex flex-col gap-4">
-        <p v-if="createParent" class="text-xs text-gray-500">
-          This will be level {{ (createParent.depth ?? 1) + 1 }} of {{ MAX_DEPTH }}.
-        </p>
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Name</label>
-          <InputText v-model="newGroup.name" autofocus placeholder="e.g. Under 16s" @keyup.enter="handleCreate" />
+          <InputText v-model="newGroup.name" autofocus placeholder="e.g. Under 16s" @keyup.enter="handleCreateGroup" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Code</label>
+          <Select v-model="newGroup.code_id" :options="codeOptions" optionLabel="label" optionValue="value"
+            placeholder="Ungrouped" class="w-full" showClear />
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Colour</label>
@@ -80,9 +45,44 @@
         </div>
       </div>
       <template #footer>
-        <Button label="Cancel" severity="secondary" text @click="createOpen = false" />
+        <Button label="Cancel" severity="secondary" text @click="createGroupOpen = false" />
         <Button label="Create" :loading="creating" :disabled="!newGroup.name.trim()"
-          style="background:#1E2157;border-color:#1E2157" @click="handleCreate" />
+          style="background:#1E2157;border-color:#1E2157" @click="handleCreateGroup" />
+      </template>
+    </Dialog>
+
+    <!-- New code dialog -->
+    <Dialog v-model:visible="createCodeOpen" modal :style="{ width: '95vw', maxWidth: '420px' }" header="New code">
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Name</label>
+          <InputText v-model="newCode.name" autofocus placeholder="e.g. Development" @keyup.enter="handleCreateCode" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Parent code</label>
+          <Select v-model="newCode.parent_id" :options="codeOptions" optionLabel="label" optionValue="value"
+            placeholder="Top level" class="w-full" showClear />
+        </div>
+        <div v-if="terms.length" class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Term</label>
+          <Select v-model="newCode.term_id" :options="termSelectOptions" optionLabel="label" optionValue="value"
+            placeholder="No term" class="w-full" showClear />
+          <p class="text-xs text-gray-400">Groups inside this code inherit its term.</p>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Colour</label>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="c in PALETTE" :key="c" type="button"
+              class="w-7 h-7 rounded border-2 transition-transform"
+              :class="newCode.color === c ? 'border-gray-800 scale-110' : 'border-transparent'"
+              :style="{ background: c }" @click="newCode.color = c" />
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text @click="createCodeOpen = false" />
+        <Button label="Create" :loading="creatingCode" :disabled="!newCode.name.trim()"
+          style="background:#1E2157;border-color:#1E2157" @click="handleCreateCode" />
       </template>
     </Dialog>
 
@@ -92,117 +92,101 @@
 
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
+import type { GroupCode } from '~/composables/useGroupCodes'
 
 const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
+const gc = useGroupCodes()
+const tm = useTermsMemberships()
 
-const MAX_DEPTH = 5
-const LOCATIONS = ['All locations', 'HBC', 'Albany', 'Eventfinda Stadium']
-const activeLocation = ref('All locations')
 const PALETTE = ['#1E2157', '#2563EB', '#0f766e', '#059669', '#9333ea', '#EC4899', '#c2410c', '#be123c', '#8B5CF6', '#64748b']
 
-interface Group {
-  id: string
-  name: string
-  color: string | null
-  parent_id: string | null
-  sort_order: number | null
-  member_count: number
-}
+const board = ref<{ reload: () => Promise<void> } | null>(null)
+const codes = ref<GroupCode[]>([])
+const terms = ref<{ id: string; name: string }[]>([])
 
-const groups = ref<Group[]>([])
-const loading = ref(true)
-const expanded = reactive<Record<string, boolean>>({})
-
-const createOpen = ref(false)
-const creating = ref(false)
-const createParent = ref<any>(null)
-const newGroup = reactive({ name: '', color: PALETTE[0] })
-
-function isExpanded(id: string) { return expanded[id] !== false }
-function toggle(id: string) { expanded[id] = !(expanded[id] !== false) }
-
-// children keyed by parent id ('__root' for top level), in sort order
-const childrenByParent = computed(() => {
-  const map: Record<string, Group[]> = {}
-  const sorted = [...groups.value].sort((a, b) =>
-    (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))
-  for (const g of sorted) {
-    const k = g.parent_id ?? '__root'
-    ;(map[k] ??= []).push(g)
+// Codes in tree order with a depth, for indented Select labels.
+const codeOptions = computed(() => {
+  const byParent: Record<string, GroupCode[]> = {}
+  const sorted = [...codes.value].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))
+  for (const c of sorted) (byParent[c.parent_id ?? '__root'] ??= []).push(c)
+  const out: { label: string; value: string }[] = []
+  const walk = (key: string, depth: number) => {
+    for (const c of (byParent[key] ?? [])) { out.push({ label: `${'  '.repeat(depth)}${c.name}`, value: c.id }); walk(c.id, depth + 1) }
   }
-  return map
-})
-
-// flattened, depth-aware list respecting collapse state
-const flatTree = computed(() => {
-  const out: (Group & { depth: number; hasChildren: boolean })[] = []
-  const byParent = childrenByParent.value
-  const walk = (parentId: string | null, depth: number) => {
-    const kids = byParent[parentId ?? '__root'] ?? []
-    for (const g of kids) {
-      const hasChildren = (byParent[g.id]?.length ?? 0) > 0
-      out.push({ ...g, depth, hasChildren })
-      if (hasChildren && isExpanded(g.id)) walk(g.id, depth + 1)
-    }
-  }
-  walk(null, 1)
+  walk('__root', 0)
   return out
 })
+const termSelectOptions = computed(() => terms.value.map(t => ({ label: t.name, value: t.id })))
+const codesById = computed<Record<string, GroupCode>>(() => Object.fromEntries(codes.value.map(c => [c.id, c])))
 
-async function load() {
-  if (!orgId.value) return
-  loading.value = true
-  const [{ data: rows }, { data: memberships }] = await Promise.all([
-    (db.from as any)('member_groups')
-      .select('id, name, color, parent_id, sort_order')
-      .eq('org_id', orgId.value)
-      .order('sort_order', { ascending: true, nullsFirst: false })
-      .order('name'),
-    (db.from as any)('member_group_memberships').select('group_id'),
-  ])
-  const counts: Record<string, number> = {}
-  for (const m of memberships ?? []) counts[m.group_id] = (counts[m.group_id] ?? 0) + 1
-  groups.value = (rows ?? []).map((g: any) => ({ ...g, member_count: counts[g.id] ?? 0 }))
-  loading.value = false
+// ── Create dialogs ──
+const createGroupOpen = ref(false)
+const creating = ref(false)
+const newGroup = reactive<{ name: string; color: string; code_id: string | null }>({ name: '', color: PALETTE[0], code_id: null })
+
+const createCodeOpen = ref(false)
+const creatingCode = ref(false)
+const newCode = reactive<{ name: string; color: string; parent_id: string | null; term_id: string | null }>({ name: '', color: PALETTE[0], parent_id: null, term_id: null })
+
+function openCreateGroup(codeId: string | null = null) {
+  newGroup.name = ''; newGroup.color = PALETTE[0]; newGroup.code_id = codeId
+  createGroupOpen.value = true
+}
+function openCreateCode(parentId: string | null = null) {
+  newCode.name = ''; newCode.color = PALETTE[0]; newCode.parent_id = parentId
+  newCode.term_id = parentId ? (codesById.value[parentId]?.term_id ?? null) : null
+  createCodeOpen.value = true
 }
 
-function openCreate(parent: any | null) {
-  createParent.value = parent
-  newGroup.name = ''
-  newGroup.color = PALETTE[0]
-  createOpen.value = true
-}
-
-async function handleCreate() {
+async function handleCreateGroup() {
   if (!newGroup.name.trim()) return
-  const parentId = createParent.value?.id ?? null
-  const parentDepth = createParent.value?.depth ?? 0
-  if (parentDepth >= MAX_DEPTH) {
-    toast.add({ severity: 'warn', summary: `Groups can only go ${MAX_DEPTH} levels deep`, life: 3000 })
-    return
-  }
   creating.value = true
-  const siblings = childrenByParent.value[parentId ?? '__root'] ?? []
-  const nextOrder = siblings.reduce((m, s) => Math.max(m, s.sort_order ?? 0), 0) + 1
+  const siblings = codes.value.length // rough; sort_order just needs to be monotone-ish
   const { error } = await (db.from as any)('member_groups').insert({
-    org_id: orgId.value,
-    name: newGroup.name.trim(),
-    color: newGroup.color,
-    parent_id: parentId,
-    sort_order: nextOrder,
+    org_id: orgId.value, name: newGroup.name.trim(), color: newGroup.color,
+    code_id: newGroup.code_id, parent_id: null, sort_order: siblings,
   })
   if (!error) {
-    if (parentId) expanded[parentId] = true // reveal the new child
     toast.add({ severity: 'success', summary: 'Group created', life: 2500 })
-    createOpen.value = false
-    await load()
+    createGroupOpen.value = false
+    await refresh()
   } else {
     toast.add({ severity: 'error', summary: 'Could not create group', detail: error.message, life: 4000 })
   }
   creating.value = false
 }
 
-watch(orgId, load, { immediate: true })
+async function handleCreateCode() {
+  if (!newCode.name.trim()) return
+  creatingCode.value = true
+  const siblings = codes.value.filter(c => (c.parent_id ?? null) === (newCode.parent_id ?? null))
+  const nextOrder = siblings.reduce((m, s) => Math.max(m, s.sort_order ?? 0), 0) + 1
+  const created = await gc.createCode({
+    name: newCode.name.trim(), color: newCode.color, parent_id: newCode.parent_id, term_id: newCode.term_id, sort_order: nextOrder,
+  })
+  if (created) {
+    toast.add({ severity: 'success', summary: 'Code created', life: 2500 })
+    createCodeOpen.value = false
+    await refresh()
+  } else {
+    toast.add({ severity: 'error', summary: 'Could not create code', life: 4000 })
+  }
+  creatingCode.value = false
+}
+
+// Reload the dialogs' code/term options + the classes board.
+async function loadOptions() {
+  if (!orgId.value) return
+  const [codeList, termList] = await Promise.all([gc.loadCodes(), tm.loadTerms()])
+  codes.value = codeList
+  terms.value = termList ?? []
+}
+async function refresh() {
+  await loadOptions()
+  await board.value?.reload()
+}
+
+watch(orgId, loadOptions, { immediate: true })
 </script>

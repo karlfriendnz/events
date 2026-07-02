@@ -185,7 +185,8 @@ erDiagram
 | `bookings` | Actual reservations. `parent_booking_id` (self-FK) groups multi-bookable atomic reservations. |
 | `booking_discounts` | Discount codes/rules applied to bookings. |
 | `booking_discount_activities` / `..._modes` | Scope a discount to certain activities or modes. |
-| `member_groups` | "Juniors", "Seniors", "Coaches" etc. Drives pricing tiers and access. |
+| `member_groups` | "Juniors", "Seniors", "Coaches" etc. Drives pricing tiers and access. Each group lives in one **Code** (`code_id → group_codes`, migration 205) which replaced the old parent/child group nesting. |
+| `group_codes` | **Codes** — hierarchical containers (folders) that hold member groups and pass down shared settings (currently the **Term**). Nest via `parent_id`; a group joins one via `member_groups.code_id`. |
 | `circles` | Connections between people. `kind` = `family` (guardians + dependents) or `circle` (peer group). A family is a circle with `kind='family'`. Customisable `name`, `color` (background tint) and `image_url` (picture). |
 | `circle_members` | Who's in a circle, their `role` (guardian/dependent/member), whether they're a circle `is_lead`, and what they can do (`can_book_for`, `can_register`, `can_view`). For contacts (family members): `relationship`, `is_primary`, `receives_comms`. Guardians manage dependents; circle members never manage profiles. |
 | `comms_preferences` | Per `(recipient person, subject person)` pair: which message categories the recipient wants on that person's behalf. No row = all. Set from the Family & Circles "Communications on your behalf" dropdown. |
@@ -198,6 +199,10 @@ erDiagram
 | `access_scans` | Log of badge taps / code attempts. `result` is `GRANT`/`DENY`/`UNKNOWN`. |
 
 ### Recent migrations worth knowing
+- `205_group_codes.sql` + `206_backfill_group_codes.sql` — **Codes — folders that group your groups.** Instead of nesting groups inside groups, a club now organises its groups into **Codes**. A Code is a container ("Development", "Step 2–5", "Recreational") that **holds member groups and passes down its settings to them** — for now that's the **Term** the groups run in, but it's built so we can hang more shared settings off a Code later. Codes can sit inside other Codes, and **each group lives in exactly one Code** (or none — those show under an "Ungrouped" heading). On the Groups page you now see Codes as the outline, with the actual groups as the rows underneath; there's a **New code** button (name, colour, an optional parent code, and the term it runs in) alongside **New group** (which now just asks which code to drop the group into). The **term filter** reads a group's term *through its code*, so changing a Code's term instantly re-files everything inside it. On a group's own page its Code shows as a little **badge by the name**, the **Current Term** is the one inherited from the Code, and the Edit dialog has a **Code** dropdown to move the group somewhere else. Deleting a Code doesn't delete its groups — they (and any sub-codes) simply move up to the Code's parent. **206 is a one-time backfill** that turns today's parent-child group nesting into Codes: every group that has children becomes a Code; a pure "folder" group (no members, no training times, no events of its own) is replaced by its Code, while a group that has *both* children *and* its own content is kept as a real group sitting beside the new Code. It only runs on clubs that don't already have Codes, so it's safe. **This backfill deletes the old folder rows, so it has NOT been pushed to the database yet — Karl reviews and runs it deliberately.** *(Tables: `group_codes`; new column `member_groups.code_id`; the old `member_groups.parent_id` nesting is retired.)* **Still to build:** more inherited Code settings (Karl will specify), drag-and-drop reordering / moving groups between codes, and rolling a whole Code over to a new term.
+- `204_group_fees.sql` — **Group fees — giving members a choice of how to pay.** A group can offer several **fee options** and the member picks the one that suits them — e.g. *Full upfront*, *Monthly*, *Weekly*, a *10-session concession card*, *pay in instalments*, or *per session*. Crucially, **every option can be made of multiple line items** (Coaching $80 + Registration $20 + Uniform levy $10), each with its own accounting code, so an invoice breaks down properly. Staff manage these in the new **"Fees" card** on the group page (add an option → pick the charging type → add its line items); when adding a member the dialog now asks **"How do you want to pay?"** and records their choice. Fee options carry over when you roll a group into a new term. This models what the old system did with *Term Fees* and *Term Fee Items*, cleaned up and made per-group. **Still to build:** letting a member choose their fee on the public registration form, and actually generating the invoices/charges (the maths for each type — recurring periods, instalment splits, concession clips, pro-rata by join date). *(Tables: `group_fee_options`, `group_fee_option_items`, and `member_group_memberships.fee_option_id`.)*
+- `203_group_gender_restriction.sql` — **Gender restriction on a group.** A group can require members to be a particular gender (e.g. a Girls' squad) — set on the group's Edit dialog, shown in its info, and a gentle warning appears if you add someone who doesn't match (staff can still override). Carries over on rollover. *(Column: `member_groups.gender_restriction`.)*
+- `201_group_term_lineage.sql` — **Term rollover — starting each term fresh.** A group now belongs to **one term**. When a term ends, that group becomes read-only **history** (it shows an amber "this term has ended" banner and you can't edit it) — nothing is deleted, so last term's roster and results stay on record. To run the next term you use the new **Roll over groups** screen (`/groups/rollover`, reached from the "Roll over a term" link on the Groups page): pick the term you're rolling **from** and the term you're rolling **into**, then for each group tick whether to include it, rename it if you like, and choose what carries over — **for both coaches and members** you can **roll everyone over**, **start empty** (they'll re-register via the form), or **pick just some**. Clicking "Create groups" makes a fresh copy of each chosen group for the new term (keeping its training times, membership plans and fee), and nested groups keep their structure. It's safe to run twice — anything already created for that term is skipped. The Groups page has a **term filter** so you can flick between terms (past terms show their history). When someone signs up through a registration form, they're now recorded as joining **that group's term**. *(Behind the scenes: `member_groups` gains `term_id`, `lineage_id` — the thread linking "Step 2 Tuesday" across every term — and `rolled_from_group_id`.)* **Not yet built:** automatically generating the new term's training events (you still press "Create training events" on each new group).
 - `200_terms_memberships.sql` — **Terms & Memberships — how a club runs its groups.** A club can run a group two ways, and the whole club can use both at once: **Terms** (a fixed date range — "Term 1 2026" — that a group runs in, with a fee) and **Memberships** (a recurring plan like "Senior" that automatically rolls over, with one or more **duration options** — 1 month / 3 month / 6 month — that all keep the member as a "Senior", they just pick how long). The club defines both in **Settings → Terms & memberships** (`/settings/memberships`), then on each group's page connects the group to whichever terms and/or memberships it offers (the "Membership & terms" card). When staff add a person to a group, an **"Enrol on"** dropdown records which term or membership option they joined under, and the start/end dates are worked out automatically (a 3-month membership added today ends in 3 months). New tables: `org_terms`, `member_group_terms`, `membership_plans`, `membership_plan_options`, `member_group_plans`; new columns on `member_group_memberships` (`term_id`, `plan_option_id`, `start_date`, `end_date`, `auto_renew`, `membership_status`). **Not yet built:** the automatic renewal job (the auto-renew flag is stored but nothing rolls memberships over yet), choosing a membership option on the public registration form, and invoicing the fees.
 - `177_person_comms_topics.sql` — `persons.comms_topics` — which club communications a person is subscribed to (the required "Communication" profile field).
 - `176_contact_type.sql` — a contact has a **Type** (Primary / Standard / Emergency / Contact), chosen from a dropdown column, separate from their relationship label.
@@ -923,6 +928,83 @@ A **search box** at the top filters the list as you type (matches name, email, p
 
 **Opening a person**
 Clicking any row opens that person's profile at `/people/:id`.
+
+---
+
+### 6.24b Team allocation `/groups/allocator`
+
+- **URL:** `/groups/allocator`
+- **Source:** `pages/groups/allocator.vue` (+ `composables/useTeamAllocator.ts`)
+
+**What this page is for**
+Sorting a lot of people into teams/classes quickly by **dragging them from one group into another** — a rebuild of the old system's "Group Allocation" screen. Typical use: everyone signs up into one big "Trials" group, then a coach spreads them across the graded squads.
+
+**What you see**
+A controls bar across the top: a **Term** picker, a **Source group** picker (the group whose people you want to move — its members appear in a list on the left), a **Destination codes** picker (choose one or more *codes* — every group inside those codes appears as a drop-target card on the right, grouped under its code), a **Search** box, a **capacity filter** (All / Full / Incomplete), and a **Highlight duplicates** switch. Each destination card shows how full it is (`count / capacity`, coloured amber when there's room, green when full, red when over — groups with no capacity limit just show a count).
+
+**How you use it**
+Drag a person's card from the left pool onto any destination group — the move **saves instantly**: they're added to the destination group and removed from the source (added first, so a hiccup never loses them from every group). Their role(s) come with them. Drag someone back to the source with the little ← button on their card. Turning on **Highlight duplicates** flags anyone who's ended up in two or more destination groups (amber). The search box filters the visible people live.
+
+**On a phone**
+Dragging is fiddly on a small screen, so each person in the source list gets a **"Move…"** dropdown instead — pick the destination group and they move the same way.
+
+**Reached from** the **"Allocate"** link on the Groups page.
+
+**Not built yet:** per-term membership beyond stamping the destination group's term, the old "unpaid fees / restricted" warning icons, and multi-select drag (moving several at once).
+
+### 6.24c Organise codes `/groups/codes`
+
+- **URL:** `/groups/codes`
+- **Source:** `pages/groups/codes.vue`
+
+**What this page is for**
+Arranging your **codes** into a tree by **dragging codes inside other codes**. A code is a container that holds member groups (and passes its term down to them); this screen is where you decide which code sits under which — e.g. put "Step 6" and "Step 7-10" under a "Competitive" code.
+
+**What you see**
+A list of every code, with children **indented** under their parent, each showing its colour, name, the **term** it carries, and how many **groups** live in it. Above the list is a small form to **add or edit** a code (name, colour, a parent code, and a term).
+
+**How you use it**
+Grab a code by its drag handle and drop it **onto the middle of another code** to nest it inside that code; drop it near a code's **top or bottom edge** to reorder it among its siblings. Moves **save instantly**. You can't drop a code into one of its own children (that would make a loop), so that's blocked. Edit renames/recolours/repoints a code; Delete removes it and lifts its contents (child codes and groups) up to its parent so nothing is orphaned.
+
+**Reached from** the **"Organise codes"** link on the Groups page. *(Same drag interaction as the Disciplines page.)*
+
+### 6.24d Classes view `/groups/classes`
+
+- **URL:** `/groups/classes`
+- **Source:** `pages/groups/classes.vue`
+
+**What this page is for**
+A single at-a-glance page of **every class**, organised the way the old system's Classes screen worked: a row of **tabs across the top**, and inside each tab a set of tables showing the classes that live under that part of your structure.
+
+**What you see**
+Each **top-level code** is a **tab** (e.g. *Recreational*, *Preschool*, *Competitive*), plus an **"Other"** tab for any group that hasn't been put in a code. Open a tab and you get one table per code beneath it (the code's name is the table's heading — e.g. *Boys only Classes*), listing each class with: its **name**, the **head coach**, **Gymnasts** (how many are in it out of its capacity — the number turns amber when the class is full and red if it's over), a **Waitlist** column, and a **Sport** column. Each table ends with a **Total gymnasts** line, and if a tab has several tables you also get a tab total.
+
+**How you use it**
+Click any class row to open that group. Use **"+ Tab"** on the tab strip to spin up a new top-level code (you then add sub-codes and assign groups on the *Organise codes* page). On a phone the tab strip becomes a dropdown and each table becomes a tidy card list.
+
+**Reached from** the **"Classes"** link on the Groups page, and from the **Groups menu flyout**.
+
+**Not built yet:** a real waitlist (the column is a placeholder), and per-term gymnast counts.
+
+### 6.24e Saved views + Groups menu dropdown `/groups/views`, `/groups/view/:id`
+
+- **URLs:** `/groups/views` (manage), `/groups/view/:id` (a saved view)
+- **Source:** `pages/groups/views.vue`, `pages/groups/view/[id].vue`, `components/ClassesBoard.vue`, `composables/useGroupViews.ts`
+
+**What this is for**
+Letting you **create your own Classes pages** and reach them from a **dropdown off the Groups menu item** — so you can, say, keep a "Competitive squads" page with just the columns you care about, separate from a big all-classes page.
+
+**What you see**
+Hovering the **Classes/Groups icon** in the left menu opens a little dropdown: **Groups**, **Classes** (the all-classes page), then **each view you've saved**, then **Manage views**. Manage views is a simple list with a **New view** button.
+
+**How you use it**
+Click **New view**, give it a name, tick which **columns** to show (Head, Gymnasts, Waitlist, Sport — the class name is always shown), and pick which **top-level codes** appear as tabs (leave empty for all). Save, and it instantly appears in the Groups dropdown and renders as its own page. Under the hood every view (and the default Classes page) is the same building block, just configured differently.
+
+**Editing a view happens right on its page, live.** Open a view and click **Edit**: a panel appears with the same name / columns / tabs controls, and as you tick a column or add a tab **the table updates instantly** — no save button, no reload. Every change is **saved automatically** a moment after you make it (you'll see a little "Saving… / Saved" note), and there's a **Delete this view** link in the panel. Click **Done** to hide the controls.
+
+**Reached from** the **Groups menu dropdown** and the **"Views"** link on the Classes page.
+
+**Not built yet:** per-view ordering in the menu beyond creation order; sharing a view with only certain staff.
 
 ---
 

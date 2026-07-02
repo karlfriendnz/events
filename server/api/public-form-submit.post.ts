@@ -39,6 +39,8 @@ export default defineEventHandler(async (event) => {
   // ── Resolve org + a human label for the context entity (org derived server-side) ──
   let orgId: string | null = null
   let contextName = ''
+  let groupTermId: string | null = null
+  let groupTerm: { start_date: string | null; end_date: string | null } | null = null
   if (context.type === 'event' && context.id) {
     const { data: ev } = await supabase.from('events')
       .select('id, org_id, title, status, hold_spot_enabled').eq('id', context.id).maybeSingle()
@@ -46,9 +48,14 @@ export default defineEventHandler(async (event) => {
     if (ev.status === 'CANCELLED' || ev.status === 'ARCHIVED') throw createError({ statusCode: 409, message: 'Registrations are closed for this event.' })
     orgId = ev.org_id; contextName = ev.title
   } else if (context.type === 'group' && context.id) {
-    const { data: g } = await supabase.from('member_groups').select('id, org_id, name').eq('id', context.id).maybeSingle()
+    const { data: g } = await supabase.from('member_groups').select('id, org_id, name, term_id').eq('id', context.id).maybeSingle()
     if (!g) throw createError({ statusCode: 404, message: 'Group not found' })
     orgId = g.org_id; contextName = g.name
+    groupTermId = g.term_id ?? null
+    if (groupTermId) {
+      const { data: t } = await supabase.from('org_terms').select('start_date, end_date').eq('id', groupTermId).maybeSingle()
+      groupTerm = t ?? null
+    }
   } else if (formId) {
     const { data: f } = await supabase.from('registration_forms').select('org_id, name').eq('id', formId).maybeSingle()
     if (f) { orgId = f.org_id; contextName = f.name }
@@ -160,7 +167,16 @@ export default defineEventHandler(async (event) => {
     // Add each registered person to the group.
     if (personIds.length) {
       await supabase.from('member_group_memberships').upsert(
-        personIds.map(pid => ({ group_id: context.id, person_id: pid })),
+        personIds.map(pid => ({
+          group_id: context.id, person_id: pid,
+          // Stamp the group's term so the enrolment records which term it joined.
+          ...(groupTermId ? {
+            term_id: groupTermId,
+            start_date: groupTerm?.start_date ?? null,
+            end_date: groupTerm?.end_date ?? null,
+            membership_status: 'active',
+          } : {}),
+        })),
         { onConflict: 'group_id,person_id', ignoreDuplicates: true },
       )
     }
