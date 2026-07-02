@@ -25,7 +25,7 @@ export interface WaitlistEntry {
   sort_order: number
   priority: number
   created_at?: string
-  person?: { id: string; first_name: string; last_name: string; email: string | null; phone: string | null }
+  person?: { id: string; first_name: string; last_name: string; email: string | null; phone: string | null; dob?: string | null }
 }
 
 export const WAITLIST_ORDER_MODES = [
@@ -112,7 +112,7 @@ export function useWaitlists() {
     const ids = rows.map(r => r.person_id)
     if (ids.length) {
       const { data: people } = await (db.from as any)('persons')
-        .select('id, first_name, last_name, email, phone').in('id', ids)
+        .select('id, first_name, last_name, email, phone, dob').in('id', ids)
       const byId: Record<string, any> = {}
       for (const p of people ?? []) byId[p.id] = p
       for (const r of rows) r.person = byId[r.person_id]
@@ -139,6 +139,23 @@ export function useWaitlists() {
   async function removeEntry(id: string): Promise<void> {
     await (db.from as any)('waitlist_entries').delete().eq('id', id)
   }
+  // How many groups each of these people is currently a member of.
+  async function enrolledCounts(personIds: string[]): Promise<Record<string, number>> {
+    if (!personIds.length) return {}
+    const { data } = await (db.from as any)('member_group_memberships').select('person_id').in('person_id', personIds)
+    const out: Record<string, number> = {}
+    for (const m of data ?? []) out[m.person_id] = (out[m.person_id] ?? 0) + 1
+    return out
+  }
+  // Enrol a waitlisted person INTO a group (get them off the waitlist): insert the
+  // membership then delete the waitlist entry. Idempotent membership upsert.
+  async function enrolFromWaitlist(entryId: string, groupId: string, personId: string, positions: string[] = []): Promise<{ ok: boolean; error?: string }> {
+    const { error } = await (db.from as any)('member_group_memberships')
+      .upsert({ group_id: groupId, person_id: personId, roles: [], role: null, positions }, { onConflict: 'group_id,person_id' })
+    if (error) return { ok: false, error: error.message }
+    await removeEntry(entryId)
+    return { ok: true }
+  }
   // Persist a re-ordered list (sort_order = index).
   async function reorderEntries(ids: string[]): Promise<void> {
     await Promise.all(ids.map((id, i) => (db.from as any)('waitlist_entries').update({ sort_order: i }).eq('id', id)))
@@ -149,5 +166,6 @@ export function useWaitlists() {
     loadWaitlists, createWaitlist, updateWaitlist, deleteWaitlist,
     loadGroupLinks, setGroupsForWaitlist, connectGroup,
     loadEntries, entryCounts, addEntry, updateEntry, removeEntry, reorderEntries,
+    enrolledCounts, enrolFromWaitlist,
   }
 }

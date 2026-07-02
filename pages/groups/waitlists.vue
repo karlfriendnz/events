@@ -20,7 +20,10 @@ const codes = ref<any[]>([])
 const waitlists = ref<any[]>([])
 const groupLinks = ref<Record<string, { id: string; name: string; color: string | null }[]>>({})
 const counts = ref<Record<string, number>>({})
-const allGroups = ref<{ id: string; name: string; color: string | null; waitlist_id: string | null; code_id: string | null }[]>([])
+const allGroups = ref<{ id: string; name: string; color: string | null; waitlist_id: string | null; code_id: string | null; capacity: number | null }[]>([])
+// member counts per connected group + how many groups each waitlisted person is in.
+const connectedCounts = ref<Record<string, number>>({})
+const personEnrolled = ref<Record<string, number>>({})
 const loading = ref(true)
 
 const selectedId = ref<string | null>(null)
@@ -61,7 +64,7 @@ async function load() {
   loading.value = true
   const [wls, links, cts, { data: groups }, loadedTerms, loadedCodes] = await Promise.all([
     wl.loadWaitlists(), wl.loadGroupLinks(), wl.entryCounts(),
-    (db.from as any)('member_groups').select('id, name, color, waitlist_id, code_id').eq('org_id', orgId.value).order('name'),
+    (db.from as any)('member_groups').select('id, name, color, waitlist_id, code_id, capacity').eq('org_id', orgId.value).order('name'),
     tm.loadTerms(),
     gc.loadCodes(),
   ])
@@ -80,6 +83,59 @@ async function selectWaitlist(id: string) {
   selectedId.value = id
   addGroupId.value = null
   entries.value = await wl.loadEntries(id)
+  personEnrolled.value = await wl.enrolledCounts(entries.value.map(e => e.person_id))
+  await loadConnectedCounts()
+}
+// Member counts for this waitlist's connected groups (to compute spare spaces).
+async function loadConnectedCounts() {
+  connectedCounts.value = {}
+  const ids = connectedGroups.value.map(g => g.id)
+  if (!ids.length) return
+  const { data } = await (db.from as any)('member_group_memberships').select('group_id').in('group_id', ids)
+  const c: Record<string, number> = {}
+  for (const m of data ?? []) c[m.group_id] = (c[m.group_id] ?? 0) + 1
+  connectedCounts.value = c
+}
+// Connected groups that still have room (for the enrol action).
+const connectedGroupsWithSpace = computed(() => connectedGroups.value
+  .map(g => ({ id: g.id, name: g.name, capacity: g.capacity, count: connectedCounts.value[g.id] ?? 0 }))
+  .filter(g => g.capacity == null || g.count < g.capacity))
+const enrolOptions = computed(() => connectedGroupsWithSpace.value.map(g => ({
+  label: g.capacity != null ? `${g.name} (${g.count}/${g.capacity})` : `${g.name} (${g.count})`, value: g.id,
+})))
+// Total spare spaces across the connected groups (∞ if any is uncapped).
+const spacesLabel = computed(() => {
+  const gs = connectedGroups.value
+  if (!gs.length) return '—'
+  if (gs.some(g => g.capacity == null)) return '∞'
+  return String(gs.reduce((s, g) => s + Math.max(0, (g.capacity as number) - (connectedCounts.value[g.id] ?? 0)), 0))
+})
+function age(dob: string | null | undefined): string {
+  if (!dob) return '—'
+  const d = new Date(dob); if (isNaN(d.getTime())) return '—'
+  const now = new Date(); let a = now.getFullYear() - d.getFullYear()
+  const m = now.getMonth() - d.getMonth(); if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--
+  return a >= 0 && a < 130 ? String(a) : '—'
+}
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  const d = new Date(iso); if (isNaN(d.getTime())) return '—'
+  return `${d.getDate()}/${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`
+}
+// Enrol a waitlisted person INTO a connected group (removes them from the waitlist).
+const enrolEntry = ref<any>(null)   // the entry whose enrol dialog is open
+async function enrolIntoGroup(entry: any, groupId: string | null) {
+  if (!groupId || !entry) return
+  const g = connectedGroups.value.find(x => x.id === groupId)
+  const r = await wl.enrolFromWaitlist(entry.id, groupId, entry.person_id)
+  enrolEntry.value = null
+  if (r.ok) {
+    entries.value = entries.value.filter(e => e.id !== entry.id)
+    await refreshCounts(); await loadConnectedCounts()
+    toast.add({ severity: 'success', summary: `Enrolled ${personName(entry)} in ${g?.name ?? 'the group'} — off the waitlist`, life: 3000 })
+  } else {
+    toast.add({ severity: 'error', summary: 'Could not enrol', detail: r.error, life: 4000 })
+  }
 }
 
 // New waitlists default to the current-date term (if any).
@@ -125,7 +181,7 @@ async function disconnectGroup(groupId: string) {
 }
 async function reloadGroups() {
   const { data } = await (db.from as any)('member_groups')
-    .select('id, name, color, waitlist_id, code_id').eq('org_id', orgId.value).order('name')
+    .select('id, name, color, waitlist_id, code_id, capacity').eq('org_id', orgId.value).order('name')
   allGroups.value = data ?? []
 }
 
@@ -183,6 +239,21 @@ async function removeEntry(entry: any) {
 }
 async function refreshCounts() { counts.value = await wl.entryCounts() }
 const personName = (e: any) => `${e.person?.first_name ?? ''} ${e.person?.last_name ?? ''}`.trim() || e.person?.email || 'Person'
+// Export the current waitlist to CSV (mirrors the old-FM waitlist columns).
+function exportCsv() {
+  const header = ['#', 'Name', 'Email', 'Phone', 'Age', 'Enrolled (classes)', 'Status', 'Priority', 'Date added']
+  const rows = orderedEntries.value.map((e, i) => [
+    i + 1, personName(e), e.person?.email ?? '', e.person?.phone ?? '', age(e.person?.dob),
+    personEnrolled.value[e.person_id] ?? 0, e.status, (wl.WAITLIST_PRIORITIES.find(p => p.value === (e.priority ?? 2))?.label ?? ''),
+    fmtDate(e.created_at),
+  ])
+  const esc = (c: any) => `"${String(c).replace(/"/g, '""')}"`
+  const csv = [header, ...rows].map(r => r.map(esc).join(',')).join('\n')
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+  const a = document.createElement('a')
+  a.href = url; a.download = `${(selected.value?.name || 'waitlist').replace(/[^\w-]+/g, '-')}.csv`; a.click()
+  URL.revokeObjectURL(url)
+}
 // Notes scoped to this waitlist (also surface on the person's profile Notes feed).
 const noteLinks = computed(() => selected.value ? [{ type: 'waitlist', id: selected.value.id, label: selected.value.name }] : [])
 
@@ -266,12 +337,13 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         </AppCard>
 
         <!-- people waiting -->
-        <AppCard title="People waiting" :description="`${entries.length} on the list`">
+        <AppCard title="People waiting" :description="`${entries.length} on the list · ${spacesLabel} space${spacesLabel === '1' ? '' : 's'} in connected groups`">
           <template #header-action>
             <div class="flex items-center gap-2">
-              <span class="text-xs text-gray-400">Order by</span>
+              <span class="text-xs text-gray-400 hidden sm:inline">Order by</span>
               <Select :modelValue="selected.order_mode || 'custom'" :options="wl.WAITLIST_ORDER_MODES" optionLabel="label" optionValue="value"
-                size="small" class="w-48" @update:modelValue="setOrderMode" />
+                size="small" class="w-40 sm:w-48" @update:modelValue="setOrderMode" />
+              <Button icon="pi pi-download" label="CSV" size="small" outlined :disabled="!orderedEntries.length" @click="exportCsv" :pt="{ label: { class: 'hidden sm:inline' } }" />
             </div>
           </template>
           <div class="p-4 sm:p-5 space-y-3">
@@ -289,15 +361,24 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
                 </div>
                 <div class="min-w-0 flex-1">
                   <NuxtLink :to="`/people/${e.person_id}`" class="text-sm font-medium text-gray-800 hover:text-primary">{{ personName(e) }}</NuxtLink>
-                  <p class="text-[11px] text-gray-400 truncate">{{ e.person?.email || e.person?.phone || '—' }}</p>
+                  <p class="text-[11px] text-gray-400 truncate">
+                    {{ e.person?.email || e.person?.phone || '—' }}
+                    <span class="text-gray-300"> · </span>Age {{ age(e.person?.dob) }}
+                    <span class="text-gray-300"> · </span>{{ personEnrolled[e.person_id] ?? 0 }} class{{ (personEnrolled[e.person_id] ?? 0) === 1 ? '' : 'es' }}
+                    <span class="text-gray-300"> · </span>Added {{ fmtDate(e.created_at) }}
+                  </p>
                 </div>
+                <!-- enrol into a connected group with space → off the waitlist -->
+                <Button v-if="enrolOptions.length" label="Enrol" icon="pi pi-sign-in" size="small" outlined severity="success"
+                  class="shrink-0" :pt="{ label: { class: 'hidden lg:inline' } }" @click="enrolEntry = e"
+                  v-tooltip.top="'Enrol into a connected group with space (removes them from the waitlist)'" />
                 <!-- priority mode: priority picker -->
                 <Select v-if="(selected.order_mode || 'custom') === 'priority'" :modelValue="e.priority ?? 2" :options="wl.WAITLIST_PRIORITIES" optionLabel="label" optionValue="value"
-                  size="small" class="w-28 shrink-0" @update:modelValue="p => setPriority(e, p)" />
+                  size="small" class="w-24 sm:w-28 shrink-0" @update:modelValue="p => setPriority(e, p)" />
                 <Select :modelValue="e.status" :options="wl.WAITLIST_STATUSES" optionLabel="label" optionValue="value"
-                  size="small" class="w-32 shrink-0" @update:modelValue="s => setStatus(e, s)" />
+                  size="small" class="w-28 sm:w-32 shrink-0" @update:modelValue="s => setStatus(e, s)" />
                 <PersonNotes :person-id="e.person_id" :person-name="personName(e)" :links="noteLinks" context-label="Waitlist" class="shrink-0" />
-                <button class="text-gray-300 hover:text-red-500 shrink-0" title="Remove" @click="removeEntry(e)"><i class="pi pi-times-circle" /></button>
+                <button class="text-gray-300 hover:text-red-500 shrink-0" title="Remove from waitlist" @click="removeEntry(e)"><i class="pi pi-times-circle" /></button>
               </div>
             </div>
             <p v-else class="text-sm text-gray-400">No one waiting yet.</p>
@@ -307,6 +388,21 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
       </div>
       <div v-else class="card p-8 text-center text-gray-400 text-sm">Create a waitlist, or select one.</div>
     </div>
+
+    <!-- Enrol-from-waitlist dialog: pick a connected group with space -->
+    <Dialog :visible="!!enrolEntry" modal :closable="true" :header="`Enrol ${enrolEntry ? personName(enrolEntry) : ''}`"
+      :style="{ width: '95vw', maxWidth: '420px' }" @update:visible="v => { if (!v) enrolEntry = null }">
+      <p class="text-sm text-gray-500 mb-3">Choose a connected group with space. This enrols them into the class and removes them from the waitlist.</p>
+      <div class="space-y-2">
+        <button v-for="g in connectedGroupsWithSpace" :key="g.id" type="button"
+          class="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 text-left transition-colors"
+          @click="enrolIntoGroup(enrolEntry, g.id)">
+          <span class="text-sm text-gray-800 truncate">{{ g.name }}</span>
+          <span class="text-xs text-gray-500 shrink-0">{{ g.count }}<span v-if="g.capacity != null">/{{ g.capacity }}</span> · <span class="text-emerald-600 font-medium">Enrol here</span></span>
+        </button>
+        <p v-if="!connectedGroupsWithSpace.length" class="text-sm text-gray-400">No connected groups have space right now.</p>
+      </div>
+    </Dialog>
     <Toast />
   </div>
 </template>
