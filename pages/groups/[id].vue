@@ -20,7 +20,8 @@
 
       <!-- Title + Add person (Details tab) -->
       <div v-show="activeTab === 'details'" class="mb-4 flex items-center gap-3 flex-wrap">
-        <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: group.color || '#94a3b8' }" />
+        <img v-if="group.image_url" :src="group.image_url" class="w-9 h-9 rounded-lg object-cover shrink-0" :alt="group.name" />
+        <span v-else class="w-3 h-3 rounded-full shrink-0" :style="{ background: group.color || '#94a3b8' }" />
         <h1 class="text-xl font-semibold text-surface-900">{{ group.name }}</h1>
         <span v-for="r in myRoleLabels" :key="r" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#1976d2]/10 text-[#1976d2] font-semibold" title="Your role in this group">{{ r }}</span>
         <Button v-if="canManage" label="Add person" icon="pi pi-user-plus"
@@ -983,37 +984,46 @@
               :style="{ background: c }" @click="groupDraft.color = c" />
           </div>
         </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Image</label>
+          <div v-if="!groupDraft.image_url"
+            class="border-2 border-dashed border-gray-300 rounded-lg h-28 flex flex-col items-center justify-center text-gray-400 cursor-pointer hover:border-gray-400"
+            @click="groupImageInput?.click()">
+            <i class="pi pi-image text-xl mb-1" />
+            <span class="text-xs">{{ uploadingGroupImage ? 'Uploading…' : 'Add an image' }}</span>
+          </div>
+          <div v-else class="relative rounded-lg overflow-hidden">
+            <img :src="groupDraft.image_url" class="w-full h-28 object-cover" />
+            <Button icon="pi pi-times" rounded text severity="secondary"
+              class="absolute top-2 right-2 bg-white/80" @click="groupDraft.image_url = null" />
+          </div>
+          <input ref="groupImageInput" type="file" accept="image/*" class="hidden" @change="onGroupImage" />
+        </div>
         <div v-if="codeSelectOptions.length" class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Code</label>
           <Select v-model="groupDraft.code_id" :options="codeSelectOptions" optionLabel="label" optionValue="value"
             placeholder="Ungrouped" class="w-full" showClear />
           <p class="text-xs text-gray-400">The container this group lives in — it inherits the code's term.</p>
         </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Head</label>
+          <Select v-model="groupDraft.head_person_id" :options="headPersonOptions" optionLabel="label" optionValue="value"
+            placeholder="First coach" class="w-full" :showClear="true" filter />
+          <p v-if="!headPersonOptions.length" class="text-xs text-gray-400">Add coaches or members to pick a head.</p>
+        </div>
         <div class="grid grid-cols-2 gap-3">
-          <div class="flex flex-col gap-1.5">
-            <label class="text-sm font-medium">Code label</label>
-            <InputText v-model="groupDraft.code" class="w-full" placeholder="e.g. DEV3" />
-          </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium">Age range</label>
             <InputText v-model="groupDraft.age_range" class="w-full" placeholder="e.g. 6–9" />
           </div>
           <div class="flex flex-col gap-1.5">
+            <label class="text-sm font-medium">Capacity</label>
+            <InputNumber v-model="groupDraft.capacity" class="w-full" :min="0" :useGrouping="false" placeholder="No limit" />
+          </div>
+          <div class="flex flex-col gap-1.5 col-span-2">
             <label class="text-sm font-medium">Gender restriction</label>
             <Select v-model="groupDraft.gender_restriction" :options="GENDER_RESTRICTION_OPTIONS"
               optionLabel="label" optionValue="value" placeholder="Open to all" class="w-full" showClear />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label class="text-sm font-medium">Capacity</label>
-            <InputNumber v-model="groupDraft.capacity" class="w-full" :min="0" :useGrouping="false" placeholder="—" showButtons />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label class="text-sm font-medium">Current term</label>
-            <InputText v-model="groupDraft.current_term" class="w-full" placeholder="e.g. Term 1 2026" />
-          </div>
-          <div class="flex flex-col gap-1.5 col-span-2">
-            <label class="text-sm font-medium">Term fee</label>
-            <InputNumber v-model="groupDraft.term_fee" class="w-full" mode="currency" currency="NZD" locale="en-NZ" :min="0" placeholder="—" />
           </div>
         </div>
       </div>
@@ -1190,6 +1200,8 @@ interface Group {
   lineage_id?: string | null
   rolled_from_group_id?: string | null
   gender_restriction?: string | null
+  image_url?: string | null
+  head_person_id?: string | null
 }
 interface Member { id: string; name: string; email: string | null; phone: string | null; roles: string[]; allRoles: string[]; subGroupId?: string | null }
 interface Coach { id: string; name: string; email: string | null; phone: string | null; roles: string[]; allRoles: string[]; subGroupId?: string | null }
@@ -1499,6 +1511,20 @@ const creatingEvent = ref(false)
 const tm = useTermsMemberships()
 const gf = useGroupFees()
 const gc = useGroupCodes()
+const { uploadFile } = useUpload()
+
+// Head picker: the group's coaches first, then other members, so you can name a
+// head even if they're not yet coach-roled.
+const headPersonOptions = computed(() => {
+  const seen = new Set<string>()
+  const opts: { label: string; value: string }[] = []
+  for (const p of [...coaches.value, ...members.value]) {
+    if (seen.has(p.id)) continue
+    seen.add(p.id)
+    opts.push({ label: p.name, value: p.id })
+  }
+  return opts
+})
 // Codes (migration 205) — for the code badge + inherited term. Loaded in load().
 const codes = ref<GroupCode[]>([])
 const codesById = computed<Record<string, GroupCode>>(() =>
@@ -1722,7 +1748,14 @@ const locationDraft = ref<LocationEntry | null>(null)
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 const dayShort = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-const headCoach = computed(() => coaches.value[0]?.name ?? '')
+const headCoach = computed(() => {
+  const id = group.value?.head_person_id
+  if (id) {
+    const p = [...coaches.value, ...members.value].find(x => x.id === id)
+    if (p) return p.name
+  }
+  return coaches.value[0]?.name ?? ''
+})
 
 async function load() {
   if (!orgId.value) return
@@ -1736,7 +1769,7 @@ async function load() {
   // since it needs both the event list and the resolved roster.
   const [gRes, membersRes, , schedsRes, bkblsRes, orgRes, , codesList] = await Promise.all([
     (db.from as any)('member_groups')
-      .select('id, name, color, code, code_id, age_range, capacity, current_term, term_fee, sub_groups, term_id, lineage_id, rolled_from_group_id, gender_restriction')
+      .select('id, name, color, code, code_id, age_range, capacity, current_term, term_fee, sub_groups, term_id, lineage_id, rolled_from_group_id, gender_restriction, image_url, head_person_id')
       .eq('id', id)
       .eq('org_id', orgId.value)
       .maybeSingle(),
@@ -2252,6 +2285,7 @@ async function removePerson(p: any) {
 const GROUP_PALETTE = ['#1976d2', '#0f766e', '#16a34a', '#ca8a04', '#ea580c', '#dc2626', '#db2777', '#7c3aed', '#475569', '#0891b2']
 const groupEditOpen = ref(false)
 const savingGroup = ref(false)
+const groupImageInput = ref<HTMLInputElement | null>(null)
 const GENDER_RESTRICTION_OPTIONS = [
   { label: 'Open to all', value: null },
   { label: 'Male only', value: 'MALE' },
@@ -2260,29 +2294,37 @@ const GENDER_RESTRICTION_OPTIONS = [
 ]
 const genderRestrictionLabel = (v: string | null | undefined) =>
   v ? (GENDER_RESTRICTION_OPTIONS.find(o => o.value === v)?.label ?? v) : ''
-const groupDraft = reactive<{ name: string; color: string | null; code: string | null; code_id: string | null; age_range: string | null; capacity: number | null; current_term: string | null; term_fee: number | null; gender_restriction: string | null }>({
-  name: '', color: null, code: null, code_id: null, age_range: null, capacity: null, current_term: null, term_fee: null, gender_restriction: null,
+const groupDraft = reactive<{ name: string; color: string | null; code_id: string | null; age_range: string | null; capacity: number | null; gender_restriction: string | null; image_url: string | null; head_person_id: string | null }>({
+  name: '', color: null, code_id: null, age_range: null, capacity: null, gender_restriction: null, image_url: null, head_person_id: null,
 })
 function openGroupEditor() {
   if (!group.value) return
   Object.assign(groupDraft, {
-    name: group.value.name, color: group.value.color ?? null, code: group.value.code ?? null,
+    name: group.value.name, color: group.value.color ?? null,
     code_id: group.value.code_id ?? null,
     age_range: group.value.age_range ?? null, capacity: group.value.capacity ?? null,
-    current_term: group.value.current_term ?? null, term_fee: group.value.term_fee ?? null,
     gender_restriction: group.value.gender_restriction ?? null,
+    image_url: group.value.image_url ?? null, head_person_id: group.value.head_person_id ?? null,
   })
   groupEditOpen.value = true
+}
+const uploadingGroupImage = ref(false)
+async function onGroupImage(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  groupDraft.image_url = URL.createObjectURL(file)
+  uploadingGroupImage.value = true
+  try { groupDraft.image_url = await uploadFile(file) } finally { uploadingGroupImage.value = false }
 }
 async function saveGroup() {
   if (!group.value || !groupDraft.name.trim()) return
   savingGroup.value = true
   const patch = {
-    name: groupDraft.name.trim(), color: groupDraft.color, code: groupDraft.code || null,
+    name: groupDraft.name.trim(), color: groupDraft.color,
     code_id: groupDraft.code_id || null,
     age_range: groupDraft.age_range || null, capacity: groupDraft.capacity ?? null,
-    current_term: groupDraft.current_term || null, term_fee: groupDraft.term_fee ?? null,
     gender_restriction: groupDraft.gender_restriction || null,
+    image_url: groupDraft.image_url || null, head_person_id: groupDraft.head_person_id || null,
   }
   const { error } = await (db.from as any)('member_groups').update(patch).eq('id', group.value.id)
   savingGroup.value = false
