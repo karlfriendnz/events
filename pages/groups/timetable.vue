@@ -1,0 +1,195 @@
+<!--
+  /groups/timetable — Week View. A time-of-day × weekday timetable of every class
+  the club runs (from member_group_schedules), colour-coded by code/programme.
+  Filter by term / code / venue / coach. Desktop = <TimetableGrid> time-grid;
+  mobile = a per-day agenda. Reads existing data only — no new schema.
+-->
+<script setup lang="ts">
+import { minLabel, type TimetableSession } from '~/composables/useClassTimetable'
+
+const ct = useClassTimetable()
+const gc = useGroupCodes()
+const tm = useTermsMemberships()
+const { orgReady } = useOrg()
+
+const loading = ref(true)
+const allSessions = ref<TimetableSession[]>([])
+const codes = ref<any[]>([])
+const terms = ref<any[]>([])
+
+const termId = ref<string>('all')
+const codeIds = ref<string[]>([])
+const venue = ref<string>('all')
+const coach = ref<string>('all')
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
+
+async function load() {
+  loading.value = true
+  const { sessions, codes: cs } = await ct.loadSessions()
+  allSessions.value = sessions
+  codes.value = cs
+  terms.value = await tm.loadTerms()
+  // Default to the active term (today within range), else the latest term with sessions.
+  const today = new Date().toISOString().slice(0, 10)
+  const termsWithSessions = new Set(sessions.map(s => s.termId).filter(Boolean))
+  const active = terms.value.find((t: any) => t.start_date && t.end_date && t.start_date <= today && today <= t.end_date && termsWithSessions.has(t.id))
+  termId.value = active?.id ?? (terms.value.find((t: any) => termsWithSessions.has(t.id))?.id ?? 'all')
+  loading.value = false
+}
+watch(orgReady, r => { if (r) load() }, { immediate: true })
+
+const termOptions = computed(() => [{ label: 'All terms', value: 'all' }, ...terms.value.map((t: any) => ({ label: t.name, value: t.id }))])
+const codeOptions = computed(() => gc.treeOptions(codes.value))
+const venueOptions = computed(() => {
+  const set = new Set(allSessions.value.map(s => s.venue).filter(Boolean))
+  return [{ label: 'All venues', value: 'all' }, ...[...set].sort().map(v => ({ label: v, value: v }))]
+})
+const coachOptions = computed(() => {
+  const set = new Set(allSessions.value.map(s => s.coach).filter(Boolean) as string[])
+  return [{ label: 'All coaches', value: 'all' }, ...[...set].sort().map(c => ({ label: c, value: c }))]
+})
+
+const filtered = computed(() => allSessions.value.filter(s =>
+  (termId.value === 'all' || s.termId === termId.value) &&
+  (!codeIds.value.length || (s.codeId != null && codeIds.value.includes(s.codeId))) &&
+  (venue.value === 'all' || s.venue === venue.value) &&
+  (coach.value === 'all' || s.coach === coach.value),
+))
+
+// legend — codes actually present in the filtered set
+const legend = computed(() => {
+  const seen = new Map<string, { name: string; color: string }>()
+  for (const s of filtered.value) {
+    const key = s.codeId ?? '__none'
+    if (!seen.has(key)) seen.set(key, { name: s.codeName ?? 'Ungrouped', color: s.color })
+  }
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name))
+})
+
+const stats = computed(() => {
+  const s = filtered.value
+  const mins = s.reduce((a, x) => a + (x.endMin - x.startMin), 0)
+  const cap = s.reduce((a, x) => a + (x.capacity ?? 0), 0)
+  const filled = s.reduce((a, x) => a + Math.min(x.count, x.capacity ?? x.count), 0)
+  return { classes: s.length, hours: Math.round(mins / 6) / 10, capacity: cap, filled, fillPct: cap ? Math.round((filled / cap) * 100) : null }
+})
+
+// mobile agenda grouped by weekday (Mon→Sun)
+const agenda = computed(() => DAY_ORDER.map(d => ({
+  d, label: fullDay(d),
+  items: filtered.value.filter(s => s.day === d).sort((a, b) => a.startMin - b.startMin),
+})).filter(x => x.items.length))
+function fullDay(d: number) { return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d] }
+
+const anyFilter = computed(() => termId.value !== 'all' || codeIds.value.length || venue.value !== 'all' || coach.value !== 'all')
+function clearFilters() { termId.value = 'all'; codeIds.value = []; venue.value = 'all'; coach.value = 'all' }
+function openGroup(s: TimetableSession) { navigateTo(`/groups/${s.groupId}`) }
+</script>
+
+<template>
+  <div class="p-3 sm:p-6 space-y-4 sm:space-y-5">
+    <!-- header -->
+    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+      <div>
+        <div class="flex items-center gap-2 text-xs text-gray-400 mb-1">
+          <NuxtLink to="/groups" class="hover:text-primary">Classes</NuxtLink>
+          <i class="pi pi-angle-right text-[10px]" />
+          <span>Week view</span>
+        </div>
+        <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Week view</h1>
+        <p class="text-xs sm:text-sm text-gray-500 mt-0.5">Every class the club runs across a typical week.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <NuxtLink to="/groups" class="hidden sm:inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary px-3 py-2 rounded-lg border border-gray-200 hover:border-gray-300">
+          <i class="pi pi-table text-xs" /> Table view
+        </NuxtLink>
+      </div>
+    </div>
+
+    <!-- filters -->
+    <div class="card p-3 sm:p-4">
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+        <Select v-model="termId" :options="termOptions" optionLabel="label" optionValue="value" class="w-full sm:w-44" />
+        <MultiSelect v-model="codeIds" :options="codeOptions" optionLabel="label" optionValue="value" display="chip"
+          placeholder="All codes" :maxSelectedLabels="2" class="w-full sm:w-56" :showToggleAll="false" filter />
+        <Select v-model="venue" :options="venueOptions" optionLabel="label" optionValue="value" class="w-full sm:w-44" filter />
+        <Select v-model="coach" :options="coachOptions" optionLabel="label" optionValue="value" class="w-full sm:w-44" filter />
+        <button v-if="anyFilter" type="button" class="text-xs text-gray-400 hover:text-gray-700 px-2 py-1" @click="clearFilters">Clear</button>
+      </div>
+    </div>
+
+    <!-- summary strip -->
+    <div v-if="!loading && filtered.length" class="flex flex-wrap items-stretch gap-2 sm:gap-3">
+      <div class="card px-4 py-3 flex-1 min-w-[130px]">
+        <p class="text-lg font-bold text-gray-900">{{ stats.classes }}</p>
+        <p class="text-xs text-gray-500">Classes / week</p>
+      </div>
+      <div class="card px-4 py-3 flex-1 min-w-[130px]">
+        <p class="text-lg font-bold text-gray-900">{{ stats.hours }}<span class="text-sm font-medium text-gray-400 ml-0.5">hrs</span></p>
+        <p class="text-xs text-gray-500">Scheduled time</p>
+      </div>
+      <div class="card px-4 py-3 flex-1 min-w-[130px]">
+        <p class="text-lg font-bold text-gray-900">{{ stats.filled }}<span v-if="stats.capacity" class="text-sm font-medium text-gray-400">/{{ stats.capacity }}</span></p>
+        <p class="text-xs text-gray-500">Spots filled</p>
+      </div>
+      <div v-if="stats.fillPct != null" class="card px-4 py-3 flex-1 min-w-[130px]">
+        <p class="text-lg font-bold" :class="stats.fillPct >= 90 ? 'text-red-600' : stats.fillPct >= 75 ? 'text-amber-600' : 'text-emerald-600'">{{ stats.fillPct }}%</p>
+        <p class="text-xs text-gray-500">Utilisation</p>
+      </div>
+    </div>
+
+    <!-- legend -->
+    <div v-if="!loading && legend.length" class="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
+      <div v-for="l in legend" :key="l.name" class="flex items-center gap-1.5">
+        <span class="w-2.5 h-2.5 rounded-sm" :style="{ background: l.color }" />
+        <span class="text-xs text-gray-500">{{ l.name }}</span>
+      </div>
+    </div>
+
+    <!-- loading -->
+    <div v-if="loading" class="card p-16 text-center text-gray-400 text-sm">
+      <i class="pi pi-spin pi-spinner text-2xl mb-2 block" /> Loading timetable…
+    </div>
+
+    <!-- empty -->
+    <div v-else-if="!filtered.length" class="card p-12 sm:p-16 text-center">
+      <i class="pi pi-calendar text-3xl text-gray-300 mb-3 block" />
+      <p class="text-sm font-medium text-gray-700">{{ allSessions.length ? 'No classes match these filters' : 'No class times scheduled yet' }}</p>
+      <p class="text-xs text-gray-400 mt-1">{{ allSessions.length ? 'Try clearing a filter.' : 'Add weekly session times on a group to see them here.' }}</p>
+      <button v-if="allSessions.length && anyFilter" class="mt-4 text-sm text-primary hover:underline" @click="clearFilters">Clear filters</button>
+    </div>
+
+    <template v-else>
+      <!-- desktop grid -->
+      <div class="hidden md:block">
+        <TimetableGrid :sessions="filtered" @select="openGroup" />
+      </div>
+
+      <!-- mobile agenda -->
+      <div class="md:hidden space-y-4">
+        <div v-for="day in agenda" :key="day.d">
+          <h2 class="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2 px-1">{{ day.label }}</h2>
+          <div class="space-y-2">
+            <button v-for="s in day.items" :key="s.id" type="button" @click="openGroup(s)"
+              class="w-full card p-0 overflow-hidden flex items-stretch text-left active:scale-[0.99] transition-transform">
+              <span class="w-1.5 shrink-0" :style="{ background: s.color }" />
+              <div class="flex-1 min-w-0 px-3 py-2.5">
+                <div class="flex items-start justify-between gap-2">
+                  <p class="text-sm font-semibold text-gray-800 leading-tight">{{ s.groupName }}</p>
+                  <span v-if="s.capacity != null" class="shrink-0 text-[11px] font-semibold px-1.5 py-0.5 rounded"
+                    :class="s.count > s.capacity ? 'bg-red-100 text-red-700' : s.count >= s.capacity ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500'">{{ s.count }}/{{ s.capacity }}</span>
+                </div>
+                <p class="text-xs text-gray-500 mt-0.5 tabular-nums">{{ s.startLabel }}–{{ s.endLabel }}</p>
+                <p v-if="s.coach || s.venue" class="text-xs text-gray-400 mt-0.5 truncate">
+                  <span v-if="s.coach">{{ s.coach }}</span><span v-if="s.coach && s.venue"> · </span><span v-if="s.venue">{{ s.venue }}</span>
+                </p>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
+  </div>
+</template>
