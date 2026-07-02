@@ -206,7 +206,12 @@
           <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div class="bg-primary text-white text-xs font-bold tracking-widest py-3.5 px-5 flex items-center justify-between">
               <span class="normal-case tracking-normal text-sm">Upcoming events</span>
-              <span v-if="upcomingEvents.length" class="text-white/70 text-[11px] font-semibold">{{ upcomingEvents.length }}</span>
+              <button v-if="upcomingEvents.length > 5" type="button"
+                class="text-white/90 hover:text-white inline-flex items-center gap-1 text-[11px] font-semibold"
+                @click="showAllUpcoming = !showAllUpcoming">
+                {{ showAllUpcoming ? 'Show next 5' : 'See all upcoming' }}
+                <i class="pi text-[9px]" :class="showAllUpcoming ? 'pi-chevron-up' : 'pi-arrow-right'" />
+              </button>
             </div>
             <div class="p-4">
               <div v-if="!upcomingEvents.length" class="text-sm text-gray-400">No upcoming events.</div>
@@ -234,12 +239,6 @@
                   </tbody>
                 </table>
               </div>
-              <button v-if="upcomingEvents.length > 5" type="button"
-                class="mt-3 text-[11px] font-semibold text-[#1976d2] hover:underline inline-flex items-center gap-1"
-                @click="showAllUpcoming = !showAllUpcoming">
-                {{ showAllUpcoming ? 'Show next 5 only' : `See all ${upcomingEvents.length} upcoming` }}
-                <i class="pi text-[9px]" :class="showAllUpcoming ? 'pi-chevron-up' : 'pi-arrow-right'" />
-              </button>
             </div>
           </div>
         </div>
