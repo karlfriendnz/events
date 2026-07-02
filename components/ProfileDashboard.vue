@@ -574,9 +574,9 @@ function statusSeverity(s: string) {
                 </div>
               </div>
             </div>
-            <div class="flex-1 overflow-auto space-y-3 min-h-0">
-              <div v-for="n in (data.notes || [])" :key="n.id" class="group rounded-lg"
-                :class="n.is_important ? 'border border-amber-300 bg-amber-50/50 p-2 -mx-1' : ''">
+            <div class="flex-1 overflow-auto divide-y divide-gray-100 min-h-0">
+              <div v-for="n in (data.notes || [])" :key="n.id" class="group rounded-lg py-3 first:pt-0"
+                :class="n.is_important ? 'border border-amber-300 bg-amber-50/50 p-2 -mx-1 my-3' : ''">
                 <p class="text-sm text-gray-700"><i v-if="n.is_important" class="pi pi-flag-fill text-amber-500 text-[11px] mr-1" title="Important" />{{ n.body }}</p>
                 <div class="flex items-center gap-1.5 mt-1 flex-wrap">
                   <span v-for="(lbl, li) in visibleToLabels(n)" :key="'v'+li" class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600"><i class="pi pi-eye text-[9px]" />{{ lbl }}</span>
