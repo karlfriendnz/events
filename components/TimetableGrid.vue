@@ -306,7 +306,7 @@ const nowTop = computed(() => {
     @update:visible="v => { if (!v) openClassRef = null }" :style="{ width: '95vw', maxWidth: '420px' }" contentClass="!p-0">
     <div v-if="openClassRef" class="flex flex-col">
       <!-- group image banner (bookings-module style), colour strip fallback -->
-      <div v-if="openClassRef.imageUrl" class="h-28 shrink-0 bg-gray-100 overflow-hidden relative">
+      <div v-if="openClassRef.imageUrl" class="h-28 shrink-0 bg-gray-100 overflow-hidden relative rounded-t-xl">
         <img :src="openClassRef.imageUrl" class="w-full h-full object-cover" :alt="openClassRef.groupName" />
         <button class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/85 shadow-sm flex items-center justify-center text-gray-500 hover:text-gray-800" @click="openClassRef = null"><i class="pi pi-times text-sm" /></button>
       </div>
