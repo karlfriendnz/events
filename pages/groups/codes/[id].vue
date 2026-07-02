@@ -49,7 +49,6 @@ let ruid = 1
 const roleItems = ref<RoleItem[]>([])
 const allDefs = ref<CodeRoleDef[]>([])
 const staff = ref<CodeStaff[]>([])
-const savingMember = ref(false)
 const savingOwn = ref(false)
 const hasInherited = computed(() => roleItems.value.some(r => r.groupKey === 'inherited'))
 const roleGroups = computed(() => [
@@ -98,18 +97,13 @@ async function load() {
 async function saveDetails() {
   if (!code.value || !detail.name.trim()) return
   savingDetail.value = true
-  await gc.updateCode(code.value.id, { name: detail.name.trim(), color: detail.color, parent_id: detail.parent_id, term_id: detail.term_id })
+  await gc.updateCode(code.value.id, {
+    name: detail.name.trim(), color: detail.color, parent_id: detail.parent_id, term_id: detail.term_id,
+    member_type_key: memberType.value || null,
+  })
   savingDetail.value = false
   await load()
   toast.add({ severity: 'success', summary: 'Details saved', life: 1600 })
-}
-
-async function saveMemberType() {
-  if (!code.value) return
-  savingMember.value = true
-  await gc.updateCode(code.value.id, { member_type_key: memberType.value || null })
-  savingMember.value = false
-  toast.add({ severity: 'success', summary: 'Member type saved', life: 1600 })
 }
 
 function addOwnRole(groupKey: string) {
@@ -179,12 +173,18 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
 
     <template v-else>
       <!-- DETAILS -->
-      <AppCard title="Details" description="Name, colour and where this code sits.">
+      <AppCard title="Details" description="Name, colour, where this code sits and the member type it captures.">
         <div class="p-4 sm:p-5 space-y-4">
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div class="flex flex-col gap-1.5">
               <label class="text-xs font-medium text-gray-600">Name</label>
               <InputText v-model="detail.name" placeholder="e.g. Step 6" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label class="text-xs font-medium text-gray-600">Member type</label>
+              <Select v-model="memberType" :options="personTypeOptions" optionLabel="label" optionValue="value"
+                placeholder="Choose a member type" class="w-full" showClear filter />
+              <p class="text-[11px] text-gray-400">The type of MEMBER in this code's groups — drives their custom fields.</p>
             </div>
             <div class="flex flex-col gap-1.5">
               <label class="text-xs font-medium text-gray-600">Parent code</label>
@@ -210,15 +210,6 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         </div>
       </AppCard>
 
-      <!-- MEMBER TYPE -->
-      <AppCard title="Member type" description="The type of person who is a MEMBER in the groups under this code. Drives which custom fields apply to them.">
-        <div class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3">
-          <Select v-model="memberType" :options="personTypeOptions" optionLabel="label" optionValue="value"
-            placeholder="Choose a member type" class="w-full sm:w-72" showClear filter />
-          <Button label="Save" :disabled="savingMember" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveMemberType" />
-        </div>
-      </AppCard>
-
       <!-- STAFF ROLES — this code's own (editable) + inherited + default (read-only) -->
       <div class="space-y-3">
         <div class="flex items-start justify-between gap-3">
@@ -231,33 +222,31 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
             <Button label="Save roles" size="small" :disabled="savingOwn" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveOwn" />
           </div>
         </div>
-        <RolePermissions :groups="roleGroups" :roles="roleItems" :caps="cr.CODE_CAPABILITIES" @add="addOwnRole" @remove="removeOwnRole" />
+        <RolePermissions :groups="roleGroups" :roles="roleItems" :caps="cr.CODE_CAPABILITIES" @add="addOwnRole" @remove="removeOwnRole">
+          <template #role-footer="{ role }">
+            <div class="card p-4">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-semibold text-gray-800">People in this role</span>
+                <button v-if="role.key" type="button" class="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1" @click="openAssign(role.key)">
+                  <i class="pi pi-user-plus text-[10px]" /> Assign
+                </button>
+              </div>
+              <p v-if="!role.key" class="text-xs text-gray-400 mt-2">Save this role first, then assign people to it.</p>
+              <template v-else>
+                <div v-if="staffForRole(role.key).length" class="flex flex-wrap gap-1.5 mt-2">
+                  <span v-for="s in staffForRole(role.key)" :key="s.id"
+                    class="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 rounded-full pl-2.5 pr-1 py-1">
+                    {{ personName(s) }}
+                    <span v-if="s.scope === 'inherited'" class="text-[9px] text-gray-400">· {{ s.fromLabel }}</span>
+                    <button v-if="s.scope === 'own'" type="button" class="text-gray-400 hover:text-red-500" title="Remove" @click="unassign(s)"><i class="pi pi-times-circle text-xs" /></button>
+                  </span>
+                </div>
+                <p v-else class="text-xs text-gray-400 mt-2">No one assigned.</p>
+              </template>
+            </div>
+          </template>
+        </RolePermissions>
       </div>
-
-      <!-- PEOPLE IN ROLES -->
-      <AppCard title="People in roles" description="Assign staff to each role. Assignments cascade to this code's sub-codes and groups.">
-        <div class="p-4 sm:p-5 space-y-3">
-          <div v-for="r in effectiveRoles" :key="r.key" class="border border-gray-100 rounded-lg p-3">
-            <div class="flex items-center justify-between gap-2">
-              <span class="font-medium text-gray-800 text-sm">{{ r.label }}</span>
-              <button type="button" class="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1" @click="openAssign(r.key)">
-                <i class="pi pi-user-plus text-[10px]" /> Assign
-              </button>
-            </div>
-            <div v-if="staffForRole(r.key).length" class="flex flex-wrap gap-1.5 mt-2">
-              <span v-for="s in staffForRole(r.key)" :key="s.id"
-                class="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 rounded-full pl-2.5 pr-1 py-1">
-                {{ personName(s) }}
-                <span v-if="s.scope === 'inherited'" class="text-[9px] text-gray-400">· {{ s.fromLabel }}</span>
-                <button v-if="s.scope === 'own'" type="button" class="text-gray-400 hover:text-red-500" title="Remove" @click="unassign(s)"><i class="pi pi-times-circle text-xs" /></button>
-              </span>
-            </div>
-            <p v-else class="text-xs text-gray-400 mt-1.5">No one assigned.</p>
-          </div>
-          <div v-if="!effectiveRoles.length" class="text-sm text-gray-400">Add roles above first.</div>
-        </div>
-      </AppCard>
-
     </template>
 
     <!-- Assign person to a role -->

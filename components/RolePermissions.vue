@@ -92,6 +92,9 @@ watch(() => props.roles.map(r => r._uid).join(','), () => {
         </table>
       </div>
 
+      <!-- e.g. people assigned to this role -->
+      <slot name="role-footer" :role="selected" />
+
       <div v-if="selected.editable" class="flex">
         <button class="text-sm text-red-600 hover:underline" @click="emit('remove', selected)">Delete role</button>
       </div>
