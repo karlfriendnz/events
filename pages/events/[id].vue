@@ -1270,7 +1270,17 @@
                       <td class="py-2.5">
                         <div class="flex items-center gap-2 text-gray-400">
                           <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
-                          <button class="hover:text-primary transition-colors" v-tooltip.top="'Notes'"><i class="pi pi-comments text-sm text-primary" /></button>
+                          <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
+                          :person-name="((inv.person?.first_name || '') + ' ' + (inv.person?.last_name || '')).trim()"
+                          :links="attNoteLinks" :context-label="attNoteContextLabel"
+                          :initial-count="attNoteCounts[inv.person_id] ?? 0" @count-change="v => attNoteCounts[inv.person_id] = v">
+                          <template #trigger="{ open, count }">
+                            <button class="hover:text-primary transition-colors relative" v-tooltip.top="'Notes'" @click="open">
+                              <i class="pi pi-comments text-sm text-primary" />
+                              <span v-if="count" class="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[#1976d2] text-white text-[9px] font-bold flex items-center justify-center">{{ count }}</span>
+                            </button>
+                          </template>
+                        </PersonNotes>
                         </div>
                       </td>
                     </tr>
@@ -1301,7 +1311,17 @@
                   <td class="py-2.5">
                     <div class="flex items-center gap-2 text-gray-400">
                       <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
-                      <button class="hover:text-primary transition-colors" v-tooltip.top="'Notes'"><i class="pi pi-comments text-sm text-primary" /></button>
+                      <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
+                        :person-name="((inv.person?.first_name || '') + ' ' + (inv.person?.last_name || '')).trim()"
+                        :links="attNoteLinks" :context-label="attNoteContextLabel"
+                        :initial-count="attNoteCounts[inv.person_id] ?? 0" @count-change="v => attNoteCounts[inv.person_id] = v">
+                        <template #trigger="{ open, count }">
+                          <button class="hover:text-primary transition-colors relative" v-tooltip.top="'Notes'" @click="open">
+                            <i class="pi pi-comments text-sm text-primary" />
+                            <span v-if="count" class="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[#1976d2] text-white text-[9px] font-bold flex items-center justify-center">{{ count }}</span>
+                          </button>
+                        </template>
+                      </PersonNotes>
                     </div>
                   </td>
                 </tr>
@@ -1351,7 +1371,17 @@
                     <td class="py-2.5">
                       <div class="flex items-center gap-2 text-gray-400">
                         <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
-                        <button class="hover:text-primary transition-colors" v-tooltip.top="'Notes'"><i class="pi pi-comments text-sm text-primary" /></button>
+                        <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
+                          :person-name="((inv.person?.first_name || '') + ' ' + (inv.person?.last_name || '')).trim()"
+                          :links="attNoteLinks" :context-label="attNoteContextLabel"
+                          :initial-count="attNoteCounts[inv.person_id] ?? 0" @count-change="v => attNoteCounts[inv.person_id] = v">
+                          <template #trigger="{ open, count }">
+                            <button class="hover:text-primary transition-colors relative" v-tooltip.top="'Notes'" @click="open">
+                              <i class="pi pi-comments text-sm text-primary" />
+                              <span v-if="count" class="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[#1976d2] text-white text-[9px] font-bold flex items-center justify-center">{{ count }}</span>
+                            </button>
+                          </template>
+                        </PersonNotes>
                       </div>
                     </td>
                   </tr>
@@ -1396,7 +1426,17 @@
                     <td class="py-2.5">
                       <div class="flex items-center gap-2 text-gray-400">
                         <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
-                        <button class="hover:text-primary transition-colors" v-tooltip.top="'Notes'"><i class="pi pi-comments text-sm text-primary" /></button>
+                        <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
+                          :person-name="((inv.person?.first_name || '') + ' ' + (inv.person?.last_name || '')).trim()"
+                          :links="attNoteLinks" :context-label="attNoteContextLabel"
+                          :initial-count="attNoteCounts[inv.person_id] ?? 0" @count-change="v => attNoteCounts[inv.person_id] = v">
+                          <template #trigger="{ open, count }">
+                            <button class="hover:text-primary transition-colors relative" v-tooltip.top="'Notes'" @click="open">
+                              <i class="pi pi-comments text-sm text-primary" />
+                              <span v-if="count" class="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] px-0.5 rounded-full bg-[#1976d2] text-white text-[9px] font-bold flex items-center justify-center">{{ count }}</span>
+                            </button>
+                          </template>
+                        </PersonNotes>
                       </div>
                     </td>
                   </tr>
@@ -3385,6 +3425,20 @@ const breadcrumbs = useBreadcrumbs()
 const event = ref<any>(null)
 const loading = ref(true)
 const saving = ref(false)
+
+// Per-person notes on the attendance rows (reusable <PersonNotes>). Notes are
+// person_notes rows linked to this event, so they also show on the profile.
+const attNoteLinks = computed(() => [{ type: 'event', id, label: event.value?.title || 'Event' }])
+const attNoteContextLabel = computed(() => event.value?.title || 'Event')
+const attNoteCounts = ref<Record<string, number>>({})
+async function loadAttNoteCounts() {
+  const personIds = invitees.value.map((inv: any) => inv.person_id).filter(Boolean)
+  if (!personIds.length) { attNoteCounts.value = {}; return }
+  const { data } = await (db.from as any)('person_notes').select('person_id, links').in('person_id', personIds)
+  const counts: Record<string, number> = {}
+  for (const n of (data ?? [])) if (Array.isArray(n.links) && n.links.some((l: any) => l.type === 'event' && l.id === id)) counts[n.person_id] = (counts[n.person_id] || 0) + 1
+  attNoteCounts.value = counts
+}
 
 // Scoped per-event roles (manager/coach of this event — or its linked group — can run it).
 const scopedEv = useScopedRoles()
@@ -5432,6 +5486,7 @@ async function loadInvitees() {
   }
   inviteeGroupMap.value = map
   inviteesLoading.value = false
+  loadAttNoteCounts()
   // Once sessions exist, attendance lives entirely in the per-session
   // `attendance` table. Wipe the legacy event-level `attended` flag
   // from local state so it can't bleed into the session-mode UI even
