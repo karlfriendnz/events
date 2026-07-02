@@ -52,59 +52,23 @@ const loading = ref(false)
 const count = ref<number>(props.initialCount ?? 0)   // scoped badge count
 
 // New-note options — who can see it (multi-select) + important flag.
-const AUDIENCE_BASE = [
-  { label: 'Staff', value: 'staff' },
-  { label: 'Admins only', value: 'admin' },
-  { label: 'Member', value: 'member' },
-  { label: 'All parents', value: 'parents' },
-  { label: 'Circle', value: 'circle' },
-]
+const aud = useNoteAudiences()
 const noteAudiences = ref<string[]>(['staff'])
 const noteImportant = ref(false)
 
-// The subject's parents/contacts — loaded lazily so a "specific parent" can be
+// The subject's parents/contacts — lazy-loaded so a "specific parent" can be
 // picked in the same audience multi-select (value `person:<id>`).
-const parents = ref<{ id: string; name: string }[]>([])
+const parents = ref<import('~/composables/useNoteAudiences').NoteParent[]>([])
 const parentsLoaded = ref(false)
-const audienceOptions = computed(() => [
-  ...AUDIENCE_BASE,
-  ...parents.value.map(p => ({ label: p.name, value: `person:${p.id}` })),
-])
-const audienceLabel = (tok: string) => {
-  if (tok.startsWith('person:')) return parents.value.find(p => `person:${p.id}` === tok)?.name || 'Parent'
-  return AUDIENCE_BASE.find(o => o.value === tok)?.label ?? tok
-}
+const audienceOptions = computed(() => aud.audienceOptions(parents.value))
 
 async function loadParents() {
   if (parentsLoaded.value) return
   parentsLoaded.value = true
-  // family-kind circles containing the subject → the OTHER guardian members.
-  const { data: mine } = await (db.from as any)('circle_members')
-    .select('circle_id, circle:circles!inner(kind)').eq('person_id', props.personId)
-  const famIds = (mine ?? []).filter((r: any) => r.circle?.kind === 'family').map((r: any) => r.circle_id)
-  if (!famIds.length) return
-  const { data: mem } = await (db.from as any)('circle_members')
-    .select('person_id, role, person:persons(id, first_name, last_name)')
-    .in('circle_id', famIds).neq('person_id', props.personId)
-  const seen = new Set<string>()
-  parents.value = (mem ?? [])
-    .filter((m: any) => (m.role || '').toLowerCase().includes('guardian') && m.person && !seen.has(m.person.id) && seen.add(m.person.id))
-    .map((m: any) => ({ id: m.person.id, name: `${m.person.first_name ?? ''} ${m.person.last_name ?? ''}`.trim() || 'Parent' }))
+  parents.value = await aud.loadParents(props.personId)
 }
-
-// Convert the selected audience tokens into the stored visible_to shape.
-function buildVisibleTo(): any[] {
-  return noteAudiences.value.map(tok => {
-    if (tok.startsWith('person:')) { const id = tok.slice(7); return { type: 'person', id, label: audienceLabel(tok) } }
-    return { type: tok }
-  })
-}
-// Render a stored note's audience list back to labels.
-function visibleToLabels(n: any): string[] {
-  const list = Array.isArray(n.visible_to) ? n.visible_to : []
-  if (list.length) return list.map((a: any) => a.type === 'person' ? (a.label || 'Parent') : (AUDIENCE_BASE.find(o => o.value === a.type)?.label ?? a.type))
-  return n.visibility && n.visibility !== 'staff' ? [n.visibility] : []  // legacy fallback
-}
+const buildVisibleTo = () => aud.buildVisibleTo(noteAudiences.value, parents.value)
+const visibleToLabels = (n: any) => aud.visibleToLabels(n.visible_to, n.visibility)
 
 // Hover preview of the latest in-context note (lazy-loaded on first hover).
 const hovering = ref(false)

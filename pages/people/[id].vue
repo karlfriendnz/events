@@ -655,9 +655,10 @@ async function reloadNotes() {
   const { data } = await (db.from as any)('person_notes').select('*').eq('person_id', route.params.id).order('created_at', { ascending: false })
   notes.value = data ?? []
 }
-async function createNote({ body, links }: { body: string; links: any[] }) {
+async function createNote({ body, links, visibleTo, important }: { body: string; links: any[]; visibleTo?: any[]; important?: boolean }) {
   const { error } = await (db.from as any)('person_notes').insert({
     org_id: orgId.value, person_id: route.params.id, body, links: links ?? [],
+    visible_to: visibleTo ?? [], visibility: (visibleTo?.[0] as any)?.type || 'staff', is_important: !!important,
     author_id: user.value?.id ?? null,
     author_name: (user.value?.user_metadata as any)?.full_name || user.value?.email || null,
   })
