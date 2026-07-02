@@ -79,10 +79,14 @@ async function saveMemberType() {
   toast.add({ severity: 'success', summary: 'Member type saved', life: 1600 })
 }
 
-function addRole(list: Ref<CodeRoleDef[]>, codeLineageId: string | null) {
+function addRole(scope: 'own' | 'default') {
+  const list = scope === 'own' ? ownRoles : defaultRoles
+  const codeLineageId = scope === 'own' ? lineage.value : null
   list.value.push({ code_lineage_id: codeLineageId, key: '', label: '', capabilities: [], sort_order: list.value.length })
 }
-function removeRole(list: Ref<CodeRoleDef[]>, i: number) { list.value.splice(i, 1) }
+function removeRole(scope: 'own' | 'default', i: number) {
+  (scope === 'own' ? ownRoles : defaultRoles).value.splice(i, 1)
+}
 function toggleCap(role: CodeRoleDef, capKey: string, on: boolean) {
   const set = new Set(role.capabilities)
   on ? set.add(capKey) : set.delete(capKey)
@@ -173,7 +177,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
           <Button label="Save roles" size="small" :disabled="savingOwn" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveOwn" />
         </template>
         <RoleMatrix :roles="ownRoles" :caps="cr.CODE_CAPABILITIES" empty="No code-specific roles yet — the default roles below still apply."
-          @add="addRole(ownRoles, lineage)" @remove="i => removeRole(ownRoles, i)" @toggle="(r, c, v) => toggleCap(r, c, v)" :runs="roleRuns" />
+          @add="addRole('own')" @remove="i => removeRole('own', i)" @toggle="(r, c, v) => toggleCap(r, c, v)" :runs="roleRuns" />
       </AppCard>
 
       <!-- INHERITED -->
@@ -219,7 +223,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
           <Button label="Save defaults" size="small" severity="secondary" outlined :disabled="savingDefault" @click="saveDefaults" />
         </template>
         <RoleMatrix :roles="defaultRoles" :caps="cr.CODE_CAPABILITIES" empty="No default roles."
-          @add="addRole(defaultRoles, null)" @remove="i => removeRole(defaultRoles, i)" @toggle="(r, c, v) => toggleCap(r, c, v)" :runs="roleRuns" />
+          @add="addRole('default')" @remove="i => removeRole('default', i)" @toggle="(r, c, v) => toggleCap(r, c, v)" :runs="roleRuns" />
       </AppCard>
     </template>
 
