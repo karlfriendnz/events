@@ -27,11 +27,12 @@ const toast = useToast()
 const gc = useGroupCodes()
 const scoped = useScopedRoles()
 const gf = useGroupFees()
+const tm = useTermsMemberships()
 
 const showCol = (k: ViewColumnKey) => props.columns.includes(k)
 
 interface ClassGroup {
-  id: string; name: string; code_id: string | null; capacity: number | null; color: string | null
+  id: string; name: string; code_id: string | null; term_id: string | null; capacity: number | null; color: string | null
   headName: string | null; gymnasts: number; waitlist: number | null; sport: string | null
   gender: string | null; feeLabel: string | null; feeCount: number; attendances: number
 }
@@ -42,7 +43,18 @@ const genderLabel = (g: string | null) => g ? (GENDER_LABELS[g] ?? g) : 'Any'
 
 const codes = ref<GroupCode[]>([])
 const groups = ref<ClassGroup[]>([])
+const terms = ref<{ id: string; name: string; start_date: string | null; end_date: string | null }[]>([])
+const termFilter = ref<string>('all')  // 'all' | org_terms.id
+const termDefaulted = ref(false)        // only auto-pick the default term on first load
 const loading = ref(true)
+
+const termOptions = computed(() => [
+  { label: 'All terms', value: 'all' },
+  ...terms.value.map(t => ({ label: t.name, value: t.id })),
+])
+// A group belongs to the selected term via its code chain (else its own term_id).
+const inTerm = (g: ClassGroup) => termFilter.value === 'all' || gc.effectiveTermId(g, codeById.value) === termFilter.value
+const visibleGroups = computed(() => groups.value.filter(inTerm))
 
 const parentKey = (c: GroupCode) => (c.parent_id && codes.value.some(x => x.id === c.parent_id)) ? c.parent_id : null
 const sortSibs = (a: GroupCode, b: GroupCode) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)
@@ -64,7 +76,7 @@ const topCodes = computed(() => {
   return codes.value.filter(c => chosen.has(c.id) && !ancestorChosen(c)).slice().sort(sortSibs)
 })
 // "Other" (ungrouped) only appears in unrestricted (all-codes) views.
-const hasUngrouped = computed(() => !props.codeIds.length && groups.value.some(g => !g.code_id || !codeById.value[g.code_id]))
+const hasUngrouped = computed(() => !props.codeIds.length && visibleGroups.value.some(g => !g.code_id || !codeById.value[g.code_id]))
 
 function subtreeCodes(topId: string): GroupCode[] {
   const out: GroupCode[] = []
@@ -76,7 +88,7 @@ function subtreeCodes(topId: string): GroupCode[] {
   walk(topId)
   return out
 }
-const groupsInCode = (codeId: string) => groups.value.filter(g => g.code_id === codeId).sort((a, b) => a.name.localeCompare(b.name))
+const groupsInCode = (codeId: string) => visibleGroups.value.filter(g => g.code_id === codeId).sort((a, b) => a.name.localeCompare(b.name))
 
 type Tab = { key: string; label: string }
 const tabs = computed<Tab[]>(() => {
@@ -90,7 +102,7 @@ watch(tabs, ts => { if (!ts.some(t => t.key === activeTab.value)) activeTab.valu
 interface Section { key: string; title: string; rows: ClassGroup[]; total: number }
 const activeSections = computed<Section[]>(() => {
   if (activeTab.value === '__other') {
-    const rows = groups.value.filter(g => !g.code_id || !codeById.value[g.code_id]).sort((a, b) => a.name.localeCompare(b.name))
+    const rows = visibleGroups.value.filter(g => !g.code_id || !codeById.value[g.code_id]).sort((a, b) => a.name.localeCompare(b.name))
     return rows.length ? [{ key: '__other', title: 'Other', rows, total: rows.reduce((s, g) => s + g.gymnasts, 0) }] : []
   }
   const out: Section[] = []
@@ -114,15 +126,17 @@ async function load() {
   if (!orgId.value) return
   loading.value = true
   await scoped.loadRoleDefs()
-  const [loadedCodes, { data: gs }, { data: mems }, { data: discs }, { data: feeOpts }, { data: evs }] = await Promise.all([
+  const [loadedCodes, loadedTerms, { data: gs }, { data: mems }, { data: discs }, { data: feeOpts }, { data: evs }] = await Promise.all([
     gc.loadCodes(),
-    (db.from as any)('member_groups').select('id, name, code_id, capacity, color, gender_restriction').eq('org_id', orgId.value),
+    tm.loadTerms(),
+    (db.from as any)('member_groups').select('id, name, code_id, term_id, capacity, color, gender_restriction').eq('org_id', orgId.value),
     (db.from as any)('member_group_memberships').select('group_id, role, roles, person:persons!inner(first_name, last_name)'),
     (db.from as any)('member_group_disciplines').select('group_id, discipline:disciplines(sport, name)'),
     (db.from as any)('group_fee_options').select('id, group_id, name, fee_type, period_unit, period_count, instalment_count, session_count, prorata, items:group_fee_option_items(amount)').eq('org_id', orgId.value),
     (db.from as any)('events').select('member_group_id').eq('org_id', orgId.value).not('member_group_id', 'is', null),
   ])
   codes.value = loadedCodes
+  terms.value = (loadedTerms ?? []).map((t: any) => ({ id: t.id, name: t.name, start_date: t.start_date ?? null, end_date: t.end_date ?? null }))
   const memByGroup: Record<string, any[]> = {}
   for (const m of mems ?? []) (memByGroup[m.group_id] ??= []).push(m)
   const sportByGroup: Record<string, string> = {}
@@ -144,7 +158,7 @@ async function load() {
     }
     const opts = feesByGroup[g.id] ?? []
     return {
-      id: g.id, name: g.name, code_id: g.code_id ?? null, capacity: g.capacity ?? null, color: g.color ?? null,
+      id: g.id, name: g.name, code_id: g.code_id ?? null, term_id: g.term_id ?? null, capacity: g.capacity ?? null, color: g.color ?? null,
       headName: head ? `${head.first_name ?? ''} ${head.last_name ?? ''}`.trim() || null : null,
       gymnasts, waitlist: null, sport: sportByGroup[g.id] || null,
       gender: g.gender_restriction ?? null,
@@ -153,6 +167,13 @@ async function load() {
       attendances: attByGroup[g.id] || 0,
     }
   })
+  // Default the term filter once: the active (current-date) term if it has groups, else All.
+  if (!termDefaulted.value) {
+    const today = new Date().toISOString().slice(0, 10)
+    const active = terms.value.find(t => (t.start_date ?? '') <= today && (t.end_date ?? '') >= today)
+    termFilter.value = active && groups.value.some(g => gc.effectiveTermId(g, codeById.value) === active.id) ? active.id : 'all'
+    termDefaulted.value = true
+  }
   loading.value = false
 }
 
@@ -182,6 +203,13 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
     <div v-else-if="!tabs.length" class="card p-6 text-sm text-gray-400">This view has no codes to show.</div>
 
     <template v-else>
+      <!-- Term filter — a group belongs to a term via its code chain (else its own
+           term_id). Defaults to the current-date term when it has groups. -->
+      <div v-if="terms.length" class="flex items-center gap-2">
+        <label class="text-xs font-medium text-gray-500 shrink-0">Term</label>
+        <Select v-model="termFilter" :options="termOptions" option-label="label" option-value="value" class="w-full sm:w-56" />
+      </div>
+
       <!-- Tab strip — hidden when there's only one tab (nothing to switch between);
            the desktop strip still shows if the landing allows adding a tab. -->
       <div v-if="tabs.length > 1" class="md:hidden">
