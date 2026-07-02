@@ -50,7 +50,13 @@
               <!-- Labelled fields -->
               <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 items-baseline">
                 <dt class="text-left font-semibold text-gray-700">Code:</dt>
-                <dd class="text-gray-700">{{ group.code || group.name }}</dd>
+                <dd class="text-gray-700">
+                  <span v-if="groupCode" class="inline-flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: groupCode.color || '#64748b' }" />
+                    {{ groupCode.name }}
+                  </span>
+                  <span v-else class="text-gray-400">Ungrouped</span>
+                </dd>
                 <dt class="text-left font-semibold text-gray-700">Head:</dt>
                 <dd class="text-gray-700">{{ headCoach || '—' }}</dd>
                 <dt class="text-left font-semibold text-gray-700">Age Range:</dt>
@@ -71,6 +77,19 @@
                   <dd><DisciplineLinker entity-type="group" :entity-id="group.id" /></dd>
                 </template>
               </dl>
+
+              <!-- Signup readiness — flag anything blocking members from signing up -->
+              <div v-if="!signupReady" class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+                <div class="flex items-center gap-1.5 font-semibold text-amber-800 text-xs">
+                  <i class="pi pi-exclamation-triangle text-[11px]" /> Not ready for signup
+                </div>
+                <ul class="mt-1 space-y-0.5 text-amber-700 text-[11px] list-disc list-inside">
+                  <li v-for="(msg, i) in signupIssues" :key="i">{{ msg }}</li>
+                </ul>
+              </div>
+              <div v-else class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 flex items-center gap-1.5 font-semibold text-emerald-800 text-xs">
+                <i class="pi pi-check-circle text-[11px]" /> Ready for signup
+              </div>
             </div>
           </div>
 
@@ -1550,6 +1569,18 @@ const linkedTerms = computed(() =>
     .map(l => ({ ...l, term: orgTerms.value.find(t => t.id === l.term_id) }))
     .filter(l => l.term)
 )
+
+// Signup readiness — what still blocks a member from being able to sign up to
+// this group. Mirrors the Classes board's Live/Not-live gate + the old report
+// reasons; surfaced as an alert in the INFO card.
+const signupIssues = computed<string[]>(() => {
+  const issues: string[] = []
+  if (!feeOptions.value.length) issues.push('No fee option yet — add one in the Fees section so members can choose how to pay.')
+  if (!schedules.value.length) issues.push('No session times set — add at least one training time.')
+  if (isHistory.value) issues.push('This group’s term has ended.')
+  return issues
+})
+const signupReady = computed(() => signupIssues.value.length === 0)
 // "How do you want to pay?" — the fee options this group offers (migration 204).
 const addEnrol = ref<string | null>(null) // a group_fee_options.id | null
 const enrolOptions = computed(() =>
