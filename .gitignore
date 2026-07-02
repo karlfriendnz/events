@@ -41,3 +41,4 @@ test-results/
 # Legacy reference app (28MB of ported-from source) + claude-flow tooling state
 old/
 .claude-flow/
+.nuxt-verify

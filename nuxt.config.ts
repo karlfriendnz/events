@@ -23,6 +23,9 @@ const FMPreset = definePreset(Aura, {
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   ssr: false,
+  // Allow verification builds to target a separate build dir (NUXT_BUILD_DIR)
+  // so they don't wipe `.nuxt/` out from under a running `nuxt dev` server.
+  buildDir: process.env.NUXT_BUILD_DIR || '.nuxt',
   devtools: { enabled: true },
 
   vite: {
