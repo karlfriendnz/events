@@ -163,6 +163,7 @@
                 <table class="w-full text-sm">
                   <thead>
                     <tr class="text-left text-xs font-bold text-gray-700 border-b border-gray-200">
+                      <th class="py-2 pr-3">Name</th>
                       <th class="py-2 pr-3">Day</th>
                       <th class="py-2 pr-3">Time</th>
                       <th class="py-2 pr-3">Location</th>
@@ -171,6 +172,7 @@
                   </thead>
                   <tbody>
                     <tr v-for="s in schedules" :key="s.id" class="border-b border-gray-100">
+                      <td class="py-2 pr-3 font-medium text-gray-800">{{ s.name || '—' }}</td>
                       <td class="py-2 pr-3 text-gray-700">{{ dayNames[s.day_of_week] }}</td>
                       <td class="py-2 pr-3 text-gray-700 whitespace-nowrap">{{ formatTime(s.start_time) }} – {{ formatTime(s.end_time) }}</td>
                       <td class="py-2 pr-3 text-gray-500">{{ locationLabel(s.location) || '—' }}</td>
@@ -1096,6 +1098,7 @@
       <table class="w-full text-sm">
         <thead>
           <tr class="text-left text-xs font-bold text-gray-700 border-b border-gray-200">
+            <th class="py-2 pr-3">Name</th>
             <th class="py-2 pr-3">Day</th>
             <th class="py-2 pr-3">Start</th>
             <th class="py-2 pr-3">End</th>
@@ -1105,6 +1108,10 @@
         </thead>
         <tbody>
           <tr v-for="(row, i) in draftSchedules" :key="i" class="border-b border-gray-100">
+            <td class="py-2 pr-3">
+              <input v-model="row.name" type="text" placeholder="Optional"
+                class="border border-gray-300 rounded px-2 py-1.5 text-sm w-full min-w-[8rem]" />
+            </td>
             <td class="py-2 pr-3">
               <select v-model.number="row.day_of_week"
                 class="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white w-full"
@@ -1207,6 +1214,7 @@ interface Coach { id: string; name: string; email: string | null; phone: string 
 import type { LocationEntry } from '~/composables/useLocation'
 interface Schedule {
   id: string
+  name: string | null
   day_of_week: number
   start_time: string
   end_time: string
@@ -1732,7 +1740,7 @@ async function load() {
       .eq('group_id', id),
     loadEvents(id),
     (db.from as any)('member_group_schedules')
-      .select('id, day_of_week, start_time, end_time, location, sort_order')
+      .select('id, name, day_of_week, start_time, end_time, location, sort_order')
       .eq('group_id', id)
       .order('day_of_week')
       .order('start_time'),
@@ -2140,6 +2148,7 @@ function applyLocationPicker() {
 function addDraftSchedule() {
   draftSchedules.value.push({
     id: `new-${Date.now()}-${Math.random()}`,
+    name: '',
     day_of_week: 1,
     start_time: '15:00',
     end_time: '17:00',
@@ -2167,6 +2176,7 @@ async function saveSchedules() {
   for (let i = 0; i < existing.length; i++) {
     const r = existing[i]
     await (db.from as any)('member_group_schedules').update({
+      name: r.name?.trim() || null,
       day_of_week: r.day_of_week,
       start_time: r.start_time,
       end_time: r.end_time,
@@ -2180,6 +2190,7 @@ async function saveSchedules() {
       fresh.map((r, i) => ({
         org_id: orgId.value,
         group_id: gid,
+        name: r.name?.trim() || null,
         day_of_week: r.day_of_week,
         start_time: r.start_time,
         end_time: r.end_time,
@@ -2190,7 +2201,7 @@ async function saveSchedules() {
   }
 
   const { data: scheds } = await (db.from as any)('member_group_schedules')
-    .select('id, day_of_week, start_time, end_time, location, sort_order')
+    .select('id, name, day_of_week, start_time, end_time, location, sort_order')
     .eq('group_id', gid)
     .order('day_of_week')
     .order('start_time')
@@ -2402,7 +2413,7 @@ async function createAttendanceEvent() {
 
       const sharedFields = {
         org_id: orgId.value,
-        title: `${group.value.name} — ${dayName} Training`,
+        title: sched.name?.trim() ? `${group.value.name} — ${sched.name.trim()}` : `${group.value.name} — ${dayName} Training`,
         style: 'BASIC',
         member_group_id: group.value.id,
         member_group_schedule_id: sched.id,
