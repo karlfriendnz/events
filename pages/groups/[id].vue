@@ -202,21 +202,47 @@
                 <i class="pi pi-calendar text-[10px] mr-1" />{{ trainingEventCount }} training event{{ trainingEventCount === 1 ? '' : 's' }} linked
               </p>
 
-              <!-- Upcoming events for this group -->
-              <div class="pt-3 border-t border-gray-100">
-                <div class="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">Upcoming events</div>
-                <div v-if="!upcomingEvents.length" class="text-sm text-gray-400">No upcoming events.</div>
-                <div v-else class="space-y-1">
-                  <NuxtLink v-for="e in upcomingEvents" :key="e.id" :to="`/events/${e.id}`"
-                    class="group flex items-center justify-between gap-2 rounded-lg px-2 -mx-2 py-1.5 hover:bg-gray-50">
-                    <div class="min-w-0">
-                      <div class="text-sm text-gray-800 truncate group-hover:text-[#1976d2]">{{ e.title }}</div>
-                      <div class="text-[11px] text-gray-400">{{ fmtEventWhen(e.start_at) }}<span v-if="e.location && locationLabel(e.location)"> · {{ locationLabel(e.location) }}</span></div>
-                    </div>
-                    <i class="pi pi-arrow-right text-[10px] text-gray-300 group-hover:text-[#1976d2] shrink-0" />
-                  </NuxtLink>
-                </div>
+            </div>
+          </div>
+
+          <!-- UPCOMING EVENTS (own module) — the training events linked to this group -->
+          <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div class="bg-primary text-white text-xs font-bold tracking-widest py-3.5 px-5 flex items-center justify-between">
+              <span class="normal-case tracking-normal text-sm">Upcoming events</span>
+              <span v-if="upcomingEvents.length" class="text-white/70 text-[11px] font-semibold">{{ upcomingEvents.length }}</span>
+            </div>
+            <div class="p-4">
+              <div v-if="!upcomingEvents.length" class="text-sm text-gray-400">No upcoming events.</div>
+              <div v-else class="overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr class="text-left text-xs font-bold text-gray-700 border-b border-gray-200">
+                      <th class="py-2 pr-3">Name</th>
+                      <th class="py-2 pr-3 whitespace-nowrap">Start</th>
+                      <th class="py-2 pr-3 whitespace-nowrap">End</th>
+                      <th class="py-2 pr-3">Location</th>
+                      <th class="py-2 w-8" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="e in visibleUpcoming" :key="e.id"
+                      class="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                      @click="navigateTo(`/events/${e.id}`)">
+                      <td class="py-2 pr-3 font-medium text-gray-800">{{ e.title }}</td>
+                      <td class="py-2 pr-3 text-gray-600 whitespace-nowrap">{{ fmtEventWhen(e.start_at) }}</td>
+                      <td class="py-2 pr-3 text-gray-600 whitespace-nowrap">{{ fmtEndCell(e) }}</td>
+                      <td class="py-2 pr-3 text-gray-500">{{ (e.location && locationLabel(e.location)) || '—' }}</td>
+                      <td class="py-2 text-right"><i class="pi pi-arrow-right text-[9px] text-gray-300" /></td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
+              <button v-if="upcomingEvents.length > 5" type="button"
+                class="mt-3 text-[11px] font-semibold text-[#1976d2] hover:underline inline-flex items-center gap-1"
+                @click="showAllUpcoming = !showAllUpcoming">
+                {{ showAllUpcoming ? 'Show next 5 only' : `See all ${upcomingEvents.length} upcoming` }}
+                <i class="pi text-[9px]" :class="showAllUpcoming ? 'pi-chevron-up' : 'pi-arrow-right'" />
+              </button>
             </div>
           </div>
         </div>
@@ -1775,6 +1801,9 @@ async function load() {
 
 // All future events linked to this group (master + child occurrences), soonest first.
 const upcomingEvents = ref<Array<{ id: string; title: string; start_at: string; end_at: string | null; location: any }>>([])
+// Upcoming events module: show the next 5, expandable to the full list.
+const showAllUpcoming = ref(false)
+const visibleUpcoming = computed(() => showAllUpcoming.value ? upcomingEvents.value : upcomingEvents.value.slice(0, 5))
 // All training sessions (events) for this group — past + future — for the Trainings tab.
 const trainingSessions = ref<Array<{ id: string; title: string; start_at: string; end_at: string | null; location: any }>>([])
 
@@ -2033,6 +2062,16 @@ function fmtEventWhen(iso: string) {
   const d = new Date(iso)
   return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }) +
     ' · ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+}
+
+// End cell for the upcoming-events table: just the time when it ends the same
+// day as it starts (the common training case), otherwise the full date + time.
+function fmtEndCell(e: { start_at: string; end_at: string | null }) {
+  if (!e.end_at) return '—'
+  const sameDay = new Date(e.start_at).toDateString() === new Date(e.end_at).toDateString()
+  return sameDay
+    ? new Date(e.end_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+    : fmtEventWhen(e.end_at)
 }
 
 function emptyLocation(): LocationEntry {
