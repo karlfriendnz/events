@@ -188,6 +188,7 @@ onBeforeUnmount(() => { if (open.value) activePanel.value = null })
             <div class="flex items-center gap-2">
               <span class="text-[11px] font-semibold text-gray-400 shrink-0">Show to</span>
               <MultiSelect v-model="noteAudiences" :options="audienceOptions" optionLabel="label" optionValue="value"
+                optionGroupLabel="label" optionGroupChildren="items"
                 display="chip" placeholder="Choose audiences" size="small" class="flex-1 min-w-0" :showToggleAll="false" />
             </div>
             <div class="flex items-center justify-between gap-2 flex-wrap">

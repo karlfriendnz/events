@@ -11,33 +11,49 @@ export const NOTE_AUDIENCE_BASE = [
   { label: 'Circle', value: 'circle' },
 ]
 
-export type NoteParent = { id: string; name: string }
+export type NoteParent = { id: string; name: string; role?: string | null }
+
+// A parent's display label = name + their relationship/role when known.
+export const parentLabel = (p: NoteParent) => p.role ? `${p.name} · ${p.role}` : p.name
 
 export function useNoteAudiences() {
   const db = useDb()
 
-  // The subject's parents/contacts — the guardian members of their family circles.
+  // The subject's parents/contacts — the guardian members of their family circles,
+  // carrying each one's relationship/role (Mum / Dad / Guardian…).
   async function loadParents(personId: string): Promise<NoteParent[]> {
     const { data: mine } = await (db.from as any)('circle_members')
       .select('circle_id, circle:circles!inner(kind)').eq('person_id', personId)
     const famIds = (mine ?? []).filter((r: any) => r.circle?.kind === 'family').map((r: any) => r.circle_id)
     if (!famIds.length) return []
     const { data: mem } = await (db.from as any)('circle_members')
-      .select('person_id, role, person:persons(id, first_name, last_name)')
+      .select('person_id, role, relationship, person:persons(id, first_name, last_name)')
       .in('circle_id', famIds).neq('person_id', personId)
     const seen = new Set<string>()
     return (mem ?? [])
       .filter((m: any) => (m.role || '').toLowerCase().includes('guardian') && m.person && !seen.has(m.person.id) && seen.add(m.person.id))
-      .map((m: any) => ({ id: m.person.id, name: `${m.person.first_name ?? ''} ${m.person.last_name ?? ''}`.trim() || 'Parent' }))
+      .map((m: any) => ({
+        id: m.person.id,
+        name: `${m.person.first_name ?? ''} ${m.person.last_name ?? ''}`.trim() || 'Parent',
+        role: m.relationship || 'Guardian',
+      }))
   }
 
-  // MultiSelect options = the base audiences + each parent by name (person:<id>).
+  // Grouped MultiSelect options: the base audiences, then a "Parents" group
+  // (only when the subject has parents) so specific parents sit under a divider.
   function audienceOptions(parents: NoteParent[]) {
-    return [...NOTE_AUDIENCE_BASE, ...parents.map(p => ({ label: p.name, value: `person:${p.id}` }))]
+    const groups: { label: string; items: { label: string; value: string }[] }[] = [
+      { label: 'Audiences', items: [...NOTE_AUDIENCE_BASE] },
+    ]
+    if (parents.length) groups.push({ label: 'Parents', items: parents.map(p => ({ label: parentLabel(p), value: `person:${p.id}` })) })
+    return groups
   }
 
   function audienceLabel(tok: string, parents: NoteParent[]) {
-    if (tok.startsWith('person:')) return parents.find(p => `person:${p.id}` === tok)?.name || 'Parent'
+    if (tok.startsWith('person:')) {
+      const p = parents.find(x => `person:${x.id}` === tok)
+      return p ? parentLabel(p) : 'Parent'
+    }
     return NOTE_AUDIENCE_BASE.find(o => o.value === tok)?.label ?? tok
   }
 

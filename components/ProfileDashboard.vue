@@ -557,6 +557,7 @@ function statusSeverity(s: string) {
                   </template>
                 </MultiSelect>
                 <MultiSelect v-model="noteAudiences" :options="audienceOptions" optionLabel="label" optionValue="value"
+                  optionGroupLabel="label" optionGroupChildren="items"
                   display="chip" :showToggleAll="false" placeholder="Show to…" class="w-full text-xs" />
                 <div class="flex items-center justify-between gap-2">
                   <button type="button" @click="noteImportant = !noteImportant"
