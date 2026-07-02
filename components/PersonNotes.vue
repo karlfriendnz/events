@@ -51,6 +51,17 @@ const saving = ref(false)
 const loading = ref(false)
 const count = ref<number>(props.initialCount ?? 0)   // scoped badge count
 
+// New-note options.
+const VISIBILITY_OPTIONS = [
+  { label: 'Staff', value: 'staff', icon: 'pi pi-users', hint: 'All staff on this' },
+  { label: 'Admins only', value: 'admin', icon: 'pi pi-shield', hint: 'Managers / admins' },
+  { label: 'Everyone', value: 'everyone', icon: 'pi pi-globe', hint: 'Incl. the member' },
+  { label: 'Only me', value: 'private', icon: 'pi pi-lock', hint: 'Just you' },
+]
+const visibilityLabel = (v: string) => VISIBILITY_OPTIONS.find(o => o.value === v)?.label ?? 'Staff'
+const noteVisibility = ref('staff')
+const noteImportant = ref(false)
+
 // Hover preview of the latest in-context note (lazy-loaded on first hover).
 const hovering = ref(false)
 const latestNote = ref<string | null>(null)
@@ -83,6 +94,8 @@ async function openDrawer() {
   activePanel.value = uid
   hovering.value = false
   newNote.value = ''
+  noteVisibility.value = 'staff'
+  noteImportant.value = false
   loading.value = true
   const { data } = await (db.from as any)('person_notes')
     .select('*').eq('person_id', props.personId).order('created_at', { ascending: false })
@@ -98,6 +111,7 @@ async function add() {
   saving.value = true
   const { data, error } = await (db.from as any)('person_notes').insert({
     org_id: orgId.value, person_id: props.personId, body, links: props.links ?? [],
+    visibility: noteVisibility.value, is_important: noteImportant.value,
     author_id: user.value?.id ?? null,
     author_name: (user.value?.user_metadata as any)?.full_name || user.value?.email || null,
   }).select('*').single()
@@ -105,6 +119,8 @@ async function add() {
   if (!error && data) {
     notes.value.unshift(data)
     newNote.value = ''
+    noteVisibility.value = 'staff'
+    noteImportant.value = false
     latestNote.value = body
     if (matchesScope(data)) setCount(count.value + 1)
   }
@@ -160,7 +176,30 @@ onBeforeUnmount(() => { if (open.value) activePanel.value = null })
           <div class="p-4 border-b border-gray-100 space-y-2">
             <Textarea v-model="newNote" rows="3" autoResize class="w-full" placeholder="Write a note…"
               @keydown.meta.enter="add" @keydown.ctrl.enter="add" />
-            <div class="flex justify-end">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div class="flex items-center gap-2">
+                <Select v-model="noteVisibility" :options="VISIBILITY_OPTIONS" optionLabel="label" optionValue="value" size="small" class="w-40">
+                  <template #value="{ value }">
+                    <span class="inline-flex items-center gap-1.5 text-sm">
+                      <i class="pi text-xs" :class="VISIBILITY_OPTIONS.find(o => o.value === value)?.icon" />
+                      {{ visibilityLabel(value) }}
+                    </span>
+                  </template>
+                  <template #option="{ option }">
+                    <span class="inline-flex items-center gap-2">
+                      <i class="pi text-xs text-gray-500" :class="option.icon" />
+                      <span>{{ option.label }}</span>
+                      <span class="text-[11px] text-gray-400">· {{ option.hint }}</span>
+                    </span>
+                  </template>
+                </Select>
+                <button type="button" @click="noteImportant = !noteImportant"
+                  class="inline-flex items-center gap-1 text-xs font-semibold rounded px-2 py-1.5 border"
+                  :class="noteImportant ? 'bg-amber-50 border-amber-300 text-amber-700' : 'border-gray-300 text-gray-500 hover:bg-gray-50'"
+                  title="Flag as important">
+                  <i class="pi text-[11px]" :class="noteImportant ? 'pi-flag-fill' : 'pi-flag'" /> Important
+                </button>
+              </div>
               <Button label="Add note" icon="pi pi-plus" size="small" :disabled="!newNote.trim() || saving"
                 style="background:#1976d2;border-color:#1976d2" @click="add" />
             </div>
@@ -169,10 +208,12 @@ onBeforeUnmount(() => { if (open.value) activePanel.value = null })
           <div class="flex-1 overflow-y-auto p-4 space-y-2">
             <div v-if="loading" class="text-sm text-gray-400 py-6 text-center">Loading…</div>
             <div v-else-if="!notes.length" class="text-sm text-gray-400 py-6 text-center">No notes yet.</div>
-            <div v-for="n in notes" :key="n.id" class="border border-gray-200 rounded-lg p-3"
-              :class="matchesScope(n) ? '' : 'opacity-70'">
+            <div v-for="n in notes" :key="n.id" class="border rounded-lg p-3"
+              :class="[matchesScope(n) ? '' : 'opacity-70', n.is_important ? 'border-amber-300 bg-amber-50/50' : 'border-gray-200']">
               <div class="flex items-start justify-between gap-2">
-                <p class="text-sm text-gray-800 whitespace-pre-wrap flex-1">{{ n.body }}</p>
+                <p class="text-sm text-gray-800 whitespace-pre-wrap flex-1">
+                  <i v-if="n.is_important" class="pi pi-flag-fill text-amber-500 text-[11px] mr-1" title="Important" />{{ n.body }}
+                </p>
                 <button type="button" class="text-gray-300 hover:text-red-500 shrink-0" title="Delete note" @click="remove(n)">
                   <i class="pi pi-trash text-xs" />
                 </button>
@@ -183,6 +224,9 @@ onBeforeUnmount(() => { if (open.value) activePanel.value = null })
               <div class="mt-1.5 text-[11px] text-gray-400 flex items-center gap-2 flex-wrap">
                 <span>{{ fmtDate(n.created_at) }}</span>
                 <span v-if="n.author_name">· {{ n.author_name }}</span>
+                <span v-if="n.visibility && n.visibility !== 'staff'" class="inline-flex items-center gap-1 text-gray-400">
+                  · <i class="pi text-[10px]" :class="VISIBILITY_OPTIONS.find(o => o.value === n.visibility)?.icon" />{{ visibilityLabel(n.visibility) }}
+                </span>
               </div>
             </div>
           </div>
