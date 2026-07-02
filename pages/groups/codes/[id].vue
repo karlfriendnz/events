@@ -16,8 +16,22 @@ const { orgId } = useOrg()
 const db = useDb()
 const gc = useGroupCodes()
 const cr = useCodeRoles()
+const tm = useTermsMemberships()
 const policy = useOrgFieldPolicy()
 const toast = useToast()
+
+// Code details (name / colour / parent / term) — edited here, not on the list.
+const PALETTE = ['#1E2157', '#2563EB', '#0f766e', '#059669', '#9333ea', '#EC4899', '#c2410c', '#be123c', '#8B5CF6', '#64748b']
+const terms = ref<any[]>([])
+const detail = reactive<{ name: string; color: string; parent_id: string | null; term_id: string | null }>({ name: '', color: PALETTE[0], parent_id: null, term_id: null })
+const savingDetail = ref(false)
+// Valid parents = every code except this one + its descendants (no cycles).
+const parentOptions = computed(() => {
+  const banned = new Set<string>([codeId])
+  let added = true
+  while (added) { added = false; for (const c of codes.value) if (c.parent_id && banned.has(c.parent_id) && !banned.has(c.id)) { banned.add(c.id); added = true } }
+  return codes.value.filter(c => !banned.has(c.id))
+})
 
 const loading = ref(true)
 const codes = ref<GroupCode[]>([])
@@ -53,17 +67,20 @@ const personName = (s: any) => `${s.person?.first_name ?? ''} ${s.person?.last_n
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [loadedCodes, types, defs, staffRows] = await Promise.all([
+  const [loadedCodes, types, defs, staffRows, loadedTerms] = await Promise.all([
     gc.loadCodes(),
     policy.resolvePersonTypes(orgId.value),
     cr.ensureDefaults(),
     cr.loadStaff(),
+    tm.loadTerms(),
   ])
   codes.value = loadedCodes
   allDefs.value = defs
   staff.value = staffRows
+  terms.value = loadedTerms ?? []
   personTypeOptions.value = (types ?? []).filter((t: any) => (t.kind ?? 'person') === 'person').map((t: any) => ({ label: t.label, value: t.key }))
   memberType.value = code.value?.member_type_key ?? null
+  if (code.value) Object.assign(detail, { name: code.value.name, color: code.value.color || PALETTE[0], parent_id: code.value.parent_id, term_id: code.value.term_id })
 
   const ln = lineage.value
   const chain = code.value ? cr.lineageChain(code.value, codesById.value).filter(l => l !== ln) : []
@@ -76,6 +93,15 @@ async function load() {
     ...defs.filter(d => d.code_lineage_id == null).map(d => mk(d, 'default', false)),
   ]
   loading.value = false
+}
+
+async function saveDetails() {
+  if (!code.value || !detail.name.trim()) return
+  savingDetail.value = true
+  await gc.updateCode(code.value.id, { name: detail.name.trim(), color: detail.color, parent_id: detail.parent_id, term_id: detail.term_id })
+  savingDetail.value = false
+  await load()
+  toast.add({ severity: 'success', summary: 'Details saved', life: 1600 })
 }
 
 async function saveMemberType() {
@@ -152,6 +178,38 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
     <div v-else-if="!code" class="card p-6 text-sm text-gray-500">This code no longer exists.</div>
 
     <template v-else>
+      <!-- DETAILS -->
+      <AppCard title="Details" description="Name, colour and where this code sits.">
+        <div class="p-4 sm:p-5 space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div class="flex flex-col gap-1.5">
+              <label class="text-xs font-medium text-gray-600">Name</label>
+              <InputText v-model="detail.name" placeholder="e.g. Step 6" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label class="text-xs font-medium text-gray-600">Parent code</label>
+              <Select v-model="detail.parent_id" :options="parentOptions" option-label="name" option-value="id"
+                placeholder="None (top level)" show-clear filter class="w-full" />
+            </div>
+            <div class="flex flex-col gap-1.5">
+              <label class="text-xs font-medium text-gray-600">Term</label>
+              <Select v-model="detail.term_id" :options="terms" option-label="name" option-value="id"
+                placeholder="No term" show-clear class="w-full" />
+            </div>
+          </div>
+          <div class="flex items-center justify-between gap-3 flex-wrap">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-medium text-gray-600 mr-1">Colour</span>
+              <button v-for="c in PALETTE" :key="c" type="button" @click="detail.color = c"
+                class="w-6 h-6 rounded-full border-2 transition"
+                :class="detail.color === c ? 'border-gray-800 scale-110' : 'border-transparent'"
+                :style="{ background: c }" />
+            </div>
+            <Button label="Save" :disabled="savingDetail || !detail.name.trim()" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveDetails" />
+          </div>
+        </div>
+      </AppCard>
+
       <!-- MEMBER TYPE -->
       <AppCard title="Member type" description="The type of person who is a MEMBER in the groups under this code. Drives which custom fields apply to them.">
         <div class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3">
