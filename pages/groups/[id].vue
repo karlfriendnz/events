@@ -70,8 +70,15 @@
                   {{ groupTerm?.name || group.current_term || '—' }}
                   <span v-if="isHistory" class="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">ended</span>
                 </dd>
-                <dt class="text-left font-semibold text-gray-700">Term Fee:</dt>
-                <dd class="text-gray-700">{{ group.term_fee != null ? `$${Number(group.term_fee).toFixed(2)}` : '—' }}</dd>
+                <dt class="text-left font-semibold text-gray-700">Fees:</dt>
+                <dd class="text-gray-700 flex items-center gap-2 flex-wrap">
+                  <span v-if="termFeeLabel">{{ termFeeLabel }}</span>
+                  <span v-else class="text-gray-400">None</span>
+                  <button v-if="canManage" type="button" @click="openFeesEditor"
+                    class="text-[11px] font-semibold text-[#1976d2] hover:underline inline-flex items-center gap-1">
+                    <i class="pi text-[9px]" :class="feeOptions.length ? 'pi-pencil' : 'pi-plus'" />{{ feeBtnLabel }}
+                  </button>
+                </dd>
                 <template v-if="canManage && group?.id">
                   <dt class="text-left font-semibold text-gray-700">Disciplines:</dt>
                   <dd><DisciplineLinker entity-type="group" :entity-id="group.id" /></dd>
@@ -90,52 +97,10 @@
             </div>
           </div>
 
-          <!-- MEMBERSHIP & TERMS (own card, below INFO) -->
-          <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <div class="bg-primary text-white text-xs font-bold tracking-widest py-3.5 px-5 flex items-center justify-between">
-              <span class="normal-case tracking-normal text-sm">Membership & terms</span>
-              <button v-if="canManage" type="button"
-                class="text-white/90 hover:text-white inline-flex items-center gap-1 text-[11px] font-semibold"
-                @click="openBillingEditor">
-                <i class="pi pi-pencil text-[10px]" /> Edit
-              </button>
-            </div>
-            <div class="p-5 text-sm space-y-4">
-              <!-- Terms -->
-              <div>
-                <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Term</div>
-                <div v-if="linkedTerms.length" class="space-y-1">
-                  <div v-for="l in linkedTerms" :key="l.term_id" class="flex items-center justify-between gap-2">
-                    <span class="text-gray-700">{{ l.term!.name }}</span>
-                    <span class="text-gray-500 tabular-nums">{{ l.fee != null ? tm.fmtMoney(l.fee, orgCurrency) : '—' }}</span>
-                  </div>
-                </div>
-                <div v-else class="text-gray-400">Not run on a term</div>
-              </div>
-              <!-- Memberships -->
-              <div>
-                <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Memberships</div>
-                <div v-if="linkedPlans.length" class="space-y-2">
-                  <div v-for="p in linkedPlans" :key="p.id">
-                    <div class="flex items-center gap-2">
-                      <span class="inline-block w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: p.color || '#1E2157' }" />
-                      <span class="text-gray-700 font-medium">{{ p.name }}</span>
-                    </div>
-                    <div v-if="p.options.length" class="flex flex-wrap gap-1.5 mt-1 ml-[18px]">
-                      <span v-for="o in p.options" :key="o.id"
-                        class="text-xs bg-gray-100 text-gray-600 rounded px-1.5 py-0.5">
-                        {{ tm.optionLabel(o, orgCurrency) }}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div v-else class="text-gray-400">No memberships connected</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- FEES (multiple ways to pay to join — migration 204) -->
-          <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <!-- FEES (multiple ways to pay to join — migration 204).
+               Only shown when there's MORE than one option; a single fee (or none)
+               lives inline on the INFO card's Fees row with an add/edit button. -->
+          <div v-if="feeOptions.length > 1" class="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div class="bg-primary text-white text-xs font-bold tracking-widest py-3.5 px-5 flex items-center justify-between">
               <span class="normal-case tracking-normal text-sm">Fees</span>
               <button v-if="canManage" type="button"
@@ -1577,6 +1542,18 @@ const signupIssues = computed<string[]>(() => {
   return issues
 })
 const signupReady = computed(() => signupIssues.value.length === 0)
+
+// Fees summary for the INFO card row: the single fee's price when there's one,
+// "N fee options" for many, null for none. The button beside it opens the fee
+// editor (Add / Edit / See).
+const termFeeLabel = computed(() => {
+  const n = feeOptions.value.length
+  if (n === 0) return null
+  if (n === 1) return gf.priceLabel(feeOptions.value[0], orgCurrency.value)
+  return `${n} fee options`
+})
+const feeBtnLabel = computed(() =>
+  feeOptions.value.length === 0 ? 'Add a fee' : feeOptions.value.length === 1 ? 'Edit' : 'See fees')
 // "How do you want to pay?" — the fee options this group offers (migration 204).
 const addEnrol = ref<string | null>(null) // a group_fee_options.id | null
 const enrolOptions = computed(() =>
