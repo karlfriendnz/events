@@ -231,7 +231,7 @@
             <table class="w-full text-sm table-fixed">
               <colgroup>
                 <col v-for="col in activeColumns" :key="col.key" :class="col.width" />
-                <col v-if="canManage" class="w-12" />
+                <col v-if="canManage" class="w-24" />
               </colgroup>
 
               <!-- COACHES & MANAGERS -->
