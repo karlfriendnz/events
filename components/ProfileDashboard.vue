@@ -533,7 +533,7 @@ function statusSeverity(s: string) {
       </div>
 
       <!-- NOTES rail — pinned, full height, scrolls internally -->
-      <aside class="shrink-0 w-full lg:w-[340px] lg:h-full">
+      <aside class="shrink-0 w-full lg:w-1/4 lg:h-full">
         <div class="card flex flex-col overflow-hidden lg:h-full max-lg:max-h-[70vh]">
           <!-- Notes / Activity tabs -->
           <div class="flex items-center gap-1 px-3 pt-1.5 border-b border-gray-100 shrink-0">
