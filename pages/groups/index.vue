@@ -13,6 +13,8 @@
         <p class="text-sm text-surface-500 mt-0.5">Every class grouped under its code. Tabs are your top-level codes.</p>
       </div>
       <div class="flex items-center gap-2 shrink-0">
+        <Button label="Find a class" icon="pi pi-search" size="small" outlined severity="secondary"
+          class="text-gray-700" @click="finder.openFinder()" />
         <Button label="New code" icon="pi pi-sitemap" size="small" outlined severity="secondary"
           class="text-gray-700" @click="openCreateCode()" />
         <Button label="New group" icon="pi pi-plus" size="small"
@@ -98,6 +100,7 @@ const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
 const gc = useGroupCodes()
+const finder = useClassFinder()
 const tm = useTermsMemberships()
 
 const PALETTE = ['#1E2157', '#2563EB', '#0f766e', '#059669', '#9333ea', '#EC4899', '#c2410c', '#be123c', '#8B5CF6', '#64748b']

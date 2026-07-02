@@ -13,6 +13,7 @@ const { orgId } = useOrg()
 const toast = useToast()
 const wl = useWaitlists()
 const tm = useTermsMemberships()
+const finder = useClassFinder()
 const terms = ref<any[]>([])
 const gc = useGroupCodes()
 const codes = ref<any[]>([])
@@ -270,6 +271,10 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         <h1 class="text-lg sm:text-2xl font-semibold text-gray-900 mt-2">Waitlists</h1>
         <p class="text-sm text-gray-500">A shared queue for equivalent groups — the same class on different days. Connect the groups so a spot opening in any of them fills from one list.</p>
       </div>
+      <button type="button" @click="finder.openFinder()"
+        class="shrink-0 inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-primary px-3 py-2 rounded-lg border border-gray-200 hover:border-gray-300">
+        <i class="pi pi-search text-xs" /> Find a class
+      </button>
     </div>
 
     <div v-if="loading" class="card p-6 text-sm text-gray-400">Loading…</div>

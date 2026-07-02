@@ -958,10 +958,21 @@
       <div class="flex flex-col gap-4">
         <!-- Person -->
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Person</label>
-          <AutoComplete v-model="personQuery" :suggestions="personResults" optionLabel="label"
+          <div class="flex items-center justify-between">
+            <label class="text-sm font-medium">Person</label>
+            <button type="button" class="text-xs text-primary hover:underline" @click="toggleNewPerson">
+              {{ showNewPerson ? 'Search existing' : '+ New person' }}
+            </button>
+          </div>
+          <AutoComplete v-if="!showNewPerson" v-model="personQuery" :suggestions="personResults" optionLabel="label"
             placeholder="Type a name…" class="w-full" dropdown forceSelection
             @complete="searchPersons" @item-select="onPickPerson" />
+          <div v-else class="grid grid-cols-2 gap-2">
+            <InputText v-model="newPerson.first_name" placeholder="First name" autofocus />
+            <InputText v-model="newPerson.last_name" placeholder="Last name" />
+            <InputText v-model="newPerson.email" placeholder="Email (optional)" class="col-span-2" />
+            <InputText v-model="newPerson.phone" placeholder="Phone (optional)" class="col-span-2" />
+          </div>
         </div>
 
         <!-- capacity → waitlist warning -->
@@ -1033,7 +1044,7 @@
           <Button label="Add to waitlist" icon="pi pi-hourglass" :disabled="!pendingPerson"
             style="background:#1976d2;border-color:#1976d2" @click="addToWaitlist" />
         </template>
-        <Button v-else label="Add" :disabled="!pendingPerson"
+        <Button v-else label="Add" :disabled="!canAddPerson"
           style="background:#1976d2;border-color:#1976d2" @click="addPerson" />
       </template>
     </Dialog>
@@ -2107,6 +2118,13 @@ async function load() {
   await loadNoteCounts()
 
   loading.value = false
+
+  // Deep-link from the Class Finder: /groups/:id?add=member opens the Add-person
+  // dialog straight away, then clears the query so it doesn't re-fire on reload.
+  if (route.query.add) {
+    openAdd(route.query.add === 'coach' ? 'coach' : 'member')
+    router.replace({ query: {}, hash: route.hash })
+  }
 }
 
 // All future events linked to this group (master + child occurrences), soonest first.
@@ -2607,6 +2625,17 @@ const addRoles = ref<string[]>(['member'])
 const pendingPerson = ref<any>(null)
 const personQuery = ref<any>('')
 const personResults = ref<any[]>([])
+// Create-a-new-person inline (instead of searching an existing one).
+const showNewPerson = ref(false)
+const newPerson = reactive({ first_name: '', last_name: '', email: '', phone: '' })
+function resetNewPerson() { newPerson.first_name = ''; newPerson.last_name = ''; newPerson.email = ''; newPerson.phone = '' }
+function toggleNewPerson() {
+  showNewPerson.value = !showNewPerson.value
+  if (showNewPerson.value) { pendingPerson.value = null; personQuery.value = '' } else resetNewPerson()
+}
+const canAddPerson = computed(() => showNewPerson.value
+  ? !!(newPerson.first_name.trim() || newPerson.last_name.trim())
+  : !!pendingPerson.value)
 // Member POSITIONS (Captain, Wing…) — catalogue resolved from the group's code
 // chain; new ones can be added inline (written to the group's own code).
 const addPositions = ref<string[]>([])
@@ -2720,6 +2749,8 @@ function openAdd(mode: 'member' | 'coach', person?: any) {
     personQuery.value = ''
   }
   personResults.value = []
+  showNewPerson.value = false
+  resetNewPerson()
   addOpen.value = true
   loadWaitlistSiblings()
 }
@@ -2740,10 +2771,21 @@ async function searchPersons(e: { query: string }) {
 }
 function onPickPerson(e: { value: any }) { pendingPerson.value = e.value }
 async function addPerson() {
-  const p = pendingPerson.value
+  if (!group.value) return
   // Staff roles + positions are both optional — a person can be staff, a member,
-  // or both. Only a picked person is required.
-  if (!p?.id || !group.value) return
+  // or both. Either pick an existing person, or create a new one inline.
+  let p = pendingPerson.value
+  if (showNewPerson.value && !p?.id) {
+    const fn = newPerson.first_name.trim(), ln = newPerson.last_name.trim()
+    if (!fn && !ln) return
+    const { data: created, error: cErr } = await (db.from as any)('persons')
+      .insert({ org_id: orgId.value, first_name: fn || null, last_name: ln || null, email: newPerson.email.trim() || null, phone: newPerson.phone.trim() || null })
+      .select('id, first_name, last_name, email, phone, gender').single()
+    if (cErr || !created) { toast.add({ severity: 'error', summary: 'Could not create person', detail: cErr?.message, life: 4000 }); return }
+    p = created
+    pendingPerson.value = created
+  }
+  if (!p?.id) return
   // Merge with any roles they already hold so adding a role to an existing
   // member keeps the others (coach picking up Player → both, not replaced).
   const prev = coaches.value.find(x => x.id === p.id)?.allRoles

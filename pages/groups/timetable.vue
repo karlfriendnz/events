@@ -10,7 +10,12 @@ import { minLabel, type TimetableSession } from '~/composables/useClassTimetable
 const ct = useClassTimetable()
 const gc = useGroupCodes()
 const tm = useTermsMemberships()
+const finder = useClassFinder()
 const { orgReady } = useOrg()
+
+// Breadcrumb trail lives in the top control bar (like the rest of the app) —
+// the page no longer repeats a title/subtitle in its body.
+useBreadcrumbs([{ label: 'Classes', to: '/groups' }, { label: 'Week view' }])
 
 const loading = ref(true)
 const allSessions = ref<TimetableSession[]>([])
@@ -21,6 +26,7 @@ const termId = ref<string>('all')
 const codeIds = ref<string[]>([])
 const venue = ref<string>('all')
 const coach = ref<string>('all')
+const focusDay = ref<number | null>(null)   // null = week; 0–6 = focused day view
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]
@@ -90,33 +96,30 @@ function openGroup(s: TimetableSession) { navigateTo(`/groups/${s.groupId}`) }
 
 <template>
   <div class="p-3 sm:p-6 space-y-4 sm:space-y-5">
-    <!-- header -->
-    <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-      <div>
-        <div class="flex items-center gap-2 text-xs text-gray-400 mb-1">
-          <NuxtLink to="/groups" class="hover:text-primary">Classes</NuxtLink>
-          <i class="pi pi-angle-right text-[10px]" />
-          <span>Week view</span>
-        </div>
-        <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Week view</h1>
-        <p class="text-xs sm:text-sm text-gray-500 mt-0.5">Every class the club runs across a typical week.</p>
-      </div>
-      <div class="flex items-center gap-2">
+    <!-- filters + key -->
+    <div class="card p-3 sm:p-4 space-y-3">
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+        <Select v-model="termId" :options="termOptions" optionLabel="label" optionValue="value" class="w-full sm:w-44" />
+        <MultiSelect v-model="codeIds" :options="codeOptions" optionLabel="label" optionValue="value" display="chip"
+          placeholder="All codes" :maxSelectedLabels="2" class="w-full sm:w-52" :showToggleAll="false" filter />
+        <Select v-model="venue" :options="venueOptions" optionLabel="label" optionValue="value" class="w-full sm:w-40" filter />
+        <Select v-model="coach" :options="coachOptions" optionLabel="label" optionValue="value" class="w-full sm:w-40" filter />
+        <button v-if="anyFilter" type="button" class="text-xs font-medium text-gray-400 hover:text-gray-700 px-1.5 py-1" @click="clearFilters">Clear</button>
+        <button type="button" @click="finder.openFinder()"
+          class="sm:ml-auto inline-flex items-center gap-1.5 text-sm text-white px-3 py-2 rounded-lg" style="background:#1E2157">
+          <i class="pi pi-search text-xs" /> Find a class
+        </button>
         <NuxtLink to="/groups" class="hidden sm:inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary px-3 py-2 rounded-lg border border-gray-200 hover:border-gray-300">
           <i class="pi pi-table text-xs" /> Table view
         </NuxtLink>
       </div>
-    </div>
-
-    <!-- filters -->
-    <div class="card p-3 sm:p-4">
-      <div class="flex flex-wrap items-center gap-2 sm:gap-3">
-        <Select v-model="termId" :options="termOptions" optionLabel="label" optionValue="value" class="w-full sm:w-44" />
-        <MultiSelect v-model="codeIds" :options="codeOptions" optionLabel="label" optionValue="value" display="chip"
-          placeholder="All codes" :maxSelectedLabels="2" class="w-full sm:w-56" :showToggleAll="false" filter />
-        <Select v-model="venue" :options="venueOptions" optionLabel="label" optionValue="value" class="w-full sm:w-44" filter />
-        <Select v-model="coach" :options="coachOptions" optionLabel="label" optionValue="value" class="w-full sm:w-44" filter />
-        <button v-if="anyFilter" type="button" class="text-xs text-gray-400 hover:text-gray-700 px-2 py-1" @click="clearFilters">Clear</button>
+      <!-- colour key (codes present in view) -->
+      <div v-if="!loading && legend.length" class="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-3 border-t border-gray-100">
+        <span class="text-[10px] font-bold uppercase tracking-wide text-gray-400 mr-0.5">Key</span>
+        <span v-for="l in legend" :key="l.name" class="inline-flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-sm shrink-0" :style="{ background: l.color }" />
+          <span class="text-xs text-gray-500 whitespace-nowrap">{{ l.name }}</span>
+        </span>
       </div>
     </div>
 
@@ -140,14 +143,6 @@ function openGroup(s: TimetableSession) { navigateTo(`/groups/${s.groupId}`) }
       </div>
     </div>
 
-    <!-- legend -->
-    <div v-if="!loading && legend.length" class="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-1">
-      <div v-for="l in legend" :key="l.name" class="flex items-center gap-1.5">
-        <span class="w-2.5 h-2.5 rounded-sm" :style="{ background: l.color }" />
-        <span class="text-xs text-gray-500">{{ l.name }}</span>
-      </div>
-    </div>
-
     <!-- loading -->
     <div v-if="loading" class="card p-16 text-center text-gray-400 text-sm">
       <i class="pi pi-spin pi-spinner text-2xl mb-2 block" /> Loading timetable…
@@ -162,9 +157,10 @@ function openGroup(s: TimetableSession) { navigateTo(`/groups/${s.groupId}`) }
     </div>
 
     <template v-else>
-      <!-- desktop grid -->
+      <!-- desktop grid (click a day name → focused day view) -->
       <div class="hidden md:block">
-        <TimetableGrid :sessions="filtered" @select="openGroup" />
+        <TimetableGrid :sessions="filtered" :focus-day="focusDay" @select="openGroup"
+          @focus-day="d => focusDay = d" @clear-focus="focusDay = null" />
       </div>
 
       <!-- mobile agenda -->

@@ -147,6 +147,9 @@
 
         <ReviewWidget v-if="orgReady && user && !gate.isDeveloper.value" hide-pill />
 
+        <!-- Class Finder — reusable right-slide tool, opened from any screen -->
+        <ClassFinderDrawer v-if="orgReady && user" />
+
         <!-- Comments & review — pops out the <ReviewWidget> drawer -->
         <button v-if="orgReady && user && !gate.isDeveloper.value" type="button"
           class="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors shrink-0"
