@@ -231,7 +231,7 @@
             <table class="w-full text-sm table-fixed">
               <colgroup>
                 <col v-for="col in activeColumns" :key="col.key" :class="col.width" />
-                <col v-if="canManage" class="w-36" />
+                <col v-if="canManage" class="w-24" />
               </colgroup>
 
               <!-- COACHES & MANAGERS -->
@@ -266,10 +266,11 @@
                         <span class="inline-flex items-center justify-center w-6 h-6 shrink-0">
                           <Checkbox v-if="coachSelMode" :modelValue="coachSel.includes(c.id)" binary
                             @update:modelValue="v => toggleRowSel('coach', c.id, v)" />
-                          <NuxtLink v-else :to="`/people/${c.id}`" title="Open profile"
-                            class="w-6 h-6 rounded-full border border-gray-300 text-gray-400 hover:text-[#1976d2] hover:border-[#1976d2] inline-flex items-center justify-center">
+                          <button v-else type="button" title="Actions"
+                            class="w-6 h-6 rounded-full border border-gray-300 text-gray-400 hover:text-[#1976d2] hover:border-[#1976d2] inline-flex items-center justify-center"
+                            @click="openPersonMenu($event, c)">
                             <i class="pi pi-user text-[11px]" />
-                          </NuxtLink>
+                          </button>
                         </span>
                         <button type="button" class="text-[#1976d2] hover:underline text-left" @click="openAdd('coach', c)">{{ c.name }}</button>
                       </div>
@@ -282,10 +283,8 @@
                     </template>
                     <template v-else>{{ (c as any)[col.key] || '' }}</template>
                   </td>
-                  <td v-if="canManage" class="px-3 py-2.5 text-right align-top">
-                    <div class="inline-flex items-center gap-2.5">
-                      <a v-if="c.email" :href="`mailto:${c.email}`" class="text-gray-400 hover:text-[#1976d2]" :title="`Email ${c.name}`" @click.stop><i class="pi pi-envelope text-base" /></a>
-                      <a v-if="c.phone" :href="`sms:${c.phone}`" class="text-gray-400 hover:text-[#1976d2]" :title="`Message ${c.name}`" @click.stop><i class="pi pi-mobile text-base" /></a>
+                  <td v-if="canManage" class="px-4 py-2.5 text-right align-top">
+                    <div class="inline-flex items-center gap-3">
                       <PersonNotes :person-id="c.id" :person-name="c.name" :links="noteLinks" :initial-count="noteCounts[c.id] ?? 0"
                         :context-label="noteContextLabel" @count-change="v => noteCounts[c.id] = v" />
                       <button type="button" class="text-red-500 hover:text-red-700"
@@ -335,10 +334,11 @@
                         <span class="inline-flex items-center justify-center w-6 h-6 shrink-0">
                           <Checkbox v-if="memberSelMode" :modelValue="memberSel.includes(m.id)" binary
                             @update:modelValue="v => toggleRowSel('member', m.id, v)" />
-                          <NuxtLink v-else :to="`/people/${m.id}`" title="Open profile"
-                            class="w-6 h-6 rounded-full border border-gray-300 text-gray-400 hover:text-[#1976d2] hover:border-[#1976d2] inline-flex items-center justify-center">
+                          <button v-else type="button" title="Actions"
+                            class="w-6 h-6 rounded-full border border-gray-300 text-gray-400 hover:text-[#1976d2] hover:border-[#1976d2] inline-flex items-center justify-center"
+                            @click="openPersonMenu($event, m)">
                             <i class="pi pi-user text-[11px]" />
-                          </NuxtLink>
+                          </button>
                         </span>
                         <button type="button" class="text-[#1976d2] hover:underline text-left" @click="openAdd('member', m)">{{ m.name }}</button>
                       </div>
@@ -351,10 +351,8 @@
                     </template>
                     <template v-else>{{ (m as any)[col.key] || '' }}</template>
                   </td>
-                  <td v-if="canManage" class="px-3 py-2.5 text-right align-top">
-                    <div class="inline-flex items-center gap-2.5">
-                      <a v-if="m.email" :href="`mailto:${m.email}`" class="text-gray-400 hover:text-[#1976d2]" :title="`Email ${m.name}`" @click.stop><i class="pi pi-envelope text-base" /></a>
-                      <a v-if="m.phone" :href="`sms:${m.phone}`" class="text-gray-400 hover:text-[#1976d2]" :title="`Message ${m.name}`" @click.stop><i class="pi pi-mobile text-base" /></a>
+                  <td v-if="canManage" class="px-4 py-2.5 text-right align-top">
+                    <div class="inline-flex items-center gap-3">
                       <PersonNotes :person-id="m.id" :person-name="m.name" :links="noteLinks" :initial-count="noteCounts[m.id] ?? 0"
                         :context-label="noteContextLabel" @count-change="v => noteCounts[m.id] = v" />
                       <button type="button" class="text-red-500 hover:text-red-700"
@@ -976,6 +974,9 @@
         <Button label="Save" :loading="savingBilling" style="background:#1E2157;border-color:#1E2157" @click="saveBilling" />
       </template>
     </Dialog>
+
+    <!-- Shared per-person action menu (See profile / Send message / Email) -->
+    <Menu ref="personMenu" :model="personMenuItems" :popup="true" />
 
     <Dialog v-model:visible="groupEditOpen" modal :style="{ width: '95vw', maxWidth: '480px' }" header="Edit group">
       <div class="flex flex-col gap-3.5">
@@ -1783,6 +1784,18 @@ const noteLinks = computed(() => {
 })
 const noteContextLabel = computed(() =>
   [group.value?.name, groupTerm.value?.name].filter(Boolean).join(' · '))
+
+// Per-person action menu on the roster avatar (See profile / Send message / Email).
+const personMenu = ref()
+const personMenuItems = ref<any[]>([])
+function openPersonMenu(e: Event, p: { id: string; name: string; email: string | null; phone: string | null }) {
+  personMenuItems.value = [
+    { label: 'See profile', icon: 'pi pi-user', command: () => navigateTo(`/people/${p.id}`) },
+    { label: 'Send message', icon: 'pi pi-mobile', disabled: !p.phone, command: () => { if (p.phone) window.location.href = `sms:${p.phone}` } },
+    { label: 'Email', icon: 'pi pi-envelope', disabled: !p.email, command: () => { if (p.email) window.location.href = `mailto:${p.email}` } },
+  ]
+  personMenu.value?.toggle(e)
+}
 const noteInThisGroup = (n: any) => Array.isArray(n.links) && n.links.some((l: any) => l.type === 'group' && l.id === group.value?.id)
 
 async function loadNoteCounts() {
