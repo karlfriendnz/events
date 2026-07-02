@@ -121,8 +121,14 @@ const dayLabelOf = ref('')
 function openSummary(sm: Summary, dayLabel: string) { openSummaryRef.value = sm; dayLabelOf.value = dayLabel }
 function pickFromSummary(s: TimetableSession) { openSummaryRef.value = null; emit('select', s) }
 // When a class has space, jump to the group with its Add-person dialog open.
-function addToGroup(s: TimetableSession) { openSummaryRef.value = null; navigateTo(`/groups/${s.groupId}?add=member`) }
+function addToGroup(s: TimetableSession) { openSummaryRef.value = null; openClassRef.value = null; navigateTo(`/groups/${s.groupId}?add=member`) }
 function hasSpace(s: TimetableSession) { return s.capacity == null || s.count < s.capacity }
+
+// Single-class detail dialog — clicking a block opens this (rather than jumping
+// straight to the group), so a single class gets the same modal treatment.
+const openClassRef = ref<TimetableSession | null>(null)
+function openClass(s: TimetableSession) { openClassRef.value = s }
+function openClassPage() { const s = openClassRef.value; openClassRef.value = null; if (s) emit('select', s) }
 // Flatten the open cluster's start-groups into one time-sorted list for the table.
 const summaryRows = computed(() => (openSummaryRef.value?.starts ?? []).flatMap(g => g.items))
 // Consistent clock format for the modal — always H:MM AM/PM (e.g. "4:00 PM").
@@ -192,7 +198,7 @@ const nowTop = computed(() => {
             <!-- class blocks (sparse clusters) -->
             <button v-for="s in byDay[col.d].blocks" :key="s.id" type="button"
               class="group absolute rounded-lg border text-left overflow-hidden transition-all hover:z-30 hover:shadow-lg hover:-translate-y-px focus:outline-none focus:ring-2 focus:ring-primary/40"
-              :style="blockStyle(s)" @click="emit('select', s)"
+              :style="blockStyle(s)" @click="openClass(s)"
               v-tooltip.top="`${s.groupName}\n${s.startLabel}–${s.endLabel}${s.coach ? ' · ' + s.coach : ''}${s.venue ? ' · ' + s.venue : ''}${s.capacity != null ? ' · ' + s.count + '/' + s.capacity : ''}`">
               <span class="absolute inset-y-0 left-0 w-1" :style="{ background: s.color }" />
               <div class="pl-2.5 pr-1.5 py-1 h-full flex flex-col min-w-0">
@@ -291,6 +297,44 @@ const nowTop = computed(() => {
             </tr>
           </tbody>
         </table>
+      </div>
+    </div>
+  </Dialog>
+
+  <!-- single-class detail dialog (block click) -->
+  <Dialog :visible="!!openClassRef" modal :dismissableMask="true" :showHeader="false"
+    @update:visible="v => { if (!v) openClassRef = null }" :style="{ width: '95vw', maxWidth: '420px' }" contentClass="!p-0">
+    <div v-if="openClassRef" class="flex items-stretch">
+      <span class="w-1.5 shrink-0" :style="{ background: openClassRef.color }" />
+      <div class="flex-1 min-w-0 px-5 py-4">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-base font-semibold text-gray-900">{{ openClassRef.groupName }}</p>
+            <p v-if="openClassRef.codeName" class="text-xs text-gray-400 mt-0.5">{{ openClassRef.codeName }}</p>
+          </div>
+          <button class="text-gray-400 hover:text-gray-700 shrink-0 -mt-0.5" @click="openClassRef = null"><i class="pi pi-times" /></button>
+        </div>
+        <div class="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+          <span class="text-gray-400 text-xs pt-0.5">When</span>
+          <span class="text-gray-700 tabular-nums">{{ FULL[openClassRef.day] }} · {{ fmtTime(openClassRef.startMin) }} – {{ fmtTime(openClassRef.endMin) }}</span>
+          <template v-if="openClassRef.coach"><span class="text-gray-400 text-xs pt-0.5">Coach</span><span class="text-gray-700">{{ openClassRef.coach }}</span></template>
+          <template v-if="openClassRef.venue"><span class="text-gray-400 text-xs pt-0.5">Venue</span><span class="text-gray-700">{{ openClassRef.venue }}</span></template>
+          <span class="text-gray-400 text-xs pt-0.5">Enrolled</span>
+          <span class="flex items-center gap-2 flex-wrap">
+            <span v-if="openClassRef.capacity != null" class="text-[11px] font-semibold px-1.5 py-0.5 rounded" :class="fillClass(openClassRef)">{{ openClassRef.count }}/{{ openClassRef.capacity }}</span>
+            <span v-else class="text-gray-700">{{ openClassRef.count }}</span>
+            <span v-if="hasSpace(openClassRef) && openClassRef.capacity != null" class="text-[11px] font-semibold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">{{ openClassRef.capacity - openClassRef.count }} {{ openClassRef.capacity - openClassRef.count === 1 ? 'space' : 'spaces' }}</span>
+          </span>
+        </div>
+        <div class="mt-5 flex items-center gap-2">
+          <button v-if="hasSpace(openClassRef)" type="button" @click="addToGroup(openClassRef)"
+            class="text-sm font-medium text-white px-3 py-2 rounded-lg inline-flex items-center gap-1.5" style="background:#1E2157">
+            <i class="pi pi-user-plus text-xs" /> Add person
+          </button>
+          <button type="button" @click="openClassPage" class="text-sm font-medium text-gray-600 hover:text-primary px-3 py-2 rounded-lg border border-gray-200 hover:border-gray-300 inline-flex items-center gap-1.5">
+            Open class <i class="pi pi-angle-right text-xs" />
+          </button>
+        </div>
       </div>
     </div>
   </Dialog>
