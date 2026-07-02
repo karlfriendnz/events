@@ -164,7 +164,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
     <template v-else>
       <!-- MEMBER TYPE -->
       <AppCard title="Member type" description="The type of person who is a MEMBER in the groups under this code. Drives which custom fields apply to them.">
-        <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+        <div class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3">
           <Select v-model="memberType" :options="personTypeOptions" optionLabel="label" optionValue="value"
             placeholder="Choose a member type" class="w-full sm:w-72" showClear filter />
           <Button label="Save" :disabled="savingMember" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveMemberType" />
@@ -176,13 +176,15 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         <template #header-action>
           <Button label="Save roles" size="small" :disabled="savingOwn" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveOwn" />
         </template>
-        <RoleMatrix :roles="ownRoles" :caps="cr.CODE_CAPABILITIES" empty="No code-specific roles yet — the default roles below still apply."
-          @add="addRole('own')" @remove="i => removeRole('own', i)" @toggle="(r, c, v) => toggleCap(r, c, v)" :runs="roleRuns" />
+        <div class="p-4 sm:p-5">
+          <RoleMatrix :roles="ownRoles" :caps="cr.CODE_CAPABILITIES" empty="No code-specific roles yet — the default roles below still apply."
+            @add="addRole('own')" @remove="i => removeRole('own', i)" @toggle="(r, c, v) => toggleCap(r, c, v)" :runs="roleRuns" />
+        </div>
       </AppCard>
 
       <!-- INHERITED -->
       <AppCard v-if="inheritedRoles.length" title="Inherited from parent codes" description="Roles set on a parent code — edit them on that code.">
-        <div class="space-y-2">
+        <div class="p-4 sm:p-5 space-y-2">
           <div v-for="r in inheritedRoles" :key="r.id" class="flex items-center gap-2 flex-wrap border border-gray-100 rounded-lg px-3 py-2">
             <span class="font-medium text-gray-700 text-sm">{{ r.label }}</span>
             <span class="text-[11px] text-gray-400">from {{ r.fromLabel }}</span>
@@ -195,7 +197,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
 
       <!-- PEOPLE IN ROLES -->
       <AppCard title="People in roles" description="Assign staff to each role. Assignments cascade to this code's sub-codes and groups.">
-        <div class="space-y-3">
+        <div class="p-4 sm:p-5 space-y-3">
           <div v-for="r in effectiveRoles" :key="r.key" class="border border-gray-100 rounded-lg p-3">
             <div class="flex items-center justify-between gap-2">
               <span class="font-medium text-gray-800 text-sm">{{ r.label }}</span>
@@ -222,8 +224,10 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         <template #header-action>
           <Button label="Save defaults" size="small" severity="secondary" outlined :disabled="savingDefault" @click="saveDefaults" />
         </template>
-        <RoleMatrix :roles="defaultRoles" :caps="cr.CODE_CAPABILITIES" empty="No default roles."
-          @add="addRole('default')" @remove="i => removeRole('default', i)" @toggle="(r, c, v) => toggleCap(r, c, v)" :runs="roleRuns" />
+        <div class="p-4 sm:p-5">
+          <RoleMatrix :roles="defaultRoles" :caps="cr.CODE_CAPABILITIES" empty="No default roles."
+            @add="addRole('default')" @remove="i => removeRole('default', i)" @toggle="(r, c, v) => toggleCap(r, c, v)" :runs="roleRuns" />
+        </div>
       </AppCard>
     </template>
 
