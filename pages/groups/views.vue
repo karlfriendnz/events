@@ -32,7 +32,7 @@ async function load() {
 
 function openNew() {
   editing.value = null
-  form.name = ''; form.columns = ['head', 'gymnasts', 'waitlist', 'sport']; form.codeIds = []
+  form.name = ''; form.columns = ['head', 'gymnasts', 'waitlist', 'attendances', 'termfee', 'gender', 'signup', 'sport']; form.codeIds = []
   dialogOpen.value = true
 }
 function openEdit(v: GroupView) {

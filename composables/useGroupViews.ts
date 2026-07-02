@@ -9,6 +9,10 @@ export const VIEW_COLUMNS = [
   { key: 'head', label: 'Head' },
   { key: 'gymnasts', label: 'Gymnasts' },
   { key: 'waitlist', label: 'Waitlist' },
+  { key: 'attendances', label: 'Attendances' },
+  { key: 'termfee', label: 'Term fee' },
+  { key: 'gender', label: 'Gender' },
+  { key: 'signup', label: 'Signup' },
   { key: 'sport', label: 'Sport' },
 ] as const
 
@@ -28,7 +32,7 @@ export interface GroupView {
   created_at?: string
 }
 
-const DEFAULT_CONFIG: GroupViewConfig = { columns: ['head', 'gymnasts', 'waitlist', 'sport'], codeIds: [] }
+const DEFAULT_CONFIG: GroupViewConfig = { columns: ['head', 'gymnasts', 'waitlist', 'attendances', 'termfee', 'gender', 'signup', 'sport'], codeIds: [] }
 
 export function useGroupViews() {
   const db = useDb()

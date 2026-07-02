@@ -16,7 +16,7 @@ const props = withDefaults(defineProps<{
   codeIds?: string[]
   allowNewTab?: boolean
 }>(), {
-  columns: () => ['head', 'gymnasts', 'waitlist', 'sport'],
+  columns: () => ['head', 'gymnasts', 'waitlist', 'attendances', 'termfee', 'gender', 'signup', 'sport'],
   codeIds: () => [],
   allowNewTab: false,
 })
@@ -26,13 +26,19 @@ const { orgId } = useOrg()
 const toast = useToast()
 const gc = useGroupCodes()
 const scoped = useScopedRoles()
+const gf = useGroupFees()
 
 const showCol = (k: ViewColumnKey) => props.columns.includes(k)
 
 interface ClassGroup {
   id: string; name: string; code_id: string | null; capacity: number | null; color: string | null
   headName: string | null; gymnasts: number; waitlist: number | null; sport: string | null
+  gender: string | null; feeLabel: string | null; feeCount: number; attendances: number
 }
+
+// Gender restriction (migration 203) → short label; null = open to all.
+const GENDER_LABELS: Record<string, string> = { MALE: 'Male', FEMALE: 'Female', NON_BINARY: 'Non-binary' }
+const genderLabel = (g: string | null) => g ? (GENDER_LABELS[g] ?? g) : 'Any'
 
 const codes = ref<GroupCode[]>([])
 const groups = ref<ClassGroup[]>([])
@@ -108,17 +114,25 @@ async function load() {
   if (!orgId.value) return
   loading.value = true
   await scoped.loadRoleDefs()
-  const [loadedCodes, { data: gs }, { data: mems }, { data: discs }] = await Promise.all([
+  const [loadedCodes, { data: gs }, { data: mems }, { data: discs }, { data: feeOpts }, { data: evs }] = await Promise.all([
     gc.loadCodes(),
-    (db.from as any)('member_groups').select('id, name, code_id, capacity, color').eq('org_id', orgId.value),
+    (db.from as any)('member_groups').select('id, name, code_id, capacity, color, gender_restriction').eq('org_id', orgId.value),
     (db.from as any)('member_group_memberships').select('group_id, role, roles, person:persons!inner(first_name, last_name)'),
     (db.from as any)('member_group_disciplines').select('group_id, discipline:disciplines(sport, name)'),
+    (db.from as any)('group_fee_options').select('id, group_id, name, fee_type, period_unit, period_count, instalment_count, session_count, prorata, items:group_fee_option_items(amount)').eq('org_id', orgId.value),
+    (db.from as any)('events').select('member_group_id').eq('org_id', orgId.value).not('member_group_id', 'is', null),
   ])
   codes.value = loadedCodes
   const memByGroup: Record<string, any[]> = {}
   for (const m of mems ?? []) (memByGroup[m.group_id] ??= []).push(m)
   const sportByGroup: Record<string, string> = {}
   for (const d of discs ?? []) if (!sportByGroup[d.group_id]) sportByGroup[d.group_id] = d.discipline?.sport || d.discipline?.name || ''
+  // Term fee: group's fee options → single = its price label, multiple = "varies", none = ✗.
+  const feesByGroup: Record<string, any[]> = {}
+  for (const o of feeOpts ?? []) (feesByGroup[o.group_id] ??= []).push(o)
+  // Attendances: number of training events linked to the group (member_group_id set).
+  const attByGroup: Record<string, number> = {}
+  for (const e of evs ?? []) attByGroup[e.member_group_id] = (attByGroup[e.member_group_id] || 0) + 1
 
   groups.value = (gs ?? []).map((g: any): ClassGroup => {
     const rows = memByGroup[g.id] ?? []
@@ -128,10 +142,15 @@ async function load() {
       if (scoped.isStaff('group', roleKeys)) { if (!head) head = m.person }
       else gymnasts++
     }
+    const opts = feesByGroup[g.id] ?? []
     return {
       id: g.id, name: g.name, code_id: g.code_id ?? null, capacity: g.capacity ?? null, color: g.color ?? null,
       headName: head ? `${head.first_name ?? ''} ${head.last_name ?? ''}`.trim() || null : null,
       gymnasts, waitlist: null, sport: sportByGroup[g.id] || null,
+      gender: g.gender_restriction ?? null,
+      feeCount: opts.length,
+      feeLabel: opts.length === 1 ? gf.priceLabel({ ...opts[0], items: opts[0].items ?? [] } as any) : null,
+      attendances: attByGroup[g.id] || 0,
     }
   })
   loading.value = false
@@ -191,6 +210,10 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
               <th v-if="showCol('head')" class="px-3 py-3">Head</th>
               <th v-if="showCol('gymnasts')" class="px-3 py-3 w-24">Gymnasts</th>
               <th v-if="showCol('waitlist')" class="px-3 py-3 w-20">Waitlist</th>
+              <th v-if="showCol('attendances')" class="px-3 py-3 w-24">Attendances</th>
+              <th v-if="showCol('termfee')" class="px-3 py-3 w-28">Term fee</th>
+              <th v-if="showCol('gender')" class="px-3 py-3 w-24">Gender</th>
+              <th v-if="showCol('signup')" class="px-3 py-3 w-24">Signup</th>
               <th v-if="showCol('sport')" class="px-3 py-3 w-28">Sport</th>
             </tr>
           </thead>
@@ -206,6 +229,17 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
               <td v-if="showCol('head')" class="px-3 py-2.5 text-gray-600">{{ g.headName || '—' }}</td>
               <td v-if="showCol('gymnasts')" class="px-3 py-2.5 font-medium" :class="countClass(g)">{{ countLabel(g) }}</td>
               <td v-if="showCol('waitlist')" class="px-3 py-2.5 text-gray-600">{{ g.waitlist || '' }}</td>
+              <td v-if="showCol('attendances')" class="px-3 py-2.5 text-gray-600">{{ g.attendances || '—' }}</td>
+              <td v-if="showCol('termfee')" class="px-3 py-2.5 text-xs">
+                <span v-if="g.feeCount === 0" class="text-red-500"><i class="pi pi-times-circle" /></span>
+                <span v-else-if="g.feeCount > 1" class="italic text-gray-500">varies</span>
+                <span v-else class="text-gray-700">{{ g.feeLabel }}</span>
+              </td>
+              <td v-if="showCol('gender')" class="px-3 py-2.5 text-gray-600 text-xs">{{ genderLabel(g.gender) }}</td>
+              <td v-if="showCol('signup')" class="px-3 py-2.5 text-xs" @click.stop>
+                <span v-if="g.feeCount > 0" class="text-emerald-600 whitespace-nowrap"><i class="pi pi-check-circle" /> Live</span>
+                <span v-else class="text-gray-400 whitespace-nowrap" v-tooltip.top="'No fee option yet — add one on the group Fees tab'"><i class="pi pi-times-circle" /> Not live</span>
+              </td>
               <td v-if="showCol('sport')" class="px-3 py-2.5 text-gray-500 text-xs">{{ g.sport || '' }}</td>
             </tr>
             <tr v-if="showCol('gymnasts')" class="bg-gray-50/60">
@@ -213,6 +247,10 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
               <td v-if="showCol('head')"></td>
               <td class="px-3 py-2 text-xs italic font-semibold text-gray-600">{{ sec.total }}</td>
               <td v-if="showCol('waitlist')"></td>
+              <td v-if="showCol('attendances')"></td>
+              <td v-if="showCol('termfee')"></td>
+              <td v-if="showCol('gender')"></td>
+              <td v-if="showCol('signup')"></td>
               <td v-if="showCol('sport')"></td>
             </tr>
           </tbody>
@@ -230,6 +268,19 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
               </div>
               <div v-if="showCol('head') || showCol('sport')" class="text-xs text-gray-500 mt-0.5">
                 <template v-if="showCol('head')">{{ g.headName || '—' }}</template><template v-if="showCol('sport') && g.sport"> · {{ g.sport }}</template>
+              </div>
+              <div v-if="showCol('gender') || showCol('termfee') || showCol('attendances') || showCol('signup')"
+                class="text-xs text-gray-500 mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5">
+                <span v-if="showCol('gender')">{{ genderLabel(g.gender) }}</span>
+                <span v-if="showCol('attendances')">{{ g.attendances || 0 }} sessions</span>
+                <span v-if="showCol('termfee')">
+                  <template v-if="g.feeCount === 0">No fee</template>
+                  <template v-else-if="g.feeCount > 1">Fees vary</template>
+                  <template v-else>{{ g.feeLabel }}</template>
+                </span>
+                <span v-if="showCol('signup')" :class="g.feeCount > 0 ? 'text-emerald-600' : 'text-gray-400'">
+                  {{ g.feeCount > 0 ? 'Live' : 'Not live' }}
+                </span>
               </div>
             </div>
             <span v-if="showCol('gymnasts')" class="text-sm font-medium shrink-0 px-2 py-0.5 rounded" :class="countClass(g)">{{ countLabel(g) }}</span>
