@@ -1005,7 +1005,7 @@
           <label class="text-sm font-medium">Head</label>
           <Select v-model="groupDraft.head_person_id" :options="headPersonOptions" optionLabel="label" optionValue="value"
             placeholder="First coach" class="w-full" :showClear="true" filter />
-          <p v-if="!headPersonOptions.length" class="text-xs text-gray-400">Add coaches or members to pick a head.</p>
+          <p v-if="!headPersonOptions.length" class="text-xs text-gray-400">Add a coach to the group to pick a head.</p>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
@@ -1513,12 +1513,11 @@ const gf = useGroupFees()
 const gc = useGroupCodes()
 const { uploadFile } = useUpload()
 
-// Head picker: the group's coaches first, then other members, so you can name a
-// head even if they're not yet coach-roled.
+// Head picker: only the group's STAFF (coaches) — a head is a staff member.
 const headPersonOptions = computed(() => {
   const seen = new Set<string>()
   const opts: { label: string; value: string }[] = []
-  for (const p of [...coaches.value, ...members.value]) {
+  for (const p of coaches.value) {
     if (seen.has(p.id)) continue
     seen.add(p.id)
     opts.push({ label: p.name, value: p.id })
