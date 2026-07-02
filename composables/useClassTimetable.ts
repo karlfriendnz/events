@@ -26,6 +26,7 @@ export interface TimetableSession {
   termId: string | null
   genderRestriction: string | null
   ageRange: string | null
+  imageUrl: string | null
   // layout (filled per day by layoutDay)
   lane?: number
   cols?: number
@@ -85,7 +86,7 @@ export function useClassTimetable() {
     await scoped.loadRoleDefs()
     const [codes, { data: groups }] = await Promise.all([
       gc.loadCodes(),
-      (db.from as any)('member_groups').select('id, name, color, code_id, capacity, term_id, gender_restriction, age_range').eq('org_id', orgId.value),
+      (db.from as any)('member_groups').select('id, name, color, code_id, capacity, term_id, gender_restriction, age_range, image_url').eq('org_id', orgId.value),
     ])
     const codesById = Object.fromEntries((codes ?? []).map((c: any) => [c.id, c])) as Record<string, GroupCode>
     const groupIds = (groups ?? []).map((g: any) => g.id)
@@ -129,6 +130,7 @@ export function useClassTimetable() {
         termId: gc.effectiveTermId(g, codesById),
         genderRestriction: g.gender_restriction ?? null,
         ageRange: g.age_range ?? null,
+        imageUrl: g.image_url ?? null,
       })
     }
     return { sessions, codes: codes ?? [] }

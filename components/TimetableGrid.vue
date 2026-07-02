@@ -304,15 +304,22 @@ const nowTop = computed(() => {
   <!-- single-class detail dialog (block click) -->
   <Dialog :visible="!!openClassRef" modal :dismissableMask="true" :showHeader="false"
     @update:visible="v => { if (!v) openClassRef = null }" :style="{ width: '95vw', maxWidth: '420px' }" contentClass="!p-0">
-    <div v-if="openClassRef" class="flex items-stretch">
-      <span class="w-1.5 shrink-0" :style="{ background: openClassRef.color }" />
-      <div class="flex-1 min-w-0 px-5 py-4">
+    <div v-if="openClassRef" class="flex flex-col">
+      <!-- group image banner (bookings-module style), colour strip fallback -->
+      <div v-if="openClassRef.imageUrl" class="h-28 shrink-0 bg-gray-100 overflow-hidden relative">
+        <img :src="openClassRef.imageUrl" class="w-full h-full object-cover" :alt="openClassRef.groupName" />
+        <button class="absolute top-2 right-2 w-7 h-7 rounded-lg bg-white/85 shadow-sm flex items-center justify-center text-gray-500 hover:text-gray-800" @click="openClassRef = null"><i class="pi pi-times text-sm" /></button>
+      </div>
+      <div v-else class="h-1.5 shrink-0" :style="{ background: openClassRef.color }" />
+      <div class="min-w-0 px-5 py-4">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="text-base font-semibold text-gray-900">{{ openClassRef.groupName }}</p>
+            <p class="text-base font-semibold text-gray-900 flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: openClassRef.color }" />{{ openClassRef.groupName }}
+            </p>
             <p v-if="openClassRef.codeName" class="text-xs text-gray-400 mt-0.5">{{ openClassRef.codeName }}</p>
           </div>
-          <button class="text-gray-400 hover:text-gray-700 shrink-0 -mt-0.5" @click="openClassRef = null"><i class="pi pi-times" /></button>
+          <button v-if="!openClassRef.imageUrl" class="text-gray-400 hover:text-gray-700 shrink-0 -mt-0.5" @click="openClassRef = null"><i class="pi pi-times" /></button>
         </div>
         <div class="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
           <span class="text-gray-400 text-xs pt-0.5">When</span>
