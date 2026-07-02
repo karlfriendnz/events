@@ -43,6 +43,7 @@ export const PERMISSION_RESOURCES: PermResource[] = [
   { key: 'resources', label: 'Resources', area: 'Content', description: 'Manage the document/resource library shared with members.' },
   { key: 'uniforms', label: 'Uniforms / Assets', area: 'Content', description: 'Manage uniform and asset inventory, stock and issue/return.' },
   { key: 'communications', label: 'Communications / Mailer', area: 'Content', description: 'Send bulk emails and manage communication topics and history.' },
+  { key: 'notes', label: 'Notes', area: 'Content', description: 'Create, edit and delete notes on people across rosters, attendance and profiles.' },
   // Admin
   { key: 'organisations', label: 'Organisations', area: 'Admin', description: 'Manage organisation details and the org hierarchy/affiliations.' },
   { key: 'settings', label: 'Settings', area: 'Admin', description: 'Change club settings, branding, terminology and season.' },

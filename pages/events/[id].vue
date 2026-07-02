@@ -1272,7 +1272,7 @@
                           <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
                           <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
                           :person-name="((inv.person?.first_name || '') + ' ' + (inv.person?.last_name || '')).trim()"
-                          :links="attNoteLinks" :context-label="attNoteContextLabel" :can-edit-all="canManageEvent" :can-delete-all="canManageEvent"
+                          :links="attNoteLinks" :context-label="attNoteContextLabel" :can-edit-all="canEditNotes" :can-delete-all="canDeleteNotes"
                           :initial-count="attNoteCounts[inv.person_id] ?? 0" @count-change="v => attNoteCounts[inv.person_id] = v">
                           <template #trigger="{ open, count }">
                             <button class="hover:text-primary transition-colors relative" v-tooltip.top="'Notes'" @click="open">
@@ -1313,7 +1313,7 @@
                       <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
                       <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
                         :person-name="((inv.person?.first_name || '') + ' ' + (inv.person?.last_name || '')).trim()"
-                        :links="attNoteLinks" :context-label="attNoteContextLabel" :can-edit-all="canManageEvent" :can-delete-all="canManageEvent"
+                        :links="attNoteLinks" :context-label="attNoteContextLabel" :can-edit-all="canEditNotes" :can-delete-all="canDeleteNotes"
                         :initial-count="attNoteCounts[inv.person_id] ?? 0" @count-change="v => attNoteCounts[inv.person_id] = v">
                         <template #trigger="{ open, count }">
                           <button class="hover:text-primary transition-colors relative" v-tooltip.top="'Notes'" @click="open">
@@ -1373,7 +1373,7 @@
                         <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
                         <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
                           :person-name="((inv.person?.first_name || '') + ' ' + (inv.person?.last_name || '')).trim()"
-                          :links="attNoteLinks" :context-label="attNoteContextLabel" :can-edit-all="canManageEvent" :can-delete-all="canManageEvent"
+                          :links="attNoteLinks" :context-label="attNoteContextLabel" :can-edit-all="canEditNotes" :can-delete-all="canDeleteNotes"
                           :initial-count="attNoteCounts[inv.person_id] ?? 0" @count-change="v => attNoteCounts[inv.person_id] = v">
                           <template #trigger="{ open, count }">
                             <button class="hover:text-primary transition-colors relative" v-tooltip.top="'Notes'" @click="open">
@@ -1428,7 +1428,7 @@
                         <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
                         <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
                           :person-name="((inv.person?.first_name || '') + ' ' + (inv.person?.last_name || '')).trim()"
-                          :links="attNoteLinks" :context-label="attNoteContextLabel" :can-edit-all="canManageEvent" :can-delete-all="canManageEvent"
+                          :links="attNoteLinks" :context-label="attNoteContextLabel" :can-edit-all="canEditNotes" :can-delete-all="canDeleteNotes"
                           :initial-count="attNoteCounts[inv.person_id] ?? 0" @count-change="v => attNoteCounts[inv.person_id] = v">
                           <template #trigger="{ open, count }">
                             <button class="hover:text-primary transition-colors relative" v-tooltip.top="'Notes'" @click="open">
@@ -3443,6 +3443,11 @@ async function loadAttNoteCounts() {
 // Scoped per-event roles (manager/coach of this event — or its linked group — can run it).
 const scopedEv = useScopedRoles()
 const canManageEvent = computed(() => event.value ? scopedEv.canManageEvent(event.value.id, event.value.member_group_id) : true)
+// Global notes permission (edit/delete); author edit handled in <PersonNotes>.
+const rbacNotes = useCan()
+onMounted(() => rbacNotes.load())
+const canEditNotes = computed(() => rbacNotes.can('notes', 'update'))
+const canDeleteNotes = computed(() => rbacNotes.can('notes', 'delete'))
 const canTakeAttendance = computed(() => event.value ? scopedEv.canTakeAttendanceEvent(event.value.id, event.value.member_group_id) : true)
 const allCategories = ref<any[]>([])
 const moreMenu = ref()
