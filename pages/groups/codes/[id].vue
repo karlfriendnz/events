@@ -28,14 +28,21 @@ const lineage = computed(() => code.value ? codeLineage(code.value) : null)
 const personTypeOptions = ref<{ label: string; value: string }[]>([])
 const memberType = ref<string | null>(null)
 
-const ownRoles = ref<CodeRoleDef[]>([])
-const inheritedRoles = ref<(CodeRoleDef & { fromLabel: string })[]>([])
+// One master-detail role list: this code's OWN roles (editable) + inherited +
+// default roles (read-only). Rendered by <RolePermissions>.
+interface RoleItem { _uid: number; groupKey: string; editable: boolean; id?: string; key: string; label: string; capabilities: string[] }
+let ruid = 1
+const roleItems = ref<RoleItem[]>([])
 const allDefs = ref<CodeRoleDef[]>([])
 const staff = ref<CodeStaff[]>([])
 const savingMember = ref(false)
 const savingOwn = ref(false)
-// Org-wide default roles are read-only here — edited on /groups/codes/default-roles.
-const defaultRolesRO = computed(() => allDefs.value.filter(d => d.code_lineage_id == null))
+const hasInherited = computed(() => roleItems.value.some(r => r.groupKey === 'inherited'))
+const roleGroups = computed(() => [
+  { key: 'own', label: `This code — ${code.value?.name ?? ''}`, addable: true },
+  ...(hasInherited.value ? [{ key: 'inherited', label: 'Inherited from parent codes', note: 'Set on a parent code — edit it there.' }] : []),
+  { key: 'default', label: 'Default (all codes)', note: 'Applies to every code — edit on the Default roles page.' },
+])
 
 // Effective roles (defaults + own + inherited) to assign people to.
 const effectiveRoles = computed(() => code.value ? cr.rolesForCode(code.value, codesById.value, allDefs.value) : [])
@@ -59,16 +66,17 @@ async function load() {
   memberType.value = code.value?.member_type_key ?? null
 
   const ln = lineage.value
-  ownRoles.value = clone(defs.filter(d => d.code_lineage_id === ln))
-  // ancestor lineages (excluding this code's own) → inherited, read-only.
   const chain = code.value ? cr.lineageChain(code.value, codesById.value).filter(l => l !== ln) : []
   const chainSet = new Set(chain)
-  const labelForLineage = (l: string) => codes.value.find(c => codeLineage(c) === l)?.name ?? 'Parent'
-  inheritedRoles.value = defs.filter(d => d.code_lineage_id && chainSet.has(d.code_lineage_id))
-    .map(d => ({ ...d, fromLabel: labelForLineage(d.code_lineage_id!) }))
+  const mk = (d: CodeRoleDef, groupKey: string, editable: boolean): RoleItem =>
+    ({ _uid: ruid++, groupKey, editable, id: d.id, key: d.key, label: d.label, capabilities: [...(d.capabilities ?? [])] })
+  roleItems.value = [
+    ...defs.filter(d => d.code_lineage_id === ln).map(d => mk(d, 'own', true)),
+    ...defs.filter(d => d.code_lineage_id && chainSet.has(d.code_lineage_id)).map(d => mk(d, 'inherited', false)),
+    ...defs.filter(d => d.code_lineage_id == null).map(d => mk(d, 'default', false)),
+  ]
   loading.value = false
 }
-const clone = (list: CodeRoleDef[]) => list.map(r => ({ ...r, capabilities: [...(r.capabilities ?? [])] }))
 
 async function saveMemberType() {
   if (!code.value) return
@@ -78,24 +86,19 @@ async function saveMemberType() {
   toast.add({ severity: 'success', summary: 'Member type saved', life: 1600 })
 }
 
-function addRole() {
-  ownRoles.value.push({ code_lineage_id: lineage.value, key: '', label: '', capabilities: [], sort_order: ownRoles.value.length })
+function addOwnRole(groupKey: string) {
+  if (groupKey !== 'own') return
+  roleItems.value.push({ _uid: ruid++, groupKey: 'own', editable: true, key: '', label: 'New role', capabilities: [] })
 }
-function removeRole(i: number) { ownRoles.value.splice(i, 1) }
-function toggleCap(role: CodeRoleDef, capKey: string, on: boolean) {
-  const set = new Set(role.capabilities)
-  on ? set.add(capKey) : set.delete(capKey)
-  role.capabilities = [...set]
-}
-function roleRuns(role: CodeRoleDef) {
-  // "manages" if it can add people or create groups (umbrella signal for the badge)
-  return role.capabilities.includes('add_people') || role.capabilities.includes('create_groups')
-}
+function removeOwnRole(role: RoleItem) { roleItems.value = roleItems.value.filter(r => r._uid !== role._uid) }
 
 async function saveOwn() {
   if (!lineage.value) return
   savingOwn.value = true
-  await cr.saveRolesForScope(lineage.value, ownRoles.value.filter(r => r.label.trim()))
+  const own = roleItems.value.filter(r => r.groupKey === 'own' && r.label.trim())
+  await cr.saveRolesForScope(lineage.value, own.map((r, i) => ({
+    code_lineage_id: lineage.value, key: r.key || cr.slug(r.label), label: r.label.trim(), capabilities: r.capabilities, sort_order: i,
+  })))
   savingOwn.value = false
   await load()
   toast.add({ severity: 'success', summary: 'Roles saved', life: 1600 })
@@ -158,29 +161,20 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         </div>
       </AppCard>
 
-      <!-- ROLES FOR THIS CODE -->
-      <AppCard :title="`Staff roles — ${code.name}`" description="Extra roles for this code. They apply to every group and sub-code inside it.">
-        <template #header-action>
-          <Button label="Save roles" size="small" :disabled="savingOwn" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveOwn" />
-        </template>
-        <div class="p-4 sm:p-5">
-          <RoleMatrix :roles="ownRoles" :caps="cr.CODE_CAPABILITIES" empty="No code-specific roles yet — the default roles below still apply."
-            @add="addRole" @remove="removeRole" @toggle="(r, c, v) => toggleCap(r, c, v)" :runs="roleRuns" />
-        </div>
-      </AppCard>
-
-      <!-- INHERITED -->
-      <AppCard v-if="inheritedRoles.length" title="Inherited from parent codes" description="Roles set on a parent code — edit them on that code.">
-        <div class="p-4 sm:p-5 space-y-2">
-          <div v-for="r in inheritedRoles" :key="r.id" class="flex items-center gap-2 flex-wrap border border-gray-100 rounded-lg px-3 py-2">
-            <span class="font-medium text-gray-700 text-sm">{{ r.label }}</span>
-            <span class="text-[11px] text-gray-400">from {{ r.fromLabel }}</span>
-            <div class="flex flex-wrap gap-1 ml-auto">
-              <span v-for="cap in r.capabilities" :key="cap" class="text-[10px] bg-gray-100 text-gray-500 rounded px-1.5 py-0.5">{{ cr.CODE_CAPABILITIES.find(c => c.key === cap)?.label || cap }}</span>
-            </div>
+      <!-- STAFF ROLES — this code's own (editable) + inherited + default (read-only) -->
+      <div class="space-y-3">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h2 class="text-sm font-semibold text-gray-800">Staff roles</h2>
+            <p class="text-xs text-gray-400">This code's own roles (apply to its sub-codes + groups), plus inherited &amp; default roles (read-only).</p>
+          </div>
+          <div class="flex items-center gap-3 shrink-0">
+            <NuxtLink to="/groups/codes/default-roles" class="text-xs font-semibold text-primary hover:underline whitespace-nowrap">Edit default roles →</NuxtLink>
+            <Button label="Save roles" size="small" :disabled="savingOwn" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveOwn" />
           </div>
         </div>
-      </AppCard>
+        <RolePermissions :groups="roleGroups" :roles="roleItems" :caps="cr.CODE_CAPABILITIES" @add="addOwnRole" @remove="removeOwnRole" />
+      </div>
 
       <!-- PEOPLE IN ROLES -->
       <AppCard title="People in roles" description="Assign staff to each role. Assignments cascade to this code's sub-codes and groups.">
@@ -206,24 +200,6 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         </div>
       </AppCard>
 
-      <!-- DEFAULT ROLES (all codes) — read-only; edited on the shared page -->
-      <AppCard title="Default roles (all codes)" description="These apply to every code. Edit them on the shared Default roles page.">
-        <template #header-action>
-          <NuxtLink to="/groups/codes/default-roles" class="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1">
-            Edit default roles <i class="pi pi-arrow-right text-[9px]" />
-          </NuxtLink>
-        </template>
-        <div class="p-4 sm:p-5 space-y-2">
-          <div v-for="r in defaultRolesRO" :key="r.id" class="flex items-center gap-2 flex-wrap border border-gray-100 rounded-lg px-3 py-2">
-            <span class="font-medium text-gray-700 text-sm">{{ r.label }}</span>
-            <div class="flex flex-wrap gap-1 ml-auto">
-              <span v-for="cap in r.capabilities" :key="cap" class="text-[10px] bg-gray-100 text-gray-500 rounded px-1.5 py-0.5">{{ cr.CODE_CAPABILITIES.find(c => c.key === cap)?.label || cap }}</span>
-              <span v-if="!r.capabilities.length" class="text-[10px] text-gray-300">no permissions</span>
-            </div>
-          </div>
-          <div v-if="!defaultRolesRO.length" class="text-sm text-gray-400">No default roles.</div>
-        </div>
-      </AppCard>
     </template>
 
     <!-- Assign person to a role -->
