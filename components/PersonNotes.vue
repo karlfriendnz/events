@@ -55,6 +55,7 @@ const count = ref<number>(props.initialCount ?? 0)   // scoped badge count
 const aud = useNoteAudiences()
 const noteAudiences = ref<string[]>(['staff'])
 const noteImportant = ref(false)
+const noteDue = ref<Date | null>(null)
 
 // The subject's parents/contacts — lazy-loaded so a "specific parent" can be
 // picked in the same audience multi-select (value `person:<id>`).
@@ -104,6 +105,7 @@ async function openDrawer() {
   newNote.value = ''
   noteAudiences.value = ['staff']
   noteImportant.value = false
+  noteDue.value = null
   loadParents()
   loading.value = true
   const { data } = await (db.from as any)('person_notes')
@@ -121,6 +123,7 @@ async function add() {
   const { data, error } = await (db.from as any)('person_notes').insert({
     org_id: orgId.value, person_id: props.personId, body, links: props.links ?? [],
     visible_to: buildVisibleTo(), visibility: noteAudiences.value[0] || 'staff', is_important: noteImportant.value,
+    due_date: aud.toISODate(noteDue.value),
     author_id: user.value?.id ?? null,
     author_name: (user.value?.user_metadata as any)?.full_name || user.value?.email || null,
   }).select('*').single()
@@ -130,6 +133,7 @@ async function add() {
     newNote.value = ''
     noteAudiences.value = ['staff']
     noteImportant.value = false
+    noteDue.value = null
     latestNote.value = body
     if (matchesScope(data)) setCount(count.value + 1)
   }
@@ -192,12 +196,15 @@ onBeforeUnmount(() => { if (open.value) activePanel.value = null })
                 display="chip" placeholder="Choose audiences" size="small" class="flex-1 min-w-0" :showToggleAll="false" />
             </div>
             <div class="flex items-center justify-between gap-2 flex-wrap">
-              <button type="button" @click="noteImportant = !noteImportant"
-                class="inline-flex items-center gap-1 text-xs font-semibold rounded px-2 py-1.5 border"
-                :class="noteImportant ? 'bg-amber-50 border-amber-300 text-amber-700' : 'border-gray-300 text-gray-500 hover:bg-gray-50'"
-                title="Flag as important">
-                <i class="pi text-[11px]" :class="noteImportant ? 'pi-flag-fill' : 'pi-flag'" /> Important
-              </button>
+              <div class="flex items-center gap-2">
+                <button type="button" @click="noteImportant = !noteImportant"
+                  class="inline-flex items-center gap-1 text-xs font-semibold rounded px-2 py-1.5 border"
+                  :class="noteImportant ? 'bg-amber-50 border-amber-300 text-amber-700' : 'border-gray-300 text-gray-500 hover:bg-gray-50'"
+                  title="Flag as important">
+                  <i class="pi text-[11px]" :class="noteImportant ? 'pi-flag-fill' : 'pi-flag'" /> Important
+                </button>
+                <DatePicker v-model="noteDue" dateFormat="d M yy" showButtonBar placeholder="Due date" size="small" class="w-36" showIcon iconDisplay="input" />
+              </div>
               <Button label="Add note" icon="pi pi-plus" size="small" :disabled="!newNote.trim() || saving"
                 style="background:#1976d2;border-color:#1976d2" @click="add" />
             </div>
@@ -219,9 +226,15 @@ onBeforeUnmount(() => { if (open.value) activePanel.value = null })
               <div v-if="Array.isArray(n.links) && n.links.length" class="flex flex-wrap gap-1 mt-1.5">
                 <span v-for="(l, li) in n.links" :key="li" class="text-[10px] bg-gray-100 text-gray-500 rounded px-1.5 py-0.5">{{ l.label || l.type }}</span>
               </div>
-              <div v-if="visibleToLabels(n).length" class="mt-1.5 flex items-center gap-1 flex-wrap">
-                <i class="pi pi-eye text-[10px] text-gray-400" />
-                <span v-for="(lbl, li) in visibleToLabels(n)" :key="li" class="text-[10px] bg-blue-50 text-blue-600 rounded px-1.5 py-0.5">{{ lbl }}</span>
+              <div v-if="visibleToLabels(n).length || n.due_date" class="mt-1.5 flex items-center gap-1 flex-wrap">
+                <template v-if="visibleToLabels(n).length">
+                  <i class="pi pi-eye text-[10px] text-gray-400" />
+                  <span v-for="(lbl, li) in visibleToLabels(n)" :key="li" class="text-[10px] bg-blue-50 text-blue-600 rounded px-1.5 py-0.5">{{ lbl }}</span>
+                </template>
+                <span v-if="n.due_date" class="text-[10px] rounded px-1.5 py-0.5 inline-flex items-center gap-1"
+                  :class="aud.isOverdue(n.due_date) ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-500'">
+                  <i class="pi pi-clock text-[9px]" />{{ aud.dueLabel(n.due_date) }}
+                </span>
               </div>
               <div class="mt-1.5 text-[11px] text-gray-400 flex items-center gap-2 flex-wrap">
                 <span>{{ fmtDate(n.created_at) }}</span>

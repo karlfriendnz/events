@@ -71,5 +71,19 @@ export function useNoteAudiences() {
     return legacyVisibility && legacyVisibility !== 'staff' ? [legacyVisibility] : []
   }
 
-  return { NOTE_AUDIENCE_BASE, loadParents, audienceOptions, audienceLabel, buildVisibleTo, visibleToLabels }
+  // Due-date helpers (shared so every note surface formats/stores dates the same).
+  function toISODate(d: Date | null | undefined): string | null {
+    if (!d) return null
+    const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+  function dueLabel(iso: string): string {
+    const d = new Date(iso + 'T00:00:00')
+    return 'Due ' + d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+  function isOverdue(iso: string): boolean {
+    return !!iso && iso < new Date().toISOString().slice(0, 10)
+  }
+
+  return { NOTE_AUDIENCE_BASE, loadParents, audienceOptions, audienceLabel, buildVisibleTo, visibleToLabels, toISODate, dueLabel, isOverdue }
 }

@@ -48,7 +48,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (e: 'update:modelValue', v: CfgItem[]): void
   (e: 'save', v: CfgItem[]): void
-  (e: 'add-note', payload: { body: string; links: NoteLink[]; visibleTo: any[]; important: boolean }): void
+  (e: 'add-note', payload: { body: string; links: NoteLink[]; visibleTo: any[]; important: boolean; dueDate: string | null }): void
   (e: 'delete-note', id: string): void
 }>()
 
@@ -275,6 +275,7 @@ const newNoteLinks = ref<NoteLink[]>([])
 const aud = useNoteAudiences()
 const noteAudiences = ref<string[]>(['staff'])
 const noteImportant = ref(false)
+const noteDue = ref<Date | null>(null)
 const noteParents = ref<import('~/composables/useNoteAudiences').NoteParent[]>([])
 const audienceOptions = computed(() => aud.audienceOptions(noteParents.value))
 const visibleToLabels = (n: any) => aud.visibleToLabels(n.visible_to, n.visibility)
@@ -309,8 +310,8 @@ const connectOptions = computed<NoteLink[]>(() => {
 const connectIcon = (type: string) => type === 'group' ? 'pi-users' : type === 'booking' ? 'pi-bookmark' : 'pi-calendar'
 function submitNote() {
   const body = newNoteBody.value.trim(); if (!body) return
-  emit('add-note', { body, links: [...newNoteLinks.value], visibleTo: aud.buildVisibleTo(noteAudiences.value, noteParents.value), important: noteImportant.value })
-  newNoteBody.value = ''; newNoteLinks.value = []; noteAudiences.value = ['staff']; noteImportant.value = false; composerOpen.value = false
+  emit('add-note', { body, links: [...newNoteLinks.value], visibleTo: aud.buildVisibleTo(noteAudiences.value, noteParents.value), important: noteImportant.value, dueDate: aud.toISODate(noteDue.value) })
+  newNoteBody.value = ''; newNoteLinks.value = []; noteAudiences.value = ['staff']; noteImportant.value = false; noteDue.value = null; composerOpen.value = false
 }
 function fmtDateTime(iso: string) {
   if (!iso) return ''
@@ -559,13 +560,16 @@ function statusSeverity(s: string) {
                 <MultiSelect v-model="noteAudiences" :options="audienceOptions" optionLabel="label" optionValue="value"
                   optionGroupLabel="label" optionGroupChildren="items"
                   display="chip" :showToggleAll="false" placeholder="Show to…" class="w-full text-xs" />
-                <div class="flex items-center justify-between gap-2">
-                  <button type="button" @click="noteImportant = !noteImportant"
-                    class="inline-flex items-center gap-1 text-xs font-semibold rounded px-2 py-1.5 border"
-                    :class="noteImportant ? 'bg-amber-50 border-amber-300 text-amber-700' : 'border-gray-300 text-gray-500 hover:bg-gray-50'"
-                    title="Flag as important">
-                    <i class="pi text-[11px]" :class="noteImportant ? 'pi-flag-fill' : 'pi-flag'" /> Important
-                  </button>
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                  <div class="flex items-center gap-2">
+                    <button type="button" @click="noteImportant = !noteImportant"
+                      class="inline-flex items-center gap-1 text-xs font-semibold rounded px-2 py-1.5 border"
+                      :class="noteImportant ? 'bg-amber-50 border-amber-300 text-amber-700' : 'border-gray-300 text-gray-500 hover:bg-gray-50'"
+                      title="Flag as important">
+                      <i class="pi text-[11px]" :class="noteImportant ? 'pi-flag-fill' : 'pi-flag'" /> Important
+                    </button>
+                    <DatePicker v-model="noteDue" dateFormat="d M yy" showButtonBar placeholder="Due date" size="small" class="w-32" showIcon iconDisplay="input" />
+                  </div>
                   <Button label="Add" size="small" :disabled="!newNoteBody.trim()" style="background:#1E2157;border-color:#1E2157" @click="submitNote" />
                 </div>
               </div>
@@ -576,6 +580,7 @@ function statusSeverity(s: string) {
                 <p class="text-sm text-gray-700"><i v-if="n.is_important" class="pi pi-flag-fill text-amber-500 text-[11px] mr-1" title="Important" />{{ n.body }}</p>
                 <div class="flex items-center gap-1.5 mt-1 flex-wrap">
                   <span v-for="(lbl, li) in visibleToLabels(n)" :key="'v'+li" class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600"><i class="pi pi-eye text-[9px]" />{{ lbl }}</span>
+                  <span v-if="n.due_date" class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full" :class="aud.isOverdue(n.due_date) ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-500'"><i class="pi pi-clock text-[9px]" />{{ aud.dueLabel(n.due_date) }}</span>
                   <span v-for="l in (n.links || [])" :key="l.id" class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary"><i class="pi text-[9px]" :class="connectIcon(l.type)" />{{ l.label }}</span>
                   <button v-if="liveNotes" class="text-[11px] text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 ml-auto" @click="emit('delete-note', n.id)"><i class="pi pi-trash" /></button>
                 </div>
