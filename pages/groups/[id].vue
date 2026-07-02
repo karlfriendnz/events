@@ -72,11 +72,17 @@
                 </dd>
                 <dt class="text-left font-semibold text-gray-700">Fees:</dt>
                 <dd class="text-gray-700 flex items-center gap-2 flex-wrap">
-                  <span v-if="termFeeLabel">{{ termFeeLabel }}</span>
-                  <span v-else class="text-gray-400">None</span>
-                  <button v-if="canManage" type="button" @click="openFeesEditor"
-                    class="text-[11px] font-semibold text-[#1976d2] hover:underline inline-flex items-center gap-1">
-                    <i class="pi text-[9px]" :class="feeOptions.length ? 'pi-pencil' : 'pi-plus'" />{{ feeBtnLabel }}
+                  <template v-if="feeOptions.length">
+                    <span>{{ termFeeLabel }}</span>
+                    <button v-if="canManage" type="button" @click="openFeesEditor"
+                      class="text-[11px] font-semibold text-[#1976d2] hover:underline inline-flex items-center gap-1">
+                      <i class="pi pi-pencil text-[9px]" />{{ feeBtnLabel }}
+                    </button>
+                  </template>
+                  <button v-else-if="canManage" type="button" @click="openFeesEditor"
+                    class="inline-flex items-center gap-1 text-xs font-semibold text-white rounded px-2.5 py-1"
+                    style="background:#1976d2">
+                    <i class="pi pi-plus text-[9px]" /> Add a fee
                   </button>
                 </dd>
                 <template v-if="canManage && group?.id">
