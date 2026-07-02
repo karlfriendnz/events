@@ -51,16 +51,60 @@ const saving = ref(false)
 const loading = ref(false)
 const count = ref<number>(props.initialCount ?? 0)   // scoped badge count
 
-// New-note options.
-const VISIBILITY_OPTIONS = [
-  { label: 'Staff', value: 'staff', icon: 'pi pi-users', hint: 'All staff on this' },
-  { label: 'Admins only', value: 'admin', icon: 'pi pi-shield', hint: 'Managers / admins' },
-  { label: 'Everyone', value: 'everyone', icon: 'pi pi-globe', hint: 'Incl. the member' },
-  { label: 'Only me', value: 'private', icon: 'pi pi-lock', hint: 'Just you' },
+// New-note options — who can see it (multi-select) + important flag.
+const AUDIENCE_BASE = [
+  { label: 'Staff', value: 'staff' },
+  { label: 'Admins only', value: 'admin' },
+  { label: 'Member', value: 'member' },
+  { label: 'All parents', value: 'parents' },
+  { label: 'Circle', value: 'circle' },
 ]
-const visibilityLabel = (v: string) => VISIBILITY_OPTIONS.find(o => o.value === v)?.label ?? 'Staff'
-const noteVisibility = ref('staff')
+const noteAudiences = ref<string[]>(['staff'])
 const noteImportant = ref(false)
+
+// The subject's parents/contacts — loaded lazily so a "specific parent" can be
+// picked in the same audience multi-select (value `person:<id>`).
+const parents = ref<{ id: string; name: string }[]>([])
+const parentsLoaded = ref(false)
+const audienceOptions = computed(() => [
+  ...AUDIENCE_BASE,
+  ...parents.value.map(p => ({ label: p.name, value: `person:${p.id}` })),
+])
+const audienceLabel = (tok: string) => {
+  if (tok.startsWith('person:')) return parents.value.find(p => `person:${p.id}` === tok)?.name || 'Parent'
+  return AUDIENCE_BASE.find(o => o.value === tok)?.label ?? tok
+}
+
+async function loadParents() {
+  if (parentsLoaded.value) return
+  parentsLoaded.value = true
+  // family-kind circles containing the subject → the OTHER guardian members.
+  const { data: mine } = await (db.from as any)('circle_members')
+    .select('circle_id, circle:circles!inner(kind)').eq('person_id', props.personId)
+  const famIds = (mine ?? []).filter((r: any) => r.circle?.kind === 'family').map((r: any) => r.circle_id)
+  if (!famIds.length) return
+  const { data: mem } = await (db.from as any)('circle_members')
+    .select('person_id, role, person:persons(id, first_name, last_name)')
+    .in('circle_id', famIds).neq('person_id', props.personId)
+  const seen = new Set<string>()
+  parents.value = (mem ?? [])
+    .filter((m: any) => (m.role || '').toLowerCase().includes('guardian') && m.person && !seen.has(m.person.id) && seen.add(m.person.id))
+    .map((m: any) => ({ id: m.person.id, name: `${m.person.first_name ?? ''} ${m.person.last_name ?? ''}`.trim() || 'Parent' }))
+}
+
+// Convert the selected audience tokens into the stored visible_to shape.
+function buildVisibleTo(): any[] {
+  return noteAudiences.value.map(tok => {
+    if (tok.startsWith('person:')) { const id = tok.slice(7); return { type: 'person', id, label: audienceLabel(tok) } }
+    return { type: tok }
+  })
+}
+// Render a stored note's audience list back to labels.
+function visibleToLabels(n: any): string[] {
+  const list = Array.isArray(n.visible_to) ? n.visible_to : []
+  if (list.length) return list.map((a: any) => a.type === 'person' ? (a.label || 'Parent') : (AUDIENCE_BASE.find(o => o.value === a.type)?.label ?? a.type))
+  return n.visibility && n.visibility !== 'staff' ? [n.visibility] : []  // legacy fallback
+}
 
 // Hover preview of the latest in-context note (lazy-loaded on first hover).
 const hovering = ref(false)
@@ -94,8 +138,9 @@ async function openDrawer() {
   activePanel.value = uid
   hovering.value = false
   newNote.value = ''
-  noteVisibility.value = 'staff'
+  noteAudiences.value = ['staff']
   noteImportant.value = false
+  loadParents()
   loading.value = true
   const { data } = await (db.from as any)('person_notes')
     .select('*').eq('person_id', props.personId).order('created_at', { ascending: false })
@@ -111,7 +156,7 @@ async function add() {
   saving.value = true
   const { data, error } = await (db.from as any)('person_notes').insert({
     org_id: orgId.value, person_id: props.personId, body, links: props.links ?? [],
-    visibility: noteVisibility.value, is_important: noteImportant.value,
+    visible_to: buildVisibleTo(), visibility: noteAudiences.value[0] || 'staff', is_important: noteImportant.value,
     author_id: user.value?.id ?? null,
     author_name: (user.value?.user_metadata as any)?.full_name || user.value?.email || null,
   }).select('*').single()
@@ -119,7 +164,7 @@ async function add() {
   if (!error && data) {
     notes.value.unshift(data)
     newNote.value = ''
-    noteVisibility.value = 'staff'
+    noteAudiences.value = ['staff']
     noteImportant.value = false
     latestNote.value = body
     if (matchesScope(data)) setCount(count.value + 1)
@@ -176,30 +221,18 @@ onBeforeUnmount(() => { if (open.value) activePanel.value = null })
           <div class="p-4 border-b border-gray-100 space-y-2">
             <Textarea v-model="newNote" rows="3" autoResize class="w-full" placeholder="Write a note…"
               @keydown.meta.enter="add" @keydown.ctrl.enter="add" />
+            <div class="flex items-center gap-2">
+              <span class="text-[11px] font-semibold text-gray-400 shrink-0">Show to</span>
+              <MultiSelect v-model="noteAudiences" :options="audienceOptions" optionLabel="label" optionValue="value"
+                display="chip" placeholder="Choose audiences" size="small" class="flex-1 min-w-0" :showToggleAll="false" />
+            </div>
             <div class="flex items-center justify-between gap-2 flex-wrap">
-              <div class="flex items-center gap-2">
-                <Select v-model="noteVisibility" :options="VISIBILITY_OPTIONS" optionLabel="label" optionValue="value" size="small" class="w-40">
-                  <template #value="{ value }">
-                    <span class="inline-flex items-center gap-1.5 text-sm">
-                      <i class="pi text-xs" :class="VISIBILITY_OPTIONS.find(o => o.value === value)?.icon" />
-                      {{ visibilityLabel(value) }}
-                    </span>
-                  </template>
-                  <template #option="{ option }">
-                    <span class="inline-flex items-center gap-2">
-                      <i class="pi text-xs text-gray-500" :class="option.icon" />
-                      <span>{{ option.label }}</span>
-                      <span class="text-[11px] text-gray-400">· {{ option.hint }}</span>
-                    </span>
-                  </template>
-                </Select>
-                <button type="button" @click="noteImportant = !noteImportant"
-                  class="inline-flex items-center gap-1 text-xs font-semibold rounded px-2 py-1.5 border"
-                  :class="noteImportant ? 'bg-amber-50 border-amber-300 text-amber-700' : 'border-gray-300 text-gray-500 hover:bg-gray-50'"
-                  title="Flag as important">
-                  <i class="pi text-[11px]" :class="noteImportant ? 'pi-flag-fill' : 'pi-flag'" /> Important
-                </button>
-              </div>
+              <button type="button" @click="noteImportant = !noteImportant"
+                class="inline-flex items-center gap-1 text-xs font-semibold rounded px-2 py-1.5 border"
+                :class="noteImportant ? 'bg-amber-50 border-amber-300 text-amber-700' : 'border-gray-300 text-gray-500 hover:bg-gray-50'"
+                title="Flag as important">
+                <i class="pi text-[11px]" :class="noteImportant ? 'pi-flag-fill' : 'pi-flag'" /> Important
+              </button>
               <Button label="Add note" icon="pi pi-plus" size="small" :disabled="!newNote.trim() || saving"
                 style="background:#1976d2;border-color:#1976d2" @click="add" />
             </div>
@@ -221,12 +254,13 @@ onBeforeUnmount(() => { if (open.value) activePanel.value = null })
               <div v-if="Array.isArray(n.links) && n.links.length" class="flex flex-wrap gap-1 mt-1.5">
                 <span v-for="(l, li) in n.links" :key="li" class="text-[10px] bg-gray-100 text-gray-500 rounded px-1.5 py-0.5">{{ l.label || l.type }}</span>
               </div>
+              <div v-if="visibleToLabels(n).length" class="mt-1.5 flex items-center gap-1 flex-wrap">
+                <i class="pi pi-eye text-[10px] text-gray-400" />
+                <span v-for="(lbl, li) in visibleToLabels(n)" :key="li" class="text-[10px] bg-blue-50 text-blue-600 rounded px-1.5 py-0.5">{{ lbl }}</span>
+              </div>
               <div class="mt-1.5 text-[11px] text-gray-400 flex items-center gap-2 flex-wrap">
                 <span>{{ fmtDate(n.created_at) }}</span>
                 <span v-if="n.author_name">· {{ n.author_name }}</span>
-                <span v-if="n.visibility && n.visibility !== 'staff'" class="inline-flex items-center gap-1 text-gray-400">
-                  · <i class="pi text-[10px]" :class="VISIBILITY_OPTIONS.find(o => o.value === n.visibility)?.icon" />{{ visibilityLabel(n.visibility) }}
-                </span>
               </div>
             </div>
           </div>
