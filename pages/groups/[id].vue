@@ -198,9 +198,6 @@
                 </button>
                 <p v-if="createBlockedReason" class="text-[11px] text-gray-400 mt-1 text-center">{{ createBlockedReason }}</p>
               </div>
-              <p v-else-if="trainingEventCount" class="text-[11px] text-gray-500 text-center">
-                <i class="pi pi-calendar text-[10px] mr-1" />{{ trainingEventCount }} training event{{ trainingEventCount === 1 ? '' : 's' }} linked
-              </p>
 
             </div>
           </div>
@@ -1679,7 +1676,6 @@ async function saveBilling() {
 const missingTrainingEvents = computed(() =>
   schedules.value.filter(s => !trainingEventByScheduleId.value[s.id])
 )
-const trainingEventCount = computed(() => Object.keys(trainingEventByScheduleId.value).length)
 
 const createBlockedReason = computed(() => {
   if (!schedules.value.length) return 'Add session times first'
