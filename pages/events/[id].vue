@@ -1272,7 +1272,7 @@
                           <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
                           <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
                           :person-name="((inv.person?.first_name || '') + ' ' + (inv.person?.last_name || '')).trim()"
-                          :links="attNoteLinks" :context-label="attNoteContextLabel"
+                          :links="attNoteLinks" :context-label="attNoteContextLabel" :can-edit-all="canManageEvent" :can-delete-all="canManageEvent"
                           :initial-count="attNoteCounts[inv.person_id] ?? 0" @count-change="v => attNoteCounts[inv.person_id] = v">
                           <template #trigger="{ open, count }">
                             <button class="hover:text-primary transition-colors relative" v-tooltip.top="'Notes'" @click="open">
@@ -1313,7 +1313,7 @@
                       <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
                       <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
                         :person-name="((inv.person?.first_name || '') + ' ' + (inv.person?.last_name || '')).trim()"
-                        :links="attNoteLinks" :context-label="attNoteContextLabel"
+                        :links="attNoteLinks" :context-label="attNoteContextLabel" :can-edit-all="canManageEvent" :can-delete-all="canManageEvent"
                         :initial-count="attNoteCounts[inv.person_id] ?? 0" @count-change="v => attNoteCounts[inv.person_id] = v">
                         <template #trigger="{ open, count }">
                           <button class="hover:text-primary transition-colors relative" v-tooltip.top="'Notes'" @click="open">
@@ -1373,7 +1373,7 @@
                         <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
                         <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
                           :person-name="((inv.person?.first_name || '') + ' ' + (inv.person?.last_name || '')).trim()"
-                          :links="attNoteLinks" :context-label="attNoteContextLabel"
+                          :links="attNoteLinks" :context-label="attNoteContextLabel" :can-edit-all="canManageEvent" :can-delete-all="canManageEvent"
                           :initial-count="attNoteCounts[inv.person_id] ?? 0" @count-change="v => attNoteCounts[inv.person_id] = v">
                           <template #trigger="{ open, count }">
                             <button class="hover:text-primary transition-colors relative" v-tooltip.top="'Notes'" @click="open">
@@ -1428,7 +1428,7 @@
                         <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
                         <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
                           :person-name="((inv.person?.first_name || '') + ' ' + (inv.person?.last_name || '')).trim()"
-                          :links="attNoteLinks" :context-label="attNoteContextLabel"
+                          :links="attNoteLinks" :context-label="attNoteContextLabel" :can-edit-all="canManageEvent" :can-delete-all="canManageEvent"
                           :initial-count="attNoteCounts[inv.person_id] ?? 0" @count-change="v => attNoteCounts[inv.person_id] = v">
                           <template #trigger="{ open, count }">
                             <button class="hover:text-primary transition-colors relative" v-tooltip.top="'Notes'" @click="open">

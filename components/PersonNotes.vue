@@ -32,7 +32,9 @@ const props = withDefaults(defineProps<{
   scopeToLinks?: boolean
   initialCount?: number | null
   contextLabel?: string
-}>(), { personName: '', links: () => [], scopeToLinks: true, initialCount: null, contextLabel: '' })
+  canEditAll?: boolean    // true when the viewer may edit anyone's notes here
+  canDeleteAll?: boolean  // true when the viewer has permission to delete notes
+}>(), { personName: '', links: () => [], scopeToLinks: true, initialCount: null, contextLabel: '', canEditAll: false, canDeleteAll: false })
 
 const emit = defineEmits<{ (e: 'count-change', v: number): void }>()
 
@@ -145,6 +147,36 @@ async function remove(n: any) {
   if (matchesScope(n)) setCount(Math.max(0, count.value - 1))
 }
 
+// Edit — allowed for the note's author, or anyone with edit permission here.
+const canEditNote = (n: any) => props.canEditAll || (!!n.author_id && n.author_id === user.value?.id)
+const editingId = ref<string | null>(null)
+const editBody = ref('')
+const editAudiences = ref<string[]>([])
+const editImportant = ref(false)
+const editDue = ref<Date | null>(null)
+const tokensFromVisibleTo = (vt: any) => (Array.isArray(vt) ? vt : []).map((a: any) => a.type === 'person' ? `person:${a.id}` : a.type)
+function startEdit(n: any) {
+  editingId.value = n.id
+  editBody.value = n.body
+  editAudiences.value = tokensFromVisibleTo(n.visible_to)
+  editImportant.value = !!n.is_important
+  editDue.value = n.due_date ? new Date(n.due_date + 'T00:00:00') : null
+}
+function cancelEdit() { editingId.value = null }
+async function saveEdit(n: any) {
+  const body = editBody.value.trim()
+  if (!body) return
+  const patch = {
+    body,
+    visible_to: aud.buildVisibleTo(editAudiences.value, parents.value),
+    visibility: editAudiences.value[0] || 'staff',
+    is_important: editImportant.value,
+    due_date: aud.toISODate(editDue.value),
+  }
+  const { error } = await (db.from as any)('person_notes').update(patch).eq('id', n.id)
+  if (!error) { Object.assign(n, patch); editingId.value = null }
+}
+
 function fmtDate(iso: string) {
   const d = new Date(iso)
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) +
@@ -215,31 +247,60 @@ onBeforeUnmount(() => { if (open.value) activePanel.value = null })
             <div v-else-if="!notes.length" class="text-sm text-gray-400 py-6 text-center">No notes yet.</div>
             <div v-for="n in notes" :key="n.id" class="border rounded-lg p-3"
               :class="[matchesScope(n) ? '' : 'opacity-70', n.is_important ? 'border-amber-300 bg-amber-50/50' : 'border-gray-200']">
-              <div class="flex items-start justify-between gap-2">
-                <p class="text-sm text-gray-800 whitespace-pre-wrap flex-1">
-                  <i v-if="n.is_important" class="pi pi-flag-fill text-amber-500 text-[11px] mr-1" title="Important" />{{ n.body }}
-                </p>
-                <button type="button" class="text-gray-300 hover:text-red-500 shrink-0" title="Delete note" @click="remove(n)">
-                  <i class="pi pi-trash text-xs" />
-                </button>
+              <!-- edit mode -->
+              <div v-if="editingId === n.id" class="space-y-2">
+                <Textarea v-model="editBody" rows="3" autoResize class="w-full" placeholder="Note…" />
+                <MultiSelect v-model="editAudiences" :options="audienceOptions" optionLabel="label" optionValue="value"
+                  optionGroupLabel="label" optionGroupChildren="items" display="chip" placeholder="Show to…"
+                  size="small" class="w-full" :showToggleAll="false" />
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                  <div class="flex items-center gap-2">
+                    <button type="button" @click="editImportant = !editImportant"
+                      class="inline-flex items-center gap-1 text-xs font-semibold rounded px-2 py-1.5 border"
+                      :class="editImportant ? 'bg-amber-50 border-amber-300 text-amber-700' : 'border-gray-300 text-gray-500 hover:bg-gray-50'">
+                      <i class="pi text-[11px]" :class="editImportant ? 'pi-flag-fill' : 'pi-flag'" /> Important
+                    </button>
+                    <DatePicker v-model="editDue" dateFormat="d M yy" showButtonBar placeholder="Due date" size="small" class="w-36" showIcon iconDisplay="input" />
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button type="button" class="text-xs font-semibold text-gray-500 hover:text-gray-700" @click="cancelEdit">Cancel</button>
+                    <Button label="Save" size="small" :disabled="!editBody.trim()" style="background:#1976d2;border-color:#1976d2" @click="saveEdit(n)" />
+                  </div>
+                </div>
               </div>
-              <div v-if="Array.isArray(n.links) && n.links.length" class="flex flex-wrap gap-1 mt-1.5">
-                <span v-for="(l, li) in n.links" :key="li" class="text-[10px] bg-gray-100 text-gray-500 rounded px-1.5 py-0.5">{{ l.label || l.type }}</span>
-              </div>
-              <div v-if="visibleToLabels(n).length || n.due_date" class="mt-1.5 flex items-center gap-1 flex-wrap">
-                <template v-if="visibleToLabels(n).length">
-                  <i class="pi pi-eye text-[10px] text-gray-400" />
-                  <span v-for="(lbl, li) in visibleToLabels(n)" :key="li" class="text-[10px] bg-blue-50 text-blue-600 rounded px-1.5 py-0.5">{{ lbl }}</span>
-                </template>
-                <span v-if="n.due_date" class="text-[10px] rounded px-1.5 py-0.5 inline-flex items-center gap-1"
-                  :class="aud.isOverdue(n.due_date) ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-500'">
-                  <i class="pi pi-clock text-[9px]" />{{ aud.dueLabel(n.due_date) }}
-                </span>
-              </div>
-              <div class="mt-1.5 text-[11px] text-gray-400 flex items-center gap-2 flex-wrap">
-                <span>{{ fmtDate(n.created_at) }}</span>
-                <span v-if="n.author_name">· {{ n.author_name }}</span>
-              </div>
+              <!-- display mode -->
+              <template v-else>
+                <div class="flex items-start justify-between gap-2">
+                  <p class="text-sm text-gray-800 whitespace-pre-wrap flex-1">
+                    <i v-if="n.is_important" class="pi pi-flag-fill text-amber-500 text-[11px] mr-1" title="Important" />{{ n.body }}
+                  </p>
+                  <div v-if="canEditNote(n) || canDeleteAll" class="flex items-center gap-2 shrink-0">
+                    <button v-if="canEditNote(n)" type="button" class="text-gray-300 hover:text-[#1976d2]" title="Edit note" @click="startEdit(n)">
+                      <i class="pi pi-pencil text-xs" />
+                    </button>
+                    <button v-if="canDeleteAll" type="button" class="text-gray-300 hover:text-red-500" title="Delete note" @click="remove(n)">
+                      <i class="pi pi-trash text-xs" />
+                    </button>
+                  </div>
+                </div>
+                <div v-if="Array.isArray(n.links) && n.links.length" class="flex flex-wrap gap-1 mt-1.5">
+                  <span v-for="(l, li) in n.links" :key="li" class="text-[10px] bg-gray-100 text-gray-500 rounded px-1.5 py-0.5">{{ l.label || l.type }}</span>
+                </div>
+                <div v-if="visibleToLabels(n).length || n.due_date" class="mt-1.5 flex items-center gap-1 flex-wrap">
+                  <template v-if="visibleToLabels(n).length">
+                    <i class="pi pi-eye text-[10px] text-gray-400" />
+                    <span v-for="(lbl, li) in visibleToLabels(n)" :key="li" class="text-[10px] bg-blue-50 text-blue-600 rounded px-1.5 py-0.5">{{ lbl }}</span>
+                  </template>
+                  <span v-if="n.due_date" class="text-[10px] rounded px-1.5 py-0.5 inline-flex items-center gap-1"
+                    :class="aud.isOverdue(n.due_date) ? 'bg-red-50 text-red-600' : 'bg-gray-100 text-gray-500'">
+                    <i class="pi pi-clock text-[9px]" />{{ aud.dueLabel(n.due_date) }}
+                  </span>
+                </div>
+                <div class="mt-1.5 text-[11px] text-gray-400 flex items-center gap-2 flex-wrap">
+                  <span>{{ fmtDate(n.created_at) }}</span>
+                  <span v-if="n.author_name">· {{ n.author_name }}</span>
+                </div>
+              </template>
             </div>
           </div>
         </div>

@@ -286,7 +286,7 @@
                   <td v-if="canManage" class="px-4 py-2.5 text-right align-top">
                     <div class="inline-flex items-center gap-3">
                       <PersonNotes :person-id="c.id" :person-name="c.name" :links="noteLinks" :initial-count="noteCounts[c.id] ?? 0"
-                        :context-label="noteContextLabel" @count-change="v => noteCounts[c.id] = v" />
+                        :context-label="noteContextLabel" :can-edit-all="canManage" :can-delete-all="canManage" @count-change="v => noteCounts[c.id] = v" />
                       <button type="button" class="text-red-500 hover:text-red-700"
                         :title="`Remove ${c.name} from ${group.name}`" @click="removeCoach(c)">
                         <i class="pi pi-times-circle text-base" />
@@ -354,7 +354,7 @@
                   <td v-if="canManage" class="px-4 py-2.5 text-right align-top">
                     <div class="inline-flex items-center gap-3">
                       <PersonNotes :person-id="m.id" :person-name="m.name" :links="noteLinks" :initial-count="noteCounts[m.id] ?? 0"
-                        :context-label="noteContextLabel" @count-change="v => noteCounts[m.id] = v" />
+                        :context-label="noteContextLabel" :can-edit-all="canManage" :can-delete-all="canManage" @count-change="v => noteCounts[m.id] = v" />
                       <button type="button" class="text-red-500 hover:text-red-700"
                         :title="`Remove ${m.name} from ${group.name}`" @click="removeMember(m)">
                         <i class="pi pi-times-circle text-base" />
