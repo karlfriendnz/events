@@ -1576,7 +1576,6 @@ const linkedTerms = computed(() =>
 const signupIssues = computed<string[]>(() => {
   const issues: string[] = []
   if (!feeOptions.value.length) issues.push('No fee option yet — add one in the Fees section so members can choose how to pay.')
-  if (!schedules.value.length) issues.push('No session times set — add at least one training time.')
   if (isHistory.value) issues.push('This group’s term has ended.')
   return issues
 })
