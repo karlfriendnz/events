@@ -53,6 +53,10 @@
                   </span>
                   <span v-else class="text-gray-400">Ungrouped</span>
                 </dd>
+                <template v-if="groupMemberTypeLabel">
+                  <dt class="text-left font-semibold text-gray-700">Member type:</dt>
+                  <dd class="text-gray-700">{{ groupMemberTypeLabel }}</dd>
+                </template>
                 <dt class="text-left font-semibold text-gray-700">Head:</dt>
                 <dd class="text-gray-700">{{ headCoach || '—' }}</dd>
                 <dt class="text-left font-semibold text-gray-700">Age Range:</dt>
@@ -1531,6 +1535,20 @@ onMounted(() => rbac.load())
 const canEditNotes = computed(() => rbac.can('notes', 'update'))
 const canDeleteNotes = computed(() => rbac.can('notes', 'delete'))
 
+// The member (person) type this group captures, inherited from its code chain
+// (migration 213). Members added here are stamped with it so they get the right
+// custom fields.
+const policy = useOrgFieldPolicy()
+const personTypeLabels = ref<Record<string, string>>({})
+const groupMemberType = computed(() => group.value ? gc.effectiveMemberType(group.value, codesById.value) : null)
+const groupMemberTypeLabel = computed(() => groupMemberType.value ? (personTypeLabels.value[groupMemberType.value] || groupMemberType.value) : null)
+async function ensurePersonType(personId: string, typeKey: string) {
+  const { data: person } = await (db.from as any)('persons').select('person_types, person_type').eq('id', personId).maybeSingle()
+  const current: string[] = Array.isArray(person?.person_types) ? person!.person_types : (person?.person_type ? [person.person_type] : [])
+  if (current.includes(typeKey)) return
+  await (db.from as any)('persons').update({ person_types: [...current, typeKey], person_type: person?.person_type || typeKey }).eq('id', personId)
+}
+
 // Head picker: only the group's STAFF (coaches) — a head is a staff member.
 const headPersonOptions = computed(() => {
   const seen = new Set<string>()
@@ -1850,6 +1868,10 @@ async function load() {
   ])
 
   codes.value = codesList ?? []
+  if (orgId.value && !Object.keys(personTypeLabels.value).length) {
+    const types = await policy.resolvePersonTypes(orgId.value)
+    personTypeLabels.value = Object.fromEntries((types ?? []).map((t: any) => [t.key, t.label]))
+  }
   const g = gRes?.data
   group.value = g ?? null
   if (!g) { members.value = []; loading.value = false; return }
@@ -2446,6 +2468,11 @@ async function addPerson() {
     .upsert({ group_id: group.value.id, person_id: p.id, roles: merged, role: merged[0] ?? null, ...(enrol ?? {}) },
       { onConflict: 'group_id,person_id' })
   if (!error) {
+    // Stamp the code's member type on the person (joining as a member) so they
+    // pick up that type's custom fields.
+    if (groupMemberType.value && (!merged.length || memberRolesOf(merged).length)) {
+      await ensurePersonType(p.id, groupMemberType.value)
+    }
     const base = { id: p.id, name, email: p.email ?? null, phone: p.phone ?? null, allRoles: merged }
     // Rebuild this person's presence across both tables from the merged roles.
     coaches.value = coaches.value.filter(x => x.id !== p.id)

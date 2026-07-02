@@ -92,6 +92,24 @@ export function useGroupCodes() {
     return group?.term_id ?? null
   }
 
+  // The member (person) type a group captures: its code's member_type_key,
+  // walking up the code parent chain while null. Drives which custom fields
+  // members in the group's code get (migration 213).
+  function effectiveMemberType(
+    group: { code_id?: string | null } | null | undefined,
+    codesById: Record<string, GroupCode>,
+  ): string | null {
+    let codeId = group?.code_id ?? null
+    let guard = 0
+    while (codeId && guard++ < 20) {
+      const code = codesById[codeId]
+      if (!code) break
+      if (code.member_type_key) return code.member_type_key
+      codeId = code.parent_id
+    }
+    return null
+  }
+
   // Indented { label, value } options for EVERY code (any depth) — for pickers
   // where the user chooses any code, not just top-level ones. Uses nbsp for
   // indentation so the hierarchy shows in the dropdown (regular spaces collapse).
@@ -125,5 +143,5 @@ export function useGroupCodes() {
     return [...set]
   }
 
-  return { loadCodes, createCode, updateCode, deleteCode, effectiveTermId, treeOptions, closeSelection }
+  return { loadCodes, createCode, updateCode, deleteCode, effectiveTermId, effectiveMemberType, treeOptions, closeSelection }
 }
