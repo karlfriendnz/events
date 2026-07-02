@@ -112,5 +112,41 @@ export function useCodeRoles() {
     return (label || 'role').toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'role'
   }
 
-  return { CODE_CAPABILITIES, DEFAULT_CODE_ROLES, loadRoleDefs, ensureDefaults, rolesForCode, saveRolesForScope, lineageChain, slug }
+  // ── Staff assignments (who holds each role on a code) ──
+  async function loadStaff(): Promise<CodeStaff[]> {
+    if (!orgId.value) return []
+    const { data } = await (db.from as any)('code_staff')
+      .select('id, code_lineage_id, person_id, role_key, person:persons(id, first_name, last_name, email)')
+      .eq('org_id', orgId.value)
+    return (data ?? []) as CodeStaff[]
+  }
+  async function assignStaff(codeLineageId: string, personId: string, roleKey: string): Promise<void> {
+    await (db.from as any)('code_staff')
+      .upsert({ org_id: orgId.value, code_lineage_id: codeLineageId, person_id: personId, role_key: roleKey }, { onConflict: 'code_lineage_id,person_id,role_key' })
+  }
+  async function removeStaff(id: string): Promise<void> {
+    await (db.from as any)('code_staff').delete().eq('id', id)
+  }
+  // Staff on a code = assignments on its lineage + ancestor lineages. Each carries
+  // `scope` ('own' | 'inherited') + the ancestor label when inherited.
+  function staffForCode(code: GroupCode, codesById: Record<string, GroupCode>, staff: CodeStaff[], allCodes: GroupCode[]) {
+    const own = codeLineage(code)
+    const chain = new Set(lineageChain(code, codesById))
+    const labelFor = (l: string) => allCodes.find(c => codeLineage(c) === l)?.name ?? 'Parent'
+    return staff.filter(s => chain.has(s.code_lineage_id)).map(s => ({
+      ...s,
+      scope: s.code_lineage_id === own ? 'own' : 'inherited',
+      fromLabel: s.code_lineage_id === own ? '' : labelFor(s.code_lineage_id),
+    }))
+  }
+
+  return { CODE_CAPABILITIES, DEFAULT_CODE_ROLES, loadRoleDefs, ensureDefaults, rolesForCode, saveRolesForScope, lineageChain, slug, loadStaff, assignStaff, removeStaff, staffForCode }
+}
+
+export interface CodeStaff {
+  id: string
+  code_lineage_id: string
+  person_id: string
+  role_key: string
+  person?: { id: string; first_name: string | null; last_name: string | null; email: string | null }
 }

@@ -8,11 +8,12 @@
 -->
 <script setup lang="ts">
 import type { GroupCode } from '~/composables/useGroupCodes'
-import type { CodeRoleDef } from '~/composables/useCodeRoles'
+import type { CodeRoleDef, CodeStaff } from '~/composables/useCodeRoles'
 
 const route = useRoute()
 const codeId = route.params.id as string
 const { orgId } = useOrg()
+const db = useDb()
 const gc = useGroupCodes()
 const cr = useCodeRoles()
 const policy = useOrgFieldPolicy()
@@ -30,19 +31,30 @@ const memberType = ref<string | null>(null)
 const ownRoles = ref<CodeRoleDef[]>([])
 const defaultRoles = ref<CodeRoleDef[]>([])
 const inheritedRoles = ref<(CodeRoleDef & { fromLabel: string })[]>([])
+const allDefs = ref<CodeRoleDef[]>([])
+const staff = ref<CodeStaff[]>([])
 const savingMember = ref(false)
 const savingOwn = ref(false)
 const savingDefault = ref(false)
 
+// Effective roles (defaults + own + inherited) to assign people to.
+const effectiveRoles = computed(() => code.value ? cr.rolesForCode(code.value, codesById.value, allDefs.value) : [])
+const staffOnCode = computed(() => code.value ? cr.staffForCode(code.value, codesById.value, staff.value, codes.value) : [])
+const staffForRole = (roleKey: string) => staffOnCode.value.filter(s => s.role_key === roleKey)
+const personName = (s: any) => `${s.person?.first_name ?? ''} ${s.person?.last_name ?? ''}`.trim() || s.person?.email || 'Person'
+
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [loadedCodes, types, defs] = await Promise.all([
+  const [loadedCodes, types, defs, staffRows] = await Promise.all([
     gc.loadCodes(),
     policy.resolvePersonTypes(orgId.value),
     cr.ensureDefaults(),
+    cr.loadStaff(),
   ])
   codes.value = loadedCodes
+  allDefs.value = defs
+  staff.value = staffRows
   personTypeOptions.value = (types ?? []).filter((t: any) => (t.kind ?? 'person') === 'person').map((t: any) => ({ label: t.label, value: t.key }))
   memberType.value = code.value?.member_type_key ?? null
 
@@ -97,6 +109,34 @@ async function saveDefaults() {
   toast.add({ severity: 'success', summary: 'Default roles saved', life: 1600 })
 }
 
+// Assign a person to a role (at this code's lineage).
+const assignOpen = ref(false)
+const assignRoleKey = ref<string>('')
+const personQuery = ref<any>('')
+const personResults = ref<any[]>([])
+function openAssign(roleKey: string) { assignRoleKey.value = roleKey; personQuery.value = ''; personResults.value = []; assignOpen.value = true }
+async function searchPersons(e: { query: string }) {
+  const q = (e.query || '').trim()
+  if (!q || !orgId.value) { personResults.value = []; return }
+  const { data } = await (db.from as any)('persons')
+    .select('id, first_name, last_name, email')
+    .eq('org_id', orgId.value)
+    .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`)
+    .limit(20)
+  personResults.value = (data ?? []).map((p: any) => ({ ...p, label: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || p.email }))
+}
+async function pickPerson(p: any) {
+  if (!p?.id || !lineage.value) return
+  await cr.assignStaff(lineage.value, p.id, assignRoleKey.value)
+  assignOpen.value = false
+  staff.value = await cr.loadStaff()
+  toast.add({ severity: 'success', summary: 'Assigned', life: 1400 })
+}
+async function unassign(s: any) {
+  await cr.removeStaff(s.id)
+  staff.value = staff.value.filter(x => x.id !== s.id)
+}
+
 watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
 </script>
 
@@ -149,6 +189,30 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         </div>
       </AppCard>
 
+      <!-- PEOPLE IN ROLES -->
+      <AppCard title="People in roles" description="Assign staff to each role. Assignments cascade to this code's sub-codes and groups.">
+        <div class="space-y-3">
+          <div v-for="r in effectiveRoles" :key="r.key" class="border border-gray-100 rounded-lg p-3">
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-medium text-gray-800 text-sm">{{ r.label }}</span>
+              <button type="button" class="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1" @click="openAssign(r.key)">
+                <i class="pi pi-user-plus text-[10px]" /> Assign
+              </button>
+            </div>
+            <div v-if="staffForRole(r.key).length" class="flex flex-wrap gap-1.5 mt-2">
+              <span v-for="s in staffForRole(r.key)" :key="s.id"
+                class="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-700 rounded-full pl-2.5 pr-1 py-1">
+                {{ personName(s) }}
+                <span v-if="s.scope === 'inherited'" class="text-[9px] text-gray-400">· {{ s.fromLabel }}</span>
+                <button v-if="s.scope === 'own'" type="button" class="text-gray-400 hover:text-red-500" title="Remove" @click="unassign(s)"><i class="pi pi-times-circle text-xs" /></button>
+              </span>
+            </div>
+            <p v-else class="text-xs text-gray-400 mt-1.5">No one assigned.</p>
+          </div>
+          <div v-if="!effectiveRoles.length" class="text-sm text-gray-400">Add roles above first.</div>
+        </div>
+      </AppCard>
+
       <!-- DEFAULT ROLES (all codes) -->
       <AppCard title="Default roles (all codes)" description="Applied to every code. Editing these changes them everywhere.">
         <template #header-action>
@@ -158,5 +222,16 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
           @add="addRole(defaultRoles, null)" @remove="i => removeRole(defaultRoles, i)" @toggle="(r, c, v) => toggleCap(r, c, v)" :runs="roleRuns" />
       </AppCard>
     </template>
+
+    <!-- Assign person to a role -->
+    <Dialog v-model:visible="assignOpen" modal :style="{ width: '95vw', maxWidth: '440px' }"
+      :header="`Assign to ${effectiveRoles.find(r => r.key === assignRoleKey)?.label || 'role'}`">
+      <label class="text-xs font-medium text-gray-600">Person</label>
+      <AutoComplete v-model="personQuery" :suggestions="personResults" optionLabel="label" class="w-full mt-1"
+        placeholder="Search people…" @complete="searchPersons" @option-select="e => pickPerson(e.value)" dropdown />
+      <template #footer>
+        <Button label="Close" text @click="assignOpen = false" />
+      </template>
+    </Dialog>
   </div>
 </template>
