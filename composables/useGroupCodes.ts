@@ -18,7 +18,12 @@ export interface GroupCode {
   term_id: string | null
   sort_order: number
   created_at?: string
+  member_type_key?: string | null
+  lineage_id?: string | null
 }
+
+// A code's stable identity across term rollovers (falls back to its own id).
+export const codeLineage = (c: { id: string; lineage_id?: string | null }) => c.lineage_id ?? c.id
 
 export function useGroupCodes() {
   const db = useDb()
@@ -28,7 +33,7 @@ export function useGroupCodes() {
   async function loadCodes(): Promise<GroupCode[]> {
     if (!orgId.value) return []
     const { data } = await (db.from as any)('group_codes')
-      .select('id, org_id, name, color, parent_id, term_id, sort_order, created_at')
+      .select('id, org_id, name, color, parent_id, term_id, sort_order, created_at, member_type_key, lineage_id')
       .eq('org_id', orgId.value)
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('name')
@@ -48,7 +53,7 @@ export function useGroupCodes() {
     return data as GroupCode
   }
 
-  async function updateCode(id: string, patch: Partial<Pick<GroupCode, 'name' | 'color' | 'parent_id' | 'term_id' | 'sort_order'>>): Promise<void> {
+  async function updateCode(id: string, patch: Partial<Pick<GroupCode, 'name' | 'color' | 'parent_id' | 'term_id' | 'sort_order' | 'member_type_key'>>): Promise<void> {
     await (db.from as any)('group_codes').update(patch).eq('id', id)
   }
 
