@@ -16,8 +16,40 @@ export interface OrgTerm {
   name: string
   start_date: string | null
   end_date: string | null
+  // Sign-up window (migration 229) — the TERM owns when registration opens,
+  // forms stay date-free. Null open = open immediately; null close = term end.
+  signup_open: string | null
+  signup_close: string | null
+  // Term set (migration 232) — the independent sequence this term belongs to.
+  // "Next term" only ever resolves within the same set; null = the default set.
+  set_id: string | null
   status: string
   sort_order: number
+}
+
+export interface TermSet {
+  id: string
+  org_id?: string
+  name: string
+  // The sport this sequence belongs to (org_sports id; migration 235). Null = whole club.
+  sport_id: string | null
+  sort_order: number
+}
+
+// Two terms are rollover-adjacent only when they share a set (null = default).
+export function sameTermSet(a: { set_id?: string | null }, b: { set_id?: string | null }): boolean {
+  return (a.set_id ?? null) === (b.set_id ?? null)
+}
+
+// Is member registration for this term open on `today`? Defaults per the
+// column comments: no open date = already open, no close date = term end.
+export function termSignupOpen(t: Pick<OrgTerm, 'signup_open' | 'signup_close' | 'end_date'>, today = new Date()): boolean {
+  const d = new Date(today); d.setHours(0, 0, 0, 0)
+  const day = (iso: string) => new Date(`${iso}T00:00:00`).getTime()
+  if (t.signup_open && day(t.signup_open) > d.getTime()) return false
+  const close = t.signup_close ?? t.end_date
+  if (close && day(close) < d.getTime()) return false
+  return true
 }
 
 export interface MembershipPlanOption {
@@ -94,11 +126,36 @@ export function useTermsMemberships() {
   // ---- loaders ----
   async function loadTerms(org = orgId.value): Promise<OrgTerm[]> {
     const { data } = await (db.from as any)('org_terms')
-      .select('id, org_id, name, start_date, end_date, status, sort_order')
+      .select('id, org_id, name, start_date, end_date, signup_open, signup_close, set_id, status, sort_order')
       .eq('org_id', org)
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('start_date')
     return (data || []) as OrgTerm[]
+  }
+
+  // ---- term sets (migration 232) ----
+  async function loadTermSets(org = orgId.value): Promise<TermSet[]> {
+    const { data } = await (db.from as any)('term_sets')
+      .select('id, org_id, name, sport_id, sort_order')
+      .eq('org_id', org)
+      .order('sort_order', { ascending: true, nullsFirst: false })
+      .order('name')
+    return (data || []) as TermSet[]
+  }
+  async function createTermSet(name: string, org = orgId.value): Promise<TermSet | null> {
+    const { data } = await (db.from as any)('term_sets')
+      .insert({ org_id: org, name }).select('id, org_id, name, sport_id, sort_order').single()
+    return (data ?? null) as TermSet | null
+  }
+  async function renameTermSet(id: string, name: string): Promise<void> {
+    await (db.from as any)('term_sets').update({ name }).eq('id', id)
+  }
+  async function setTermSetSport(id: string, sportId: string | null): Promise<void> {
+    await (db.from as any)('term_sets').update({ sport_id: sportId }).eq('id', id)
+  }
+  async function deleteTermSet(id: string): Promise<void> {
+    // Terms fall back to the default set (set_id → null via FK on delete set null)
+    await (db.from as any)('term_sets').delete().eq('id', id)
   }
 
   async function loadPlans(org = orgId.value): Promise<MembershipPlan[]> {
@@ -137,6 +194,11 @@ export function useTermsMemberships() {
     addPeriod,
     toIso,
     loadTerms,
+    loadTermSets,
+    createTermSet,
+    renameTermSet,
+    setTermSetSport,
+    deleteTermSet,
     loadPlans,
     loadGroupBilling,
   }

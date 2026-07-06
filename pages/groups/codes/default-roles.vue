@@ -9,6 +9,8 @@ const cr = useCodeRoles()
 const gc = useGroupCodes()
 const { orgId } = useOrg()
 const toast = useToast()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 interface RoleRow { _uid: number; groupKey: string; editable: boolean; id?: string; key: string; label: string; capabilities: string[] }
 let uid = 1
@@ -64,10 +66,10 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
   <div class="p-3 sm:p-6 max-w-5xl mx-auto space-y-4">
     <div>
       <NuxtLink to="/groups/codes" class="text-sm text-gray-500 hover:text-primary inline-flex items-center gap-1">
-        <i class="pi pi-arrow-left text-xs" /> Organise codes
+        <i class="pi pi-arrow-left text-xs" /> Organise {{ t('code', true, true) }}
       </NuxtLink>
       <h1 class="text-lg sm:text-2xl font-semibold text-gray-900 mt-2">Default staff roles</h1>
-      <p class="text-sm text-gray-500">The roles every code inherits. Each code can add its own on top — edit those on the code's settings page.</p>
+      <p class="text-sm text-gray-500">The roles every {{ t('code', false, true) }} inherits. Each {{ t('code', false, true) }} can add its own on top — edit those on the {{ t('code', false, true) }}'s settings page.</p>
     </div>
 
     <div v-if="loading" class="card p-6 text-sm text-gray-400">Loading…</div>
@@ -78,7 +80,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
       </div>
 
       <!-- Default member positions -->
-      <AppCard title="Default positions" description="Positions every code inherits (Member, Captain, Wing…). Codes can add their own on top. These are labels, not permissions.">
+      <AppCard title="Default positions" :description="`Positions every ${t('code', false, true)} inherits (${t('member')}, Captain, Wing…). ${t('code', true)} can add their own on top. These are labels, not permissions.`">
         <div class="p-4 sm:p-5 space-y-3">
           <div class="flex flex-wrap items-center gap-1.5">
             <span v-if="positions.length" v-for="(p, i) in positions" :key="`pos-${i}`"

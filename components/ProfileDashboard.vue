@@ -52,6 +52,9 @@ const emit = defineEmits<{
   (e: 'delete-note', id: string): void
 }>()
 
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
+
 const fieldByKey = computed(() => Object.fromEntries((props.fields ?? []).map(f => [f.key, f])))
 
 // ── Config + grid model ──
@@ -245,7 +248,7 @@ const alertActive = computed(() => {
   const c = cfgFor('alert'); const fk = c?.settings?.flagField
   return fk ? isTruthy(person.value, fk) : false
 })
-const alertMessage = computed(() => cfgFor('alert')?.settings?.message || 'This member has an active flag.')
+const alertMessage = computed(() => cfgFor('alert')?.settings?.message || `This ${t('member', false, true)} has an active flag.`)
 
 // On a real profile the alert cell only occupies the grid when it actually has a
 // banner to show (no empty placeholder). In the builder it's always shown so it
@@ -300,10 +303,10 @@ function maybeCollapseComposer() {
 const connectOptions = computed<NoteLink[]>(() => {
   const out: NoteLink[] = []
   for (const a of (props.data?.activity || [])) {
-    if (a.event_id) out.push({ type: 'event', id: a.event_id, label: a.title || 'Event' })
+    if (a.event_id) out.push({ type: 'event', id: a.event_id, label: a.title || t('event') })
   }
   for (const m of (props.data?.memberships || [])) {
-    if (m.id) out.push({ type: 'group', id: m.id, label: m.group || 'Group' })
+    if (m.id) out.push({ type: 'group', id: m.id, label: m.group || t('group') })
   }
   return out
 })
@@ -328,7 +331,7 @@ function statusSeverity(s: string) {
     <!-- toolbar (builder only) -->
     <div v-if="editable" class="flex items-center justify-between mb-3">
       <div v-if="editing" class="text-xs text-gray-400"><i class="pi pi-arrows-alt mr-1" />Drag to reorder · click the gear to configure a widget · Notes is pinned to the side.</div>
-      <div v-else class="text-xs text-gray-400">This layout applies to every member profile.</div>
+      <div v-else class="text-xs text-gray-400">This layout applies to every {{ t('member', false, true) }} profile.</div>
       <div class="flex items-center gap-2">
         <template v-if="editing">
           <button class="text-xs px-2 py-1.5 rounded-lg text-gray-500 hover:text-gray-800" @click="resetLayout">Reset</button>
@@ -437,14 +440,14 @@ function statusSeverity(s: string) {
               <div class="p-4">
                 <div class="overflow-x-auto">
                 <table class="w-full text-sm">
-                  <thead><tr class="text-left text-xs text-gray-400"><th class="font-semibold pb-2">Group</th><th class="font-semibold pb-2">Role</th><th class="font-semibold pb-2">Expiry</th></tr></thead>
+                  <thead><tr class="text-left text-xs text-gray-400"><th class="font-semibold pb-2">{{ t('group') }}</th><th class="font-semibold pb-2">Role</th><th class="font-semibold pb-2">Expiry</th></tr></thead>
                   <tbody>
                     <tr v-for="(m, i) in (data.memberships || [])" :key="i" class="border-t border-gray-50">
                       <td class="py-1.5 flex items-center gap-2"><span class="w-2 h-2 rounded-full" :style="{ background: m.color || '#94a3b8' }" />{{ m.group }}</td>
                       <td class="py-1.5 text-gray-500">{{ m.role || '—' }}</td>
                       <td class="py-1.5 text-gray-500">{{ m.expiry || '—' }}</td>
                     </tr>
-                    <tr v-if="!(data.memberships || []).length"><td colspan="3" class="py-3 text-gray-400 text-center">Not in any groups.</td></tr>
+                    <tr v-if="!(data.memberships || []).length"><td colspan="3" class="py-3 text-gray-400 text-center">Not in any {{ t('group', true, true) }}.</td></tr>
                   </tbody>
                 </table>
                 </div>
@@ -456,14 +459,14 @@ function statusSeverity(s: string) {
               <div class="p-4">
                 <div class="overflow-x-auto">
                 <table class="w-full text-sm">
-                  <thead><tr class="text-left text-xs text-gray-400"><th class="font-semibold pb-2">Invoice #</th><th class="font-semibold pb-2 text-right">Amount</th><th class="font-semibold pb-2 text-right">Status</th></tr></thead>
+                  <thead><tr class="text-left text-xs text-gray-400"><th class="font-semibold pb-2">{{ t('invoice') }} #</th><th class="font-semibold pb-2 text-right">Amount</th><th class="font-semibold pb-2 text-right">Status</th></tr></thead>
                   <tbody>
                     <tr v-for="(f, i) in (data.financials || [])" :key="i" class="border-t border-gray-50">
                       <td class="py-1.5">{{ f.invoice }}</td>
                       <td class="py-1.5 text-right tabular-nums">{{ f.amount }}</td>
                       <td class="py-1.5 text-right"><span class="text-[10px] uppercase px-1.5 py-0.5 rounded-full" :class="statusSeverity(f.status)">{{ titleCase(f.status || '') }}</span></td>
                     </tr>
-                    <tr v-if="!(data.financials || []).length"><td colspan="3" class="py-3 text-gray-400 text-center">No invoices yet.</td></tr>
+                    <tr v-if="!(data.financials || []).length"><td colspan="3" class="py-3 text-gray-400 text-center">No {{ t('invoice', true, true) }} yet.</td></tr>
                   </tbody>
                 </table>
                 </div>
@@ -511,7 +514,7 @@ function statusSeverity(s: string) {
               <div class="p-4">
                 <div class="overflow-x-auto">
                 <table class="w-full text-sm">
-                  <thead><tr class="text-left text-xs text-gray-400"><th class="font-semibold pb-2">Event</th><th class="font-semibold pb-2">Date</th><th class="font-semibold pb-2">Status</th><th class="font-semibold pb-2 text-center">Attended</th></tr></thead>
+                  <thead><tr class="text-left text-xs text-gray-400"><th class="font-semibold pb-2">{{ t('event') }}</th><th class="font-semibold pb-2">Date</th><th class="font-semibold pb-2">Status</th><th class="font-semibold pb-2 text-center">Attended</th></tr></thead>
                   <tbody>
                     <tr v-for="(a, i) in (data.activity || [])" :key="i" class="border-t border-gray-50">
                       <td class="py-1.5 font-medium text-gray-700">{{ a.title }}</td>
@@ -633,7 +636,7 @@ function statusSeverity(s: string) {
           </div>
           <div>
             <label class="text-xs font-medium text-gray-600 block mb-1">Banner message</label>
-            <InputText :modelValue="selectedCfg.settings?.message || ''" class="w-full" placeholder="e.g. This member has outstanding payments."
+            <InputText :modelValue="selectedCfg.settings?.message || ''" class="w-full" :placeholder="`e.g. This ${t('member', false, true)} has outstanding payments.`"
               @update:modelValue="v => { ensureSettings(selectedCfg); selectedCfg.settings.message = v }" />
           </div>
         </div>

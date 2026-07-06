@@ -11,10 +11,12 @@
 -->
 <script setup lang="ts">
 import { GridLayout, GridItem } from 'grid-layout-plus'
+import type { RolloverNudge } from '~/composables/useTermRollover'
 
 const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
+const { ensureTerms, t } = useTerms()
 
 // Registry — defaults (slot + size) for orgs with no saved config.
 interface WidgetDef { key: string; label: string; description: string; x: number; y: number; w: number; h: number; minW: number; minH: number; defaultOff?: boolean }
@@ -38,14 +40,28 @@ const ACTIVITY_DEF: WidgetDef = { key: 'activity', label: 'Activity', descriptio
 function isChart(key: string) { return key.startsWith('chart:') }
 function isActivity(key: string) { return key.startsWith('activity:') }
 function widgetDef(key: string): WidgetDef { return defById[key] ?? (isActivity(key) ? ACTIVITY_DEF : CHART_DEF) }
+// Display label for the Add-widget menu — term-aware for the registry widgets
+// (the registry keeps plain English labels; dynamic chart/activity fall through).
+function widgetLabel(key: string): string {
+  const map: Record<string, string> = {
+    stat_members: `${t('member', true)} tile`,
+    stat_groups: `${t('group', true)} tile`,
+    stat_events: `Upcoming ${t('event', true, true)} tile`,
+    stat_bookings: `Upcoming ${t('booking', true, true)} tile`,
+    upcoming_events: `Upcoming ${t('event', true, true)}`,
+    members_by_type: `${t('member', true)} by type`,
+    recent_members: `Recently added ${t('member', true, true)}`,
+  }
+  return map[key] ?? widgetDef(key).label
+}
 
 // Generic spec for the four stat tiles (rendered from one template branch).
-const STAT_TILES: Record<string, { label: string; sublabel: string; icon: string; to: string; stat: 'members' | 'groups' | 'upcomingEvents' | 'upcomingBookings'; color: string }> = {
-  stat_members:  { label: 'Members',           sublabel: 'People in this club',        icon: 'pi-users',    to: '/people',                  stat: 'members',         color: '#3B82F6' },
-  stat_groups:   { label: 'Groups',            sublabel: 'Squads & member groups',     icon: 'pi-sitemap',  to: '/groups',                  stat: 'groups',          color: '#8B5CF6' },
-  stat_events:   { label: 'Upcoming events',   sublabel: 'Scheduled from today',       icon: 'pi-calendar', to: '/events',                  stat: 'upcomingEvents',  color: '#EC4899' },
-  stat_bookings: { label: 'Upcoming bookings', sublabel: 'Venue & resource bookings',  icon: 'pi-bookmark', to: '/bookables?tab=bookings',  stat: 'upcomingBookings', color: '#10B981' },
-}
+const STAT_TILES = computed<Record<string, { label: string; sublabel: string; icon: string; to: string; stat: 'members' | 'groups' | 'upcomingEvents' | 'upcomingBookings'; color: string }>>(() => ({
+  stat_members:  { label: t('member', true),                    sublabel: 'People in this club',                                     icon: 'pi-users',    to: '/people',                  stat: 'members',         color: '#3B82F6' },
+  stat_groups:   { label: t('group', true),                     sublabel: `Squads & ${t('member', true, true)} ${t('group', true, true)}`, icon: 'pi-sitemap',  to: '/groups',                  stat: 'groups',          color: '#8B5CF6' },
+  stat_events:   { label: `Upcoming ${t('event', true, true)}`,   sublabel: 'Scheduled from today',                                    icon: 'pi-calendar', to: '/events',                  stat: 'upcomingEvents',  color: '#EC4899' },
+  stat_bookings: { label: `Upcoming ${t('booking', true, true)}`, sublabel: `${t('venue')} & resource ${t('booking', true, true)}`,    icon: 'pi-bookmark', to: '/bookables?tab=bookings',  stat: 'upcomingBookings', color: '#10B981' },
+}))
 
 const CHART_COLORS = ['#1E2157', '#3B82F6', '#8B5CF6', '#EC4899', '#10B981', '#F59E0B', '#06B6D4', '#6B7280']
 const PALETTES: Record<string, { label: string; colors: string[] }> = {
@@ -322,6 +338,7 @@ async function saveActivitySettings() {
 
 async function load() {
   if (!orgId.value) return
+  void ensureTerms()
   loading.value = true
   const [{ data: orgRow }, { data: persons }, { count: groupCount }, { data: events, count: eventCount }, { data: bookables }] = await Promise.all([
     (db.from as any)('organisations').select('name, logo_url, dashboard_banner_url, dashboard_config').eq('id', orgId.value).maybeSingle(),
@@ -466,12 +483,12 @@ const saving = ref(false)
 
 // Quick-actions dropdown (popup menu, teleported so the card doesn't clip it).
 const quickMenu = ref()
-const quickItems = [
-  { label: 'New event', icon: 'pi pi-calendar-plus', command: () => navigateTo('/events/new-basic') },
-  { label: 'Add member', icon: 'pi pi-user-plus', command: () => navigateTo('/people/new') },
-  { label: 'New booking', icon: 'pi pi-bookmark', command: () => navigateTo('/bookings/new') },
+const quickItems = computed(() => [
+  { label: `New ${t('event', false, true)}`, icon: 'pi pi-calendar-plus', command: () => navigateTo('/events/new-basic') },
+  { label: `Add ${t('member', false, true)}`, icon: 'pi pi-user-plus', command: () => navigateTo('/people/new') },
+  { label: `New ${t('booking', false, true)}`, icon: 'pi pi-bookmark', command: () => navigateTo('/bookings/new') },
   { label: 'Send email', icon: 'pi pi-envelope', command: () => navigateTo('/settings/communications') },
-]
+])
 const addMenuOpen = ref(false)
 function startEdit() { editing.value = true }
 function cancelEdit() {
@@ -544,7 +561,32 @@ async function resetLayout() {
   config.value = defaultConfig(); rebuildLayout()
 }
 
-watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
+// ── Term-rollover nudge ────────────────────────────────────────────────────
+// Shown when the running term is ending (or just ended) and its classes haven't
+// been rolled into the next term yet — the first step of the easy-rollover flow.
+// "Remind me later" snoozes it for 3 days (localStorage, per org + term).
+const rolloverNudge = ref<RolloverNudge | null>(null)
+const rolloverNudgeHidden = ref(false)
+// Club terminology for the banner copy ("class"/"term" are club-renamable).
+const nudgeTerminology = useTerminology()
+const nudgeTermMap = ref<Record<string, { singular?: string; plural?: string }>>({})
+const nClassS = computed(() => nudgeTerminology.term(nudgeTermMap.value, 'group').toLowerCase())
+const nClassP = computed(() => nudgeTerminology.term(nudgeTermMap.value, 'group', true).toLowerCase())
+const nTermS = computed(() => nudgeTerminology.term(nudgeTermMap.value, 'term').toLowerCase())
+const nudgeSnoozeKey = () => `fm_rollover_nudge_${orgId.value}_${rolloverNudge.value?.currentTerm?.id}`
+function snoozeRolloverNudge() {
+  try { localStorage.setItem(nudgeSnoozeKey(), String(Date.now() + 3 * 86400000)) } catch {}
+  rolloverNudgeHidden.value = true
+}
+async function loadRolloverNudge() {
+  rolloverNudge.value = await useTermRollover().rolloverNudge()
+  if (!rolloverNudge.value) return
+  nudgeTermMap.value = await nudgeTerminology.resolveTerminology(orgId.value!)
+  try { rolloverNudgeHidden.value = Number(localStorage.getItem(nudgeSnoozeKey()) || 0) > Date.now() }
+  catch { rolloverNudgeHidden.value = false }
+}
+
+watch(orgId, () => { if (orgId.value) { load(); loadRolloverNudge() } }, { immediate: true })
 </script>
 
 <template>
@@ -585,7 +627,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
             <template v-if="addMenuOpen">
               <div class="fixed inset-0 z-[55]" @click="addMenuOpen = false" />
               <div class="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-[60] text-left">
-                <button v-for="hw in hiddenWidgets" :key="hw.key" type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50" @click="addWidget(hw.key); addMenuOpen = false"><i class="pi pi-plus text-[10px] text-gray-400" />{{ widgetDef(hw.key).label }}</button>
+                <button v-for="hw in hiddenWidgets" :key="hw.key" type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50" @click="addWidget(hw.key); addMenuOpen = false"><i class="pi pi-plus text-[10px] text-gray-400" />{{ widgetLabel(hw.key) }}</button>
                 <div v-if="hiddenWidgets.length" class="border-t border-gray-100 my-1" />
                 <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addChart(); addMenuOpen = false"><i class="pi pi-chart-pie text-[10px]" />Chart (choose a field)</button>
                 <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addActivity(); addMenuOpen = false"><i class="pi pi-bookmark text-[10px]" />Activity (connect to an activity)</button>
@@ -606,6 +648,28 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
 
     <!-- Everything below the header sits above the banner image (which is absolutely positioned) -->
     <div class="relative z-[1]">
+    <!-- Term-rollover nudge — step 1 of the easy-rollover flow: tell the club it's time -->
+    <div v-if="rolloverNudge && !rolloverNudgeHidden"
+      class="mb-4 rounded-xl bg-amber-200 border border-amber-300 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3">
+      <span class="hidden sm:flex w-8 h-8 rounded-lg bg-white/60 items-center justify-center shrink-0"><i class="pi pi-history text-amber-800 text-sm" /></span>
+      <p class="text-sm text-amber-900 flex-1 min-w-0">
+        <b class="font-semibold">{{ rolloverNudge.currentTerm.name }}
+          <template v-if="rolloverNudge.daysLeft > 0">ends in {{ rolloverNudge.daysLeft }} day{{ rolloverNudge.daysLeft === 1 ? '' : 's' }}</template>
+          <template v-else-if="rolloverNudge.daysLeft === 0">ends today</template>
+          <template v-else>ended {{ -rolloverNudge.daysLeft }} day{{ rolloverNudge.daysLeft === -1 ? '' : 's' }} ago</template></b>
+        —
+        <template v-if="rolloverNudge.state === 'roll'">{{ rolloverNudge.remaining }} of {{ rolloverNudge.total }} {{ rolloverNudge.total === 1 ? nClassS : nClassP }} {{ rolloverNudge.remaining === 1 ? 'hasn’t' : 'haven’t' }} been rolled into <b class="font-semibold">{{ rolloverNudge.nextTerm!.name }}</b> yet.</template>
+        <template v-else>set up your next {{ nTermS }} so your {{ rolloverNudge.total }} {{ rolloverNudge.total === 1 ? nClassS : nClassP }} can roll over.</template>
+      </p>
+      <div class="flex items-center gap-2 shrink-0">
+        <NuxtLink to="/groups/term-wizard"
+          class="text-xs font-semibold text-white px-3.5 py-2 rounded-lg inline-flex items-center gap-1.5 hover:brightness-110"
+          style="background:var(--brand-primary)">
+          {{ rolloverNudge.state === 'roll' ? 'Roll over now' : `Set up the ${nTermS}` }} <i class="pi pi-arrow-right text-[9px]" />
+        </NuxtLink>
+        <button type="button" class="text-xs font-medium text-amber-800 hover:text-amber-900 px-2 py-2" @click="snoozeRolloverNudge">Remind me later</button>
+      </div>
+    </div>
     <div v-if="templateMode" class="mb-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800 flex items-center gap-2">
       <i class="pi pi-info-circle shrink-0" />You're editing the default dashboard for <b class="font-semibold">{{ templateLabel }}</b>. <span class="text-amber-700/80">Done saves it as the starting layout for everyone with that role (until they personalise their own).</span>
     </div>
@@ -661,14 +725,14 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
             </div>
 
             <!-- Upcoming events -->
-            <AppCard v-else-if="item.i === 'upcoming_events'" title="Upcoming events" class="h-full">
+            <AppCard v-else-if="item.i === 'upcoming_events'" :title="`Upcoming ${t('event', true, true)}`" class="h-full">
               <template #header-action>
                 <NuxtLink to="/events" class="text-xs font-medium text-primary hover:underline">View all →</NuxtLink>
               </template>
               <div class="px-3 py-2">
                 <div v-if="loading" class="text-sm text-gray-400 py-4 px-2">Loading…</div>
                 <div v-else-if="!upcoming.length" class="text-sm text-gray-400 py-8 text-center">
-                  No upcoming events. <NuxtLink to="/events/new-basic" class="text-primary hover:underline">Create one →</NuxtLink>
+                  No upcoming {{ t('event', true, true) }}. <NuxtLink to="/events/new-basic" class="text-primary hover:underline">Create one →</NuxtLink>
                 </div>
                 <ul v-else>
                   <li v-for="e in upcoming" :key="e.id">
@@ -693,10 +757,10 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
             </AppCard>
 
             <!-- Members by type -->
-            <AppCard v-else-if="item.i === 'members_by_type'" title="Members by type" class="h-full">
+            <AppCard v-else-if="item.i === 'members_by_type'" :title="`${t('member', true)} by type`" class="h-full">
               <div class="p-5">
                 <div v-if="loading" class="text-sm text-gray-400 py-4">Loading…</div>
-                <div v-else-if="!byType.length" class="text-sm text-gray-400 py-8 text-center">No members yet.</div>
+                <div v-else-if="!byType.length" class="text-sm text-gray-400 py-8 text-center">No {{ t('member', true, true) }} yet.</div>
                 <div v-else class="space-y-3.5">
                   <div v-for="t in byType" :key="t.label">
                     <div class="flex items-center justify-between text-xs mb-1.5">
@@ -766,7 +830,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
                   </div>
                   <!-- next 10 upcoming bookings -->
                   <div class="flex-1 min-h-0 overflow-y-auto">
-                    <div v-if="!activityNext(item.i).length" class="text-sm text-gray-400 py-8 px-4 text-center">No upcoming bookings.</div>
+                    <div v-if="!activityNext(item.i).length" class="text-sm text-gray-400 py-8 px-4 text-center">No upcoming {{ t('booking', true, true) }}.</div>
                     <ul v-else class="divide-y divide-gray-50">
                       <li v-for="(b, bi) in activityNext(item.i)" :key="bi">
                         <NuxtLink :to="bookingLink(b)" class="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 transition-colors">
@@ -775,7 +839,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
                             <span class="text-base font-bold text-primary leading-tight">{{ new Date(b.start_at).getDate() }}</span>
                           </div>
                           <div class="min-w-0 flex-1">
-                            <p class="text-sm font-medium text-gray-800 truncate">{{ b.contact_name || 'Booking' }}</p>
+                            <p class="text-sm font-medium text-gray-800 truncate">{{ b.contact_name || t('booking') }}</p>
                             <p class="text-xs text-gray-400 truncate">{{ fmtDate(b.start_at) }} · {{ fmtTime(b.start_at) }}</p>
                           </div>
                           <span class="text-[10px] uppercase tracking-wide font-medium px-2 py-0.5 rounded-full shrink-0"
@@ -790,13 +854,13 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
             </div>
 
             <!-- Recently added members -->
-            <AppCard v-else-if="item.i === 'recent_members'" title="Recently added members" class="h-full">
+            <AppCard v-else-if="item.i === 'recent_members'" :title="`Recently added ${t('member', true, true)}`" class="h-full">
               <template #header-action>
                 <NuxtLink to="/people" class="text-xs font-medium text-primary hover:underline">View all →</NuxtLink>
               </template>
               <div class="px-3 py-2">
                 <div v-if="loading" class="text-sm text-gray-400 py-4 px-2">Loading…</div>
-                <div v-else-if="!recent.length" class="text-sm text-gray-400 py-8 text-center">No members yet.</div>
+                <div v-else-if="!recent.length" class="text-sm text-gray-400 py-8 text-center">No {{ t('member', true, true) }} yet.</div>
                 <ul v-else>
                   <li v-for="p in recent" :key="p.id">
                     <NuxtLink :to="`/people/${p.id}`" class="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors">

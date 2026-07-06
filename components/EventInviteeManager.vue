@@ -10,7 +10,7 @@
         <button type="button"
           class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors"
           :class="selectorMode === 'groups' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'"
-          @click="selectorMode = 'groups'">Groups</button>
+          @click="selectorMode = 'groups'">{{ t('group', true) }}</button>
         <button type="button"
           class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors"
           :class="selectorMode === 'individuals' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'"
@@ -22,7 +22,7 @@
         <div class="flex gap-2">
           <IconField class="flex-1">
             <InputIcon class="pi pi-search" />
-            <InputText v-model="selectorSearch" placeholder="Search groups…" size="small" class="w-full" />
+            <InputText v-model="selectorSearch" :placeholder="`Search ${t('group', true, true)}…`" size="small" class="w-full" />
           </IconField>
           <div class="relative">
             <Button label="Filter" icon="pi pi-filter" size="small" severity="secondary" outlined @click="showDemoFilter = true" />
@@ -32,7 +32,7 @@
 
         <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div v-if="groupsLoading" class="py-8 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-400" /></div>
-          <div v-else-if="filteredGroups.length === 0" class="py-6 text-center text-sm text-gray-400">No groups found</div>
+          <div v-else-if="filteredGroups.length === 0" class="py-6 text-center text-sm text-gray-400">No {{ t('group', true, true) }} found</div>
           <div v-else>
             <template v-for="group in filteredGroups" :key="group.id">
               <div :class="['flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors', group.parent_id ? 'pl-8 bg-white' : 'bg-gray-50 hover:bg-gray-100']">
@@ -42,7 +42,7 @@
                 <span v-else class="w-4 shrink-0" />
                 <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: group.color ?? '#94a3b8' }" />
                 <span class="flex-1 text-sm" :class="group.parent_id ? 'text-gray-700' : 'font-semibold text-gray-800'">{{ group.name }}</span>
-                <span class="text-xs text-gray-400 mr-2">{{ group._memberCount }} members</span>
+                <span class="text-xs text-gray-400 mr-2">{{ group._memberCount }} {{ t('member', true, true) }}</span>
                 <Button
                   :label="selectedInviteeGroups.includes(group.id) ? 'Added' : 'Add all'"
                   :icon="addingGroupId === group.id ? 'pi pi-spin pi-spinner' : selectedInviteeGroups.includes(group.id) ? 'pi pi-check' : 'pi pi-plus'"
@@ -58,7 +58,7 @@
                   class="flex items-center gap-2 px-3 py-2 border-b border-gray-100 last:border-0 pl-9 bg-white hover:bg-gray-50 transition-colors">
                   <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: child.color ?? '#94a3b8' }" />
                   <span class="flex-1 text-sm text-gray-700">{{ child.name }}</span>
-                  <span class="text-xs text-gray-400 mr-2">{{ child._memberCount }} members</span>
+                  <span class="text-xs text-gray-400 mr-2">{{ child._memberCount }} {{ t('member', true, true) }}</span>
                   <Button
                     :label="selectedInviteeGroups.includes(child.id) ? 'Added' : 'Add'"
                     :icon="addingGroupId === child.id ? 'pi pi-spin pi-spinner' : selectedInviteeGroups.includes(child.id) ? 'pi pi-check' : 'pi pi-plus'"
@@ -141,7 +141,7 @@
       <div v-if="inviteesLoading" class="py-12 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-400 text-xl" /></div>
       <div v-else-if="!invitees.length && !selectedInviteeGroups.length" class="bg-white rounded-xl border border-gray-200 py-14 text-center text-sm text-gray-400">
         <i class="pi pi-users text-3xl mb-3 block text-gray-300" />
-        Use the selector on the left to add groups of people
+        Use the selector on the left to add {{ t('group', true, true) }} of people
       </div>
 
       <!-- Group sections -->
@@ -311,6 +311,8 @@
 
 <script setup lang="ts">
 const { orgId } = useOrg()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 const props = defineProps<{
   eventId: string
 }>()
@@ -480,7 +482,7 @@ async function addGroupInvitees(groupId: string) {
   }
 
   if (!personIds.length) {
-    toast.add({ severity: 'info', summary: 'No members found', detail: 'No members in this group.', life: 3000 })
+    toast.add({ severity: 'info', summary: `No ${t('member', true, true)} found`, detail: `No ${t('member', true, true)} in this ${t('group', false, true)}.`, life: 3000 })
     addingGroupId.value = null
     return
   }
@@ -500,7 +502,7 @@ async function addGroupInvitees(groupId: string) {
     await loadInvitees()
     toast.add({ severity: 'success', summary: `${toInsert.length} invitee${toInsert.length > 1 ? 's' : ''} added`, life: 3000 })
   } else {
-    toast.add({ severity: 'info', summary: 'Already invited', detail: 'All members in this group are already invited.', life: 3000 })
+    toast.add({ severity: 'info', summary: 'Already invited', detail: `All ${t('member', true, true)} in this ${t('group', false, true)} are already invited.`, life: 3000 })
   }
 
   groupMembershipsMap.value[groupId] = personIds
@@ -519,7 +521,7 @@ async function removeGroup(groupId: string) {
   const idx = selectedInviteeGroups.value.indexOf(groupId)
   if (idx >= 0) selectedInviteeGroups.value.splice(idx, 1)
   delete groupMembershipsMap.value[groupId]
-  toast.add({ severity: 'success', summary: 'Group removed', life: 3000 })
+  toast.add({ severity: 'success', summary: `${t('group', false)} removed`, life: 3000 })
 }
 
 // ---- Bulk selection ----

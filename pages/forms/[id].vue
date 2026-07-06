@@ -2,24 +2,41 @@
   <div class="flex flex-col h-screen bg-[#F5F8FA]">
     <!-- Top toolbar -->
     <div class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shrink-0">
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 flex-1 min-w-0">
         <button class="text-sm text-gray-500 hover:text-primary flex items-center gap-1.5"
           @click="navigateTo(returnTo || '/forms')">
           <i class="pi pi-arrow-left text-xs" />
           {{ returnLabel }}
         </button>
         <span class="text-gray-300">/</span>
-        <span class="text-sm font-semibold text-gray-800">{{ form.name || (isNew ? 'New form' : 'Untitled form') }}</span>
+        <!-- Designer forms: the name is edited right here (autosaves); builder forms keep the static label -->
+        <InputText v-if="mode === 'designer'" v-model="designerName" placeholder="Form name"
+          class="!h-8 !text-sm font-semibold w-64 max-w-full" @change="saveDesignerName" />
+        <span v-else class="text-sm font-semibold text-gray-800">{{ form.name || (isNew ? 'New form' : 'Untitled form') }}</span>
       </div>
-      <div class="flex items-center gap-2">
-        <Button :label="isNew ? 'Create form' : 'Save changes'" icon="pi pi-check" size="small" :loading="saving"
+      <div class="flex items-center gap-2 shrink-0">
+        <Button v-if="mode === 'designer' && formId" icon="pi pi-trash" size="small" text severity="danger"
+          v-tooltip.bottom="'Delete this form'" @click="onDelete" />
+        <Button v-if="!isNew && formId" label="Connect" icon="pi pi-link" size="small" outlined
+          v-tooltip.bottom="'Connect this form to programmes/classes + get its public link'"
+          @click="connOpen = true" />
+        <Button v-if="mode === 'builder'" :label="isNew ? 'Create form' : 'Save changes'" icon="pi pi-check" size="small" :loading="saving"
           @click="save" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+        <span v-else-if="mode === 'designer'" class="text-xs text-gray-400">Autosaves</span>
       </div>
     </div>
+
+    <FormConnectionsDialog v-model:visible="connOpen" :form-id="formId" :form-name="mode === 'designer' ? designerName : form.name" />
 
     <div v-if="loading" class="flex-1 flex items-center justify-center text-gray-400">
       <i class="pi pi-spin pi-spinner text-2xl" />
     </div>
+
+    <!-- Standalone designer — the SAME per-subject designer events use, with the
+         "Choose a registration type" chooser (Blank / Individual / Family / Team…) -->
+    <FormDesigner v-else-if="mode === 'designer'"
+      :event-id="null" :form-id="formId" :org-id="orgId"
+      class="flex flex-col flex-1 min-h-0" />
 
     <FormBuilder v-else
       v-model="form"
@@ -87,19 +104,37 @@ const builderContext = computed(() => ({
 
 const loading = ref(true)
 const saving = ref(false)
+// Connections dialog (shared <FormConnectionsDialog>) — reachable while editing.
+const connOpen = ref(false)
+
+// 'designer' = the rich per-subject <FormDesigner> (config.groups shape — all NEW
+// forms); 'builder' = the legacy flat <FormBuilder> (config.profiles + form_fields).
+const mode = ref<'designer' | 'builder'>('builder')
+
+const designerName = ref('')
+async function saveDesignerName() {
+  if (!formId.value) return
+  const name = designerName.value.trim() || 'Untitled form'
+  await (db.from as any)('registration_forms').update({ name }).eq('id', formId.value).eq('org_id', orgId.value)
+}
 
 async function load() {
   loading.value = true
-  if (isNew.value) {
-    const fresh = emptyForm()
-    fresh.name = (route.query.name as string) || ''
-    form.value = fresh
-    loading.value = false
-    return
-  }
+  // /forms/new is owned by the wizard page (pages/forms/new.vue) — this page
+  // only ever edits an existing form.
+  if (isNew.value) { await navigateTo('/forms/new', { replace: true }); return }
   const id = formId.value!
   const fresh = emptyForm()
   const { data: f } = await (db.from as any)('registration_forms').select('id, name, config').eq('id', id).eq('org_id', orgId.value).single()
+  // Designer-shaped config → mount <FormDesigner> (it self-loads); skip the builder mapping.
+  if (f && Array.isArray((f.config as any)?.groups)) {
+    mode.value = 'designer'
+    designerName.value = f.name ?? ''
+    loading.value = false
+    if (route.query.connect) connOpen.value = true
+    return
+  }
+  mode.value = 'builder'
   let fieldMeta: Record<string, any> = {}
   if (f) {
     fresh.name = f.name ?? ''
@@ -151,6 +186,7 @@ async function load() {
   for (const cf of coreFields()) if (!present.has(cf.core)) fresh.fields.push(cf)
   form.value = fresh
   loading.value = false
+  if (route.query.connect) connOpen.value = true
 }
 
 async function save() {
@@ -224,7 +260,9 @@ async function save() {
     if (returnTo.value) {
       await navigateTo(`${returnTo.value}${returnTo.value.includes('?') ? '&' : '?'}form_id=${id}`)
     } else if (isNew.value) {
-      await navigateTo(`/forms/${id}`, { replace: true })
+      // Land on the saved form with the Connect dialog open — creating a form
+      // flows straight into connecting it to programmes/classes.
+      await navigateTo(`/forms/${id}?connect=1`, { replace: true })
     }
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Could not save', detail: e?.message, life: 4000 })
@@ -234,8 +272,15 @@ async function save() {
 
 async function onDelete() {
   if (!formId.value) return
-  if (!confirm('Delete this form? Modes and events using it will be unlinked.')) return
-  await (db.from as any)('form_fields').delete().eq('form_id', formId.value)
+  if (!confirm('Delete this form? Events, booking modes and classes using it will be unlinked. This can\'t be undone.')) return
+  // Actually unlink everything pointing at it, then remove the form + fields
+  // (registration_form_targets cascade via FK).
+  await Promise.all([
+    (db.from as any)('events').update({ form_id: null }).eq('form_id', formId.value),
+    (db.from as any)('activity_modes').update({ form_id: null }).eq('form_id', formId.value),
+    (db.from as any)('member_groups').update({ form_id: null }).eq('form_id', formId.value),
+    (db.from as any)('form_fields').delete().eq('form_id', formId.value),
+  ])
   await (db.from as any)('registration_forms').delete().eq('id', formId.value).eq('org_id', orgId.value)
   toast.add({ severity: 'success', summary: 'Form deleted', life: 2000 })
   navigateTo('/forms')

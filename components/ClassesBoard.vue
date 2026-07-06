@@ -29,13 +29,15 @@ const scoped = useScopedRoles()
 const gf = useGroupFees()
 const tm = useTermsMemberships()
 const wl = useWaitlists()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 const showCol = (k: ViewColumnKey) => props.columns.includes(k)
 
 interface ClassGroup {
   id: string; name: string; code_id: string | null; term_id: string | null; capacity: number | null; color: string | null
   headName: string | null; gymnasts: number; waitlist: number | null; sport: string | null
-  gender: string | null; ageRange: string | null; feeLabel: string | null; feeCount: number; attendances: number
+  gender: string | null; ageRange: string | null; feeLabel: string | null; feeCount: number; formId: string | null; attendances: number
 }
 
 // Gender restriction (migration 203) → short label; null = open to all.
@@ -50,7 +52,7 @@ const termDefaulted = ref(false)        // only auto-pick the default term on fi
 const loading = ref(true)
 
 const termOptions = computed(() => [
-  { label: 'All terms', value: 'all' },
+  { label: `All ${t('term', true, true)}`, value: 'all' },
   ...terms.value.map(t => ({ label: t.name, value: t.id })),
 ])
 // A group belongs to the selected term via its code chain (else its own term_id).
@@ -130,7 +132,7 @@ async function load() {
   const [loadedCodes, loadedTerms, { data: gs }, { data: mems }, { data: discs }, { data: feeOpts }, { data: evs }, wlCounts] = await Promise.all([
     gc.loadCodes(),
     tm.loadTerms(),
-    (db.from as any)('member_groups').select('id, name, code_id, term_id, capacity, color, gender_restriction, age_range, waitlist_id').eq('org_id', orgId.value),
+    (db.from as any)('member_groups').select('id, name, code_id, term_id, capacity, color, gender_restriction, age_range, waitlist_id, form_id').eq('org_id', orgId.value),
     (db.from as any)('member_group_memberships').select('group_id, role, roles, person:persons!inner(first_name, last_name)'),
     (db.from as any)('member_group_disciplines').select('group_id, discipline:disciplines(sport, name)'),
     (db.from as any)('group_fee_options').select('id, group_id, name, fee_type, period_unit, period_count, instalment_count, session_count, prorata, items:group_fee_option_items(amount)').eq('org_id', orgId.value),
@@ -166,6 +168,7 @@ async function load() {
       gender: g.gender_restriction ?? null,
       ageRange: g.age_range ?? null,
       feeCount: opts.length,
+      formId: g.form_id ?? null,
       feeLabel: opts.length === 1 ? gf.priceLabel({ ...opts[0], items: opts[0].items ?? [] } as any) : null,
       attendances: attByGroup[g.id] || 0,
     }
@@ -201,9 +204,9 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
   <div class="space-y-4">
     <div v-if="loading" class="card p-6 text-sm text-gray-400">Loading…</div>
     <div v-else-if="!codes.length" class="card p-6 text-sm text-gray-500">
-      No codes yet — create one on <NuxtLink to="/groups/codes" class="text-primary hover:underline">Organise codes</NuxtLink> first.
+      No {{ t('code', true, true) }} yet — create one on <NuxtLink to="/groups/codes" class="text-primary hover:underline">Organise {{ t('code', true, true) }}</NuxtLink> first.
     </div>
-    <div v-else-if="!tabs.length" class="card p-6 text-sm text-gray-400">This view has no codes to show.</div>
+    <div v-else-if="!tabs.length" class="card p-6 text-sm text-gray-400">This view has no {{ t('code', true, true) }} to show.</div>
 
     <template v-else>
       <!-- Term filter — a group belongs to a term via its code chain (else its own
@@ -211,7 +214,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
            passed via the #toolbar slot line up horizontally on this row. -->
       <div v-if="terms.length || $slots.toolbar" class="flex items-center gap-2 flex-wrap">
         <template v-if="terms.length">
-          <label class="text-xs font-medium text-gray-500 shrink-0">Term</label>
+          <label class="text-xs font-medium text-gray-500 shrink-0">{{ t('term') }}</label>
           <Select v-model="termFilter" :options="termOptions" option-label="label" option-value="value" class="w-full sm:w-56" />
         </template>
         <div v-if="$slots.toolbar" class="flex items-center gap-2 flex-wrap ml-auto"><slot name="toolbar" /></div>
@@ -234,7 +237,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         </button>
       </div>
 
-      <div v-if="!activeSections.length" class="card p-6 text-sm text-gray-400">No classes in this tab yet.</div>
+      <div v-if="!activeSections.length" class="card p-6 text-sm text-gray-400">No {{ t('group', true, true) }} in this tab yet.</div>
 
       <div v-for="sec in activeSections" :key="sec.key" class="card p-0 overflow-hidden">
         <!-- Desktop table -->
@@ -250,11 +253,11 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
                 </NuxtLink>
                 <span v-else>{{ sec.title }}</span>
               </th>
-              <th v-if="showCol('head')" class="px-3 py-3">Head</th>
-              <th v-if="showCol('gymnasts')" class="px-3 py-3 w-24">Gymnasts</th>
+              <th v-if="showCol('head')" class="px-3 py-3">{{ t('group-head') }}</th>
+              <th v-if="showCol('gymnasts')" class="px-3 py-3 w-24">{{ t('member', true) }}</th>
               <th v-if="showCol('waitlist')" class="px-3 py-3 w-20">Waitlist</th>
               <th v-if="showCol('attendances')" class="px-3 py-3 w-24">Attendances</th>
-              <th v-if="showCol('termfee')" class="px-3 py-3 w-28">Term fee</th>
+              <th v-if="showCol('termfee')" class="px-3 py-3 w-28">{{ t('term') }} fee</th>
               <th v-if="showCol('age')" class="px-3 py-3 w-24">Age</th>
               <th v-if="showCol('gender')" class="px-3 py-3 w-24">Gender</th>
               <th v-if="showCol('signup')" class="px-3 py-3 w-24">Signup</th>
@@ -275,20 +278,20 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
               <td v-if="showCol('waitlist')" class="px-3 py-2.5 text-gray-600">{{ g.waitlist || '' }}</td>
               <td v-if="showCol('attendances')" class="px-3 py-2.5 text-gray-600">{{ g.attendances || '—' }}</td>
               <td v-if="showCol('termfee')" class="px-3 py-2.5 text-xs">
-                <span v-if="g.feeCount === 0" class="text-red-500"><i class="pi pi-times-circle" /></span>
+                <span v-if="g.feeCount === 0" class="text-gray-500">Free</span>
                 <span v-else-if="g.feeCount > 1" class="italic text-gray-500">varies</span>
                 <span v-else class="text-gray-700">{{ g.feeLabel }}</span>
               </td>
               <td v-if="showCol('age')" class="px-3 py-2.5 text-gray-600 text-xs">{{ g.ageRange || 'Any' }}</td>
               <td v-if="showCol('gender')" class="px-3 py-2.5 text-gray-600 text-xs">{{ genderLabel(g.gender) }}</td>
               <td v-if="showCol('signup')" class="px-3 py-2.5 text-xs" @click.stop>
-                <span v-if="g.feeCount > 0" class="text-emerald-600 whitespace-nowrap"><i class="pi pi-check-circle" /> Live</span>
-                <span v-else class="text-gray-400 whitespace-nowrap" v-tooltip.top="'No fee option yet — add one on the group Fees tab'"><i class="pi pi-times-circle" /> Not live</span>
+                <span v-if="g.formId" class="text-emerald-600 whitespace-nowrap"><i class="pi pi-check-circle" /> Live</span>
+                <span v-else class="text-gray-400 whitespace-nowrap" v-tooltip.top="`No sign-up form yet — connect one on the ${t('group', false, true)} page`"><i class="pi pi-times-circle" /> Not live</span>
               </td>
               <td v-if="showCol('sport')" class="px-3 py-2.5 text-gray-500 text-xs">{{ g.sport || '' }}</td>
             </tr>
             <tr v-if="showCol('gymnasts')" class="bg-gray-50/60">
-              <td class="px-5 py-2 text-xs italic text-gray-500">Total gymnasts</td>
+              <td class="px-5 py-2 text-xs italic text-gray-500">Total {{ t('member', true, true) }}</td>
               <td v-if="showCol('head')"></td>
               <td class="px-3 py-2 text-xs italic font-semibold text-gray-600">{{ sec.total }}</td>
               <td v-if="showCol('waitlist')"></td>
@@ -325,31 +328,31 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
                 <span v-if="showCol('gender')">{{ genderLabel(g.gender) }}</span>
                 <span v-if="showCol('attendances')">{{ g.attendances || 0 }} sessions</span>
                 <span v-if="showCol('termfee')">
-                  <template v-if="g.feeCount === 0">No fee</template>
+                  <template v-if="g.feeCount === 0">Free</template>
                   <template v-else-if="g.feeCount > 1">Fees vary</template>
                   <template v-else>{{ g.feeLabel }}</template>
                 </span>
-                <span v-if="showCol('signup')" :class="g.feeCount > 0 ? 'text-emerald-600' : 'text-gray-400'">
-                  {{ g.feeCount > 0 ? 'Live' : 'Not live' }}
+                <span v-if="showCol('signup')" :class="g.formId ? 'text-emerald-600' : 'text-gray-400'">
+                  {{ g.formId ? 'Live' : 'Not live' }}
                 </span>
               </div>
             </div>
             <span v-if="showCol('gymnasts')" class="text-sm font-medium shrink-0 px-2 py-0.5 rounded" :class="countClass(g)">{{ countLabel(g) }}</span>
           </button>
           <div v-if="showCol('gymnasts')" class="px-4 py-2 text-xs italic text-gray-500 flex justify-between">
-            <span>Total gymnasts</span><span class="font-semibold text-gray-600">{{ sec.total }}</span>
+            <span>Total {{ t('member', true, true) }}</span><span class="font-semibold text-gray-600">{{ sec.total }}</span>
           </div>
         </div>
       </div>
 
       <p v-if="showCol('gymnasts') && activeSections.length > 1" class="text-right text-sm text-gray-600 px-1">
-        <span class="italic">Tab total:</span> <span class="font-semibold">{{ tabTotal }}</span> gymnasts
+        <span class="italic">Tab total:</span> <span class="font-semibold">{{ tabTotal }}</span> {{ t('member', true, true) }}
       </p>
     </template>
 
     <!-- New tab dialog -->
     <Dialog v-if="allowNewTab" v-model:visible="newTabOpen" modal header="New top-level tab" :style="{ width: '95vw', maxWidth: '380px' }">
-      <p class="text-sm text-gray-500 mb-3">A tab is a top-level code. Add sub-codes + assign groups on <NuxtLink to="/groups/codes" class="text-primary hover:underline">Organise codes</NuxtLink>.</p>
+      <p class="text-sm text-gray-500 mb-3">A tab is a top-level {{ t('code', false, true) }}. Add sub-{{ t('code', true, true) }} + assign {{ t('group', true, true) }} on <NuxtLink to="/groups/codes" class="text-primary hover:underline">Organise {{ t('code', true, true) }}</NuxtLink>.</p>
       <label class="text-xs font-medium text-gray-600">Name</label>
       <InputText v-model="newTabName" class="w-full mt-1" placeholder="e.g. Competitive" @keyup.enter="createTab" autofocus />
       <template #footer>

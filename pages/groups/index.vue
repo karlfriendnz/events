@@ -12,24 +12,24 @@
         <NuxtLink to="/groups/timetable" class="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-primary px-3 py-2 rounded-lg border border-gray-200 hover:border-gray-300">
           <i class="pi pi-calendar text-xs" /> Week View
         </NuxtLink>
-        <Button label="Find a class" icon="pi pi-search" size="small" outlined severity="secondary"
+        <Button :label="`Find a ${t('group', false, true)}`" icon="pi pi-search" size="small" outlined severity="secondary"
           class="text-gray-700" @click="finder.openFinder()" />
-        <Button label="New code" icon="pi pi-sitemap" size="small" outlined severity="secondary"
+        <Button :label="`New ${t('code', false, true)}`" icon="pi pi-sitemap" size="small" outlined severity="secondary"
           class="text-gray-700" @click="openCreateCode()" />
-        <Button label="New group" icon="pi pi-plus" size="small"
+        <Button :label="`New ${t('group', false, true)}`" icon="pi pi-plus" size="small"
           style="background:#1E2157;border-color:#1E2157" @click="openCreateGroup()" />
       </template>
     </ClassesBoard>
 
     <!-- New group dialog -->
-    <Dialog v-model:visible="createGroupOpen" modal :style="{ width: '95vw', maxWidth: '420px' }" header="New group">
+    <Dialog v-model:visible="createGroupOpen" modal :style="{ width: '95vw', maxWidth: '420px' }" :header="`New ${t('group', false, true)}`">
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Name</label>
           <InputText v-model="newGroup.name" autofocus placeholder="e.g. Under 16s" @keyup.enter="handleCreateGroup" />
         </div>
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Code</label>
+          <label class="text-sm font-medium">{{ t('code') }}</label>
           <Select v-model="newGroup.code_id" :options="codeOptions" optionLabel="label" optionValue="value"
             placeholder="Ungrouped" class="w-full" showClear />
         </div>
@@ -51,22 +51,22 @@
     </Dialog>
 
     <!-- New code dialog -->
-    <Dialog v-model:visible="createCodeOpen" modal :style="{ width: '95vw', maxWidth: '420px' }" header="New code">
+    <Dialog v-model:visible="createCodeOpen" modal :style="{ width: '95vw', maxWidth: '420px' }" :header="`New ${t('code', false, true)}`">
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Name</label>
           <InputText v-model="newCode.name" autofocus placeholder="e.g. Development" @keyup.enter="handleCreateCode" />
         </div>
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Parent code</label>
+          <label class="text-sm font-medium">Parent {{ t('code', false, true) }}</label>
           <Select v-model="newCode.parent_id" :options="codeOptions" optionLabel="label" optionValue="value"
             placeholder="Top level" class="w-full" showClear />
         </div>
         <div v-if="terms.length" class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Term</label>
+          <label class="text-sm font-medium">{{ t('term') }}</label>
           <Select v-model="newCode.term_id" :options="termSelectOptions" optionLabel="label" optionValue="value"
             placeholder="No term" class="w-full" showClear />
-          <p class="text-xs text-gray-400">Groups inside this code inherit its term.</p>
+          <p class="text-xs text-gray-400">{{ t('group', true) }} inside this {{ t('code', false, true) }} inherit its {{ t('term', false, true) }}.</p>
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Colour</label>
@@ -98,8 +98,10 @@ const { orgId } = useOrg()
 const toast = useToast()
 const gc = useGroupCodes()
 const finder = useClassFinder()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 // Control bar owns the page title (see the "control bar owns the title" rule).
-useBreadcrumbs([{ label: 'Classes' }])
+useBreadcrumbs([{ label: () => t('group', true) }])
 const tm = useTermsMemberships()
 
 const PALETTE = ['#1E2157', '#2563EB', '#0f766e', '#059669', '#9333ea', '#EC4899', '#c2410c', '#be123c', '#8B5CF6', '#64748b']
@@ -151,11 +153,11 @@ async function handleCreateGroup() {
     code_id: newGroup.code_id, parent_id: null, sort_order: siblings,
   })
   if (!error) {
-    toast.add({ severity: 'success', summary: 'Group created', life: 2500 })
+    toast.add({ severity: 'success', summary: `${t('group')} created`, life: 2500 })
     createGroupOpen.value = false
     await refresh()
   } else {
-    toast.add({ severity: 'error', summary: 'Could not create group', detail: error.message, life: 4000 })
+    toast.add({ severity: 'error', summary: `Could not create ${t('group', false, true)}`, detail: error.message, life: 4000 })
   }
   creating.value = false
 }
@@ -169,11 +171,11 @@ async function handleCreateCode() {
     name: newCode.name.trim(), color: newCode.color, parent_id: newCode.parent_id, term_id: newCode.term_id, sort_order: nextOrder,
   })
   if (created) {
-    toast.add({ severity: 'success', summary: 'Code created', life: 2500 })
+    toast.add({ severity: 'success', summary: `${t('code')} created`, life: 2500 })
     createCodeOpen.value = false
     await refresh()
   } else {
-    toast.add({ severity: 'error', summary: 'Could not create code', life: 4000 })
+    toast.add({ severity: 'error', summary: `Could not create ${t('code', false, true)}`, life: 4000 })
   }
   creatingCode.value = false
 }

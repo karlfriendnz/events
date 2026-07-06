@@ -62,16 +62,43 @@ function matchType(types: SubjectType[], role: PresetRole): SubjectType | null {
   return null
 }
 
-/** Resolve a preset's roles against the org's available subject types into a profiles array. */
-export function resolvePreset(types: SubjectType[], preset: { roles: PresetRole[] }): FormProfile[] {
+/**
+ * Resolve a preset's roles against the org's available subject types into a
+ * profiles array. `opts.memberTerm` = what this club CALLS a Member (the
+ * canonical 'member' term from useTerminology — Gymnast, Swimmer, Player…):
+ * member/player roles match a type by that word, and the literal "Member"
+ * label is rendered as it.
+ */
+export function resolvePreset(types: SubjectType[], preset: { roles: PresetRole[] }, opts?: { memberTerm?: string }): FormProfile[] {
   const out: FormProfile[] = []
+  const memberTerm = opts?.memberTerm?.trim()
   for (const role of preset.roles) {
-    const hit = matchType(types, role)
+    const memberish = role.match.some(m => m === 'member' || m === 'player')
+    const label = memberish && memberTerm && role.label === 'Member' ? memberTerm : role.label
+    let hit = matchType(types, role)
+    // Terminology-aware fallback: a member-ish role matches the type named by
+    // the club's member term ("Gymnast"/"Swimmer") before anything else.
+    if (!hit && memberish && memberTerm) {
+      const mt = memberTerm.toLowerCase()
+      hit = types.find(t => t.key.toLowerCase() === mt || t.label.toLowerCase() === mt)
+        ?? types.find(t => `${t.key} ${t.label}`.toLowerCase().includes(mt))
+        ?? null
+    }
     let p: FormProfile | null = null
     // A role that declares a kind (entity roles) keeps it even if it matched a
     // subject type stored as person/null.
-    if (hit) p = { key: hit.key, label: role.label || hit.label, min: role.min, max: role.max, kind: role.kind ?? hit.kind }
-    else if (role.synthKey) p = { key: role.synthKey, label: role.label, min: role.min, max: role.max, kind: role.kind || 'person' }
+    if (hit) p = { key: hit.key, label: label || hit.label, min: role.min, max: role.max, kind: role.kind ?? hit.kind }
+    else if (role.synthKey) p = { key: role.synthKey, label, min: role.min, max: role.max, kind: role.kind || 'person' }
+    else {
+      // Never drop a role silently. The primary participant role (member/player
+      // keywords) falls back to the org's FIRST person-kind type — a gymnastics
+      // club's "Individual" or "Child" IS a Gymnast. Anything else synthesizes
+      // its own subject key from the label so the form still captures it.
+      const firstPerson = memberish ? types.find(t => (t.kind ?? 'person') === 'person') : null
+      p = firstPerson
+        ? { key: firstPerson.key, label: label || firstPerson.label, min: role.min, max: role.max, kind: role.kind ?? firstPerson.kind }
+        : { key: (label || 'person').toLowerCase().replace(/[^a-z0-9]+/g, '_'), label, min: role.min, max: role.max, kind: role.kind || 'person' }
+    }
     if (!p) continue
     if (role.selects) p.selectsOptions = true
     // If two roles resolve to the same subject key, merge rather than drop the

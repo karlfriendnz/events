@@ -14,6 +14,8 @@ const props = defineProps<{ modelValue: string[]; codes: GroupCode[] }>()
 const emit = defineEmits<{ 'update:modelValue': [string[]] }>()
 
 const gc = useGroupCodes()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 const codeById = computed(() => Object.fromEntries(props.codes.map(c => [c.id, c])) as Record<string, GroupCode>)
 const childrenOf = computed(() => {
@@ -76,9 +78,9 @@ function removeCode(id: string) {
 <template>
   <MultiSelect :modelValue="modelValue" @update:modelValue="onChange"
     :options="options" option-label="label" option-value="value" option-disabled="disabled"
-    filter placeholder="All codes" class="w-full">
+    filter :placeholder="`All ${t('code', true, true)}`" class="w-full">
     <template #value="{ value }">
-      <template v-if="!value || !value.length"><span class="text-gray-400">All codes</span></template>
+      <template v-if="!value || !value.length"><span class="text-gray-400">All {{ t('code', true, true) }}</span></template>
       <span v-for="chip in rootChips" :key="chip.id"
         class="inline-flex items-center gap-1 mr-1 mb-0.5 px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">
         {{ chip.name }}

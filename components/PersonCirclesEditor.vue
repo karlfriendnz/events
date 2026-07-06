@@ -9,19 +9,19 @@
     <div v-if="loading" class="py-8 text-center text-sm text-surface-400"><i class="pi pi-spin pi-spinner" /></div>
     <div v-else class="space-y-4">
       <!-- CONTACTS (flat list of people connected to the viewed person) -->
-      <AppCard title="Contacts" :description="`People connected to ${viewedFirstName} — parents, guardians and other contacts.`">
+      <AppCard :title="t('contact', true)" :description="`People connected to ${viewedFirstName} — parents, guardians and other ${t('contact', true, true)}.`">
         <template #header-action>
-          <Button label="Add contact" icon="pi pi-user-plus" size="small" severity="secondary" outlined @click="addContact" />
+          <Button :label="`Add ${t('contact', false, true)}`" icon="pi pi-user-plus" size="small" severity="secondary" outlined @click="addContact" />
         </template>
         <div class="p-4 sm:p-5">
           <div class="overflow-x-auto">
             <div class="min-w-[49rem]">
               <!-- Header -->
               <div v-if="contactRows.length" class="grid grid-cols-[minmax(7rem,1fr)_7rem_11rem_9rem_9rem_1.5rem] gap-3 px-3 pb-1.5 text-xs font-bold uppercase tracking-wide text-gray-400 border-b border-gray-100">
-                <span>Contact</span>
+                <span>{{ t('contact') }}</span>
                 <span>Relationship</span>
                 <span>Type</span>
-                <span>Contact</span>
+                <span>{{ t('contact') }}</span>
                 <span>Communication</span>
                 <span></span>
               </div>
@@ -60,11 +60,11 @@
                     class="!py-0.5 !px-1.5 !text-xs" title="Choose which communication they receive" @click="openComms(m)" />
                 </div>
                 <!-- Remove -->
-                <button class="text-gray-300 hover:text-red-500" title="Remove contact" @click="removeMember(m.id).then(reload)"><i class="pi pi-times text-xs" /></button>
+                <button class="text-gray-300 hover:text-red-500" :title="`Remove ${t('contact', false, true)}`" @click="removeMember(m.id).then(reload)"><i class="pi pi-times text-xs" /></button>
               </div>
             </div>
           </div>
-          <div v-if="!contactRows.length" class="text-sm text-gray-400 px-1 py-2">No contacts yet.</div>
+          <div v-if="!contactRows.length" class="text-sm text-gray-400 px-1 py-2">No {{ t('contact', true, true) }} yet.</div>
         </div>
       </AppCard>
 
@@ -115,7 +115,7 @@
 
     <!-- Add member / contact dialog -->
     <Dialog v-model:visible="addOpen" modal :style="{ width: '95vw', maxWidth: '440px' }"
-      :header="addTarget?.kind === 'family' ? `Add a contact for ${viewedFirstName}` : `Add to ${addTarget?.name || ''}`">
+      :header="addTarget?.kind === 'family' ? `Add a ${t('contact', false, true)} for ${viewedFirstName}` : `Add to ${addTarget?.name || ''}`">
       <div class="flex flex-col gap-3">
         <label class="text-sm font-medium">Person</label>
         <AutoComplete v-model="pickQuery" :suggestions="pickResults" optionLabel="label" dropdown forceSelection
@@ -131,7 +131,7 @@
     <!-- Email types modal (what a contact receives on the viewed person's behalf) -->
     <Dialog v-model:visible="commsModalOpen" modal :style="{ width: '95vw', maxWidth: '420px' }"
       :header="`Communication ${commsTarget ? personName(commsTarget.person) : ''} receives`">
-      <p class="text-xs text-gray-500 mb-3">Choose which types of communication this contact receives on {{ viewedFirstName }}'s behalf.</p>
+      <p class="text-xs text-gray-500 mb-3">Choose which types of communication this {{ t('contact', false, true) }} receives on {{ viewedFirstName }}'s behalf.</p>
       <div class="space-y-2.5">
         <label v-for="cat in COMMS_CATEGORIES" :key="cat.key" class="flex items-center gap-2.5 text-sm cursor-pointer">
           <Checkbox :modelValue="commsTargetCats.includes(cat.key)" :binary="true" @update:modelValue="v => toggleCat(cat.key, v)" />
@@ -153,6 +153,8 @@ const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
 const { circlesForPerson, loadCommsPrefsForSubject, setCommsPref, createCircle, renameCircle, updateCircle, deleteCircle, addMember, updateMember, removeMember } = usePeopleLinks()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 const FAMILY_ROLES = [{ label: 'Guardian', value: 'guardian' }, { label: 'Dependent', value: 'dependent' }]
 const CONTACT_TYPES = [

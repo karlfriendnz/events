@@ -12,6 +12,8 @@ const { orgId } = useOrg()
 const toast = useToast()
 const views = useGroupViews()
 const gc = useGroupCodes()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 const list = ref<GroupView[]>([])
 const allCodes = ref<GroupCode[]>([])
@@ -58,7 +60,7 @@ async function remove(v: GroupView) {
 }
 
 const codeName = (id: string) => allCodes.value.find(c => c.id === id)?.name || '—'
-const scopeLabel = (v: GroupView) => v.config.codeIds.length ? v.config.codeIds.map(codeName).join(', ') : 'All codes'
+const scopeLabel = (v: GroupView) => v.config.codeIds.length ? v.config.codeIds.map(codeName).join(', ') : `All ${t('code', true, true)}`
 const colLabel = (v: GroupView) => views.VIEW_COLUMNS.filter(c => v.config.columns.includes(c.key)).map(c => c.label).join(' · ') || '—'
 
 watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
@@ -68,19 +70,19 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
   <div class="p-3 sm:p-6 max-w-4xl mx-auto space-y-5">
     <div class="flex items-start justify-between gap-3">
       <div>
-        <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Class views</h1>
-        <p class="text-sm text-gray-500">Saved Classes-style pages — pick the columns and which codes appear as tabs. Each shows in the Groups menu.</p>
+        <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">{{ t('group', true) }} views</h1>
+        <p class="text-sm text-gray-500">Saved {{ t('group', true) }}-style pages — pick the columns and which {{ t('code', true, true) }} appear as tabs. Each shows in the {{ t('group', true) }} menu.</p>
       </div>
       <div class="flex items-center gap-3 shrink-0">
         <Button label="New view" icon="pi pi-plus" size="small" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="openNew" />
-        <NuxtLink to="/groups" class="text-sm text-primary hover:underline whitespace-nowrap">← Groups</NuxtLink>
+        <NuxtLink to="/groups" class="text-sm text-primary hover:underline whitespace-nowrap">← {{ t('group', true) }}</NuxtLink>
       </div>
     </div>
 
     <div class="card p-0 overflow-hidden">
       <div v-if="loading" class="p-5 text-sm text-gray-400">Loading…</div>
       <div v-else-if="!list.length" class="p-6 text-sm text-gray-500">
-        No views yet — click <b>New view</b> to create one. A view is a saved Classes page with the columns and tabs you choose.
+        No views yet — click <b>New view</b> to create one. A view is a saved {{ t('group', true) }} page with the columns and tabs you choose.
       </div>
       <table v-else class="w-full text-sm">
         <thead>
@@ -124,9 +126,9 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
           <span class="text-xs text-gray-400">Name is always shown.</span>
         </div>
         <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-medium text-gray-600">Tabs (codes)</label>
+          <label class="text-xs font-medium text-gray-600">Tabs ({{ t('code', true, true) }})</label>
           <CodeTabsSelect v-model="form.codeIds" :codes="allCodes" />
-          <span class="text-xs text-gray-400">Pick any codes — choosing a parent selects &amp; locks its children. Empty = all top-level codes.</span>
+          <span class="text-xs text-gray-400">Pick any {{ t('code', true, true) }} — choosing a parent selects &amp; locks its children. Empty = all top-level {{ t('code', true, true) }}.</span>
         </div>
       </div>
       <template #footer>

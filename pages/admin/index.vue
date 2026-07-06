@@ -179,7 +179,10 @@ onMounted(() => {
         <h1 class="text-xl font-semibold text-gray-900">All Organisations</h1>
         <p class="text-sm text-gray-500">Super-admin overview across every organisation — not scoped to a single club.</p>
       </div>
-      <Button label="New organisation" icon="pi pi-plus" size="small" class="w-full sm:w-auto" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="openCreate" />
+      <div class="flex items-center gap-2 w-full sm:w-auto">
+        <Button label="Help docs" icon="pi pi-question-circle" size="small" severity="secondary" outlined class="flex-1 sm:flex-none" @click="navigateTo('/admin/help')" />
+        <Button label="New organisation" icon="pi pi-plus" size="small" class="flex-1 sm:flex-none" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="openCreate" />
+      </div>
     </div>
 
     <!-- Summary -->

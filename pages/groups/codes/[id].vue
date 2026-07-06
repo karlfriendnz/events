@@ -19,6 +19,8 @@ const cr = useCodeRoles()
 const tm = useTermsMemberships()
 const policy = useOrgFieldPolicy()
 const toast = useToast()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 // Code details (name / colour / parent / term) — edited here, not on the list.
 const PALETTE = ['#1E2157', '#2563EB', '#0f766e', '#059669', '#9333ea', '#EC4899', '#c2410c', '#be123c', '#8B5CF6', '#64748b']
@@ -106,9 +108,9 @@ function inheritedPositionMin(name: string): number | null {
 }
 const hasInherited = computed(() => roleItems.value.some(r => r.groupKey === 'inherited'))
 const roleGroups = computed(() => [
-  { key: 'own', label: 'This code', addable: true },
-  ...(hasInherited.value ? [{ key: 'inherited', label: 'Inherited from parent codes', note: 'Set on a parent code — edit it there.' }] : []),
-  { key: 'default', label: 'Default (all codes)', note: 'Applies to every code — edit on the Default roles page.' },
+  { key: 'own', label: `This ${t('code', false, true)}`, addable: true },
+  ...(hasInherited.value ? [{ key: 'inherited', label: `Inherited from parent ${t('code', true, true)}`, note: `Set on a parent ${t('code', false, true)} — edit it there.` }] : []),
+  { key: 'default', label: `Default (all ${t('code', true, true)})`, note: `Applies to every ${t('code', false, true)} — edit on the Default roles page.` },
 ])
 
 // Effective roles (defaults + own + inherited) to assign people to.
@@ -221,11 +223,11 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
     <!-- header -->
     <div>
       <NuxtLink to="/groups/codes" class="text-sm text-gray-500 hover:text-primary inline-flex items-center gap-1">
-        <i class="pi pi-arrow-left text-xs" /> Organise codes
+        <i class="pi pi-arrow-left text-xs" /> Organise {{ t('code', true, true) }}
       </NuxtLink>
       <div class="flex items-center gap-2 mt-2">
         <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: code?.color || '#94a3b8' }" />
-        <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">{{ code?.name || 'Code' }}</h1>
+        <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">{{ code?.name || t('code') }}</h1>
         <span class="text-xs text-gray-400">settings</span>
         <Button v-if="code" label="Save" class="ml-auto shrink-0" :disabled="savingAll || !detail.name.trim()"
           style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveAll" />
@@ -233,11 +235,11 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
     </div>
 
     <div v-if="loading" class="card p-6 text-sm text-gray-400">Loading…</div>
-    <div v-else-if="!code" class="card p-6 text-sm text-gray-500">This code no longer exists.</div>
+    <div v-else-if="!code" class="card p-6 text-sm text-gray-500">This {{ t('code', false, true) }} no longer exists.</div>
 
     <template v-else>
       <!-- DETAILS -->
-      <AppCard title="Details" description="Name, colour, where this code sits and the member type it captures.">
+      <AppCard title="Details" :description="`Name, colour, where this ${t('code', false, true)} sits and the ${t('member', false, true)} type it captures.`">
         <div class="p-4 sm:p-5 space-y-4">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div class="flex flex-col gap-1.5">
@@ -245,20 +247,20 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
               <InputText v-model="detail.name" placeholder="e.g. Step 6" />
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-medium text-gray-600">Member type</label>
+              <label class="text-xs font-medium text-gray-600">{{ t('member') }} type</label>
               <Select v-model="memberType" :options="personTypeOptions" optionLabel="label" optionValue="value"
-                placeholder="Choose a member type" class="w-full" showClear filter />
-              <p class="text-[11px] text-gray-400">The type of MEMBER in this code's groups — drives their custom fields.</p>
+                :placeholder="`Choose a ${t('member', false, true)} type`" class="w-full" showClear filter />
+              <p class="text-[11px] text-gray-400">The type of {{ t('member', false, true) }} in this {{ t('code', false, true) }}'s {{ t('group', true, true) }} — drives their custom fields.</p>
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-medium text-gray-600">Parent code</label>
+              <label class="text-xs font-medium text-gray-600">Parent {{ t('code', false, true) }}</label>
               <Select v-model="detail.parent_id" :options="parentOptions" option-label="name" option-value="id"
                 placeholder="None (top level)" show-clear filter class="w-full" />
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-medium text-gray-600">Term</label>
+              <label class="text-xs font-medium text-gray-600">{{ t('term') }}</label>
               <Select v-model="detail.term_id" :options="terms" option-label="name" option-value="id"
-                placeholder="No term" show-clear class="w-full" />
+                :placeholder="`No ${t('term', false, true)}`" show-clear class="w-full" />
             </div>
           </div>
           <div class="flex items-center gap-2">
@@ -272,14 +274,14 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
       </AppCard>
 
       <!-- MEMBER POSITIONS — labels (Captain, Wing…) with no permissions -->
-      <AppCard title="Member positions" description="Positions a member can hold in these groups (Captain, Vice, Wing…). These are labels — no permissions. Set an optional minimum per group (e.g. 2 Wings). Available when you add a member to a group.">
+      <AppCard :title="`${t('member')} positions`" :description="`Positions a ${t('member', false, true)} can hold in these ${t('group', true, true)} (Captain, Vice, Wing…). These are labels — no permissions. Set an optional minimum per ${t('group', false, true)} (e.g. 2 Wings). Available when you add a ${t('member', false, true)} to a ${t('group', false, true)}.`">
         <div class="overflow-hidden">
           <!-- two columns: Position | Minimum per group -->
           <table class="w-full text-sm">
             <thead>
               <tr class="bg-gray-50 text-xs text-gray-500 border-y border-gray-100">
                 <th class="text-left px-4 sm:px-5 py-2 font-medium">Position</th>
-                <th class="text-left px-4 py-2 font-medium w-40">Minimum per group</th>
+                <th class="text-left px-4 py-2 font-medium w-40">Minimum per {{ t('group', false, true) }}</th>
                 <th class="w-10" />
               </tr>
             </thead>
@@ -324,7 +326,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
       </AppCard>
 
       <!-- STAFF ROLES — this code's own (editable) + inherited + default (read-only) -->
-      <AppCard title="Staff roles" description="This code's own roles (apply to its sub-codes + groups), plus inherited & default roles (read-only).">
+      <AppCard title="Staff roles" :description="`This ${t('code', false, true)}'s own roles (apply to its sub-${t('code', true, true)} + ${t('group', true, true)}), plus inherited & default roles (read-only).`">
         <template #header-action>
           <NuxtLink to="/groups/codes/default-roles" class="text-xs font-semibold text-primary hover:underline whitespace-nowrap">Edit default roles →</NuxtLink>
         </template>
@@ -334,11 +336,11 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
             <div class="px-4 py-3 border-b border-gray-100 bg-gray-50/40">
               <div class="flex items-center justify-between gap-3">
                 <div class="min-w-0">
-                  <p class="text-sm font-medium text-gray-800">Minimum per group</p>
+                  <p class="text-sm font-medium text-gray-800">Minimum per {{ t('group', false, true) }}</p>
                   <p class="text-[11px] text-gray-400 leading-snug">
-                    How many people should hold this role in each group in this code.
+                    How many people should hold this role in each {{ t('group', false, true) }} in this {{ t('code', false, true) }}.
                     <template v-if="role.key && inheritedMin(role.key) != null && roleMins[role.key] == null">
-                      Inherited: <span class="font-medium text-gray-500">{{ inheritedMin(role.key) }}</span> (from a parent code).
+                      Inherited: <span class="font-medium text-gray-500">{{ inheritedMin(role.key) }}</span> (from a parent {{ t('code', false, true) }}).
                     </template>
                   </p>
                 </div>

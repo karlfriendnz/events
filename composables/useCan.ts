@@ -20,6 +20,9 @@ export function useCan() {
   const perms = useState<PermissionMap>('fm_eff_perms', () => ({}))
   const unrestricted = useState<boolean>('fm_perms_unrestricted', () => true)
   const loaded = useState<boolean>('fm_perms_loaded', () => false)
+  // Which org the cached perms were resolved for — lets ensureLoaded() skip a
+  // reload when nothing changed (keeps navigation fast).
+  const loadedOrg = useState<string | null>('fm_perms_loaded_org', () => null)
 
   function mergeInto(merged: PermissionMap, permissions: any) {
     for (const [res, acts] of Object.entries(permissions || {})) {
@@ -30,6 +33,7 @@ export function useCan() {
 
   async function load() {
     loaded.value = false
+    loadedOrg.value = orgId.value
     const isSuper = ((user.value as any)?.app_metadata?.role) === 'super_admin'
     const email = user.value?.email
     if (isSuper || !email || !orgId.value) { unrestricted.value = true; perms.value = {}; loaded.value = true; return }
@@ -69,10 +73,18 @@ export function useCan() {
     loaded.value = true
   }
 
+  // Resolve perms once per org and cache them. Callers that need a decision
+  // right now (route middleware, <Can>) await this instead of racing load().
+  async function ensureLoaded() {
+    if (loaded.value && loadedOrg.value === orgId.value) return
+    await load()
+    loadedOrg.value = orgId.value
+  }
+
   function can(resource: string, action: PermAction = 'read'): boolean {
     if (unrestricted.value) return true
     return !!perms.value?.[resource]?.[action]
   }
 
-  return { can, load, loaded, unrestricted, perms }
+  return { can, load, ensureLoaded, loaded, unrestricted, perms }
 }

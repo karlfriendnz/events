@@ -1,7 +1,7 @@
 <template>
   <div class="p-3 sm:p-6 max-w-3xl mx-auto">
     <div class="mb-6">
-      <h1 class="text-xl font-semibold text-surface-900">My contacts &amp; circles</h1>
+      <h1 class="text-xl font-semibold text-surface-900">My {{ t('contact', true, true) }} &amp; circles</h1>
       <p class="text-sm text-surface-500 mt-0.5">The people linked to you — family you manage, and circles you're part of.</p>
     </div>
 
@@ -9,7 +9,7 @@
 
     <div v-else-if="!myPersonId" class="card p-8 text-center text-surface-500">
       <i class="pi pi-user text-3xl mb-3 block text-surface-300" />
-      <p>We couldn't match your login to a member record yet.</p>
+      <p>We couldn't match your login to a {{ t('member', false, true) }} record yet.</p>
       <p class="text-sm text-surface-400 mt-1">Ask your club admin to add your email to your profile.</p>
     </div>
 
@@ -39,6 +39,7 @@ const db = useDb()
 const { orgId } = useOrg()
 const user = useSupabaseUser()
 const { circlesForPerson, peopleIManage } = usePeopleLinks()
+const { ensureTerms, t } = useTerms()
 
 const loading = ref(true)
 const myPersonId = ref<string | null>(null)
@@ -49,6 +50,7 @@ function initials(p: any) { return `${(p.first_name || '').charAt(0)}${(p.last_n
 
 async function load() {
   loading.value = true
+  void ensureTerms()
   const email = user.value?.email
   if (email && orgId.value) {
     const { data: me } = await (db.from as any)('persons').select('id').eq('org_id', orgId.value).ilike('email', email).maybeSingle()

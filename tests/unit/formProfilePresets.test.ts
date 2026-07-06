@@ -167,9 +167,41 @@ describe('resolvePreset resilience', () => {
     expect(JSON.stringify(PROFILE_PRESETS)).toBe(presetSnap)
   })
 
-  it('produces nothing extra when given an empty type set (synthetic-only)', () => {
+  it('never drops a role — unmatched roles synthesize keys from their labels', () => {
     const team = resolvePreset([], preset('team'))
-    // Only roles with a synthKey survive (team + emergency contact).
-    expect(team.map(p => p.key).sort()).toEqual(['contact', 'team'])
+    // synthKey roles keep their synth keys; everything else falls back to a
+    // label-derived key so the form still captures every declared role.
+    expect(team.map(p => p.key).sort()).toEqual(['coach', 'contact', 'physio', 'player', 'team', 'team_manager'])
+  })
+
+  it('matches + labels the member role via the club terminology (memberTerm)', () => {
+    // A swim club renamed Member → Swimmer (terminology engine); the types use
+    // a key/label that no preset keyword hits directly.
+    const swimTypes = [
+      { key: 'parent', label: 'Parent', kind: 'person' },
+      { key: 'swimmer', label: 'Swimmer', kind: 'person' },
+    ]
+    const couple = resolvePreset(swimTypes, preset('couple'), { memberTerm: 'Swimmer' })
+    const swimmer = couple.find(p => p.key === 'swimmer')
+    expect(swimmer).toBeTruthy()
+    expect(swimmer?.label).toBe('Swimmer')   // literal "Member" label renders as the club term
+    expect(swimmer?.min).toBe(2)
+  })
+
+  it('falls back the primary member/player role to the first person-kind type', () => {
+    // A gymnastics club: no "member"/"player"/"child" type — the participant
+    // role must resolve to the club's primary person type (Gymnast), not vanish.
+    const gymTypes = [
+      { key: 'gymnast', label: 'Gymnast', kind: 'person' },
+      { key: 'parent', label: 'Parent', kind: 'person' },
+      { key: 'emergency_contact', label: 'Emergency contact', kind: 'person' },
+    ]
+    const pc = resolvePreset(gymTypes, preset('parent_child'))
+    const child = pc.find(p => p.label === 'Child')
+    expect(child?.key).toBe('gymnast')
+    expect(pc.find(p => p.key === 'parent')).toBeTruthy()
+    const ind = resolvePreset(gymTypes, preset('individual'))
+    expect(ind.find(p => p.label === 'Individual')?.key).toBe('gymnast')
+    expect(ind.find(p => p.label === 'Individual')?.selectsOptions).toBe(true)
   })
 })

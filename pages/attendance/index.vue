@@ -9,10 +9,10 @@
       class="card p-10 text-center text-sm text-surface-500">
       <i class="pi pi-check-square text-3xl text-surface-300 mb-3 block" />
       <p class="font-semibold text-surface-700 mb-1">No attendance sessions yet</p>
-      <p>Create an attendance event from a group's page to start tracking who shows up.</p>
+      <p>Create an attendance {{ t('event', false, true) }} from a {{ t('group', false, true) }}'s page to start tracking who shows up.</p>
       <NuxtLink to="/groups"
         class="inline-flex items-center gap-1 mt-4 text-sm font-semibold text-[#1976d2] hover:underline">
-        Go to Groups <i class="pi pi-arrow-right text-[10px]" />
+        Go to {{ t('group', true) }} <i class="pi pi-arrow-right text-[10px]" />
       </NuxtLink>
     </div>
 
@@ -64,6 +64,8 @@
 <script setup lang="ts">
 const db = useDb()
 const { orgId } = useOrg()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 interface SessionRow {
   id: string

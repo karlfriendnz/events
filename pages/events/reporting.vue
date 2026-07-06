@@ -4,8 +4,8 @@
     <div class="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-200 bg-white shrink-0">
       <div class="flex items-center justify-between">
         <div>
-          <h1 class="text-xl font-bold text-gray-900">Event Reporting</h1>
-          <p class="text-sm text-gray-500 mt-0.5">Analyse attendance, registrations and revenue across multiple events</p>
+          <h1 class="text-xl font-bold text-gray-900">{{ t('event', false) }} Reporting</h1>
+          <p class="text-sm text-gray-500 mt-0.5">Analyse attendance, registrations and revenue across multiple {{ t('event', true, true) }}</p>
         </div>
       </div>
 
@@ -66,7 +66,7 @@
         <!-- Summary stat cards -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
-            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Events</p>
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">{{ t('event', true) }}</p>
             <p class="text-2xl font-bold text-gray-800">{{ filteredEvents.length }}</p>
           </div>
           <div class="bg-white rounded-xl border border-gray-200 px-5 py-4">
@@ -88,13 +88,13 @@
         <!-- Per-event table -->
         <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div class="px-5 py-3.5 border-b border-gray-100 bg-gray-50">
-            <p class="text-sm font-semibold text-gray-700">Events breakdown</p>
+            <p class="text-sm font-semibold text-gray-700">{{ t('event', true) }} breakdown</p>
           </div>
           <div class="overflow-x-auto">
           <table class="w-full text-sm min-w-[560px]">
             <thead>
               <tr class="border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                <th class="text-left px-5 py-3">Event</th>
+                <th class="text-left px-5 py-3">{{ t('event', false) }}</th>
                 <th class="text-left px-4 py-3 w-36">Date</th>
                 <th class="text-right px-4 py-3 w-24">Invitees</th>
                 <th class="text-right px-4 py-3 w-24">Confirmed</th>
@@ -153,7 +153,7 @@
       <!-- Empty state -->
       <div v-else-if="!loading" class="flex flex-col items-center justify-center py-24 text-gray-400">
         <i class="pi pi-chart-bar text-4xl mb-3 text-gray-300" />
-        <p class="text-sm font-medium text-gray-500">No events found</p>
+        <p class="text-sm font-medium text-gray-500">No {{ t('event', true, true) }} found</p>
         <p class="text-xs mt-1">Try adjusting the category or date filters</p>
       </div>
 
@@ -163,6 +163,8 @@
 
 <script setup lang="ts">
 const { orgId } = useOrg()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 const db = useDb()
 
 // ── Filters ──────────────────────────────────────────────────────────

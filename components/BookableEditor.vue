@@ -48,28 +48,28 @@
 
             <div class="flex items-center gap-3 px-4 py-3">
               <span class="text-sm text-gray-700 flex-1">Per hour</span>
-              <InputNumber v-model="editingMode.price_per_hour" mode="currency" currency="GBP" locale="en-GB"
+              <InputNumber v-model="editingMode.price_per_hour" mode="currency" :currency="orgCurrency" locale="en-NZ"
                 placeholder="—" :min="0" size="small" class="w-32" />
               <span class="text-xs text-gray-400 w-16">/ hour</span>
             </div>
 
             <div class="flex items-center gap-3 px-4 py-3">
               <span class="text-sm text-gray-700 flex-1">Per slot</span>
-              <InputNumber v-model="editingMode.price_per_slot" mode="currency" currency="GBP" locale="en-GB"
+              <InputNumber v-model="editingMode.price_per_slot" mode="currency" :currency="orgCurrency" locale="en-NZ"
                 placeholder="—" :min="0" size="small" class="w-32" />
               <span class="text-xs text-gray-400 w-16">/ slot</span>
             </div>
 
             <div class="flex items-center gap-3 px-4 py-3">
               <span class="text-sm text-gray-700 flex-1">One-off fee</span>
-              <InputNumber v-model="editingMode.flat_fee" mode="currency" currency="GBP" locale="en-GB"
+              <InputNumber v-model="editingMode.flat_fee" mode="currency" :currency="orgCurrency" locale="en-NZ"
                 placeholder="—" :min="0" size="small" class="w-32" />
               <span class="text-xs text-gray-400 w-16">flat</span>
             </div>
 
             <div class="flex items-center gap-3 px-4 py-3">
               <span class="text-sm text-gray-700 flex-1">Per person</span>
-              <InputNumber v-model="editingMode.price_per_person" mode="currency" currency="GBP" locale="en-GB"
+              <InputNumber v-model="editingMode.price_per_person" mode="currency" :currency="orgCurrency" locale="en-NZ"
                 placeholder="—" :min="0" size="small" class="w-32" />
               <span class="text-xs text-gray-400 w-16">/ person</span>
             </div>
@@ -531,6 +531,13 @@ const emit = defineEmits<{
 
 const db = useDb()
 
+const orgCurrency = ref('NZD')
+onMounted(() => {
+  if (!orgId.value) return
+  ;(db.from as any)('organisations').select('currency').eq('id', orgId.value).single()
+    .then(({ data }: any) => { orgCurrency.value = data?.currency || 'NZD' })
+})
+
 const tabs = [
   { key: 'details', label: 'Details', icon: 'pi-info-circle' },
   { key: 'rules',   label: 'Rules',   icon: 'pi-file-edit' },
@@ -589,7 +596,7 @@ const editingMode    = ref<VenueMode | null>(null)
 
 function formatPrice(n: number | null): string {
   if (n == null) return ''
-  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
+  return new Intl.NumberFormat('en-NZ', { style: 'currency', currency: orgCurrency.value, minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n)
 }
 
 function openModeDialog(mode?: VenueMode) {

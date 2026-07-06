@@ -319,8 +319,9 @@
                   <div class="hidden sm:grid px-4 py-2.5 items-center gap-3"
                     style="grid-template-columns:2fr 2fr 1fr 40px">
                     <InputText v-model="fee.name" placeholder="e.g. Entry Fee" size="small" class="w-full" />
-                    <InputText v-model="fee.account" placeholder="e.g. 531 - Events" size="small" class="w-full" />
-                    <InputNumber v-model="fee.amount" mode="currency" currency="AUD" locale="en-AU" size="small" class="w-full" input-class="text-right" />
+                    <XeroAccountInput v-model="fee.account" placeholder="Account code" class="w-full"
+                      input-class="w-full h-9 px-2.5 text-sm text-gray-800 placeholder-gray-400 border border-gray-300 rounded-md outline-none focus:border-primary" />
+                    <InputNumber v-model="fee.amount" mode="currency" :currency="orgCurrency" locale="en-NZ" size="small" class="w-full" input-class="text-right" />
                     <Button icon="pi pi-trash" text severity="danger" size="small" @click="form.fees.splice(idx, 1)" />
                   </div>
                   <!-- Mobile layout -->
@@ -329,8 +330,9 @@
                       <InputText v-model="fee.name" placeholder="Fee name" size="small" class="flex-1" />
                       <Button icon="pi pi-trash" text severity="danger" size="small" @click="form.fees.splice(idx, 1)" />
                     </div>
-                    <InputText v-model="fee.account" placeholder="Account" size="small" class="w-full" />
-                    <InputNumber v-model="fee.amount" mode="currency" currency="AUD" locale="en-AU" size="small" class="w-full" input-class="text-right" placeholder="Amount" />
+                    <XeroAccountInput v-model="fee.account" placeholder="Account code" class="w-full"
+                      input-class="w-full h-9 px-2.5 text-sm text-gray-800 placeholder-gray-400 border border-gray-300 rounded-md outline-none focus:border-primary" />
+                    <InputNumber v-model="fee.amount" mode="currency" :currency="orgCurrency" locale="en-NZ" size="small" class="w-full" input-class="text-right" placeholder="Amount" />
                   </div>
                 </div>
                 <div class="hidden sm:grid px-4 py-2.5 border-b border-gray-200 font-semibold text-sm"
@@ -433,6 +435,7 @@ definePageMeta({ layout: 'default' })
 const db = useDb()
 const toast = useToast()
 const route = useRoute()
+const orgCurrency = ref('NZD')
 
 const saving = ref(false)
 const currentStep = ref(0)
@@ -755,6 +758,8 @@ async function saveDraft() {
 
 // ── Mount ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
+  ;(db.from as any)('organisations').select('currency').eq('id', orgId.value).single()
+    .then(({ data }: any) => { orgCurrency.value = data?.currency || 'NZD' })
   const [{ data: catData }, { data: bookableData }] = await Promise.all([
     db.from('categories').select('id, name, color').eq('org_id', orgId.value).order('name'),
     db.from('bookables').select('id, name').eq('org_id', orgId.value).order('name'),

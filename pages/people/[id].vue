@@ -41,7 +41,7 @@
             <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><i class="pi pi-calendar" /></div>
             <div class="min-w-0">
               <p class="text-sm font-bold text-gray-900 leading-tight truncate">{{ nextEvent ? formatDate(new Date(nextEvent.start_at)) : 'None' }}</p>
-              <p class="text-xs text-gray-500 mt-1 truncate">{{ nextEvent ? nextEvent.title : 'Next event' }}</p>
+              <p class="text-xs text-gray-500 mt-1 truncate">{{ nextEvent ? nextEvent.title : `Next ${t('event', false, true)}` }}</p>
             </div>
           </div>
           <div class="card p-4 flex items-center gap-3">
@@ -55,7 +55,7 @@
             <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0"><i class="pi pi-users" /></div>
             <div class="min-w-0">
               <p class="text-lg font-bold text-gray-900 leading-none">{{ groupCount }}</p>
-              <p class="text-xs text-gray-500 mt-1">Groups</p>
+              <p class="text-xs text-gray-500 mt-1">{{ t('group', true) }}</p>
             </div>
           </div>
         </div>
@@ -219,7 +219,7 @@
 
       <!-- ── MEMBERSHIP ── -->
       <div v-show="activeTab === 'membership'">
-        <AppCard title="Member groups" description="Groups this person belongs to and their role in each.">
+        <AppCard :title="`${t('member', false)} ${t('group', true, true)}`" :description="`${t('group', true)} this person belongs to and their role in each.`">
           <div class="p-4 sm:p-5 space-y-3">
             <MultiSelect v-if="editing" v-model="form.group_ids" :options="allGroups" optionLabel="name" optionValue="id"
               placeholder="Add to groups…" display="chip" filter class="w-full" :showToggleAll="false">
@@ -235,7 +235,7 @@
               <table class="w-full min-w-[24rem] text-sm">
                 <thead>
                   <tr class="text-xs font-bold uppercase tracking-wide text-gray-400 border-b border-gray-100">
-                    <th class="text-left font-bold py-2">Group</th>
+                    <th class="text-left font-bold py-2">{{ t('group') }}</th>
                     <th class="text-left font-bold py-2">Role</th>
                   </tr>
                 </thead>
@@ -261,10 +261,10 @@
             </div>
 
             <p v-if="editing && !allGroups.length" class="text-sm text-surface-400">
-              No member groups exist yet. Create them under <NuxtLink to="/groups" class="text-primary hover:underline">Groups</NuxtLink>.
+              No {{ t('member', false, true) }} {{ t('group', true, true) }} exist yet. Create them under <NuxtLink to="/groups" class="text-primary hover:underline">{{ t('group', true) }}</NuxtLink>.
             </p>
             <p v-else-if="!memberGroupChips.length" class="text-sm text-surface-400">
-              Not in any groups yet.<span v-if="!editing"> Click <strong>Edit</strong> to add some.</span>
+              Not in any {{ t('group', true, true) }} yet.<span v-if="!editing"> Click <strong>Edit</strong> to add some.</span>
             </p>
           </div>
         </AppCard>
@@ -289,16 +289,17 @@ const router = useRouter()
 const { orgId } = useOrg()
 const db = useDb()
 const toast = useToast()
+const { ensureTerms, t } = useTerms()
 const { resolveFields, resolvePersonTypes, fieldAppliesTo } = useOrgFieldPolicy()
 const personTypes = ref<any[]>([])
 
-const TABS = [
+const TABS = computed(() => [
   { key: 'dashboard', label: 'Dashboard', icon: 'pi-th-large' },
   { key: 'profile', label: 'Profile', icon: 'pi-user' },
-  { key: 'links', label: 'Contacts & Circles', icon: 'pi-sitemap' },
+  { key: 'links', label: `${t('contact', true)} & Circles`, icon: 'pi-sitemap' },
   { key: 'membership', label: 'Membership', icon: 'pi-users' },
-]
-const VALID_TABS = TABS.map(t => t.key)
+])
+const VALID_TABS = ['dashboard', 'profile', 'links', 'membership']
 
 const GENDER_OPTIONS = [
   { label: 'Male', value: 'MALE' },
@@ -333,7 +334,7 @@ const dashBundle = computed(() => ({
   person: person.value || {},
   memberships: form.group_ids.map(id => {
     const g = allGroups.value.find(x => x.id === id)
-    return { id, group: g?.name || 'Group', color: g?.color, role: '', expiry: '' }
+    return { id, group: g?.name || t('group'), color: g?.color, role: '', expiry: '' }
   }),
   financials: financials.value,
   communications: communications.value,
@@ -754,6 +755,7 @@ async function deletePerson() {
 onMounted(() => {
   const h = (route.hash || '').replace('#', '')
   if (VALID_TABS.includes(h)) activeTab.value = h
+  void ensureTerms()
   scopedRoles.loadRoleDefs()
   load()
 })

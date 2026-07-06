@@ -27,6 +27,14 @@ const props = defineProps<{
   context: { type: string; id?: string | null; orgId: string }
   sessions?: any[]              // [{ id, title, start_at, fee, required, display }]
   feeLineItems?: { name: string; amount: number }[]
+  // Pick-ONE fee choices (group fee options, migration 204): each chooser instance
+  // selects how they'd like to pay. label = human price ("$40 / month"),
+  // total = the numeric used in the running total.
+  feeOptions?: { id: string; name: string; label: string; total: number; description?: string | null }[]
+  // Class choices (form context — registration_form_targets, migration 228):
+  // each chooser instance picks which class(es) to join. A full class with a
+  // waitlist stays pickable (the registrant queues); full without one is disabled.
+  groupOptions?: { id: string; name: string; section?: string | null; spaces: number | null; full: boolean; waitlistable: boolean; feeOptions: { id: string; name: string; label: string; total: number; description?: string | null }[] }[]
   currency?: string
   submitting?: boolean
   staff?: boolean               // staff-side: enables the "pick a member" control
@@ -163,10 +171,55 @@ function toggleSession(key: string, inst: number, sid: string, on: boolean) {
   sessionSel[key][inst - 1][sid] = on
 }
 const baseFee = computed(() => (props.feeLineItems ?? []).reduce((s, f) => s + (Number(f.amount) || 0), 0))
+
+// Fee options — a pick-one "How would you like to pay?" per chooser instance.
+const feeOptions = computed(() => props.feeOptions ?? [])
+const feeSel = reactive<Record<string, (string | null)[]>>({})
+function feeOptionSelected(key: string, inst: number): string | null {
+  const stored = feeSel[key]?.[inst - 1]
+  if (stored) return stored
+  return feeOptions.value.length === 1 ? feeOptions.value[0].id : null
+}
+function selectFeeOption(key: string, inst: number, id: string) {
+  if (!feeSel[key]) feeSel[key] = []
+  feeSel[key][inst - 1] = id
+}
+
+// Class choices — pick class(es) to join + per-class fee option.
+const groupOptions = computed(() => props.groupOptions ?? [])
+const groupSel = reactive<Record<string, Record<string, boolean>[]>>({})
+const groupFeeSel = reactive<Record<string, Record<string, string>[]>>({})
+function groupSelected(key: string, inst: number, gid: string) {
+  return !!(groupSel[key]?.[inst - 1]?.[gid])
+}
+function toggleGroup(key: string, inst: number, gid: string, on: boolean) {
+  if (!groupSel[key]) groupSel[key] = []
+  if (!groupSel[key][inst - 1]) groupSel[key][inst - 1] = {}
+  groupSel[key][inst - 1][gid] = on
+}
+function groupFeeSelected(key: string, inst: number, gid: string): string | null {
+  const stored = groupFeeSel[key]?.[inst - 1]?.[gid]
+  if (stored) return stored
+  const g = groupOptions.value.find(x => x.id === gid)
+  return g?.feeOptions.length === 1 ? g.feeOptions[0].id : null
+}
+function selectGroupFee(key: string, inst: number, gid: string, optId: string) {
+  if (!groupFeeSel[key]) groupFeeSel[key] = []
+  if (!groupFeeSel[key][inst - 1]) groupFeeSel[key][inst - 1] = {}
+  groupFeeSel[key][inst - 1][gid] = optId
+}
+
 function instanceTotal(key: string, inst: number) {
   let total = baseFee.value
   for (const s of visibleSessions.value) {
     if (s.required || sessionSelected(key, inst, s.id)) total += Number(s.fee) || 0
+  }
+  const optId = feeOptionSelected(key, inst)
+  if (optId) total += Number(feeOptions.value.find(o => o.id === optId)?.total) || 0
+  for (const g of groupOptions.value) {
+    if (!groupSelected(key, inst, g.id)) continue
+    const gOpt = groupFeeSelected(key, inst, g.id)
+    if (gOpt) total += Number(g.feeOptions.find(o => o.id === gOpt)?.total) || 0
   }
   return total
 }
@@ -175,7 +228,8 @@ const grandTotal = computed(() => {
   for (const s of choosers.value) for (let i = 1; i <= count(s.key); i++) t += instanceTotal(s.key, i)
   return t
 })
-const hasFees = computed(() => baseFee.value > 0 || visibleSessions.value.length > 0)
+const hasFees = computed(() => baseFee.value > 0 || visibleSessions.value.length > 0 || feeOptions.value.length > 0
+  || groupOptions.value.some(g => g.feeOptions.length > 0))
 const cur = computed(() => props.currency || 'NZD')
 function money(n: number) {
   try { return new Intl.NumberFormat('en-NZ', { style: 'currency', currency: cur.value }).format(n) }
@@ -231,6 +285,33 @@ function validate(): boolean {
       }
     }
   }
+  if (feeOptions.value.length > 1) {
+    for (const s of choosers.value) {
+      for (let inst = 1; inst <= count(s.key); inst++) {
+        if (!feeOptionSelected(s.key, inst)) {
+          error.value = `Please choose how you'd like to pay for ${s.label}${count(s.key) > 1 ? ' ' + inst : ''}.`
+          return false
+        }
+      }
+    }
+  }
+  if (groupOptions.value.length) {
+    for (const s of choosers.value) {
+      for (let inst = 1; inst <= count(s.key); inst++) {
+        const picked = groupOptions.value.filter(g => groupSelected(s.key, inst, g.id))
+        if (!picked.length) {
+          error.value = `Please choose a class for ${s.label}${count(s.key) > 1 ? ' ' + inst : ''}.`
+          return false
+        }
+        for (const g of picked) {
+          if (g.feeOptions.length > 1 && !groupFeeSelected(s.key, inst, g.id)) {
+            error.value = `Please choose how you'd like to pay for ${g.name}.`
+            return false
+          }
+        }
+      }
+    }
+  }
   if (termsList.value.length && !termsAccepted.value) { error.value = 'Please accept the terms to continue.'; return false }
   return true
 }
@@ -265,7 +346,16 @@ function buildPayload() {
       const sess = isChooser(s.key)
         ? visibleSessions.value.filter(x => x.required || sessionSelected(s.key, inst, x.id)).map(x => x.id)
         : []
-      return { ...identity, fields: fieldsOut, sessions: sess, fee: isChooser(s.key) ? instanceTotal(s.key, inst) : 0 }
+      const groupsOut = isChooser(s.key)
+        ? groupOptions.value.filter(g => groupSelected(s.key, inst, g.id))
+            .map(g => ({ group_id: g.id, fee_option_id: groupFeeSelected(s.key, inst, g.id) }))
+        : []
+      return {
+        ...identity, fields: fieldsOut, sessions: sess,
+        fee: isChooser(s.key) ? instanceTotal(s.key, inst) : 0,
+        fee_option_id: isChooser(s.key) ? feeOptionSelected(s.key, inst) : null,
+        groups: groupsOut,
+      }
     }),
   }))
   const primary = subjectsOut.find(s => s.kind !== 'entity')?.instances?.[0]
@@ -454,6 +544,60 @@ function onSubmit() { if (validate()) emit('submit', buildPayload()) }
                 <span class="text-gray-700">{{ sess.title || 'Session' }}</span>
               </span>
               <span v-if="Number(sess.fee)" class="text-gray-500">{{ money(Number(sess.fee)) }}</span>
+            </label>
+          </div>
+
+          <!-- Class choices (form connected to groups) — pick class(es) to join -->
+          <div v-if="isChooser(s.key) && groupOptions.length" class="mt-4 border-t border-gray-100 pt-3">
+            <p class="text-sm font-semibold text-gray-700 mb-2">Choose your class{{ groupOptions.length > 1 ? '(es)' : '' }}</p>
+            <div v-for="(g, gi) in groupOptions" :key="g.id" class="py-1">
+              <!-- Programme (code) section header -->
+              <p v-if="g.section && (gi === 0 || groupOptions[gi - 1].section !== g.section)"
+                class="text-xs font-bold uppercase tracking-wide text-gray-400 mt-2 mb-1">{{ g.section }}</p>
+              <label class="flex items-center justify-between gap-3 py-1 text-sm"
+                :class="g.full && !g.waitlistable ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'">
+                <span class="flex items-center gap-2">
+                  <input type="checkbox" class="w-4 h-4 accent-primary"
+                    :checked="groupSelected(s.key, inst, g.id)"
+                    :disabled="g.full && !g.waitlistable"
+                    @change="toggleGroup(s.key, inst, g.id, ($event.target as any).checked)" />
+                  <span class="text-gray-700">{{ g.name }}</span>
+                  <span v-if="g.full && g.waitlistable" class="text-[11px] font-semibold text-amber-600 bg-amber-50 rounded-full px-2 py-0.5">Full — joins the waitlist</span>
+                  <span v-else-if="g.full" class="text-[11px] font-semibold text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">Full</span>
+                  <span v-else-if="g.spaces != null" class="text-[11px] font-semibold text-emerald-600 bg-emerald-50 rounded-full px-2 py-0.5">{{ g.spaces }} {{ g.spaces === 1 ? 'space' : 'spaces' }}</span>
+                </span>
+                <span v-if="g.feeOptions.length === 1" class="text-gray-500 whitespace-nowrap">{{ g.feeOptions[0].label }}</span>
+              </label>
+              <!-- Per-class fee choice when the picked class offers several -->
+              <div v-if="groupSelected(s.key, inst, g.id) && g.feeOptions.length > 1" class="ml-6 mt-1 mb-1.5 space-y-0.5">
+                <label v-for="o in g.feeOptions" :key="o.id" class="flex items-center justify-between gap-3 py-1 text-sm cursor-pointer">
+                  <span class="flex items-center gap-2">
+                    <input type="radio" class="accent-primary" :name="`gfee-${s.key}-${inst}-${g.id}`"
+                      :checked="groupFeeSelected(s.key, inst, g.id) === o.id"
+                      @change="selectGroupFee(s.key, inst, g.id, o.id)" />
+                    <span class="text-gray-600">{{ o.name }}</span>
+                  </span>
+                  <span class="text-gray-500 whitespace-nowrap">{{ o.label }}</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fee options (pick one) — group "how do you want to pay?" -->
+          <div v-if="isChooser(s.key) && feeOptions.length" class="mt-4 border-t border-gray-100 pt-3">
+            <p class="text-sm font-semibold text-gray-700 mb-2">How would you like to pay?</p>
+            <label v-for="o in feeOptions" :key="o.id"
+              class="flex items-start justify-between gap-3 py-1.5 text-sm cursor-pointer">
+              <span class="flex items-start gap-2">
+                <input type="radio" class="accent-primary mt-0.5" :name="`fee-${s.key}-${inst}`"
+                  :checked="feeOptionSelected(s.key, inst) === o.id"
+                  @change="selectFeeOption(s.key, inst, o.id)" />
+                <span>
+                  <span class="text-gray-700">{{ o.name }}</span>
+                  <span v-if="o.description" class="block text-xs text-gray-400">{{ o.description }}</span>
+                </span>
+              </span>
+              <span class="text-gray-500 whitespace-nowrap">{{ o.label }}</span>
             </label>
           </div>
 

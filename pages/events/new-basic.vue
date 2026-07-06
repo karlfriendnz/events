@@ -271,8 +271,9 @@
               </div>
               <div v-for="(fee, idx) in form.fees" :key="idx" class="grid px-4 py-2.5 border-b border-gray-100 items-center gap-3" style="grid-template-columns:2fr 2fr 1fr 40px">
                 <InputText v-model="fee.name" placeholder="e.g. Tournament Fee" size="small" class="w-full" />
-                <InputText v-model="fee.account" placeholder="e.g. 531 - Tournaments" size="small" class="w-full" />
-                <InputNumber v-model="fee.amount" mode="currency" currency="AUD" locale="en-AU" size="small" class="w-full" input-class="text-right" />
+                <XeroAccountInput v-model="fee.account" placeholder="Account code" class="w-full"
+                  input-class="w-full h-9 px-2.5 text-sm text-gray-800 placeholder-gray-400 border border-gray-300 rounded-md outline-none focus:border-primary" />
+                <InputNumber v-model="fee.amount" mode="currency" :currency="orgCurrency" locale="en-NZ" size="small" class="w-full" input-class="text-right" />
                 <Button icon="pi pi-trash" text severity="danger" size="small" @click="form.fees.splice(idx, 1)" />
               </div>
               <div class="grid px-4 py-2.5 border-b border-gray-200 font-semibold text-sm" style="grid-template-columns:2fr 2fr 1fr 40px">
@@ -462,6 +463,7 @@ definePageMeta({ layout: 'default' })
 const db = useDb()
 const toast = useToast()
 const route = useRoute()
+const orgCurrency = ref('NZD')
 
 const saving = ref(false)
 const draftEventId = ref<string | null>(null)
@@ -885,6 +887,8 @@ async function saveEvent() {
 }
 
 onMounted(async () => {
+  ;(db.from as any)('organisations').select('currency').eq('id', orgId.value).single()
+    .then(({ data }: any) => { orgCurrency.value = data?.currency || 'NZD' })
   // Detect mobile — wizard also forced via ?wizard=1 query param
   isMobile.value = forceWizard || window.innerWidth < 768
   const onResize = () => { if (!forceWizard) isMobile.value = window.innerWidth < 768 }

@@ -7,7 +7,7 @@
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
 
-const props = withDefaults(defineProps<{ eventId: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean }>(), { sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false })
+const props = withDefaults(defineProps<{ eventId: string | null; groupId?: string | null; formId?: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean }>(), { groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false })
 
 const db = useDb()
 const toast = useToast()
@@ -494,6 +494,14 @@ function evtDefApplies(d: any, key: string) {
 }
 const evtSubjectTypes = ref<{ key: string; label: string; kind: string; min_count: number; max_count: number | null }[]>([])
 watch(orgId, async (id) => { evtSubjectTypes.value = id ? await _evtResolvePersonTypes(id) : [] }, { immediate: true })
+// What this club CALLS a Member (terminology engine — Gymnast/Swimmer/Player…):
+// preset roles match + label with it.
+const { resolveTerminology: _evtResolveTerms, term: _evtTermOf } = useTerminology()
+const evtMemberTerm = ref('')
+watch(orgId, async (id) => {
+  if (!id) { evtMemberTerm.value = ''; return }
+  try { evtMemberTerm.value = _evtTermOf(await _evtResolveTerms(id), 'member') } catch { evtMemberTerm.value = '' }
+}, { immediate: true })
 const evtUnusedPeople = computed(() => evtSubjectTypes.value.filter(t => (t.kind || 'person') === 'person' && !currentEvtFormProfiles.value.some(p => p.key === t.key)))
 const evtUnusedEntities = computed(() => evtSubjectTypes.value.filter(t => t.kind === 'entity' && !currentEvtFormProfiles.value.some(p => p.key === t.key)))
 const evtShowAddSubject = ref(false)
@@ -509,7 +517,7 @@ function evtPresetRoleSummary(id: string): string {
 }
 function applyEvtProfilePreset(preset: any) {
   if (!preset) return
-  currentEvtFormProfiles.value = resolvePreset(evtSubjectTypes.value, preset)
+  currentEvtFormProfiles.value = resolvePreset(evtSubjectTypes.value, preset, { memberTerm: evtMemberTerm.value })
   currentEvtFormProfiles.value.forEach(p => { evtEnsureCoreFields(p); evtAddRequiredFieldsFor(p.key); evtEnsureParentSectionFields(p) })
 }
 function addEvtProfile(t: { key: string; label: string; kind?: string; min_count?: number; max_count?: number | null }) {
@@ -1960,15 +1968,17 @@ let _formSaveTimer: ReturnType<typeof setTimeout> | null = null
 let _ensuringForm: Promise<string | null> | null = null
 async function ensureEventFormId(): Promise<string | null> {
   if (event.value?.form_id) return event.value.form_id
-  if (!props.eventId || !orgId.value) return null
+  if ((!props.eventId && !props.groupId) || !orgId.value) return null
   if (_ensuringForm) return _ensuringForm
   _ensuringForm = (async () => {
     const { data } = await (db.from as any)('registration_forms').insert({
       org_id: orgId.value,
-      name: event.value?.title ? `${event.value.title} registration` : 'Event registration',
+      name: event.value?.title ? `${event.value.title} registration` : (props.groupId ? 'Group registration' : 'Event registration'),
     }).select('id').single()
     if (!data) return null
-    await (db.from as any)('events').update({ form_id: data.id }).eq('id', props.eventId)
+    // Link the form to whichever context owns this designer instance.
+    if (props.groupId) await (db.from as any)('member_groups').update({ form_id: data.id }).eq('id', props.groupId)
+    else await (db.from as any)('events').update({ form_id: data.id }).eq('id', props.eventId)
     if (event.value) event.value.form_id = data.id
     return data.id as string
   })()
@@ -2130,13 +2140,51 @@ watch(
 )
 
 async function reload() {
+  // Standalone form context (/forms/:id): the designer points straight at a
+  // registration_forms row — no owning event/group, the row IS the form.
+  if (props.formId) {
+    const { data } = await (db.from as any)('registration_forms')
+      .select('id, name, config').eq('id', props.formId).maybeSingle()
+    event.value = data ? { id: null, title: data.name, banner_url: null, form_id: data.id } : null
+    await loadEvtFormConfig()
+    // The /forms/new wizard stashes the chosen registration shape on the config
+    // (_pendingType/_pendingPreset); apply it now — the next persist (triggered
+    // by the choose call itself) rewrites the config without the pending flags.
+    const pt = (data?.config as any)?._pendingType
+    if (pt) {
+      // Presets resolve their roles against the org's subject types + member
+      // terminology, which load in async orgId watchers — make sure both are
+      // here before applying, or roles resolve wrong/drop.
+      if (!orgId.value) {
+        await new Promise<void>(resolve => {
+          const stop = watch(orgId, v => { if (v) { stop(); resolve() } }, { immediate: true })
+        })
+      }
+      if (!evtSubjectTypes.value.length) evtSubjectTypes.value = await _evtResolvePersonTypes(orgId.value!)
+      if (!evtMemberTerm.value) {
+        try { evtMemberTerm.value = _evtTermOf(await _evtResolveTerms(orgId.value!), 'member') } catch { /* default */ }
+      }
+      if (pt === 'preset') chooseEvtFormPreset(String((data!.config as any)._pendingPreset || ''))
+      else chooseEvtFormType(pt)
+    }
+    return
+  }
+  // Group context: the group row stands in for the event (title/banner/form_id),
+  // so the whole designer — chooser, subjects, design, preview — works unchanged.
+  if (props.groupId) {
+    const { data } = await (db.from as any)('member_groups')
+      .select('id, name, image_url, form_id').eq('id', props.groupId).maybeSingle()
+    event.value = data ? { id: data.id, title: data.name, banner_url: data.image_url, form_id: data.form_id } : null
+    await loadEvtFormConfig()
+    return
+  }
   if (!props.eventId) { event.value = null; return }
   const { data } = await (db.from as any)('events').select('*').eq('id', props.eventId).maybeSingle()
   event.value = data ?? null
   await loadEvtFormConfig()
 }
 onMounted(reload)
-watch(() => props.eventId, () => reload())
+watch(() => [props.eventId, props.groupId, props.formId], () => reload())
 defineExpose({ reload })
 </script>
 

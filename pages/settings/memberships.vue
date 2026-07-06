@@ -16,7 +16,10 @@
 const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
-const { toIso, periodLabel } = useTermsMemberships()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
+const { toIso, periodLabel, loadTermSets, createTermSet, renameTermSet, setTermSetSport, deleteTermSet } = useTermsMemberships()
+import type { TermSet } from '~/composables/useTermsMemberships'
 
 const currency = ref('NZD')
 const loading = ref(true)
@@ -27,19 +30,56 @@ interface TermRow {
   name: string
   start_date: Date | null
   end_date: Date | null
+  // Sign-up window (migration 229). Blank open = open right away; blank close = term end.
+  signup_open: Date | null
+  signup_close: Date | null
+  // Term set (migration 232) — null = the default/main sequence.
+  set_id: string | null
   sort_order: number
 }
 const terms = ref<TermRow[]>([])
 let removedTermIds: string[] = []
 const savingTerms = ref(false)
 
-function addTerm() {
-  terms.value.push({ id: null, name: '', start_date: null, end_date: null, sort_order: terms.value.length })
+// ---------- Term sets (migration 232) ----------
+// Independent term sequences: Term 1→2→3 is one set, the Seniors' two halves
+// another. Rollover/nudge "next term" only resolves within a set.
+const sets = ref<TermSet[]>([])
+const termSections = computed(() => [
+  { key: '__default', set: null as TermSet | null, list: terms.value.filter(t => !t.set_id) },
+  ...sets.value.map(s => ({ key: s.id, set: s as TermSet | null, list: terms.value.filter(t => t.set_id === s.id) })),
+])
+async function addSet() {
+  const s = await createTermSet('New term set')
+  if (s) sets.value.push(s)
 }
-function removeTerm(i: number) {
-  const r = terms.value[i]
+async function onRenameSet(s: TermSet) {
+  if (s.name.trim()) await renameTermSet(s.id, s.name.trim())
+}
+// A set can be connected to one of the club's sports (migration 235).
+const sports = ref<{ id: string; label: string }[]>([])
+const sportOptions = computed(() => [
+  { label: 'Whole club', value: null as string | null },
+  ...sports.value.map(s => ({ label: s.label, value: s.id as string | null })),
+])
+async function onSetSport(s: TermSet, sportId: string | null) {
+  s.sport_id = sportId
+  await setTermSetSport(s.id, sportId)
+}
+async function removeSet(s: TermSet) {
+  const count = terms.value.filter(t => t.set_id === s.id).length
+  if (!window.confirm(count ? `Delete "${s.name}"? Its ${count} ${count === 1 ? t('term', false, true) : t('term', true, true)} move to the main sequence.` : `Delete "${s.name}"?`)) return
+  await deleteTermSet(s.id)
+  for (const t of terms.value) if (t.set_id === s.id) t.set_id = null
+  sets.value = sets.value.filter(x => x.id !== s.id)
+}
+
+function addTerm(setId: string | null = null) {
+  terms.value.push({ id: null, name: '', start_date: null, end_date: null, signup_open: null, signup_close: null, set_id: setId, sort_order: terms.value.length })
+}
+function removeTerm(r: TermRow) {
   if (r.id) removedTermIds.push(r.id)
-  terms.value.splice(i, 1)
+  terms.value = terms.value.filter(t => t !== r)
 }
 async function saveTerms() {
   savingTerms.value = true
@@ -56,6 +96,9 @@ async function saveTerms() {
         name: r.name.trim(),
         start_date: toIso(r.start_date),
         end_date: toIso(r.end_date),
+        signup_open: r.signup_open ? toIso(r.signup_open) : null,
+        signup_close: r.signup_close ? toIso(r.signup_close) : null,
+        set_id: r.set_id,
         sort_order: i,
       }
       if (r.id) await (db.from as any)('org_terms').update(payload).eq('id', r.id)
@@ -64,9 +107,9 @@ async function saveTerms() {
         if (data) r.id = data.id
       }
     }
-    toast.add({ severity: 'success', summary: 'Terms saved', life: 2500 })
+    toast.add({ severity: 'success', summary: `${t('term', true)} saved`, life: 2500 })
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Could not save terms', detail: e?.message, life: 4000 })
+    toast.add({ severity: 'error', summary: `Could not save ${t('term', true, true)}`, detail: e?.message, life: 4000 })
   } finally {
     savingTerms.value = false
   }
@@ -174,14 +217,22 @@ async function load() {
   const { data: org } = await (db.from as any)('organisations').select('currency').eq('id', orgId.value).maybeSingle()
   if (org?.currency) currency.value = org.currency
 
+  sets.value = await loadTermSets()
+  const { data: sp } = await (db.from as any)('org_sports')
+    .select('id, sport, display_name').eq('org_id', orgId.value).order('sort_order')
+  sports.value = (sp ?? []).map((s: any) => ({ id: s.id, label: s.display_name || s.sport }))
+
   const { data: t } = await (db.from as any)('org_terms')
-    .select('id, name, start_date, end_date, sort_order')
+    .select('id, name, start_date, end_date, signup_open, signup_close, set_id, sort_order')
     .eq('org_id', orgId.value)
     .order('sort_order', { ascending: true, nullsFirst: false }).order('start_date')
   terms.value = (t || []).map((r: any) => ({
     id: r.id, name: r.name,
     start_date: r.start_date ? new Date(r.start_date + 'T00:00:00') : null,
     end_date: r.end_date ? new Date(r.end_date + 'T00:00:00') : null,
+    signup_open: r.signup_open ? new Date(r.signup_open + 'T00:00:00') : null,
+    signup_close: r.signup_close ? new Date(r.signup_close + 'T00:00:00') : null,
+    set_id: r.set_id ?? null,
     sort_order: r.sort_order ?? 0,
   }))
 
@@ -219,32 +270,52 @@ watch(orgId, v => { if (v) load() })
       <SettingsNav />
       <div class="flex-1 min-w-0 space-y-5">
         <div>
-          <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Terms & memberships</h1>
-          <p class="text-sm text-gray-500">Define how your club runs groups — fixed <strong>terms</strong> (date ranges) and/or recurring <strong>memberships</strong>. Connect them to groups on each group's page.</p>
+          <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">{{ t('term', true) }} & memberships</h1>
+          <p class="text-sm text-gray-500">Define how your club runs {{ t('group', true, true) }} — fixed <strong>{{ t('term', true, true) }}</strong> (date ranges) and/or recurring <strong>memberships</strong>. Connect them to {{ t('group', true, true) }} on each {{ t('group', false, true) }}'s page.</p>
         </div>
 
         <div v-if="loading" class="text-sm text-gray-400">Loading…</div>
 
         <template v-else>
           <!-- TERMS -->
-          <AppCard title="Terms" description="Shared date ranges (e.g. Term 1 2026). Attach a group to one or more terms on the group page.">
-            <div class="space-y-2">
-              <div v-if="terms.length" class="hidden sm:grid grid-cols-[1fr_160px_160px_40px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">
-                <span>Name</span><span>Starts</span><span>Ends</span><span></span>
+          <AppCard :title="t('term', true)" :description="`Shared date ranges (e.g. Term 1 2026). Attach a ${t('group', false, true)} to one or more ${t('term', true, true)} on the ${t('group', false, true)} page. The sign-up window controls when ${t('member', true, true)} can register for that ${t('term', false, true)}'s ${t('group', true, true)} — leave it blank to open right away and close when the ${t('term', false, true)} ends.`">
+            <div class="p-4 sm:p-5 space-y-8">
+              <!-- One section per term set. The default (main) sequence first;
+                   each set is an independent sequence — rollover never crosses sets. -->
+              <div v-for="sec in termSections" :key="sec.key" class="space-y-2">
+                <div v-if="sets.length || sec.set" class="flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full shrink-0" :class="sec.set ? 'bg-primary/60' : 'bg-gray-300'" />
+                  <template v-if="sec.set">
+                    <input v-model="sec.set.name" @change="onRenameSet(sec.set)"
+                      class="text-base font-semibold text-gray-900 bg-transparent border border-transparent hover:border-gray-200 focus:border-[#1E2157] focus:bg-white focus:ring-1 focus:ring-[#1E2157] rounded-md px-1.5 -mx-1.5 py-0.5 outline-none transition-colors" />
+                    <Select v-if="sportOptions.length > 1" :model-value="sec.set.sport_id" :options="sportOptions"
+                      optionLabel="label" optionValue="value" size="small" class="w-40"
+                      v-tooltip.top="'Connect this sequence to a sport'"
+                      @update:modelValue="(v: string | null) => onSetSport(sec.set!, v)" />
+                    <button class="text-gray-300 hover:text-red-500" title="Delete this term set (its terms move to the main sequence)" @click="removeSet(sec.set)"><i class="pi pi-times-circle text-sm" /></button>
+                  </template>
+                  <span v-else class="text-base font-semibold text-gray-900">Main {{ t('term', true, true) }}</span>
+                </div>
+                <div v-if="sec.list.length" class="hidden lg:grid grid-cols-[1fr_130px_130px_130px_130px_40px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">
+                  <span>Name</span><span>Starts</span><span>Ends</span><span v-tooltip.top="`When ${t('member', false, true)} registration opens. Blank = open right away.`">Sign-up opens</span><span v-tooltip.top="`When registration closes. Blank = when the ${t('term', false, true)} ends.`">Sign-up closes</span><span></span>
+                </div>
+                <div v-for="t in sec.list" :key="t.id ?? t.sort_order + t.name"
+                  class="grid grid-cols-1 lg:grid-cols-[1fr_130px_130px_130px_130px_40px] gap-2 items-center">
+                  <InputText v-model="t.name" placeholder="Term 1 2026" class="w-full" />
+                  <DatePicker v-model="t.start_date" dateFormat="d M yy" showIcon class="w-full" placeholder="Start" />
+                  <DatePicker v-model="t.end_date" dateFormat="d M yy" showIcon class="w-full" placeholder="End" />
+                  <DatePicker v-model="t.signup_open" dateFormat="d M yy" showIcon class="w-full" placeholder="Right away" />
+                  <DatePicker v-model="t.signup_close" dateFormat="d M yy" showIcon class="w-full" placeholder="Term end" />
+                  <button class="text-gray-400 hover:text-red-500 justify-self-start sm:justify-self-center" @click="removeTerm(t)">
+                    <i class="pi pi-trash" />
+                  </button>
+                </div>
+                <p v-if="!sec.list.length" class="text-sm text-gray-400">No {{ t('term', true, true) }} in this sequence yet.</p>
+                <button class="text-sm text-primary hover:underline" @click="addTerm(sec.set?.id ?? null)">+ Add {{ t('term', false, true) }}</button>
               </div>
-              <div v-for="(t, i) in terms" :key="i"
-                class="grid grid-cols-1 sm:grid-cols-[1fr_160px_160px_40px] gap-2 items-center">
-                <InputText v-model="t.name" placeholder="Term 1 2026" class="w-full" />
-                <DatePicker v-model="t.start_date" dateFormat="d M yy" showIcon class="w-full" placeholder="Start" />
-                <DatePicker v-model="t.end_date" dateFormat="d M yy" showIcon class="w-full" placeholder="End" />
-                <button class="text-gray-400 hover:text-red-500 justify-self-start sm:justify-self-center" @click="removeTerm(i)">
-                  <i class="pi pi-trash" />
-                </button>
-              </div>
-              <p v-if="!terms.length" class="text-sm text-gray-400 py-2">No terms yet.</p>
-              <div class="flex items-center justify-between pt-1">
-                <button class="text-sm text-primary hover:underline" @click="addTerm">+ Add term</button>
-                <Button label="Save terms" size="small" :loading="savingTerms"
+              <div class="flex items-center justify-between pt-1 border-t border-gray-100">
+                <button class="text-sm text-gray-400 hover:text-primary transition-colors mt-2" :title="`A separate, unconnected sequence of ${t('term', true, true)} — e.g. the Seniors' two halves`" @click="addSet">+ New {{ t('term', false, true) }} set</button>
+                <Button :label="`Save ${t('term', true, true)}`" size="small" :loading="savingTerms" class="mt-2"
                   style="background:#1E2157;border-color:#1E2157" @click="saveTerms" />
               </div>
             </div>
@@ -252,7 +323,7 @@ watch(orgId, v => { if (v) load() })
 
           <!-- MEMBERSHIPS -->
           <AppCard title="Memberships" description="Recurring plans (e.g. Senior) with one or more duration options that roll over. A member keeps the same plan; they just pick a duration.">
-            <div class="space-y-4">
+            <div class="p-4 sm:p-5 space-y-4">
               <div v-for="(p, pi) in plans" :key="pi" class="rounded-xl border border-gray-200 overflow-hidden">
                 <div class="flex items-center gap-2 px-3 py-2.5 bg-gray-50/60 border-b border-gray-100">
                   <input type="color" v-model="p.color" class="w-7 h-7 rounded cursor-pointer border-0 bg-transparent p-0 shrink-0" title="Plan colour" />

@@ -23,8 +23,12 @@ const _org = useOrg()
 const { resolvePersonTypes } = useOrgFieldPolicy()
 const types = ref<{ key: string; label: string; kind: string; min_count: number; max_count: number | null }[]>([])
 const effectiveOrgId = computed(() => props.orgId ?? _org.orgId.value)
+// What this club CALLS a Member (terminology engine) — presets match/label with it.
+const { resolveTerminology, term } = useTerminology()
+const memberTerm = ref('')
 watch(effectiveOrgId, async (id) => {
   types.value = id ? await resolvePersonTypes(id) : []
+  try { memberTerm.value = id ? term(await resolveTerminology(id), 'member') : '' } catch { memberTerm.value = '' }
 }, { immediate: true })
 
 const profiles = computed({
@@ -54,7 +58,7 @@ function patchProfile(i: number, patch: Partial<{ min: number; max: number | nul
 
 // ── Quick-start presets (shared with the events forms tab) ───────────────────
 function applyPreset(preset: { roles: any[] }) {
-  emit('update:modelValue', resolvePreset(types.value, preset))
+  emit('update:modelValue', resolvePreset(types.value, preset, { memberTerm: memberTerm.value }))
 }
 </script>
 

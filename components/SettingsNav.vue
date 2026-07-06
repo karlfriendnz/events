@@ -7,14 +7,17 @@
 const route = useRoute()
 const tabs = [
   { label: 'General', icon: 'pi-cog', to: '/settings', tab: 'general' },
+  { label: 'Club setup', icon: 'pi-sliders-v', to: '/settings/modules' },
   { label: 'Bookings', icon: 'pi-calendar', to: '/settings', tab: 'bookings' },
   { label: 'Events', icon: 'pi-megaphone', to: '/settings', tab: 'events' },
+  { label: 'Forms', icon: 'pi-file-edit', to: '/forms' },
   { label: 'Resources', icon: 'pi-building', to: '/settings', tab: 'resources' },
   { label: 'Terms & memberships', icon: 'pi-credit-card', to: '/settings/memberships' },
   { label: 'Types & fields', icon: 'pi-id-card', to: '/settings/fields' },
   { label: 'Terminology', icon: 'pi-pencil', to: '/settings/terminology' },
   { label: 'Profile dashboard', icon: 'pi-th-large', to: '/settings/profile-dashboard' },
   { label: 'Dashboard defaults', icon: 'pi-sliders-h', to: '/settings/dashboard-defaults' },
+  { label: 'Xero', icon: 'pi-link', to: '/settings/xero' },
   { label: 'Advanced', icon: 'pi-wrench', to: '/settings', tab: 'advanced' },
 ]
 function linkTo(t: any) {

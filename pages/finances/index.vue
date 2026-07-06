@@ -5,7 +5,7 @@
     <!-- Summary cards -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
       <div class="card p-4">
-        <p class="text-sm text-surface-500 mb-1">Total Events</p>
+        <p class="text-sm text-surface-500 mb-1">Total {{ t('event', true) }}</p>
         <p class="text-2xl font-semibold">{{ summary.events }}</p>
       </div>
       <div class="card p-4">
@@ -48,7 +48,7 @@
                     <p>No fee components found.</p>
                   </div>
                 </template>
-                <Column header="Event">
+                <Column :header="t('event')">
                   <template #body="{ data }">
                     <NuxtLink :to="`/events/${data.event_id}`" class="text-primary hover:underline text-sm">
                       {{ data.event?.title ?? '—' }}
@@ -63,7 +63,8 @@
                 </Column>
                 <Column field="xero_code" header="Xero Code" style="width:130px">
                   <template #body="{ data }">
-                    <span class="text-surface-500">{{ data.xero_code || '—' }}</span>
+                    <!-- value may be the legacy {code,tracking} JSON — always show the parsed code -->
+                    <span class="text-surface-500" :title="accountTitle(data.xero_code)">{{ parseXeroAccount(data.xero_code).code || '—' }}</span>
                   </template>
                 </Column>
                 <Column field="is_locked" header="Locked" style="width:80px">
@@ -94,7 +95,7 @@
                     <p>No discounts yet.</p>
                   </div>
                 </template>
-                <Column header="Event">
+                <Column :header="t('event')">
                   <template #body="{ data }">
                     <NuxtLink :to="`/events/${data.event_id}`" class="text-primary hover:underline text-sm">
                       {{ data.event?.title ?? '—' }}
@@ -151,7 +152,7 @@
                     <p>No add-ons yet.</p>
                   </div>
                 </template>
-                <Column header="Event">
+                <Column :header="t('event')">
                   <template #body="{ data }">
                     <NuxtLink :to="`/events/${data.event_id}`" class="text-primary hover:underline text-sm">
                       {{ data.event?.title ?? '—' }}
@@ -192,9 +193,9 @@
       <div class="flex flex-col gap-4 py-1">
         <!-- Event -->
         <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1 sm:gap-3">
-          <label class="text-sm font-medium text-gray-700">Event</label>
+          <label class="text-sm font-medium text-gray-700">{{ t('event') }}</label>
           <Select v-model="discountForm.event_id" :options="events" option-label="title" option-value="id"
-            placeholder="Select event…" filter class="w-full" />
+            :placeholder="`Select ${t('event', false, true)}…`" filter class="w-full" />
         </div>
         <!-- Name -->
         <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1 sm:gap-3">
@@ -234,9 +235,9 @@
     <Dialog v-model:visible="showCreateAddon" header="New Add-on" modal :style="{ width: '95vw', maxWidth: '440px' }">
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Event</label>
+          <label class="text-sm font-medium">{{ t('event') }}</label>
           <Select v-model="addonForm.event_id" :options="events" option-label="title" option-value="id"
-            placeholder="Select event…" filter class="w-full" />
+            :placeholder="`Select ${t('event', false, true)}…`" filter class="w-full" />
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
@@ -251,7 +252,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium">Price</label>
-            <InputNumber v-model="addonForm.price" mode="currency" currency="AUD" locale="en-AU" />
+            <InputNumber v-model="addonForm.price" mode="currency" :currency="orgCurrency" locale="en-NZ" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium">Stock Limit</label>
@@ -280,6 +281,8 @@ import { useToast } from 'primevue/usetoast'
 
 const db = useDb()
 const toast = useToast()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 const activeTab = ref('fees')
 const feeSearch = ref('')
@@ -320,14 +323,21 @@ const filteredDiscounts = computed(() => discounts.value.filter(d =>
 ))
 
 function formatCurrency(n: number) {
-  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(n)
+  return new Intl.NumberFormat('en-NZ', { style: 'currency', currency: orgCurrency.value }).format(n)
+}
+function accountTitle(v: string | null) {
+  const t = parseXeroAccount(v).tracking
+  return t ? Object.values(t).join(' · ') : undefined
 }
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+const orgCurrency = ref('NZD')
 async function load() {
   feesLoading.value = true
+  ;(db.from as any)('organisations').select('currency').eq('id', orgId.value).single()
+    .then(({ data }: any) => { orgCurrency.value = data?.currency || 'NZD' })
   const [{ data: fees }, { data: disc }, { data: adds }, { data: evts }] = await Promise.all([
     db.from('fee_components').select('*, event:events(id,title)').eq('org_id', orgId.value).order('sort_order'),
     db.from('discounts').select('*, event:events(id,title)').eq('org_id', orgId.value).order('created_at', { ascending: false }),

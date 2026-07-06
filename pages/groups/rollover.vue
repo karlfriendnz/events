@@ -6,9 +6,10 @@
         <i class="pi pi-chevron-left" />
       </NuxtLink>
       <div>
-        <h1 class="text-lg sm:text-2xl font-semibold text-surface-900">Roll over groups</h1>
-        <p class="text-xs text-gray-500 mt-0.5">Recreate a term's groups into the next term — carry or reset staff and members per group.</p>
+        <h1 class="text-lg sm:text-2xl font-semibold text-surface-900">Roll over {{ t('group', true, true) }}</h1>
+        <p class="text-xs text-gray-500 mt-0.5">Recreate a {{ t('term', false, true) }}'s {{ t('group', true, true) }} into the next {{ t('term', false, true) }} — carry or reset staff and {{ t('member', true, true) }} per {{ t('group', false, true) }}.</p>
       </div>
+      <NuxtLink to="/groups/term-wizard" class="ml-auto text-xs font-medium text-primary hover:underline whitespace-nowrap">Guided set-up →</NuxtLink>
     </div>
 
     <!-- Term pickers -->
@@ -17,25 +18,25 @@
         <div class="flex flex-col gap-1.5 flex-1">
           <label class="text-xs font-bold uppercase tracking-wide text-gray-500">Roll over from</label>
           <Select v-model="sourceTermId" :options="termOptions" optionLabel="label" optionValue="value"
-            placeholder="Choose a term" class="w-full" />
+            :placeholder="`Choose a ${t('term', false, true)}`" class="w-full" />
         </div>
         <div class="hidden sm:flex items-center h-10 text-gray-300"><i class="pi pi-arrow-right" /></div>
         <div class="flex flex-col gap-1.5 flex-1">
           <label class="text-xs font-bold uppercase tracking-wide text-gray-500">Into</label>
           <Select v-model="targetTermId" :options="targetOptions" optionLabel="label" optionValue="value"
-            placeholder="Choose a term" class="w-full" />
+            :placeholder="`Choose a ${t('term', false, true)}`" class="w-full" />
         </div>
       </div>
       <p v-if="sameTerm" class="text-xs text-amber-600 mt-3">
-        <i class="pi pi-exclamation-triangle mr-1" />Source and target are the same term — pick a different target.
+        <i class="pi pi-exclamation-triangle mr-1" />Source and target are the same {{ t('term', false, true) }} — pick a different target.
       </p>
     </div>
 
     <!-- Groups table -->
     <div class="card overflow-hidden">
       <div v-if="loading" class="py-10 text-center text-sm text-gray-400">Loading…</div>
-      <div v-else-if="!sourceTermId" class="py-10 text-center text-sm text-gray-400">Choose a source term to begin.</div>
-      <div v-else-if="!rows.length" class="py-10 text-center text-sm text-gray-400">That term has no groups to roll over.</div>
+      <div v-else-if="!sourceTermId" class="py-10 text-center text-sm text-gray-400">Choose a source {{ t('term', false, true) }} to begin.</div>
+      <div v-else-if="!rows.length" class="py-10 text-center text-sm text-gray-400">That {{ t('term', false, true) }} has no {{ t('group', true, true) }} to roll over.</div>
 
       <div v-else class="overflow-x-auto">
         <table class="w-full text-sm min-w-[760px]">
@@ -49,7 +50,7 @@
               </th>
               <th class="py-2.5 px-4 w-[20%]">Details</th>
               <th class="py-2.5 px-4 w-[23%]">Staff</th>
-              <th class="py-2.5 px-4 w-[23%]">Members</th>
+              <th class="py-2.5 px-4 w-[23%]">{{ t('member', true) }}</th>
             </tr>
           </thead>
           <tbody>
@@ -130,10 +131,10 @@
     <!-- Footer action -->
     <div class="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
       <p class="text-xs text-gray-500">
-        {{ selectedCount }} group{{ selectedCount === 1 ? '' : 's' }} will be created in
+        {{ selectedCount }} {{ selectedCount === 1 ? t('group', false, true) : t('group', true, true) }} will be created in
         <strong>{{ targetTermName || '—' }}</strong>.
       </p>
-      <Button :label="`Create ${selectedCount} group${selectedCount === 1 ? '' : 's'} for ${targetTermName || 'term'}`"
+      <Button :label="`Create ${selectedCount} ${selectedCount === 1 ? t('group', false, true) : t('group', true, true)} for ${targetTermName || t('term', false, true)}`"
         icon="pi pi-copy" :loading="running" :disabled="!canRun"
         class="w-full sm:w-auto justify-center" style="background:#1E2157;border-color:#1E2157"
         @click="run" />
@@ -183,6 +184,8 @@ const router = useRouter()
 const route = useRoute()
 const tm = useTermsMemberships()
 const rollover = useTermRollover()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 interface Row extends RolloverPlan { alreadyRolled: boolean }
 
@@ -237,7 +240,7 @@ const pickTitle = computed(() => {
   const c = pickCtx.value
   if (!c) return ''
   const name = c.row.name?.trim() || c.row.source.name
-  return `${name} — ${c.which === 'staff' ? 'Coaches & managers' : 'Members'}`
+  return `${name} — ${c.which === 'staff' ? `${t('coach', true)} & managers` : t('member', true)}`
 })
 
 function openPick(_e: Event, row: Row, which: 'staff' | 'member') {
@@ -277,13 +280,13 @@ function setAll(v: boolean) {
 // Read-only "Details" rows for a group — its configured attributes.
 function detailBits(g: RolloverGroup): { label: string; value: string }[] {
   const out: { label: string; value: string }[] = []
-  if (g.code) out.push({ label: 'Code', value: g.code })
+  if (g.code) out.push({ label: t('code'), value: g.code })
   if (g.age_range) out.push({ label: 'Ages', value: g.age_range })
   if (g.gender_restriction) out.push({ label: 'Gender', value: GENDER_LABELS[g.gender_restriction] ?? g.gender_restriction })
   if (g.capacity != null) out.push({ label: 'Capacity', value: String(g.capacity) })
   if (g.term_fee != null) out.push({ label: 'Fee', value: tm.fmtMoney(g.term_fee) })
   const subs = Array.isArray(g.sub_groups) ? g.sub_groups.length : 0
-  if (subs) out.push({ label: 'Sub-groups', value: String(subs) })
+  if (subs) out.push({ label: `Sub-${t('group', true)}`, value: String(subs) })
   return out
 }
 
@@ -292,8 +295,8 @@ function carrySummary(row: Row, which: 'staff' | 'member'): string {
   const list = which === 'staff' ? row.source.staff : row.source.members
   const mode = which === 'staff' ? row.staffMode : row.memberMode
   const ids = which === 'staff' ? row.staffIds : row.memberIds
-  const noun = which === 'staff' ? 'coach' : 'member'
-  const plural = which === 'staff' ? 'coaches' : 'members'
+  const noun = which === 'staff' ? t('coach', false, true) : t('member', false, true)
+  const plural = which === 'staff' ? t('coach', true, true) : t('member', true, true)
   const n = mode === 'wipe' ? 0 : mode === 'pick' ? ids.length : list.length
   if (mode === 'wipe') return `Start empty · ${list.length} not carried`
   return `Carry ${n} ${n === 1 ? noun : plural}`
@@ -347,7 +350,7 @@ async function run() {
   running.value = true
   try {
     const { created } = await rollover.rollOverGroups(targetTerm, rows.value.filter(r => !r.alreadyRolled))
-    toast.add({ severity: 'success', summary: `Created ${created} group${created === 1 ? '' : 's'} in ${targetTerm.name}`, life: 3000 })
+    toast.add({ severity: 'success', summary: `Created ${created} ${created === 1 ? t('group', false, true) : t('group', true, true)} in ${targetTerm.name}`, life: 3000 })
     router.push(`/groups?term=${targetTerm.id}`)
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Rollover failed', detail: e?.message ?? String(e), life: 5000 })

@@ -88,7 +88,7 @@
             <select v-model="rule.account_code"
               class="w-full h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700">
               <option value="" disabled>Account code…</option>
-              <option v-for="ac in accountCodes" :key="ac" :value="ac">{{ ac }}</option>
+              <option v-for="ac in accountOptions" :key="ac.value" :value="ac.value">{{ ac.label }}</option>
             </select>
             <input v-model="rule.fee_name" type="text" placeholder="Fee name"
               class="w-full h-9 px-3 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
@@ -122,7 +122,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 
 interface FieldOption { id?: string; _key?: string; label: string }
 interface Condition { id: string; field: string; operator: string; value: string }
@@ -145,6 +145,22 @@ const props = withDefaults(defineProps<{
   hideFinancial: false,
   accountCodes: () => ['ACC-001', 'ACC-002', 'ACC-003', 'ACC-004', 'ACC-005'] as const,
   operators:    () => ['Equals', 'Is Not', 'Contains', 'Is Empty', 'Is Not Empty'] as const,
+})
+
+// Account-code options: when the club has Xero connected, offer the REAL
+// accounts (the "Accounts you use" shortlist from Settings → Xero, else the
+// live income chart) instead of the demo accountCodes prop.
+const xa = useXeroAccounts()
+onMounted(() => { xa.loadXeroAccounts().then(() => { if (xa.connected.value && !xa.shortlist.value.length) xa.loadAllAccounts() }) })
+const accountOptions = computed<{ value: string; label: string }[]>(() => {
+  if (xa.connected.value) {
+    if (xa.shortlist.value.length) return xa.shortlist.value.map(a => ({
+      value: encodeXeroAccount(a.code, a.tracking),
+      label: `${a.label} (${a.code}${a.tracking && Object.keys(a.tracking).length ? ' · ' + Object.values(a.tracking).join('/') : ''})`,
+    }))
+    if (xa.allAccounts.value?.length) return xa.allAccounts.value.map(a => ({ value: a.code, label: `${a.name} (${a.code})` }))
+  }
+  return props.accountCodes.map(c => ({ value: c, label: c }))
 })
 
 // Visibility conditions exclude the field being edited (a field can't gate itself).

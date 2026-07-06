@@ -13,10 +13,12 @@ const tm = useTermsMemberships()
 const finder = useClassFinder()
 const route = useRoute()
 const { orgReady } = useOrg()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 // Breadcrumb trail lives in the top control bar (like the rest of the app) —
 // the page no longer repeats a title/subtitle in its body.
-useBreadcrumbs([{ label: 'Classes', to: '/groups' }, { label: 'Week View' }])
+useBreadcrumbs([{ label: () => t('group', true), to: '/groups' }, { label: 'Week View' }])
 
 const loading = ref(true)
 const allSessions = ref<TimetableSession[]>([])
@@ -51,15 +53,15 @@ async function load() {
 }
 watch(orgReady, r => { if (r) load() }, { immediate: true })
 
-const termOptions = computed(() => [{ label: 'All terms', value: 'all' }, ...terms.value.map((t: any) => ({ label: t.name, value: t.id }))])
+const termOptions = computed(() => [{ label: `All ${t('term', true, true)}`, value: 'all' }, ...terms.value.map((tm: any) => ({ label: tm.name, value: tm.id }))])
 const codeOptions = computed(() => gc.treeOptions(codes.value))
 const venueOptions = computed(() => {
   const set = new Set(allSessions.value.map(s => s.venue).filter(Boolean))
-  return [{ label: 'All venues', value: 'all' }, ...[...set].sort().map(v => ({ label: v, value: v }))]
+  return [{ label: `All ${t('venue', true, true)}`, value: 'all' }, ...[...set].sort().map(v => ({ label: v, value: v }))]
 })
 const coachOptions = computed(() => {
   const set = new Set(allSessions.value.map(s => s.coach).filter(Boolean) as string[])
-  return [{ label: 'All coaches', value: 'all' }, ...[...set].sort().map(c => ({ label: c, value: c }))]
+  return [{ label: `All ${t('coach', true, true)}`, value: 'all' }, ...[...set].sort().map(c => ({ label: c, value: c }))]
 })
 
 const filtered = computed(() => allSessions.value.filter(s =>
@@ -106,13 +108,13 @@ function openGroup(s: TimetableSession) { navigateTo(`/groups/${s.groupId}`) }
       <div class="flex flex-wrap items-center gap-2 sm:gap-3">
         <Select v-model="termId" :options="termOptions" optionLabel="label" optionValue="value" class="w-full sm:w-44" />
         <MultiSelect v-model="codeIds" :options="codeOptions" optionLabel="label" optionValue="value" display="chip"
-          placeholder="All codes" :maxSelectedLabels="2" class="w-full sm:w-52" :showToggleAll="false" filter />
+          :placeholder="`All ${t('code', true, true)}`" :maxSelectedLabels="2" class="w-full sm:w-52" :showToggleAll="false" filter />
         <Select v-model="venue" :options="venueOptions" optionLabel="label" optionValue="value" class="w-full sm:w-40" filter />
         <Select v-model="coach" :options="coachOptions" optionLabel="label" optionValue="value" class="w-full sm:w-40" filter />
         <button v-if="anyFilter" type="button" class="text-xs font-medium text-gray-400 hover:text-gray-700 px-1.5 py-1" @click="clearFilters">Clear</button>
         <button type="button" @click="finder.openFinder()"
           class="sm:ml-auto inline-flex items-center gap-1.5 text-sm text-white px-3 py-2 rounded-lg" style="background:#1E2157">
-          <i class="pi pi-search text-xs" /> Find a class
+          <i class="pi pi-search text-xs" /> Find a {{ t('group', false, true) }}
         </button>
         <NuxtLink to="/groups" class="hidden sm:inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary px-3 py-2 rounded-lg border border-gray-200 hover:border-gray-300">
           <i class="pi pi-table text-xs" /> Table view
@@ -132,7 +134,7 @@ function openGroup(s: TimetableSession) { navigateTo(`/groups/${s.groupId}`) }
     <div v-if="!loading && filtered.length" class="flex flex-wrap items-stretch gap-2 sm:gap-3">
       <div class="card px-4 py-3 flex-1 min-w-[130px]">
         <p class="text-lg font-bold text-gray-900">{{ stats.classes }}</p>
-        <p class="text-xs text-gray-500">Classes / week</p>
+        <p class="text-xs text-gray-500">{{ t('group', true) }} / week</p>
       </div>
       <div class="card px-4 py-3 flex-1 min-w-[130px]">
         <p class="text-lg font-bold text-gray-900">{{ stats.hours }}<span class="text-sm font-medium text-gray-400 ml-0.5">hrs</span></p>
@@ -156,8 +158,8 @@ function openGroup(s: TimetableSession) { navigateTo(`/groups/${s.groupId}`) }
     <!-- empty -->
     <div v-else-if="!filtered.length" class="card p-12 sm:p-16 text-center">
       <i class="pi pi-calendar text-3xl text-gray-300 mb-3 block" />
-      <p class="text-sm font-medium text-gray-700">{{ allSessions.length ? 'No classes match these filters' : 'No class times scheduled yet' }}</p>
-      <p class="text-xs text-gray-400 mt-1">{{ allSessions.length ? 'Try clearing a filter.' : 'Add weekly session times on a group to see them here.' }}</p>
+      <p class="text-sm font-medium text-gray-700">{{ allSessions.length ? `No ${t('group', true, true)} match these filters` : `No ${t('group', false, true)} times scheduled yet` }}</p>
+      <p class="text-xs text-gray-400 mt-1">{{ allSessions.length ? 'Try clearing a filter.' : `Add weekly session times on a ${t('group', false, true)} to see them here.` }}</p>
       <button v-if="allSessions.length && anyFilter" class="mt-4 text-sm text-primary hover:underline" @click="clearFilters">Clear filters</button>
     </div>
 

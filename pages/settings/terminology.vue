@@ -16,6 +16,17 @@ const inherited = reactive<Record<string, { singular?: string; plural?: string; 
 const loading = ref(true)
 const saving = ref(false)
 
+// ── Terminology belongs to a SPORT (migration 233) ──
+// When the club runs 2+ sports, a scope picker appears: "Whole club" edits the
+// org-level base; a sport edits that sport's own overrides (layered on top —
+// blank = inherit the club/NSO value, shown as the placeholder).
+const sports = ref<{ id: string; label: string; terminology: any; is_primary: boolean }[]>([])
+const scope = ref<string | null>(null)   // null = whole club, else org_sports.id
+const scopeOptions = computed(() => [
+  { label: 'Whole club', value: null as string | null },
+  ...sports.value.map(s => ({ label: s.label + (s.is_primary ? ' (primary)' : ''), value: s.id as string | null })),
+])
+
 const grouped = computed(() => {
   const g: Record<string, typeof TERM_DEFS> = {}
   for (const t of TERM_DEFS) (g[t.group] ||= []).push(t)
@@ -29,9 +40,17 @@ async function load() {
   Object.keys(inherited).forEach(k => delete inherited[k])
   const id = orgId.value
   if (id) {
-    const { data: me } = await (db.from as any)('organisations').select('terminology').eq('id', id).single()
+    const [{ data: me }, { data: sp }] = await Promise.all([
+      (db.from as any)('organisations').select('terminology').eq('id', id).single(),
+      (db.from as any)('org_sports').select('id, sport, display_name, terminology, is_primary').eq('org_id', id).order('sort_order'),
+    ])
+    sports.value = (sp ?? []).map((s: any) => ({ id: s.id, label: s.display_name || s.sport, terminology: s.terminology || {}, is_primary: !!s.is_primary }))
     const own = me?.terminology || {}
-    TERM_DEFS.forEach(t => { overrides[t.key] = { singular: own[t.key]?.singular || '', plural: own[t.key]?.plural || '' } })
+    const activeSport = scope.value ? sports.value.find(s => s.id === scope.value) : null
+    const editing = activeSport ? activeSport.terminology : own
+    TERM_DEFS.forEach(t => { overrides[t.key] = { singular: editing[t.key]?.singular || '', plural: editing[t.key]?.plural || '' } })
+    // Inherited chain shown as placeholders: NSO ancestors, and — when editing
+    // a sport — the club's own org-level values too.
     const anc = await ancestors(id)
     if (anc.length) {
       const { data: rows } = await (db.from as any)('organisations').select('id, name, terminology').in('id', anc.map(a => a.id))
@@ -44,15 +63,22 @@ async function load() {
         }
       }
     }
+    if (activeSport) {
+      for (const [k, v] of Object.entries(own as Record<string, any>)) {
+        if (v?.singular) inherited[k] = { ...(inherited[k] || {}), singular: v.singular, from: 'your club' }
+        if (v?.plural) inherited[k] = { ...(inherited[k] || {}), plural: v.plural, from: 'your club' }
+      }
+    }
   }
   loading.value = false
 }
+watch(scope, () => load())
 
 async function save() {
   if (!orgId.value) return
   saving.value = true
   try {
-    await saveTerminology(orgId.value, overrides)
+    await saveTerminology(orgId.value, overrides, { sportId: scope.value })
     toast.add({ severity: 'success', summary: 'Terminology saved', life: 2000 })
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Could not save', detail: e?.message, life: 3500 })
@@ -76,7 +102,11 @@ watch(orgId, load, { immediate: true })
         <h1 class="text-xl font-semibold text-gray-900">Terminology</h1>
         <p class="text-sm text-gray-500 mt-0.5">Tailor the words your club uses. Leave blank to keep the default or what your governing body set.</p>
       </div>
-      <Button label="Save changes" icon="pi pi-check" size="small" class="w-full sm:w-auto" :loading="saving" @click="save" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+      <div class="flex items-center gap-2 w-full sm:w-auto">
+        <Select v-if="sports.length > 1" v-model="scope" :options="scopeOptions" optionLabel="label" optionValue="value"
+          size="small" class="w-44" v-tooltip.top="'Each sport can have its own words — a sport\'s terms sit on top of the whole-club ones'" />
+        <Button label="Save changes" icon="pi pi-check" size="small" class="w-full sm:w-auto" :loading="saving" @click="save" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+      </div>
     </div>
 
     <div v-if="loading" class="text-sm text-gray-400">Loading…</div>

@@ -10,6 +10,8 @@ const finder = useClassFinder()
 const gc = useGroupCodes()
 const tm = useTermsMemberships()
 const { open, params } = finder
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 const loading = ref(false)
 const loaded = ref(false)
@@ -45,11 +47,11 @@ watch(open, o => { if (o && !loaded.value) load() })
 
 const codeOptions = computed(() => gc.treeOptions(codes.value))
 const disciplineOptions = computed(() => disciplines.value.map(d => ({ label: d.name, value: d.id })))
-const termOptions = computed(() => [{ label: 'Any term', value: null }, ...terms.value.map((t: any) => ({ label: t.name, value: t.id }))])
+const termOptions = computed(() => [{ label: `Any ${t('term', false, true)}`, value: null }, ...terms.value.map((tm: any) => ({ label: tm.name, value: tm.id }))])
 const venueOptions = computed(() => {
   const set = new Set<string>()
   classes.value.forEach(c => c.venues.forEach(v => set.add(v)))
-  return [{ label: 'Any venue', value: null }, ...[...set].sort().map(v => ({ label: v, value: v }))]
+  return [{ label: `Any ${t('venue', false, true)}`, value: null }, ...[...set].sort().map(v => ({ label: v, value: v }))]
 })
 
 const results = computed(() => finder.match(classes.value, params.value))
@@ -97,8 +99,8 @@ function addPersonToClass(c: FinderClass) { finder.close(); navigateTo(`/groups/
         <!-- header -->
         <div class="px-5 pt-4 pb-3 border-b border-gray-100 flex items-start justify-between gap-3 shrink-0">
           <div>
-            <h2 class="text-sm font-semibold text-gray-900 flex items-center gap-2"><i class="pi pi-search text-primary text-xs" /> Find a class</h2>
-            <p class="text-xs text-gray-500 mt-0.5">Match someone to the right class.</p>
+            <h2 class="text-sm font-semibold text-gray-900 flex items-center gap-2"><i class="pi pi-search text-primary text-xs" /> Find a {{ t('group', false, true) }}</h2>
+            <p class="text-xs text-gray-500 mt-0.5">Match someone to the right {{ t('group', false, true) }}.</p>
           </div>
           <button class="text-gray-400 hover:text-gray-700" @click="finder.close()"><i class="pi pi-times" /></button>
         </div>
@@ -145,17 +147,17 @@ function addPersonToClass(c: FinderClass) { finder.close(); navigateTo(`/groups/
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="text-xs font-medium text-gray-500 block mb-1">Term</label>
+                <label class="text-xs font-medium text-gray-500 block mb-1">{{ t('term', false) }}</label>
                 <Select v-model="params.termId" :options="termOptions" optionLabel="label" optionValue="value" class="w-full" />
               </div>
               <div>
-                <label class="text-xs font-medium text-gray-500 block mb-1">Venue</label>
+                <label class="text-xs font-medium text-gray-500 block mb-1">{{ t('venue', false) }}</label>
                 <Select v-model="params.venue" :options="venueOptions" optionLabel="label" optionValue="value" class="w-full" filter />
               </div>
             </div>
             <div class="flex items-center justify-between pt-1">
               <label class="text-xs font-medium text-gray-600 flex items-center gap-2">
-                <ToggleSwitch v-model="params.onlyWithSpace" /> Only classes with space
+                <ToggleSwitch v-model="params.onlyWithSpace" /> Only {{ t('group', true, true) }} with space
               </label>
               <button v-if="activeFilterCount" type="button" class="text-xs text-gray-400 hover:text-gray-700" @click="finder.resetParams()">Reset</button>
             </div>
@@ -166,16 +168,16 @@ function addPersonToClass(c: FinderClass) { finder.close(); navigateTo(`/groups/
             <div v-if="!hasCriteria" class="p-8 text-center">
               <i class="pi pi-sliders-h text-2xl text-gray-300 mb-2 block" />
               <p class="text-sm text-gray-600 font-medium">Enter a few details above</p>
-              <p class="text-xs text-gray-400 mt-1">Age, day, programme… and we'll find matching classes.</p>
+              <p class="text-xs text-gray-400 mt-1">Age, day, programme… and we'll find matching {{ t('group', true, true) }}.</p>
             </div>
             <template v-else>
             <div class="px-5 py-2 text-xs text-gray-400 sticky top-0 bg-white/95 backdrop-blur border-b border-gray-50">
-              {{ loading ? 'Searching…' : `${results.length} ${results.length === 1 ? 'class' : 'classes'} match` }}
+              {{ loading ? 'Searching…' : `${results.length} ${results.length === 1 ? t('group', false, true) : t('group', true, true)} match` }}
             </div>
             <div v-if="loading" class="p-10 text-center text-gray-400"><i class="pi pi-spin pi-spinner text-xl" /></div>
             <div v-else-if="!results.length" class="p-8 text-center">
               <i class="pi pi-search text-2xl text-gray-300 mb-2 block" />
-              <p class="text-sm text-gray-600 font-medium">No classes match</p>
+              <p class="text-sm text-gray-600 font-medium">No {{ t('group', true, true) }} match</p>
               <p class="text-xs text-gray-400 mt-1">Try loosening a filter.</p>
             </div>
             <div v-else class="p-3 space-y-2">
@@ -205,7 +207,7 @@ function addPersonToClass(c: FinderClass) { finder.close(); navigateTo(`/groups/
                       class="text-xs font-medium px-2 py-1 rounded-md border bg-white border-gray-200 text-gray-700 hover:border-gray-300 transition-colors inline-flex items-center gap-1">
                       <i class="pi pi-user-plus text-[10px]" /> Add person
                     </button>
-                    <button type="button" @click="viewClass(c)" class="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1">Open class <i class="pi pi-angle-right text-[10px]" /></button>
+                    <button type="button" @click="viewClass(c)" class="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1">Open {{ t('group', false, true) }} <i class="pi pi-angle-right text-[10px]" /></button>
                   </div>
                 </div>
               </div>

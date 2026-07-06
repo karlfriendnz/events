@@ -3,6 +3,9 @@ export interface FeeLineItem {
   name: string
   xero_code: string
   amount: number | null
+  // Soft-delete marker used by <FeeLineItemsTable baseline>: a carried row the
+  // user removed stays visible (struck through, restorable) until persisted.
+  _deleted?: boolean
 }
 
 export interface FeeGroup {

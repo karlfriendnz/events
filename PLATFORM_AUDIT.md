@@ -304,3 +304,323 @@ The earlier 37-item list (Part 1) stands but **understated** the system. Materia
 - Not yet opened in depth: `/help`, individual Settings sub-tabs (Financial/Emails/Integrations field-level), the public **/register** wizard steps, the **Book** flow on `/venues`, event **detail/RSVP** page, Holiday Programme detail.
 - Confirm which legacy modules are **in vs out** of scope for the rebuild (e.g. is Uniforms/merchandise in v1?).
 
+
+---
+
+# PART 3 — NEW BUILD vs LEGACY: STATUS (updated 7 Jul 2026)
+
+> Where the rebuild actually stands against the 37-item list and the legacy behaviours.
+> Legend: ☑ built (parity or better) · ◐ partial · ☐ not started · ⭐ exceeds legacy
+
+## A. Foundation
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 1 | Multi-tenant org model | ◐ | Org hierarchy + levels (CLUB→NATIONAL+RST), super-admin console `/admin`, branding (logo/icon/brand colours/banner), currency/locale, season. **Tenancy fork resolved de facto: single Postgres + `org_id`** (RLS hardening still outstanding — only `org_members` has RLS). NSO federation modelled via `org_ancestors` + per-sport affiliation (`org_sports`), not shared-DB. |
+| 2 | Terminology engine | ⭐ | `organisations.terminology` (145) + **sport-scoped sets** (`org_sports.terminology`, 233 — beyond legacy's single per-club set), NSO inheritance, `code` key added. `useTerms()` consumption layer + **app-wide sweep done** (groups/people/events/dashboard/detail/settings — ~250 strings). Legacy parity reached and exceeded; remaining hardcodes: nav labels (layout), "Classes" breadcrumbs decision. |
+| 3 | Module toggles | ☑ | `organisations.enabled_modules` (226) + `/settings/modules`, live nav filtering. |
+| 4 | Roles & permissions | ◐ | Core templates (154) + club override, permission grid, People/Entities/Access model in `useCan`, **scoped per-resource roles** (183/184 — beyond legacy), **route read-gates + `<Can>` component (new)**. Missing: per-button `<Can>` sweep, nav hiding, Switch Role. |
+| 5 | Custom fields | ⭐ | Full field engine: `field_definitions` multi-target, person/entity types, NSO inheritance + locking, per-type form layouts (`<PersonFormBuilder>`), core-fields policy. Far beyond legacy's flat custom fields. |
+| 6 | Audit log | ☐ | Not surfaced (legacy audit-logs every write). |
+| 7 | Auth + public/embeds | ◐ | Public registration `/r/:context/:id` (event/group/form), public booker `/book`, OTP/password/QR auth chooser. Embeds for calendar/site not built. |
+
+## B. People
+| 8–13 | Directory, profile, contacts, ledger, reports | ◐ | Directory w/ type tabs + per-tab columns + bulk actions; rich profile (configurable **profile dashboard** ⭐, designed layouts, notes w/ channels); **contacts & circles** (families, act-on-behalf ⭐); retention report. Missing: bounce tracking, membership-length/duplicates reports, per-person financial ledger (blocked on billing engine). |
+
+## C. Squads/Groups + Terms — **the spine: essentially rebuilt, mostly beyond legacy**
+| # | Item | Status | Notes |
+|---|---|---|---|
+| 14 | Squad CRUD | ☑ | Groups w/ codes, age/gender restriction, capacity, image, sub-groups, positions/role minimums (⭐). |
+| 15 | Terms + Codes | ⭐ | `org_terms` w/ **sign-up windows** (230), **term sets** (232) **connected to sports** (235), hierarchical codes (205) w/ per-code member types/roles/staff/positions. Legacy `termset` A–F letters → real named sets. |
+| 16 | Waitlist / Allocation / Term Transfer | ⭐ | Waitlists as shared queues across equivalent classes (221–223, richer than legacy staff=-1), allocator board, **rollover engine + 7-step Term set-up wizard** (nudge banner = legacy transfer banner parity; per-person staff carry, fees editing w/ change tracking, discontinued classes 231, training-event generation). Squad Announcement: not built (email stub). |
+| 17 | Reports | ◐ | Retention ☑, Week View/Class Finder ⭐; Members/Squads reports partially via Classes board + saved views. |
+| — | **Legacy term edit/delete rules** | ☐ | Audited 7 Jul: legacy allowed editing any term any time EXCEPT date-overlap-within-set (hard server check); delete blocked (UI-only) when term had non-staff members, else cascade fees+memberships then soft-delete. **New build lacks the overlap check and the member-guard/cascade on delete** — adopt both (server-side), keep our stricter registrations-lock on dates. |
+
+## D–E. Events + Venues/Bookings | ⭐ | The enhanced engine is the build's centrepiece and exceeds legacy throughout (sessions/forms/tickets/discounts/automation/reporting; bookables/modes/configurations/3 booking flows/access control). Event categories + calendar ☑. |
+
+## F. Fees / Finance
+| 25–27 | Invoicing engine | ◐ | Group fee options w/ line items + due/deposit (204/225), free classes allowed, **Xero foundation** (228: OAuth, account mapping, tracking categories, `<XeroAccountInput>` platform-wide). **Missing: the actual billing engine** — invoices/payments/credits/pro-rata/prompt discounts/subscriptions/direct-debit/statements/Xero sync. Still the biggest F-workstream. |
+
+## G–J. Attendance / Comms / Secondary / Dashboard
+| 28 | Attendance | ◐ | Training events auto-generated w/ pre-rostered invitees, attendance tab + landing + group matrix report/export. Missing: coach hours, visitors. |
+| 29 | Mailer | ☐ | Not built (biggest H gap; announcement email stubbed "coming soon"). |
+| 30–35 | Awards/Resources/Uniforms/Programmes/Vouchers/Sponsors | ☐ | Nav stubs only. Booking discounts exist (booking engine); form-level financial rules exist. |
+| 36–37 | Dashboard + reports | ☑ | Per-user/per-role configurable widget dashboard ⭐, chart widgets, rollover nudge, finance/event reporting pages. |
+
+## Net-new vs legacy (no legacy equivalent)
+**Help documentation system** (234: explanation + step tutorials, terminology tokens, module+permission-gated visibility, chatbot-ready, `/admin/help` + `/help`) · access control (doors/lights/codes) · review/sign-off widget · profile dashboards · Week View + Class Finder · multi-subject registration forms (people + entities) · entity records · org-buildable roles/capabilities.
+
+## Biggest remaining gaps (ranked)
+1. **Billing/payments engine** (F) — invoices, payments, credits, recurring, direct debit, Xero sync (foundation ready).
+2. **Competitions** (Part 2) — untouched, largest net-new module.
+3. **Mailer/comms** (H) — nothing yet; several flows stub into it.
+4. **RLS/tenant hardening + audit log** (A) — before production.
+5. **Compliance/mobile/embeds** (waivers, vetting, app API, site embeds).
+6. Term lifecycle guards (overlap check, member-guarded delete) — small, adopt from legacy.
+
+## Everything the NEW BUILD adds that legacy never had (full list, 7 Jul 2026)
+
+**Booking engine:** three booking flows (wizard / single-screen scheduler / item-rental rate cards) · activity modes w/ per-bookable pricing overrides · venue configurations w/ atomic multi-slot booking (halves/quarters) · equipment bundling + capacity · booking discounts engine · coach ("what I offer") + item + sport + club-setup wizards · **physical access control** (doors, light zones, access codes, unlock windows) · act-on-behalf booking subjects.
+
+**Events:** multi-session events · **multi-subject registration forms** (people AND entities: Team/Company/School, per-subject fields/min/max, presets, step wizard) · form designer w/ banner/icons/sponsors · tickets · automation · per-session reporting · staff register-on-behalf · public reg links + QR.
+
+**Registration engine:** public `/r/:context/:id` pages (event/group/form) · forms connected to whole programmes (dynamic class lists w/ live spaces) · waitlist-aware submission (full class → queue, offers siblings w/ space) · answers materialised onto person profiles by field id.
+
+**Classes/Terms spine:** Week View timetable (density-adaptive, day view) · **Class Finder** · saved class views · Classes board · hierarchical codes w/ per-code member types, staff roles, role/position minimums, code-level staff · **7-step Term set-up wizard** (programmes & management review w/ vacancy search, per-person staff carry, per-programme fee confirmation w/ change-tracking + reset, training-event generation) · **term sets connected to sports** · sign-up windows on terms · discontinued-class lifecycle · free classes · group images w/ crop · sub-group drag boards · retention report.
+
+**People:** club-configurable **profile dashboards** (drag/drop widgets, per-role defaults) · designed per-type profile layouts · **contacts & circles** (families, split families, act-on-behalf, per-relationship comms categories) · person notes w/ channels + context links · entity records w/ rosters · multi-role people.
+
+**Platform:** **sport-scoped terminology** (per-sport vocabularies, NSO inheritance, app-wide) · **help documentation system** (terminology tokens, module+permission-gated, chatbot-ready) · review/sign-off widget (pinned comments, reviewer matrix) · permission-grid route gates + `<Can>` · org hierarchy w/ disciplines, brands, master catalogues, super-admin console · per-role dashboard templates · club module toggles UI · Xero foundation w/ platform-wide account picker + tracking categories · brand CSS theming · mobile-first design system.
+
+## Per-page / per-function breakdown (7 Jul 2026)
+
+### Dashboard — 54%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Members breakdown widget | ★ EXCEEDS | /dashboard stat tiles + custom chart widgets (any field, pie/bar); Configurable per-user grid + per-role default templates | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Finance / outstanding widget | NOT STARTED | — | Outstanding-fees total + weekly trend widget; Requires the billing ledger first | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Upcoming events widget | BUILT | /dashboard upcoming events card | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Term-transfer banner | ★ EXCEEDS | Rollover nudge banner — lineage-aware, per-sequence, terminology-driven; 3-day snooze; links into the term wizard | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Email-error banner | NOT STARTED | — | Bounce tracking on the send pipeline (arrives with Mailer) | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### People — 46%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Directory | BUILT | /people with person-type tabs + per-tab column sets (incl. custom fields); Search, bulk set-type/delete, CSV-friendly columns | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| New person | BUILT | Add-person dialog on /people and inside groups (incl. inline new-person) | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Person profile | ★ EXCEEDS | Live-form profile with designed per-type layouts (WYSIWYG builder); Club-configurable profile dashboard w/ notes + activity; Multi-role people; photo avatar | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Contacts / guardians | ★ EXCEEDS | Contacts & Circles: families incl. split families; Act-on-behalf booking/registration; Per-relationship comms categories; primary/emergency types | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Entity records (Team/Business/School/Family) | NEW | /organisations directory + entity records with people rosters; Entity types with their own fields + member slots | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Person notes with channels | NEW | Notes on any person, scoped to context (group/waitlist/term); Interaction channel (in person/phone/email/SMS), hover preview | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Profile: Fees tab (ledger) | NOT STARTED | — | Per-person ledger: invoices, payments, credits, refunds; Blocked on the billing engine | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Profile: Awards / Resources / Uniforms tabs | NOT STARTED | — | Build those modules, then surface their profile tabs | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Profile: Membership history | PARTIAL | Membership tab: current groups + per-group role editing | Full class x term history view (data already on memberships via term_id) | ☐ | ☐ | ☐ | ☐ | ☐ |
+| People reports | NOT STARTED | — | Membership-length report; Duplicate-name detection | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Logins / archive / restrict | NOT STARTED | — | Login-invitation queue (Email New Logins); Archive + restrict-registrations states | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Squads / Classes — 78%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Groups landing | ★ EXCEEDS | Classes board: programme tabs, term filter, live columns (fill, fees, signup); Saved views + views manager; week-view links per programme | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Week View timetable | NEW | Time x weekday grid of every class, density-adaptive summaries, day view; Colour-coded by programme, capacity chips, click-through modals | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Class Finder | NEW | Find-a-class drawer from any screen: age/day/time/programme/space matching; Ranked results with add-person deep links | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| New squad | BUILT | New group dialog + full group editor (age, gender restriction, capacity, image w/ crop) | Enforce members-per-coach ratio (legacy playersPerStaff) | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Terms admin | ★ EXCEEDS | /settings/memberships: terms w/ sign-up open/close windows; Term sets (independent sequences) connected to sports | Date-overlap check within a set (legacy's one hard rule); Member-guarded delete + fee/membership cascade, enforced server-side | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Codes | ★ EXCEEDS | Drag hierarchy manager + per-code settings; Member types, staff roles w/ lineage, role/position minimums, code-level staff | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Waitlist | ★ EXCEEDS | Shared queues across equivalent classes; Ordering modes (custom/FIFO/priority), enrol-from-waitlist, term rollover, CSV | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Squad Allocation | BUILT | Drag allocation board w/ capacity colouring, duplicates highlight, mobile fallback | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Term Transfer | ★ EXCEEDS | Batch rollover screen + 7-step Term set-up wizard; Programme management review w/ vacancy search; per-person staff carry; Per-programme fee confirmation w/ change tracking + reset; training-event generation; discontinued classes | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Squad detail | ★ EXCEEDS | Group page: hero, session times, fees, sub-group boards, positions, attendance matrix; Public registration page + QR; waitlist-aware add-person | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Squad Announcement | NOT STARTED | — | Message-a-class email (needs Mailer; wizard already stubs it) | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Members / Squads reports | PARTIAL | Classes board columns + saved views + people-tab exports | Dedicated members/squads report views | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Retention Report | BUILT | /groups/retention: A-to-B term comparison, segments, CSV, copy-emails | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Events — 90%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Calendar + categories | BUILT | /events list + calendar toggle, search, filters | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| New event | ★ EXCEEDS | Basic wizard w/ public form toggle, advanced wizard, bulk multi-create | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Event detail | ★ EXCEEDS | Sessions, multi-subject forms, tickets, discounts, automation, reporting, attendance check-in; Staff register-on-behalf + public links | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Multi-subject / entity registration | NEW | Forms register people AND entities (Team/Company/School) with per-subject fields, counts, presets; Step-wizard form style; per-subject session choice | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Training <-> class times | BUILT | One-click training-event series from weekly schedules, rosters pre-invited | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Venues & Bookings — 90%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Venues + lanes | ★ EXCEEDS | Bookables tree w/ configurations (halves/quarters), modes, items, images | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Access control | NEW | Doors, light zones, access codes, unlock windows, per-booking schedules | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Staff (private lessons) | ★ EXCEEDS | Coach bookables w/ what-I-offer editor + coach wizard | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Book flow | ★ EXCEEDS | 3 flows: wizard, single-screen scheduler, item rental; Public /book w/ auth chooser (guest/OTP/password/app) + act-on-behalf | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Guided setup wizards | NEW | Sport, coach, item, and whole-club setup wizards seeding venues/activities/modes end-to-end | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Registration (public) — 25%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Register wizard | PARTIAL | Public /r pages for events, classes, programme-connected forms; Multi-subject forms, fee-option choice, live class spaces; Waitlist-aware submission; answers materialise onto profiles | Payment processing at submit; Customer confirmation email; Re-register / EOI flows; Hold-space pending memberships | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Merchandise (shop form) | NOT STARTED | — | Shop form type — needs Uniforms/merch + billing | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Class fees & Xero — 70%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Term Fees | ★ EXCEEDS | Group fee options w/ line items + Xero codes, 5 fee types, due date + deposit; Bulk add-to-many-classes; free classes fully supported | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Xero | PARTIAL | OAuth connect w/ tenant safety, bank/tax/account mapping, tracking categories; Platform-wide account picker (XeroAccountInput) | Invoice/payment two-way sync once the ledger exists (plumbing ready) | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Payments & invoicing — 12%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Invoices / Add Fee / Add Credit | NOT STARTED | — | The billing engine: invoice + credit-note model; Payments w/ methods; credit auto-allocation; Pro-rata, prompt discounts, recurring, direct debit (Ezidebit), Stripe/Windcave | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Transactions | PARTIAL | /finances reporting view | Real transaction ledger once the engine lands | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Money reports | NOT STARTED | — | Outstanding / Overdue / Missing / Recurring reports off the ledger | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Email Statements | NOT STARTED | — | Statement generation + send (needs ledger + Mailer) | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Attendance — 46%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Landing + take attendance | BUILT | /attendance 15-day view + per-event attendance tab | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Generate from class-times | BUILT | Training-event generation from group page + term wizard (idempotent) | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Attendance reports | PARTIAL | Per-group people x session matrix w/ filter + CSV export | Club-wide attendance + non-attendance reports | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Coach Hours | NOT STARTED | — | Staff hours from sessions (payroll export) | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Visitors | NOT STARTED | — | Visitor / drop-in logging | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Mailer — 0%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Bulk composer | NOT STARTED | — | 3-step composer: recipients by class/custom/subscribers; Attachments, reply-to, CC myself | ☐ | ☐ | ☐ | ☐ | ☐ |
+| History | NOT STARTED | — | Send history + delivery status | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Templates | NOT STARTED | — | Club email templates in Settings | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Awards — 0%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Awards module | NOT STARTED | — | Badge definitions + groups, sequential progression, assign, report, profile tab | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Resources — 0%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Resources module | NOT STARTED | — | Categorised document library w/ member visibility | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Uniforms & Merchandise — 0%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Uniforms / merchandise module | NOT STARTED | — | Inventory + variants + stock; Merch sales via shop form; issue/return per term | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Holiday Programmes — 0%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Programmes module | NOT STARTED | — | Date-ranged bookable programmes w/ own windows + discounts | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Vouchers & Sponsors — 50%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Vouchers | PARTIAL | Booking discount rules engine; event discount codes | Club-wide voucher codes redeemable at registration | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Sponsors | PARTIAL | Sponsor strip in the form designer | Club-level sponsor catalogue in Settings | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Competitions — 0%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Full competitions engine | NOT STARTED | — | Divisions, pools, rounds, games, officials; Per-sport scoring + individual sessions/judging; Public score entry — largest net-new build (~30 legacy tables) | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Settings & platform — 61%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Club info / branding | BUILT | Name, logo, icon, brand colours w/ preview, dashboard banner, currency/locale, season | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Module toggles | BUILT | /settings/modules per-club switches w/ live nav filtering | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Terminology | ★ EXCEEDS | Club renaming w/ NSO inheritance + sport-scoped vocabularies (per-sport sets); Wired app-wide (~250 strings: groups, people, events, dashboard, settings) | Nav labels (layout file); Hardcoded Classes-breadcrumb decision | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Custom fields | ★ EXCEEDS | Types & fields engine: multi-target defs, person/entity types, NSO locks, designed layouts, core-fields policy | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Registration forms & embeds | PARTIAL | Forms library + designer + connections to programmes; public form pages | Public site embeds: calendar, register, book widgets | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Financial settings | PARTIAL | Payment options editor (methods + defaults) | Stripe / Ezidebit / Windcave provider config once billing lands | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Email templates | NOT STARTED | — | Template editor (with Mailer) | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Integrations | PARTIAL | Xero foundation | Stripe, Ezidebit, SparkPost, HubSpot, Kamar, NSO provider syncs | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Permission enforcement | PARTIAL | Permission grid + core templates + scoped per-resource roles; Route read-gates middleware + Can component | Per-button Can sweep across pages; Nav hiding by permission; Switch Role | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Tenant security (RLS) | PARTIAL | org_id scoping app-wide; org_members has RLS | RLS policies across ~87 tables before production | ☐ | ☐ | ☐ | ☐ | ☐ |
+| FM super-admin | BUILT | /admin console, master catalogues (brands/club types/sports), core permission templates | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Audit log | NOT STARTED | — | Surface change history (legacy audit-logged every write) | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Help | ★ EXCEEDS | Structured articles (explanation + step tutorials) w/ terminology tokens; Module + permission-gated visibility; /admin/help authoring; chatbot-ready | Nav entry for /help (layout owned elsewhere); Author remaining articles | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Review & sign-off system | NEW | In-app page review: pinned comments, reviewer sign-offs, cross-page report matrix | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+## Still to do — the full list
+
+**Dashboard**
+- **Finance / outstanding widget** — Outstanding-fees total + weekly trend widget
+- **Finance / outstanding widget** — Requires the billing ledger first
+- **Email-error banner** — Bounce tracking on the send pipeline (arrives with Mailer)
+
+**People**
+- **Profile: Fees tab (ledger)** — Per-person ledger: invoices, payments, credits, refunds
+- **Profile: Fees tab (ledger)** — Blocked on the billing engine
+- **Profile: Awards / Resources / Uniforms tabs** — Build those modules, then surface their profile tabs
+- **Profile: Membership history** — Full class x term history view (data already on memberships via term_id)
+- **People reports** — Membership-length report
+- **People reports** — Duplicate-name detection
+- **Logins / archive / restrict** — Login-invitation queue (Email New Logins)
+- **Logins / archive / restrict** — Archive + restrict-registrations states
+
+**Squads / Classes**
+- **New squad** — Enforce members-per-coach ratio (legacy playersPerStaff)
+- **Terms admin** — Date-overlap check within a set (legacy's one hard rule)
+- **Terms admin** — Member-guarded delete + fee/membership cascade, enforced server-side
+- **Squad Announcement** — Message-a-class email (needs Mailer; wizard already stubs it)
+- **Members / Squads reports** — Dedicated members/squads report views
+
+**Registration (public)**
+- **Register wizard** — Payment processing at submit
+- **Register wizard** — Customer confirmation email
+- **Register wizard** — Re-register / EOI flows
+- **Register wizard** — Hold-space pending memberships
+- **Merchandise (shop form)** — Shop form type — needs Uniforms/merch + billing
+
+**Class fees & Xero**
+- **Xero** — Invoice/payment two-way sync once the ledger exists (plumbing ready)
+
+**Payments & invoicing**
+- **Invoices / Add Fee / Add Credit** — The billing engine: invoice + credit-note model
+- **Invoices / Add Fee / Add Credit** — Payments w/ methods; credit auto-allocation
+- **Invoices / Add Fee / Add Credit** — Pro-rata, prompt discounts, recurring, direct debit (Ezidebit), Stripe/Windcave
+- **Transactions** — Real transaction ledger once the engine lands
+- **Money reports** — Outstanding / Overdue / Missing / Recurring reports off the ledger
+- **Email Statements** — Statement generation + send (needs ledger + Mailer)
+
+**Attendance**
+- **Attendance reports** — Club-wide attendance + non-attendance reports
+- **Coach Hours** — Staff hours from sessions (payroll export)
+- **Visitors** — Visitor / drop-in logging
+
+**Mailer**
+- **Bulk composer** — 3-step composer: recipients by class/custom/subscribers
+- **Bulk composer** — Attachments, reply-to, CC myself
+- **History** — Send history + delivery status
+- **Templates** — Club email templates in Settings
+
+**Awards**
+- **Awards module** — Badge definitions + groups, sequential progression, assign, report, profile tab
+
+**Resources**
+- **Resources module** — Categorised document library w/ member visibility
+
+**Uniforms & Merchandise**
+- **Uniforms / merchandise module** — Inventory + variants + stock
+- **Uniforms / merchandise module** — Merch sales via shop form; issue/return per term
+
+**Holiday Programmes**
+- **Programmes module** — Date-ranged bookable programmes w/ own windows + discounts
+
+**Vouchers & Sponsors**
+- **Vouchers** — Club-wide voucher codes redeemable at registration
+- **Sponsors** — Club-level sponsor catalogue in Settings
+
+**Competitions**
+- **Full competitions engine** — Divisions, pools, rounds, games, officials
+- **Full competitions engine** — Per-sport scoring + individual sessions/judging
+- **Full competitions engine** — Public score entry — largest net-new build (~30 legacy tables)
+
+**Settings & platform**
+- **Terminology** — Nav labels (layout file)
+- **Terminology** — Hardcoded Classes-breadcrumb decision
+- **Registration forms & embeds** — Public site embeds: calendar, register, book widgets
+- **Financial settings** — Stripe / Ezidebit / Windcave provider config once billing lands
+- **Email templates** — Template editor (with Mailer)
+- **Integrations** — Stripe, Ezidebit, SparkPost, HubSpot, Kamar, NSO provider syncs
+- **Permission enforcement** — Per-button Can sweep across pages
+- **Permission enforcement** — Nav hiding by permission
+- **Permission enforcement** — Switch Role
+- **Tenant security (RLS)** — RLS policies across ~87 tables before production
+- **Audit log** — Surface change history (legacy audit-logged every write)
+- **Help** — Nav entry for /help (layout owned elsewhere)
+- **Help** — Author remaining articles
+

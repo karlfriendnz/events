@@ -18,12 +18,12 @@
           <Button icon="pi pi-chevron-right" severity="secondary" text size="small" @click="next" />
           <Button label="Today" severity="secondary" outlined size="small" class="ml-1 shrink-0" @click="goToday" />
         </div>
-        <span class="md:hidden text-base font-semibold text-gray-900">Events</span>
+        <span class="md:hidden text-base font-semibold text-gray-900">{{ t('event', true) }}</span>
       </div>
       <div class="flex items-center gap-2">
         <IconField class="flex-1 sm:flex-none">
           <InputIcon class="pi pi-search" />
-          <InputText v-model="search" placeholder="Search events…" size="small" class="w-full sm:w-48" />
+          <InputText v-model="search" :placeholder="`Search ${t('event', true, true)}…`" size="small" class="w-full sm:w-48" />
         </IconField>
         <Button
           icon="pi pi-sliders-h"
@@ -35,7 +35,7 @@
           @click="openCalSettings"
         />
         <Button
-          :label="isNarrow ? undefined : 'New Event'"
+          :label="isNarrow ? undefined : `New ${t('event', false)}`"
           icon="pi pi-plus"
           size="small"
           class="shrink-0"
@@ -172,14 +172,14 @@
     </Dialog>
 
     <!-- Move-recurring dialog -->
-    <Dialog v-model:visible="dropDialog.open" modal header="Move recurring event" :style="{ width: '95vw', maxWidth: '480px' }">
+    <Dialog v-model:visible="dropDialog.open" modal :header="`Move recurring ${t('event', false, true)}`" :style="{ width: '95vw', maxWidth: '480px' }">
       <div class="flex flex-col gap-3 py-2">
-        <p class="text-sm text-gray-700">This event is part of a recurring series. What do you want to move?</p>
+        <p class="text-sm text-gray-700">This {{ t('event', false, true) }} is part of a recurring series. What do you want to move?</p>
         <label class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors"
           :class="dropDialog.scope === 'this' ? 'border-primary bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
           <RadioButton v-model="dropDialog.scope" value="this" />
           <div>
-            <p class="text-sm font-medium text-gray-800">Just this event</p>
+            <p class="text-sm font-medium text-gray-800">Just this {{ t('event', false, true) }}</p>
             <p class="text-xs text-gray-500">Only this single occurrence is moved.</p>
           </div>
         </label>
@@ -188,14 +188,14 @@
           <RadioButton v-model="dropDialog.scope" value="following" />
           <div>
             <p class="text-sm font-medium text-gray-800">This and all following</p>
-            <p class="text-xs text-gray-500">Move this event and every occurrence after it by the same offset.</p>
+            <p class="text-xs text-gray-500">Move this {{ t('event', false, true) }} and every occurrence after it by the same offset.</p>
           </div>
         </label>
         <label class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors"
           :class="dropDialog.scope === 'all' ? 'border-primary bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
           <RadioButton v-model="dropDialog.scope" value="all" />
           <div>
-            <p class="text-sm font-medium text-gray-800">All events in the series</p>
+            <p class="text-sm font-medium text-gray-800">All {{ t('event', true, true) }} in the series</p>
             <p class="text-xs text-gray-500">Shift every occurrence (including past ones) by the same offset.</p>
           </div>
         </label>
@@ -203,7 +203,7 @@
           class="flex items-start gap-2 mt-1 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
           <i class="pi pi-exclamation-triangle text-amber-500 text-xs mt-0.5" />
           <div class="text-xs text-amber-700">
-            Heads up — there's already an event in this series on the new date: <strong>{{ dropDialog.pending.conflicts.join(', ') }}</strong>.
+            Heads up — there's already an {{ t('event', false, true) }} in this series on the new date: <strong>{{ dropDialog.pending.conflicts.join(', ') }}</strong>.
             Moving "this" only will create a duplicate.
           </div>
         </div>
@@ -218,7 +218,7 @@
     <div class="md:hidden flex-1 overflow-y-auto -mx-1 px-1" style="min-height:0">
       <div v-if="!mobileEventsList.length" class="card p-10 text-center text-gray-400">
         <i class="pi pi-calendar text-3xl mb-3 block" />
-        <p>No upcoming events.</p>
+        <p>No upcoming {{ t('event', true, true) }}.</p>
         <button class="text-primary hover:underline mt-2 text-sm" @click="openEventTypeModal()">Create one →</button>
       </div>
       <div v-else class="space-y-2">
@@ -305,10 +305,10 @@
     <Menu ref="rowMenu" :model="menuItems" :popup="true" />
 
     <!-- Event name modal (step 1) -->
-    <Dialog v-model:visible="showEventNameModal" header="New event" modal :style="{ width: '95vw', maxWidth: '420px' }" @keydown.enter.prevent="submitEventName">
+    <Dialog v-model:visible="showEventNameModal" :header="`New ${t('event', false, true)}`" modal :style="{ width: '95vw', maxWidth: '420px' }" @keydown.enter.prevent="submitEventName">
       <div class="space-y-4 pt-1">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1.5">Event name</label>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">{{ t('event', false) }} name</label>
           <InputText
             ref="eventNameInput"
             v-model="newEventName"
@@ -326,7 +326,7 @@
     </Dialog>
 
     <!-- Event type picker modal -->
-    <Dialog v-model:visible="showEventTypeModal" header="Create new event" modal :style="{ width: '95vw', maxWidth: '680px' }">
+    <Dialog v-model:visible="showEventTypeModal" :header="`Create new ${t('event', false, true)}`" modal :style="{ width: '95vw', maxWidth: '680px' }">
 
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div
@@ -379,7 +379,7 @@
           </div>
           <div>
             <p class="text-sm font-medium text-gray-800 mb-1">Your calendar is empty.</p>
-            <p class="text-sm text-gray-500">Would you like to load some sample events and categories so you can explore the app, or start with a blank slate?</p>
+            <p class="text-sm text-gray-500">Would you like to load some sample {{ t('event', true, true) }} and categories so you can explore the app, or start with a blank slate?</p>
           </div>
         </div>
       </div>
@@ -396,6 +396,8 @@
 
 <script setup lang="ts">
 const { orgId } = useOrg()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import FullCalendar from '@fullcalendar/vue3'
@@ -890,7 +892,7 @@ async function detectConflicts(targetEventId: string, parentId: string | null, n
 async function onCalendarEventDrop(item: any, newStart: Date, newEnd: Date) {
   const ext = item.extendedProps
   if (ext?._isSession) {
-    toast.add({ severity: 'warn', summary: 'Sessions cannot be moved here', detail: 'Open the event to edit individual sessions.', life: 4000 })
+    toast.add({ severity: 'warn', summary: 'Sessions cannot be moved here', detail: `Open the ${t('event', false, true)} to edit individual sessions.`, life: 4000 })
     return
   }
   const eventId = ext?.id ?? item.id
@@ -914,7 +916,7 @@ async function onCalendarEventDrop(item: any, newStart: Date, newEnd: Date) {
     dropDialog.open = true
   } else {
     if (conflicts.length) {
-      toast.add({ severity: 'warn', summary: 'Conflict', detail: `Already an event on this date: ${conflicts.join(', ')}`, life: 5000 })
+      toast.add({ severity: 'warn', summary: 'Conflict', detail: `Already an ${t('event', false, true)} on this date: ${conflicts.join(', ')}`, life: 5000 })
     }
     await applyDateMove(eventRow, newStart, newEnd)
   }
@@ -938,7 +940,7 @@ async function performDropMove() {
 
   if (dropDialog.scope === 'this') {
     if (conflicts.length) {
-      toast.add({ severity: 'warn', summary: 'Conflict', detail: `Already an event on this date: ${conflicts.join(', ')}`, life: 5000 })
+      toast.add({ severity: 'warn', summary: 'Conflict', detail: `Already an ${t('event', false, true)} on this date: ${conflicts.join(', ')}`, life: 5000 })
     }
     await applyDateMove(eventRow, newStart, newEnd)
   } else {
@@ -964,7 +966,7 @@ async function performDropMove() {
   dropDialog.open = false
   dropDialog.pending = null
   await load()
-  toast.add({ severity: 'success', summary: 'Event moved', life: 2500 })
+  toast.add({ severity: 'success', summary: `${t('event', false)} moved`, life: 2500 })
 }
 
 function updateCalendarTitle() {
@@ -1222,13 +1224,13 @@ function openMenu(event: Event, row: any) {
 
 async function publishEvent(id: string) {
   await db.from('events').update({ status: 'PUBLISHED' }).eq('id', id)
-  toast.add({ severity: 'success', summary: 'Event published', life: 3000 })
+  toast.add({ severity: 'success', summary: `${t('event', false)} published`, life: 3000 })
   load()
 }
 
 async function archiveEvent(id: string) {
   await db.from('events').update({ status: 'ARCHIVED' }).eq('id', id)
-  toast.add({ severity: 'success', summary: 'Event archived', life: 3000 })
+  toast.add({ severity: 'success', summary: `${t('event', false)} archived`, life: 3000 })
   load()
 }
 

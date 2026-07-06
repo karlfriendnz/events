@@ -11,10 +11,10 @@
           @keydown.enter.exact.prevent
           @focus="(e) => autoGrow(e.target as HTMLTextAreaElement)" />
         <div class="flex items-center gap-2">
-          <input
-            :value="fee.xero_code" type="text" placeholder="Account code"
-            class="flex-1 min-w-0 h-9 px-3 text-sm text-gray-800 placeholder-gray-400 border border-gray-200 rounded-lg outline-none focus:border-primary"
-            @input="setField(fee, 'xero_code', ($event.target as HTMLInputElement).value)" />
+          <XeroAccountInput
+            class="flex-1 min-w-0" :model-value="fee.xero_code" placeholder="Account code"
+            input-class="w-full h-9 px-3 text-sm text-gray-800 placeholder-gray-400 border border-gray-200 rounded-lg outline-none focus:border-primary"
+            @update:model-value="(v: string) => setField(fee, 'xero_code', v)" />
           <div class="flex items-center gap-1 h-9 px-2 border border-gray-200 rounded-lg focus-within:border-primary w-28 shrink-0">
             <span class="text-gray-400 shrink-0 text-sm">$</span>
             <input
@@ -64,13 +64,27 @@
         </tr>
       </thead>
       <tbody ref="tbodyEl" class="divide-y divide-gray-100">
-        <tr v-for="fee in modelValue" :key="fee.id" :data-id="fee.id" class="group/row">
+        <!-- Soft-deleted carried rows stay visible: struck through + restorable -->
+        <template v-for="fee in modelValue" :key="fee.id">
+        <tr v-if="fee._deleted" :data-id="fee.id" data-no-sort class="bg-red-50/40">
+          <td class="p-0" />
+          <td class="px-4 py-2.5 text-sm text-gray-400 line-through truncate">{{ fee.name || '—' }}</td>
+          <td class="px-4 py-2.5 text-sm text-gray-400 line-through border-l border-gray-100">{{ fee.xero_code || '—' }}</td>
+          <td class="px-3 py-2.5 text-sm text-gray-400 line-through text-right border-l border-gray-100">${{ (fee.amount ?? 0).toFixed(2) }}</td>
+          <td class="p-0 border-l border-gray-100 text-center">
+            <button type="button" class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-primary transition-colors" title="Restore this fee" @click="restoreFee(fee)">
+              <i class="pi pi-undo text-xs" />
+            </button>
+          </td>
+        </tr>
+        <tr v-else :data-id="fee.id" class="group/row">
           <td class="p-0">
             <div class="drag-handle w-8 h-10 flex items-center justify-center cursor-grab active:cursor-grabbing">
               <i class="pi pi-bars text-gray-300 text-xs" />
             </div>
           </td>
-          <td class="p-0">
+          <td class="p-0" :class="isChanged(fee, 'name') ? 'bg-amber-50' : ''"
+            @mouseenter="onCellEnter(fee, 'name', $event)" @mouseleave="scheduleCellLeave">
             <div class="relative flex items-start">
               <textarea
                 :ref="el => nameInputs[fee.id] = el as HTMLTextAreaElement"
@@ -95,15 +109,16 @@
               </button>
             </div>
           </td>
-          <td class="p-0 border-l border-gray-100">
-            <input
-              :value="fee.xero_code"
-              type="text"
+          <td class="p-0 border-l border-gray-100" :class="isChanged(fee, 'xero_code') ? 'bg-amber-50' : ''"
+            @mouseenter="onCellEnter(fee, 'xero_code', $event)" @mouseleave="scheduleCellLeave">
+            <XeroAccountInput
+              :model-value="fee.xero_code"
               placeholder="Account code"
-              class="w-full h-10 px-4 text-sm text-gray-800 placeholder-gray-400 bg-transparent border-0 outline-none focus:bg-blue-50/40 transition-colors"
-              @input="setField(fee, 'xero_code', ($event.target as HTMLInputElement).value)" />
+              input-class="w-full h-10 px-4 text-sm text-gray-800 placeholder-gray-400 bg-transparent border-0 outline-none focus:bg-blue-50/40 transition-colors"
+              @update:model-value="(v: string) => setField(fee, 'xero_code', v)" />
           </td>
-          <td class="p-0 border-l border-gray-100">
+          <td class="p-0 border-l border-gray-100" :class="isChanged(fee, 'amount') ? 'bg-amber-50' : ''"
+            @mouseenter="onCellEnter(fee, 'amount', $event)" @mouseleave="scheduleCellLeave">
             <div class="flex items-center h-10 px-3 gap-1 focus-within:bg-blue-50/40 transition-colors">
               <span class="text-gray-400 shrink-0 text-sm">$</span>
               <input
@@ -136,6 +151,8 @@
           </td>
         </tr>
 
+        </template>
+
         <!-- Total row (excluded from sortable via data-no-sort) -->
         <tr class="border-t-2 border-gray-200 bg-gray-50" data-no-sort>
           <td />
@@ -159,6 +176,16 @@
       </button>
     </div>
   </div>
+
+  <!-- "Was …" popover for changed cells — teleported to escape overflow:hidden -->
+  <Teleport to="body">
+    <div v-if="hoverInfo" class="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg px-2.5 py-1.5 text-xs flex items-center gap-2.5"
+      :style="{ top: hoverInfo.top + 'px', left: hoverInfo.left + 'px' }"
+      @mouseenter="holdCell" @mouseleave="scheduleCellLeave">
+      <span class="text-gray-500">Was <b class="font-semibold text-gray-700">{{ hoverInfo.display }}</b></span>
+      <button type="button" class="text-primary hover:underline font-medium" @click="applyReset">Reset</button>
+    </div>
+  </Teleport>
 
   <!-- Token menu — teleported to body to escape overflow:hidden -->
   <Teleport to="body">
@@ -195,13 +222,18 @@ const props = defineProps<{
   modelValue: FeeLineItem[]
   tokens?: FeeToken[]
   flush?: boolean
+  // Optional per-fee baseline (keyed by fee id). When provided, a field whose
+  // value differs from its baseline is tinted pale yellow, and hovering it
+  // shows the previous value with a one-click Reset. Used by the term wizard
+  // to mark fees changed from what the class carried over.
+  baseline?: Record<string, Partial<FeeLineItem>>
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [FeeLineItem[]]
 }>()
 
-const total = computed(() => feeTotal(props.modelValue))
+const total = computed(() => feeTotal(props.modelValue.filter(f => !f._deleted)))
 const tbodyEl = ref<HTMLElement | null>(null)
 const amountDisplay = reactive<Record<string, string>>({})
 const activeTokenMenu = ref<string | null>(null)
@@ -288,10 +320,55 @@ function addFee() {
 }
 
 function removeFee(fee: FeeLineItem) {
-  emit('update:modelValue', props.modelValue.filter(f => f.id !== fee.id))
+  // A row that was carried over (has a baseline) soft-deletes: it stays
+  // visible struck-through with a Restore action, so the removal is evident.
+  // Brand-new rows just disappear.
+  if (props.baseline?.[fee.id]) {
+    emit('update:modelValue', props.modelValue.map(f => f.id === fee.id ? { ...f, _deleted: true } : f))
+  } else {
+    emit('update:modelValue', props.modelValue.filter(f => f.id !== fee.id))
+  }
+}
+function restoreFee(fee: FeeLineItem) {
+  emit('update:modelValue', props.modelValue.map(f => f.id === fee.id ? { ...f, _deleted: false } : f))
 }
 
 function setField(fee: FeeLineItem, field: keyof FeeLineItem, value: any) {
   emit('update:modelValue', props.modelValue.map(f => f.id === fee.id ? { ...f, [field]: value } : f))
+}
+
+// ── Changed-from-baseline highlight + hover "Was … / Reset" popover ──
+type BaselineField = 'name' | 'xero_code' | 'amount'
+const hoverInfo = ref<{ feeId: string; field: BaselineField; top: number; left: number; display: string } | null>(null)
+let cellTimer: ReturnType<typeof setTimeout> | null = null
+function isChanged(fee: FeeLineItem, field: BaselineField) {
+  const b = props.baseline?.[fee.id]
+  if (!b || !(field in b)) return false
+  if (field === 'amount') return (fee.amount ?? null) !== (b.amount ?? null)
+  return String(fee[field] ?? '') !== String(b[field] ?? '')
+}
+function onCellEnter(fee: FeeLineItem, field: BaselineField, e: MouseEvent) {
+  if (!isChanged(fee, field)) return
+  if (cellTimer) clearTimeout(cellTimer)
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  const b = props.baseline![fee.id]!
+  const display = field === 'amount' ? `$${Number(b.amount ?? 0).toFixed(2)}` : String(b[field] || '—')
+  hoverInfo.value = { feeId: fee.id, field, top: r.bottom + 4, left: r.left, display }
+}
+function holdCell() { if (cellTimer) clearTimeout(cellTimer) }
+function scheduleCellLeave() {
+  if (cellTimer) clearTimeout(cellTimer)
+  cellTimer = setTimeout(() => { hoverInfo.value = null }, 200)
+}
+function applyReset() {
+  const h = hoverInfo.value
+  if (!h) return
+  const fee = props.modelValue.find(f => f.id === h.feeId)
+  const b = props.baseline?.[h.feeId]
+  if (!fee || !b) return
+  const val = h.field === 'amount' ? (b.amount ?? null) : (b[h.field] ?? '')
+  if (h.field === 'amount') amountDisplay[fee.id] = val != null ? Number(val).toFixed(2) : ''
+  setField(fee, h.field, val)
+  hoverInfo.value = null
 }
 </script>

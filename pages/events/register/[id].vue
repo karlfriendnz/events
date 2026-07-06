@@ -16,6 +16,8 @@ const db = useDb()
 const toast = useToast()
 
 const eventId = computed(() => String(route.params.id || ''))
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 const loading = ref(true)
 const loadError = ref('')
@@ -36,7 +38,7 @@ async function load() {
     const { data: ev } = await (db.from as any)('events')
       .select('id, org_id, title, form_id, status, banner_url, start_at, description, location_type, address')
       .eq('id', eventId.value).maybeSingle()
-    if (!ev) { loadError.value = 'This event could not be found.'; return }
+    if (!ev) { loadError.value = `This ${t('event', false, true)} could not be found.`; return }
     orgId.value = ev.org_id; eventTitle.value = ev.title
     eventInfo.value = {
       title: ev.title, banner_url: ev.banner_url, start_at: ev.start_at, description: ev.description,
@@ -50,7 +52,7 @@ async function load() {
       (db.from as any)('sessions').select('id, title, start_at, is_required, display_on_form').eq('event_id', eventId.value).order('sort_order'),
     ])
     currency.value = org?.currency || 'NZD'
-    if (!form) { loadError.value = 'No registration form has been set up for this event yet.'; return }
+    if (!form) { loadError.value = `No registration form has been set up for this ${t('event', false, true)} yet.`; return }
     config.value = { ...(form.config || {}), _formId: form.id }
 
     feeLineItems.value = (feeRows ?? []).filter((f: any) => !f.session_id).map((f: any) => ({ name: f.name, amount: Number(f.amount) || 0 }))
@@ -88,7 +90,7 @@ onMounted(load)
   <div class="p-3 sm:p-6 max-w-[1000px] mx-auto">
     <button class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 mb-3"
       @click="navigateTo(`/events/${eventId}?tab=invitees`)">
-      <i class="pi pi-chevron-left text-xs" /> Back to event
+      <i class="pi pi-chevron-left text-xs" /> Back to {{ t('event', false, true) }}
     </button>
     <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Register someone</p>
 
@@ -105,7 +107,7 @@ onMounted(load)
           <i class="pi pi-check text-white text-xl" />
         </div>
         <h2 class="text-lg font-bold text-gray-900">Registration added</h2>
-        <p class="text-sm text-gray-500 mt-1">Taking you back to the event…</p>
+        <p class="text-sm text-gray-500 mt-1">Taking you back to the {{ t('event', false, true) }}…</p>
       </div>
 
       <FormRenderer v-else-if="config"

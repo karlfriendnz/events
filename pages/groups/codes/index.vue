@@ -17,6 +17,8 @@ const toast = useToast()
 const gc = useGroupCodes()
 const cr = useCodeRoles()
 const tm = useTermsMemberships()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 const PALETTE = ['#1E2157', '#2563EB', '#0f766e', '#059669', '#9333ea', '#EC4899', '#c2410c', '#be123c', '#8B5CF6', '#64748b']
 
@@ -174,7 +176,7 @@ async function save() {
     await gc.createCode({ name: form.name.trim(), color: form.color, parent_id: form.parent_id, term_id: form.term_id, sort_order: sibCount })
   }
   resetForm(); await load()
-  toast.add({ severity: 'success', summary: 'Code saved', life: 2000 })
+  toast.add({ severity: 'success', summary: `${t('code')} saved`, life: 2000 })
 }
 
 async function remove(c: GroupCode) {
@@ -182,7 +184,7 @@ async function remove(c: GroupCode) {
   await gc.deleteCode(c.id)
   if (editingId.value === c.id) resetForm()
   await load()
-  toast.add({ severity: 'success', summary: 'Code deleted', life: 2000 })
+  toast.add({ severity: 'success', summary: `${t('code')} deleted`, life: 2000 })
 }
 
 watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
@@ -192,34 +194,34 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
   <div class="p-3 sm:p-6 max-w-4xl mx-auto space-y-5">
     <div class="flex items-start justify-between gap-3">
       <div>
-        <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Code hierarchy</h1>
-        <p class="text-sm text-gray-500">Drag a code onto another to nest it; drag to a row's top/bottom edge to reorder. Codes hold your groups and pass down their term.</p>
+        <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">{{ t('code') }} hierarchy</h1>
+        <p class="text-sm text-gray-500">Drag a {{ t('code', false, true) }} onto another to nest it; drag to a row's top/bottom edge to reorder. {{ t('code', true) }} hold your {{ t('group', true, true) }} and pass down their {{ t('term', false, true) }}.</p>
       </div>
       <div class="flex items-center gap-3 shrink-0 mt-1">
         <NuxtLink to="/groups/codes/default-roles" class="text-sm font-semibold text-primary hover:underline whitespace-nowrap inline-flex items-center gap-1">
           <i class="pi pi-users text-xs" /> Default roles
         </NuxtLink>
-        <NuxtLink to="/groups" class="text-sm text-primary hover:underline whitespace-nowrap">← Groups</NuxtLink>
+        <NuxtLink to="/groups" class="text-sm text-primary hover:underline whitespace-nowrap">← {{ t('group', true) }}</NuxtLink>
       </div>
     </div>
 
     <!-- Add / edit -->
     <div class="card p-5">
-      <h2 class="text-sm font-semibold text-gray-700 mb-3">{{ editingId ? 'Edit code' : 'New code' }}</h2>
+      <h2 class="text-sm font-semibold text-gray-700 mb-3">{{ editingId ? `Edit ${t('code', false, true)}` : `New ${t('code', false, true)}` }}</h2>
       <div class="grid grid-cols-1 md:grid-cols-[1.4fr_1.1fr_1.1fr_auto] gap-3 items-end">
         <div class="flex flex-col gap-1.5">
           <label class="text-xs font-medium text-gray-600">Name</label>
           <InputText v-model="form.name" placeholder="e.g. Step 6" />
         </div>
         <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-medium text-gray-600">Parent code</label>
+          <label class="text-xs font-medium text-gray-600">Parent {{ t('code', false, true) }}</label>
           <Select v-model="form.parent_id" :options="parentOptions" option-label="name" option-value="id"
             placeholder="None (top level)" show-clear filter class="w-full" />
         </div>
         <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-medium text-gray-600">Term</label>
+          <label class="text-xs font-medium text-gray-600">{{ t('term') }}</label>
           <Select v-model="form.term_id" :options="terms" option-label="name" option-value="id"
-            placeholder="No term" show-clear class="w-full" />
+            :placeholder="`No ${t('term', false, true)}`" show-clear class="w-full" />
         </div>
         <div class="flex items-center gap-2">
           <Button :label="editingId ? 'Save' : 'Add'" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="save" />
@@ -237,9 +239,9 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
 
     <!-- Hierarchy -->
     <div class="card p-0 overflow-hidden">
-      <div class="px-5 py-2.5 border-b border-gray-100 text-sm font-semibold text-gray-700">Codes</div>
+      <div class="px-5 py-2.5 border-b border-gray-100 text-sm font-semibold text-gray-700">{{ t('code', true) }}</div>
       <div v-if="loading" class="p-5 text-sm text-gray-400">Loading…</div>
-      <div v-else-if="!codes.length" class="p-5 text-sm text-gray-400">No codes yet — add one above.</div>
+      <div v-else-if="!codes.length" class="p-5 text-sm text-gray-400">No {{ t('code', true, true) }} yet — add one above.</div>
       <div v-else class="overflow-x-auto">
         <table class="w-full text-sm">
           <tbody>
@@ -259,11 +261,11 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
               </td>
               <td class="px-3 py-2.5">
                 <span v-if="termName(c.term_id)" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{{ termName(c.term_id) }}</span>
-                <span v-else class="text-xs text-gray-300">no term</span>
+                <span v-else class="text-xs text-gray-300">no {{ t('term', false, true) }}</span>
               </td>
-              <td class="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{{ groupCount(c.id) }} {{ groupCount(c.id) === 1 ? 'group' : 'groups' }}</td>
+              <td class="px-3 py-2.5 text-gray-500 text-xs whitespace-nowrap">{{ groupCount(c.id) }} {{ groupCount(c.id) === 1 ? t('group', false, true) : t('group', true, true) }}</td>
               <td class="px-3 py-2.5">
-                <div v-if="roleCoverage(c).length" class="flex flex-wrap gap-1" v-tooltip.top="'Code staff assigned / minimum required per role'">
+                <div v-if="roleCoverage(c).length" class="flex flex-wrap gap-1" v-tooltip.top="`${t('code')} staff assigned / minimum required per role`">
                   <span v-for="rc in roleCoverage(c)" :key="rc.key"
                     class="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
                     :class="rc.need && rc.have < rc.need ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'">

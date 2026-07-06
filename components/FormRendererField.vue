@@ -11,7 +11,9 @@ const emit = defineEmits<{ (e: 'update', v: any): void }>()
 const f = computed(() => props.field)
 const colSpan = computed(() => (f.value.col_span === 2 ? 'sm:col-span-2' : 'col-span-1'))
 function on(e: Event) { emit('update', (e.target as any).value) }
-const inputClass = 'w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-primary transition-colors'
+// Explicit bg + text + placeholder colours: these inputs render on public pages
+// with designed backgrounds (and under OS dark mode), so they must not inherit.
+const inputClass = 'w-full h-9 px-3 text-sm bg-white text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-lg outline-none focus:border-primary transition-colors'
 </script>
 
 <template>
@@ -31,16 +33,16 @@ const inputClass = 'w-full h-9 px-3 text-sm border border-gray-200 rounded-lg ou
       <textarea v-if="f.field_type === 'textarea'" :value="value" rows="3" :placeholder="f.placeholder || ''"
         :class="inputClass" class="!h-auto py-2 resize-none" @input="on" />
 
-      <select v-else-if="f.field_type === 'select'" :value="value" :class="inputClass"
+      <select v-else-if="f.field_type === 'select'" :value="value" :class="[inputClass, !value && 'text-gray-400']"
         style="-webkit-appearance:auto;appearance:auto;background:white;" @change="on">
         <option value="" disabled :selected="!value">{{ f.placeholder || 'Select…' }}</option>
-        <option v-for="opt in (f.options ?? [])" :key="opt" :value="opt">{{ opt }}</option>
+        <option v-for="opt in (f.options ?? [])" :key="opt" :value="opt" class="text-gray-900">{{ opt }}</option>
       </select>
 
-      <select v-else-if="f.field_type === 'multiselect'" :value="value" :class="inputClass"
+      <select v-else-if="f.field_type === 'multiselect'" :value="value" :class="[inputClass, !value && 'text-gray-400']"
         style="-webkit-appearance:auto;appearance:auto;background:white;" @change="on">
         <option value="" disabled :selected="!value">{{ f.placeholder || 'Select…' }}</option>
-        <option v-for="opt in (f.options ?? [])" :key="opt" :value="opt">{{ opt }}</option>
+        <option v-for="opt in (f.options ?? [])" :key="opt" :value="opt" class="text-gray-900">{{ opt }}</option>
       </select>
 
       <input v-else-if="f.field_type === 'date'" type="date" :value="value" :class="inputClass" @input="on" />

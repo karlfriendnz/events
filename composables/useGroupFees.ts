@@ -28,6 +28,8 @@ export interface GroupFeeOption {
   instalment_count: number | null
   session_count: number | null
   prorata: boolean
+  due_date: string | null       // when the fee is due (ISO date)
+  deposit_percent: number | null // upfront deposit required, % of the option total
   description: string | null
   sort_order: number
   status: string
@@ -115,6 +117,8 @@ export function useGroupFees() {
         instalment_count: o.fee_type === 'instalment' ? (o.instalment_count || 1) : null,
         session_count: (o.fee_type === 'concession' || o.fee_type === 'per_session') ? (o.session_count ?? null) : null,
         prorata: o.fee_type === 'upfront' ? !!o.prorata : false,
+        due_date: o.due_date || null,
+        deposit_percent: (o.deposit_percent === 0 || o.deposit_percent) ? o.deposit_percent : null,
         description: o.description || null,
         sort_order: sort++,
         status: o.status || 'active',
@@ -146,6 +150,8 @@ export function useGroupFees() {
       instalment_count: o.fee_type === 'instalment' ? (o.instalment_count || 1) : null,
       session_count: (o.fee_type === 'concession' || o.fee_type === 'per_session') ? (o.session_count ?? null) : null,
       prorata: o.fee_type === 'upfront' ? !!o.prorata : false,
+      due_date: o.due_date || null,
+      deposit_percent: (o.deposit_percent === 0 || o.deposit_percent) ? o.deposit_percent : null,
       description: o.description || null,
       sort_order: sortOrder,
       status: o.status || 'active',

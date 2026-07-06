@@ -51,7 +51,7 @@
           class="max-w-[1140px] mx-auto px-3 sm:px-6 py-4 sm:py-5 flex items-center gap-3 sm:gap-4 border-b border-gray-100">
           <h1 class="flex-1 text-lg sm:text-2xl font-semibold text-gray-900 truncate cursor-text"
             @click="bannerEditing = true">
-            {{ editForm.title || 'Untitled event' }}
+            {{ editForm.title || `Untitled ${t('event', false, true)}` }}
           </h1>
           <button type="button"
             class="text-xs text-gray-500 hover:text-primary inline-flex items-center gap-1.5"
@@ -89,7 +89,7 @@
             <input
               v-model="editForm.title"
               class="flex-1 text-xl font-semibold text-white bg-transparent border-0 border-b border-transparent hover:border-white/30 focus:border-white/60 outline-none placeholder-white/50 transition-colors py-0.5"
-              placeholder="Event title"
+              :placeholder="`${t('event', false)} title`"
               @blur="saveBannerTitle"
               @keydown.enter="($event.target as HTMLInputElement).blur()" />
           </div>
@@ -186,7 +186,7 @@
           <div v-if="event?.recurrence_parent_id"
             class="bg-[#EFF6FF] rounded-xl border border-primary/20 px-4 sm:px-6 py-3 flex items-center gap-3">
             <i class="pi pi-sync text-primary text-sm" />
-            <p class="text-sm text-primary flex-1">This event is part of a recurring series.</p>
+            <p class="text-sm text-primary flex-1">This {{ t('event', false, true) }} is part of a recurring series.</p>
             <Button label="Open series" icon="pi pi-external-link" size="small" severity="secondary"
               outlined @click="navigateTo(`/events/${event.recurrence_parent_id}`)" />
           </div>
@@ -194,10 +194,10 @@
           <!-- Ticketed event toggle (ADVANCED only) -->
           <div v-if="event?.style === 'ADVANCED'" class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
             <div class="flex flex-col sm:flex-row sm:items-center px-4 sm:px-6 py-4 gap-2 sm:gap-6">
-              <span class="text-sm font-semibold text-gray-700 w-full sm:w-28 shrink-0">Ticketed Event</span>
+              <span class="text-sm font-semibold text-gray-700 w-full sm:w-28 shrink-0">Ticketed {{ t('event', false) }}</span>
               <div class="flex items-center gap-3 flex-1">
                 <ToggleSwitch v-model="hasTickets" @update:modelValue="saveHasTickets" />
-                <span class="text-sm text-gray-500">{{ hasTickets ? 'Tickets enabled — Tickets tab is active' : 'No tickets for this event' }}</span>
+                <span class="text-sm text-gray-500">{{ hasTickets ? 'Tickets enabled — Tickets tab is active' : `No tickets for this ${t('event', false, true)}` }}</span>
               </div>
             </div>
           </div>
@@ -207,7 +207,10 @@
 
       <!-- INVITEES TAB -->
       <div v-else-if="activeTab === 'invitees'" class="px-3 sm:px-6 py-4 sm:py-6 overflow-y-auto flex-1">
-        <div v-if="canManageEvent" class="flex justify-end mb-3">
+        <div v-if="canManageEvent" class="flex justify-end gap-2 mb-3">
+          <Button v-if="event?.form_id" label="Copy public link" icon="pi pi-link" size="small" outlined
+            v-tooltip.bottom="'The public registration page — anyone can sign up without logging in'"
+            @click="copyPublicRegLink" />
           <Button label="Register someone" icon="pi pi-user-plus" size="small"
             style="background:#1E2157;border-color:#1E2157"
             @click="navigateTo(`/events/register/${id}`)" />
@@ -223,7 +226,7 @@
         <!-- Header -->
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h2 class="text-sm font-semibold text-gray-900">Event Discounts</h2>
+            <h2 class="text-sm font-semibold text-gray-900">{{ t('event', false) }} Discounts</h2>
             <p class="text-xs text-gray-500 mt-0.5">Create rules that automatically apply savings at checkout.</p>
           </div>
           <Button icon="pi pi-plus" label="Add Discount" size="small" class="w-full sm:w-auto justify-center shrink-0" @click="showDiscountTemplatePicker = true; editingDiscountIdx = null" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
@@ -372,7 +375,7 @@
         <div class="flex items-center justify-between">
           <div>
             <h2 class="text-sm font-semibold text-gray-900">Tickets</h2>
-            <p class="text-xs text-gray-500 mt-0.5">Sell entry tickets for this event, optionally per session.</p>
+            <p class="text-xs text-gray-500 mt-0.5">Sell entry tickets for this {{ t('event', false, true) }}, optionally per session.</p>
           </div>
           <div class="flex items-center gap-3">
             <span class="text-sm text-gray-600">Enable ticketing</span>
@@ -385,7 +388,7 @@
           <div class="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center">
             <i class="pi pi-ticket text-gray-400 text-xl" />
           </div>
-          <p class="text-sm font-medium text-gray-500">Ticketing is off for this event</p>
+          <p class="text-sm font-medium text-gray-500">Ticketing is off for this {{ t('event', false, true) }}</p>
           <p class="text-xs text-gray-400">Toggle "Enable ticketing" above to start selling tickets.</p>
         </div>
 
@@ -395,15 +398,15 @@
           <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div class="px-5 py-3.5 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
               <div>
-                <h3 class="text-sm font-semibold text-gray-700">Event Tickets</h3>
-                <p class="text-xs text-gray-400 mt-0.5">Admission to the whole event regardless of sessions.</p>
+                <h3 class="text-sm font-semibold text-gray-700">{{ t('event', false) }} Tickets</h3>
+                <p class="text-xs text-gray-400 mt-0.5">Admission to the whole {{ t('event', false, true) }} regardless of sessions.</p>
               </div>
               <Button label="Add ticket type" icon="pi pi-plus" size="small" severity="secondary" outlined
                 @click="openTicketDialog(null, null)" />
             </div>
 
             <div v-if="!eventLevelTickets.length" class="py-10 text-center text-gray-400">
-              <p class="text-sm">No event-level ticket types yet.</p>
+              <p class="text-sm">No {{ t('event', false, true) }}-level ticket types yet.</p>
             </div>
             <div v-else>
               <!-- Column headers -->
@@ -923,11 +926,11 @@
           <h3 class="text-sm font-semibold text-gray-700">Visibility &amp; Access</h3>
           <div class="flex items-center gap-3">
             <ToggleSwitch v-model="editForm.is_public" />
-            <div><p class="text-sm font-medium text-gray-700">Public event</p><p class="text-xs text-gray-500">Visible to anyone, not just members</p></div>
+            <div><p class="text-sm font-medium text-gray-700">Public {{ t('event', false, true) }}</p><p class="text-xs text-gray-500">Visible to anyone, not just {{ t('member', true, true) }}</p></div>
           </div>
           <div class="flex items-center gap-3">
             <ToggleSwitch v-model="editForm.is_featured" />
-            <div><p class="text-sm font-medium text-gray-700">Featured event</p><p class="text-xs text-gray-500">Highlighted in the event list</p></div>
+            <div><p class="text-sm font-medium text-gray-700">Featured {{ t('event', false, true) }}</p><p class="text-xs text-gray-500">Highlighted in the {{ t('event', false, true) }} list</p></div>
           </div>
         </div>
 
@@ -936,7 +939,7 @@
           <h3 class="text-sm font-semibold text-gray-700">Permissions</h3>
           <div class="flex items-center gap-3">
             <ToggleSwitch v-model="editForm.show_attendee_list" />
-            <div><p class="text-sm font-medium text-gray-700">Show attendee list</p><p class="text-xs text-gray-500">Registered members can see who else is attending</p></div>
+            <div><p class="text-sm font-medium text-gray-700">Show attendee list</p><p class="text-xs text-gray-500">Registered {{ t('member', true, true) }} can see who else is attending</p></div>
           </div>
           <div class="flex items-center gap-3">
             <ToggleSwitch v-model="editForm.show_attendee_count" />
@@ -944,18 +947,18 @@
           </div>
           <div class="flex items-center gap-3">
             <ToggleSwitch v-model="editForm.allow_interest" />
-            <div><p class="text-sm font-medium text-gray-700">Allow expressions of interest</p><p class="text-xs text-gray-500">Members can indicate interest before registration opens</p></div>
+            <div><p class="text-sm font-medium text-gray-700">Allow expressions of interest</p><p class="text-xs text-gray-500">{{ t('member', true) }} can indicate interest before registration opens</p></div>
           </div>
           <div class="flex items-center gap-3">
             <ToggleSwitch v-model="editForm.hold_spot_enabled" />
-            <div><p class="text-sm font-medium text-gray-700">Hold-spot registration</p><p class="text-xs text-gray-500">Allow members to hold a spot pending confirmation</p></div>
+            <div><p class="text-sm font-medium text-gray-700">Hold-spot registration</p><p class="text-xs text-gray-500">Allow {{ t('member', true, true) }} to hold a spot pending confirmation</p></div>
           </div>
         </div>
 
         <!-- Sign Up Window -->
         <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
           <h3 class="text-sm font-semibold text-gray-700">Sign Up Window</h3>
-          <p class="text-xs text-gray-500 -mt-2">Set when sign-ups open and close for this event.</p>
+          <p class="text-xs text-gray-500 -mt-2">Set when sign-ups open and close for this {{ t('event', false, true) }}.</p>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="flex flex-col gap-1.5">
               <label class="text-sm font-medium text-gray-700">Opens</label>
@@ -973,11 +976,11 @@
           <h3 class="text-sm font-semibold text-gray-700">Registration Window</h3>
           <div class="flex items-center gap-3">
             <ToggleSwitch v-model="editForm.phased_registration" />
-            <div><p class="text-sm font-medium text-gray-700">Phased registration</p><p class="text-xs text-gray-500">Members get early access before public registration opens</p></div>
+            <div><p class="text-sm font-medium text-gray-700">Phased registration</p><p class="text-xs text-gray-500">{{ t('member', true) }} get early access before public registration opens</p></div>
           </div>
           <div v-if="editForm.phased_registration" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="flex flex-col gap-1.5">
-              <label class="text-sm font-medium text-gray-700">Member-only window (days)</label>
+              <label class="text-sm font-medium text-gray-700">{{ t('member', false) }}-only window (days)</label>
               <InputNumber v-model="editForm.member_window_days" :min="1" :max="365" class="w-full" />
             </div>
             <div class="flex flex-col gap-1.5">
@@ -1156,7 +1159,7 @@
               </h2>
               <IconField>
                 <InputIcon class="pi pi-search" />
-                <InputText v-model="attendanceSearch" placeholder="Search members…" size="small" class="w-48" />
+                <InputText v-model="attendanceSearch" :placeholder="`Search ${t('member', true, true)}…`" size="small" class="w-48" />
               </IconField>
             </div>
             <div class="flex items-center">
@@ -1241,7 +1244,7 @@
                       <div class="flex items-center gap-2">
                         <i class="pi text-xs transition-transform" :class="expandedMemberGroups[mg.group?.id ?? '__none__'] === false ? 'pi-chevron-right' : 'pi-chevron-down'" :style="{ color: mg.group?.color ?? '#94a3b8' }" />
                         <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: mg.group?.color ?? '#94a3b8' }" />
-                        <span class="text-xs font-semibold uppercase tracking-wide" :style="{ color: mg.group?.color ?? '#6b7280' }">{{ mg.group?.name ?? 'No Group' }}</span>
+                        <span class="text-xs font-semibold uppercase tracking-wide" :style="{ color: mg.group?.color ?? '#6b7280' }">{{ mg.group?.name ?? `No ${t('group', false)}` }}</span>
                         <span class="text-xs text-gray-400">({{ mg.invitees.length }})</span>
                         <span class="ml-auto text-xs text-gray-400">
                           {{ mg.invitees.filter(inv => isAttendedForContext(inv)).length }}/{{ mg.invitees.length }} present
@@ -1905,14 +1908,14 @@
   </div>
 
   <!-- Series Archive Dialog (recurring) -->
-  <Dialog v-model:visible="seriesArchiveOpen" modal header="Archive recurring event" :style="{ width: '95vw', maxWidth: '440px' }">
+  <Dialog v-model:visible="seriesArchiveOpen" modal :header="`Archive recurring ${t('event', false, true)}`" :style="{ width: '95vw', maxWidth: '440px' }">
     <div class="flex flex-col gap-3 py-2">
-      <p class="text-sm text-gray-700">This event is part of a recurring series. What would you like to archive?</p>
+      <p class="text-sm text-gray-700">This {{ t('event', false, true) }} is part of a recurring series. What would you like to archive?</p>
       <label class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors"
         :class="seriesArchiveScope === 'this' ? 'border-primary bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
         <RadioButton v-model="seriesArchiveScope" value="this" />
         <div>
-          <p class="text-sm font-medium text-gray-800">Just this event</p>
+          <p class="text-sm font-medium text-gray-800">Just this {{ t('event', false, true) }}</p>
           <p class="text-xs text-gray-500">Only this single occurrence is archived.</p>
         </div>
       </label>
@@ -1921,15 +1924,15 @@
         <RadioButton v-model="seriesArchiveScope" value="following" />
         <div>
           <p class="text-sm font-medium text-gray-800">This and all following</p>
-          <p class="text-xs text-gray-500">Archive this event and every occurrence after it.</p>
+          <p class="text-xs text-gray-500">Archive this {{ t('event', false, true) }} and every occurrence after it.</p>
         </div>
       </label>
       <label class="flex items-start gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors"
         :class="seriesArchiveScope === 'all' ? 'border-primary bg-[#EFF6FF]' : 'border-gray-200 hover:bg-gray-50'">
         <RadioButton v-model="seriesArchiveScope" value="all" />
         <div>
-          <p class="text-sm font-medium text-gray-800">All events in the series</p>
-          <p class="text-xs text-gray-500">Archive every event in the recurring series.</p>
+          <p class="text-sm font-medium text-gray-800">All {{ t('event', true, true) }} in the series</p>
+          <p class="text-xs text-gray-500">Archive every {{ t('event', false, true) }} in the recurring series.</p>
         </div>
       </label>
     </div>
@@ -1940,7 +1943,7 @@
   </Dialog>
 
   <!-- Publish Confirm Dialog -->
-  <Dialog v-model:visible="showPublishDialog" header="Publish event" modal :style="{ width: '95vw', maxWidth: '460px' }" @show="onPublishDialogOpen">
+  <Dialog v-model:visible="showPublishDialog" :header="`Publish ${t('event', false, true)}`" modal :style="{ width: '95vw', maxWidth: '460px' }" @show="onPublishDialogOpen">
     <div class="flex flex-col gap-4 py-2">
 
       <!-- Invitee count summary -->
@@ -1958,7 +1961,7 @@
         <Checkbox v-model="publishToWebsite" :binary="true" inputId="publishToWebsite" />
         <div>
           <label for="publishToWebsite" class="text-sm text-gray-700 cursor-pointer font-medium leading-snug">Publish to website</label>
-          <p class="text-xs text-gray-400 mt-0.5">Make this event publicly visible on your website</p>
+          <p class="text-xs text-gray-400 mt-0.5">Make this {{ t('event', false, true) }} publicly visible on your website</p>
         </div>
       </div>
 
@@ -1981,7 +1984,7 @@
           <DatePicker v-model="publishAtDate" placeholder="Date" dateFormat="dd/mm/yy" showIcon class="flex-1" />
           <DatePicker v-model="publishAtTime" placeholder="Time" timeOnly showIcon class="w-32" />
         </div>
-        <p v-if="publishScheduled" class="text-xs text-gray-400 pl-6">Event status will stay as Draft until this date and time.</p>
+        <p v-if="publishScheduled" class="text-xs text-gray-400 pl-6">{{ t('event', false) }} status will stay as Draft until this date and time.</p>
       </div>
 
     </div>
@@ -2331,11 +2334,11 @@
         <div class="flex flex-col gap-1.5">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sales close</label>
           <DatePicker v-model="ticketDraft.sales_close_at" showTime hourFormat="12" dateFormat="dd/mm/yy"
-            placeholder="At event start" inputClass="h-9 text-sm px-3 w-full" class="w-full" show-icon />
+            :placeholder="`At ${t('event', false, true)} start`" inputClass="h-9 text-sm px-3 w-full" class="w-full" show-icon />
         </div>
         <div v-if="ticketDraft.session_id !== undefined" class="flex flex-col gap-1.5 col-span-2">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Session</label>
-          <Select v-model="ticketDraft.session_id" :options="[{ label: 'Event-level (all sessions)', value: null }, ...sessions.map(s => ({ label: s.title, value: s.id }))]"
+          <Select v-model="ticketDraft.session_id" :options="[{ label: `${t('event', false)}-level (all sessions)`, value: null }, ...sessions.map(s => ({ label: s.title, value: s.id }))]"
             optionLabel="label" optionValue="value" class="w-full text-sm" />
         </div>
       </div>
@@ -2388,7 +2391,7 @@
       </div>
       <div class="flex flex-col gap-1.5">
         <label class="text-sm font-medium text-gray-700">Subject</label>
-        <InputText v-model="emailDraft.subject" placeholder="e.g. Important update about the event" class="w-full" />
+        <InputText v-model="emailDraft.subject" :placeholder="`e.g. Important update about the ${t('event', false, true)}`" class="w-full" />
       </div>
       <div class="flex flex-col gap-1.5">
         <label class="text-sm font-medium text-gray-700">Message</label>
@@ -2404,7 +2407,7 @@
   <Dialog v-model:visible="showAddInvitee" header="Add Invitee" modal :style="{ width: '95vw', maxWidth: '400px' }" @show="loadPersons">
     <div class="flex flex-col gap-4 py-2">
       <Select v-model="newInviteePerson" :options="availablePersons" option-label="full_name" option-value="id"
-        placeholder="Select a member" filter class="w-full" />
+        :placeholder="`Select a ${t('member', false, true)}`" filter class="w-full" />
     </div>
     <template #footer>
       <Button label="Cancel" severity="secondary" text @click="showAddInvitee = false" />
@@ -2443,7 +2446,7 @@
   <!-- Check-in QR Code dialog -->
   <Dialog v-model:visible="showCheckinQrDialog" header="Check-in QR Code" modal :style="{ width: '95vw', maxWidth: '360px' }">
     <div class="flex flex-col items-center gap-4 py-2">
-      <p class="text-sm text-gray-500 text-center">Members scan this code to self check-in to the event.</p>
+      <p class="text-sm text-gray-500 text-center">{{ t('member', true) }} scan this code to self check-in to the {{ t('event', false, true) }}.</p>
       <canvas ref="qrCanvas" class="rounded-xl border border-gray-100" />
       <p class="text-xs text-gray-400 text-center break-all">{{ qrUrl }}</p>
     </div>
@@ -2935,6 +2938,8 @@
 
 <script setup lang="ts">
 const { orgId } = useOrg()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 import { useToast } from 'primevue/usetoast'
 
 const db = useDb()
@@ -3425,6 +3430,12 @@ const breadcrumbs = useBreadcrumbs()
 const event = ref<any>(null)
 const loading = ref(true)
 const saving = ref(false)
+
+// The public registration page for this event (guest-fillable, /r/event/:id).
+function copyPublicRegLink() {
+  navigator.clipboard?.writeText(`${window.location.origin}/r/event/${id}`)
+  toast.add({ severity: 'success', summary: 'Registration link copied', life: 2000 })
+}
 
 // Per-person notes on the attendance rows (reusable <PersonNotes>). Notes are
 // person_notes rows linked to this event, so they also show on the profile.

@@ -4,22 +4,22 @@
     <div class="mb-4 flex items-center gap-2">
       <NuxtLink to="/groups" class="text-gray-400 hover:text-gray-600"><i class="pi pi-chevron-left" /></NuxtLink>
       <div class="flex-1">
-        <h1 class="text-lg sm:text-2xl font-semibold text-surface-900">Group fees</h1>
-        <p class="text-xs text-gray-500 mt-0.5">Every group and the fee options a member can choose to pay to join it.</p>
+        <h1 class="text-lg sm:text-2xl font-semibold text-surface-900">{{ t('group', true) }} fees</h1>
+        <p class="text-xs text-gray-500 mt-0.5">Every {{ t('group', false, true) }} and the fee options a {{ t('member', false, true) }} can choose to pay to join it.</p>
       </div>
     </div>
 
     <!-- Term filter + bulk add -->
     <div class="mb-4 flex flex-wrap items-center gap-2">
-      <span class="text-xs font-bold uppercase tracking-wide text-gray-500">Term</span>
+      <span class="text-xs font-bold uppercase tracking-wide text-gray-500">{{ t('term') }}</span>
       <Select v-model="termFilter" :options="termFilterOptions" optionLabel="label" optionValue="value" class="w-56" size="small" />
-      <span class="text-xs text-gray-400 ml-1">{{ withFees }} of {{ rows.length }} group{{ rows.length === 1 ? '' : 's' }} have fees</span>
-      <Button label="Add fee to groups" icon="pi pi-plus" size="small" class="ml-auto w-full sm:w-auto justify-center mt-2 sm:mt-0"
+      <span class="text-xs text-gray-400 ml-1">{{ withFees }} of {{ rows.length }} {{ rows.length === 1 ? t('group', false, true) : t('group', true, true) }} have fees</span>
+      <Button :label="`Add fee to ${t('group', true, true)}`" icon="pi pi-plus" size="small" class="ml-auto w-full sm:w-auto justify-center mt-2 sm:mt-0"
         style="background:#1E2157;border-color:#1E2157" @click="openBulk" />
     </div>
 
     <div v-if="loading" class="py-10 text-center text-sm text-gray-400">Loading…</div>
-    <div v-else-if="!rows.length" class="py-10 text-center text-sm text-gray-400">No groups in this term.</div>
+    <div v-else-if="!rows.length" class="py-10 text-center text-sm text-gray-400">No {{ t('group', true, true) }} in this {{ t('term', false, true) }}.</div>
 
     <!-- One card per group -->
     <div v-else class="space-y-3">
@@ -66,16 +66,16 @@
     </div>
 
     <!-- Bulk: add one fee option to many groups at once -->
-    <Dialog v-model:visible="bulkOpen" modal :style="{ width: '95vw', maxWidth: '640px' }" header="Add a fee to multiple groups">
+    <Dialog v-model:visible="bulkOpen" modal :style="{ width: '95vw', maxWidth: '640px' }" :header="`Add a fee to multiple ${t('group', true, true)}`">
       <div class="space-y-4">
         <!-- which groups -->
         <div class="flex flex-col gap-1.5">
           <div class="flex items-center justify-between">
-            <label class="text-sm font-medium">Apply to groups</label>
+            <label class="text-sm font-medium">Apply to {{ t('group', true, true) }}</label>
             <button type="button" class="text-xs text-primary hover:underline" @click="selectShownGroups">Select all shown</button>
           </div>
           <MultiSelect v-model="bulkGroupIds" :options="groupSelectOptions" optionLabel="label" optionValue="value"
-            filter display="chip" placeholder="Choose groups" class="w-full" />
+            filter display="chip" :placeholder="`Choose ${t('group', true, true)}`" class="w-full" />
         </div>
 
         <!-- the fee option -->
@@ -94,14 +94,14 @@
             <ToggleSwitch v-model="bulkOption.auto_renew" /> Auto-renew each period
           </div>
           <div v-if="bulkOption.fee_type === 'upfront'" class="flex items-center gap-2 text-sm text-gray-600">
-            <ToggleSwitch v-model="bulkOption.prorata" /> Pro-rata (reduce the fee when joining mid-term)
+            <ToggleSwitch v-model="bulkOption.prorata" /> Pro-rata (reduce the fee when joining mid-{{ t('term', false, true) }})
           </div>
           <div>
             <div class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">Line items</div>
             <div v-for="(it, ii) in bulkOption.items" :key="it.id" class="flex items-center gap-2 mb-1.5">
               <InputText v-model="it.name" placeholder="e.g. Coaching" class="flex-1 min-w-0" />
               <InputNumber v-model="it.amount" mode="currency" :currency="orgCurrency" locale="en-NZ" :min="0" class="w-28 shrink-0" :inputStyle="{ width: '7rem' }" />
-              <InputText v-model="it.account" placeholder="GL" class="w-16 shrink-0" title="GL / Xero account code" />
+              <XeroAccountInput v-model="it.account" placeholder="GL" class="w-24 shrink-0" title="GL / Xero account code" />
               <Button icon="pi pi-times" text severity="secondary" class="shrink-0" @click="bulkOption.items.splice(ii, 1)" />
             </div>
             <div class="flex items-center justify-between mt-1">
@@ -113,7 +113,7 @@
       </div>
       <template #footer>
         <Button label="Cancel" text @click="bulkOpen = false" />
-        <Button :label="`Add to ${bulkGroupIds.length} group${bulkGroupIds.length === 1 ? '' : 's'}`"
+        <Button :label="`Add to ${bulkGroupIds.length} ${bulkGroupIds.length === 1 ? t('group', false, true) : t('group', true, true)}`"
           :disabled="!bulkGroupIds.length || savingBulk" :loading="savingBulk"
           style="background:#1E2157;border-color:#1E2157" @click="saveBulk" />
       </template>
@@ -134,6 +134,8 @@ const tm = useTermsMemberships()
 const gf = useGroupFees()
 const route = useRoute()
 const toast = useToast()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 const PERIOD_UNITS = [{ label: 'week', value: 'week' }, { label: 'month', value: 'month' }, { label: 'year', value: 'year' }]
 
@@ -147,9 +149,9 @@ const orgCurrency = ref('NZD')
 const loading = ref(true)
 
 const termFilterOptions = computed(() => [
-  { label: 'All terms', value: 'all' },
-  ...terms.value.map(t => ({ label: t.name, value: t.id })),
-  { label: 'No term', value: 'none' },
+  { label: `All ${t('term', true, true)}`, value: 'all' },
+  ...terms.value.map(term => ({ label: term.name, value: term.id })),
+  { label: `No ${t('term', false, true)}`, value: 'none' },
 ])
 
 const rows = computed(() => {
@@ -239,7 +241,7 @@ async function saveBulk() {
     const n = await gf.addFeeOptionToGroups(bulkGroupIds.value, bulkOption.value)
     await load()
     bulkOpen.value = false
-    toast.add({ severity: 'success', summary: `Fee added to ${n} group${n === 1 ? '' : 's'}`, life: 3000 })
+    toast.add({ severity: 'success', summary: `Fee added to ${n} ${n === 1 ? t('group', false, true) : t('group', true, true)}`, life: 3000 })
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Could not add fee', detail: e?.message, life: 4000 })
   } finally {

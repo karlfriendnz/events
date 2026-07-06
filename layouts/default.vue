@@ -8,7 +8,7 @@
         <i v-else class="pi pi-calendar text-white text-sm" />
       </NuxtLink>
 
-      <template v-for="item in clubMenu" :key="item.label">
+      <template v-for="item in clubMenuForModules" :key="item.label">
         <!-- Events: icon + rich flyout (calendars, reporting, venues, registration, forms) -->
         <div v-if="item.events" class="relative" @mouseenter="onEventsEnter" @mouseleave="onEventsLeave">
           <NuxtLink :to="item.href"
@@ -248,7 +248,7 @@
     <!-- Mobile bottom tab bar -->
     <nav class="md:hidden fixed bottom-0 left-0 right-0 z-[55] bg-white border-t border-gray-200 flex items-stretch h-16"
       style="padding-bottom: env(safe-area-inset-bottom)">
-      <NuxtLink v-for="item in mobilePrimary" :key="item.href" :to="item.href"
+      <NuxtLink v-for="item in mobilePrimaryForModules" :key="item.href" :to="item.href"
         class="flex-1 flex flex-col items-center justify-center gap-0.5"
         :class="isActive(item.href) ? 'text-primary' : 'text-gray-400'">
         <i :class="['pi', item.icon, 'text-lg']" />
@@ -270,7 +270,7 @@
           <button class="text-gray-400 hover:text-gray-700" @click="mobileMenuOpen = false"><i class="pi pi-times" /></button>
         </div>
         <div class="overflow-y-auto p-2">
-          <NuxtLink v-for="item in clubMenu" :key="item.label" :to="item.href"
+          <NuxtLink v-for="item in clubMenuForModules" :key="item.label" :to="item.href"
             class="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium"
             :class="isActive(item.href) ? 'bg-primary/10 text-primary' : 'text-gray-700 hover:bg-gray-50'">
             <i :class="['pi', item.icon, 'text-base w-5 text-center']" />{{ item.label }}
@@ -566,19 +566,24 @@ const navItems = [
 const clubMenu = [
   { label: 'Dashboard',   icon: 'pi-th-large',      href: '/dashboard',               chevron: false },
   { label: 'People',      icon: 'pi-users',         href: '/people',                  chevron: true },
-  { label: 'Classes',     icon: 'pi-sitemap',       href: '/groups',                  chevron: true, groups: true },
-  { label: 'Fees',        icon: 'pi-dollar',        href: '/finances',                chevron: true },
-  { label: 'Events',      icon: 'pi-calendar',      href: '/events',                  chevron: true, events: true },
-  { label: 'Bookings',    icon: 'pi-bookmark',      href: '/bookables?tab=bookings',  chevron: true },
-  { label: 'Attendance',  icon: 'pi-check-square',  href: '/attendance',              chevron: true },
-  { label: 'Mailer',      icon: 'pi-envelope',      href: '/settings/communications', chevron: true },
-  { label: 'Resources',   icon: 'pi-video',         href: '/resources',               chevron: false },
-  { label: 'Assets',      icon: 'pi-shopping-cart', href: '/assets',                  chevron: true },
-  { label: 'Mobile App',  icon: 'pi-mobile',        href: '/mobile-app',              chevron: true },
-  { label: 'Programme',   icon: 'pi-flag',          href: '/programme',               chevron: true },
-  { label: 'GNZ',         icon: 'pi-user',          href: '/gnz',                     chevron: true },
-  { label: 'FM Invoices', icon: 'pi-file',          href: '/fm-invoices',             chevron: false },
+  { label: 'Classes',     icon: 'pi-sitemap',       href: '/groups',                  chevron: true, groups: true, module: 'groups' },
+  { label: 'Fees',        icon: 'pi-dollar',        href: '/finances',                chevron: true, module: 'finances' },
+  { label: 'Events',      icon: 'pi-calendar',      href: '/events',                  chevron: true, events: true, module: 'events' },
+  { label: 'Bookings',    icon: 'pi-bookmark',      href: '/bookables?tab=bookings',  chevron: true, module: 'bookings' },
+  { label: 'Attendance',  icon: 'pi-check-square',  href: '/attendance',              chevron: true, module: 'attendance' },
+  { label: 'Mailer',      icon: 'pi-envelope',      href: '/settings/communications', chevron: true, module: 'communications' },
+  { label: 'Resources',   icon: 'pi-video',         href: '/resources',               chevron: false, module: 'resources' },
+  { label: 'Assets',      icon: 'pi-shopping-cart', href: '/assets',                  chevron: true, module: 'assets' },
+  { label: 'Mobile App',  icon: 'pi-mobile',        href: '/mobile-app',              chevron: true, module: 'mobile_app' },
+  { label: 'Programme',   icon: 'pi-flag',          href: '/programme',               chevron: true, module: 'programme' },
+  { label: 'GNZ',         icon: 'pi-user',          href: '/gnz',                     chevron: true, module: 'gnz' },
+  { label: 'FM Invoices', icon: 'pi-file',          href: '/fm-invoices',             chevron: false, module: 'fm_invoices' },
 ]
+// Club setup (Settings → Club setup, organisations.enabled_modules): hide the
+// parts of the system the club has turned off. Reactive — flipping a toggle on
+// /settings/modules updates the nav live (shared useState in useOrgModules).
+const orgModules = useOrgModules()
+const clubMenuForModules = computed(() => clubMenu.filter(i => orgModules.isEnabled((i as any).module)))
 // Which top-level item is expanded (one at a time).
 const expandedMenu = ref<string | null>(null)
 function toggleMenu(label: string) { expandedMenu.value = expandedMenu.value === label ? null : label }
@@ -586,9 +591,10 @@ function toggleMenu(label: string) { expandedMenu.value = expandedMenu.value ===
 // ── Mobile navigation (bottom tab bar + "More" sheet) ──
 const mobilePrimary = [
   { label: 'People', icon: 'pi-users',        href: '/people' },
-  { label: 'Events', icon: 'pi-calendar',     href: '/events' },
-  { label: 'Fees',   icon: 'pi-dollar',       href: '/finances' },
+  { label: 'Events', icon: 'pi-calendar',     href: '/events',   module: 'events' },
+  { label: 'Fees',   icon: 'pi-dollar',       href: '/finances', module: 'finances' },
 ]
+const mobilePrimaryForModules = computed(() => mobilePrimary.filter(i => orgModules.isEnabled((i as any).module)))
 const mobileMenuOpen = ref(false)
 watch(() => route.path, () => { mobileMenuOpen.value = false })
 
@@ -601,6 +607,7 @@ const brandMark = ref<string | null>(null)
 watch(orgId, async (id) => {
   loadPerms()
   if (!id) { isGoverningOrg.value = false; activeOrgName.value = ''; brandMark.value = null; return }
+  orgModules.loadModules(true)
   const { data } = await (db.from as any)('organisations').select('name, org_level, icon_url, brand_id').eq('id', id).single()
   isGoverningOrg.value = !!data?.org_level && data.org_level !== 'CLUB'
   activeOrgName.value = data?.name ?? ''

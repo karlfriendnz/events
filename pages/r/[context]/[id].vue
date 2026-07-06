@@ -29,6 +29,14 @@ const orgId = ref('')
 const contextName = ref('')
 const sessions = ref<any[]>([])
 const feeLineItems = ref<{ name: string; amount: number }[]>([])
+const feeOptions = ref<{ id: string; name: string; label: string; total: number; description?: string | null }[]>([])
+// Group capacity: when the class is full we warn up-front, offer the equivalent
+// groups with space (siblings on the same waitlist), and the submit lands on the
+// waitlist instead of the roster (server decides; `waitlisted` echoes it back).
+const groupFull = ref(false)
+const waitlistName = ref('')
+const siblingsWithSpace = ref<{ id: string; name: string; spaces: number | null; link: string }[]>([])
+const waitlisted = ref(false)
 const currency = ref('NZD')
 const orgName = ref('')
 const orgLogo = ref<string | null>(null)
@@ -51,10 +59,70 @@ async function loadOrg(id: string) {
 }
 
 async function loadForm(formId: string) {
-  const { data: form } = await (db.from as any)('registration_forms').select('id, org_id, config').eq('id', formId).maybeSingle()
+  const { data: form } = await (db.from as any)('registration_forms').select('id, org_id, name, config').eq('id', formId).maybeSingle()
   if (!form) return null
-  const cfg = { ...(form.config || {}), _formId: form.id }
+  let cfg = { ...(form.config || {}) }
+  // Forms built in <FormBuilder> (/forms/:id, /events/new-basic) persist a flat
+  // field list in form_fields + config.profiles/fieldMeta — NOT the renderer's
+  // groups/groupProfiles/groupFields shape. Normalise so both builders render.
+  if (!Array.isArray(cfg.groups) || !cfg.groups.length) cfg = await normalizeBuilderConfig(form.id, cfg)
+  cfg._formId = form.id
+  cfg._formName = form.name || ''
   return cfg
+}
+
+// ── FormBuilder-shape → FormRenderer-shape normaliser ─────────────────────────
+const FF_TYPE: Record<string, string> = {
+  SHORT_TEXT: 'text', LONG_TEXT: 'textarea', SINGLE_SELECT: 'select', MULTI_SELECT: 'select',
+  TOGGLE: 'checkbox', NUMBER: 'number', DATE: 'date', FILE: 'file',
+}
+const CORE_ACCOUNT: Record<string, string> = { first_name: 'first', last_name: 'last', email: 'email' }
+const CORE_BY_LABEL: Record<string, string> = {
+  'First Name': 'first_name', 'Last Name': 'last_name', 'Email Address': 'email', 'Phone Number': 'phone',
+}
+async function normalizeBuilderConfig(formId: string, cfg: any) {
+  const { data: ff } = await (db.from as any)('form_fields').select('*').eq('form_id', formId).order('sort_order')
+  const gid = 'default'
+  const fieldMeta = cfg.fieldMeta ?? {}
+  // Subjects: the form's declared profiles, else one implicit person. The first
+  // person profile is the chooser (sessions / fee options attach to it).
+  let profiles: any[] = (cfg.profiles ?? []).filter((p: any) => p && (p.label || p.key))
+  if (!profiles.length) profiles = [{ key: 'person', label: 'Person', heading: 'Your details', min: 1, max: 1, kind: 'person' }]
+  const firstPerson = profiles.find((p: any) => (p.kind ?? 'person') !== 'entity') ?? profiles[0]
+  profiles = profiles.map((p: any) => ({
+    ...p,
+    min: p.min ?? 1,
+    selectsOptions: p.selectsOptions ?? (p.key === firstPerson.key),
+  }))
+  const fields = (ff ?? []).map((row: any) => {
+    let options: string[] = []
+    try { options = JSON.parse(row.options || '[]') } catch { options = [] }
+    const meta = fieldMeta[row.label] ?? {}
+    const core = meta.core ?? CORE_BY_LABEL[row.label]
+    return {
+      id: row.id,
+      label: row.label,
+      field_type: FF_TYPE[row.field_type] ?? 'text',
+      placeholder: row.placeholder ?? '',
+      helper_text: row.help_text ?? '',
+      has_helper_text: !!row.help_text,
+      is_required: !!row.is_required,
+      options,
+      col_span: meta.col_span ?? 2,
+      account: core ? CORE_ACCOUNT[core] : undefined,
+      pinned: core === 'first_name' || core === 'last_name',
+      visibility_conditions: meta.visibility_conditions ?? [],
+      target: firstPerson.key,
+    }
+  })
+  return {
+    ...cfg,
+    groups: [{ id: gid, audience: 'public' }],
+    designs: { [gid]: { formHeading: cfg.settings?.formHeading || 'Fill in the form to register' } },
+    groupProfiles: { [gid]: profiles },
+    groupFields: { [gid]: fields },
+    terms: cfg.terms ?? [],
+  }
 }
 
 async function load() {
@@ -89,21 +157,36 @@ async function load() {
         fee: feeBySession[s.id] || 0,
       }))
     } else if (contextType.value === 'group') {
-      const { data: g } = await (db.from as any)('member_groups').select('id, org_id, name').eq('id', contextId.value).maybeSingle()
+      const { data: g } = await (db.from as any)('member_groups')
+        .select('id, org_id, name, form_id, image_url, capacity, waitlist_id')
+        .eq('id', contextId.value).maybeSingle()
       if (!g) { loadError.value = 'This group could not be found.'; return }
-      orgId.value = g.org_id; contextName.value = g.name
-      formId = (route.query.form_id as string) || null
+      orgId.value = g.org_id; contextName.value = g.name; bannerUrl.value = g.image_url || null
+      formEvent.value = { title: g.name, banner_url: g.image_url || null }
+      formId = (route.query.form_id as string) || g.form_id || null
       await loadOrg(g.org_id)
+      // The group's fee options — the registrant picks how they want to pay.
+      const gf = useGroupFees()
+      const opts = await gf.loadFeeOptions(g.id)
+      feeOptions.value = opts.map((o: any) => ({
+        id: o.id, name: o.name, label: gf.priceLabel(o, currency.value),
+        total: gf.optionTotal(o), description: o.description,
+      }))
+      await loadGroupStatus(g, formId)
     } else {
-      // Generic: a bare form by ?form_id (enquiries etc.)
-      formId = (route.query.form_id as string) || null
+      // Generic: /r/form/:formId (a form connected to 1+ groups, migration 228)
+      // or a bare form by ?form_id (enquiries etc.)
+      formId = contextType.value === 'form' ? contextId.value : ((route.query.form_id as string) || null)
     }
 
     if (!formId) { loadError.value = 'No registration form has been set up yet.'; return }
     const cfg = await loadForm(formId)
     if (!cfg) { loadError.value = 'The registration form could not be loaded.'; return }
     if (!orgId.value && cfg.org_id) { orgId.value = cfg.org_id; await loadOrg(cfg.org_id) }
+    if (!contextName.value && cfg._formName) contextName.value = cfg._formName
     config.value = cfg
+    // Form context: the connected classes become the in-form "Choose your class" block.
+    if (contextType.value === 'form') await loadFormTargets(formId)
   } catch (e: any) {
     loadError.value = e?.message || 'Something went wrong loading this form.'
   } finally {
@@ -111,10 +194,146 @@ async function load() {
   }
 }
 
+// Roughly split staff out of a member count (same heuristic the submit API uses).
+function isStaffish(row: any) {
+  const keys = [row.role, ...(Array.isArray(row.roles) ? row.roles : [])].filter(Boolean).map((k: string) => String(k).toLowerCase())
+  return keys.some(k => k.includes('coach') || k.includes('manager') || k === 'staff')
+}
+
+// When the class is full: name the waitlist + surface the equivalent groups
+// (same waitlist) that still have space, so a full Thursday offers Friday.
+async function loadGroupStatus(g: any, formId: string | null) {
+  if (g.capacity == null) return
+  const { data: rows } = await (db.from as any)('member_group_memberships').select('role, roles').eq('group_id', g.id)
+  const memberCount = (rows ?? []).filter((r: any) => !isStaffish(r)).length
+  if (memberCount < g.capacity) return
+  groupFull.value = true
+  if (!g.waitlist_id) return
+  const [{ data: w }, { data: sibs }] = await Promise.all([
+    (db.from as any)('waitlists').select('name').eq('id', g.waitlist_id).maybeSingle(),
+    (db.from as any)('member_groups').select('id, name, capacity, form_id').eq('waitlist_id', g.waitlist_id).neq('id', g.id),
+  ])
+  waitlistName.value = w?.name || ''
+  const sibList = (sibs ?? [])
+  if (!sibList.length) return
+  const { data: sibRows } = await (db.from as any)('member_group_memberships')
+    .select('group_id, role, roles').in('group_id', sibList.map((s: any) => s.id))
+  const countBy: Record<string, number> = {}
+  for (const r of (sibRows ?? [])) if (!isStaffish(r)) countBy[r.group_id] = (countBy[r.group_id] || 0) + 1
+  siblingsWithSpace.value = sibList
+    .map((s: any) => ({
+      id: s.id, name: s.name,
+      spaces: s.capacity == null ? null : s.capacity - (countBy[s.id] || 0),
+      link: `/r/group/${s.id}${s.form_id ? '' : (formId ? `?form_id=${formId}` : '')}`,
+    }))
+    .filter((s: any) => s.spaces == null || s.spaces > 0)
+}
+
+// The form's connected classes (registration_form_targets → member_groups),
+// each with live spaces + its fee options, for the in-form class chooser.
+// Targets can be individual GROUPS or whole CODES (programmes) — a code target
+// expands to every class in its subtree (dynamic: classes added later appear
+// automatically), excluding classes whose effective term has already ended.
+const groupChoices = ref<any[]>([])
+async function loadFormTargets(fid: string) {
+  const { data: tgts } = await (db.from as any)('registration_form_targets')
+    .select('target_type, target_id, sort_order').eq('form_id', fid).order('sort_order')
+  const groupIds = (tgts ?? []).filter((t: any) => t.target_type === 'group').map((t: any) => t.target_id)
+  const codeIds = (tgts ?? []).filter((t: any) => t.target_type === 'code').map((t: any) => t.target_id)
+  if (!groupIds.length && !codeIds.length) return
+
+  // Codes (for subtree expansion + section labels + term inheritance) + terms.
+  const [{ data: codes }, { data: terms }] = await Promise.all([
+    (db.from as any)('group_codes').select('id, name, parent_id, term_id, sort_order').eq('org_id', orgId.value),
+    (db.from as any)('org_terms').select('id, end_date').eq('org_id', orgId.value),
+  ])
+  const codesById: Record<string, any> = {}
+  const codeChildren: Record<string, string[]> = {}
+  for (const c of (codes ?? [])) { codesById[c.id] = c; if (c.parent_id) (codeChildren[c.parent_id] ??= []).push(c.id) }
+  const expandedCodes = new Set<string>()
+  const stack = [...codeIds]
+  while (stack.length) {
+    const id = stack.pop()!
+    if (expandedCodes.has(id)) continue
+    expandedCodes.add(id)
+    for (const k of (codeChildren[id] ?? [])) stack.push(k)
+  }
+
+  // Groups: explicit targets + everything under the expanded codes.
+  const [byId, byCode] = await Promise.all([
+    groupIds.length
+      ? (db.from as any)('member_groups').select('id, name, capacity, waitlist_id, code_id, term_id').in('id', groupIds)
+      : Promise.resolve({ data: [] }),
+    expandedCodes.size
+      ? (db.from as any)('member_groups').select('id, name, capacity, waitlist_id, code_id, term_id').in('code_id', [...expandedCodes])
+      : Promise.resolve({ data: [] }),
+  ])
+  const seen = new Set<string>()
+  let groups = [...(byId.data ?? []), ...(byCode.data ?? [])].filter((g: any) => !seen.has(g.id) && seen.add(g.id))
+
+  // Drop history classes (effective term — own term_id, else walking up the
+  // code chain — already ended). Term-less classes always show.
+  const termEnd: Record<string, string | null> = {}
+  for (const t of (terms ?? [])) termEnd[t.id] = t.end_date
+  const effectiveTermId = (g: any) => {
+    if (g.term_id) return g.term_id
+    let c = g.code_id ? codesById[g.code_id] : null
+    while (c) { if (c.term_id) return c.term_id; c = c.parent_id ? codesById[c.parent_id] : null }
+    return null
+  }
+  const today = new Date().toISOString().slice(0, 10)
+  groups = groups.filter((g: any) => {
+    const end = termEnd[effectiveTermId(g) ?? ''] ?? null
+    return !end || end >= today
+  })
+  if (!groups.length) return
+
+  // Order by code tree (walk order), Ungrouped last, name within a section.
+  const codeOrder: Record<string, number> = {}
+  {
+    const roots = (codes ?? []).filter((c: any) => !c.parent_id || !codesById[c.parent_id])
+      .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))
+    let i = 0
+    const walk = (c: any) => {
+      codeOrder[c.id] = i++
+      const kids = (codeChildren[c.id] ?? []).map(k => codesById[k])
+        .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))
+      kids.forEach(walk)
+    }
+    roots.forEach(walk)
+  }
+  groups.sort((a: any, b: any) =>
+    (codeOrder[a.code_id] ?? 9999) - (codeOrder[b.code_id] ?? 9999) || a.name.localeCompare(b.name))
+
+  const gf = useGroupFees()
+  const ids = groups.map((g: any) => g.id)
+  const [{ data: memRows }, feeLists] = await Promise.all([
+    (db.from as any)('member_group_memberships').select('group_id, role, roles').in('group_id', ids),
+    Promise.all(ids.map((id: string) => gf.loadFeeOptions(id))),
+  ])
+  const countBy: Record<string, number> = {}
+  for (const r of (memRows ?? [])) if (!isStaffish(r)) countBy[r.group_id] = (countBy[r.group_id] || 0) + 1
+  groupChoices.value = groups.map((g: any, i: number) => {
+    const taken = countBy[g.id] || 0
+    const full = g.capacity != null && taken >= g.capacity
+    return {
+      id: g.id, name: g.name,
+      section: g.code_id ? (codesById[g.code_id]?.name ?? null) : null,
+      spaces: g.capacity == null ? null : Math.max(0, g.capacity - taken),
+      full, waitlistable: !!g.waitlist_id,
+      feeOptions: (feeLists[i] ?? []).map((o: any) => ({
+        id: o.id, name: o.name, label: gf.priceLabel(o, currency.value),
+        total: gf.optionTotal(o), description: o.description,
+      })),
+    }
+  })
+}
+
 async function onSubmit(payload: any) {
   submitting.value = true
   try {
-    await $fetch('/api/public-form-submit', { method: 'POST', body: payload })
+    const res: any = await $fetch('/api/public-form-submit', { method: 'POST', body: payload })
+    waitlisted.value = !!res?.waitlisted
     done.value = true
   } catch (e: any) {
     loadError.value = e?.data?.message || e?.message || 'Submission failed — please try again.'
@@ -147,21 +366,51 @@ onMounted(load)
 
         <div v-else-if="done" class="py-12 px-6 text-center">
           <div class="w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center" :style="{ background: theme.primary }">
-            <i class="pi pi-check text-white text-xl" />
+            <i :class="waitlisted ? 'pi pi-hourglass' : 'pi pi-check'" class="text-white text-xl" />
           </div>
-          <h2 class="text-lg font-bold text-gray-900">You're registered!</h2>
-          <p class="text-sm text-gray-500 mt-1">Thanks — we've received your registration{{ contextName ? ' for ' + contextName : '' }}.</p>
+          <template v-if="waitlisted">
+            <h2 class="text-lg font-bold text-gray-900">You're on the waitlist</h2>
+            <p class="text-sm text-gray-500 mt-1">{{ contextType === 'group' ? contextName : 'The class you chose' }} is currently full — we've added you to the waitlist and will be in touch as soon as a spot opens up.</p>
+          </template>
+          <template v-else>
+            <h2 class="text-lg font-bold text-gray-900">You're registered!</h2>
+            <p class="text-sm text-gray-500 mt-1">Thanks — we've received your registration{{ contextName ? ' for ' + contextName : '' }}.</p>
+          </template>
         </div>
 
-        <FormRenderer v-else-if="config"
+        <template v-else-if="config">
+        <!-- Full-class notice: offer the equivalent classes with space, else the waitlist -->
+        <div v-if="groupFull" class="bg-amber-50 border-b border-amber-100 px-4 sm:px-6 py-4">
+          <p class="text-sm text-amber-900">
+            <i class="pi pi-exclamation-triangle text-amber-500 mr-1.5" />
+            <span class="font-semibold">{{ contextName }} is currently full.</span>
+            <span v-if="waitlistName"> You can still register below to join the waitlist.</span>
+          </p>
+          <div v-if="siblingsWithSpace.length" class="mt-2.5">
+            <p class="text-xs font-semibold text-amber-800 mb-1.5">These classes run the same programme and have space:</p>
+            <div class="flex flex-wrap gap-2">
+              <a v-for="s in siblingsWithSpace" :key="s.id" :href="s.link"
+                class="inline-flex items-center gap-1.5 bg-white border border-amber-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-amber-400 transition-colors">
+                {{ s.name }}
+                <span v-if="s.spaces != null" class="text-emerald-600">{{ s.spaces }} {{ s.spaces === 1 ? 'space' : 'spaces' }}</span>
+                <i class="pi pi-arrow-right text-[9px] text-gray-400" />
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <FormRenderer
           :config="config"
           :context="{ type: contextType, id: contextId, orgId }"
           :event="formEvent || { title: contextName, banner_url: bannerUrl }"
           :sessions="sessions"
           :fee-line-items="feeLineItems"
+          :fee-options="feeOptions"
+          :group-options="groupChoices"
           :currency="currency"
           :submitting="submitting"
           @submit="onSubmit" />
+        </template>
       </div>
 
       <p class="text-center text-xs text-gray-400 mt-4">Powered by FriendlyManager</p>

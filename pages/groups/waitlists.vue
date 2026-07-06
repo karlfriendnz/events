@@ -14,6 +14,8 @@ const toast = useToast()
 const wl = useWaitlists()
 const tm = useTermsMemberships()
 const finder = useClassFinder()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 const terms = ref<any[]>([])
 const gc = useGroupCodes()
 const codes = ref<any[]>([])
@@ -133,7 +135,7 @@ async function enrolIntoGroup(entry: any, groupId: string | null) {
   if (r.ok) {
     entries.value = entries.value.filter(e => e.id !== entry.id)
     await refreshCounts(); await loadConnectedCounts()
-    toast.add({ severity: 'success', summary: `Enrolled ${personName(entry)} in ${g?.name ?? 'the group'} — off the waitlist`, life: 3000 })
+    toast.add({ severity: 'success', summary: `Enrolled ${personName(entry)} in ${g?.name ?? t('group', false, true)} — off the waitlist`, life: 3000 })
   } else {
     toast.add({ severity: 'error', summary: 'Could not enrol', detail: r.error, life: 4000 })
   }
@@ -142,7 +144,7 @@ async function enrolIntoGroup(entry: any, groupId: string | null) {
 // New waitlists default to the current-date term (if any).
 const activeTermId = computed(() => {
   const today = new Date().toISOString().slice(0, 10)
-  return terms.value.find(t => (!t.start_date || t.start_date <= today) && (!t.end_date || t.end_date >= today))?.id ?? null
+  return terms.value.find(tr => (!tr.start_date || tr.start_date <= today) && (!tr.end_date || tr.end_date >= today))?.id ?? null
 })
 async function createWaitlist() {
   const name = newName.value.trim()
@@ -163,7 +165,7 @@ async function setTerm(termId: string | null) {
 }
 async function removeSelected() {
   if (!selected.value) return
-  if (!confirm(`Delete "${selected.value.name}"? People on it and the group connections are removed.`)) return
+  if (!confirm(`Delete "${selected.value.name}"? People on it and the ${t('group', false, true)} connections are removed.`)) return
   await wl.deleteWaitlist(selected.value.id)
   selectedId.value = null
   await load()
@@ -242,7 +244,7 @@ async function refreshCounts() { counts.value = await wl.entryCounts() }
 const personName = (e: any) => `${e.person?.first_name ?? ''} ${e.person?.last_name ?? ''}`.trim() || e.person?.email || 'Person'
 // Export the current waitlist to CSV (mirrors the old-FM waitlist columns).
 function exportCsv() {
-  const header = ['#', 'Name', 'Email', 'Phone', 'Age', 'Enrolled (classes)', 'Status', 'Priority', 'Date added']
+  const header = ['#', 'Name', 'Email', 'Phone', 'Age', `Enrolled (${t('group', true, true)})`, 'Status', 'Priority', 'Date added']
   const rows = orderedEntries.value.map((e, i) => [
     i + 1, personName(e), e.person?.email ?? '', e.person?.phone ?? '', age(e.person?.dob),
     personEnrolled.value[e.person_id] ?? 0, e.status, (wl.WAITLIST_PRIORITIES.find(p => p.value === (e.priority ?? 2))?.label ?? ''),
@@ -266,14 +268,14 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
     <div class="flex items-start justify-between gap-3">
       <div>
         <NuxtLink to="/groups" class="text-sm text-gray-500 hover:text-primary inline-flex items-center gap-1">
-          <i class="pi pi-arrow-left text-xs" /> Groups
+          <i class="pi pi-arrow-left text-xs" /> {{ t('group', true) }}
         </NuxtLink>
         <h1 class="text-lg sm:text-2xl font-semibold text-gray-900 mt-2">Waitlists</h1>
-        <p class="text-sm text-gray-500">A shared queue for equivalent groups — the same class on different days. Connect the groups so a spot opening in any of them fills from one list.</p>
+        <p class="text-sm text-gray-500">A shared queue for equivalent {{ t('group', true, true) }} — the same {{ t('group', false, true) }} on different days. Connect the {{ t('group', true, true) }} so a spot opening in any of them fills from one list.</p>
       </div>
       <button type="button" @click="finder.openFinder()"
         class="shrink-0 inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-primary px-3 py-2 rounded-lg border border-gray-200 hover:border-gray-300">
-        <i class="pi pi-search text-xs" /> Find a class
+        <i class="pi pi-search text-xs" /> Find a {{ t('group', false, true) }}
       </button>
     </div>
 
@@ -308,18 +310,18 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
                 <InputText v-model="selected.name" class="w-full mt-1" @blur="renameSelected" @keyup.enter="renameSelected" />
               </div>
               <div class="min-w-0">
-                <label class="text-xs font-medium text-gray-600">Term</label>
+                <label class="text-xs font-medium text-gray-600">{{ t('term') }}</label>
                 <Select :modelValue="selected.term_id" :options="terms" optionLabel="name" optionValue="id"
-                  placeholder="No term" showClear class="w-full mt-1" @update:modelValue="setTerm" />
+                  :placeholder="`No ${t('term', false, true)}`" showClear class="w-full mt-1" @update:modelValue="setTerm" />
               </div>
             </div>
             <button class="text-gray-300 hover:text-red-500 shrink-0 mt-5" title="Delete waitlist" @click="removeSelected"><i class="pi pi-trash" /></button>
           </div>
-          <p class="text-[11px] text-gray-400 mt-2">Tied to a term — when you roll the term over, this waitlist rolls over too (people still waiting carry across).</p>
+          <p class="text-[11px] text-gray-400 mt-2">Tied to a {{ t('term', false, true) }} — when you roll the {{ t('term', false, true) }} over, this waitlist rolls over too (people still waiting carry across).</p>
         </div>
 
         <!-- connected groups -->
-        <AppCard title="Connected groups" description="The equivalent groups this waitlist covers (e.g. Thursday + Friday, same class). A group can only be on one waitlist.">
+        <AppCard :title="`Connected ${t('group', true)}`" :description="`The equivalent ${t('group', true, true)} this waitlist covers (e.g. Thursday + Friday, same ${t('group', false, true)}). A ${t('group', false, true)} can only be on one waitlist.`">
           <div class="p-4 sm:p-5 space-y-3">
             <!-- currently connected -->
             <div v-if="connectedGroups.length" class="space-y-2">
@@ -329,20 +331,20 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
                 <button class="text-gray-300 hover:text-red-500 shrink-0" title="Disconnect" @click="disconnectGroup(g.id)"><i class="pi pi-times text-xs" /></button>
               </div>
             </div>
-            <p v-else class="text-sm text-gray-400">No groups connected yet — add the equivalent groups below.</p>
+            <p v-else class="text-sm text-gray-400">No {{ t('group', true, true) }} connected yet — add the equivalent {{ t('group', true, true) }} below.</p>
 
             <!-- add a group -->
             <div class="flex items-center gap-2 pt-1">
               <Select v-model="addGroupId" :options="availableGroupOptions" optionLabel="label" optionValue="value" optionDisabled="disabled"
                 optionGroupLabel="label" optionGroupChildren="items" filter
-                placeholder="Add a group…" class="flex-1" :emptyMessage="'No groups yet'" />
+                :placeholder="`Add a ${t('group', false, true)}…`" class="flex-1" :emptyMessage="`No ${t('group', true, true)} yet`" />
               <Button icon="pi pi-plus" label="Add" size="small" :disabled="!addGroupId" @click="addGroupConnection" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
             </div>
           </div>
         </AppCard>
 
         <!-- people waiting -->
-        <AppCard title="People waiting" :description="`${entries.length} on the list · ${spacesLabel} space${spacesLabel === '1' ? '' : 's'} in connected groups`">
+        <AppCard title="People waiting" :description="`${entries.length} on the list · ${spacesLabel} space${spacesLabel === '1' ? '' : 's'} in connected ${t('group', true, true)}`">
           <template #header-action>
             <div class="flex items-center gap-2">
               <span class="text-xs text-gray-400 hidden sm:inline">Order by</span>
@@ -369,14 +371,14 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
                   <p class="text-[11px] text-gray-400 truncate">
                     {{ e.person?.email || e.person?.phone || '—' }}
                     <span class="text-gray-300"> · </span>Age {{ age(e.person?.dob) }}
-                    <span class="text-gray-300"> · </span>{{ personEnrolled[e.person_id] ?? 0 }} class{{ (personEnrolled[e.person_id] ?? 0) === 1 ? '' : 'es' }}
+                    <span class="text-gray-300"> · </span>{{ personEnrolled[e.person_id] ?? 0 }} {{ (personEnrolled[e.person_id] ?? 0) === 1 ? t('group', false, true) : t('group', true, true) }}
                     <span class="text-gray-300"> · </span>Added {{ fmtDate(e.created_at) }}
                   </p>
                 </div>
                 <!-- enrol into a connected group with space → off the waitlist -->
                 <Button v-if="enrolOptions.length" label="Enrol" icon="pi pi-sign-in" size="small" outlined severity="success"
                   class="shrink-0" :pt="{ label: { class: 'hidden lg:inline' } }" @click="enrolEntry = e"
-                  v-tooltip.top="'Enrol into a connected group with space (removes them from the waitlist)'" />
+                  v-tooltip.top="`Enrol into a connected ${t('group', false, true)} with space (removes them from the waitlist)`" />
                 <!-- priority mode: priority picker -->
                 <Select v-if="(selected.order_mode || 'custom') === 'priority'" :modelValue="e.priority ?? 2" :options="wl.WAITLIST_PRIORITIES" optionLabel="label" optionValue="value"
                   size="small" class="w-24 sm:w-28 shrink-0" @update:modelValue="p => setPriority(e, p)" />
@@ -397,7 +399,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
     <!-- Enrol-from-waitlist dialog: pick a connected group with space -->
     <Dialog :visible="!!enrolEntry" modal :closable="true" :header="`Enrol ${enrolEntry ? personName(enrolEntry) : ''}`"
       :style="{ width: '95vw', maxWidth: '420px' }" @update:visible="v => { if (!v) enrolEntry = null }">
-      <p class="text-sm text-gray-500 mb-3">Choose a connected group with space. This enrols them into the class and removes them from the waitlist.</p>
+      <p class="text-sm text-gray-500 mb-3">Choose a connected {{ t('group', false, true) }} with space. This enrols them into the {{ t('group', false, true) }} and removes them from the waitlist.</p>
       <div class="space-y-2">
         <button v-for="g in connectedGroupsWithSpace" :key="g.id" type="button"
           class="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 text-left transition-colors"
@@ -405,7 +407,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
           <span class="text-sm text-gray-800 truncate">{{ g.name }}</span>
           <span class="text-xs text-gray-500 shrink-0">{{ g.count }}<span v-if="g.capacity != null">/{{ g.capacity }}</span> · <span class="text-emerald-600 font-medium">Enrol here</span></span>
         </button>
-        <p v-if="!connectedGroupsWithSpace.length" class="text-sm text-gray-400">No connected groups have space right now.</p>
+        <p v-if="!connectedGroupsWithSpace.length" class="text-sm text-gray-400">No connected {{ t('group', true, true) }} have space right now.</p>
       </div>
     </Dialog>
     <Toast />

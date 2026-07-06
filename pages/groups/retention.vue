@@ -10,6 +10,8 @@ import { STATUS_META, type RetentionData, type RetentionStatus, type RetentionPe
 const rr = useRetention()
 const gc = useGroupCodes()
 const { orgReady } = useOrg()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 const loading = ref(true)
 const data = ref<RetentionData>({ terms: [], codes: [], memberTerms: {}, info: {}, outstanding: {} })
@@ -70,31 +72,31 @@ function copyEmails() {
     <!-- header -->
     <div>
       <div class="flex items-center gap-2 text-xs text-gray-400 mb-1">
-        <NuxtLink to="/groups" class="hover:text-primary">Classes</NuxtLink>
+        <NuxtLink to="/groups" class="hover:text-primary">{{ t('group', true) }}</NuxtLink>
         <i class="pi pi-angle-right text-[10px]" />
         <span>Retention</span>
       </div>
       <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Retention report</h1>
-      <p class="text-xs sm:text-sm text-gray-500 mt-0.5">Track who carried over, returned, joined and lapsed between two terms.</p>
+      <p class="text-xs sm:text-sm text-gray-500 mt-0.5">Track who carried over, returned, joined and lapsed between two {{ t('term', true, true) }}.</p>
     </div>
 
     <!-- compare controls -->
     <div class="card p-3 sm:p-4">
       <div class="flex flex-col lg:flex-row lg:items-end gap-3">
         <div class="flex-1">
-          <label class="text-xs font-bold uppercase tracking-wide text-gray-400 mb-1.5 block">From term</label>
+          <label class="text-xs font-bold uppercase tracking-wide text-gray-400 mb-1.5 block">From {{ t('term', false, true) }}</label>
           <div class="flex gap-2">
             <Select v-model="termAId" :options="termOptions" optionLabel="label" optionValue="value" class="flex-1" />
-            <MultiSelect v-model="filterA" :options="codeOptions" optionLabel="label" optionValue="value" placeholder="All classes"
+            <MultiSelect v-model="filterA" :options="codeOptions" optionLabel="label" optionValue="value" :placeholder="`All ${t('group', true, true)}`"
               display="chip" :maxSelectedLabels="1" :showToggleAll="false" filter class="w-40" />
           </div>
         </div>
         <div class="hidden lg:flex items-center justify-center pb-2 text-gray-300"><i class="pi pi-arrow-right" /></div>
         <div class="flex-1">
-          <label class="text-xs font-bold uppercase tracking-wide text-gray-400 mb-1.5 block">To term</label>
+          <label class="text-xs font-bold uppercase tracking-wide text-gray-400 mb-1.5 block">To {{ t('term', false, true) }}</label>
           <div class="flex gap-2">
             <Select v-model="termBId" :options="termOptions" optionLabel="label" optionValue="value" class="flex-1" />
-            <MultiSelect v-model="filterB" :options="codeOptions" optionLabel="label" optionValue="value" placeholder="All classes"
+            <MultiSelect v-model="filterB" :options="codeOptions" optionLabel="label" optionValue="value" :placeholder="`All ${t('group', true, true)}`"
               display="chip" :maxSelectedLabels="1" :showToggleAll="false" filter class="w-40" />
           </div>
         </div>
@@ -107,8 +109,8 @@ function copyEmails() {
 
     <div v-else-if="!data.terms.length || (termAId === termBId)" class="card p-12 text-center">
       <i class="pi pi-chart-line text-3xl text-gray-300 mb-3 block" />
-      <p class="text-sm font-medium text-gray-700">{{ !data.terms.length ? 'No terms set up yet' : 'Pick two different terms to compare' }}</p>
-      <p class="text-xs text-gray-400 mt-1">{{ !data.terms.length ? 'Create terms in Settings → Terms & memberships.' : 'Choose a “from” and a “to” term above.' }}</p>
+      <p class="text-sm font-medium text-gray-700">{{ !data.terms.length ? `No ${t('term', true, true)} set up yet` : `Pick two different ${t('term', true, true)} to compare` }}</p>
+      <p class="text-xs text-gray-400 mt-1">{{ !data.terms.length ? `Create ${t('term', true, true)} in Settings → Terms & memberships.` : `Choose a “from” and a “to” ${t('term', false, true)} above.` }}</p>
     </div>
 
     <template v-else>

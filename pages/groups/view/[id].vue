@@ -14,13 +14,15 @@ const route = useRoute()
 const toast = useToast()
 const views = useGroupViews()
 const gc = useGroupCodes()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 const view = ref<GroupView | null>(null)
 const loading = ref(true)
 const editing = ref(false)
 
 // Control bar owns the title (Classes › {view name}); no in-page <h1>.
-useBreadcrumbs([{ label: 'Classes', to: '/groups' }, { label: () => view.value?.name || 'View' }])
+useBreadcrumbs([{ label: () => t('group', true), to: '/groups' }, { label: () => view.value?.name || 'View' }])
 
 // Live-editable config — bound directly to <ClassesBoard>, so toggling a column
 // or tab re-renders the board immediately (no reload). Autosaved on change.
@@ -115,9 +117,9 @@ watch(() => route.params.id, load, { immediate: true })
           <span class="text-xs text-gray-400">Name is always shown.</span>
         </div>
         <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-medium text-gray-600">Tabs (codes)</label>
+          <label class="text-xs font-medium text-gray-600">Tabs ({{ t('code', true, true) }})</label>
           <CodeTabsSelect v-model="codeIds" :codes="allCodes" />
-          <span class="text-xs text-gray-400">Pick any codes — choosing a parent selects &amp; locks its children. Empty = all top-level codes.</span>
+          <span class="text-xs text-gray-400">Pick any {{ t('code', true, true) }} — choosing a parent selects &amp; locks its children. Empty = all top-level {{ t('code', true, true) }}.</span>
         </div>
       </div>
       <template #footer>

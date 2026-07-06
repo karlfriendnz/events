@@ -8,7 +8,7 @@
           <h1 class="text-lg sm:text-2xl font-semibold text-surface-900">Team allocation</h1>
         </div>
         <p class="text-xs sm:text-sm text-surface-500 mt-0.5">
-          Drag people from a source group into the destination groups. Each move is saved instantly.
+          Drag people from a source {{ t('group', false, true) }} into the destination {{ t('group', true, true) }}. Each move is saved instantly.
         </p>
       </div>
     </div>
@@ -17,19 +17,19 @@
     <div class="card p-3 sm:p-4 mb-4">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <div class="flex flex-col gap-1">
-          <label class="text-xs font-bold uppercase tracking-wide text-gray-500">Term</label>
+          <label class="text-xs font-bold uppercase tracking-wide text-gray-500">{{ t('term') }}</label>
           <Select v-model="term" :options="termOptions" optionLabel="label" optionValue="value" size="small" class="w-full" />
         </div>
         <div class="flex flex-col gap-1">
-          <label class="text-xs font-bold uppercase tracking-wide text-gray-500">Source group</label>
+          <label class="text-xs font-bold uppercase tracking-wide text-gray-500">Source {{ t('group', false, true) }}</label>
           <Select v-model="sourceGroupId" :options="sourceOptions" optionLabel="label" optionValue="value"
-            optionGroupLabel="label" optionGroupChildren="items" placeholder="Choose a group…" size="small"
+            optionGroupLabel="label" optionGroupChildren="items" :placeholder="`Choose a ${t('group', false, true)}…`" size="small"
             class="w-full" showClear filter />
         </div>
         <div class="flex flex-col gap-1">
-          <label class="text-xs font-bold uppercase tracking-wide text-gray-500">Destination codes</label>
+          <label class="text-xs font-bold uppercase tracking-wide text-gray-500">Destination {{ t('code', true, true) }}</label>
           <MultiSelect v-model="destCodeIds" :options="codeOptions" optionLabel="label" optionValue="value"
-            placeholder="Choose codes…" size="small" class="w-full" display="chip" filter />
+            :placeholder="`Choose ${t('code', true, true)}…`" size="small" class="w-full" display="chip" filter />
         </div>
         <div class="flex flex-col gap-1">
           <label class="text-xs font-bold uppercase tracking-wide text-gray-500">Search</label>
@@ -64,16 +64,16 @@
       <!-- Source pool -->
       <div class="card p-0 overflow-hidden self-start">
         <div class="bg-primary text-white px-4 py-2.5 flex items-center justify-between">
-          <span class="text-sm font-semibold truncate">{{ sourceGroup?.name || 'Source group' }}</span>
+          <span class="text-sm font-semibold truncate">{{ sourceGroup?.name || `Source ${t('group', false, true)}` }}</span>
           <span class="text-xs opacity-80 tabular-nums shrink-0">{{ visibleSourcePeople.length }}</span>
         </div>
         <div class="p-2 min-h-[120px] max-h-[70vh] overflow-y-auto"
           :class="dragOver === sourceGroupId ? 'bg-primary/5' : ''"
           @dragover.prevent="sourceGroupId && (dragOver = sourceGroupId)" @dragleave="dragOver = '__none__'"
           @drop.prevent="sourceGroupId && onDrop(sourceGroupId)">
-          <p v-if="!sourceGroupId" class="text-xs text-gray-400 text-center py-8">Pick a source group to see its people.</p>
+          <p v-if="!sourceGroupId" class="text-xs text-gray-400 text-center py-8">Pick a source {{ t('group', false, true) }} to see its people.</p>
           <p v-else-if="!visibleSourcePeople.length" class="text-xs text-gray-400 text-center py-8">
-            {{ (peopleByGroup[sourceGroupId] || []).length ? 'No matches.' : 'This group has no people.' }}
+            {{ (peopleByGroup[sourceGroupId] || []).length ? 'No matches.' : `This ${t('group', false, true)} has no people.` }}
           </p>
           <div v-for="p in visibleSourcePeople" :key="p.id" draggable="true"
             @dragstart="onDragStart($event, p, sourceGroupId!)"
@@ -94,7 +94,7 @@
       <!-- Destination groups grouped by code -->
       <div>
         <p v-if="!destCodeIds.length" class="card p-8 text-center text-sm text-gray-400">
-          Choose one or more destination codes to show their groups.
+          Choose one or more destination {{ t('code', true, true) }} to show their {{ t('group', true, true) }}.
         </p>
         <div v-for="grp in destByCode" :key="grp.codeId" class="mb-4">
           <div class="flex items-center gap-2 mb-2">
@@ -146,6 +146,8 @@ const toast = useToast()
 const tm = useTermsMemberships()
 const codes = useGroupCodes()
 const allocator = useTeamAllocator()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 interface AllocGroup {
   id: string
@@ -174,8 +176,8 @@ const highlightDuplicates = ref(false)
 const peopleByGroup = reactive<Record<string, AllocPerson[]>>({})
 
 const termOptions = computed(() => [
-  { label: 'All terms', value: 'all' },
-  ...terms.value.map(t => ({ label: t.name, value: t.id })),
+  { label: `All ${t('term', true, true)}`, value: 'all' },
+  ...terms.value.map(tr => ({ label: tr.name, value: tr.id })),
 ])
 
 // A group belongs to the selected term (via its code chain, else its own term).
@@ -196,7 +198,7 @@ const sourceOptions = computed(() => {
     const gs = byCode[c.id]
     if (gs?.length) out.push({ label: c.name, items: sortGroups(gs).map(g => ({ label: g.name, value: g.id })) })
   }
-  if (byCode['__none__']?.length) out.push({ label: 'No code', items: sortGroups(byCode['__none__']).map(g => ({ label: g.name, value: g.id })) })
+  if (byCode['__none__']?.length) out.push({ label: `No ${t('code', false, true)}`, items: sortGroups(byCode['__none__']).map(g => ({ label: g.name, value: g.id })) })
   return out
 })
 
@@ -379,7 +381,7 @@ async function load() {
   groupRows.value = (gRows ?? []) as AllocGroup[]
   // Default to the active term (spanning today) if it has groups, else all.
   const today = new Date().toISOString().slice(0, 10)
-  const active = terms.value.find(t => (t.start_date ?? '') <= today && (t.end_date ?? '') >= today)
+  const active = terms.value.find(tr => (tr.start_date ?? '') <= today && (tr.end_date ?? '') >= today)
   term.value = active && groupRows.value.some(g => codes.effectiveTermId(g, codesById.value) === active.id) ? active.id : 'all'
 }
 

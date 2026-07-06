@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FriendlyManager Rebuild — Progress Report</title>
+<style>
+  :root {
+    --ground: #F7F8FB;
+    --surface: #FFFFFF;
+    --ink: #1B1E2E;
+    --muted: #5A6072;
+    --faint: #8B90A3;
+    --line: #E3E6EF;
+    --accent: #1E2157;
+    --accent-soft: #EDEEF7;
+    --built: #2E7D5B;
+    --built-soft: #E5F2EC;
+    --partial: #B57E10;
+    --partial-soft: #FBF2DD;
+    --missing: #B3423A;
+    --missing-soft: #F9E9E7;
+    --track: #E9EBF3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #14161F;
+      --surface: #1C1F2B;
+      --ink: #E8EAF2;
+      --muted: #A6ABC0;
+      --faint: #7B8095;
+      --line: #2C3040;
+      --accent: #9BA3E8;
+      --accent-soft: #262A44;
+      --built: #58B389;
+      --built-soft: #1E3229;
+      --partial: #D9A83C;
+      --partial-soft: #38301A;
+      --missing: #D9776F;
+      --missing-soft: #3A2422;
+      --track: #2A2E3D;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #14161F; --surface: #1C1F2B; --ink: #E8EAF2; --muted: #A6ABC0; --faint: #7B8095;
+    --line: #2C3040; --accent: #9BA3E8; --accent-soft: #262A44; --built: #58B389; --built-soft: #1E3229;
+    --partial: #D9A83C; --partial-soft: #38301A; --missing: #D9776F; --missing-soft: #3A2422; --track: #2A2E3D;
+  }
+  :root[data-theme="light"] {
+    --ground: #F7F8FB; --surface: #FFFFFF; --ink: #1B1E2E; --muted: #5A6072; --faint: #8B90A3;
+    --line: #E3E6EF; --accent: #1E2157; --accent-soft: #EDEEF7; --built: #2E7D5B; --built-soft: #E5F2EC;
+    --partial: #B57E10; --partial-soft: #FBF2DD; --missing: #B3423A; --missing-soft: #F9E9E7; --track: #E9EBF3;
+  }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font: 15px/1.6 "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 40px 20px 80px;
+  }
+  .wrap { max-width: 1300px; margin: 0 auto; }
+  h1, h2, h3 { text-wrap: balance; line-height: 1.25; }
+  h1 { font-size: 27px; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 4px; }
+  h2 { font-size: 19px; font-weight: 700; margin: 44px 0 14px; }
+  h3 { font-size: 15px; font-weight: 650; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin: 0; }
+  .stamp { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px 22px; }
+  .num { font-variant-numeric: tabular-nums; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.92em; }
+
+  /* Overall hero bar */
+  .hero { display: flex; flex-direction: column; gap: 10px; margin-top: 22px; }
+  .hero .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .hero .pct { font-size: 34px; font-weight: 700; color: var(--accent); }
+  .bar { height: 10px; border-radius: 5px; background: var(--track); overflow: hidden; }
+  .bar > span { display: block; height: 100%; border-radius: 5px; background: var(--accent); }
+  .hero .bar { height: 14px; border-radius: 7px; }
+
+  /* Area progress list */
+  .areas { display: flex; flex-direction: column; gap: 0; margin-top: 8px; }
+  .area { display: grid; grid-template-columns: 220px 1fr 52px; gap: 14px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .area:last-child { border-bottom: 0; }
+  .area .name { font-weight: 600; font-size: 14px; }
+  .area .name small { display: block; font-weight: 400; color: var(--faint); font-size: 12px; }
+  .area .pct { text-align: right; color: var(--muted); font-weight: 600; }
+  .b100 > span { background: var(--built); }
+  .b70 > span { background: var(--accent); }
+  .b40 > span { background: var(--partial); }
+  .b10 > span { background: var(--missing); }
+  .area { grid-template-columns: 240px 1fr 52px 190px; }
+  .area.area-h { padding: 2px 0 6px; border-bottom: 1px solid var(--line); }
+  .so-cluster { display: grid; grid-template-columns: repeat(5, 1fr); justify-items: center; align-items: center; }
+  .so-h { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); }
+  .so { font-size: 16px; color: var(--faint); }
+  .so.signed { color: var(--built); }
+  @media (max-width: 640px) { .area { grid-template-columns: 1fr 60px; } .area .bar, .area .so-cluster { grid-column: 1 / -1; justify-items: start; gap: 10px; display: flex; } }
+
+  .chip { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+  .chip.built { background: var(--built-soft); color: var(--built); }
+  .chip.partial { background: var(--partial-soft); color: var(--partial); }
+  .chip.missing { background: var(--missing-soft); color: var(--missing); }
+  .chip.star { background: var(--accent-soft); color: var(--accent); }
+  .chip.newchip { background: var(--accent); color: #fff; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.aligned { table-layout: fixed; min-width: 720px; }
+  table.aligned col.c-legacy { width: 26%; }
+  table.aligned col.c-new { width: 21%; }
+  table.aligned col.c-status { width: 110px; }
+  table.aligned col.c-half { width: 25%; }
+  table.aligned col.c-sign { width: 58px; }
+  th.sign { text-align: center; padding: 8px 4px; }
+  td.sign { text-align: center; font-size: 17px; color: var(--faint); }
+  ul.cell { margin: 0; padding-left: 16px; }
+  ul.cell li { margin: 2px 0; }
+  td.todo ul.cell li::marker { color: var(--partial); }
+  table.aligned td, table.aligned th { overflow-wrap: break-word; }
+  .scroll { overflow-x: auto; }
+  details.acc { padding: 0; }
+  .acc summary { display: flex; align-items: center; gap: 12px; padding: 16px 22px; cursor: pointer; list-style: none; user-select: none; }
+  .acc summary::-webkit-details-marker { display: none; }
+  .acc summary:hover { background: var(--accent-soft); border-radius: 10px; }
+  .acc[open] summary:hover { border-radius: 10px 10px 0 0; }
+  .acc-chev { color: var(--faint); font-size: 13px; transition: transform 0.15s; }
+  .acc[open] .acc-chev { transform: rotate(90deg); }
+  .acc-body { padding: 0 22px 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+  th { text-align: left; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--faint); padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: 0; }
+  td.item { font-weight: 600; }
+  td.note { color: var(--muted); }
+
+  .newgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 14px; }
+  .newgrid .card { padding: 16px 18px; }
+  .newgrid ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); }
+  .newgrid li { margin: 3px 0; }
+  .newgrid li b { color: var(--ink); font-weight: 600; }
+
+  ol.gaps { padding-left: 22px; color: var(--muted); }
+  ol.gaps li { margin: 6px 0; }
+  ol.gaps b { color: var(--ink); }
+  .foot { margin-top: 40px; color: var(--faint); font-size: 12.5px; border-top: 1px solid var(--line); padding-top: 14px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; font-size: 12.5px; color: var(--muted); align-items: center; }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <p class="stamp">FriendlyManager Rebuild · Status Report · 7 July 2026</p>
+  <h1>New build vs legacy platform</h1>
+  <p class="sub">The fm-events rebuild measured against the full legacy platform audit (12 demo modules + the <code>/old</code> codebase). Percentages are weighted judgment estimates of functional coverage, not line counts.</p>
+
+  <div class="hero card">
+    <div class="row">
+      <h3>Overall rebuild progress</h3>
+      <span class="pct num">≈ 56%</span>
+    </div>
+    <div class="bar"><span style="width:56%"></span></div>
+    <p class="sub" id="new-count" style="margin-top:6px">Includes <b>8 features</b> the legacy platform never had — marked <span class="chip newchip">NEW</span> in the tables below.</p>
+  </div>
+
+  <h2>Progress by area</h2>
+  <div class="card areas">
+    <div class="area area-h"><div class="name"></div><div></div><div></div><div class="so-cluster"><span class="so-h" title="Karl">Karl</span><span class="so-h" title="Kate">Kate</span><span class="so-h" title="Rodd">Rodd</span><span class="so-h" title="FM">FM</span><span class="so-h" title="HC">HC</span></div></div>
+    <div class="area"><div class="name">Events</div><div class="bar b100"><span style="width:90%"></span></div><div class="pct num">90%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Venues & Bookings</div><div class="bar b100"><span style="width:90%"></span></div><div class="pct num">90%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Squads / Classes</div><div class="bar b70"><span style="width:78%"></span></div><div class="pct num">78%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Class fees & Xero</div><div class="bar b70"><span style="width:70%"></span></div><div class="pct num">70%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Settings & platform</div><div class="bar b70"><span style="width:61%"></span></div><div class="pct num">61%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Dashboard</div><div class="bar b70"><span style="width:54%"></span></div><div class="pct num">54%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Vouchers & Sponsors</div><div class="bar b70"><span style="width:50%"></span></div><div class="pct num">50%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">People</div><div class="bar b40"><span style="width:46%"></span></div><div class="pct num">46%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Attendance</div><div class="bar b40"><span style="width:46%"></span></div><div class="pct num">46%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Registration (public)</div><div class="bar b40"><span style="width:25%"></span></div><div class="pct num">25%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Payments & invoicing</div><div class="bar b10"><span style="width:12%"></span></div><div class="pct num">12%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Mailer</div><div class="bar b10"><span style="width:0%"></span></div><div class="pct num">0%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Awards</div><div class="bar b10"><span style="width:0%"></span></div><div class="pct num">0%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Resources</div><div class="bar b10"><span style="width:0%"></span></div><div class="pct num">0%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Uniforms & Merchandise</div><div class="bar b10"><span style="width:0%"></span></div><div class="pct num">0%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Holiday Programmes</div><div class="bar b10"><span style="width:0%"></span></div><div class="pct num">0%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Competitions</div><div class="bar b10"><span style="width:0%"></span></div><div class="pct num">0%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+  </div>
+
+
+  <h2 id="per-page">Per-page / per-function breakdown</h2>
+  <p class="sub">Every legacy page and function — plus the net-new features (<span class="chip newchip">NEW</span>) legacy never had. What the new build has done, and what still needs doing. <b>Nothing reaches 100% until Karl, Kate, Rodd, FM and HC have all signed it off</b> — a finished build shows 90%; each sign-off releases the last 2%.</p>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Dashboard</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:54%"></span></div><span class="num" style="color:var(--muted);font-weight:600">54%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Members breakdown widget</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>/dashboard stat tiles + custom chart widgets (any field, pie/bar)</li><li>Configurable per-user grid + per-role default templates</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Finance / outstanding widget</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Outstanding-fees total + weekly trend widget</li><li>Requires the billing ledger first</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Upcoming events widget</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>/dashboard upcoming events card</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Term-transfer banner</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Rollover nudge banner — lineage-aware, per-sequence, terminology-driven</li><li>3-day snooze; links into the term wizard</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Email-error banner</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Bounce tracking on the send pipeline (arrives with Mailer)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">People</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:46%"></span></div><span class="num" style="color:var(--muted);font-weight:600">46%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Directory</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>/people with person-type tabs + per-tab column sets (incl. custom fields)</li><li>Search, bulk set-type/delete, CSV-friendly columns</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">New person</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>Add-person dialog on /people and inside groups (incl. inline new-person)</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Person profile</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Live-form profile with designed per-type layouts (WYSIWYG builder)</li><li>Club-configurable profile dashboard w/ notes + activity</li><li>Multi-role people; photo avatar</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Contacts / guardians</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Contacts & Circles: families incl. split families</li><li>Act-on-behalf booking/registration</li><li>Per-relationship comms categories; primary/emergency types</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Entity records (Team/Business/School/Family)</td><td><span class="chip newchip">NEW</span></td><td class="note"><ul class="cell"><li>/organisations directory + entity records with people rosters</li><li>Entity types with their own fields + member slots</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Person notes with channels</td><td><span class="chip newchip">NEW</span></td><td class="note"><ul class="cell"><li>Notes on any person, scoped to context (group/waitlist/term)</li><li>Interaction channel (in person/phone/email/SMS), hover preview</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Profile: Fees tab (ledger)</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Per-person ledger: invoices, payments, credits, refunds</li><li>Blocked on the billing engine</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Profile: Awards / Resources / Uniforms tabs</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Build those modules, then surface their profile tabs</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Profile: Membership history</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>Membership tab: current groups + per-group role editing</li></ul></td><td class="note todo"><ul class="cell"><li>Full class x term history view (data already on memberships via term_id)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">People reports</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Membership-length report</li><li>Duplicate-name detection</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Logins / archive / restrict</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Login-invitation queue (Email New Logins)</li><li>Archive + restrict-registrations states</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Squads / Classes</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:78%"></span></div><span class="num" style="color:var(--muted);font-weight:600">78%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Groups landing</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Classes board: programme tabs, term filter, live columns (fill, fees, signup)</li><li>Saved views + views manager; week-view links per programme</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Week View timetable</td><td><span class="chip newchip">NEW</span></td><td class="note"><ul class="cell"><li>Time x weekday grid of every class, density-adaptive summaries, day view</li><li>Colour-coded by programme, capacity chips, click-through modals</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Class Finder</td><td><span class="chip newchip">NEW</span></td><td class="note"><ul class="cell"><li>Find-a-class drawer from any screen: age/day/time/programme/space matching</li><li>Ranked results with add-person deep links</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">New squad</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>New group dialog + full group editor (age, gender restriction, capacity, image w/ crop)</li></ul></td><td class="note todo"><ul class="cell"><li>Enforce members-per-coach ratio (legacy playersPerStaff)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Terms admin</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>/settings/memberships: terms w/ sign-up open/close windows</li><li>Term sets (independent sequences) connected to sports</li></ul></td><td class="note todo"><ul class="cell"><li>Date-overlap check within a set (legacy's one hard rule)</li><li>Member-guarded delete + fee/membership cascade, enforced server-side</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Codes</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Drag hierarchy manager + per-code settings</li><li>Member types, staff roles w/ lineage, role/position minimums, code-level staff</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Waitlist</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Shared queues across equivalent classes</li><li>Ordering modes (custom/FIFO/priority), enrol-from-waitlist, term rollover, CSV</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Squad Allocation</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>Drag allocation board w/ capacity colouring, duplicates highlight, mobile fallback</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Term Transfer</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Batch rollover screen + 7-step Term set-up wizard</li><li>Programme management review w/ vacancy search; per-person staff carry</li><li>Per-programme fee confirmation w/ change tracking + reset; training-event generation; discontinued classes</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Squad detail</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Group page: hero, session times, fees, sub-group boards, positions, attendance matrix</li><li>Public registration page + QR; waitlist-aware add-person</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Squad Announcement</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Message-a-class email (needs Mailer; wizard already stubs it)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Members / Squads reports</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>Classes board columns + saved views + people-tab exports</li></ul></td><td class="note todo"><ul class="cell"><li>Dedicated members/squads report views</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Retention Report</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>/groups/retention: A-to-B term comparison, segments, CSV, copy-emails</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Events</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:90%"></span></div><span class="num" style="color:var(--muted);font-weight:600">90%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Calendar + categories</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>/events list + calendar toggle, search, filters</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">New event</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Basic wizard w/ public form toggle, advanced wizard, bulk multi-create</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Event detail</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Sessions, multi-subject forms, tickets, discounts, automation, reporting, attendance check-in</li><li>Staff register-on-behalf + public links</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Multi-subject / entity registration</td><td><span class="chip newchip">NEW</span></td><td class="note"><ul class="cell"><li>Forms register people AND entities (Team/Company/School) with per-subject fields, counts, presets</li><li>Step-wizard form style; per-subject session choice</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Training <-> class times</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>One-click training-event series from weekly schedules, rosters pre-invited</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Venues & Bookings</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:90%"></span></div><span class="num" style="color:var(--muted);font-weight:600">90%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Venues + lanes</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Bookables tree w/ configurations (halves/quarters), modes, items, images</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Access control</td><td><span class="chip newchip">NEW</span></td><td class="note"><ul class="cell"><li>Doors, light zones, access codes, unlock windows, per-booking schedules</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Staff (private lessons)</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Coach bookables w/ what-I-offer editor + coach wizard</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Book flow</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>3 flows: wizard, single-screen scheduler, item rental</li><li>Public /book w/ auth chooser (guest/OTP/password/app) + act-on-behalf</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Guided setup wizards</td><td><span class="chip newchip">NEW</span></td><td class="note"><ul class="cell"><li>Sport, coach, item, and whole-club setup wizards seeding venues/activities/modes end-to-end</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Registration (public)</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:25%"></span></div><span class="num" style="color:var(--muted);font-weight:600">25%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Register wizard</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>Public /r pages for events, classes, programme-connected forms</li><li>Multi-subject forms, fee-option choice, live class spaces</li><li>Waitlist-aware submission; answers materialise onto profiles</li></ul></td><td class="note todo"><ul class="cell"><li>Payment processing at submit</li><li>Customer confirmation email</li><li>Re-register / EOI flows</li><li>Hold-space pending memberships</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Merchandise (shop form)</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Shop form type — needs Uniforms/merch + billing</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Class fees & Xero</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:70%"></span></div><span class="num" style="color:var(--muted);font-weight:600">70%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Term Fees</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Group fee options w/ line items + Xero codes, 5 fee types, due date + deposit</li><li>Bulk add-to-many-classes; free classes fully supported</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Xero</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>OAuth connect w/ tenant safety, bank/tax/account mapping, tracking categories</li><li>Platform-wide account picker (XeroAccountInput)</li></ul></td><td class="note todo"><ul class="cell"><li>Invoice/payment two-way sync once the ledger exists (plumbing ready)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Payments & invoicing</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:12%"></span></div><span class="num" style="color:var(--muted);font-weight:600">12%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Invoices / Add Fee / Add Credit</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>The billing engine: invoice + credit-note model</li><li>Payments w/ methods; credit auto-allocation</li><li>Pro-rata, prompt discounts, recurring, direct debit (Ezidebit), Stripe/Windcave</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Transactions</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>/finances reporting view</li></ul></td><td class="note todo"><ul class="cell"><li>Real transaction ledger once the engine lands</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Money reports</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Outstanding / Overdue / Missing / Recurring reports off the ledger</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Email Statements</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Statement generation + send (needs ledger + Mailer)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Attendance</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:46%"></span></div><span class="num" style="color:var(--muted);font-weight:600">46%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Landing + take attendance</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>/attendance 15-day view + per-event attendance tab</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Generate from class-times</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>Training-event generation from group page + term wizard (idempotent)</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Attendance reports</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>Per-group people x session matrix w/ filter + CSV export</li></ul></td><td class="note todo"><ul class="cell"><li>Club-wide attendance + non-attendance reports</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Coach Hours</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Staff hours from sessions (payroll export)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Visitors</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Visitor / drop-in logging</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Mailer</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:0%"></span></div><span class="num" style="color:var(--muted);font-weight:600">0%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Bulk composer</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>3-step composer: recipients by class/custom/subscribers</li><li>Attachments, reply-to, CC myself</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">History</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Send history + delivery status</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Templates</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Club email templates in Settings</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Awards</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:0%"></span></div><span class="num" style="color:var(--muted);font-weight:600">0%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Awards module</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Badge definitions + groups, sequential progression, assign, report, profile tab</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Resources</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:0%"></span></div><span class="num" style="color:var(--muted);font-weight:600">0%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Resources module</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Categorised document library w/ member visibility</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Uniforms & Merchandise</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:0%"></span></div><span class="num" style="color:var(--muted);font-weight:600">0%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Uniforms / merchandise module</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Inventory + variants + stock</li><li>Merch sales via shop form; issue/return per term</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Holiday Programmes</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:0%"></span></div><span class="num" style="color:var(--muted);font-weight:600">0%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Programmes module</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Date-ranged bookable programmes w/ own windows + discounts</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Vouchers & Sponsors</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:50%"></span></div><span class="num" style="color:var(--muted);font-weight:600">50%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Vouchers</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>Booking discount rules engine; event discount codes</li></ul></td><td class="note todo"><ul class="cell"><li>Club-wide voucher codes redeemable at registration</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Sponsors</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>Sponsor strip in the form designer</li></ul></td><td class="note todo"><ul class="cell"><li>Club-level sponsor catalogue in Settings</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Competitions</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:0%"></span></div><span class="num" style="color:var(--muted);font-weight:600">0%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Full competitions engine</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Divisions, pools, rounds, games, officials</li><li>Per-sport scoring + individual sessions/judging</li><li>Public score entry — largest net-new build (~30 legacy tables)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Settings & platform</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:61%"></span></div><span class="num" style="color:var(--muted);font-weight:600">61%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Club info / branding</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>Name, logo, icon, brand colours w/ preview, dashboard banner, currency/locale, season</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Module toggles</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>/settings/modules per-club switches w/ live nav filtering</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Terminology</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Club renaming w/ NSO inheritance + sport-scoped vocabularies (per-sport sets)</li><li>Wired app-wide (~250 strings: groups, people, events, dashboard, settings)</li></ul></td><td class="note todo"><ul class="cell"><li>Nav labels (layout file)</li><li>Hardcoded Classes-breadcrumb decision</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Custom fields</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Types & fields engine: multi-target defs, person/entity types, NSO locks, designed layouts, core-fields policy</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Registration forms & embeds</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>Forms library + designer + connections to programmes; public form pages</li></ul></td><td class="note todo"><ul class="cell"><li>Public site embeds: calendar, register, book widgets</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Financial settings</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>Payment options editor (methods + defaults)</li></ul></td><td class="note todo"><ul class="cell"><li>Stripe / Ezidebit / Windcave provider config once billing lands</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Email templates</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Template editor (with Mailer)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Integrations</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>Xero foundation</li></ul></td><td class="note todo"><ul class="cell"><li>Stripe, Ezidebit, SparkPost, HubSpot, Kamar, NSO provider syncs</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Permission enforcement</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>Permission grid + core templates + scoped per-resource roles</li><li>Route read-gates middleware + Can component</li></ul></td><td class="note todo"><ul class="cell"><li>Per-button Can sweep across pages</li><li>Nav hiding by permission</li><li>Switch Role</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Tenant security (RLS)</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>org_id scoping app-wide; org_members has RLS</li></ul></td><td class="note todo"><ul class="cell"><li>RLS policies across ~87 tables before production</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">FM super-admin</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>/admin console, master catalogues (brands/club types/sports), core permission templates</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Audit log</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Surface change history (legacy audit-logged every write)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Help</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Structured articles (explanation + step tutorials) w/ terminology tokens</li><li>Module + permission-gated visibility; /admin/help authoring; chatbot-ready</li></ul></td><td class="note todo"><ul class="cell"><li>Nav entry for /help (layout owned elsewhere)</li><li>Author remaining articles</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Review & sign-off system</td><td><span class="chip newchip">NEW</span></td><td class="note"><ul class="cell"><li>In-app page review: pinned comments, reviewer sign-offs, cross-page report matrix</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <h2>Still to do — the full list</h2>
+  <p class="sub">Every open item from the tables above, in one place.</p>
+  <div class="newgrid">
+    <div class="card">
+      <h3>Dashboard</h3>
+      <ul>
+        <li><b>Finance / outstanding widget</b> — Outstanding-fees total + weekly trend widget</li>
+        <li><b>Finance / outstanding widget</b> — Requires the billing ledger first</li>
+        <li><b>Email-error banner</b> — Bounce tracking on the send pipeline (arrives with Mailer)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>People</h3>
+      <ul>
+        <li><b>Profile: Fees tab (ledger)</b> — Per-person ledger: invoices, payments, credits, refunds</li>
+        <li><b>Profile: Fees tab (ledger)</b> — Blocked on the billing engine</li>
+        <li><b>Profile: Awards / Resources / Uniforms tabs</b> — Build those modules, then surface their profile tabs</li>
+        <li><b>Profile: Membership history</b> — Full class x term history view (data already on memberships via term_id)</li>
+        <li><b>People reports</b> — Membership-length report</li>
+        <li><b>People reports</b> — Duplicate-name detection</li>
+        <li><b>Logins / archive / restrict</b> — Login-invitation queue (Email New Logins)</li>
+        <li><b>Logins / archive / restrict</b> — Archive + restrict-registrations states</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Squads / Classes</h3>
+      <ul>
+        <li><b>New squad</b> — Enforce members-per-coach ratio (legacy playersPerStaff)</li>
+        <li><b>Terms admin</b> — Date-overlap check within a set (legacy's one hard rule)</li>
+        <li><b>Terms admin</b> — Member-guarded delete + fee/membership cascade, enforced server-side</li>
+        <li><b>Squad Announcement</b> — Message-a-class email (needs Mailer; wizard already stubs it)</li>
+        <li><b>Members / Squads reports</b> — Dedicated members/squads report views</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Registration (public)</h3>
+      <ul>
+        <li><b>Register wizard</b> — Payment processing at submit</li>
+        <li><b>Register wizard</b> — Customer confirmation email</li>
+        <li><b>Register wizard</b> — Re-register / EOI flows</li>
+        <li><b>Register wizard</b> — Hold-space pending memberships</li>
+        <li><b>Merchandise (shop form)</b> — Shop form type — needs Uniforms/merch + billing</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Class fees & Xero</h3>
+      <ul>
+        <li><b>Xero</b> — Invoice/payment two-way sync once the ledger exists (plumbing ready)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Payments & invoicing</h3>
+      <ul>
+        <li><b>Invoices / Add Fee / Add Credit</b> — The billing engine: invoice + credit-note model</li>
+        <li><b>Invoices / Add Fee / Add Credit</b> — Payments w/ methods; credit auto-allocation</li>
+        <li><b>Invoices / Add Fee / Add Credit</b> — Pro-rata, prompt discounts, recurring, direct debit (Ezidebit), Stripe/Windcave</li>
+        <li><b>Transactions</b> — Real transaction ledger once the engine lands</li>
+        <li><b>Money reports</b> — Outstanding / Overdue / Missing / Recurring reports off the ledger</li>
+        <li><b>Email Statements</b> — Statement generation + send (needs ledger + Mailer)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Attendance</h3>
+      <ul>
+        <li><b>Attendance reports</b> — Club-wide attendance + non-attendance reports</li>
+        <li><b>Coach Hours</b> — Staff hours from sessions (payroll export)</li>
+        <li><b>Visitors</b> — Visitor / drop-in logging</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Mailer</h3>
+      <ul>
+        <li><b>Bulk composer</b> — 3-step composer: recipients by class/custom/subscribers</li>
+        <li><b>Bulk composer</b> — Attachments, reply-to, CC myself</li>
+        <li><b>History</b> — Send history + delivery status</li>
+        <li><b>Templates</b> — Club email templates in Settings</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Awards</h3>
+      <ul>
+        <li><b>Awards module</b> — Badge definitions + groups, sequential progression, assign, report, profile tab</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Resources</h3>
+      <ul>
+        <li><b>Resources module</b> — Categorised document library w/ member visibility</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Uniforms & Merchandise</h3>
+      <ul>
+        <li><b>Uniforms / merchandise module</b> — Inventory + variants + stock</li>
+        <li><b>Uniforms / merchandise module</b> — Merch sales via shop form; issue/return per term</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Holiday Programmes</h3>
+      <ul>
+        <li><b>Programmes module</b> — Date-ranged bookable programmes w/ own windows + discounts</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Vouchers & Sponsors</h3>
+      <ul>
+        <li><b>Vouchers</b> — Club-wide voucher codes redeemable at registration</li>
+        <li><b>Sponsors</b> — Club-level sponsor catalogue in Settings</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Competitions</h3>
+      <ul>
+        <li><b>Full competitions engine</b> — Divisions, pools, rounds, games, officials</li>
+        <li><b>Full competitions engine</b> — Per-sport scoring + individual sessions/judging</li>
+        <li><b>Full competitions engine</b> — Public score entry — largest net-new build (~30 legacy tables)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Settings & platform</h3>
+      <ul>
+        <li><b>Terminology</b> — Nav labels (layout file)</li>
+        <li><b>Terminology</b> — Hardcoded Classes-breadcrumb decision</li>
+        <li><b>Registration forms & embeds</b> — Public site embeds: calendar, register, book widgets</li>
+        <li><b>Financial settings</b> — Stripe / Ezidebit / Windcave provider config once billing lands</li>
+        <li><b>Email templates</b> — Template editor (with Mailer)</li>
+        <li><b>Integrations</b> — Stripe, Ezidebit, SparkPost, HubSpot, Kamar, NSO provider syncs</li>
+        <li><b>Permission enforcement</b> — Per-button Can sweep across pages</li>
+        <li><b>Permission enforcement</b> — Nav hiding by permission</li>
+        <li><b>Permission enforcement</b> — Switch Role</li>
+        <li><b>Tenant security (RLS)</b> — RLS policies across ~87 tables before production</li>
+        <li><b>Audit log</b> — Surface change history (legacy audit-logged every write)</li>
+        <li><b>Help</b> — Nav entry for /help (layout owned elsewhere)</li>
+        <li><b>Help</b> — Author remaining articles</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Biggest remaining gaps, ranked</h2>
+  <div class="card">
+    <ol class="gaps">
+      <li><b>Billing &amp; payments engine</b> — invoices, payments, credits, pro-rata, recurring, direct debit, statements, Xero sync (the foundation is ready for it).</li>
+      <li><b>Competitions</b> — untouched; the largest net-new module in the legacy codebase.</li>
+      <li><b>Mailer / communications</b> — nothing built; multiple flows already depend on it.</li>
+      <li><b>RLS / tenant hardening + audit log</b> — required before production.</li>
+      <li><b>Compliance, mobile API, embeds</b> — waivers, vetting, app endpoints, site widgets.</li>
+      <li><b>Term lifecycle guards</b> — adopt legacy's overlap check and member-guarded delete (small, known fix).</li>
+    </ol>
+  </div>
+
+  <p class="foot">Source of truth: <code>PLATFORM_AUDIT.md</code> in the fm-events repo (Part 1 — legacy module inventory · Part 2 — legacy codebase architecture · Part 3 — this status). Updated 7 July 2026 on branch <code>feat/org-hierarchy</code>.</p>
+</div>
+
+</body>
+</html>

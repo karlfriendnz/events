@@ -167,8 +167,9 @@ function inviteeSeverity(s: string) {
     EXCLUDED: 'danger', INTERESTED: 'warn', HOLD: 'warn', WAITLISTED: 'secondary'
   }[s] ?? 'secondary'
 }
+const orgCurrency = ref('NZD')
 function formatCurrency(n: number) {
-  return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(n)
+  return new Intl.NumberFormat('en-NZ', { style: 'currency', currency: orgCurrency.value }).format(n)
 }
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -217,6 +218,8 @@ function exportAll() {
 
 async function load() {
   loading.value = true
+  ;(db.from as any)('organisations').select('currency').eq('id', orgId.value).single()
+    .then(({ data }: any) => { orgCurrency.value = data?.currency || 'NZD' })
 
   const [{ data: eventData }, { data: invData }] = await Promise.all([
     db.from('events')

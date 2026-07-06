@@ -17,6 +17,9 @@ import { minLabel, type TimetableSession } from '~/composables/useClassTimetable
 const props = withDefaults(defineProps<{ sessions: TimetableSession[]; hourHeight?: number; maxLanes?: number; focusDay?: number | null }>(), { hourHeight: 72, maxLanes: 4, focusDay: null })
 const emit = defineEmits<{ (e: 'select', s: TimetableSession): void; (e: 'focus-day', d: number): void; (e: 'clear-focus'): void }>()
 
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
+
 // Display order Mon→Sun; data uses 0=Sun..6=Sat.
 const DAYS = [{ d: 1, label: 'Mon' }, { d: 2, label: 'Tue' }, { d: 3, label: 'Wed' }, { d: 4, label: 'Thu' }, { d: 5, label: 'Fri' }, { d: 6, label: 'Sat' }, { d: 0, label: 'Sun' }]
 const FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -218,10 +221,10 @@ const nowTop = computed(() => {
             <button v-for="sm in byDay[col.d].summaries" :key="sm.id" type="button"
               class="absolute rounded-lg border border-gray-300 bg-white text-left overflow-hidden shadow-sm transition-all hover:z-30 hover:shadow-lg hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/40"
               :style="summaryStyle(sm)" @click="openSummary(sm, col.label)"
-              v-tooltip.top="`${sm.count} classes · ${minLabel(sm.startMin)}–${minLabel(sm.endMin)} — click to view`">
+              v-tooltip.top="`${sm.count} ${t('group', true, true)} · ${minLabel(sm.startMin)}–${minLabel(sm.endMin)} — click to view`">
               <div class="px-2 py-1.5 h-full flex flex-col min-w-0">
                 <div class="flex items-baseline justify-between gap-1">
-                  <span class="text-[12px] font-bold text-gray-800 leading-none">{{ sm.count }} <span class="font-medium text-gray-500">classes</span></span>
+                  <span class="text-[12px] font-bold text-gray-800 leading-none">{{ sm.count }} <span class="font-medium text-gray-500">{{ t('group', true, true) }}</span></span>
                   <span class="text-[9px] text-gray-400 tabular-nums shrink-0">{{ minLabel(sm.startMin) }}</span>
                 </div>
                 <!-- by start time -->
@@ -249,7 +252,7 @@ const nowTop = computed(() => {
     <div v-if="openSummaryRef" class="flex flex-col max-h-[80vh]">
       <div class="px-6 pt-5 pb-4 border-b border-gray-100 flex items-start justify-between gap-3">
         <div>
-          <p class="text-sm font-semibold text-gray-900">{{ openSummaryRef.count }} classes on {{ dayLabelOf }}</p>
+          <p class="text-sm font-semibold text-gray-900">{{ openSummaryRef.count }} {{ t('group', true, true) }} on {{ dayLabelOf }}</p>
           <p class="text-xs text-gray-500 mt-0.5 tabular-nums">{{ fmtTime(openSummaryRef.startMin) }} – {{ fmtTime(openSummaryRef.endMin) }}</p>
         </div>
         <button class="text-gray-400 hover:text-gray-700 -mt-0.5" @click="openSummaryRef = null"><i class="pi pi-times" /></button>
@@ -259,10 +262,10 @@ const nowTop = computed(() => {
           <thead class="sticky top-0 bg-white">
             <tr class="text-[11px] font-semibold uppercase tracking-wide text-gray-400 border-b border-gray-200">
               <th class="w-1 p-0" />
-              <th class="pl-3 pr-4 py-3 font-semibold">Class</th>
+              <th class="pl-3 pr-4 py-3 font-semibold">{{ t('group') }}</th>
               <th class="px-4 py-3 font-semibold whitespace-nowrap">Time</th>
-              <th class="px-4 py-3 font-semibold whitespace-nowrap">Coach</th>
-              <th class="px-4 py-3 font-semibold whitespace-nowrap">Venue</th>
+              <th class="px-4 py-3 font-semibold whitespace-nowrap">{{ t('coach') }}</th>
+              <th class="px-4 py-3 font-semibold whitespace-nowrap">{{ t('venue') }}</th>
               <th class="px-4 py-3 font-semibold text-right whitespace-nowrap">Fill</th>
               <th class="pr-2 text-right whitespace-nowrap font-semibold">Availability</th>
               <th class="w-6" />
@@ -324,8 +327,8 @@ const nowTop = computed(() => {
         <div class="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
           <span class="text-gray-400 text-xs pt-0.5">When</span>
           <span class="text-gray-700 tabular-nums">{{ FULL[openClassRef.day] }} · {{ fmtTime(openClassRef.startMin) }} – {{ fmtTime(openClassRef.endMin) }}</span>
-          <template v-if="openClassRef.coach"><span class="text-gray-400 text-xs pt-0.5">Coach</span><span class="text-gray-700">{{ openClassRef.coach }}</span></template>
-          <template v-if="openClassRef.venue"><span class="text-gray-400 text-xs pt-0.5">Venue</span><span class="text-gray-700">{{ openClassRef.venue }}</span></template>
+          <template v-if="openClassRef.coach"><span class="text-gray-400 text-xs pt-0.5">{{ t('coach') }}</span><span class="text-gray-700">{{ openClassRef.coach }}</span></template>
+          <template v-if="openClassRef.venue"><span class="text-gray-400 text-xs pt-0.5">{{ t('venue') }}</span><span class="text-gray-700">{{ openClassRef.venue }}</span></template>
           <span class="text-gray-400 text-xs pt-0.5">Enrolled</span>
           <span class="flex items-center gap-2 flex-wrap">
             <span v-if="openClassRef.capacity != null" class="text-[11px] font-semibold px-1.5 py-0.5 rounded" :class="fillClass(openClassRef)">{{ openClassRef.count }}/{{ openClassRef.capacity }}</span>
@@ -339,7 +342,7 @@ const nowTop = computed(() => {
             <i class="pi pi-user-plus text-xs" /> Add person
           </button>
           <button type="button" @click="openClassPage" class="text-sm font-medium text-gray-600 hover:text-primary px-3 py-2 rounded-lg border border-gray-200 hover:border-gray-300 inline-flex items-center gap-1.5">
-            Open class <i class="pi pi-angle-right text-xs" />
+            Open {{ t('group', false, true) }} <i class="pi pi-angle-right text-xs" />
           </button>
         </div>
       </div>
