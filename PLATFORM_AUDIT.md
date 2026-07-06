@@ -515,7 +515,55 @@ The earlier 37-item list (Part 1) stands but **understated** the system. Materia
 |---|---|---|---|---|---|---|---|---|
 | Full competitions engine | NOT STARTED | — | Divisions, pools, rounds, games, officials; Per-sport scoring + individual sessions/judging; Public score entry — largest net-new build (~30 legacy tables) | ☐ | ☐ | ☐ | ☐ | ☐ |
 
-### Settings & platform — 61%
+### Onboarding — 22%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Club setup wizard (venues & areas) | BUILT | Conversational whole-club setup: areas, counts, booking modes, availability, photo (/bookables/new-v2); Sport / coach / item wizards | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Full club onboarding journey | NOT STARTED | — | Guided first-run: club details, branding, sports, terms, programmes & classes, fees, invite staff; Progress checklist on the dashboard until complete | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Member onboarding | NOT STARTED | — | Welcome email + login setup after registration; Email New Logins queue (legacy parity) | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Data import | NOT STARTED | — | CSV / legacy-FM import: people, contacts, classes, terms, fee history | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Member portal (self-service) — 28%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| My contacts & circles | BUILT | /account/profiles: manage own contacts/circles, edit dependants' profiles (Profiles I manage) | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| My profile self-service | PARTIAL | Profile editing exists for staff-side; act-on-behalf model in place | Member-facing my-profile page (own details, comms preferences) | ☐ | ☐ | ☐ | ☐ | ☐ |
+| My classes & registrations | NOT STARTED | — | Member view of enrolled classes, upcoming sessions, registration history | ☐ | ☐ | ☐ | ☐ | ☐ |
+| My bookings | NOT STARTED | — | Member view + manage of their venue/coach bookings | ☐ | ☐ | ☐ | ☐ | ☐ |
+| My invoices & payments | NOT STARTED | — | Member ledger view + pay online (needs billing engine) | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### National & regional — 66%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Org hierarchy | BUILT | Club - Regional - Association - National (+ RST) with recursive ancestors/descendants; Super-admin console + level-filtered org table | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Disciplines | BUILT | NSO-owned hierarchical disciplines; clubs map groups/events to them (multi-NSO) | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Per-section affiliation | PARTIAL | org_sports: each sport connects to its own governing body; primary mirrors parent_id | Resolve field/rule inheritance via the GROUP's affiliation chain (not just the club's primary) | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Inherited fields & types | ★ EXCEEDS | NSO fields flow down with locking; person types; core permission templates | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Inherited terminology | ★ EXCEEDS | NSO terminology inheritance + per-sport overlays | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Cross-club people & roll-up reporting | PARTIAL | person_memberships (cross-club, multi-sport, reportable via org_ancestors); demo seeded | Regional/association/national reporting dashboards; NSO views of member data across clubs | ☐ | ☐ | ☐ | ☐ | ☐ |
+| NSO provider syncs | NOT STARTED | — | GNZ / NZC / NZF / Sporty provider integrations (legacy parity) | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Help & support — 46%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Help articles | ★ EXCEEDS | Structured articles: explanation + step-by-step tutorial, terminology tokens per club; /admin/help authoring (module + permission + route + draft/publish) | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Gated club-side help | BUILT | /help shows an article only when its module is ON and the user's role can access the feature | — | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Article coverage | PARTIAL | 4 seed articles (term wizard, classes, fees, waitlists) | Author articles for every module as features land | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Contextual in-app help | NOT STARTED | — | ? icon per page opening the matching article; Nav entry for /help (layout file) | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Help chatbot | NOT STARTED | — | Chat over the structured articles (the token/steps format is designed for this) | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Zoho integration — 0%
+
+| Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
+|---|---|---|---|---|---|---|---|---|
+| Zoho Desk (support) | NOT STARTED | — | Raise a support ticket from /help; Sync club/person context onto tickets | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Zoho CRM | NOT STARTED | — | Contact/org sync (scope to be defined with FM) | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Settings & platform — 58%
 
 | Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
 |---|---|---|---|---|---|---|---|---|
@@ -531,7 +579,6 @@ The earlier 37-item list (Part 1) stands but **understated** the system. Materia
 | Tenant security (RLS) | PARTIAL | org_id scoping app-wide; org_members has RLS | RLS policies across ~87 tables before production | ☐ | ☐ | ☐ | ☐ | ☐ |
 | FM super-admin | BUILT | /admin console, master catalogues (brands/club types/sports), core permission templates | — | ☐ | ☐ | ☐ | ☐ | ☐ |
 | Audit log | NOT STARTED | — | Surface change history (legacy audit-logged every write) | ☐ | ☐ | ☐ | ☐ | ☐ |
-| Help | ★ EXCEEDS | Structured articles (explanation + step tutorials) w/ terminology tokens; Module + permission-gated visibility; /admin/help authoring; chatbot-ready | Nav entry for /help (layout owned elsewhere); Author remaining articles | ☐ | ☐ | ☐ | ☐ | ☐ |
 | Review & sign-off system | NEW | In-app page review: pinned comments, reviewer sign-offs, cross-page report matrix | — | ☐ | ☐ | ☐ | ☐ | ☐ |
 
 ## Still to do — the full list
@@ -609,6 +656,36 @@ The earlier 37-item list (Part 1) stands but **understated** the system. Materia
 - **Full competitions engine** — Per-sport scoring + individual sessions/judging
 - **Full competitions engine** — Public score entry — largest net-new build (~30 legacy tables)
 
+**Onboarding**
+- **Full club onboarding journey** — Guided first-run: club details, branding, sports, terms, programmes & classes, fees, invite staff
+- **Full club onboarding journey** — Progress checklist on the dashboard until complete
+- **Member onboarding** — Welcome email + login setup after registration
+- **Member onboarding** — Email New Logins queue (legacy parity)
+- **Data import** — CSV / legacy-FM import: people, contacts, classes, terms, fee history
+
+**Member portal (self-service)**
+- **My profile self-service** — Member-facing my-profile page (own details, comms preferences)
+- **My classes & registrations** — Member view of enrolled classes, upcoming sessions, registration history
+- **My bookings** — Member view + manage of their venue/coach bookings
+- **My invoices & payments** — Member ledger view + pay online (needs billing engine)
+
+**National & regional**
+- **Per-section affiliation** — Resolve field/rule inheritance via the GROUP's affiliation chain (not just the club's primary)
+- **Cross-club people & roll-up reporting** — Regional/association/national reporting dashboards
+- **Cross-club people & roll-up reporting** — NSO views of member data across clubs
+- **NSO provider syncs** — GNZ / NZC / NZF / Sporty provider integrations (legacy parity)
+
+**Help & support**
+- **Article coverage** — Author articles for every module as features land
+- **Contextual in-app help** — ? icon per page opening the matching article
+- **Contextual in-app help** — Nav entry for /help (layout file)
+- **Help chatbot** — Chat over the structured articles (the token/steps format is designed for this)
+
+**Zoho integration**
+- **Zoho Desk (support)** — Raise a support ticket from /help
+- **Zoho Desk (support)** — Sync club/person context onto tickets
+- **Zoho CRM** — Contact/org sync (scope to be defined with FM)
+
 **Settings & platform**
 - **Terminology** — Nav labels (layout file)
 - **Terminology** — Hardcoded Classes-breadcrumb decision
@@ -621,6 +698,4 @@ The earlier 37-item list (Part 1) stands but **understated** the system. Materia
 - **Permission enforcement** — Switch Role
 - **Tenant security (RLS)** — RLS policies across ~87 tables before production
 - **Audit log** — Surface change history (legacy audit-logged every write)
-- **Help** — Nav entry for /help (layout owned elsewhere)
-- **Help** — Author remaining articles
 

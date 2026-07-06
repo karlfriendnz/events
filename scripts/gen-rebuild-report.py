@@ -134,6 +134,60 @@ DATA = [
  ("Full competitions engine", "missing", [],
   ["Divisions, pools, rounds, games, officials", "Per-sport scoring + individual sessions/judging", "Public score entry — largest net-new build (~30 legacy tables)"]),
 ]),
+("Onboarding", [
+ ("Club setup wizard (venues & areas)", "built",
+  ["Conversational whole-club setup: areas, counts, booking modes, availability, photo (/bookables/new-v2)", "Sport / coach / item wizards"], []),
+ ("Full club onboarding journey", "missing", [],
+  ["Guided first-run: club details, branding, sports, terms, programmes & classes, fees, invite staff", "Progress checklist on the dashboard until complete"]),
+ ("Member onboarding", "missing", [],
+  ["Welcome email + login setup after registration", "Email New Logins queue (legacy parity)"]),
+ ("Data import", "missing", [],
+  ["CSV / legacy-FM import: people, contacts, classes, terms, fee history"]),
+]),
+("Member portal (self-service)", [
+ ("My contacts & circles", "built",
+  ["/account/profiles: manage own contacts/circles, edit dependants' profiles (Profiles I manage)"], []),
+ ("My profile self-service", "partial",
+  ["Profile editing exists for staff-side; act-on-behalf model in place"],
+  ["Member-facing my-profile page (own details, comms preferences)"]),
+ ("My classes & registrations", "missing", [],
+  ["Member view of enrolled classes, upcoming sessions, registration history"]),
+ ("My bookings", "missing", [], ["Member view + manage of their venue/coach bookings"]),
+ ("My invoices & payments", "missing", [], ["Member ledger view + pay online (needs billing engine)"]),
+]),
+("National & regional", [
+ ("Org hierarchy", "built",
+  ["Club - Regional - Association - National (+ RST) with recursive ancestors/descendants", "Super-admin console + level-filtered org table"], []),
+ ("Disciplines", "built",
+  ["NSO-owned hierarchical disciplines; clubs map groups/events to them (multi-NSO)"], []),
+ ("Per-section affiliation", "partial",
+  ["org_sports: each sport connects to its own governing body; primary mirrors parent_id"],
+  ["Resolve field/rule inheritance via the GROUP's affiliation chain (not just the club's primary)"]),
+ ("Inherited fields & types", "exceeds",
+  ["NSO fields flow down with locking; person types; core permission templates"], []),
+ ("Inherited terminology", "exceeds", ["NSO terminology inheritance + per-sport overlays"], []),
+ ("Cross-club people & roll-up reporting", "partial",
+  ["person_memberships (cross-club, multi-sport, reportable via org_ancestors); demo seeded"],
+  ["Regional/association/national reporting dashboards", "NSO views of member data across clubs"]),
+ ("NSO provider syncs", "missing", [], ["GNZ / NZC / NZF / Sporty provider integrations (legacy parity)"]),
+]),
+("Help & support", [
+ ("Help articles", "exceeds",
+  ["Structured articles: explanation + step-by-step tutorial, terminology tokens per club", "/admin/help authoring (module + permission + route + draft/publish)"], []),
+ ("Gated club-side help", "built",
+  ["/help shows an article only when its module is ON and the user's role can access the feature"], []),
+ ("Article coverage", "partial", ["4 seed articles (term wizard, classes, fees, waitlists)"],
+  ["Author articles for every module as features land"]),
+ ("Contextual in-app help", "missing", [],
+  ["? icon per page opening the matching article", "Nav entry for /help (layout file)"]),
+ ("Help chatbot", "missing", [],
+  ["Chat over the structured articles (the token/steps format is designed for this)"]),
+]),
+("Zoho integration", [
+ ("Zoho Desk (support)", "missing", [],
+  ["Raise a support ticket from /help", "Sync club/person context onto tickets"]),
+ ("Zoho CRM", "missing", [], ["Contact/org sync (scope to be defined with FM)"]),
+]),
 ("Settings & platform", [
  ("Club info / branding", "built", ["Name, logo, icon, brand colours w/ preview, dashboard banner, currency/locale, season"], []),
  ("Module toggles", "built", ["/settings/modules per-club switches w/ live nav filtering"], []),
@@ -153,9 +207,6 @@ DATA = [
  ("Tenant security (RLS)", "partial", ["org_id scoping app-wide; org_members has RLS"], ["RLS policies across ~87 tables before production"]),
  ("FM super-admin", "built", ["/admin console, master catalogues (brands/club types/sports), core permission templates"], []),
  ("Audit log", "missing", [], ["Surface change history (legacy audit-logged every write)"]),
- ("Help", "exceeds",
-  ["Structured articles (explanation + step tutorials) w/ terminology tokens", "Module + permission-gated visibility; /admin/help authoring; chatbot-ready"],
-  ["Nav entry for /help (layout owned elsewhere)", "Author remaining articles"]),
  ("Review & sign-off system", "new",
   ["In-app page review: pinned comments, reviewer sign-offs, cross-page report matrix"], []),
 ]),
@@ -297,6 +348,21 @@ if __name__ == '__main__':
         estart = s.index('  <h2>Everything the new build adds that legacy never had</h2>')
         eend = s.index('  <h2>Biggest remaining gaps, ranked</h2>')
         s = s[:estart] + s[eend:]
+    # Overall progress = average of all area percentages (each area one unit
+    # of the platform) — recomputed every run so added scope moves the number.
+    import re as _re2
+    _pcts = []
+    for _m, _rows in DATA:
+        _par = [r for r in _rows if r[1] != 'new']
+        _pcts.append(round(100 * sum(row_score(r) for r in _par) / len(_par)) if _par else 90)
+    overall = round(sum(_pcts) / len(_pcts))
+    s = _re2.sub(r'<span class="pct num">≈ \d+%</span>', f'<span class="pct num">≈ {overall}%</span>', s)
+    s = _re2.sub(r'(<div class="bar"><span id="hero-fill" style="width:)\d+(%")', lambda m: m.group(1) + str(overall) + m.group(2), s)
+    # one-time: tag the hero fill with an id so regeneration can find it
+    if 'id="hero-fill"' not in s:
+        s = s.replace('<div class="bar"><span style="width:56%"></span></div>',
+                      f'<div class="bar"><span id="hero-fill" style="width:{overall}%"></span></div>')
+        s = _re2.sub(r'<span class="pct num">≈ \d+%</span>', f'<span class="pct num">≈ {overall}%</span>', s)
     # Hero line: count of NEW features (regenerated each run via marker id)
     new_count = sum(1 for _, rows in DATA for r in rows if r[1] == 'new')
     hero_line = f'<p class="sub" id="new-count" style="margin-top:6px">Includes <b>{new_count} features</b> the legacy platform never had — marked <span class="chip newchip">NEW</span> in the tables below.</p>'
@@ -304,11 +370,14 @@ if __name__ == '__main__':
     if 'id="new-count"' in s:
         s = _re.sub(r'<p class="sub" id="new-count".*?</p>', hero_line, s, flags=_re.S)
     else:
-        s = s.replace('<div class="bar"><span style="width:56%"></span></div>',
-                      '<div class="bar"><span style="width:56%"></span></div>\n    ' + hero_line)
+        anchor = _re.search(r'<div class="bar"><span id="hero-fill"[^<]*</span></div>', s)
+        if anchor:
+            s = s.replace(anchor.group(0), anchor.group(0) + '\n    ' + hero_line)
     start = s.index('  <h2 id="per-page">')
     end = s.index('  <h2>Biggest remaining gaps, ranked</h2>')
     s = s[:start] + html + "\n\n" + s[end:]
+    s = s.replace('Percentages are weighted judgment estimates of functional coverage, not line counts.',
+                  'Area percentages are judgment-weighted feature scores; the overall figure is the average across all areas — adding scope moves it down, sign-offs move it up.')
     open(p, 'w').write(s)
     mp = '/Users/karl/fm-events/PLATFORM_AUDIT.md'
     m = open(mp).read()

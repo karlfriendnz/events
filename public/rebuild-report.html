@@ -149,14 +149,14 @@
 <div class="wrap">
   <p class="stamp">FriendlyManager Rebuild · Status Report · 7 July 2026</p>
   <h1>New build vs legacy platform</h1>
-  <p class="sub">The fm-events rebuild measured against the full legacy platform audit (12 demo modules + the <code>/old</code> codebase). Percentages are weighted judgment estimates of functional coverage, not line counts.</p>
+  <p class="sub">The fm-events rebuild measured against the full legacy platform audit (12 demo modules + the <code>/old</code> codebase). Area percentages are judgment-weighted feature scores; the overall figure is the average across all areas — adding scope moves it down, sign-offs move it up.</p>
 
   <div class="hero card">
     <div class="row">
       <h3>Overall rebuild progress</h3>
-      <span class="pct num">≈ 56%</span>
+      <span class="pct num">≈ 36%</span>
     </div>
-    <div class="bar"><span style="width:56%"></span></div>
+    <div class="bar"><span id="hero-fill" style="width:36%"></span></div>
     <p class="sub" id="new-count" style="margin-top:6px">Includes <b>8 features</b> the legacy platform never had — marked <span class="chip newchip">NEW</span> in the tables below.</p>
   </div>
 
@@ -167,12 +167,16 @@
     <div class="area"><div class="name">Venues & Bookings</div><div class="bar b100"><span style="width:90%"></span></div><div class="pct num">90%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
     <div class="area"><div class="name">Squads / Classes</div><div class="bar b70"><span style="width:78%"></span></div><div class="pct num">78%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
     <div class="area"><div class="name">Class fees & Xero</div><div class="bar b70"><span style="width:70%"></span></div><div class="pct num">70%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
-    <div class="area"><div class="name">Settings & platform</div><div class="bar b70"><span style="width:61%"></span></div><div class="pct num">61%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">National & regional</div><div class="bar b70"><span style="width:66%"></span></div><div class="pct num">66%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Settings & platform</div><div class="bar b70"><span style="width:58%"></span></div><div class="pct num">58%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
     <div class="area"><div class="name">Dashboard</div><div class="bar b70"><span style="width:54%"></span></div><div class="pct num">54%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
     <div class="area"><div class="name">Vouchers & Sponsors</div><div class="bar b70"><span style="width:50%"></span></div><div class="pct num">50%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
     <div class="area"><div class="name">People</div><div class="bar b40"><span style="width:46%"></span></div><div class="pct num">46%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
     <div class="area"><div class="name">Attendance</div><div class="bar b40"><span style="width:46%"></span></div><div class="pct num">46%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Help & support</div><div class="bar b40"><span style="width:46%"></span></div><div class="pct num">46%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Member portal (self-service)</div><div class="bar b40"><span style="width:28%"></span></div><div class="pct num">28%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
     <div class="area"><div class="name">Registration (public)</div><div class="bar b40"><span style="width:25%"></span></div><div class="pct num">25%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Onboarding</div><div class="bar b10"><span style="width:22%"></span></div><div class="pct num">22%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
     <div class="area"><div class="name">Payments & invoicing</div><div class="bar b10"><span style="width:12%"></span></div><div class="pct num">12%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
     <div class="area"><div class="name">Mailer</div><div class="bar b10"><span style="width:0%"></span></div><div class="pct num">0%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
     <div class="area"><div class="name">Awards</div><div class="bar b10"><span style="width:0%"></span></div><div class="pct num">0%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
@@ -180,6 +184,7 @@
     <div class="area"><div class="name">Uniforms & Merchandise</div><div class="bar b10"><span style="width:0%"></span></div><div class="pct num">0%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
     <div class="area"><div class="name">Holiday Programmes</div><div class="bar b10"><span style="width:0%"></span></div><div class="pct num">0%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
     <div class="area"><div class="name">Competitions</div><div class="bar b10"><span style="width:0%"></span></div><div class="pct num">0%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
+    <div class="area"><div class="name">Zoho integration</div><div class="bar b10"><span style="width:0%"></span></div><div class="pct num">0%</div><div class="so-cluster"><span class="so" title="Karl sign-off">&#9744;</span><span class="so" title="Kate sign-off">&#9744;</span><span class="so" title="Rodd sign-off">&#9744;</span><span class="so" title="FM sign-off">&#9744;</span><span class="so" title="HC sign-off">&#9744;</span></div></div>
   </div>
 
 
@@ -458,8 +463,96 @@
   <details class="card acc" style="margin-bottom:10px">
     <summary>
       <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Onboarding</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:22%"></span></div><span class="num" style="color:var(--muted);font-weight:600">22%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Club setup wizard (venues & areas)</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>Conversational whole-club setup: areas, counts, booking modes, availability, photo (/bookables/new-v2)</li><li>Sport / coach / item wizards</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Full club onboarding journey</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Guided first-run: club details, branding, sports, terms, programmes & classes, fees, invite staff</li><li>Progress checklist on the dashboard until complete</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Member onboarding</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Welcome email + login setup after registration</li><li>Email New Logins queue (legacy parity)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Data import</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>CSV / legacy-FM import: people, contacts, classes, terms, fee history</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Member portal (self-service)</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:28%"></span></div><span class="num" style="color:var(--muted);font-weight:600">28%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">My contacts & circles</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>/account/profiles: manage own contacts/circles, edit dependants' profiles (Profiles I manage)</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">My profile self-service</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>Profile editing exists for staff-side; act-on-behalf model in place</li></ul></td><td class="note todo"><ul class="cell"><li>Member-facing my-profile page (own details, comms preferences)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">My classes & registrations</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Member view of enrolled classes, upcoming sessions, registration history</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">My bookings</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Member view + manage of their venue/coach bookings</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">My invoices & payments</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Member ledger view + pay online (needs billing engine)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">National & regional</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:66%"></span></div><span class="num" style="color:var(--muted);font-weight:600">66%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Org hierarchy</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>Club - Regional - Association - National (+ RST) with recursive ancestors/descendants</li><li>Super-admin console + level-filtered org table</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Disciplines</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>NSO-owned hierarchical disciplines; clubs map groups/events to them (multi-NSO)</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Per-section affiliation</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>org_sports: each sport connects to its own governing body; primary mirrors parent_id</li></ul></td><td class="note todo"><ul class="cell"><li>Resolve field/rule inheritance via the GROUP's affiliation chain (not just the club's primary)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Inherited fields & types</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>NSO fields flow down with locking; person types; core permission templates</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Inherited terminology</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>NSO terminology inheritance + per-sport overlays</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Cross-club people & roll-up reporting</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>person_memberships (cross-club, multi-sport, reportable via org_ancestors); demo seeded</li></ul></td><td class="note todo"><ul class="cell"><li>Regional/association/national reporting dashboards</li><li>NSO views of member data across clubs</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">NSO provider syncs</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>GNZ / NZC / NZF / Sporty provider integrations (legacy parity)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Help & support</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:46%"></span></div><span class="num" style="color:var(--muted);font-weight:600">46%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Help articles</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Structured articles: explanation + step-by-step tutorial, terminology tokens per club</li><li>/admin/help authoring (module + permission + route + draft/publish)</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Gated club-side help</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>/help shows an article only when its module is ON and the user's role can access the feature</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Article coverage</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>4 seed articles (term wizard, classes, fees, waitlists)</li></ul></td><td class="note todo"><ul class="cell"><li>Author articles for every module as features land</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Contextual in-app help</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>? icon per page opening the matching article</li><li>Nav entry for /help (layout file)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Help chatbot</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Chat over the structured articles (the token/steps format is designed for this)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
+      <h3 style="margin:0">Zoho integration</h3>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:0%"></span></div><span class="num" style="color:var(--muted);font-weight:600">0%</span></div>
+    </summary>
+    <div class="scroll acc-body">
+    <table class="aligned">
+      <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
+      <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Zoho Desk (support)</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Raise a support ticket from /help</li><li>Sync club/person context onto tickets</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Zoho CRM</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Contact/org sync (scope to be defined with FM)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+    </table>
+    </div>
+  </details>
+  <details class="card acc" style="margin-bottom:10px">
+    <summary>
+      <span class="acc-chev">&#9656;</span>
       <h3 style="margin:0">Settings & platform</h3>
-      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:61%"></span></div><span class="num" style="color:var(--muted);font-weight:600">61%</span></div>
+      <div style="display:flex;align-items:center;gap:10px;flex:1;max-width:280px;margin-left:auto"><div class="bar" style="flex:1"><span style="width:58%"></span></div><span class="num" style="color:var(--muted);font-weight:600">58%</span></div>
     </summary>
     <div class="scroll acc-body">
     <table class="aligned">
@@ -477,7 +570,6 @@
       <tr><td class="item">Tenant security (RLS)</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>org_id scoping app-wide; org_members has RLS</li></ul></td><td class="note todo"><ul class="cell"><li>RLS policies across ~87 tables before production</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
       <tr><td class="item">FM super-admin</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>/admin console, master catalogues (brands/club types/sports), core permission templates</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
       <tr><td class="item">Audit log</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Surface change history (legacy audit-logged every write)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
-      <tr><td class="item">Help</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Structured articles (explanation + step tutorials) w/ terminology tokens</li><li>Module + permission-gated visibility; /admin/help authoring; chatbot-ready</li></ul></td><td class="note todo"><ul class="cell"><li>Nav entry for /help (layout owned elsewhere)</li><li>Author remaining articles</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
       <tr><td class="item">Review & sign-off system</td><td><span class="chip newchip">NEW</span></td><td class="note"><ul class="cell"><li>In-app page review: pinned comments, reviewer sign-offs, cross-page report matrix</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
     </table>
     </div>
@@ -601,6 +693,51 @@
       </ul>
     </div>
     <div class="card">
+      <h3>Onboarding</h3>
+      <ul>
+        <li><b>Full club onboarding journey</b> — Guided first-run: club details, branding, sports, terms, programmes & classes, fees, invite staff</li>
+        <li><b>Full club onboarding journey</b> — Progress checklist on the dashboard until complete</li>
+        <li><b>Member onboarding</b> — Welcome email + login setup after registration</li>
+        <li><b>Member onboarding</b> — Email New Logins queue (legacy parity)</li>
+        <li><b>Data import</b> — CSV / legacy-FM import: people, contacts, classes, terms, fee history</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Member portal (self-service)</h3>
+      <ul>
+        <li><b>My profile self-service</b> — Member-facing my-profile page (own details, comms preferences)</li>
+        <li><b>My classes & registrations</b> — Member view of enrolled classes, upcoming sessions, registration history</li>
+        <li><b>My bookings</b> — Member view + manage of their venue/coach bookings</li>
+        <li><b>My invoices & payments</b> — Member ledger view + pay online (needs billing engine)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>National & regional</h3>
+      <ul>
+        <li><b>Per-section affiliation</b> — Resolve field/rule inheritance via the GROUP's affiliation chain (not just the club's primary)</li>
+        <li><b>Cross-club people & roll-up reporting</b> — Regional/association/national reporting dashboards</li>
+        <li><b>Cross-club people & roll-up reporting</b> — NSO views of member data across clubs</li>
+        <li><b>NSO provider syncs</b> — GNZ / NZC / NZF / Sporty provider integrations (legacy parity)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Help & support</h3>
+      <ul>
+        <li><b>Article coverage</b> — Author articles for every module as features land</li>
+        <li><b>Contextual in-app help</b> — ? icon per page opening the matching article</li>
+        <li><b>Contextual in-app help</b> — Nav entry for /help (layout file)</li>
+        <li><b>Help chatbot</b> — Chat over the structured articles (the token/steps format is designed for this)</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Zoho integration</h3>
+      <ul>
+        <li><b>Zoho Desk (support)</b> — Raise a support ticket from /help</li>
+        <li><b>Zoho Desk (support)</b> — Sync club/person context onto tickets</li>
+        <li><b>Zoho CRM</b> — Contact/org sync (scope to be defined with FM)</li>
+      </ul>
+    </div>
+    <div class="card">
       <h3>Settings & platform</h3>
       <ul>
         <li><b>Terminology</b> — Nav labels (layout file)</li>
@@ -614,8 +751,6 @@
         <li><b>Permission enforcement</b> — Switch Role</li>
         <li><b>Tenant security (RLS)</b> — RLS policies across ~87 tables before production</li>
         <li><b>Audit log</b> — Surface change history (legacy audit-logged every write)</li>
-        <li><b>Help</b> — Nav entry for /help (layout owned elsewhere)</li>
-        <li><b>Help</b> — Author remaining articles</li>
       </ul>
     </div>
   </div>
