@@ -1,20 +1,30 @@
 <template>
   <div class="flex h-screen overflow-hidden" style="background:#F5F8FA">
     <!-- Icon-rail sidebar (desktop only — mobile uses the bottom tab bar) -->
-    <aside class="w-14 shrink-0 hidden md:flex flex-col items-center py-3 gap-1 relative z-[60]"
+    <aside class="shrink-0 hidden md:flex flex-col py-3 gap-1 relative z-[60] transition-[width] duration-200"
+      :class="railExpanded ? 'w-56 items-stretch px-2' : 'w-14 items-center'"
       style="background: linear-gradient(180deg, var(--brand-primary) 0%, #21278E 100%)">
-      <NuxtLink to="/dashboard" class="mb-3 w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center overflow-hidden" :title="activeOrgName">
-        <img v-if="brandMark" :src="brandMark" class="w-full h-full object-cover" />
-        <i v-else class="pi pi-calendar text-white text-sm" />
-      </NuxtLink>
+      <button type="button" @click="toggleRail"
+        v-tooltip.right="railExpanded ? '' : 'Expand menu'"
+        class="mb-3 flex items-center rounded-lg text-white hover:bg-white/10 transition-colors"
+        :class="railExpanded ? 'w-full h-10 px-1.5 gap-2.5 justify-start' : 'w-10 h-10 justify-center'">
+        <span class="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center overflow-hidden shrink-0">
+          <img v-if="brandMark" :src="brandMark" class="w-full h-full object-cover" />
+          <i v-else class="pi pi-calendar text-white text-sm" />
+        </span>
+        <span v-if="railExpanded" class="flex-1 text-sm font-semibold truncate text-left">{{ activeOrgName || 'FriendlyManager' }}</span>
+        <i v-if="railExpanded" class="pi pi-angle-left text-white/60 text-xs shrink-0" />
+      </button>
 
       <template v-for="item in clubMenuForModules" :key="item.label">
         <!-- Events: icon + rich flyout (calendars, reporting, venues, registration, forms) -->
         <div v-if="item.events" class="relative" @mouseenter="onEventsEnter" @mouseleave="onEventsLeave">
           <NuxtLink :to="item.href"
-            class="flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
-            :class="isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white'">
+            class="flex items-center rounded-xl transition-colors"
+            :class="[railBtnClass, isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white']">
             <i :class="['pi', item.icon, 'text-lg']" />
+            <span v-if="railExpanded" class="flex-1 text-sm whitespace-nowrap text-left">{{ item.label }}</span>
+            <i v-if="railExpanded" class="pi pi-angle-right text-white/40 text-xs shrink-0" />
           </NuxtLink>
           <div v-show="eventsHover" class="absolute left-full top-0 z-[70]" style="padding-left:10px"
             @mouseenter="onEventsEnter" @mouseleave="onEventsLeave">
@@ -38,9 +48,11 @@
         <!-- Fees: icon + flyout (Finances, Group Fees) -->
         <div v-else-if="item.fees" class="relative" @mouseenter="onFeesEnter" @mouseleave="onFeesLeave">
           <NuxtLink :to="item.href"
-            class="flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
-            :class="isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white'">
+            class="flex items-center rounded-xl transition-colors"
+            :class="[railBtnClass, isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white']">
             <i :class="['pi', item.icon, 'text-lg']" />
+            <span v-if="railExpanded" class="flex-1 text-sm whitespace-nowrap text-left">{{ item.label }}</span>
+            <i v-if="railExpanded" class="pi pi-angle-right text-white/40 text-xs shrink-0" />
           </NuxtLink>
           <div v-show="feesHover" class="absolute left-full top-0 z-[70]" style="padding-left:10px"
             @mouseenter="onFeesEnter" @mouseleave="onFeesLeave">
@@ -54,9 +66,11 @@
         <!-- Bookings: icon + flyout (Bookings, Venues, Persons, Items) -->
         <div v-else-if="item.bookings" class="relative" @mouseenter="onBookingsEnter" @mouseleave="onBookingsLeave">
           <NuxtLink :to="item.href"
-            class="flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
-            :class="isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white'">
+            class="flex items-center rounded-xl transition-colors"
+            :class="[railBtnClass, isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white']">
             <i :class="['pi', item.icon, 'text-lg']" />
+            <span v-if="railExpanded" class="flex-1 text-sm whitespace-nowrap text-left">{{ item.label }}</span>
+            <i v-if="railExpanded" class="pi pi-angle-right text-white/40 text-xs shrink-0" />
           </NuxtLink>
           <div v-show="bookingsHover" class="absolute left-full top-0 z-[70]" style="padding-left:10px"
             @mouseenter="onBookingsEnter" @mouseleave="onBookingsLeave">
@@ -75,9 +89,11 @@
         <!-- Groups: icon + flyout (Groups, Classes, saved views, manage) -->
         <div v-else-if="item.groups" class="relative" @mouseenter="onGroupsEnter" @mouseleave="onGroupsLeave">
           <NuxtLink :to="item.href"
-            class="flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
-            :class="isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white'">
+            class="flex items-center rounded-xl transition-colors"
+            :class="[railBtnClass, isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white']">
             <i :class="['pi', item.icon, 'text-lg']" />
+            <span v-if="railExpanded" class="flex-1 text-sm whitespace-nowrap text-left">{{ item.label }}</span>
+            <i v-if="railExpanded" class="pi pi-angle-right text-white/40 text-xs shrink-0" />
           </NuxtLink>
           <div v-show="groupsHover" class="absolute left-full top-0 z-[70]" style="padding-left:10px"
             @mouseenter="onGroupsEnter" @mouseleave="onGroupsLeave">
@@ -97,12 +113,13 @@
           </div>
         </div>
 
-        <!-- Other items: icon + hover tooltip -->
+        <!-- Other items: icon + inline label (expanded) or hover tooltip (collapsed) -->
         <NuxtLink v-else :to="item.href"
-          class="group relative flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
-          :class="isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white'">
+          class="group relative flex items-center rounded-xl transition-colors"
+          :class="[railBtnClass, isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white']">
           <i :class="['pi', item.icon, 'text-lg']" />
-          <span class="pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow">{{ item.label }}</span>
+          <span v-if="railExpanded" class="flex-1 text-sm whitespace-nowrap text-left">{{ item.label }}</span>
+          <span v-else class="pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow">{{ item.label }}</span>
         </NuxtLink>
       </template>
 
@@ -234,8 +251,6 @@
             <OrgSwitcher @switched="userMenuOpen = false" />
             <NuxtLink v-if="isSuper" to="/admin" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
               @click="userMenuOpen = false"><i class="pi pi-sitemap text-gray-400 w-4 text-center" />All orgs</NuxtLink>
-            <NuxtLink v-if="!activeLocationId" to="/settings" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
-              @click="userMenuOpen = false"><i class="pi pi-cog text-gray-400 w-4 text-center" />Settings</NuxtLink>
             <button type="button" class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 text-left"
               @click="handleLogout"><i class="pi pi-sign-out text-gray-400 w-4 text-center" />Sign out</button>
           </div>
@@ -658,13 +673,21 @@ const clubMenu = [
   { label: 'Mobile App',  icon: 'pi-mobile',        href: '/mobile-app',              chevron: true, module: 'mobile_app' },
   { label: 'Programme',   icon: 'pi-flag',          href: '/programme',               chevron: true, module: 'programme' },
   { label: 'GNZ',         icon: 'pi-user',          href: '/gnz',                     chevron: true, module: 'gnz' },
-  { label: 'FM Invoices', icon: 'pi-file',          href: '/fm-invoices',             chevron: false, module: 'fm_invoices' },
 ]
 // Club setup (Settings → Club setup, organisations.enabled_modules): hide the
 // parts of the system the club has turned off. Reactive — flipping a toggle on
 // /settings/modules updates the nav live (shared useState in useOrgModules).
 const orgModules = useOrgModules()
 const clubMenuForModules = computed(() => clubMenu.filter(i => orgModules.isEnabled((i as any).module)))
+
+// ── Icon-rail expand/collapse (remembered across pages via localStorage) ──
+const railExpanded = ref(false)
+onMounted(() => { try { railExpanded.value = localStorage.getItem('fm_nav_expanded') === '1' } catch {} })
+watch(railExpanded, v => { try { localStorage.setItem('fm_nav_expanded', v ? '1' : '0') } catch {} })
+function toggleRail() { railExpanded.value = !railExpanded.value }
+// Shared button shape: full-width labelled row when expanded, centred icon when collapsed.
+const railBtnClass = computed(() => railExpanded.value ? 'w-full h-10 justify-start px-3 gap-3' : 'w-10 h-10 justify-center')
+
 // Which top-level item is expanded (one at a time).
 const expandedMenu = ref<string | null>(null)
 function toggleMenu(label: string) { expandedMenu.value = expandedMenu.value === label ? null : label }
@@ -689,14 +712,16 @@ watch(orgId, async (id) => {
   loadPerms()
   if (!id) { isGoverningOrg.value = false; activeOrgName.value = ''; brandMark.value = null; return }
   orgModules.loadModules(true)
-  const { data } = await (db.from as any)('organisations').select('name, org_level, icon_url, brand_id').eq('id', id).single()
+  const { data } = await (db.from as any)('organisations').select('name, org_level, icon_url, logo_url, brand_id').eq('id', id).single()
   isGoverningOrg.value = !!data?.org_level && data.org_level !== 'CLUB'
   activeOrgName.value = data?.name ?? ''
-  if (data?.icon_url) {
-    brandMark.value = data.icon_url
+  // The club's own uploaded mark wins (square icon, else its logo); otherwise fall
+  // back to the connected brand's mark (icon, else logo). null = generic glyph.
+  if (data?.icon_url || data?.logo_url) {
+    brandMark.value = data.icon_url || data.logo_url
   } else if (data?.brand_id) {
-    const { data: brand } = await (db.from as any)('brands').select('icon_url').eq('id', data.brand_id).maybeSingle()
-    brandMark.value = brand?.icon_url ?? null
+    const { data: brand } = await (db.from as any)('brands').select('icon_url, logo_url').eq('id', data.brand_id).maybeSingle()
+    brandMark.value = brand?.icon_url || brand?.logo_url || null
   } else {
     brandMark.value = null
   }

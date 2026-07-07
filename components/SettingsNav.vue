@@ -15,6 +15,7 @@ const tabs = [
   { label: 'Sports & locations', icon: 'pi-map-marker', to: '/settings/locations' },
   { label: 'Terminology', icon: 'pi-pencil', to: '/settings/terminology' },
   { label: 'Advanced', icon: 'pi-wrench', to: '/settings', tab: 'advanced' },
+  { label: 'Admin', icon: 'pi-file', to: '/fm-invoices' },
   // Module-specific settings live below the divider
   { divider: true },
   { label: 'Events', icon: 'pi-megaphone', to: '/settings', tab: 'events' },
