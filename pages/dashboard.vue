@@ -500,6 +500,7 @@ const quickItems = computed(() => [
   { label: `New ${t('event', false, true)}`, icon: 'pi pi-calendar-plus', command: () => navigateTo('/events/new-basic') },
   { label: `Add ${t('member', false, true)}`, icon: 'pi pi-user-plus', command: () => navigateTo('/people/new') },
   { label: `New ${t('booking', false, true)}`, icon: 'pi pi-bookmark', command: () => navigateTo('/bookings/new') },
+  { label: `Find a ${t('group', false, true)}`, icon: 'pi pi-search', command: () => useClassFinder().openFinder() },
   { label: 'Send email', icon: 'pi pi-envelope', command: () => navigateTo('/settings/communications') },
 ])
 const addMenuOpen = ref(false)
