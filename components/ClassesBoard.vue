@@ -37,7 +37,7 @@ const showCol = (k: ViewColumnKey) => props.columns.includes(k)
 interface ClassGroup {
   id: string; name: string; code_id: string | null; term_id: string | null; capacity: number | null; color: string | null
   headName: string | null; gymnasts: number; waitlist: number | null; sport: string | null
-  gender: string | null; ageRange: string | null; feeLabel: string | null; feeCount: number; formId: string | null; attendances: number
+  gender: string | null; ageRange: string | null; feeLabel: string | null; feeCount: number; formId: string | null; locationId: string | null; attendances: number
 }
 
 // Gender restriction (migration 203) → short label; null = open to all.
@@ -57,7 +57,7 @@ const termOptions = computed(() => [
 ])
 // A group belongs to the selected term via its code chain (else its own term_id).
 const inTerm = (g: ClassGroup) => termFilter.value === 'all' || gc.effectiveTermId(g, codeById.value) === termFilter.value
-const visibleGroups = computed(() => groups.value.filter(inTerm))
+const visibleGroups = computed(() => groups.value.filter(g => inTerm(g) && inActiveLocation(g.locationId)))
 
 const parentKey = (c: GroupCode) => (c.parent_id && codes.value.some(x => x.id === c.parent_id)) ? c.parent_id : null
 const sortSibs = (a: GroupCode, b: GroupCode) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)
@@ -132,7 +132,7 @@ async function load() {
   const [loadedCodes, loadedTerms, { data: gs }, { data: mems }, { data: discs }, { data: feeOpts }, { data: evs }, wlCounts] = await Promise.all([
     gc.loadCodes(),
     tm.loadTerms(),
-    (db.from as any)('member_groups').select('id, name, code_id, term_id, capacity, color, gender_restriction, age_range, waitlist_id, form_id').eq('org_id', orgId.value),
+    (db.from as any)('member_groups').select('id, name, code_id, term_id, capacity, color, gender_restriction, age_range, waitlist_id, form_id, location_id').eq('org_id', orgId.value),
     (db.from as any)('member_group_memberships').select('group_id, role, roles, person:persons!inner(first_name, last_name)'),
     (db.from as any)('member_group_disciplines').select('group_id, discipline:disciplines(sport, name)'),
     (db.from as any)('group_fee_options').select('id, group_id, name, fee_type, period_unit, period_count, instalment_count, session_count, prorata, items:group_fee_option_items(amount)').eq('org_id', orgId.value),
@@ -169,6 +169,7 @@ async function load() {
       ageRange: g.age_range ?? null,
       feeCount: opts.length,
       formId: g.form_id ?? null,
+      locationId: g.location_id ?? null,
       feeLabel: opts.length === 1 ? gf.priceLabel({ ...opts[0], items: opts[0].items ?? [] } as any) : null,
       attendances: attByGroup[g.id] || 0,
     }
@@ -197,6 +198,8 @@ async function createTab() {
 }
 
 defineExpose({ reload: load })
+// Location lens: rows outside the active location are hidden (null lens = all).
+const { activeLocationId: boardActiveLocation, inActiveLocation } = useActiveLocation()
 watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
 </script>
 

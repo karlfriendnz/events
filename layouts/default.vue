@@ -98,6 +98,16 @@
           </nav>
           <h1 v-else class="text-base font-semibold text-gray-900 truncate">{{ pageTitle }}</h1>
         </div>
+        <!-- Location lens (only for multi-site clubs, migration 237) -->
+        <button v-if="locMultiSite" type="button"
+          class="hidden sm:inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-gray-200 hover:border-gray-300 text-xs font-medium text-gray-600 shrink-0 transition-colors"
+          v-tooltip.bottom="'Switch location'" @click="locMenu.toggle($event)">
+          <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: activeLocation?.color || '#94A3B8' }" />
+          {{ activeLocation?.name ?? 'All locations' }}
+          <i class="pi pi-chevron-down text-[9px] text-gray-400" />
+        </button>
+        <Menu ref="locMenu" :model="locMenuItems" popup />
+
         <!-- Quick create -->
         <button type="button"
           class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-500 shrink-0"
@@ -330,6 +340,20 @@ const db = useSupabaseClient()
 const user = useSupabaseUser()
 const isSuper = computed(() => ((user.value as any)?.app_metadata?.role) === 'super_admin')
 const breadcrumbs = useBreadcrumbs()
+
+// ── Location lens (multi-site clubs): global active-location switcher ──
+const { locations: clubLocations2, activeLocationId, activeLocation, multiSite: locMultiSite, ensureLocations, setActiveLocation } = useActiveLocation()
+const locMenu = ref()
+const locMenuItems = computed(() => [
+  { label: 'All locations', icon: activeLocationId.value === null ? 'pi pi-check' : undefined, command: () => setActiveLocation(null) },
+  ...clubLocations2.value.map(l => ({
+    label: l.name,
+    icon: activeLocationId.value === l.id ? 'pi pi-check' : undefined,
+    command: () => setActiveLocation(l.id),
+  })),
+])
+watch(() => useOrg().orgId.value, () => { void ensureLocations(true) })
+onMounted(() => { void ensureLocations() })
 const { orgId, orgReady } = useOrg()
 const gate = useDeveloperGate()
 useBrandTheme() // re-themes --brand-primary from the active org's connected brand

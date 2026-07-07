@@ -88,6 +88,7 @@ void ensureTerms()
 
 interface SessionRow {
   id: string
+  locationId: string | null
   eventId: string
   groupName: string
   groupColor: string | null
@@ -103,10 +104,12 @@ const loading = ref(true)
 const allRows = ref<SessionRow[]>([])
 const search = ref('')
 
+const { inActiveLocation } = useActiveLocation()
 const filteredRows = computed(() => {
+  const base = allRows.value.filter(r => inActiveLocation(r.locationId))
   const q = search.value.trim().toLowerCase()
-  if (!q) return allRows.value
-  return allRows.value.filter(r =>
+  if (!q) return base
+  return base.filter(r =>
     r.groupName.toLowerCase().includes(q)
     || r.locationLabel.toLowerCase().includes(q)
     || r.dateLabel.toLowerCase().includes(q))
@@ -130,7 +133,7 @@ async function load() {
   // the canonical filter for "training events" so we don't depend on
   // a specific event style.
   const { data: events } = await (db.from as any)('events')
-    .select('id, start_at, end_at, location_type, bookable_id, address, meeting_link, member_group:member_groups(id, name, color)')
+    .select('id, start_at, end_at, location_type, bookable_id, address, meeting_link, member_group:member_groups(id, name, color, location_id)')
     .eq('org_id', orgId.value)
     .not('member_group_id', 'is', null)
     .gte('start_at', horizonStart.toISOString())
@@ -157,6 +160,7 @@ async function load() {
       eventId: e.id,
       groupName: e.member_group?.name ?? 'Attendance',
       groupColor: e.member_group?.color ?? null,
+      locationId: e.member_group?.location_id ?? null,
       start,
       end,
       isToday,
