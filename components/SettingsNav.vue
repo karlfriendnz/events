@@ -6,11 +6,11 @@
 <script setup lang="ts">
 const route = useRoute()
 const tabs = [
+  { label: 'Types & fields', icon: 'pi-id-card', to: '/settings/fields' },
   { label: 'General', icon: 'pi-cog', to: '/settings', tab: 'general' },
   { label: 'Club setup', icon: 'pi-sliders-v', to: '/settings/modules' },
   { label: 'Forms', icon: 'pi-file-edit', to: '/forms' },
   { label: 'Sports & locations', icon: 'pi-map-marker', to: '/settings/locations' },
-  { label: 'Types & fields', icon: 'pi-id-card', to: '/settings/fields' },
   { label: 'Terminology', icon: 'pi-pencil', to: '/settings/terminology' },
   { label: 'Profile dashboard', icon: 'pi-th-large', to: '/settings/profile-dashboard' },
   { label: 'Dashboard defaults', icon: 'pi-sliders-h', to: '/settings/dashboard-defaults' },
