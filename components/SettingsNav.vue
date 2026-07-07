@@ -6,15 +6,15 @@
 <script setup lang="ts">
 const route = useRoute()
 const tabs = [
-  { label: 'Types & fields', icon: 'pi-id-card', to: '/settings/fields' },
   { label: 'General', icon: 'pi-cog', to: '/settings', tab: 'general' },
-  { label: 'Club setup', icon: 'pi-sliders-v', to: '/settings/modules' },
+  { label: 'Person types', icon: 'pi-id-card', to: '/settings/fields' },
   { label: 'Forms', icon: 'pi-file-edit', to: '/forms' },
+  { label: 'Integrations', icon: 'pi-link', to: '/settings/integrations' },
+  { label: 'Club setup', icon: 'pi-sliders-v', to: '/settings/modules' },
   { label: 'Sports & locations', icon: 'pi-map-marker', to: '/settings/locations' },
   { label: 'Terminology', icon: 'pi-pencil', to: '/settings/terminology' },
   { label: 'Profile dashboard', icon: 'pi-th-large', to: '/settings/profile-dashboard' },
   { label: 'Dashboard defaults', icon: 'pi-sliders-h', to: '/settings/dashboard-defaults' },
-  { label: 'Integrations', icon: 'pi-link', to: '/settings/integrations' },
   { label: 'Advanced', icon: 'pi-wrench', to: '/settings', tab: 'advanced' },
   // Module-specific settings live below the divider
   { divider: true },
