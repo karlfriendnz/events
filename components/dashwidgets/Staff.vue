@@ -13,6 +13,16 @@ const emit = defineEmits<{ (e: 'update:opts', v: any): void }>()
 const db = useDb()
 const { orgId } = useOrg()
 const { loadFieldCatalogue } = usePersonFields()
+const { uploadFile } = useUpload()
+const uploadingId = ref<string | null>(null)
+async function onPersonPhoto(pe: any, e: Event) {
+  const f = (e.target as HTMLInputElement).files?.[0]
+  if (!f) return
+  uploadingId.value = pe.id
+  const { url } = await uploadFile(f)
+  pe.overrides = { ...(pe.overrides ?? {}), __photo: url }
+  uploadingId.value = null
+}
 
 // ── Row (field) catalogue a card can show ──
 const BASE_ROWS = [
@@ -138,7 +148,7 @@ function save() {
       </p>
       <div v-else class="grid gap-4" :style="{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }">
         <div v-for="pe in opts.people" :key="pe.id" class="flex items-start gap-3">
-          <img v-if="people[pe.id]?.photo_url" :src="people[pe.id].photo_url" class="w-14 h-14 rounded-full object-cover shrink-0" />
+          <img v-if="pe.overrides?.__photo || people[pe.id]?.photo_url" :src="pe.overrides?.__photo || people[pe.id].photo_url" class="w-14 h-14 rounded-full object-cover shrink-0" />
           <span v-else class="w-14 h-14 rounded-full flex items-center justify-center text-white font-semibold shrink-0" :style="{ background: avatarColor(pe.id) }">{{ initials(people[pe.id]) }}</span>
           <div class="min-w-0 flex-1">
             <p class="font-semibold text-gray-900 leading-tight">{{ (pe.overrides?.__name) || personName(people[pe.id]) }}</p>
@@ -185,6 +195,15 @@ function save() {
               <button type="button" class="text-gray-300 hover:text-red-500" @click="removePerson(i)"><i class="pi pi-trash text-sm" /></button>
             </div>
             <p class="text-[11px] text-gray-400">Leave a field blank to use their own info; type here to override what shows.</p>
+            <div class="flex items-center gap-3">
+              <img v-if="pe.overrides?.__photo || people[pe.id]?.photo_url" :src="pe.overrides?.__photo || people[pe.id].photo_url" class="w-11 h-11 rounded-full object-cover shrink-0" />
+              <span v-else class="w-11 h-11 rounded-full flex items-center justify-center text-white text-xs font-semibold shrink-0" :style="{ background: avatarColor(pe.id) }">{{ initials(people[pe.id]) }}</span>
+              <label class="text-xs font-medium text-primary cursor-pointer hover:underline">
+                <i class="pi pi-upload text-[10px] mr-1" />{{ uploadingId === pe.id ? 'Uploading…' : 'Upload photo' }}
+                <input type="file" accept="image/*" class="hidden" :disabled="uploadingId === pe.id" @change="e => onPersonPhoto(pe, e)" />
+              </label>
+              <button v-if="pe.overrides?.__photo" type="button" class="text-xs text-gray-400 hover:text-red-500" @click="pe.overrides.__photo = ''">Clear</button>
+            </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div class="flex flex-col gap-1"><label class="text-[11px] text-gray-400">Name</label><InputText v-model="pe.overrides.__name" :placeholder="draftName(pe.id)" class="text-sm" /></div>
               <div v-for="row in draft.rows" :key="row.id" class="flex flex-col gap-1">

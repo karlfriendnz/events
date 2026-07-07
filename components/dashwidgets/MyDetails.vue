@@ -12,6 +12,22 @@ const db = useDb()
 const { orgId } = useOrg()
 const user = useSupabaseUser()
 const { loadFieldCatalogue } = usePersonFields()
+const { uploadFile } = useUpload()
+const uploadingPhoto = ref(false)
+async function onPhoto(e: Event) {
+  const f = (e.target as HTMLInputElement).files?.[0]
+  if (!f || !me.value?.id) return
+  uploadingPhoto.value = true
+  const { url } = await uploadFile(f)
+  await (db.from as any)('persons').update({ photo_url: url }).eq('id', me.value.id)
+  me.value = { ...me.value, photo_url: url }
+  uploadingPhoto.value = false
+}
+async function removePhoto() {
+  if (!me.value?.id) return
+  await (db.from as any)('persons').update({ photo_url: null }).eq('id', me.value.id)
+  me.value = { ...me.value, photo_url: null }
+}
 
 const BASE_ROWS = [
   { field: 'role', label: 'Role / title', icon: '' },
@@ -107,6 +123,17 @@ function save() { emit('update:opts', { title: draft.title.trim() || 'My details
 
     <Dialog v-model:visible="cfgOpen" modal header="My details" :style="{ width: '95vw', maxWidth: '32rem' }">
       <div class="space-y-4">
+        <div class="flex items-center gap-3">
+          <img v-if="me?.photo_url" :src="me.photo_url" class="w-14 h-14 rounded-full object-cover shrink-0" />
+          <span v-else class="w-14 h-14 rounded-full flex items-center justify-center text-white font-semibold shrink-0 bg-primary">{{ initials(me) }}</span>
+          <div class="flex flex-col gap-1">
+            <label class="text-sm font-medium text-primary cursor-pointer hover:underline">
+              <i class="pi pi-upload text-xs mr-1" />{{ uploadingPhoto ? 'Uploading…' : 'Upload photo' }}
+              <input type="file" accept="image/*" class="hidden" :disabled="uploadingPhoto || !me" @change="onPhoto" />
+            </label>
+            <button v-if="me?.photo_url" type="button" class="text-xs text-gray-400 hover:text-red-500 text-left" @click="removePhoto">Remove photo</button>
+          </div>
+        </div>
         <div class="flex flex-col gap-1.5"><label class="text-xs font-medium text-gray-500">Title</label><InputText v-model="draft.title" /></div>
         <div class="space-y-2">
           <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Fields shown</p>
