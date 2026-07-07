@@ -151,7 +151,7 @@ watch(orgId, v => { if (v) load() })
                           <NuxtLink :to="`/people/${s2.person_id}`" class="text-sm text-primary hover:underline truncate">{{ personName(s2) }}</NuxtLink>
                         </span>
                       </td>
-                      <td class="px-3 py-2"><span class="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{{ roleLabel(s2.role_key) }}</span></td>
+                      <td class="px-3 py-2"><span class="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium">{{ roleLabel(s2.role_key) }}</span></td>
                       <td class="px-3 py-2">
                         <Select v-if="sports.length > 1" :model-value="s2.sport_id" @update:model-value="(v: string | null) => setStaffSport(s2, v)"
                           :options="sportOptions" optionLabel="label" optionValue="value" size="small" class="w-full" />
@@ -230,7 +230,7 @@ watch(orgId, v => { if (v) load() })
                           <NuxtLink :to="`/people/${s.person_id}`" class="text-sm text-primary hover:underline truncate">{{ personName(s) }}</NuxtLink>
                         </span>
                       </td>
-                      <td class="px-3 py-2"><span class="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{{ roleLabel(s.role_key) }}</span></td>
+                      <td class="px-3 py-2"><span class="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium">{{ roleLabel(s.role_key) }}</span></td>
                       <td class="px-3 py-2">
                         <Select v-if="sports.length > 1" :model-value="s.sport_id" @update:model-value="(v: string | null) => setStaffSport(s, v)"
                           :options="sportOptions" optionLabel="label" optionValue="value" size="small" class="w-full" />
