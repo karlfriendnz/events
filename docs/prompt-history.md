@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-137 sessions · 1145 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+139 sessions · 1148 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -2687,7 +2687,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:07** — better but still messy
 
 
-## Session 2026-07-05 23:26 (193 prompts)
+## Session 2026-07-05 23:26 (194 prompts)
 
 **23:26** — ok where did we get to ?
 
@@ -3486,6 +3486,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **22:17** — remove reports and retention report from the groups menu item
 
 **22:18** — basically all reports should be in the reports page not in any othemenut items
+
+**22:24** — On the form builder for a group registration under who is registering it should aloow me to conenct it to a type of person or entity
 
 
 ## Session 2026-07-05 23:33 (18 prompts)
@@ -13428,4 +13430,120 @@ Every prompt given to Claude Code on this project, extracted from local session 
 >     body = restArgs[1];
 >     bodyIndex = 
 > … [truncated — 76281 chars total]
+
+
+## Session 2026-07-07 22:29 (1 prompts)
+
+**22:29** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+
+## Session 2026-07-07 22:29 (1 prompts)
+
+**22:29** — Analyze test coverage and identify gaps:
+> - Find untested functions and classes
+> - Identify edge cases not covered
+> - Suggest new test scenarios
+> - Check for missing error handling tests
+> - Identify integration test gaps
+> 
+> For each gap, provide a test skeleton.
+> 
+> ## Codebase Context
+> 
+> --- tests/smoke.spec.ts (truncated) ---
+> /**
+>  * DEPLOYMENT SMOKE SUITE — run after every deploy.
+>  *
+>  *   TEST_BASE_URL=https://fm-events-five.vercel.app \
+>  *   TEST_EMAIL=... TEST_PASSWORD=... npm run test:smoke
+>  *
+>  * Principles:
+>  *  - STRICTLY READ-ONLY. Dev and prod share ONE database — these tests never
+>  *    write, click destructive buttons, or submit forms.
+>  *  - A route "passes" when it renders without a Nuxt 500, without uncaught
+>  *    page errors, without bouncing to /login, and with real content in <main>.
+>  *  - Data-independent: works on any org (asserts structure, not seed rows).
+>  *  - Auth'd sweep skips gracefully when TEST_EMAIL/TEST_PASSWORD aren't set,
+>  *    so the public subset still gates a deploy with no secrets available.
+>  */
+> import { test, expect, Page } from '@playwright/test'
+> 
+> const BASE = process.env.TEST_BASE_URL ?? 'http://localhost:3002'
+> const EMAIL = process.env.TEST_EMAIL ?? ''
+> const PASSWORD = process.env.TEST_PASSWORD ?? ''
+> const HAS_CREDS = !!(EMAIL && PASSWORD)
+> 
+> // Every core screen. Keep this list in sync with the URL table in CLAUDE.md —
+> // a new page ships with a row here (same spirit as the dashboard-widget rule).
+> const AUTHED_ROUTES = [
+>   '/dashboard',
+>   '/people',
+>   '/groups',
+>   '/groups/timetable',
+>   '/groups/reports',
+>   '/groups/retention',
+>   '/groups/fees',
+>   '/groups/waitlists',
+>   '/groups/allocator',
+>   '/groups/codes',
+>   '/groups/views',
+>   '/groups/rollover',
+>   '/groups/term-wizard',
+>   '/memberships',
+>   '/events',
+>   '/events/new-basic',
+>   '/events/reporting',
+>   '/bookables',
+>   '/bookings/new',
+>   '/attendance',
+>   '/resources',
+>   '/reports',
+>   '/finances',
+>   '/reporting',
+>   '/forms',
+>   '/organisations',
+>   '/settings',
+>   '/settings/terms',
+>   '/settings/memberships',
+>   '/settings/locations',
+>   '/settings/fields',
+>   '/settings/core-fields',
+>   '/settings/terminology',
+>   '/settings/modules',
+>   '/settings/calendars',
+>   '/settings/xero',
+>   '/settings/integrations',
+> ]
+> 
+> const PUBLIC_ROUTES = ['/login', '/book']
+> 
+> // Errors we tolerate (3rd-party noise, favicons, expected 4xx probes)
+> const IGNORABLE = [/favicon/i, /ResizeObserver loop/i, /sharedworker/i]
+> 
+> function watchErrors(page: Page) {
+>   const pageErrors: string[] = []
+>   const badResponses: string[] = []
+>   page.on('pageerror', e => pageErrors.push(String(e).slice(0, 200)))
+>   page.on('response', r => {
+>     // 5xx anywhere is a deploy problem; 4xx only from our own API/DB calls
+>     const url = r.url()
+>     if (IGNORABLE.some(rx => rx.test(url))) return
+>     if (r.status() >= 500) badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
+>     if (r.status() >= 400 && /supabase|\/api\//.test(url) && !/auth\/v1/.test(url)) {
+>       badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
+>     }
+>   })
+>   re
+> … [truncated — 15541 chars total]
 

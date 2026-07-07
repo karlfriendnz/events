@@ -1824,7 +1824,7 @@ function toggleEvtTerms(label: string) {
   else evtFormTermsSelections.value.splice(idx, 1)
 }
 const evtFormGroupDesigns = reactive<Record<string, any>>({
-  'general': { style: 'single', header: 'event', headerImage: '', icons: { date: true, time: true, cost: true, location: true, criteria: true }, description: 'event', customDescription: '', background: 'default', backgroundImage: '', backgroundColor: '#fefefe', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', backgroundOverlay: 1, sponsors: 'show', showSessions: true, sessionsHeading: 'Sessions', sessionsLayout: 'list', sessionsGroupLabel: '', formHeading: 'Fill in the form to register', addPersonColor: '#0e43a3' },
+  'general': { style: 'tabs', header: 'event', headerImage: '', icons: { date: true, time: true, cost: true, location: true, criteria: true }, description: 'event', customDescription: '', background: 'default', backgroundImage: '', backgroundColor: '#fefefe', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', backgroundOverlay: 1, sponsors: 'show', showSessions: true, sessionsHeading: 'Sessions', sessionsLayout: 'list', sessionsGroupLabel: '', formHeading: 'Fill in the form to register', addPersonColor: '#0e43a3' },
 })
 const currentEvtFormDesign = computed(() => evtFormGroupDesigns[selectedFormGroupId.value] ?? evtFormGroupDesigns['general'])
 
@@ -1909,7 +1909,7 @@ function chooseEvtFormPreset(presetId: string) {
   // Default to the Steps wizard for every template except Individual (and Blank,
   // which is a single person) — those stay Single Page.
   const design = evtFormGroupDesigns[selectedFormGroupId.value]
-  if (design) design.style = (presetId && presetId !== 'individual') ? 'tabs' : 'single'
+  if (design) design.style = 'tabs' // registration forms default to Steps (Karl)
 }
 
 const formToDelete = ref<string | null>(null)
@@ -2496,10 +2496,10 @@ defineExpose({ reload })
                     </button>
                   </div>
                 </div>
-                <!-- Entities -->
-                <div v-if="evtUnusedEntities.length">
+                <!-- Entities (Team / Family / Business…) -->
+                <div>
                   <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Entities</p>
-                  <div class="space-y-2">
+                  <div v-if="evtUnusedEntities.length" class="space-y-2">
                     <button v-for="t in evtUnusedEntities" :key="t.key" type="button"
                       class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:border-violet-400 hover:bg-violet-50/40 transition-all text-left"
                       @click="addEvtProfile(t)">
@@ -2508,9 +2508,12 @@ defineExpose({ reload })
                       <i class="pi pi-plus text-gray-300 text-xs" />
                     </button>
                   </div>
+                  <p v-else class="text-xs text-gray-400 border border-dashed border-gray-200 rounded-xl px-3 py-2.5">
+                    No entity types yet (e.g. Team, Family, Business). <NuxtLink to="/settings/fields" class="text-primary hover:underline">Create one in People &amp; Entities →</NuxtLink>
+                  </p>
                 </div>
-                <p v-if="!evtSubjectTypes.length" class="text-sm text-gray-400">No subject types defined yet — create them in Settings → Fields → Person Types.</p>
-                <p v-else-if="!evtUnusedPeople.length && !evtUnusedEntities.length" class="text-sm text-gray-400">Every available subject type is already on this form.</p>
+                <p v-if="!evtSubjectTypes.length" class="text-sm text-gray-400">No subject types defined yet — create them in Settings → People &amp; Entities.</p>
+                <p v-else-if="evtUnusedPeople.length === 0 && evtSubjectTypes.filter(x => (x.kind||'person')==='person').length" class="text-xs text-gray-400 mt-1">All person types are already on this form.</p>
               </div>
               <div class="px-5 pb-5 pt-3 border-t border-gray-100 shrink-0">
                 <button type="button" class="w-full py-2.5 rounded-lg bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors" @click="evtSelectedFormSection = ''">Done</button>
