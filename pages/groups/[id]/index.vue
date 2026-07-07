@@ -1123,7 +1123,7 @@
               class="w-32 shrink-0" :inputStyle="{ width: '8rem' }" />
           </div>
           <p v-else class="text-xs text-gray-400">No {{ t('term', true, true) }} defined yet —
-            <NuxtLink to="/settings/memberships" class="text-primary hover:underline">create {{ t('term', true, true) }} in Settings</NuxtLink>.
+            <NuxtLink to="/settings/terms" class="text-primary hover:underline">create {{ t('term', true, true) }} in Settings</NuxtLink>.
           </p>
         </div>
 

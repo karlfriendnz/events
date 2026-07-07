@@ -18,7 +18,7 @@ const { orgId } = useOrg()
 const toast = useToast()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
-useBreadcrumbs([{ label: 'Memberships' }])
+useBreadcrumbs([{ label: () => t('group', true), to: '/groups' }, { label: () => t('term', true) }])
 const { toIso, periodLabel, loadTermSets, createTermSet, renameTermSet, setTermSetSport, setTermSetLocations, deleteTermSet } = useTermsMemberships()
 import type { TermSet } from '~/composables/useTermsMemberships'
 
@@ -337,53 +337,121 @@ watch(orgId, v => { if (v) load() })
   <div class="p-3 sm:p-6">
     <div class="max-w-[1200px] space-y-5">
         <div>
-          <p class="text-sm text-gray-500">Recurring plans (e.g. Senior) with duration options that roll over. Connect a plan to a {{ t('group', false, true) }} on the {{ t('group', false, true) }}'s page.</p>
+          <p class="text-sm text-gray-500">Fixed date ranges your {{ t('group', true, true) }} run in. Connect a {{ t('group', false, true) }} to its {{ t('term', true, true) }} on the {{ t('group', false, true) }}'s page.</p>
         </div>
 
         <div v-if="loading" class="text-sm text-gray-400">Loading…</div>
 
         <template v-else>
-          <!-- MEMBERSHIPS -->
-          <AppCard title="Memberships" description="Recurring plans (e.g. Senior) with one or more duration options that roll over. A member keeps the same plan; they just pick a duration.">
-            <div class="p-4 sm:p-5 space-y-4">
-              <div v-for="(p, pi) in plans" :key="pi" class="rounded-xl border border-gray-200 overflow-hidden">
-                <div class="flex items-center gap-2 px-3 py-2.5 bg-gray-50/60 border-b border-gray-100">
-                  <input type="color" v-model="p.color" class="w-7 h-7 rounded cursor-pointer border-0 bg-transparent p-0 shrink-0" title="Plan colour" />
-                  <InputText v-model="p.name" placeholder="Senior membership" class="flex-1 min-w-0" />
-                  <button class="text-gray-400 hover:text-red-500 shrink-0" @click="removePlan(pi)"><i class="pi pi-trash" /></button>
-                </div>
-                <div class="p-3 space-y-3">
-                  <InputText v-model="p.description" placeholder="Optional description" class="w-full" />
+          <!-- TERMS -->
+          <AppCard :title="t('term', true)" :description="`Shared date ranges (e.g. Term 1 2026). Attach a ${t('group', false, true)} to one or more ${t('term', true, true)} on the ${t('group', false, true)} page. The sign-up window controls when ${t('member', true, true)} can register for that ${t('term', false, true)}'s ${t('group', true, true)} — leave it blank to open right away and close when the ${t('term', false, true)} ends.`">
+            <div class="p-4 sm:p-5 space-y-8">
+              <!-- Current / Past / Timeline tabs -->
+              <div class="flex gap-5 border-b border-gray-100 -mt-1">
+                <button type="button" class="pb-2 -mb-px border-b-2 text-sm font-medium transition-colors"
+                  :class="seasonsTab === 'current' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                  @click="seasonsTab = 'current'">Current {{ t('term', true, true) }}</button>
+                <button type="button" class="pb-2 -mb-px border-b-2 text-sm font-medium transition-colors"
+                  :class="seasonsTab === 'past' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                  @click="seasonsTab = 'past'">Past {{ t('term', true, true) }}<span v-if="pastCount" class="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">{{ pastCount }}</span></button>
+              </div>
 
-                  <!-- options -->
-                  <div class="space-y-2">
-                    <div v-if="p.options.length" class="hidden sm:grid grid-cols-[80px_1fr_140px_120px_40px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">
-                      <span>Every</span><span>Unit</span><span>Price</span><span>Auto-renew</span><span></span>
-                    </div>
-                    <div v-for="(o, oi) in p.options" :key="oi"
-                      class="grid grid-cols-2 sm:grid-cols-[80px_1fr_140px_120px_40px] gap-2 items-center">
-                      <InputNumber v-model="o.period_count" :min="1" :max="60" class="w-full" showButtons buttonLayout="stacked" :inputStyle="{ width: '3rem' }" />
-                      <Select v-model="o.period_unit" :options="UNITS" optionLabel="label" optionValue="value" class="w-full" />
-                      <InputNumber v-model="o.price" mode="currency" :currency="currency" locale="en-NZ" :min="0" placeholder="Price" class="w-full" />
-                      <div class="flex items-center gap-2">
-                        <ToggleSwitch v-model="o.auto_renew" />
-                        <span class="text-xs text-gray-500 sm:hidden">Auto-renew</span>
+              <!-- Visual view — every sequence on one time axis (wizard-style) -->
+              <div v-if="seasonsTab === 'current' && timeline" class="space-y-3 pb-2 border-b border-gray-100">
+                <div class="space-y-4">
+                  <div v-for="row in timeline.rows" :key="row.name" class="flex items-center gap-3">
+                    <span class="w-28 shrink-0 text-[11px] font-semibold text-gray-400 text-right truncate">{{ row.name }}</span>
+                    <div class="relative flex-1 h-12">
+                      <!-- sign-up lane -->
+                      <div v-for="(seg, i) in row.segments" :key="`su${i}`">
+                        <div v-if="seg.signup" class="absolute top-0 h-2.5 rounded-full bg-emerald-400/80"
+                          :style="{ left: seg.signup.left + '%', width: seg.signup.width + '%' }"
+                          v-tooltip.top="'Sign-ups open'" />
                       </div>
-                      <button class="text-gray-400 hover:text-red-500 justify-self-start sm:justify-self-center" @click="removeOption(p, oi)"><i class="pi pi-trash" /></button>
+                      <!-- term lane -->
+                      <div v-for="(seg, i) in row.segments" :key="`t${i}`"
+                        class="absolute top-3.5 bottom-0 rounded-lg flex items-center overflow-hidden" style="background:#1E2157"
+                        :style="{ left: seg.left + '%', width: seg.width + '%' }">
+                        <span v-for="(tick, j) in seg.ticks" :key="j" class="absolute top-0 bottom-0 w-px bg-white/25" :style="{ left: tick + '%' }" />
+                        <span class="relative text-[11px] font-semibold text-white px-2.5 truncate">{{ seg.label }}</span>
+                      </div>
+                      <!-- today -->
+                      <div v-if="timeline.today != null" class="absolute -top-1 -bottom-1 w-0.5 bg-red-500 rounded" :style="{ left: timeline.today + '%' }" />
                     </div>
-                    <p v-if="!p.options.length" class="text-xs text-gray-400">No duration options — add 1 month / 3 month etc.</p>
-                    <button class="text-sm text-primary hover:underline" @click="addOption(p)">+ Add duration option</button>
                   </div>
                 </div>
+                <div class="flex justify-between pl-[7.75rem] text-[11px] text-gray-400">
+                  <span>{{ timeline.axisStart }}</span>
+                  <span v-if="timeline.today != null" class="text-red-500 font-medium">Today</span>
+                  <span>{{ timeline.axisEnd }}</span>
+                </div>
               </div>
-              <p v-if="!plans.length" class="text-sm text-gray-400">No membership plans yet.</p>
-              <div class="flex items-center justify-between pt-1">
-                <button class="text-sm text-primary hover:underline" @click="addPlan">+ Add membership</button>
-                <Button label="Save memberships" size="small" :loading="savingPlans"
-                  style="background:#1E2157;border-color:#1E2157" @click="savePlans" />
+
+              <!-- One section per term set. The default (main) sequence first;
+                   each set is an independent sequence — rollover never crosses sets. -->
+              <div v-for="sec in termSections" v-show="onListTab" :key="sec.key" class="space-y-2">
+                <div v-if="sets.length || sec.set" class="flex items-center gap-2">
+                  <template v-if="sec.set">
+                    <input v-model="sec.set.name" @change="onRenameSet(sec.set)"
+                      class="text-base font-semibold text-gray-900 bg-transparent border border-transparent hover:border-gray-200 focus:border-[#1E2157] focus:bg-white focus:ring-1 focus:ring-[#1E2157] rounded-md px-1.5 -mx-1.5 py-0.5 outline-none transition-colors" />
+                    <Select v-if="sportOptions.length > 1" :model-value="sec.set.sport_id" :options="sportOptions"
+                      optionLabel="label" optionValue="value" size="small" class="w-40"
+                      v-tooltip.top="'Connect this sequence to a sport'"
+                      @update:modelValue="(v: string | null) => onSetSport(sec.set!, v)" />
+                    <MultiSelect v-if="locationOptions.length > 1" :model-value="sec.set.location_ids ?? []" :options="locationOptions"
+                      optionLabel="label" optionValue="value" size="small" display="chip" class="w-56"
+                      placeholder="All locations" v-tooltip.top="'Which locations run this sequence — empty = whole club'"
+                      @update:modelValue="(v: string[]) => onSetLocations(sec.set!, v)" />
+                    <button class="text-gray-300 hover:text-red-500" title="Delete this term set (its terms move to the main sequence)" @click="removeSet(sec.set)"><i class="pi pi-times-circle text-sm" /></button>
+                  </template>
+                  <span v-else class="text-base font-semibold text-gray-900">Main {{ t('term', true, true) }}</span>
+                </div>
+                <div class="lg:rounded-lg lg:border lg:border-gray-200 lg:overflow-hidden space-y-2 lg:space-y-0">
+                <div v-if="sec.list.length" class="hidden lg:grid grid-cols-[1fr_170px_170px_170px_170px_40px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-3 py-2.5 bg-gray-50 border-b border-gray-200">
+                  <span>Name</span><span>Starts</span><span>Ends</span><span v-tooltip.top="`When ${t('member', false, true)} registration opens. Blank = open right away.`">Sign-up opens</span><span v-tooltip.top="`When registration closes. Blank = when the ${t('term', false, true)} ends.`">Sign-up closes</span><span></span>
+                </div>
+                <div v-for="t in sec.list" :key="t.id ?? t.sort_order + t.name"
+                  class="grid grid-cols-1 lg:grid-cols-[1fr_170px_170px_170px_170px_40px] gap-2 lg:items-center rounded-lg lg:rounded-none border border-gray-100 lg:border-0 lg:border-b lg:border-gray-100 lg:last:border-b-0 p-3 lg:px-3 lg:py-2">
+                  <div class="flex items-center gap-3">
+                    <label class="lg:hidden w-28 shrink-0 text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</label>
+                    <InputText v-model="t.name" placeholder="Term 1 2026" class="w-full flex-1 min-w-0" />
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <label class="lg:hidden w-28 shrink-0 text-xs font-semibold text-gray-500 uppercase tracking-wide">Starts</label>
+                    <DatePicker v-model="t.start_date" dateFormat="d M yy" showIcon class="w-full flex-1 min-w-0" placeholder="Start" />
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <label class="lg:hidden w-28 shrink-0 text-xs font-semibold text-gray-500 uppercase tracking-wide">Ends</label>
+                    <DatePicker v-model="t.end_date" dateFormat="d M yy" showIcon class="w-full flex-1 min-w-0" placeholder="End" />
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <label class="lg:hidden w-28 shrink-0 text-xs font-semibold text-gray-500 uppercase tracking-wide">Sign-up opens</label>
+                    <DatePicker v-model="t.signup_open" dateFormat="d M yy" showIcon class="w-full flex-1 min-w-0" placeholder="Right away" />
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <label class="lg:hidden w-28 shrink-0 text-xs font-semibold text-gray-500 uppercase tracking-wide">Sign-up closes</label>
+                    <DatePicker v-model="t.signup_close" dateFormat="d M yy" showIcon class="w-full flex-1 min-w-0" placeholder="Term end" />
+                  </div>
+                  <button class="text-gray-400 hover:text-red-500 justify-self-end lg:justify-self-center" @click="removeTerm(t)">
+                    <i class="pi pi-trash" />
+                  </button>
+                </div>
+                </div>
+                <p v-if="!sec.list.length" class="text-sm text-gray-400">No {{ t('term', true, true) }} in this sequence yet.</p>
+                <button v-if="seasonsTab === 'current'" class="text-sm text-primary hover:underline" @click="addTerm(sec.set?.id ?? null)">+ Add {{ t('term', false, true) }}</button>
+              </div>
+              <p v-if="seasonsTab === 'past' && !termSections.length" class="text-sm text-gray-400">No past {{ t('term', true, true) }} yet — once a {{ t('term', false, true) }}'s end date has gone by it moves here.</p>
+
+              <div v-show="onListTab" class="flex items-center justify-between pt-1 border-t border-gray-100">
+                <button v-if="seasonsTab === 'current'" class="text-sm text-gray-400 hover:text-primary transition-colors mt-2" :title="`A separate, unconnected sequence of ${t('term', true, true)} — e.g. the Seniors' two halves`" @click="addSet">+ New {{ t('term', false, true) }} set</button>
+                <span v-if="seasonsTab !== 'current'" />
+                <Button :label="`Save ${t('term', true, true)}`" size="small" :loading="savingTerms" class="mt-2"
+                  style="background:#1E2157;border-color:#1E2157" @click="saveTerms" />
               </div>
             </div>
           </AppCard>
+
+
         </template>
     </div>
   </div>

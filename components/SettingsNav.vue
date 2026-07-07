@@ -12,7 +12,6 @@ const tabs = [
   { label: 'Events', icon: 'pi-megaphone', to: '/settings', tab: 'events' },
   { label: 'Forms', icon: 'pi-file-edit', to: '/forms' },
   { label: 'Resources', icon: 'pi-building', to: '/settings', tab: 'resources' },
-  { label: 'Terms & memberships', icon: 'pi-credit-card', to: '/settings/memberships' },
   { label: 'Locations', icon: 'pi-map-marker', to: '/settings/locations' },
   { label: 'Types & fields', icon: 'pi-id-card', to: '/settings/fields' },
   { label: 'Terminology', icon: 'pi-pencil', to: '/settings/terminology' },

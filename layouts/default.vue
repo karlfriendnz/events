@@ -58,6 +58,7 @@
               <NuxtLink to="/groups/fees" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-dollar text-gray-400 text-xs" />Fees</NuxtLink>
               <NuxtLink to="/groups/allocator" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-arrows-h text-gray-400 text-xs" />Allocate</NuxtLink>
               <NuxtLink to="/groups/waitlists" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-hourglass text-gray-400 text-xs" />Waitlists</NuxtLink>
+              <NuxtLink to="/settings/terms" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-clock text-gray-400 text-xs" />Terms</NuxtLink>
               <NuxtLink to="/groups/codes" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-sitemap text-gray-400 text-xs" />Organise codes</NuxtLink>
               <NuxtLink to="/groups/rollover" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-copy text-gray-400 text-xs" />Roll over a term</NuxtLink>
             </div>
@@ -596,6 +597,7 @@ const clubMenu = [
   { label: 'People',      icon: 'pi-users',         href: '/people',                  chevron: true },
   { label: 'Classes',     icon: 'pi-sitemap',       href: '/groups',                  chevron: true, groups: true, module: 'groups' },
   { label: 'Fees',        icon: 'pi-dollar',        href: '/finances',                chevron: true, module: 'finances' },
+  { label: 'Memberships', icon: 'pi-id-card',       href: '/settings/memberships',    chevron: true, module: 'finances' },
   { label: 'Events',      icon: 'pi-calendar',      href: '/events',                  chevron: true, events: true, module: 'events' },
   { label: 'Bookings',    icon: 'pi-bookmark',      href: '/bookables?tab=bookings',  chevron: true, module: 'bookings' },
   { label: 'Attendance',  icon: 'pi-check-square',  href: '/attendance',              chevron: true, module: 'attendance' },
