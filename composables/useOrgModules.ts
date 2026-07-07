@@ -45,7 +45,7 @@ export const MODULE_DEFS: ModuleDef[] = [
     description: 'Skills programmes and progress tracking.' },
   { key: 'gnz', label: 'GNZ', icon: 'pi-user',
     description: 'Governing-body affiliation tools.' },
-  { key: 'fm_invoices', label: 'FM Invoices', icon: 'pi-file',
+  { key: 'fm_invoices', label: 'Frello Invoices', icon: 'pi-file',
     description: 'Your FriendlyManager subscription invoices.' },
 ]
 

@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-149 sessions · 1183 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+149 sessions · 1184 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -2687,7 +2687,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:07** — better but still messy
 
 
-## Session 2026-07-05 23:26 (208 prompts)
+## Session 2026-07-05 23:26 (209 prompts)
 
 **23:26** — ok where did we get to ?
 
@@ -3521,6 +3521,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **23:26** — alweosme can we please have profile image in that as well
 
 **23:33** — Please move FM invoices to a menu item in settigs - call settings - Admin
+
+**23:34** — Sorry please rename the FM invoices to Frello Invoices
 
 
 ## Session 2026-07-05 23:33 (18 prompts)
