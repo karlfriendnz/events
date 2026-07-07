@@ -610,16 +610,14 @@ function onBookingsEnter() {
 function onBookingsLeave() {
   bookingsLeaveTimer = setTimeout(() => { bookingsHover.value = false }, 180)
 }
-const groupViews = ref<{ id: string; name: string }[]>([])
 const gvComposable = useGroupViews()
+// Shared reactive list — updates the instant a view is created/renamed/deleted.
+const groupViews = gvComposable.views
 async function loadGroupViews() {
   if (!orgId.value) { groupViews.value = []; return }
-  const vs = await gvComposable.loadViews()
-  groupViews.value = vs.map(v => ({ id: v.id, name: v.name }))
+  await gvComposable.loadViews()
 }
 watch(orgId, loadGroupViews, { immediate: true })
-// Refresh the flyout list after a view is created/edited/deleted on /groups/views.
-watch(() => route.path, (p) => { if (p.startsWith('/groups')) loadGroupViews() })
 
 function openNewCalendarModal() {
   eventsHover.value = false

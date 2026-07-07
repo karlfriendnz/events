@@ -38,6 +38,7 @@ const DEFAULT_CONFIG: GroupViewConfig = { columns: ['head', 'gymnasts', 'waitlis
 export function useGroupViews() {
   const db = useDb()
   const { orgId } = useOrg()
+  const views = useState<GroupView[]>('fm-group-views', () => [])
 
   function normalizeConfig(c: any): GroupViewConfig {
     return {
@@ -53,7 +54,9 @@ export function useGroupViews() {
       .eq('org_id', orgId.value)
       .order('sort_order', { ascending: true })
       .order('name', { ascending: true })
-    return (data ?? []).map((r: any) => ({ ...r, config: normalizeConfig(r.config) }))
+    const list = (data ?? []).map((r: any) => ({ ...r, config: normalizeConfig(r.config) }))
+    views.value = list
+    return list
   }
 
   async function getView(id: string): Promise<GroupView | null> {
@@ -71,16 +74,20 @@ export function useGroupViews() {
       config: { ...DEFAULT_CONFIG, ...patch.config },
       sort_order: patch.sort_order ?? 0,
     }).select('id, org_id, name, config, sort_order, created_at').maybeSingle()
-    return data ? { ...data, config: normalizeConfig(data.config) } : null
+    const created = data ? { ...data, config: normalizeConfig(data.config) } : null
+    if (created) views.value = [...views.value, created]
+    return created
   }
 
   async function updateView(id: string, patch: { name?: string; config?: GroupViewConfig; sort_order?: number }): Promise<void> {
     await (db.from as any)('group_views').update(patch).eq('id', id)
+    views.value = views.value.map(v => v.id === id ? { ...v, ...patch } as GroupView : v)
   }
 
   async function deleteView(id: string): Promise<void> {
     await (db.from as any)('group_views').delete().eq('id', id)
+    views.value = views.value.filter(v => v.id !== id)
   }
 
-  return { VIEW_COLUMNS, DEFAULT_CONFIG, loadViews, getView, createView, updateView, deleteView }
+  return { views, VIEW_COLUMNS, DEFAULT_CONFIG, loadViews, getView, createView, updateView, deleteView }
 }
