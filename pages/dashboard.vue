@@ -280,6 +280,26 @@ function rebuildLayout() {
   })
 }
 const hiddenWidgets = computed(() => config.value.filter(c => !c.enabled))
+// Icons for the registry widgets in the Add-widget gallery.
+const REG_ICONS: Record<string, string> = {
+  stat_members: 'pi-users', stat_groups: 'pi-sitemap', stat_events: 'pi-calendar', stat_bookings: 'pi-bookmark',
+  quick_actions: 'pi-bolt', upcoming_events: 'pi-calendar', members_by_type: 'pi-chart-bar', recent_members: 'pi-user-plus',
+  reg_week: 'pi-chart-line', not_live: 'pi-exclamation-triangle', outstanding: 'pi-dollar', utilisation: 'pi-gauge',
+  waitlist_action: 'pi-hourglass', location_compare: 'pi-map-marker', season_pulse: 'pi-clock', attendance_pulse: 'pi-check-square',
+  staff_coverage: 'pi-shield', membership_health: 'pi-id-card', retention_snapshot: 'pi-chart-line', birthdays: 'pi-gift',
+}
+function widgetIcon(key: string) { return REG_ICONS[key] ?? 'pi-th-large' }
+function widgetDesc(key: string) { return widgetDef(key).description }
+// "Create your own" widgets in the gallery — dynamic instances.
+const buildWidgets = computed(() => [
+  { icon: 'pi-user', color: '#1E2157', label: 'My details', desc: 'Your own profile card', run: addMyDetails },
+  { icon: 'pi-users', color: '#8B5CF6', label: 'Staff', desc: 'Showcase people as cards', run: addStaff },
+  { icon: 'pi-chart-pie', color: '#3B82F6', label: 'Chart', desc: 'Pie or bar of any field', run: addChart },
+  { icon: 'pi-bookmark', color: '#F59E0B', label: 'Activity', desc: 'Bookings for one activity', run: addActivity },
+  { icon: 'pi-link', color: '#EC4899', label: 'Buttons', desc: 'One or more link buttons', run: addButtons },
+  { icon: 'pi-align-left', color: '#0EA5E9', label: 'Content block', desc: 'Rich text, image & buttons', run: addContent },
+])
+function runAdd(fn: () => void) { fn(); addMenuOpen.value = false }
 
 const nowIso = computed(() => new Date().toISOString())
 function fmtDate(iso: string | null) {
@@ -783,23 +803,8 @@ watch(orgId, () => { if (orgId.value) loadOnboardingNudge() }, { immediate: true
           </label>
           <button v-if="bannerUrl" class="w-8 h-8 rounded-lg bg-white/90 shadow-sm flex items-center justify-center text-gray-400 hover:text-red-500" title="Remove banner image" @click="clearBanner"><i class="pi pi-trash text-sm" /></button>
           <span class="w-px h-5 bg-gray-300/60 mx-0.5" />
-          <!-- Add widget/chart menu -->
-          <div class="relative">
-            <button class="text-xs px-2.5 py-1.5 rounded-lg bg-white/90 text-gray-700 hover:text-gray-900 shadow-sm inline-flex items-center gap-1" @click="addMenuOpen = !addMenuOpen"><i class="pi pi-plus text-[10px]" />Add</button>
-            <template v-if="addMenuOpen">
-              <div class="fixed inset-0 z-[55]" @click="addMenuOpen = false" />
-              <div class="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-[60] text-left">
-                <button v-for="hw in hiddenWidgets" :key="hw.key" type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50" @click="addWidget(hw.key); addMenuOpen = false"><i class="pi pi-plus text-[10px] text-gray-400" />{{ widgetLabel(hw.key) }}</button>
-                <div v-if="hiddenWidgets.length" class="border-t border-gray-100 my-1" />
-                <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addChart(); addMenuOpen = false"><i class="pi pi-chart-pie text-[10px]" />Chart (choose a field)</button>
-                <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addActivity(); addMenuOpen = false"><i class="pi pi-bookmark text-[10px]" />Activity (connect to an activity)</button>
-                <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addStaff(); addMenuOpen = false"><i class="pi pi-users text-[10px]" />Staff (showcase people)</button>
-                <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addMyDetails(); addMenuOpen = false"><i class="pi pi-user text-[10px]" />My details</button>
-                <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addButtons(); addMenuOpen = false"><i class="pi pi-bookmark text-[10px]" />Button(s)</button>
-                <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addContent(); addMenuOpen = false"><i class="pi pi-align-left text-[10px]" />Content block (text, image, buttons)</button>
-              </div>
-            </template>
-          </div>
+          <!-- Add widget: opens the gallery -->
+          <button class="text-xs px-2.5 py-1.5 rounded-lg text-white shadow-sm inline-flex items-center gap-1" style="background:var(--brand-primary)" @click="addMenuOpen = true"><i class="pi pi-plus text-[10px]" />Add widget</button>
           <button class="text-xs px-2 py-1.5 rounded-lg bg-white/90 text-gray-500 hover:text-gray-800 shadow-sm" @click="resetLayout">Reset</button>
           <button class="text-xs px-2.5 py-1.5 rounded-lg bg-white/90 text-gray-600 hover:text-gray-900 shadow-sm" @click="cancelEdit">Cancel</button>
           <button class="text-xs px-2.5 py-1.5 rounded-lg text-white shadow-sm" style="background:var(--brand-primary)" :disabled="saving" @click="saveLayout">
@@ -1102,6 +1107,40 @@ watch(orgId, () => { if (orgId.value) loadOnboardingNudge() }, { immediate: true
     <Menu ref="quickMenu" :model="quickItems" :popup="true" />
 
     <!-- Per-chart settings -->
+    <!-- Add-widget gallery -->
+    <Dialog v-model:visible="addMenuOpen" modal header="Add a widget" :style="{ width: '95vw', maxWidth: '46rem' }" :pt="{ content: { class: 'pb-5' } }">
+      <div class="space-y-5">
+        <div>
+          <p class="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">Create</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            <button v-for="w in buildWidgets" :key="w.label" type="button"
+              class="group flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-white text-left hover:border-primary hover:shadow-md transition-all"
+              @click="runAdd(w.run)">
+              <span class="w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0" :style="{ background: w.color }"><i :class="['pi', w.icon, 'text-sm']" /></span>
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-gray-900">{{ w.label }}</span>
+                <span class="block text-[11px] text-gray-500 leading-snug">{{ w.desc }}</span>
+              </span>
+            </button>
+          </div>
+        </div>
+        <div v-if="hiddenWidgets.length">
+          <p class="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">Bring back</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            <button v-for="hw in hiddenWidgets" :key="hw.key" type="button"
+              class="group flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-white text-left hover:border-primary hover:shadow-md transition-all"
+              @click="addWidget(hw.key); addMenuOpen = false">
+              <span class="w-9 h-9 rounded-lg flex items-center justify-center bg-gray-100 text-gray-500 shrink-0 group-hover:bg-primary group-hover:text-white transition-colors"><i :class="['pi', widgetIcon(hw.key), 'text-sm']" /></span>
+              <span class="min-w-0">
+                <span class="block text-sm font-semibold text-gray-900">{{ widgetLabel(hw.key) }}</span>
+                <span class="block text-[11px] text-gray-500 leading-snug">{{ widgetDesc(hw.key) }}</span>
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Dialog>
+
     <Dialog :visible="!!settingsKey" modal header="Chart settings" :style="{ width: '95vw', maxWidth: '26rem' }" @update:visible="v => { if (!v) settingsKey = null }">
       <div class="flex flex-col gap-3.5">
         <div class="flex flex-col gap-1.5">
