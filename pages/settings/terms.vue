@@ -335,7 +335,7 @@ watch(orgId, v => { if (v) load() })
 
 <template>
   <div class="p-3 sm:p-6">
-    <div class="max-w-[1200px] space-y-5">
+    <div class="max-w-[1200px] mx-auto space-y-5">
         <div>
           <p class="text-sm text-gray-500">Fixed date ranges your {{ t('group', true, true) }} run in. Connect a {{ t('group', false, true) }} to its {{ t('term', true, true) }} on the {{ t('group', false, true) }}'s page.</p>
         </div>
