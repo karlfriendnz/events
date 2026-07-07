@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-146 sessions · 1174 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+146 sessions · 1175 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -2687,7 +2687,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:07** — better but still messy
 
 
-## Session 2026-07-05 23:26 (204 prompts)
+## Session 2026-07-05 23:26 (205 prompts)
 
 **23:26** — ok where did we get to ?
 
@@ -3513,6 +3513,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **23:11** — On the dashboard I want a new module called Staff this should allow me to find someone and then showcase info aboutthem [Image #25] i need to be able to pull in thier infomation or change to infimaton i want to display it to - I should be able to add any feilds i want ot the card, [Image #26]
 
 **23:18** — Change lefe menu "forms" to Registartion forms
+
+**23:19** — [Image #27] chang the width of this please
 
 
 ## Session 2026-07-05 23:33 (18 prompts)

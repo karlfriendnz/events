@@ -167,9 +167,9 @@ function save() {
         <div class="space-y-2">
           <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Fields on each card</p>
           <div v-for="(row, i) in draft.rows" :key="row.id" class="flex items-center gap-2">
-            <Select :modelValue="row.field" :options="rowOptions" optionLabel="label" optionValue="value" class="flex-1" @update:modelValue="v => onRowField(row, v)" />
-            <InputText v-if="row.field === 'custom'" v-model="row.label" placeholder="Label" class="w-28" />
-            <Select v-model="row.icon" :options="[{label:'—',value:''},{label:'Phone',value:'phone'},{label:'Email',value:'email'}]" optionLabel="label" optionValue="value" class="w-24" />
+            <Select :modelValue="row.field" :options="rowOptions" optionLabel="label" optionValue="value" class="flex-1 min-w-0" @update:modelValue="v => onRowField(row, v)" />
+            <InputText v-if="row.field === 'custom'" v-model="row.label" placeholder="Label" class="w-28 shrink-0" />
+            <Select v-model="row.icon" :options="[{label:'No icon',value:''},{label:'Phone',value:'phone'},{label:'Email',value:'email'}]" optionLabel="label" optionValue="value" class="w-32 shrink-0" />
             <button type="button" class="text-gray-300 hover:text-red-500" @click="removeRow(i)"><i class="pi pi-times-circle" /></button>
           </div>
           <button type="button" class="text-sm text-primary hover:underline" @click="addRow"><i class="pi pi-plus text-[10px] mr-1" />Add field</button>
