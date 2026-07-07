@@ -1,0 +1,9 @@
+#!/bin/sh
+# Regenerate the Claude Code prompt history and include it in every commit.
+# Best-effort: never blocks a commit (machines without transcripts just skip it).
+# Enable once per machine:  git config core.hooksPath scripts/git-hooks
+REPO="$(git rev-parse --show-toplevel)"
+if node "$REPO/scripts/extract-prompts.mjs" >/dev/null 2>&1; then
+  git add "$REPO/docs/prompt-history.md" 2>/dev/null
+fi
+exit 0
