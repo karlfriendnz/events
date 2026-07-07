@@ -246,8 +246,7 @@ watch(orgId, load, { immediate: true })
               <thead>
                 <tr class="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
                   <th class="text-left px-4 sm:px-5 py-2.5 font-medium">{{ sec.kind === 'person' ? 'Person type' : 'Entity type' }}</th>
-                  <th class="text-left px-3 py-2.5 font-medium w-28">Layout</th>
-                  <th class="text-left px-3 py-2.5 font-medium w-24">Fields</th>
+                  <th class="text-left px-3 py-2.5 font-medium w-24">Form</th>
                   <th class="text-left px-3 py-2.5 font-medium w-36">{{ sec.kind === 'person' ? 'Permissions' : 'Members' }}</th>
                   <th v-if="sec.kind === 'person'" class="text-left px-3 py-2.5 font-medium w-28">Landing page</th>
                   <th v-if="sec.kind === 'person'" class="text-left px-3 py-2.5 font-medium w-24">Profile</th>
@@ -266,10 +265,7 @@ watch(orgId, load, { immediate: true })
                       {{ t.label }}<i v-if="t.is_access" v-tooltip.top="'Grants access (permissions)'" class="pi pi-shield text-[10px] text-emerald-400" /></span>
                   </td>
                   <td class="px-3 py-2.5">
-                    <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'layout')"><i class="pi pi-window-maximize text-[10px]" />Layout</button>
-                  </td>
-                  <td class="px-3 py-2.5">
-                    <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'fields')"><i class="pi pi-list text-[10px]" />Fields</button>
+                    <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'layout')"><i class="pi pi-window-maximize text-[10px]" />Form</button>
                   </td>
                   <td class="px-3 py-2.5">
                     <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'access')"><i class="pi pi-shield text-[10px]" />{{ sec.kind === 'person' ? 'Permissions' : 'Members' }}</button>
@@ -286,7 +282,7 @@ watch(orgId, load, { immediate: true })
                 </tr>
                 <!-- add-a-type row -->
                 <tr class="bg-gray-50/40">
-                  <td :colspan="sec.kind === 'person' ? 7 : 5" class="px-4 sm:px-5 py-2.5">
+                  <td :colspan="sec.kind === 'person' ? 6 : 4" class="px-4 sm:px-5 py-2.5">
                     <div class="flex items-center gap-2 max-w-md">
                       <InputText :model-value="sec.kind === 'person' ? newLabel : newEntityLabel"
                         @update:model-value="v => sec.kind === 'person' ? (newLabel = v) : (newEntityLabel = v)"
@@ -315,7 +311,7 @@ watch(orgId, load, { immediate: true })
           <button v-for="tb in (kind === 'person' ? ['layout','fields','access','dashboard','profile'] : ['layout','fields','access'])" :key="tb"
             class="px-3 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition-colors whitespace-nowrap"
             :class="tab === tb ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
-            @click="tab = tb as any">{{ tb === 'access' ? accessTabLabel : tb === 'profile' ? 'Profile dashboard' : tb }}</button>
+            @click="tab = tb as any">{{ tb === 'access' ? accessTabLabel : tb === 'profile' ? 'Profile dashboard' : tb === 'layout' ? 'Form' : tb }}</button>
         </div>
 
           <!-- DASHBOARD: what this type sees after login (landing + club dashboard) -->
