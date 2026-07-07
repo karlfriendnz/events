@@ -403,6 +403,8 @@ The earlier 37-item list (Part 1) stands but **understated** the system. Materia
 
 | Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
 |---|---|---|---|---|---|---|---|---|
+| Locations (multi-site clubs) | NEW | Locations entity + staff access grants (location x sport, null = all); Global location lens (header switcher) filtering classes/people/attendance/week view/fees/waitlists/allocator/dashboard; Class staff get site access automatically via class assignments; Detail pages kick out like a permission miss when out-of-lens; Term sequences + memberships scopable to one or more locations | Sport-gating on remaining lens screens; Events/bookings lens; Verify with a real staff login | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Drag ordering everywhere | NEW | Classes + memberships boards: drag to reorder (edge bands), drop on programme/tab to move into it; Middle-band drop nests (join umbrella / create-programme dialog) | — | ☐ | ☐ | ☐ | ☐ | ☐ |
 | Groups landing | ★ EXCEEDS | Classes board: programme tabs, term filter, live columns (fill, fees, signup); Saved views + views manager; week-view links per programme | — | ☐ | ☐ | ☐ | ☐ | ☐ |
 | Week View timetable | NEW | Time x weekday grid of every class, density-adaptive summaries, day view; Colour-coded by programme, capacity chips, click-through modals | — | ☐ | ☐ | ☐ | ☐ | ☐ |
 | Class Finder | NEW | Find-a-class drawer from any screen: age/day/time/programme/space matching; Ranked results with add-person deep links | — | ☐ | ☐ | ☐ | ☐ | ☐ |
@@ -528,6 +530,7 @@ The earlier 37-item list (Part 1) stands but **understated** the system. Materia
 
 | Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
 |---|---|---|---|---|---|---|---|---|
+| Memberships engine | NEW | Membership = group without a timetable (kind discriminator; roster/fees/waitlist/restrictions/staff for free); Entitlements: included / % off / $ off per class, programme (dynamic) or event; Programme umbrellas (tiers) + everyone-across-tiers report; Hello Club-parity settings captured: renewal, auto-renewal, anchoring, purchasable-by, payment collection, approval, account credit; Coverage in staff enrol flow (Included in their Senior Membership); Own URLs/breadcrumbs (/memberships), location scoping, lens-aware creation | Renewal/collection/credit engines (settings captured, not enforced); Member-side purchase + tier-choice registration flow; Public-form coverage + discounted-price math | ☐ | ☐ | ☐ | ☐ | ☐ |
 | My contacts & circles | BUILT | /account/profiles: manage own contacts/circles, edit dependants' profiles (Profiles I manage) | — | ☐ | ☐ | ☐ | ☐ | ☐ |
 | My profile self-service | PARTIAL | Profile editing exists for staff-side; act-on-behalf model in place | Member-facing my-profile page (own details, comms preferences) | ☐ | ☐ | ☐ | ☐ | ☐ |
 | My classes & registrations | NOT STARTED | — | Member view of enrolled classes, upcoming sessions, registration history | ☐ | ☐ | ☐ | ☐ | ☐ |
@@ -567,6 +570,8 @@ The earlier 37-item list (Part 1) stands but **understated** the system. Materia
 
 | Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
 |---|---|---|---|---|---|---|---|---|
+| Deployment smoke tests | NEW | 42-check read-only Playwright suite (npm run test:smoke): every core route — 500s, page errors, failing API calls, login bounces; Runs against any TEST_BASE_URL post-deploy; degrades to public subset without creds; Already caught + fixed two silent query bugs (finances, reporting) | Wire into the deploy pipeline | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Dashboard insight widgets | NEW | 12 opt-in widgets: registrations/week, sign-up gaps, outstanding money, utilisation, waitlists (enrollable today), locations, season pulse, attendance, staff coverage, memberships, retention, birthdays; Content block (rich text, background, image, buttons) for member dashboards; Self-loading widget architecture: any feature ships a dashboard card with one file | — | ☐ | ☐ | ☐ | ☐ | ☐ |
 | Club info / branding | BUILT | Name, logo, icon, brand colours w/ preview, dashboard banner, currency/locale, season | — | ☐ | ☐ | ☐ | ☐ | ☐ |
 | Module toggles | BUILT | /settings/modules per-club switches w/ live nav filtering | — | ☐ | ☐ | ☐ | ☐ | ☐ |
 | Terminology | ★ EXCEEDS | Club renaming w/ NSO inheritance + sport-scoped vocabularies (per-sport sets); Wired app-wide (~250 strings: groups, people, events, dashboard, settings) | Nav labels (layout file); Hardcoded Classes-breadcrumb decision | ☐ | ☐ | ☐ | ☐ | ☐ |
@@ -599,6 +604,9 @@ The earlier 37-item list (Part 1) stands but **understated** the system. Materia
 - **Logins / archive / restrict** — Archive + restrict-registrations states
 
 **Squads / Classes**
+- **Locations (multi-site clubs)** — Sport-gating on remaining lens screens
+- **Locations (multi-site clubs)** — Events/bookings lens
+- **Locations (multi-site clubs)** — Verify with a real staff login
 - **New squad** — Enforce members-per-coach ratio (legacy playersPerStaff)
 - **Terms admin** — Date-overlap check within a set (legacy's one hard rule)
 - **Terms admin** — Member-guarded delete + fee/membership cascade, enforced server-side
@@ -664,6 +672,9 @@ The earlier 37-item list (Part 1) stands but **understated** the system. Materia
 - **Data import** — CSV / legacy-FM import: people, contacts, classes, terms, fee history
 
 **Member portal (self-service)**
+- **Memberships engine** — Renewal/collection/credit engines (settings captured, not enforced)
+- **Memberships engine** — Member-side purchase + tier-choice registration flow
+- **Memberships engine** — Public-form coverage + discounted-price math
 - **My profile self-service** — Member-facing my-profile page (own details, comms preferences)
 - **My classes & registrations** — Member view of enrolled classes, upcoming sessions, registration history
 - **My bookings** — Member view + manage of their venue/coach bookings
@@ -687,6 +698,7 @@ The earlier 37-item list (Part 1) stands but **understated** the system. Materia
 - **Zoho CRM** — Contact/org sync (scope to be defined with FM)
 
 **Settings & platform**
+- **Deployment smoke tests** — Wire into the deploy pipeline
 - **Terminology** — Nav labels (layout file)
 - **Terminology** — Hardcoded Classes-breadcrumb decision
 - **Registration forms & embeds** — Public site embeds: calendar, register, book widgets

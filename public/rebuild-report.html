@@ -157,7 +157,7 @@
       <span class="pct num">≈ 36%</span>
     </div>
     <div class="bar"><span id="hero-fill" style="width:36%"></span></div>
-    <p class="sub" id="new-count" style="margin-top:6px">Includes <b>8 features</b> the legacy platform never had — marked <span class="chip newchip">NEW</span> in the tables below.</p>
+    <p class="sub" id="new-count" style="margin-top:6px">Includes <b>13 features</b> the legacy platform never had — marked <span class="chip newchip">NEW</span> in the tables below.</p>
   </div>
 
   <h2>Progress by area</h2>
@@ -242,6 +242,8 @@
     <table class="aligned">
       <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
       <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Locations (multi-site clubs)</td><td><span class="chip newchip">NEW</span></td><td class="note"><ul class="cell"><li>Locations entity + staff access grants (location x sport, null = all)</li><li>Global location lens (header switcher) filtering classes/people/attendance/week view/fees/waitlists/allocator/dashboard</li><li>Class staff get site access automatically via class assignments</li><li>Detail pages kick out like a permission miss when out-of-lens</li><li>Term sequences + memberships scopable to one or more locations</li></ul></td><td class="note todo"><ul class="cell"><li>Sport-gating on remaining lens screens</li><li>Events/bookings lens</li><li>Verify with a real staff login</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Drag ordering everywhere</td><td><span class="chip newchip">NEW</span></td><td class="note"><ul class="cell"><li>Classes + memberships boards: drag to reorder (edge bands), drop on programme/tab to move into it</li><li>Middle-band drop nests (join umbrella / create-programme dialog)</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
       <tr><td class="item">Groups landing</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Classes board: programme tabs, term filter, live columns (fill, fees, signup)</li><li>Saved views + views manager; week-view links per programme</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
       <tr><td class="item">Week View timetable</td><td><span class="chip newchip">NEW</span></td><td class="note"><ul class="cell"><li>Time x weekday grid of every class, density-adaptive summaries, day view</li><li>Colour-coded by programme, capacity chips, click-through modals</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
       <tr><td class="item">Class Finder</td><td><span class="chip newchip">NEW</span></td><td class="note"><ul class="cell"><li>Find-a-class drawer from any screen: age/day/time/programme/space matching</li><li>Ranked results with add-person deep links</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
@@ -487,6 +489,7 @@
     <table class="aligned">
       <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
       <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Memberships engine</td><td><span class="chip newchip">NEW</span></td><td class="note"><ul class="cell"><li>Membership = group without a timetable (kind discriminator; roster/fees/waitlist/restrictions/staff for free)</li><li>Entitlements: included / % off / $ off per class, programme (dynamic) or event</li><li>Programme umbrellas (tiers) + everyone-across-tiers report</li><li>Hello Club-parity settings captured: renewal, auto-renewal, anchoring, purchasable-by, payment collection, approval, account credit</li><li>Coverage in staff enrol flow (Included in their Senior Membership)</li><li>Own URLs/breadcrumbs (/memberships), location scoping, lens-aware creation</li></ul></td><td class="note todo"><ul class="cell"><li>Renewal/collection/credit engines (settings captured, not enforced)</li><li>Member-side purchase + tier-choice registration flow</li><li>Public-form coverage + discounted-price math</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
       <tr><td class="item">My contacts & circles</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>/account/profiles: manage own contacts/circles, edit dependants' profiles (Profiles I manage)</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
       <tr><td class="item">My profile self-service</td><td><span class="chip partial">PARTIAL</span></td><td class="note"><ul class="cell"><li>Profile editing exists for staff-side; act-on-behalf model in place</li></ul></td><td class="note todo"><ul class="cell"><li>Member-facing my-profile page (own details, comms preferences)</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
       <tr><td class="item">My classes & registrations</td><td><span class="chip missing">NOT STARTED</span></td><td class="note"><span style="color:var(--faint)">&mdash;</span></td><td class="note todo"><ul class="cell"><li>Member view of enrolled classes, upcoming sessions, registration history</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
@@ -558,6 +561,8 @@
     <table class="aligned">
       <colgroup><col class="c-legacy"><col class="c-status"><col class="c-half"><col class="c-half"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"><col class="c-sign"></colgroup>
       <tr><th>Feature</th><th>Status</th><th>What&rsquo;s been done</th><th>What needs to be done</th><th class="sign">Karl</th><th class="sign">Kate</th><th class="sign">Rodd</th><th class="sign">FM</th><th class="sign">HC</th></tr>
+      <tr><td class="item">Deployment smoke tests</td><td><span class="chip newchip">NEW</span></td><td class="note"><ul class="cell"><li>42-check read-only Playwright suite (npm run test:smoke): every core route — 500s, page errors, failing API calls, login bounces</li><li>Runs against any TEST_BASE_URL post-deploy; degrades to public subset without creds</li><li>Already caught + fixed two silent query bugs (finances, reporting)</li></ul></td><td class="note todo"><ul class="cell"><li>Wire into the deploy pipeline</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
+      <tr><td class="item">Dashboard insight widgets</td><td><span class="chip newchip">NEW</span></td><td class="note"><ul class="cell"><li>12 opt-in widgets: registrations/week, sign-up gaps, outstanding money, utilisation, waitlists (enrollable today), locations, season pulse, attendance, staff coverage, memberships, retention, birthdays</li><li>Content block (rich text, background, image, buttons) for member dashboards</li><li>Self-loading widget architecture: any feature ships a dashboard card with one file</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
       <tr><td class="item">Club info / branding</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>Name, logo, icon, brand colours w/ preview, dashboard banner, currency/locale, season</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
       <tr><td class="item">Module toggles</td><td><span class="chip built">BUILT</span></td><td class="note"><ul class="cell"><li>/settings/modules per-club switches w/ live nav filtering</li></ul></td><td class="note todo"><span style="color:var(--faint)">Nothing &mdash; done</span></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
       <tr><td class="item">Terminology</td><td><span class="chip star">★ EXCEEDS</span></td><td class="note"><ul class="cell"><li>Club renaming w/ NSO inheritance + sport-scoped vocabularies (per-sport sets)</li><li>Wired app-wide (~250 strings: groups, people, events, dashboard, settings)</li></ul></td><td class="note todo"><ul class="cell"><li>Nav labels (layout file)</li><li>Hardcoded Classes-breadcrumb decision</li></ul></td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td><td class="sign">&#9744;</td></tr>
@@ -601,6 +606,9 @@
     <div class="card">
       <h3>Squads / Classes</h3>
       <ul>
+        <li><b>Locations (multi-site clubs)</b> — Sport-gating on remaining lens screens</li>
+        <li><b>Locations (multi-site clubs)</b> — Events/bookings lens</li>
+        <li><b>Locations (multi-site clubs)</b> — Verify with a real staff login</li>
         <li><b>New squad</b> — Enforce members-per-coach ratio (legacy playersPerStaff)</li>
         <li><b>Terms admin</b> — Date-overlap check within a set (legacy's one hard rule)</li>
         <li><b>Terms admin</b> — Member-guarded delete + fee/membership cascade, enforced server-side</li>
@@ -705,6 +713,9 @@
     <div class="card">
       <h3>Member portal (self-service)</h3>
       <ul>
+        <li><b>Memberships engine</b> — Renewal/collection/credit engines (settings captured, not enforced)</li>
+        <li><b>Memberships engine</b> — Member-side purchase + tier-choice registration flow</li>
+        <li><b>Memberships engine</b> — Public-form coverage + discounted-price math</li>
         <li><b>My profile self-service</b> — Member-facing my-profile page (own details, comms preferences)</li>
         <li><b>My classes & registrations</b> — Member view of enrolled classes, upcoming sessions, registration history</li>
         <li><b>My bookings</b> — Member view + manage of their venue/coach bookings</li>
@@ -740,6 +751,7 @@
     <div class="card">
       <h3>Settings & platform</h3>
       <ul>
+        <li><b>Deployment smoke tests</b> — Wire into the deploy pipeline</li>
         <li><b>Terminology</b> — Nav labels (layout file)</li>
         <li><b>Terminology</b> — Hardcoded Classes-breadcrumb decision</li>
         <li><b>Registration forms & embeds</b> — Public site embeds: calendar, register, book widgets</li>
