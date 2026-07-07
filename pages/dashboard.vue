@@ -29,6 +29,19 @@ const DASHBOARD_WIDGETS: WidgetDef[] = [
   { key: 'upcoming_events',label: 'Upcoming events',         description: 'The next events from today',                 x: 0, y: 3,  w: 8,  h: 6, minW: 4, minH: 3 },
   { key: 'members_by_type',label: 'Members by type',         description: 'Breakdown by membership type',               x: 8, y: 3,  w: 4,  h: 6, minW: 3, minH: 3 },
   { key: 'recent_members', label: 'Recently added members',  description: 'Newest people in the club',                  x: 0, y: 9,  w: 12, h: 5, minW: 4, minH: 3 },
+  // ── Opt-in widgets (Add-widget tray; defaultOff so existing dashboards don't change) ──
+  { key: 'reg_week',          label: 'Registrations this week', description: 'Public sign-ups, day by day',               x: 0, y: 99, w: 6, h: 6, minW: 4, minH: 4, defaultOff: true },
+  { key: 'not_live',          label: 'Not taking sign-ups',     description: 'Classes with no registration form',          x: 6, y: 99, w: 3, h: 5, minW: 3, minH: 3, defaultOff: true },
+  { key: 'outstanding',       label: 'Outstanding money',       description: 'Unpaid registrations total',                 x: 9, y: 99, w: 3, h: 2, minW: 2, minH: 2, defaultOff: true },
+  { key: 'utilisation',       label: 'Utilisation tile',        description: 'Spots filled vs capacity',                   x: 9, y: 101, w: 3, h: 2, minW: 2, minH: 2, defaultOff: true },
+  { key: 'waitlist_action',   label: 'Waitlists',               description: 'Who could be enrolled today',                x: 0, y: 105, w: 4, h: 5, minW: 3, minH: 3, defaultOff: true },
+  { key: 'location_compare',  label: 'Locations',               description: 'Sites side by side',                         x: 4, y: 105, w: 4, h: 5, minW: 3, minH: 3, defaultOff: true },
+  { key: 'season_pulse',      label: 'Season pulse',            description: 'Where each term sequence is right now',      x: 8, y: 105, w: 4, h: 5, minW: 3, minH: 3, defaultOff: true },
+  { key: 'attendance_pulse',  label: 'Attendance',              description: "Today's rolls + yesterday's unmarked",       x: 0, y: 110, w: 4, h: 5, minW: 3, minH: 3, defaultOff: true },
+  { key: 'staff_coverage',    label: 'Staff coverage',          description: 'Role shortfalls across classes',             x: 4, y: 110, w: 4, h: 5, minW: 3, minH: 3, defaultOff: true },
+  { key: 'membership_health', label: 'Memberships',             description: 'Tiers, counts and new this month',           x: 8, y: 110, w: 4, h: 5, minW: 3, minH: 3, defaultOff: true },
+  { key: 'retention_snapshot',label: 'Retention tile',          description: 'Carry-over from last term',                  x: 0, y: 115, w: 3, h: 2, minW: 2, minH: 2, defaultOff: true },
+  { key: 'birthdays',         label: 'Birthdays this week',     description: 'Upcoming member birthdays',                  x: 3, y: 115, w: 4, h: 5, minW: 3, minH: 3, defaultOff: true },
 ]
 const defById = Object.fromEntries(DASHBOARD_WIDGETS.map(w => [w.key, w]))
 // Dynamic chart instances use keys like "chart:<id>" — they aren't in the
@@ -37,9 +50,13 @@ const CHART_DEF: WidgetDef = { key: 'chart', label: 'Chart', description: 'Repor
 // Activity instances use keys like "activity:<id>" — a card connected to one
 // activity, surfacing its booking numbers.
 const ACTIVITY_DEF: WidgetDef = { key: 'activity', label: 'Activity', description: 'Connect to an activity (next bookings)', x: 0, y: 99, w: 4, h: 6, minW: 3, minH: 3 }
+// Content instances use keys like "content:<id>" — a free-form block (rich
+// text, background, image, buttons) for member-facing dashboards.
+const CONTENT_DEF: WidgetDef = { key: 'content', label: 'Content block', description: 'Rich text, image and buttons', x: 0, y: 99, w: 6, h: 5, minW: 3, minH: 2 }
 function isChart(key: string) { return key.startsWith('chart:') }
 function isActivity(key: string) { return key.startsWith('activity:') }
-function widgetDef(key: string): WidgetDef { return defById[key] ?? (isActivity(key) ? ACTIVITY_DEF : CHART_DEF) }
+function isContent(key: string) { return key.startsWith('content:') }
+function widgetDef(key: string): WidgetDef { return defById[key] ?? (isActivity(key) ? ACTIVITY_DEF : isContent(key) ? CONTENT_DEF : CHART_DEF) }
 // Display label for the Add-widget menu — term-aware for the registry widgets
 // (the registry keeps plain English labels; dynamic chart/activity fall through).
 function widgetLabel(key: string): string {
@@ -51,6 +68,11 @@ function widgetLabel(key: string): string {
     upcoming_events: `Upcoming ${t('event', true, true)}`,
     members_by_type: `${t('member', true)} by type`,
     recent_members: `Recently added ${t('member', true, true)}`,
+    not_live: `Not taking sign-ups`,
+    waitlist_action: 'Waitlists',
+    season_pulse: 'Season pulse',
+    staff_coverage: 'Staff coverage',
+    retention_snapshot: 'Retention tile',
   }
   return map[key] ?? widgetDef(key).label
 }
@@ -211,7 +233,7 @@ function reconcile(saved: any): CfgItem[] {
   const seen = new Set<string>()
   for (const it of Array.isArray(saved) ? saved : []) {
     // Keep registry widgets AND dynamic instances (chart:<id> / activity:<id>, not in the registry).
-    if (it && (valid.has(it.key) || isChart(it.key) || isActivity(it.key)) && !seen.has(it.key)) {
+    if (it && (valid.has(it.key) || isChart(it.key) || isActivity(it.key) || isContent(it.key)) && !seen.has(it.key)) {
       const d = widgetDef(it.key)
       out.push({
         key: it.key, enabled: it.enabled !== false,
@@ -511,7 +533,7 @@ function cancelEdit() {
 }
 function removeWidget(key: string) {
   layout.value = layout.value.filter(l => l.i !== key)
-  if (isChart(key) || isActivity(key)) {
+  if (isChart(key) || isActivity(key) || isContent(key)) {
     // Dynamic instances — delete entirely (don't linger as "hidden").
     config.value = config.value.filter(c => c.key !== key)
   } else {
@@ -533,6 +555,44 @@ function addChart() {
   const maxY = layout.value.reduce((m, l) => Math.max(m, l.y + l.h), 0)
   layout.value.push({ i: id, x: 0, y: maxY, w: d.w, h: d.h, minW: d.minW, minH: d.minH })
 }
+let contentSeq = 0
+function addContent() {
+  const id = `content:${Date.now().toString(36)}${contentSeq++}`
+  const d = CONTENT_DEF
+  config.value.push({ key: id, enabled: true, x: 0, y: 99, w: d.w, h: d.h, opts: { html: '<p>Welcome!</p>', bg: '#FFFFFF', text: '#111827', image_url: null, buttons: [] } })
+  const maxY = layout.value.reduce((m, l) => Math.max(m, l.y + l.h), 0)
+  layout.value.push({ i: id, x: 0, y: maxY, w: d.w, h: d.h, minW: d.minW, minH: d.minH })
+  openContentSettings(id)
+}
+// Content-block settings (cog): rich text + background + image + buttons
+const contentCfgOpen = ref(false)
+const contentCfgKey = ref<string | null>(null)
+const contentCfg = reactive<{ html: string; bg: string; text: string; image_url: string | null; buttons: { label: string; href: string; color: string }[] }>({ html: '', bg: '#FFFFFF', text: '#111827', image_url: null, buttons: [] })
+function contentOpts(key: string) { return (config.value.find(c => c.key === key)?.opts ?? {}) as any }
+function openContentSettings(key: string) {
+  const o = contentOpts(key)
+  contentCfg.html = o.html ?? ''
+  contentCfg.bg = o.bg ?? '#FFFFFF'
+  contentCfg.text = o.text ?? '#111827'
+  contentCfg.image_url = o.image_url ?? null
+  contentCfg.buttons = Array.isArray(o.buttons) ? o.buttons.map((b: any) => ({ label: b.label ?? '', href: b.href ?? '', color: b.color ?? '#1E2157' })) : []
+  contentCfgKey.value = key
+  contentCfgOpen.value = true
+}
+async function saveContentSettings() {
+  const c = config.value.find(x => x.key === contentCfgKey.value)
+  if (c) c.opts = { html: contentCfg.html, bg: contentCfg.bg, text: contentCfg.text, image_url: contentCfg.image_url, buttons: contentCfg.buttons.filter(b => b.label.trim()) }
+  contentCfgOpen.value = false
+  await persistConfig(currentConfig())
+}
+const { uploadFile: uploadContentImage } = useUpload()
+async function onContentImage(e: Event) {
+  const f = (e.target as HTMLInputElement).files?.[0]
+  if (!f) return
+  const { url } = await uploadContentImage(f)
+  contentCfg.image_url = url
+}
+
 let activitySeq = 0
 function addActivity() {
   const id = `activity:${Date.now().toString(36)}${activitySeq++}`
@@ -646,6 +706,7 @@ watch(() => useActiveLocation().activeLocationId.value, () => { if (orgId.value)
                 <div v-if="hiddenWidgets.length" class="border-t border-gray-100 my-1" />
                 <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addChart(); addMenuOpen = false"><i class="pi pi-chart-pie text-[10px]" />Chart (choose a field)</button>
                 <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addActivity(); addMenuOpen = false"><i class="pi pi-bookmark text-[10px]" />Activity (connect to an activity)</button>
+                <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addContent(); addMenuOpen = false"><i class="pi pi-align-left text-[10px]" />Content block (text, image, buttons)</button>
               </div>
             </template>
           </div>
@@ -793,6 +854,35 @@ watch(() => useActiveLocation().activeLocationId.value, () => { if (orgId.value)
             </AppCard>
 
             <!-- Chart widget (choose the field to report on; configurable) -->
+            <!-- Opt-in insight widgets: self-loading components (see components/dashwidgets/) -->
+            <DashwidgetsRegWeek v-else-if="item.i === 'reg_week'" class="h-full" />
+            <DashwidgetsNotLive v-else-if="item.i === 'not_live'" class="h-full" />
+            <DashwidgetsOutstanding v-else-if="item.i === 'outstanding'" class="h-full" />
+            <DashwidgetsUtilisation v-else-if="item.i === 'utilisation'" class="h-full" />
+            <DashwidgetsWaitlistAction v-else-if="item.i === 'waitlist_action'" class="h-full" />
+            <DashwidgetsLocationCompare v-else-if="item.i === 'location_compare'" class="h-full" />
+            <DashwidgetsSeasonPulse v-else-if="item.i === 'season_pulse'" class="h-full" />
+            <DashwidgetsAttendancePulse v-else-if="item.i === 'attendance_pulse'" class="h-full" />
+            <DashwidgetsStaffCoverage v-else-if="item.i === 'staff_coverage'" class="h-full" />
+            <DashwidgetsMembershipHealth v-else-if="item.i === 'membership_health'" class="h-full" />
+            <DashwidgetsRetentionSnapshot v-else-if="item.i === 'retention_snapshot'" class="h-full" />
+            <DashwidgetsBirthdays v-else-if="item.i === 'birthdays'" class="h-full" />
+
+            <!-- Content block: free-form rich text / image / buttons (member dashboards) -->
+            <div v-else-if="isContent(item.i)" class="card h-full flex flex-col overflow-hidden relative"
+              :style="{ background: contentOpts(item.i).bg || '#FFFFFF', color: contentOpts(item.i).text || '#111827' }">
+              <button v-if="editing" type="button"
+                class="absolute top-1.5 right-9 z-10 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-400 hover:text-primary pointer-events-auto"
+                title="Edit content" @click="openContentSettings(item.i)"><i class="pi pi-cog text-xs" /></button>
+              <img v-if="contentOpts(item.i).image_url" :src="contentOpts(item.i).image_url" class="w-full h-28 object-cover shrink-0" />
+              <div class="p-4 flex-1 overflow-auto prose prose-sm max-w-none" :style="{ color: contentOpts(item.i).text || '#111827' }" v-html="contentOpts(item.i).html || ''" />
+              <div v-if="(contentOpts(item.i).buttons ?? []).length" class="px-4 pb-4 flex flex-wrap gap-2">
+                <a v-for="(b, bi) in contentOpts(item.i).buttons" :key="bi" :href="b.href || '#'"
+                  class="inline-flex items-center px-3.5 py-1.5 rounded-lg text-sm font-medium text-white hover:brightness-110"
+                  :style="{ background: b.color || '#1E2157' }">{{ b.label }}</a>
+              </div>
+            </div>
+
             <div v-else-if="isChart(item.i)" class="card h-full flex flex-col">
               <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2 pointer-events-auto">
                 <p class="text-sm font-semibold text-gray-800 truncate">{{ chartTitle(item.i) }}</p>
@@ -969,6 +1059,49 @@ watch(() => useActiveLocation().activeLocationId.value, () => { if (orgId.value)
       <template #footer>
         <Button label="Cancel" severity="secondary" text @click="activityKey = null" />
         <Button label="Save" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveActivitySettings" />
+      </template>
+    </Dialog>
+
+    <!-- Content block settings -->
+    <Dialog v-model:visible="contentCfgOpen" modal header="Content block" :style="{ width: '95vw', maxWidth: '560px' }">
+      <div class="space-y-4">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium text-gray-700">Text</label>
+          <RichTextEditor v-model="contentCfg.html" />
+        </div>
+        <div class="flex flex-wrap items-center gap-5">
+          <label class="flex items-center gap-2 text-sm text-gray-700">Background
+            <input type="color" v-model="contentCfg.bg" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent p-0" />
+          </label>
+          <label class="flex items-center gap-2 text-sm text-gray-700">Text colour
+            <input type="color" v-model="contentCfg.text" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent p-0" />
+          </label>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium text-gray-700">Image <span class="text-gray-400 font-normal">— shown across the top</span></label>
+          <div class="flex items-center gap-3">
+            <img v-if="contentCfg.image_url" :src="contentCfg.image_url" class="h-14 w-24 object-cover rounded-lg border border-gray-200" />
+            <label class="text-sm text-primary hover:underline cursor-pointer">
+              {{ contentCfg.image_url ? 'Replace' : 'Upload image' }}
+              <input type="file" accept="image/*" class="hidden" @change="onContentImage" />
+            </label>
+            <button v-if="contentCfg.image_url" type="button" class="text-sm text-gray-400 hover:text-red-500" @click="contentCfg.image_url = null">Remove</button>
+          </div>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium text-gray-700">Buttons</label>
+          <div v-for="(b, i) in contentCfg.buttons" :key="i" class="flex items-center gap-2">
+            <InputText v-model="b.label" placeholder="Label" class="w-36" size="small" />
+            <InputText v-model="b.href" placeholder="Link (URL or /page)" class="flex-1" size="small" />
+            <input type="color" v-model="b.color" class="w-7 h-7 rounded cursor-pointer border-0 bg-transparent p-0 shrink-0" />
+            <button type="button" class="text-gray-300 hover:text-red-500" @click="contentCfg.buttons.splice(i, 1)"><i class="pi pi-times-circle text-sm" /></button>
+          </div>
+          <button type="button" class="text-sm text-primary hover:underline self-start" @click="contentCfg.buttons.push({ label: '', href: '', color: '#1E2157' })">+ Add button</button>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" text @click="contentCfgOpen = false" />
+        <Button label="Save" style="background:#1E2157;border-color:#1E2157" @click="saveContentSettings" />
       </template>
     </Dialog>
   </div>
