@@ -42,3 +42,7 @@ test-results/
 old/
 .claude-flow/
 .nuxt-verify
+
+# test artifacts
+playwright-report/
+test-results/
