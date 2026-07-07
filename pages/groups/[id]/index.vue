@@ -777,8 +777,10 @@
       </div>
 
       <!-- ASSETS -->
-      <!-- WHAT'S INCLUDED (membership mode) -->
-      <div v-show="activeTab === 'includes'" class="space-y-3">
+      <!-- WHAT'S INCLUDED (membership mode) — v-if so the tree only exists
+           while the user is looking at it (its load-time normalisation emit
+           must never be mistaken for a user clearing the selection) -->
+      <div v-if="activeTab === 'includes'" class="space-y-3">
           <div class="card overflow-hidden max-w-3xl">
             <div class="border-b border-gray-100 py-3 px-5 flex items-center justify-between text-sm font-semibold text-gray-800">
               <span class="flex items-center gap-2 text-sm"><span class="w-6 h-6 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"><i class="pi pi-ticket text-gray-400 text-[12px]" /></span>This membership includes</span>
@@ -794,9 +796,176 @@
                   display="chip" :placeholder="`No ${t('event', true, true)} connected`" class="w-full" filter
                   @update:modelValue="queueEntSave" />
               </div>
+
+              <!-- Benefit level per included thing: free, % off or $ off.
+                   Anything NOT listed here stays full price. -->
+              <div v-if="entSelectedTargets.length" class="pt-2 border-t border-gray-100 space-y-2">
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Benefit for each included item</label>
+                <p class="text-xs text-gray-400 -mt-1">Included = free. Or give a discount instead — anything not listed stays full price.</p>
+                <div v-for="t2 in entSelectedTargets" :key="t2.key" class="flex items-center gap-2">
+                  <span class="text-xs px-1.5 py-0.5 rounded font-medium shrink-0"
+                    :class="t2.type === 'code' ? 'bg-violet-50 text-violet-700' : t2.type === 'event' ? 'bg-amber-50 text-amber-700' : 'bg-sky-50 text-sky-700'">
+                    {{ t2.type === 'code' ? t('code') : t2.type === 'event' ? t('event') : t('group') }}
+                  </span>
+                  <span class="text-sm text-gray-800 truncate flex-1 min-w-0">{{ t2.name }}</span>
+                  <Select :model-value="entBenefitOf(t2.key).benefit_type" :options="[
+                      { label: 'Included (free)', value: 'included' },
+                      { label: '% off', value: 'discount_percent' },
+                      { label: '$ off', value: 'discount_amount' },
+                    ]" optionLabel="label" optionValue="value" size="small" class="w-40 shrink-0"
+                    @update:model-value="(v: string) => { entBenefitOf(t2.key).benefit_type = v; queueEntSave() }" />
+                  <InputNumber v-if="entBenefitOf(t2.key).benefit_type !== 'included'"
+                    :model-value="entBenefitOf(t2.key).benefit_value" :min="0"
+                    :suffix="entBenefitOf(t2.key).benefit_type === 'discount_percent' ? '%' : undefined"
+                    :prefix="entBenefitOf(t2.key).benefit_type === 'discount_amount' ? '$' : undefined"
+                    inputClass="w-20 text-center" class="shrink-0"
+                    @update:model-value="(v: number | null) => { entBenefitOf(t2.key).benefit_value = v; queueEntSave() }" />
+                </div>
+              </div>
             </div>
           </div>
 
+      </div>
+
+      <!-- MEMBERSHIP SETTINGS (membership mode, migs 241+242) -->
+      <div v-show="activeTab === 'msettings'" class="space-y-3">
+        <div class="card overflow-hidden max-w-3xl">
+          <div class="border-b border-gray-100 py-3 px-5 flex items-center justify-between text-sm font-semibold text-gray-800">
+            <span class="flex items-center gap-2 text-sm"><span class="w-6 h-6 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"><i class="pi pi-cog text-gray-400 text-[12px]" /></span>Membership settings</span>
+            <span v-if="msSaving" class="text-xs text-gray-400">Saving…</span>
+            <span v-else-if="msSaved" class="text-xs text-emerald-600">Saved ✓</span>
+          </div>
+          <div class="p-4 sm:p-6 space-y-7 text-sm">
+
+            <!-- Renewal by member -->
+            <section class="space-y-2.5">
+              <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Renewal by {{ t('member', false, true) }}</p>
+              <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.member_renewable" binary /> <span>{{ t('member', true) }} can renew this membership themselves when it expires</span></label>
+              <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.expiry_reminder" binary /> <span>Email a reminder before the membership expires</span></label>
+            </section>
+
+            <!-- Change windows -->
+            <section class="space-y-2.5">
+              <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Can be changed or renewed this far out before it expires</p>
+              <div class="flex flex-wrap items-center gap-4">
+                <InputNumber v-model="msSettings.renewal.change_before.count" :min="0" inputClass="w-16 text-center" />
+                <label v-for="u in RENEWAL_UNITS" :key="u.key" class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.change_before.unit" :value="u.key" /> {{ u.label }}</label>
+              </div>
+              <p class="text-xs font-bold uppercase tracking-wide text-gray-400 pt-2">Can be changed or renewed this long after it has expired</p>
+              <div class="flex flex-wrap items-center gap-4">
+                <InputNumber v-model="msSettings.renewal.change_after.count" :min="0" inputClass="w-16 text-center" />
+                <label v-for="u in RENEWAL_UNITS" :key="u.key" class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.change_after.unit" :value="u.key" /> {{ u.label }}</label>
+              </div>
+            </section>
+
+            <!-- Invoice due -->
+            <section class="space-y-2.5">
+              <p class="text-xs font-bold uppercase tracking-wide text-gray-400">{{ t('invoice', true) }} due date</p>
+              <label class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.invoice_due" value="default" /> Default</label>
+              <div class="flex items-center gap-3">
+                <label class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.invoice_due" value="specific" /> Specific to this membership</label>
+                <template v-if="msSettings.renewal.invoice_due === 'specific'">
+                  <InputNumber v-model="msSettings.renewal.invoice_due_days" :min="0" inputClass="w-16 text-center" /> <span class="text-gray-500">days after issue</span>
+                </template>
+              </div>
+            </section>
+
+            <!-- Auto renewal -->
+            <section class="space-y-2.5">
+              <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Auto renewal</p>
+              <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.auto.enabled" binary /> <span>This membership is auto renewable</span></label>
+              <template v-if="msSettings.renewal.auto.enabled">
+                <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.auto.reminders" binary /> <span>Send reminders when it's about to auto renew or has renewed</span></label>
+                <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.auto.default_on" binary /> <span>Turn auto renewal on by default for new members</span></label>
+                <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.auto.opt_in" binary /> <span>{{ t('member', true) }} can opt in to auto renewal</span></label>
+                <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.auto.opt_out" binary /> <span>{{ t('member', true) }} can opt out of auto renewal</span></label>
+                <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.auto.require_card" binary /> <span>Require a stored card for auto renewal</span></label>
+                <div class="flex items-center gap-2 pt-1">
+                  <span class="text-xs font-bold uppercase tracking-wide text-gray-400">Auto renewal timing</span>
+                </div>
+                <div class="flex items-center gap-2"><InputNumber v-model="msSettings.renewal.auto.days_before" :min="0" inputClass="w-16 text-center" /> <span class="text-gray-500">days before expiry</span></div>
+                <p class="text-xs font-bold uppercase tracking-wide text-gray-400 pt-1">Auto renewal payment strategy</p>
+                <div class="space-y-2">
+                  <label class="flex items-start gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.auto.strategy" value="renew_if_paid" class="mt-0.5" /> <span>Attempt payment and only renew if it succeeds<span class="block text-xs text-gray-400">Payment will be attempted multiple times</span></span></label>
+                  <label class="flex items-start gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.auto.strategy" value="renew_always" class="mt-0.5" /> <span>Attempt payment and renew even if it fails<span class="block text-xs text-gray-400">Payment will only be attempted once</span></span></label>
+                  <label class="flex items-start gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.auto.strategy" value="invoice_only" class="mt-0.5" /> <span>Renew and send an {{ t('invoice', false, true) }}, but don't collect payment<span class="block text-xs text-gray-400">The {{ t('invoice', false, true) }} is sent before expiry; no automatic collection</span></span></label>
+                </div>
+              </template>
+            </section>
+
+            <!-- Anchoring -->
+            <section class="space-y-2.5">
+              <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Anchoring</p>
+              <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.anchoring.enabled" binary /> <span>Anchor this membership to a fixed date each year</span></label>
+              <template v-if="msSettings.renewal.anchoring.enabled">
+                <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.anchoring.prorate" binary /> <span>Pro-rate charges when {{ t('member', true, true) }} sign up part way through</span></label>
+                <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.anchoring.auto_next_term" binary /> <span>Automatically issue the next period's membership when someone signs up close to the end</span></label>
+                <p class="text-xs font-bold uppercase tracking-wide text-gray-400 pt-1">Anchor date</p>
+                <div class="flex items-center gap-2">
+                  <Select v-model="msSettings.renewal.anchoring.anchor_day" :options="ANCHOR_DAY_OPTIONS" optionLabel="label" optionValue="value" size="small" class="w-20" />
+                  <Select v-model="msSettings.renewal.anchoring.anchor_month" :options="MONTH_OPTIONS" optionLabel="label" optionValue="value" size="small" class="w-40" />
+                </div>
+                <p class="text-xs font-bold uppercase tracking-wide text-gray-400 pt-1">Next period threshold</p>
+                <div class="flex flex-wrap items-center gap-4">
+                  <InputNumber v-model="msSettings.renewal.anchoring.threshold.count" :min="0" inputClass="w-16 text-center" />
+                  <label v-for="u in RENEWAL_UNITS" :key="u.key" class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.anchoring.threshold.unit" :value="u.key" /> {{ u.label }}</label>
+                </div>
+              </template>
+            </section>
+
+            <!-- Who can buy it -->
+            <section class="space-y-2.5">
+              <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Purchasable by</p>
+              <Select v-model="msSettings.purchase.purchasable_by" :options="PURCHASABLE_BY_OPTIONS" optionLabel="label" optionValue="value" class="w-full sm:w-96" />
+              <MultiSelect v-if="['specific_membership', 'casuals_and_specific'].includes(msSettings.purchase.purchasable_by)"
+                v-model="msSettings.purchase.specific_membership_ids" :options="otherMembershipOptions"
+                optionLabel="label" optionValue="value" display="chip" placeholder="Choose memberships…" class="w-full sm:w-96" />
+              <div class="flex flex-wrap items-center gap-5 pt-1">
+                <span class="flex items-center gap-2"><span class="text-xs font-bold uppercase tracking-wide text-gray-400">Minimum age</span> <InputNumber v-model="msSettings.purchase.min_age" :min="0" inputClass="w-16 text-center" showClear /> <span class="text-gray-500">years</span></span>
+                <span class="flex items-center gap-2"><span class="text-xs font-bold uppercase tracking-wide text-gray-400">Maximum age</span> <InputNumber v-model="msSettings.purchase.max_age" :min="0" inputClass="w-16 text-center" /> <span class="text-gray-500">years</span></span>
+              </div>
+            </section>
+
+            <!-- Options -->
+            <section class="space-y-2.5">
+              <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Options</p>
+              <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.purchase.from_members_page" binary /> <span>{{ t('member', true) }} can buy it from their memberships page</span></label>
+              <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.purchase.selectable_on_change" binary /> <span>{{ t('member', true) }} can pick it when changing their membership</span></label>
+              <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.purchase.pay_later" binary /> <span>Allow paying later when buying or renewing</span></label>
+              <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.purchase.selectable_at_registration" binary /> <span>New {{ t('member', true, true) }} can pick it during registration</span></label>
+              <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.purchase.direct_link_only" binary /> <span>Only available via a direct link</span></label>
+              <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.purchase.is_default" binary /> <span>This is the default membership for new {{ t('member', true, true) }}</span></label>
+            </section>
+
+            <!-- Payment collection -->
+            <section class="space-y-2.5">
+              <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Payment collection</p>
+              <label class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.purchase.payment_collection" value="advance" /> Collect payment in advance during registration</label>
+              <label class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.purchase.payment_collection" value="later" /> Allow payment later, after registration</label>
+              <label class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.purchase.payment_collection" value="after_approval" /> Only collect payment after approval</label>
+            </section>
+
+            <!-- Approval -->
+            <section class="space-y-2.5">
+              <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Approval of new {{ t('member', true, true) }} by admin</p>
+              <label class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.purchase.approval" value="none" /> Not required</label>
+              <label class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.purchase.approval" value="on_payment_failure" /> Only required when payment fails</label>
+              <label class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.purchase.approval" value="always" /> Always required</label>
+            </section>
+
+            <!-- Benefits -->
+            <section class="space-y-2.5">
+              <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Benefits — account credit</p>
+              <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.benefits.credit.enabled" binary /> <span>{{ t('member', true) }} receive an account credit top-up when this membership starts or renews</span></label>
+              <div v-if="msSettings.benefits.credit.enabled" class="flex items-center gap-2">
+                <span class="text-xs font-bold uppercase tracking-wide text-gray-400">Amount</span>
+                <InputNumber v-model="msSettings.benefits.credit.amount" mode="currency" currency="NZD" :min="0" inputClass="w-32" />
+              </div>
+              <p class="text-xs text-gray-400">{{ t('group', true) }} and {{ t('event', true, true) }} this membership includes are managed on the <button type="button" class="text-primary hover:underline" @click="activeTab = 'includes'">What's included</button> tab.</p>
+            </section>
+
+          </div>
+        </div>
       </div>
 
       <div v-show="activeTab === 'assets'" class="bg-white rounded-lg border border-gray-200 p-10 text-center text-sm text-gray-400">
@@ -1098,7 +1267,9 @@
           <label class="text-sm font-medium">Fee <span class="text-gray-400 font-normal">— optional</span></label>
           <div v-if="addCoveredBy" class="flex items-center gap-2 text-sm rounded-lg px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-800">
             <i class="pi pi-ticket text-emerald-500" />
-            <span>Included in their <b class="font-semibold">{{ addCoveredBy.membershipName }}</b> — no fee needed.</span>
+            <span v-if="!addCoveredBy.benefit || (addCoveredBy.benefit.benefit_type ?? 'included') === 'included'">Included in their <b class="font-semibold">{{ addCoveredBy.membershipName }}</b> — no fee needed.</span>
+            <span v-else-if="addCoveredBy.benefit.benefit_type === 'discount_percent'"><b class="font-semibold">{{ addCoveredBy.benefit.benefit_value ?? 0 }}% off</b> with their <b class="font-semibold">{{ addCoveredBy.membershipName }}</b>.</span>
+            <span v-else><b class="font-semibold">${{ addCoveredBy.benefit.benefit_value ?? 0 }} off</b> with their <b class="font-semibold">{{ addCoveredBy.membershipName }}</b>.</span>
           </div>
           <Select v-model="addEnrol" :options="enrolOptions" optionLabel="label" optionValue="value"
             :placeholder="addCoveredBy ? 'Covered by membership' : 'No fee'" showClear class="w-full" />
@@ -1498,7 +1669,7 @@ import type { GroupCode } from '~/composables/useGroupCodes'
 import type { CodeRoleDef } from '~/composables/useCodeRoles'
 const route = useRoute()
 const router = useRouter()
-import { isMembershipGroup } from '~/composables/useMemberships'
+import { isMembershipGroup, resolveMembershipSettings } from '~/composables/useMemberships'
 const db = useDb()
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
@@ -1927,6 +2098,25 @@ const ms = useMemberships()
 const entSelectionKeys = ref<Record<string, { checked?: boolean }>>({})
 const entEventIds = ref<string[]>([])
 const entEventOptions = ref<{ label: string; value: string }[]>([])
+// Benefit level per selected target ('type:id' → included / % off / $ off).
+const entBenefits = ref<Record<string, { benefit_type: string; benefit_value: number | null }>>({})
+const entGroupNames = ref<Record<string, string>>({})
+const entSelectedTargets = computed(() => {
+  const keys = [
+    ...Object.entries(entSelectionKeys.value).filter(([k, v]) => v?.checked && k.includes(':')).map(([k]) => k),
+    ...entEventIds.value.map(id2 => `event:${id2}`),
+  ]
+  return keys.map(k => {
+    const [type, id2] = [k.split(':')[0], k.split(':')[1]]
+    const name = type === 'code' ? (codesById.value[id2]?.name ?? 'Programme')
+      : type === 'group' ? (entGroupNames.value[id2] ?? 'Class')
+      : (entEventOptions.value.find(o => o.value === id2)?.label ?? 'Event')
+    return { key: k, type, id: id2, name }
+  })
+})
+function entBenefitOf(key: string) {
+  return entBenefits.value[key] ?? (entBenefits.value[key] = { benefit_type: 'included', benefit_value: null })
+}
 const entSaving = ref(false)
 const entSaved = ref(false)
 const entHydrating = ref(true)
@@ -1942,15 +2132,21 @@ async function loadEntitlements() {
   ])
   const keys: Record<string, { checked: boolean }> = {}
   const evIds: string[] = []
+  const bens: Record<string, { benefit_type: string; benefit_value: number | null }> = {}
   for (const r of rows) {
     if (r.target_type === 'event') evIds.push(r.target_id)
     else keys[`${r.target_type}:${r.target_id}`] = { checked: true }
+    bens[`${r.target_type}:${r.target_id}`] = { benefit_type: (r as any).benefit_type ?? 'included', benefit_value: (r as any).benefit_value ?? null }
   }
   entSelectionKeys.value = keys
   entEventIds.value = evIds
+  entBenefits.value = bens
+  const { data: gNames } = await (db.from as any)('member_groups').select('id, name').eq('org_id', orgId.value)
+  entGroupNames.value = Object.fromEntries((gNames ?? []).map((g: any) => [g.id, g.name]))
   entEventOptions.value = (evs ?? []).map((e: any) => ({ label: e.title, value: e.id }))
-  await nextTick()
-  entHydrating.value = false
+  // Keep the guard up until the tree has mounted + normalised (its load-time
+  // emits must not count as edits).
+  setTimeout(() => { entHydrating.value = false }, 900)
 }
 function queueEntSave() {
   if (entHydrating.value) return
@@ -1959,19 +2155,63 @@ function queueEntSave() {
 }
 async function saveEntitlements() {
   if (!group.value || !isMembershipKind.value) return
+  if (activeTab.value !== 'includes') return // never save from a closed tab
   entSaving.value = true
-  const rows = [
-    ...Object.entries(entSelectionKeys.value)
-      .filter(([k, v]) => v?.checked && k.includes(':'))
-      .map(([k]) => ({ target_type: k.split(':')[0], target_id: k.split(':')[1] })),
-    ...entEventIds.value.map(id2 => ({ target_type: 'event', target_id: id2 })),
-  ]
+  const rows = entSelectedTargets.value.map(t2 => ({
+    target_type: t2.type,
+    target_id: t2.id,
+    benefit_type: (entBenefits.value[t2.key]?.benefit_type ?? 'included') as any,
+    benefit_value: entBenefits.value[t2.key]?.benefit_type === 'included' ? null : (entBenefits.value[t2.key]?.benefit_value ?? null),
+  }))
   await ms.saveEntitlements(group.value.id, rows as any)
   entSaving.value = false
   entSaved.value = true
   setTimeout(() => { entSaved.value = false }, 2000)
 }
-watch(() => group.value?.id, () => { if (isMembershipKind.value) loadEntitlements() })
+watch(() => group.value?.id, () => { if (isMembershipKind.value && activeTab.value === 'includes') loadEntitlements() })
+
+// ── Membership settings (membership mode, migs 241+242): renewal, anchoring,
+// purchase rules, payment collection, approval, benefits. Autosaved blob. ──
+const msSettings = ref(resolveMembershipSettings(null))
+const msSaving = ref(false)
+const msSaved = ref(false)
+const msHydrating = ref(true)
+const otherMembershipOptions = ref<{ label: string; value: string }[]>([])
+let msTimer: any = null
+watch(() => group.value?.id, async () => {
+  if (!isMembershipKind.value) return
+  msHydrating.value = true
+  msSettings.value = resolveMembershipSettings((group.value as any)?.membership_settings)
+  const { data: others } = await (db.from as any)('member_groups')
+    .select('id, name').eq('org_id', orgId.value).eq('kind', 'membership').neq('id', group.value!.id).order('name')
+  otherMembershipOptions.value = (others ?? []).map((g: any) => ({ label: g.name, value: g.id }))
+  await nextTick()
+  msHydrating.value = false
+}, { immediate: true })
+watch(msSettings, () => {
+  if (msHydrating.value || !group.value || !isMembershipKind.value) return
+  clearTimeout(msTimer)
+  msTimer = setTimeout(async () => {
+    msSaving.value = true
+    await (db.from as any)('member_groups').update({ membership_settings: msSettings.value }).eq('id', group.value!.id)
+    msSaving.value = false
+    msSaved.value = true
+    setTimeout(() => { msSaved.value = false }, 2000)
+  }, 700)
+}, { deep: true })
+const PURCHASABLE_BY_OPTIONS = [
+  { label: 'Everyone with a profile', value: 'everyone' },
+  { label: 'Members with any valid membership', value: 'any_member' },
+  { label: 'Members with a specific membership', value: 'specific_membership' },
+  { label: 'Casuals and members with a specific membership', value: 'casuals_and_specific' },
+  { label: 'Casuals without membership', value: 'casuals_only' },
+]
+const RENEWAL_UNITS = [
+  { key: 'day', label: 'Days' }, { key: 'week', label: 'Weeks' }, { key: 'month', label: 'Months' }, { key: 'year', label: 'Years' },
+]
+const MONTH_OPTIONS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+  .map((m, i) => ({ label: m, value: i + 1 }))
+const ANCHOR_DAY_OPTIONS = Array.from({ length: 31 }, (_, i) => ({ label: String(i + 1), value: i + 1 }))
 
 // Page tabs (Details holds the current INFO/sessions/people; the rest are stubs for now).
 const groupTabs = computed(() => [
@@ -1980,6 +2220,7 @@ const groupTabs = computed(() => [
   { key: 'subgroups', label: 'Sub Groups', icon: 'pi-sitemap' },
   ...(isMembershipKind.value ? [
     { key: 'includes', label: "What's included", icon: 'pi-ticket' },
+    { key: 'msettings', label: 'Settings', icon: 'pi-cog' },
   ] : [
     { key: 'assets', label: 'Assets', icon: 'pi-box' },
     { key: 'trainings', label: 'Trainings', icon: 'pi-check-square' },
@@ -1987,6 +2228,8 @@ const groupTabs = computed(() => [
   ]),
 ])
 const activeTab = ref<string>((typeof route.hash === 'string' && route.hash.slice(1)) || 'details')
+// (declared here, after activeTab exists — avoids a TDZ 500)
+watch(activeTab, tab => { if (tab === 'includes' && isMembershipKind.value) loadEntitlements() }, { immediate: true })
 watch(activeTab, t => router.replace({ hash: t === 'details' ? '' : `#${t}` }))
 const schedules = ref<Schedule[]>([])
 const bookableNameById = ref<Record<string, string>>({})
@@ -2413,7 +2656,7 @@ async function load() {
   // since it needs both the event list and the resolved roster.
   const [gRes, membersRes, , schedsRes, bkblsRes, orgRes, , codesList, codeDefs, codeStaffList] = await Promise.all([
     (db.from as any)('member_groups')
-      .select('id, name, color, code, code_id, age_range, capacity, current_term, term_fee, sub_groups, term_id, lineage_id, rolled_from_group_id, gender_restriction, image_url, head_person_id, waitlist_id, form_id, location_id, kind')
+      .select('id, name, color, code, code_id, age_range, capacity, current_term, term_fee, sub_groups, term_id, lineage_id, rolled_from_group_id, gender_restriction, image_url, head_person_id, waitlist_id, form_id, location_id, kind, membership_settings')
       .eq('id', id)
       .eq('org_id', orgId.value)
       .maybeSingle(),
@@ -3057,7 +3300,7 @@ const pendingPerson = ref<any>(null)
 // Membership coverage (mig 240): if the picked person holds a membership whose
 // entitlements include this class (directly or via its programme), the fee
 // step shows "Included in …" instead of asking for money.
-const addCoveredBy = ref<{ membershipGroupId: string; membershipName: string } | null>(null)
+const addCoveredBy = ref<{ membershipGroupId: string; membershipName: string; benefit?: any } | null>(null)
 watch(pendingPerson, async p => {
   addCoveredBy.value = null
   if (!p?.id || !group.value || isMembershipKind.value) return
