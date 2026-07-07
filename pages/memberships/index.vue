@@ -71,7 +71,7 @@ async function create() {
   if (error) return
   showCreate.value = false
   newMs.name = ''
-  if (data?.id) navigateTo(`/groups/${data.id}`)
+  if (data?.id) navigateTo(`/memberships/${data.id}`)
 }
 </script>
 
@@ -107,7 +107,7 @@ async function create() {
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="r in rows" :key="r.id" class="hover:bg-gray-50 cursor-pointer" @click="navigateTo(`/groups/${r.id}`)">
+          <tr v-for="r in rows" :key="r.id" class="hover:bg-gray-50 cursor-pointer" @click="navigateTo(`/memberships/${r.id}`)">
             <td class="px-4 sm:px-5 py-3">
               <span class="flex items-center gap-2.5">
                 <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: r.color || '#94a3b8' }" />
@@ -134,7 +134,7 @@ async function create() {
 
     <!-- Mobile cards -->
     <div v-if="!loading && rows.length" class="md:hidden bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
-      <NuxtLink v-for="r in rows" :key="r.id" :to="`/groups/${r.id}`" class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50">
+      <NuxtLink v-for="r in rows" :key="r.id" :to="`/memberships/${r.id}`" class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50">
         <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: r.color || '#94a3b8' }" />
         <div class="flex-1 min-w-0">
           <p class="text-sm font-semibold text-gray-900 truncate">{{ r.name }}</p>

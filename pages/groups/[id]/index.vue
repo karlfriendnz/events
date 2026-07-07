@@ -1670,6 +1670,8 @@ import type { CodeRoleDef } from '~/composables/useCodeRoles'
 const route = useRoute()
 const router = useRouter()
 import { isMembershipGroup, resolveMembershipSettings } from '~/composables/useMemberships'
+// Memberships live at their own URL (no "groups" in the path) — same page, two routes.
+definePageMeta({ alias: ['/memberships/:id()'] })
 const db = useDb()
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
@@ -1710,8 +1712,13 @@ const members = ref<Member[]>([])
 const coaches = ref<Coach[]>([])
 
 // Site-wide top-bar breadcrumb (Classes › {group name}), like the People profile.
+// MEMBERSHIP MODE (mig 240): a membership is a group without a timetable —
+// same page, minus schedules/trainings, plus the entitlements card. Always
+// branch through isMembershipKind (one place to gate future member-only bits).
+const isMembershipKind = computed(() => isMembershipGroup(group.value as any))
+
 useBreadcrumbs([
-  { label: 'Classes', to: '/groups' },
+  { label: computed(() => isMembershipKind.value ? 'Memberships' : 'Classes'), to: computed(() => isMembershipKind.value ? '/memberships' : '/groups') },
   { label: computed(() => group.value?.name || '…') },
 ])
 
@@ -2019,6 +2026,7 @@ const toast = useToast()
 const { activeLocationId: lensId, inActiveLocation: lensPass, activeLocation: lensLoc } = useActiveLocation()
 watch([lensId, group], () => {
   if (!group.value || !lensId.value) return
+  if (isMembershipKind.value) return // memberships aren't site-bound
   if (!lensPass((group.value as any).location_id ?? null)) {
     toast.add({ severity: 'warn', summary: 'Not at this location', detail: `${group.value.name} isn't at ${lensLoc.value?.name ?? 'the selected location'}.`, life: 3500 })
     navigateTo('/groups')
@@ -2088,10 +2096,6 @@ function toggleRowSel(section: 'coach' | 'member', id: string, checked: boolean)
   arr.value = checked ? Array.from(new Set([...arr.value, id])) : arr.value.filter(x => x !== id)
 }
 
-// MEMBERSHIP MODE (mig 240): a membership is a group without a timetable —
-// same page, minus schedules/trainings, plus the entitlements card. Always
-// branch through isMembershipKind (one place to gate future member-only bits).
-const isMembershipKind = computed(() => isMembershipGroup(group.value as any))
 
 // ── Entitlements (membership mode): what this membership includes ──
 const ms = useMemberships()
@@ -2692,6 +2696,14 @@ async function load() {
   }
   const g = gRes?.data
   group.value = g ?? null
+  // Keep the URL honest: memberships at /memberships/:id, classes at /groups/:id.
+  // (The two paths are ALIASES of one route, so the router treats a swap as a
+  // duplicate navigation — replaceState is the right tool for a cosmetic fix.)
+  if (g && typeof window !== 'undefined') {
+    const onMembershipPath = window.location.pathname.startsWith('/memberships/')
+    if (isMembershipKind.value && !onMembershipPath) window.history.replaceState(window.history.state, '', `/memberships/${g.id}${window.location.hash || ''}`)
+    else if (!isMembershipKind.value && onMembershipPath) window.history.replaceState(window.history.state, '', `/groups/${g.id}${window.location.hash || ''}`)
+  }
   if (!g) { members.value = []; loading.value = false; return }
   subGroups.value = Array.isArray(g.sub_groups) ? g.sub_groups : []
   loadGroupWaitlist(g.waitlist_id)
