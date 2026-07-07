@@ -165,7 +165,7 @@
           <!-- FEES (multiple ways to pay to join — migration 204).
                Only shown when there's MORE than one option; a single fee (or none)
                lives inline on the INFO card's Fees row with an add/edit button. -->
-          <div v-if="feeOptions.length > 1" class="card overflow-hidden">
+          <div v-if="feeOptions.length > 1 || (isMembershipKind && canManage)" class="card overflow-hidden">
             <div class="border-b border-gray-100 py-3 px-5 flex items-center justify-between text-sm font-semibold text-gray-800">
               <span class="flex items-center gap-2 text-sm"><span class="w-6 h-6 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"><i class="pi pi-wallet text-gray-400 text-[12px]" /></span>Fees</span>
               <button v-if="canManage" type="button"
@@ -176,7 +176,7 @@
             </div>
             <div class="p-5 text-sm space-y-3">
               <p class="text-xs text-gray-500">How a {{ t('member', false, true) }} can choose to pay to join this {{ t('group', false, true) }}.</p>
-              <div v-if="!feeOptions.length" class="text-gray-400">No fee options yet.</div>
+              <div v-if="!feeOptions.length" class="text-gray-400">No fee options yet — <button type="button" class="text-primary hover:underline font-medium" @click="openFeesEditor">add one</button> (one-off, {{ isMembershipKind ? 'monthly, yearly…' : 'per term…' }}) so people can join.</div>
               <div v-for="o in feeOptions" :key="o.id" class="border border-gray-200 rounded-lg p-3">
                 <div class="flex items-center justify-between gap-2">
                   <span class="font-medium text-gray-800">{{ o.name }}</span>
@@ -189,25 +189,6 @@
                     <span class="tabular-nums">{{ gf.fmtMoney(it.amount, orgCurrency) }}</span>
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- THIS MEMBERSHIP INCLUDES (membership mode only) -->
-          <div v-if="isMembershipKind" class="card overflow-hidden">
-            <div class="border-b border-gray-100 py-3 px-5 flex items-center justify-between text-sm font-semibold text-gray-800">
-              <span class="flex items-center gap-2 text-sm"><span class="w-6 h-6 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"><i class="pi pi-ticket text-gray-400 text-[12px]" /></span>This membership includes</span>
-              <span v-if="entSaving" class="text-xs text-gray-400">Saving…</span>
-              <span v-else-if="entSaved" class="text-xs text-emerald-600">Saved ✓</span>
-            </div>
-            <div class="p-4 sm:p-5 space-y-4">
-              <p class="text-xs text-gray-500 -mt-1">Holding this membership gives access to the things ticked below. Ticking a programme includes every {{ t('group', false, true) }} in it — including ones added later.</p>
-              <FormTargetsTree v-model:selection-keys="entSelectionKeys" @update:selection-keys="queueEntSave" />
-              <div class="flex flex-col gap-1.5 pt-1 border-t border-gray-100">
-                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-2">{{ t('event', true) }} included</label>
-                <MultiSelect v-model="entEventIds" :options="entEventOptions" optionLabel="label" optionValue="value"
-                  display="chip" :placeholder="`No ${t('event', true, true)} connected`" class="w-full" filter
-                  @update:modelValue="queueEntSave" />
               </div>
             </div>
           </div>
@@ -796,6 +777,28 @@
       </div>
 
       <!-- ASSETS -->
+      <!-- WHAT'S INCLUDED (membership mode) -->
+      <div v-show="activeTab === 'includes'" class="space-y-3">
+          <div class="card overflow-hidden max-w-3xl">
+            <div class="border-b border-gray-100 py-3 px-5 flex items-center justify-between text-sm font-semibold text-gray-800">
+              <span class="flex items-center gap-2 text-sm"><span class="w-6 h-6 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"><i class="pi pi-ticket text-gray-400 text-[12px]" /></span>This membership includes</span>
+              <span v-if="entSaving" class="text-xs text-gray-400">Saving…</span>
+              <span v-else-if="entSaved" class="text-xs text-emerald-600">Saved ✓</span>
+            </div>
+            <div class="p-4 sm:p-5 space-y-4">
+              <p class="text-xs text-gray-500 -mt-1">Holding this membership gives access to the things ticked below. Ticking a programme includes every {{ t('group', false, true) }} in it — including ones added later.</p>
+              <FormTargetsTree v-model:selection-keys="entSelectionKeys" @update:selection-keys="queueEntSave" />
+              <div class="flex flex-col gap-1.5 pt-1 border-t border-gray-100">
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-2">{{ t('event', true) }} included</label>
+                <MultiSelect v-model="entEventIds" :options="entEventOptions" optionLabel="label" optionValue="value"
+                  display="chip" :placeholder="`No ${t('event', true, true)} connected`" class="w-full" filter
+                  @update:modelValue="queueEntSave" />
+              </div>
+            </div>
+          </div>
+
+      </div>
+
       <div v-show="activeTab === 'assets'" class="bg-white rounded-lg border border-gray-200 p-10 text-center text-sm text-gray-400">
         <i class="pi pi-box text-2xl text-gray-300 block mb-2" />
         Assets for this {{ t('group', false, true) }} will appear here.
@@ -1975,7 +1978,9 @@ const groupTabs = computed(() => [
   { key: 'details', label: 'Details', icon: 'pi-info-circle' },
   { key: 'people', label: 'People', icon: 'pi-users' },
   { key: 'subgroups', label: 'Sub Groups', icon: 'pi-sitemap' },
-  ...(isMembershipKind.value ? [] : [
+  ...(isMembershipKind.value ? [
+    { key: 'includes', label: "What's included", icon: 'pi-ticket' },
+  ] : [
     { key: 'assets', label: 'Assets', icon: 'pi-box' },
     { key: 'trainings', label: 'Trainings', icon: 'pi-check-square' },
     { key: 'tracker', label: 'Tracker', icon: 'pi-chart-line' },
