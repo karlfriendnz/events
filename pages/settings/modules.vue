@@ -6,6 +6,9 @@
   226) via useOrgModules(); autosaves on every toggle.
 -->
 <script setup lang="ts">
+const { brandName, loadBrandName } = useBrandName()
+void loadBrandName()
+function moduleLabel(d: any) { return d.key === 'fm_invoices' ? `${brandName.value} Invoices` : d.label }
 const { orgId } = useOrg()
 const user = useSupabaseUser()
 const toast = useToast()
@@ -78,7 +81,7 @@ watch(orgId, async () => {
                   <i :class="['pi', d.icon, 'text-sm']" />
                 </span>
                 <div class="flex-1 min-w-0">
-                  <div class="text-sm font-medium text-gray-800">{{ d.label }}</div>
+                  <div class="text-sm font-medium text-gray-800">{{ moduleLabel(d) }}</div>
                   <div class="text-xs text-gray-500">{{ d.description }}</div>
                 </div>
                 <ToggleSwitch :modelValue="mods.isEnabled(d.key)" @update:modelValue="v => onToggle(d.key, v)" />
@@ -96,7 +99,7 @@ watch(orgId, async () => {
                   <i :class="['pi', d.icon, 'text-sm']" />
                 </span>
                 <div class="flex-1 min-w-0">
-                  <div class="text-sm font-medium text-gray-800">{{ d.label }}</div>
+                  <div class="text-sm font-medium text-gray-800">{{ moduleLabel(d) }}</div>
                   <div class="text-xs text-gray-500">{{ d.description }}</div>
                 </div>
                 <i class="pi pi-lock text-gray-300 text-sm" v-tooltip.left="'Always on'" />
