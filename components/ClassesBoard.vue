@@ -65,6 +65,7 @@ const termOptions = computed(() => {
 // A group belongs to the selected term via its code chain (else its own term_id).
 const inTerm = (g: ClassGroup) => termFilter.value === 'all' || gc.effectiveTermId(g, codeById.value) === termFilter.value
 const visibleGroups = computed(() => groups.value.filter(g =>
+  (g as any).kind !== 'membership' &&
   inTerm(g) && inActiveLocation(g.locationId) &&
   (!boardRestricted.value || boardCanAccess(g.locationId, gc.effectiveSportId({ code_id: g.code_id }, codeById.value)))))
 
@@ -142,7 +143,7 @@ async function load() {
     gc.loadCodes(),
     tm.loadTerms(),
     tm.loadTermSets(),
-    (db.from as any)('member_groups').select('id, name, code_id, term_id, capacity, color, gender_restriction, age_range, waitlist_id, form_id, location_id').eq('org_id', orgId.value),
+    (db.from as any)('member_groups').select('id, name, code_id, term_id, capacity, color, gender_restriction, age_range, waitlist_id, form_id, location_id, kind').eq('org_id', orgId.value),
     (db.from as any)('member_group_memberships').select('group_id, role, roles, person:persons!inner(first_name, last_name)'),
     (db.from as any)('member_group_disciplines').select('group_id, discipline:disciplines(sport, name)'),
     (db.from as any)('group_fee_options').select('id, group_id, name, fee_type, period_unit, period_count, instalment_count, session_count, prorata, items:group_fee_option_items(amount)').eq('org_id', orgId.value),
@@ -181,6 +182,7 @@ async function load() {
       feeCount: opts.length,
       formId: g.form_id ?? null,
       locationId: g.location_id ?? null,
+      kind: g.kind ?? 'class',
       feeLabel: opts.length === 1 ? gf.priceLabel({ ...opts[0], items: opts[0].items ?? [] } as any) : null,
       attendances: attByGroup[g.id] || 0,
     }

@@ -156,7 +156,7 @@ const termFilterOptions = computed(() => [
 
 const { inActiveLocation: feesInLens } = useActiveLocation()
 const rows = computed(() => {
-  let gs = groups.value.filter(g => feesInLens((g as any).location_id))
+  let gs = groups.value.filter(g => (g as any).kind !== 'membership' && feesInLens((g as any).location_id))
   if (termFilter.value === 'none') gs = gs.filter(g => !g.term_id)
   else if (termFilter.value !== 'all') gs = gs.filter(g => g.term_id === termFilter.value)
   return gs.map(g => ({
@@ -171,7 +171,7 @@ async function load() {
   if (!orgId.value) return
   loading.value = true
   const [{ data: gr }, termList, { data: opts }, { data: org }] = await Promise.all([
-    (db.from as any)('member_groups').select('id, name, term_id, color, location_id').eq('org_id', orgId.value).order('name'),
+    (db.from as any)('member_groups').select('id, name, term_id, color, location_id, kind').eq('org_id', orgId.value).order('name'),
     tm.loadTerms(),
     (db.from as any)('group_fee_options').select('*').eq('org_id', orgId.value)
       .order('sort_order', { ascending: true, nullsFirst: false }).order('created_at'),

@@ -343,7 +343,7 @@ async function load() {
   const [{ data: orgRow }, { data: persons }, { count: groupCount }, { data: events, count: eventCount }, { data: bookables }] = await Promise.all([
     (db.from as any)('organisations').select('name, logo_url, dashboard_banner_url, dashboard_config').eq('id', orgId.value).maybeSingle(),
     (db.from as any)('persons').select('id, first_name, last_name, email, membership_type, gender, dob, custom_fields, created_at').eq('org_id', orgId.value),
-    (db.from as any)('member_groups').select('id', { count: 'exact', head: true }).eq('org_id', orgId.value),
+    (db.from as any)('member_groups').select('id', { count: 'exact', head: true }).eq('org_id', orgId.value).neq('kind', 'membership'),
     (db.from as any)('events').select('id, title, start_at, end_at, location_type, address, status', { count: 'exact' })
       .eq('org_id', orgId.value).neq('status', 'ARCHIVED').neq('status', 'CANCELLED')
       .gte('start_at', nowIso.value).order('start_at').limit(6),
@@ -397,7 +397,7 @@ async function load() {
   const lensId = useActiveLocation().activeLocationId.value
   if (lensId) {
     const [{ count: lensGroups }, { data: lensMships }, { data: lensStaff }] = await Promise.all([
-      (db.from as any)('member_groups').select('id', { count: 'exact', head: true }).eq('org_id', orgId.value).eq('location_id', lensId),
+      (db.from as any)('member_groups').select('id', { count: 'exact', head: true }).eq('org_id', orgId.value).neq('kind', 'membership').eq('location_id', lensId),
       (db.from as any)('member_group_memberships').select('person_id, group:member_groups!inner(location_id)').eq('group.location_id', lensId),
       (db.from as any)('location_staff').select('person_id').eq('location_id', lensId),
     ])

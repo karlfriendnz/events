@@ -193,8 +193,27 @@
             </div>
           </div>
 
-          <!-- SESSION TIMES (own card, below INFO) -->
-          <div class="card overflow-hidden">
+          <!-- THIS MEMBERSHIP INCLUDES (membership mode only) -->
+          <div v-if="isMembershipKind" class="card overflow-hidden">
+            <div class="border-b border-gray-100 py-3 px-5 flex items-center justify-between text-sm font-semibold text-gray-800">
+              <span class="flex items-center gap-2 text-sm"><span class="w-6 h-6 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"><i class="pi pi-ticket text-gray-400 text-[12px]" /></span>This membership includes</span>
+              <span v-if="entSaving" class="text-xs text-gray-400">Saving…</span>
+              <span v-else-if="entSaved" class="text-xs text-emerald-600">Saved ✓</span>
+            </div>
+            <div class="p-4 sm:p-5 space-y-4">
+              <p class="text-xs text-gray-500 -mt-1">Holding this membership gives access to the things ticked below. Ticking a programme includes every {{ t('group', false, true) }} in it — including ones added later.</p>
+              <FormTargetsTree v-model:selection-keys="entSelectionKeys" @update:selection-keys="queueEntSave" />
+              <div class="flex flex-col gap-1.5 pt-1 border-t border-gray-100">
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-2">{{ t('event', true) }} included</label>
+                <MultiSelect v-model="entEventIds" :options="entEventOptions" optionLabel="label" optionValue="value"
+                  display="chip" :placeholder="`No ${t('event', true, true)} connected`" class="w-full" filter
+                  @update:modelValue="queueEntSave" />
+              </div>
+            </div>
+          </div>
+
+          <!-- SESSION TIMES (own card, below INFO — classes only) -->
+          <div v-if="!isMembershipKind" class="card overflow-hidden">
             <div class="border-b border-gray-100 py-3 px-5 flex items-center justify-between text-sm font-semibold text-gray-800">
               <span class="flex items-center gap-2 text-sm"><span class="w-6 h-6 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"><i class="pi pi-clock text-gray-400 text-[12px]" /></span>Session times</span>
               <button v-if="canManage" type="button"
@@ -251,7 +270,7 @@
           </div>
 
           <!-- UPCOMING EVENTS (own module) — the training events linked to this group -->
-          <div class="card overflow-hidden">
+          <div v-if="!isMembershipKind" class="card overflow-hidden">
             <div class="border-b border-gray-100 py-3 px-5 flex items-center justify-between text-sm font-semibold text-gray-800">
               <span class="flex items-center gap-2 text-sm"><span class="w-6 h-6 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"><i class="pi pi-calendar text-gray-400 text-[12px]" /></span>Upcoming {{ t('event', true, true) }}</span>
               <button v-if="upcomingEvents.length > 5" type="button"
@@ -1074,8 +1093,12 @@
         <!-- Fee -->
         <div v-if="enrolOptions.length" class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Fee <span class="text-gray-400 font-normal">— optional</span></label>
+          <div v-if="addCoveredBy" class="flex items-center gap-2 text-sm rounded-lg px-3 py-2 bg-emerald-50 border border-emerald-200 text-emerald-800">
+            <i class="pi pi-ticket text-emerald-500" />
+            <span>Included in their <b class="font-semibold">{{ addCoveredBy.membershipName }}</b> — no fee needed.</span>
+          </div>
           <Select v-model="addEnrol" :options="enrolOptions" optionLabel="label" optionValue="value"
-            placeholder="No fee" showClear class="w-full" />
+            :placeholder="addCoveredBy ? 'Covered by membership' : 'No fee'" showClear class="w-full" />
         </div>
 
         <!-- Staff — tucked behind a disclosure (most people aren't staff) -->
@@ -1146,7 +1169,7 @@
             </div>
           </div>
           <p v-else class="text-xs text-gray-400">No membership plans yet —
-            <NuxtLink to="/settings/memberships" class="text-primary hover:underline">create memberships in Settings</NuxtLink>.
+            <NuxtLink to="/memberships" class="text-primary hover:underline">create memberships</NuxtLink>.
           </p>
         </div>
       </div>
@@ -1472,6 +1495,7 @@ import type { GroupCode } from '~/composables/useGroupCodes'
 import type { CodeRoleDef } from '~/composables/useCodeRoles'
 const route = useRoute()
 const router = useRouter()
+import { isMembershipGroup } from '~/composables/useMemberships'
 const db = useDb()
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
@@ -1890,15 +1914,73 @@ function toggleRowSel(section: 'coach' | 'member', id: string, checked: boolean)
   arr.value = checked ? Array.from(new Set([...arr.value, id])) : arr.value.filter(x => x !== id)
 }
 
+// MEMBERSHIP MODE (mig 240): a membership is a group without a timetable —
+// same page, minus schedules/trainings, plus the entitlements card. Always
+// branch through isMembershipKind (one place to gate future member-only bits).
+const isMembershipKind = computed(() => isMembershipGroup(group.value as any))
+
+// ── Entitlements (membership mode): what this membership includes ──
+const ms = useMemberships()
+const entSelectionKeys = ref<Record<string, { checked?: boolean }>>({})
+const entEventIds = ref<string[]>([])
+const entEventOptions = ref<{ label: string; value: string }[]>([])
+const entSaving = ref(false)
+const entSaved = ref(false)
+const entHydrating = ref(true)
+let entTimer: any = null
+async function loadEntitlements() {
+  if (!group.value || !isMembershipKind.value) return
+  entHydrating.value = true
+  const [rows, { data: evs }] = await Promise.all([
+    ms.loadEntitlements(group.value.id),
+    (db.from as any)('events').select('id, title, start_at').eq('org_id', orgId.value)
+      .is('recurrence_parent_id', null).neq('status', 'ARCHIVED').neq('status', 'CANCELLED')
+      .order('start_at', { ascending: false }).limit(200),
+  ])
+  const keys: Record<string, { checked: boolean }> = {}
+  const evIds: string[] = []
+  for (const r of rows) {
+    if (r.target_type === 'event') evIds.push(r.target_id)
+    else keys[`${r.target_type}:${r.target_id}`] = { checked: true }
+  }
+  entSelectionKeys.value = keys
+  entEventIds.value = evIds
+  entEventOptions.value = (evs ?? []).map((e: any) => ({ label: e.title, value: e.id }))
+  await nextTick()
+  entHydrating.value = false
+}
+function queueEntSave() {
+  if (entHydrating.value) return
+  clearTimeout(entTimer)
+  entTimer = setTimeout(saveEntitlements, 600)
+}
+async function saveEntitlements() {
+  if (!group.value || !isMembershipKind.value) return
+  entSaving.value = true
+  const rows = [
+    ...Object.entries(entSelectionKeys.value)
+      .filter(([k, v]) => v?.checked && k.includes(':'))
+      .map(([k]) => ({ target_type: k.split(':')[0], target_id: k.split(':')[1] })),
+    ...entEventIds.value.map(id2 => ({ target_type: 'event', target_id: id2 })),
+  ]
+  await ms.saveEntitlements(group.value.id, rows as any)
+  entSaving.value = false
+  entSaved.value = true
+  setTimeout(() => { entSaved.value = false }, 2000)
+}
+watch(() => group.value?.id, () => { if (isMembershipKind.value) loadEntitlements() })
+
 // Page tabs (Details holds the current INFO/sessions/people; the rest are stubs for now).
-const groupTabs = [
+const groupTabs = computed(() => [
   { key: 'details', label: 'Details', icon: 'pi-info-circle' },
   { key: 'people', label: 'People', icon: 'pi-users' },
   { key: 'subgroups', label: 'Sub Groups', icon: 'pi-sitemap' },
-  { key: 'assets', label: 'Assets', icon: 'pi-box' },
-  { key: 'trainings', label: 'Trainings', icon: 'pi-check-square' },
-  { key: 'tracker', label: 'Tracker', icon: 'pi-chart-line' },
-]
+  ...(isMembershipKind.value ? [] : [
+    { key: 'assets', label: 'Assets', icon: 'pi-box' },
+    { key: 'trainings', label: 'Trainings', icon: 'pi-check-square' },
+    { key: 'tracker', label: 'Tracker', icon: 'pi-chart-line' },
+  ]),
+])
 const activeTab = ref<string>((typeof route.hash === 'string' && route.hash.slice(1)) || 'details')
 watch(activeTab, t => router.replace({ hash: t === 'details' ? '' : `#${t}` }))
 const schedules = ref<Schedule[]>([])
@@ -2326,7 +2408,7 @@ async function load() {
   // since it needs both the event list and the resolved roster.
   const [gRes, membersRes, , schedsRes, bkblsRes, orgRes, , codesList, codeDefs, codeStaffList] = await Promise.all([
     (db.from as any)('member_groups')
-      .select('id, name, color, code, code_id, age_range, capacity, current_term, term_fee, sub_groups, term_id, lineage_id, rolled_from_group_id, gender_restriction, image_url, head_person_id, waitlist_id, form_id, location_id')
+      .select('id, name, color, code, code_id, age_range, capacity, current_term, term_fee, sub_groups, term_id, lineage_id, rolled_from_group_id, gender_restriction, image_url, head_person_id, waitlist_id, form_id, location_id, kind')
       .eq('id', id)
       .eq('org_id', orgId.value)
       .maybeSingle(),
@@ -2967,6 +3049,17 @@ const addOpen = ref(false)
 const addMode = ref<'member' | 'coach'>('member')
 const addRoles = ref<string[]>(['member'])
 const pendingPerson = ref<any>(null)
+// Membership coverage (mig 240): if the picked person holds a membership whose
+// entitlements include this class (directly or via its programme), the fee
+// step shows "Included in …" instead of asking for money.
+const addCoveredBy = ref<{ membershipGroupId: string; membershipName: string } | null>(null)
+watch(pendingPerson, async p => {
+  addCoveredBy.value = null
+  if (!p?.id || !group.value || isMembershipKind.value) return
+  try {
+    addCoveredBy.value = await ms.coverageFor(p.id, { type: 'group', group: group.value as any, codesById: codesById.value })
+  } catch { /* coverage is best-effort */ }
+})
 const personQuery = ref<any>('')
 const personResults = ref<any[]>([])
 // Create-a-new-person inline (instead of searching an existing one).

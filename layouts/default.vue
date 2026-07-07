@@ -597,7 +597,7 @@ const clubMenu = [
   { label: 'People',      icon: 'pi-users',         href: '/people',                  chevron: true },
   { label: 'Classes',     icon: 'pi-sitemap',       href: '/groups',                  chevron: true, groups: true, module: 'groups' },
   { label: 'Fees',        icon: 'pi-dollar',        href: '/finances',                chevron: true, module: 'finances' },
-  { label: 'Memberships', icon: 'pi-id-card',       href: '/settings/memberships',    chevron: true, module: 'finances' },
+  { label: 'Memberships', icon: 'pi-id-card',       href: '/memberships',             chevron: true, module: 'finances' },
   { label: 'Events',      icon: 'pi-calendar',      href: '/events',                  chevron: true, events: true, module: 'events' },
   { label: 'Bookings',    icon: 'pi-bookmark',      href: '/bookables?tab=bookings',  chevron: true, module: 'bookings' },
   { label: 'Attendance',  icon: 'pi-check-square',  href: '/attendance',              chevron: true, module: 'attendance' },
