@@ -38,7 +38,14 @@ interface TermRow {
   sort_order: number
 }
 const terms = ref<TermRow[]>([])
-const seasonsTab = ref<'list' | 'timeline'>('list')
+const seasonsTab = ref<'current' | 'past' | 'timeline'>('current')
+const onListTab = computed(() => seasonsTab.value !== 'timeline')
+// A term is PAST once its end date is behind today; no end date = current.
+function termIsPast(r: TermRow): boolean {
+  if (!r.end_date) return false
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  return r.end_date.getTime() < today.getTime()
+}
 let removedTermIds: string[] = []
 const savingTerms = ref(false)
 
@@ -46,10 +53,20 @@ const savingTerms = ref(false)
 // Independent term sequences: Term 1→2→3 is one set, the Seniors' two halves
 // another. Rollover/nudge "next term" only resolves within a set.
 const sets = ref<TermSet[]>([])
-const termSections = computed(() => [
-  { key: '__default', set: null as TermSet | null, list: terms.value.filter(t => !t.set_id) },
-  ...sets.value.map(s => ({ key: s.id, set: s as TermSet | null, list: terms.value.filter(t => t.set_id === s.id) })),
-])
+const termSections = computed(() => {
+  // Current tab = not-yet-ended terms; Past = ended; Timeline shows everything.
+  const byTab = (t: TermRow) =>
+    seasonsTab.value === 'past' ? termIsPast(t)
+    : seasonsTab.value === 'current' ? !termIsPast(t)
+    : true
+  const all = [
+    { key: '__default', set: null as TermSet | null, list: terms.value.filter(t => !t.set_id).filter(byTab) },
+    ...sets.value.map(s => ({ key: s.id, set: s as TermSet | null, list: terms.value.filter(t => t.set_id === s.id).filter(byTab) })),
+  ]
+  // The Past tab only lists sequences that actually have past terms.
+  return seasonsTab.value === 'past' ? all.filter(sec => sec.list.length) : all
+})
+const pastCount = computed(() => terms.value.filter(termIsPast).length)
 async function addSet() {
   const s = await createTermSet('New term set')
   if (s) sets.value.push(s)
@@ -323,11 +340,14 @@ watch(orgId, v => { if (v) load() })
           <!-- TERMS -->
           <AppCard :title="t('term', true)" :description="`Shared date ranges (e.g. Term 1 2026). Attach a ${t('group', false, true)} to one or more ${t('term', true, true)} on the ${t('group', false, true)} page. The sign-up window controls when ${t('member', true, true)} can register for that ${t('term', false, true)}'s ${t('group', true, true)} — leave it blank to open right away and close when the ${t('term', false, true)} ends.`">
             <div class="p-4 sm:p-5 space-y-8">
-              <!-- List / Timeline tabs -->
+              <!-- Current / Past / Timeline tabs -->
               <div class="flex gap-5 border-b border-gray-100 -mt-1">
                 <button type="button" class="pb-2 -mb-px border-b-2 text-sm font-medium transition-colors"
-                  :class="seasonsTab === 'list' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
-                  @click="seasonsTab = 'list'">{{ t('term', true) }}</button>
+                  :class="seasonsTab === 'current' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                  @click="seasonsTab = 'current'">Current {{ t('term', true, true) }}</button>
+                <button type="button" class="pb-2 -mb-px border-b-2 text-sm font-medium transition-colors"
+                  :class="seasonsTab === 'past' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                  @click="seasonsTab = 'past'">Past {{ t('term', true, true) }}<span v-if="pastCount" class="ml-1.5 text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">{{ pastCount }}</span></button>
                 <button type="button" class="pb-2 -mb-px border-b-2 text-sm font-medium transition-colors"
                   :class="seasonsTab === 'timeline' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
                   @click="seasonsTab = 'timeline'">Timeline</button>
@@ -335,7 +355,7 @@ watch(orgId, v => { if (v) load() })
 
               <!-- One section per term set. The default (main) sequence first;
                    each set is an independent sequence — rollover never crosses sets. -->
-              <div v-for="sec in termSections" v-show="seasonsTab === 'list'" :key="sec.key" class="space-y-2">
+              <div v-for="sec in termSections" v-show="onListTab" :key="sec.key" class="space-y-2">
                 <div v-if="sets.length || sec.set" class="flex items-center gap-2">
                   <template v-if="sec.set">
                     <input v-model="sec.set.name" @change="onRenameSet(sec.set)"
@@ -380,8 +400,10 @@ watch(orgId, v => { if (v) load() })
                 </div>
                 </div>
                 <p v-if="!sec.list.length" class="text-sm text-gray-400">No {{ t('term', true, true) }} in this sequence yet.</p>
-                <button class="text-sm text-primary hover:underline" @click="addTerm(sec.set?.id ?? null)">+ Add {{ t('term', false, true) }}</button>
+                <button v-if="seasonsTab === 'current'" class="text-sm text-primary hover:underline" @click="addTerm(sec.set?.id ?? null)">+ Add {{ t('term', false, true) }}</button>
               </div>
+              <p v-if="seasonsTab === 'past' && !termSections.length" class="text-sm text-gray-400">No past {{ t('term', true, true) }} yet — once a {{ t('term', false, true) }}'s end date has gone by it moves here.</p>
+
               <!-- Visual view — every sequence on one time axis (wizard-style) -->
               <div v-if="seasonsTab === 'timeline' && timeline" class="pt-2 space-y-3">
                 <div class="space-y-4">
@@ -414,8 +436,9 @@ watch(orgId, v => { if (v) load() })
               </div>
               <p v-if="seasonsTab === 'timeline' && !timeline" class="text-sm text-gray-400">Nothing to show yet — add {{ t('term', true, true) }} with dates first.</p>
 
-              <div v-show="seasonsTab === 'list'" class="flex items-center justify-between pt-1 border-t border-gray-100">
-                <button class="text-sm text-gray-400 hover:text-primary transition-colors mt-2" :title="`A separate, unconnected sequence of ${t('term', true, true)} — e.g. the Seniors' two halves`" @click="addSet">+ New {{ t('term', false, true) }} set</button>
+              <div v-show="onListTab" class="flex items-center justify-between pt-1 border-t border-gray-100">
+                <button v-if="seasonsTab === 'current'" class="text-sm text-gray-400 hover:text-primary transition-colors mt-2" :title="`A separate, unconnected sequence of ${t('term', true, true)} — e.g. the Seniors' two halves`" @click="addSet">+ New {{ t('term', false, true) }} set</button>
+                <span v-if="seasonsTab !== 'current'" />
                 <Button :label="`Save ${t('term', true, true)}`" size="small" :loading="savingTerms" class="mt-2"
                   style="background:#1E2157;border-color:#1E2157" @click="saveTerms" />
               </div>
