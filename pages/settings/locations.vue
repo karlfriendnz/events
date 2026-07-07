@@ -62,14 +62,20 @@ async function saveLocation(l: ClubLocation) {
   if (!l.name.trim()) return
   await loc.updateLocation(l.id, { name: l.name.trim(), address: l.address, color: l.color })
 }
-async function removeLocation(l: ClubLocation) {
-  const classes = classCounts.value[l.id] ?? 0
-  const msg = classes
-    ? `Delete "${l.name}"? Its ${classes} ${classes === 1 ? t('group', false, true) : t('group', true, true)} keep running with no location.`
-    : `Delete "${l.name}"?`
-  if (!window.confirm(msg)) return
-  await loc.deleteLocation(l.id)
-  locations.value = locations.value.filter(x => x.id !== l.id)
+// Type-to-confirm delete: you must type the location's name exactly.
+const deleteTarget = ref<ClubLocation | null>(null)
+const deleteTyped = ref('')
+const deleteMatches = computed(() =>
+  deleteTyped.value.trim().toLowerCase() === (deleteTarget.value?.name ?? '').trim().toLowerCase() && !!deleteTarget.value)
+function removeLocation(l: ClubLocation) {
+  deleteTarget.value = l
+  deleteTyped.value = ''
+}
+async function confirmDeleteLocation() {
+  if (!deleteMatches.value || !deleteTarget.value) return
+  await loc.deleteLocation(deleteTarget.value.id)
+  locations.value = locations.value.filter(x => x.id !== deleteTarget.value!.id)
+  deleteTarget.value = null
 }
 
 // ── Assign staff: person search per location ──
@@ -117,9 +123,13 @@ watch(orgId, v => { if (v) load() })
     <div class="flex flex-col md:flex-row gap-4 md:gap-6 flex-1 min-h-0">
       <SettingsNav />
       <div class="flex-1 min-w-0 space-y-5">
-        <div>
-          <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Locations</h1>
-          <p class="text-sm text-gray-500">The sites your club runs at. Assign staff to one or more locations — {{ t('group', true, true) }} attach to a location on their own page. With a single location, none of this appears elsewhere.</p>
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Locations</h1>
+            <p class="text-sm text-gray-500">The sites your club runs at. Assign staff to one or more locations — {{ t('group', true, true) }} attach to a location on their own page. With a single location, none of this appears elsewhere.</p>
+          </div>
+          <Button label="Add location" icon="pi pi-plus" size="small" class="shrink-0"
+            style="background:#1E2157;border-color:#1E2157" @click="addLocation" />
         </div>
 
         <div v-if="loading" class="text-sm text-gray-400">Loading…</div>
@@ -271,10 +281,29 @@ watch(orgId, v => { if (v) load() })
           </div>
 
           <p v-if="!locations.length" class="text-sm text-gray-400">No locations yet — single-site clubs don't need any.</p>
-          <button type="button" class="text-sm text-primary hover:underline" @click="addLocation">+ Add location</button>
         </template>
       </div>
     </div>
+    <!-- Type-to-confirm location delete -->
+    <Dialog :visible="!!deleteTarget" modal :style="{ width: '95vw', maxWidth: '440px' }"
+      :header="`Delete ${deleteTarget?.name ?? ''}`" @update:visible="(v: boolean) => { if (!v) deleteTarget = null }">
+      <div class="space-y-3">
+        <p class="text-sm text-gray-600">
+          This removes the location and all its staff assignments.
+          <template v-if="deleteTarget && (classCounts[deleteTarget.id] ?? 0) > 0">
+            Its <b class="font-semibold">{{ classCounts[deleteTarget.id] }} {{ (classCounts[deleteTarget.id] ?? 0) === 1 ? t('group', false, true) : t('group', true, true) }}</b> keep running with no location.
+          </template>
+        </p>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium text-gray-700">Type <b class="font-semibold">{{ deleteTarget?.name }}</b> to confirm</label>
+          <InputText v-model="deleteTyped" :placeholder="deleteTarget?.name" class="w-full" autofocus />
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" text @click="deleteTarget = null" />
+        <Button label="Delete location" severity="danger" :disabled="!deleteMatches" @click="confirmDeleteLocation" />
+      </template>
+    </Dialog>
     <Toast />
   </div>
 </template>
