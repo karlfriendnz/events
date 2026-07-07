@@ -125,6 +125,73 @@ watch(orgId, v => { if (v) load() })
         <div v-if="loading" class="text-sm text-gray-400">Loading…</div>
 
         <template v-else>
+          <div v-if="locations.length > 1" class="card p-0 overflow-hidden">
+            <div class="px-4 sm:px-5 py-3 border-b border-gray-100">
+              <h3 class="text-sm font-semibold text-gray-800">Club-wide access <span class="text-xs font-normal text-gray-400">— every location</span></h3>
+              <p class="text-xs text-gray-400 mt-0.5">Grants that apply at all locations — optionally limited to one sport (e.g. "gymnastics everywhere").</p>
+            </div>
+            <div class="px-4 sm:px-5 py-3 space-y-3">
+              <div class="rounded-lg border border-gray-200 overflow-x-auto">
+                <table class="w-full text-sm">
+                  <colgroup><col class="w-72" /><col class="w-44" /><col class="w-44" /><col /><col class="w-12" /></colgroup>
+                  <thead>
+                    <tr class="bg-gray-50 border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      <th class="px-4 py-2.5 font-semibold">Person</th>
+                      <th class="px-3 py-2.5 font-semibold">Role</th>
+                      <th class="px-3 py-2.5 font-semibold">Sport</th>
+                      <th />
+                      <th class="px-3 py-2.5" />
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-100">
+                    <tr v-for="s2 in clubWideGrants" :key="s2.id" class="hover:bg-gray-50">
+                      <td class="px-4 py-2">
+                        <span class="flex items-center gap-2.5">
+                          <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-[9px] font-bold inline-flex items-center justify-center shrink-0">{{ personName(s2).split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() }}</span>
+                          <NuxtLink :to="`/people/${s2.person_id}`" class="text-sm text-primary hover:underline truncate">{{ personName(s2) }}</NuxtLink>
+                        </span>
+                      </td>
+                      <td class="px-3 py-2"><span class="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{{ roleLabel(s2.role_key) }}</span></td>
+                      <td class="px-3 py-2">
+                        <Select v-if="sports.length > 1" :model-value="s2.sport_id" @update:model-value="(v: string | null) => setStaffSport(s2, v)"
+                          :options="sportOptions" optionLabel="label" optionValue="value" size="small" class="w-full" />
+                        <span v-else class="text-[11px] px-2 py-0.5 rounded-full font-medium" :class="s2.sport_id ? 'bg-sky-50 text-sky-700' : 'bg-gray-100 text-gray-500'">{{ sportLabel(s2.sport_id) ?? 'All sports' }}</span>
+                      </td>
+                      <td />
+                      <td class="px-3 py-2 text-right">
+                        <button type="button" class="text-gray-300 hover:text-red-500" title="Remove this grant" @click="removeStaffRow(s2)"><i class="pi pi-times-circle text-sm" /></button>
+                      </td>
+                    </tr>
+                    <!-- Add row — part of the table so it lines up with the columns -->
+                    <tr class="bg-gray-50/60">
+                      <td class="px-4 py-2">
+                        <AutoComplete :model-value="pick['__all']" @update:model-value="(v: any) => pick['__all'] = v"
+                          :suggestions="suggestions" optionLabel="label" placeholder="Add a staff member…"
+                          class="w-full" @complete="searchPeople"
+                          :pt="{ pcInputText: { root: { class: '!py-1.5 !px-2.5 !text-sm w-full' } } }"
+                          @item-select="(e: any) => pick['__all'] = e.value" />
+                      </td>
+                      <td class="px-3 py-2">
+                        <Select :model-value="pickRole['__all'] || 'staff'" @update:model-value="(v: string) => pickRole['__all'] = v"
+                          :options="LOCATION_STAFF_ROLES" optionLabel="label" optionValue="key" size="small" class="w-full" />
+                      </td>
+                      <td class="px-3 py-2">
+                        <Select v-if="sports.length > 1" :model-value="pickSport['__all'] ?? null" @update:model-value="(v: string | null) => pickSport['__all'] = v"
+                          :options="sportOptions" optionLabel="label" optionValue="value" size="small" class="w-full" />
+                      </td>
+                      <td />
+                      <td class="px-3 py-2 text-right">
+                        <Button label="Add" size="small" :disabled="!pick['__all']?.id" style="background:#1E2157;border-color:#1E2157" @click="addStaff(null)" />
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+          </div>
+
+
           <div v-for="l in locations" :key="l.id" class="card p-0 overflow-hidden">
             <!-- Location header: colour + name + address + counts + delete -->
             <div class="flex flex-col sm:flex-row sm:items-center gap-2 px-4 sm:px-5 py-3 border-b border-gray-100">
@@ -166,8 +233,7 @@ watch(orgId, v => { if (v) load() })
                       <td class="px-3 py-2"><span class="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{{ roleLabel(s.role_key) }}</span></td>
                       <td class="px-3 py-2">
                         <Select v-if="sports.length > 1" :model-value="s.sport_id" @update:model-value="(v: string | null) => setStaffSport(s, v)"
-                          :options="sportOptions" optionLabel="label" optionValue="value" size="small" class="w-36"
-                          :pt="{ root: { class: '!h-7' }, label: { class: '!py-0.5 !text-xs' } }" />
+                          :options="sportOptions" optionLabel="label" optionValue="value" size="small" class="w-full" />
                         <span v-else class="text-[11px] px-2 py-0.5 rounded-full font-medium" :class="s.sport_id ? 'bg-sky-50 text-sky-700' : 'bg-gray-100 text-gray-500'">{{ sportLabel(s.sport_id) ?? 'All sports' }}</span>
                       </td>
                       <td />
@@ -195,73 +261,6 @@ watch(orgId, v => { if (v) load() })
                       <td />
                       <td class="px-3 py-2 text-right">
                         <Button label="Add" size="small" :disabled="!pick[l.id]?.id" style="background:#1E2157;border-color:#1E2157" @click="addStaff(l)" />
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-            </div>
-          </div>
-
-          <div v-if="locations.length > 1" class="card p-0 overflow-hidden">
-            <div class="px-4 sm:px-5 py-3 border-b border-gray-100">
-              <h3 class="text-sm font-semibold text-gray-800">Club-wide access <span class="text-xs font-normal text-gray-400">— every location</span></h3>
-              <p class="text-xs text-gray-400 mt-0.5">Grants that apply at all locations — optionally limited to one sport (e.g. "gymnastics everywhere").</p>
-            </div>
-            <div class="px-4 sm:px-5 py-3 space-y-3">
-              <div class="rounded-lg border border-gray-200 overflow-x-auto">
-                <table class="w-full text-sm">
-                  <colgroup><col class="w-72" /><col class="w-44" /><col class="w-44" /><col /><col class="w-12" /></colgroup>
-                  <thead>
-                    <tr class="bg-gray-50 border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      <th class="px-4 py-2.5 font-semibold">Person</th>
-                      <th class="px-3 py-2.5 font-semibold">Role</th>
-                      <th class="px-3 py-2.5 font-semibold">Sport</th>
-                      <th />
-                      <th class="px-3 py-2.5" />
-                    </tr>
-                  </thead>
-                  <tbody class="divide-y divide-gray-100">
-                    <tr v-for="s2 in clubWideGrants" :key="s2.id" class="hover:bg-gray-50">
-                      <td class="px-4 py-2">
-                        <span class="flex items-center gap-2.5">
-                          <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-[9px] font-bold inline-flex items-center justify-center shrink-0">{{ personName(s2).split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() }}</span>
-                          <NuxtLink :to="`/people/${s2.person_id}`" class="text-sm text-primary hover:underline truncate">{{ personName(s2) }}</NuxtLink>
-                        </span>
-                      </td>
-                      <td class="px-3 py-2"><span class="text-[11px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{{ roleLabel(s2.role_key) }}</span></td>
-                      <td class="px-3 py-2">
-                        <Select v-if="sports.length > 1" :model-value="s2.sport_id" @update:model-value="(v: string | null) => setStaffSport(s2, v)"
-                          :options="sportOptions" optionLabel="label" optionValue="value" size="small" class="w-36"
-                          :pt="{ root: { class: '!h-7' }, label: { class: '!py-0.5 !text-xs' } }" />
-                        <span v-else class="text-[11px] px-2 py-0.5 rounded-full font-medium" :class="s2.sport_id ? 'bg-sky-50 text-sky-700' : 'bg-gray-100 text-gray-500'">{{ sportLabel(s2.sport_id) ?? 'All sports' }}</span>
-                      </td>
-                      <td />
-                      <td class="px-3 py-2 text-right">
-                        <button type="button" class="text-gray-300 hover:text-red-500" title="Remove this grant" @click="removeStaffRow(s2)"><i class="pi pi-times-circle text-sm" /></button>
-                      </td>
-                    </tr>
-                    <!-- Add row — part of the table so it lines up with the columns -->
-                    <tr class="bg-gray-50/60">
-                      <td class="px-4 py-2">
-                        <AutoComplete :model-value="pick['__all']" @update:model-value="(v: any) => pick['__all'] = v"
-                          :suggestions="suggestions" optionLabel="label" placeholder="Add a staff member…"
-                          class="w-full" @complete="searchPeople"
-                          :pt="{ pcInputText: { root: { class: '!py-1.5 !px-2.5 !text-sm w-full' } } }"
-                          @item-select="(e: any) => pick['__all'] = e.value" />
-                      </td>
-                      <td class="px-3 py-2">
-                        <Select :model-value="pickRole['__all'] || 'staff'" @update:model-value="(v: string) => pickRole['__all'] = v"
-                          :options="LOCATION_STAFF_ROLES" optionLabel="label" optionValue="key" size="small" class="w-full" />
-                      </td>
-                      <td class="px-3 py-2">
-                        <Select v-if="sports.length > 1" :model-value="pickSport['__all'] ?? null" @update:model-value="(v: string | null) => pickSport['__all'] = v"
-                          :options="sportOptions" optionLabel="label" optionValue="value" size="small" class="w-full" />
-                      </td>
-                      <td />
-                      <td class="px-3 py-2 text-right">
-                        <Button label="Add" size="small" :disabled="!pick['__all']?.id" style="background:#1E2157;border-color:#1E2157" @click="addStaff(null)" />
                       </td>
                     </tr>
                   </tbody>
