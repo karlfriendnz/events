@@ -46,15 +46,22 @@ const genderLabel = (g: string | null) => g ? (GENDER_LABELS[g] ?? g) : 'Any'
 
 const codes = ref<GroupCode[]>([])
 const groups = ref<ClassGroup[]>([])
-const terms = ref<{ id: string; name: string; start_date: string | null; end_date: string | null }[]>([])
+const terms = ref<{ id: string; name: string; start_date: string | null; end_date: string | null; set_id?: string | null }[]>([])
+const termSets = ref<import('~/composables/useTermsMemberships').TermSet[]>([])
 const termFilter = ref<string>('all')  // 'all' | org_terms.id
 const termDefaulted = ref(false)        // only auto-pick the default term on first load
 const loading = ref(true)
 
-const termOptions = computed(() => [
-  { label: `All ${t('term', true, true)}`, value: 'all' },
-  ...terms.value.map(t => ({ label: t.name, value: t.id })),
-])
+import { termSetCoversLocation } from '~/composables/useTermsMemberships'
+const termOptions = computed(() => {
+  const setsById = Object.fromEntries(termSets.value.map(x => [x.id, x]))
+  const visible = terms.value.filter(tr =>
+    termSetCoversLocation(tr.set_id ? setsById[tr.set_id] : null, boardActiveLocation.value))
+  return [
+    { label: `All ${t('term', true, true)}`, value: 'all' },
+    ...visible.map(t => ({ label: t.name, value: t.id })),
+  ]
+})
 // A group belongs to the selected term via its code chain (else its own term_id).
 const inTerm = (g: ClassGroup) => termFilter.value === 'all' || gc.effectiveTermId(g, codeById.value) === termFilter.value
 const visibleGroups = computed(() => groups.value.filter(g =>
@@ -131,9 +138,10 @@ async function load() {
   if (!orgId.value) return
   loading.value = true
   await scoped.loadRoleDefs()
-  const [loadedCodes, loadedTerms, { data: gs }, { data: mems }, { data: discs }, { data: feeOpts }, { data: evs }, wlCounts] = await Promise.all([
+  const [loadedCodes, loadedTerms, loadedSets, { data: gs }, { data: mems }, { data: discs }, { data: feeOpts }, { data: evs }, wlCounts] = await Promise.all([
     gc.loadCodes(),
     tm.loadTerms(),
+    tm.loadTermSets(),
     (db.from as any)('member_groups').select('id, name, code_id, term_id, capacity, color, gender_restriction, age_range, waitlist_id, form_id, location_id').eq('org_id', orgId.value),
     (db.from as any)('member_group_memberships').select('group_id, role, roles, person:persons!inner(first_name, last_name)'),
     (db.from as any)('member_group_disciplines').select('group_id, discipline:disciplines(sport, name)'),
@@ -142,7 +150,8 @@ async function load() {
     wl.entryCounts(),
   ])
   codes.value = loadedCodes
-  terms.value = (loadedTerms ?? []).map((t: any) => ({ id: t.id, name: t.name, start_date: t.start_date ?? null, end_date: t.end_date ?? null }))
+  terms.value = (loadedTerms ?? []).map((t: any) => ({ id: t.id, name: t.name, start_date: t.start_date ?? null, end_date: t.end_date ?? null, set_id: t.set_id ?? null }))
+  termSets.value = loadedSets ?? []
   const memByGroup: Record<string, any[]> = {}
   for (const m of mems ?? []) (memByGroup[m.group_id] ??= []).push(m)
   const sportByGroup: Record<string, string> = {}

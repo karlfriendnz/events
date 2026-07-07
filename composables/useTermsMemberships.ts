@@ -33,7 +33,18 @@ export interface TermSet {
   name: string
   // The sport this sequence belongs to (org_sports id; migration 235). Null = whole club.
   sport_id: string | null
+  // The LOCATIONS this sequence runs at (migration 239) — a set can cover
+  // several sites. Null / empty = the whole club.
+  location_ids: string[] | null
   sort_order: number
+}
+
+/** Does a term set apply at this location? Main sequence (no set) and sets with
+ *  no location scope cover everywhere. */
+export function termSetCoversLocation(set: TermSet | null | undefined, locationId: string | null): boolean {
+  if (!set || !set.location_ids?.length) return true
+  if (!locationId) return true // no-location context sees everything
+  return set.location_ids.includes(locationId)
 }
 
 // Two terms are rollover-adjacent only when they share a set (null = default).
@@ -136,7 +147,7 @@ export function useTermsMemberships() {
   // ---- term sets (migration 232) ----
   async function loadTermSets(org = orgId.value): Promise<TermSet[]> {
     const { data } = await (db.from as any)('term_sets')
-      .select('id, org_id, name, sport_id, sort_order')
+      .select('id, org_id, name, sport_id, location_ids, sort_order')
       .eq('org_id', org)
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('name')
@@ -144,7 +155,7 @@ export function useTermsMemberships() {
   }
   async function createTermSet(name: string, org = orgId.value): Promise<TermSet | null> {
     const { data } = await (db.from as any)('term_sets')
-      .insert({ org_id: org, name }).select('id, org_id, name, sport_id, sort_order').single()
+      .insert({ org_id: org, name }).select('id, org_id, name, sport_id, location_ids, sort_order').single()
     return (data ?? null) as TermSet | null
   }
   async function renameTermSet(id: string, name: string): Promise<void> {
@@ -152,6 +163,9 @@ export function useTermsMemberships() {
   }
   async function setTermSetSport(id: string, sportId: string | null): Promise<void> {
     await (db.from as any)('term_sets').update({ sport_id: sportId }).eq('id', id)
+  }
+  async function setTermSetLocations(id: string, locationIds: string[] | null): Promise<void> {
+    await (db.from as any)('term_sets').update({ location_ids: locationIds?.length ? locationIds : null }).eq('id', id)
   }
   async function deleteTermSet(id: string): Promise<void> {
     // Terms fall back to the default set (set_id → null via FK on delete set null)
@@ -198,6 +212,7 @@ export function useTermsMemberships() {
     createTermSet,
     renameTermSet,
     setTermSetSport,
+    setTermSetLocations,
     deleteTermSet,
     loadPlans,
     loadGroupBilling,
