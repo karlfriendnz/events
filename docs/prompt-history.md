@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-133 sessions · 1128 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+133 sessions · 1134 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -2687,7 +2687,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:07** — better but still messy
 
 
-## Session 2026-07-05 23:26 (189 prompts)
+## Session 2026-07-05 23:26 (190 prompts)
 
 **23:26** — ok where did we get to ?
 
@@ -3478,6 +3478,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:46** — deploy live
 
 **21:55** — rather then having tabs for people and entites pelase put entites below hte people list
+
+**22:03** — I should not be able to access settings page if I am not in the "all venues" location
 
 
 ## Session 2026-07-05 23:33 (18 prompts)
@@ -12652,7 +12654,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > … [truncated — 76281 chars total]
 
 
-## Session 2026-07-07 21:59 (1 prompts)
+## Session 2026-07-07 21:59 (6 prompts)
 
 **21:59** — Analyze this codebase for performance optimizations:
 > - Identify N+1 query patterns
@@ -12666,6 +12668,206 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > ## Instructions
 > 
 > Analyze the codebase and provide your response following the format specified in the task.
+
+**22:02** — <task-notification>
+> <task-id>ad4c2c8307ba63d4b</task-id>
+> <tool-use-id>toolu_018o7TNR2x18UHyxt28tgFRs</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/69a8e93e-35c5-4a52-9c73-6d924bfe07e1/tasks/ad4c2c8307ba63d4b.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find caching opportunities" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Caching audit — verified findings
+> 
+> **Reference pattern** (`composables/useOrgModules.ts`): a `useState` value keyed by data + a parallel `useState&lt;string|null&gt;` "loaded-for-org" marker, checked as `if (!force &amp;&amp; loaded.value === orgId.value) return`. Several composables below have **zero** such guard; a couple have a **boolean-only** guard that's actually a correctness bug (stale data survives an org switch).
+> 
+> ---
+> 
+> **1. `composables/useOrgFieldPolicy.ts` — `resolveFields()`, `resolvePersonTypes()`, `loadOrgTypes()` (whole file)**
+> No `useState` anywhere in this file — every call does a fresh `field_definitions`/`person_target_types` query, and `resolveFields`/`resolvePersonTypes` additionally re-run the `org_ancestors` RPC via `useOrgHierarchy().ancestors()` every time.
+> Called uncached from **18 sites**: `PersonFormBuilder.vue`, `BookingFormFields.vue`, `FormRenderer.vue` (fires on every public registration page load), `settings/fields.vue`, `proto/*` pages, `people/index.vue`, `people/[id].vue` (every profile view), `groups/[id]/index.vue`, `organisations/[id].vue`, `ResourceConnectDialog.vue`, `resources.vue`, `FormProfilesEditor.vue`.
+> Fix: add `useState&lt;Record&lt;string, FieldDef[]&gt;&gt;('org-field-defs', ()=&gt;({}))` + `useState&lt;Record&lt;string, PersonTargetType[]&gt;&gt;('org-person-types', ()=&gt;({}))` keyed by `orgId`, with a `force` param, mirroring `useOrgModules`.
+> 
+> **2. `composables/useOrgHierarchy.ts:43` — `ancestors(orgId)`**
+> Plain uncached RPC call. It's the shared dependency of `resolveFields`, `resolvePersonTypes`, and `resolveTerminology`, so any page calling two of those for the same org fires the RPC twice back-to-back (see #3). Called on essentially every People/Fields/Forms/Terminology page mount.
+> Fix: `useState&lt;Record&lt;string, OrgNode[]&gt;&gt;('org-ancestors', ()=&gt;({}))` keyed by `orgId`, populated once per org per session.
+> 
+> **3. `pages/people/index.vue` `load()` (lines 452 &amp; 454)**
+> `resolvePersonTypes(orgId.value)` then `resolveFields(orgId.value)` are called back-to-back in the same `load()` — two independent `ancestors()` RPC round-trips + two table scans for the one page visit, when they could share one ancestor list. Fires every time `/people` mounts.
+> Fix: resolved automatically once `ancestors()` (finding #2) is cached; no page change needed.
+> 
+> **4. `composables/useGroupCodes.ts` — `loadCodes()`**
+> No cache at all, in the *same f
+> … [truncated — 7565 chars total]
+
+**22:03** — <task-notification>
+> <task-id>af59bb25855b762d0</task-id>
+> <tool-use-id>toolu_012UEMHTEyjPHYp6N6wmxcbe</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/69a8e93e-35c5-4a52-9c73-6d924bfe07e1/tasks/af59bb25855b762d0.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find N+1 query patterns" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Good, no additional N+1 there — `movePerson` is called once per drag/drop action (user-driven single move), not in a batch loop. I now have sufficient findings.
+> 
+> ## N+1 Query Pattern Findings
+> 
+> **1. `server/api/public-form-submit.post.ts` — `upsertPerson` loop (lines 128–139)**
+> ```ts
+> for (const s of subjects) {
+>   if ((s.kind ?? 'person') === 'entity') continue
+>   for (const inst of s.instances) {
+>     const pid = await upsertPerson(inst)   // 1 SELECT + 1 INSERT/UPDATE each
+>     ...
+>   }
+> }
+> ```
+> `upsertPerson` (lines 84–119) does a `.select('id, custom_fields').ilike('email', email)` then an `.update()` or `.insert()`. For a multi-subject form (e.g. the Team preset: 12 Players + 2 Coaches + 2 Managers + Physio = 17+ instances), this serializes up to ~34 sequential round trips against `persons` **on the critical path of a public, unauthenticated form submit** — directly inflates perceived latency for registrants. **Fix:** batch-fetch all instance emails in one `persons.select('id,email,custom_fields').in('email', emails)`, build an email→row map, then batch the inserts for new persons in one `.insert([...])` and updates via `.upsert(rows, { onConflict: 'org_id,email' })` where possible (or at minimum `Promise.all` the remaining per-row updates once existence is known).
+> 
+> **2. `server/api/public-form-submit.post.ts` — group enrolment loop (lines 266–270) + `enrolInGroup` (149–191)**
+> ```ts
+> for (const [gid, entries] of Object.entries(byGroup)) {
+>   const r = await enrolInGroup(gid, entries)
+>   ...
+> }
+> ```
+> Each `enrolInGroup` call does up to 4 sequential queries (`member_groups` select, `member_group_memberships` select for capacity, `org_terms` select, `group_fee_options` select) — compounds with finding #1 on the same request. **Fix:** pre-fetch all target groups with one `.in('id', groupIds)`, one grouped capacity count via `.in('group_id', groupIds)` (tally client-side), one `.in('id', termIds)` for terms, and one `.in('group_id', groupIds)` for fee options, then loop purely in memory before the final `upsert`s.
+> 
+> **3. `composables/useTermRollover.ts` — `generateTrainingEvents()` (lines 362–425)**
+> ```ts
+> for (const sched of (scheds ?? [])) {
+>   ...
+>   const { data: master } = await (db.from as any)('events').insert({...}).select('id').single()
+>   ...
+>   const { data: kids } = await (db.from as any)('events').insert(childRows).select('id')
+>   ...
+>   await (db.from as any)('invitees').insert(inviteeRows)
+> }
+> ```
+> For each
+> … [truncated — 7176 chars total]
+
+**22:03** — <task-notification>
+> <task-id>a0f77a599ff0eb73d</task-id>
+> <tool-use-id>toolu_01Mn57gq7SX8bY9BfDgekyTd</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/69a8e93e-35c5-4a52-9c73-6d924bfe07e1/tasks/a0f77a599ff0eb73d.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find memory leaks" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Memory Leak Audit — fm-events
+> 
+> I checked all 6 leak patterns across the components CLAUDE.md flagged plus a codebase-wide sweep (grep-balanced `addEventListener`/`removeEventListener`, `setInterval`/`clearInterval`, `ResizeObserver`/`MutationObserver`/`.disconnect()`, `Sortable.create`/`.destroy()`, and `.channel(` for Supabase realtime — there are zero realtime subscriptions in the app, so that category is moot everywhere).
+> 
+> ### Verified leak (1)
+> 
+> **`components/FeeLineItemsTable.vue:274-288`** — SortableJS instance never destroyed
+> ```js
+> onMounted(() =&gt; {
+>   document.addEventListener('click', closeOnOutsideClick)
+>   ...
+>   if (tbodyEl.value) {
+>     Sortable.create(tbodyEl.value, { handle: '.drag-handle', ... })   // never stored, never destroyed
+>   }
+> })
+> onUnmounted(() =&gt; {
+>   document.removeEventListener('click', closeOnOutsideClick)   // only this is cleaned up
+> })
+> ```
+> - Checked the whole file: the `Sortable.create(...)` return value is discarded (not assigned to a variable), and `onUnmounted` only removes the outside-click listener — no `.destroy()` call anywhere.
+> - This is the codebase's own established pattern done correctly elsewhere (`components/AvailabilityEditor.vue:861-877`, `components/FormFieldCanvas.vue:213-288`, `components/FormDesigner.vue:680-826` all store the instance and call `.destroy()` in `onBeforeUnmount`/`onUnmounted`), so this file is the one inconsistent outlier — confirmed via a repo-wide `Sortable.create` vs `.destroy()` count: this file is `create=1 destroy=0`, every other file with SortableJS has `destroy ≥ create`.
+> - **Impact**: `&lt;FeeLineItemsTable&gt;` is used in 9 files (`components/SessionEditor.vue`, the events forms tab, `/groups/:id` fees editor, `/groups/fees` bulk-add dialog, `/settings/xero`-adjacent flows, the term wizard's `&lt;WizardFeeRowsEditor&gt;`, `new-basic`/`new-advanced` wizards, mode pricing/addons editors) — many inside dialogs and tabs that mount/unmount repeatedly, so each open leaves an orphaned Sortable instance + its internal document-level pointer/touch listeners.
+> - **Fix**: store the instance and destroy it on unmount, matching the other files' pattern:
+> ```js
+> let sortable: any = null
+> onMounted(() =&gt; {
+>   ...
+>   if (tbodyEl.value) sortable = Sortable.create(tbodyEl.value, { ... })
+> })
+> onUnmounted(() =&gt; {
+>   document.removeEventListener('click', closeOnOutsideClick)
+>   if (sortable) { sortable.destroy(); sortable = null }
+> })
+> ```
+> 
+> ### Everyt
+> … [truncated — 6170 chars total]
+
+**22:05** — <task-notification>
+> <task-id>a65c2832fdbd18ec6</task-id>
+> <tool-use-id>toolu_01WFs1gSgQHbuRb25peWDmuw</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/69a8e93e-35c5-4a52-9c73-6d924bfe07e1/tasks/a65c2832fdbd18ec6.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find redundant computations" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Redundant Computation Findings
+> 
+> ### 1. `components/FormDesigner.vue` — `evtSubjectCount()` does a linear `.find()` and is called up to ~90 times per subject on every render
+> 
+> **Lines:** 1193–1201 (definition), 3479–3514 (template usage), also 1204, 1208, 1215, 1288, 1297, 1308, 1488
+> 
+> ```js
+> // line 1193
+> function evtSubjectCount(key: string): number {
+>   const s = evtPreviewSubjects.value.find(x =&gt; x.key === key)   // O(n) scan every call
+>   if (!s) return 1
+>   const { lo, hi } = evtSubjectBounds(s)
+>   let c = evtSubjectCounts.value[key] ?? lo
+>   ...
+> }
+> ```
+> ```html
+> &lt;!-- lines 3479-3514, inside v-for="subject in ..." --&gt;
+> &lt;div v-for="inst in evtSubjectCount(subject.key)" ...&gt;          &lt;!-- 1 call for the range --&gt;
+>   &lt;div v-if="evtSubjectCount(subject.key) &gt; 1 || !evtPublicPreview"
+>     :class="evtSubjectCount(subject.key) &gt; 1 ? ... : ''"
+>     @click.stop="evtSubjectCount(subject.key) &gt; 1 &amp;&amp; ..."&gt;
+>     &lt;template v-if="evtSubjectCount(subject.key) &gt; 1"&gt;...       &lt;!-- repeated per instance --&gt;
+>     &lt;button v-if="evtSubjectCount(subject.key) &gt; evtSubjectMin(subject)" ...
+>   &lt;div v-show="evtSubjectCount(subject.key) === 1 || evtInstanceOpen(...)"
+> ```
+> **Why redundant:** `evtSubjectCount` is a plain function, not a `computed`, so Vue re-invokes it on *every* template evaluation — and it's called ~7 more times inside the very `v-for` loop it sizes. For a 12-Player Team preset (documented in `&lt;FormProfilesEditor&gt;`), this is roughly 1 + 12×7 ≈ 85 calls per subject per render, each doing an `O(subjects)` `.find()` plus bounds math that never changed. It also gets called again from `evtRegistrantOptions` (1293-1301), `evtCommsRecipientOptions` (1303-1312) and `evtInstanceIndex` (1484-1492) — three separate computeds each re-searching `evtPreviewSubjects.value` for a subject object they already have in hand from their own loop (`s`), instead of reading `s` directly.
+> 
+> **Fix:** Turn the resolved per-subject count into a `computed(() =&gt; Record&lt;string, number&gt;)` built once per change to `evtPreviewSubjects`/`evtSubjectCounts`, and have the template + the three computeds do an O(1) map lookup (or just use the loop variable `s` instead of re-finding by `s.key`).
+> 
+> ---
+> 
+> ### 2. `pages/groups/[id]/index.vue` — Sub-groups board re-filters the whole roster for every sub-group, multiple times per card, and re-runs on every `dragover` event
+> 
+> **Lines:
+> … [truncated — 11722 chars total]
+
+**22:05** — <task-notification>
+> <task-id>ac5af9361f866a855</task-id>
+> <tool-use-id>toolu_01FWehU7sjFSPsBjw5o3XJzP</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/69a8e93e-35c5-4a52-9c73-6d924bfe07e1/tasks/ac5af9361f866a855.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find Vue reactivity/re-render overhead" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Reactivity/Rendering Performance Findings — fm-events (Vue 3 / Nuxt)
+> 
+> ### 1. `pages/groups/[id]/index.vue` — Sub-groups drag board re-filters the full roster up to 6× per card, per render
+> **Lines 2016–2025** (functions), used in template at **lines 676, 696, 718, 722, 743, 752, 759, 761, 767**
+> ```js
+> const unassignedMembers = computed(() =&gt; allPeople.value.filter(p =&gt; !isStaffPerson(p) &amp;&amp; !p.subGroupId).sort(sortByName))
+> const poolStaff = computed(() =&gt; allPeople.value.filter(isStaffPerson).sort(sortByName))
+> function membersInSubGroup(sgId: string) {
+>   return allPeople.value.filter(p =&gt; !isStaffPerson(p) &amp;&amp; p.subGroupId === sgId).sort(sortByName)
+> }
+> function staffInSubGroup(sgId: string) {
+>   const ids = (subGroupBy.value[sgId] as any)?.staffIds ?? []
+>   return poolStaff.value.filter(p =&gt; ids.includes(p.id))
+> }
+> function subGroupCount(sgId: string) { return membersInSubGroup(sgId).length + staffInSubGroup(sgId).length }
+> ```
+> `membersInSubGroup`/`staffInSubGroup` are plain functions, not `computed()`. In the template each is called 2–3 times per sub-group (once for the `v-for`, once for an empty/divider check, and again inside `subGroupCount`), for **both** the table view and grid view blocks. Every call re-runs `.filter().sort()` over the entire `allPeople.value` array. Cost scales as O(sub-groups × roster size × ~6) on **every** re-render (any reactive read touched during render re-triggers this, e.g. dragging one card).
+> **Fix:** replace with one `computed()` that builds `Record&lt;subGroupId, { members: Person[]; staff: Person[] }&gt;` in a single O(P) pass, then have the plain functions just index into it.
+> 
+> ### 2. `pages/groups/[id]/index.vue` — Attendance report matrix recomputes per-session totals via unmemoized full-list filters
+> **Lines 2980–2981** (functions), used at **lines 1113, 1114, 1136, 1137, 1159, 1160**
+> ```js
+> const sectionTotal = (list: any[], eventId: string | null) =&gt; eventId ? list.filter(p =&gt; attended(p.id, eventId)).length : 0
+> const sectionGrand = (list: any[]) =&gt; visibleSessions.value.reduce((s, c) =&gt; s + sectionTotal(list, c.eventId), 0)
+> ```
+> `attended()` is already O(1) via the memoized `attendedByPerson` map (line 2910), but `sectionTotal`/`sectionGrand` throw that win away: the footer row calls `sectionTotal(members, s.eventId)` once **per session column** in the template (`v-for="s in visibleSessions"`), and `sectionG
+> … [truncated — 10822 chars total]
 
 
 ## Session 2026-07-07 21:59 (1 prompts)

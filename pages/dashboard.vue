@@ -208,6 +208,13 @@ const layout = ref<any[]>([]) // grid-layout-plus model: { i, x, y, w, h, minW, 
 const isNarrow = ref(false)
 function updateNarrow() { if (import.meta.client) isNarrow.value = window.innerWidth < 768 }
 onMounted(updateNarrow)
+// Bounced out of Settings because a location lens was active (mig: location-settings guard)
+onMounted(() => {
+  if (route.query.settings_needs_all_locations) {
+    toast.add({ severity: 'info', summary: 'Switch to All locations', detail: 'Settings is club-wide — choose “All locations” to open it.', life: 4500 })
+    navigateTo({ query: {} }, { replace: true })
+  }
+})
 if (import.meta.client) {
   window.addEventListener('resize', updateNarrow)
   onBeforeUnmount(() => window.removeEventListener('resize', updateNarrow))

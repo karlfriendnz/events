@@ -214,8 +214,8 @@
           </span>
         </button>
 
-        <!-- Settings gear -->
-        <NuxtLink to="/settings"
+        <!-- Settings gear — club-wide config, only from the All-locations lens -->
+        <NuxtLink v-if="!activeLocationId" to="/settings"
           class="hidden md:flex w-9 h-9 items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-500 shrink-0"
           title="Settings">
           <i class="pi pi-cog text-base" />
@@ -238,7 +238,7 @@
             <OrgSwitcher @switched="userMenuOpen = false" />
             <NuxtLink v-if="isSuper" to="/admin" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
               @click="userMenuOpen = false"><i class="pi pi-sitemap text-gray-400 w-4 text-center" />All orgs</NuxtLink>
-            <NuxtLink to="/settings" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
+            <NuxtLink v-if="!activeLocationId" to="/settings" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
               @click="userMenuOpen = false"><i class="pi pi-cog text-gray-400 w-4 text-center" />Settings</NuxtLink>
             <button type="button" class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 text-left"
               @click="handleLogout"><i class="pi pi-sign-out text-gray-400 w-4 text-center" />Sign out</button>
@@ -325,7 +325,7 @@
           </NuxtLink>
           <div class="border-t border-gray-100 my-2" />
           <button v-if="orgReady && user && !gate.isDeveloper.value" type="button" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50 text-left" @click="openReviewFromMobile"><i class="pi pi-comment text-base w-5 text-center" />Comments &amp; review<span v-if="reviewCount > 0" class="ml-auto min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-[11px] font-bold rounded-full flex items-center justify-center">{{ reviewCount > 99 ? '99+' : reviewCount }}</span></button>
-          <NuxtLink to="/settings" class="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"><i class="pi pi-cog text-base w-5 text-center" />Settings</NuxtLink>
+          <NuxtLink v-if="!activeLocationId" to="/settings" class="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"><i class="pi pi-cog text-base w-5 text-center" />Settings</NuxtLink>
           <NuxtLink to="/switch-role" class="flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50"><i class="pi pi-sync text-base w-5 text-center" />Switch role</NuxtLink>
           <button type="button" class="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 text-left" @click="handleLogout"><i class="pi pi-sign-out text-base w-5 text-center" />Sign out</button>
         </div>
