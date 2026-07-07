@@ -9,6 +9,7 @@ import { isMembershipGroup } from '~/composables/useMemberships'
 
 const db = useDb()
 const { orgId } = useOrg()
+const gc = useGroupCodes()
 const gf = useGroupFees()
 const wl = useWaitlists()
 const ms = useMemberships()
@@ -19,21 +20,37 @@ useBreadcrumbs([{ label: 'Memberships' }])
 const loading = ref(true)
 interface Row {
   id: string; name: string; color: string | null; capacity: number | null
+  codeId: string | null
   members: number; feeLabel: string | null; feeCount: number
   waitlistId: string | null; waiting: number; included: number
 }
 const rows = ref<Row[]>([])
+const codesById = ref<Record<string, any>>({})
+// Board sections: one per PROGRAMME (code) that holds memberships — the
+// umbrella ("Senior Membership") over its tiers (Annual / Monthly) — plus a
+// plain section for standalone memberships.
+const sections = computed(() => {
+  const byCode: Record<string, Row[]> = {}
+  const loose: Row[] = []
+  for (const r of rows.value) (r.codeId ? (byCode[r.codeId] ??= []).push(r) : loose.push(r))
+  const out = Object.entries(byCode).map(([codeId, list]) => ({
+    codeId, name: codesById.value[codeId]?.name ?? 'Programme', color: codesById.value[codeId]?.color ?? null, list,
+  })).sort((a, b) => a.name.localeCompare(b.name))
+  return { grouped: out, loose }
+})
 
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [{ data: groups }, { data: mems }, { data: feeOpts }, ents, wlCounts] = await Promise.all([
-    (db.from as any)('member_groups').select('id, name, color, capacity, waitlist_id, kind').eq('org_id', orgId.value).eq('kind', 'membership').order('name'),
+  const [{ data: groups }, { data: mems }, { data: feeOpts }, ents, wlCounts, codes] = await Promise.all([
+    (db.from as any)('member_groups').select('id, name, color, capacity, waitlist_id, kind, code_id').eq('org_id', orgId.value).eq('kind', 'membership').order('name'),
     (db.from as any)('member_group_memberships').select('group_id, group:member_groups!inner(org_id, kind)').eq('group.org_id', orgId.value).eq('group.kind', 'membership'),
     (db.from as any)('group_fee_options').select('id, group_id, name, fee_type, period_unit, period_count, instalment_count, session_count, prorata, items:group_fee_option_items(amount)').eq('org_id', orgId.value),
     ms.loadAllEntitlements(),
     wl.entryCounts(),
+    gc.loadCodes(),
   ])
+  codesById.value = Object.fromEntries((codes ?? []).map((c: any) => [c.id, c]))
   const memberCounts: Record<string, number> = {}
   for (const m of (mems ?? [])) memberCounts[m.group_id] = (memberCounts[m.group_id] || 0) + 1
   const feesByGroup: Record<string, any[]> = {}
@@ -43,7 +60,7 @@ async function load() {
   rows.value = (groups ?? []).map((g: any) => {
     const fees = feesByGroup[g.id] ?? []
     return {
-      id: g.id, name: g.name, color: g.color, capacity: g.capacity,
+      id: g.id, name: g.name, color: g.color, capacity: g.capacity, codeId: g.code_id ?? null,
       members: memberCounts[g.id] ?? 0,
       feeLabel: fees.length === 1 ? gf.priceLabel(fees[0]) : fees.length > 1 ? `${fees.length} options` : null,
       feeCount: fees.length,
@@ -106,8 +123,42 @@ async function create() {
             <th class="px-3 py-2.5">Includes</th>
           </tr>
         </thead>
+        <tbody v-for="sec in sections.grouped" :key="sec.codeId" class="divide-y divide-gray-100 border-b border-gray-100">
+          <!-- Programme umbrella row — click for the everyone-across-tiers report -->
+          <tr class="bg-gray-50/70 hover:bg-gray-100 cursor-pointer" @click="navigateTo(`/memberships/programme/${sec.codeId}`)">
+            <td class="px-4 sm:px-5 py-2" colspan="5">
+              <span class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-sm shrink-0" :style="{ background: sec.color || '#94a3b8' }" />
+                <span class="text-xs font-bold uppercase tracking-wide text-gray-500">{{ sec.name }}</span>
+                <span class="text-xs text-gray-400">· {{ sec.list.reduce((a, r) => a + r.members, 0) }} member{{ sec.list.reduce((a, r) => a + r.members, 0) === 1 ? '' : 's' }} across {{ sec.list.length }} tier{{ sec.list.length === 1 ? '' : 's' }}</span>
+                <span class="ml-auto text-xs text-primary font-medium">View everyone →</span>
+              </span>
+            </td>
+          </tr>
+          <tr v-for="r in sec.list" :key="r.id" class="hover:bg-gray-50 cursor-pointer" @click="navigateTo(`/memberships/${r.id}`)">
+            <td class="px-4 sm:px-5 py-3">
+              <span class="flex items-center gap-2.5">
+                <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: r.color || '#94a3b8' }" />
+                <span class="font-semibold text-gray-900">{{ r.name }}</span>
+              </span>
+            </td>
+            <td class="px-3 py-3 num">{{ r.members }}<span v-if="r.capacity" class="text-gray-400"> / {{ r.capacity }}</span></td>
+            <td class="px-3 py-3">
+              <span v-if="r.feeLabel" class="text-gray-700">{{ r.feeLabel }}</span>
+              <span v-else class="text-red-500 text-xs">No fee yet</span>
+            </td>
+            <td class="px-3 py-3">
+              <span v-if="r.waitlistId" class="text-gray-700">{{ r.waiting }} waiting</span>
+              <span v-else class="text-gray-300">—</span>
+            </td>
+            <td class="px-3 py-3">
+              <span v-if="r.included" class="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium">{{ r.included }} thing{{ r.included === 1 ? '' : 's' }} included</span>
+              <span v-else class="text-xs text-gray-400">Nothing connected</span>
+            </td>
+          </tr>
+        </tbody>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="r in rows" :key="r.id" class="hover:bg-gray-50 cursor-pointer" @click="navigateTo(`/memberships/${r.id}`)">
+          <tr v-for="r in sections.loose" :key="r.id" class="hover:bg-gray-50 cursor-pointer" @click="navigateTo(`/memberships/${r.id}`)">
             <td class="px-4 sm:px-5 py-3">
               <span class="flex items-center gap-2.5">
                 <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: r.color || '#94a3b8' }" />
