@@ -1814,6 +1814,18 @@ async function onDropToSubGroup(sgId: string | null) {
 
 // Bulk actions on the selected rows (People tab).
 const toast = useToast()
+
+// Location lens guard: viewing a class outside the active location behaves
+// like a permission miss — bounce back to the classes list. Fires on lens
+// switch while on the page AND on arrival with an excluding lens.
+const { activeLocationId: lensId, inActiveLocation: lensPass, activeLocation: lensLoc } = useActiveLocation()
+watch([lensId, group], () => {
+  if (!group.value || !lensId.value) return
+  if (!lensPass((group.value as any).location_id ?? null)) {
+    toast.add({ severity: 'warn', summary: 'Not at this location', detail: `${group.value.name} isn't at ${lensLoc.value?.name ?? 'the selected location'}.`, life: 3500 })
+    navigateTo('/groups')
+  }
+})
 const actionMenu = ref()
 const actionItems = computed(() => [
   { label: 'Create Event', icon: 'pi pi-calendar-plus', command: () => bulkAction('Create Event') },

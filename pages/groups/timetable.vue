@@ -64,9 +64,15 @@ const coachOptions = computed(() => {
   return [{ label: `All ${t('coach', true, true)}`, value: 'all' }, ...[...set].sort().map(c => ({ label: c, value: c }))]
 })
 
-const { inActiveLocation: inLens } = useActiveLocation()
+const { inActiveLocation: inLens, activeLocationId: lensActiveId, locations: clubLocations } = useActiveLocation()
+const lensAll = computed(() => !lensActiveId.value)
+const locFilter = ref<string[]>([])
+const locFilterOptions = computed(() => clubLocations.value.map(l => ({ label: l.name, value: l.id })))
+const inLocFilter = (id: string | null) =>
+  !lensAll.value || !locFilter.value.length || (id != null && locFilter.value.includes(id))
 const filtered = computed(() => allSessions.value.filter(s =>
   inLens(s.locationId) &&
+  inLocFilter(s.locationId) &&
   (termId.value === 'all' || s.termId === termId.value) &&
   (!codeIds.value.length || (s.codeId != null && codeIds.value.includes(s.codeId))) &&
   (venue.value === 'all' || s.venue === venue.value) &&
@@ -111,6 +117,8 @@ function openGroup(s: TimetableSession) { navigateTo(`/groups/${s.groupId}`) }
         <Select v-model="termId" :options="termOptions" optionLabel="label" optionValue="value" class="w-full sm:w-44" />
         <MultiSelect v-model="codeIds" :options="codeOptions" optionLabel="label" optionValue="value" display="chip"
           :placeholder="`All ${t('code', true, true)}`" :maxSelectedLabels="2" class="w-full sm:w-52" :showToggleAll="false" filter />
+        <MultiSelect v-if="lensAll && clubLocations.length > 1" v-model="locFilter" :options="locFilterOptions"
+          optionLabel="label" optionValue="value" display="chip" :placeholder="'All locations'" class="w-full sm:w-52" />
         <Select v-model="venue" :options="venueOptions" optionLabel="label" optionValue="value" class="w-full sm:w-40" filter />
         <Select v-model="coach" :options="coachOptions" optionLabel="label" optionValue="value" class="w-full sm:w-40" filter />
         <button v-if="anyFilter" type="button" class="text-xs font-medium text-gray-400 hover:text-gray-700 px-1.5 py-1" @click="clearFilters">Clear</button>

@@ -289,6 +289,31 @@ const router = useRouter()
 const { orgId } = useOrg()
 const db = useDb()
 const toast = useToast()
+
+// Location lens guard (same rule as the /people list): a person with location
+// connections (class memberships or staff assignments) that DON'T include the
+// active location gets bounced to the directory; unconnected people pass.
+const { activeLocationId: lensId, activeLocation: lensLoc } = useActiveLocation()
+const personLensLocations = ref<string[] | null>(null)
+async function loadPersonLocations() {
+  const pid = route.params.id
+  const [{ data: ms }, { data: ls }] = await Promise.all([
+    (db.from as any)('member_group_memberships').select('group:member_groups!inner(location_id)').eq('person_id', pid),
+    (db.from as any)('location_staff').select('location_id').eq('person_id', pid),
+  ])
+  const locs = new Set<string>()
+  for (const m of (ms ?? [])) if (m.group?.location_id) locs.add(m.group.location_id)
+  for (const l of (ls ?? [])) locs.add(l.location_id)
+  personLensLocations.value = [...locs]
+}
+void loadPersonLocations()
+watch([lensId, personLensLocations], () => {
+  if (!lensId.value || personLensLocations.value === null) return
+  if (personLensLocations.value.length && !personLensLocations.value.includes(lensId.value)) {
+    toast.add({ severity: 'warn', summary: 'Not at this location', detail: `This person isn't at ${lensLoc.value?.name ?? 'the selected location'}.`, life: 3500 })
+    navigateTo('/people')
+  }
+})
 const { ensureTerms, t } = useTerms()
 const { resolveFields, resolvePersonTypes, fieldAppliesTo } = useOrgFieldPolicy()
 const personTypes = ref<any[]>([])
