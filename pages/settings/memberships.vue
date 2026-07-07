@@ -38,6 +38,7 @@ interface TermRow {
   sort_order: number
 }
 const terms = ref<TermRow[]>([])
+const seasonsTab = ref<'list' | 'timeline'>('list')
 let removedTermIds: string[] = []
 const savingTerms = ref(false)
 
@@ -114,6 +115,48 @@ async function saveTerms() {
     savingTerms.value = false
   }
 }
+
+// ---------- Timeline (visual view of every sequence, wizard-style) ----------
+const MS_DAY = 86400000
+const timeline = computed(() => {
+  const rows = termSections.value
+    .map(sec => ({
+      name: sec.set?.name ?? `Main ${t('term', true, true)}`,
+      terms: sec.list.filter(r => r.start_date && r.end_date),
+    }))
+    .filter(r => r.terms.length)
+  if (!rows.length) return null
+  const dates: number[] = []
+  for (const r of rows) for (const tr of r.terms) {
+    dates.push(tr.start_date!.getTime(), tr.end_date!.getTime())
+    if (tr.signup_open) dates.push(tr.signup_open.getTime())
+  }
+  const min = Math.min(...dates) - 7 * MS_DAY
+  const max = Math.max(...dates) + 7 * MS_DAY
+  const span = max - min
+  const pct = (d: Date | number) => Math.min(100, Math.max(0, ((typeof d === 'number' ? d : d.getTime()) - min) / span * 100))
+  const fmt = (d: number) => new Date(d).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })
+  const now = Date.now()
+  return {
+    axisStart: fmt(min), axisEnd: fmt(max),
+    today: now >= min && now <= max ? pct(now) : null,
+    rows: rows.map(r => ({
+      name: r.name,
+      segments: r.terms.map(tr => {
+        const st = tr.start_date!.getTime(), en = tr.end_date!.getTime()
+        const weeks = Math.round((en - st) / (7 * MS_DAY))
+        const suo = tr.signup_open ? tr.signup_open.getTime() : null
+        const suc = tr.signup_close ? tr.signup_close.getTime() : en
+        return {
+          left: pct(st), width: Math.max(pct(en) - pct(st), 1.5),
+          label: `${tr.name || 'Untitled'} · ${weeks} wks`,
+          ticks: Array.from({ length: Math.max(weeks - 1, 0) }, (_, i) => ((i + 1) / weeks) * 100),
+          signup: suo != null ? { left: pct(suo), width: Math.max(pct(suc) - pct(suo), 1) } : null,
+        }
+      }),
+    })),
+  }
+})
 
 // ---------- Membership plans ----------
 const UNITS = [
@@ -280,9 +323,19 @@ watch(orgId, v => { if (v) load() })
           <!-- TERMS -->
           <AppCard :title="t('term', true)" :description="`Shared date ranges (e.g. Term 1 2026). Attach a ${t('group', false, true)} to one or more ${t('term', true, true)} on the ${t('group', false, true)} page. The sign-up window controls when ${t('member', true, true)} can register for that ${t('term', false, true)}'s ${t('group', true, true)} — leave it blank to open right away and close when the ${t('term', false, true)} ends.`">
             <div class="p-4 sm:p-5 space-y-8">
+              <!-- List / Timeline tabs -->
+              <div class="flex gap-5 border-b border-gray-100 -mt-1">
+                <button type="button" class="pb-2 -mb-px border-b-2 text-sm font-medium transition-colors"
+                  :class="seasonsTab === 'list' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                  @click="seasonsTab = 'list'">{{ t('term', true) }}</button>
+                <button type="button" class="pb-2 -mb-px border-b-2 text-sm font-medium transition-colors"
+                  :class="seasonsTab === 'timeline' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                  @click="seasonsTab = 'timeline'">Timeline</button>
+              </div>
+
               <!-- One section per term set. The default (main) sequence first;
                    each set is an independent sequence — rollover never crosses sets. -->
-              <div v-for="sec in termSections" :key="sec.key" class="space-y-2">
+              <div v-for="sec in termSections" v-show="seasonsTab === 'list'" :key="sec.key" class="space-y-2">
                 <div v-if="sets.length || sec.set" class="flex items-center gap-2">
                   <template v-if="sec.set">
                     <input v-model="sec.set.name" @change="onRenameSet(sec.set)"
@@ -295,11 +348,12 @@ watch(orgId, v => { if (v) load() })
                   </template>
                   <span v-else class="text-base font-semibold text-gray-900">Main {{ t('term', true, true) }}</span>
                 </div>
-                <div v-if="sec.list.length" class="hidden lg:grid grid-cols-[1fr_130px_130px_130px_130px_40px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">
+                <div class="lg:rounded-lg lg:border lg:border-gray-200 lg:overflow-hidden space-y-2 lg:space-y-0">
+                <div v-if="sec.list.length" class="hidden lg:grid grid-cols-[1fr_170px_170px_170px_170px_40px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-3 py-2.5 bg-gray-50 border-b border-gray-200">
                   <span>Name</span><span>Starts</span><span>Ends</span><span v-tooltip.top="`When ${t('member', false, true)} registration opens. Blank = open right away.`">Sign-up opens</span><span v-tooltip.top="`When registration closes. Blank = when the ${t('term', false, true)} ends.`">Sign-up closes</span><span></span>
                 </div>
                 <div v-for="t in sec.list" :key="t.id ?? t.sort_order + t.name"
-                  class="grid grid-cols-1 lg:grid-cols-[1fr_170px_170px_170px_170px_40px] gap-2 lg:items-center rounded-lg border border-gray-100 lg:border-0 p-3 lg:p-0">
+                  class="grid grid-cols-1 lg:grid-cols-[1fr_170px_170px_170px_170px_40px] gap-2 lg:items-center rounded-lg lg:rounded-none border border-gray-100 lg:border-0 lg:border-b lg:border-gray-100 lg:last:border-b-0 p-3 lg:px-3 lg:py-2">
                   <div class="flex items-center gap-3">
                     <label class="lg:hidden w-28 shrink-0 text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</label>
                     <InputText v-model="t.name" placeholder="Term 1 2026" class="w-full flex-1 min-w-0" />
@@ -324,10 +378,43 @@ watch(orgId, v => { if (v) load() })
                     <i class="pi pi-trash" />
                   </button>
                 </div>
+                </div>
                 <p v-if="!sec.list.length" class="text-sm text-gray-400">No {{ t('term', true, true) }} in this sequence yet.</p>
                 <button class="text-sm text-primary hover:underline" @click="addTerm(sec.set?.id ?? null)">+ Add {{ t('term', false, true) }}</button>
               </div>
-              <div class="flex items-center justify-between pt-1 border-t border-gray-100">
+              <!-- Visual view — every sequence on one time axis (wizard-style) -->
+              <div v-if="seasonsTab === 'timeline' && timeline" class="pt-2 space-y-3">
+                <div class="space-y-4">
+                  <div v-for="row in timeline.rows" :key="row.name" class="flex items-center gap-3">
+                    <span class="w-28 shrink-0 text-[11px] font-semibold text-gray-400 text-right truncate">{{ row.name }}</span>
+                    <div class="relative flex-1 h-12">
+                      <!-- sign-up lane -->
+                      <div v-for="(seg, i) in row.segments" :key="`su${i}`">
+                        <div v-if="seg.signup" class="absolute top-0 h-2.5 rounded-full bg-emerald-400/80"
+                          :style="{ left: seg.signup.left + '%', width: seg.signup.width + '%' }"
+                          v-tooltip.top="'Sign-ups open'" />
+                      </div>
+                      <!-- term lane -->
+                      <div v-for="(seg, i) in row.segments" :key="`t${i}`"
+                        class="absolute top-3.5 bottom-0 rounded-lg flex items-center overflow-hidden" style="background:#1E2157"
+                        :style="{ left: seg.left + '%', width: seg.width + '%' }">
+                        <span v-for="(tick, j) in seg.ticks" :key="j" class="absolute top-0 bottom-0 w-px bg-white/25" :style="{ left: tick + '%' }" />
+                        <span class="relative text-[11px] font-semibold text-white px-2.5 truncate">{{ seg.label }}</span>
+                      </div>
+                      <!-- today -->
+                      <div v-if="timeline.today != null" class="absolute -top-1 -bottom-1 w-0.5 bg-red-500 rounded" :style="{ left: timeline.today + '%' }" />
+                    </div>
+                  </div>
+                </div>
+                <div class="flex justify-between pl-[7.75rem] text-[11px] text-gray-400">
+                  <span>{{ timeline.axisStart }}</span>
+                  <span v-if="timeline.today != null" class="text-red-500 font-medium">Today</span>
+                  <span>{{ timeline.axisEnd }}</span>
+                </div>
+              </div>
+              <p v-if="seasonsTab === 'timeline' && !timeline" class="text-sm text-gray-400">Nothing to show yet — add {{ t('term', true, true) }} with dates first.</p>
+
+              <div v-show="seasonsTab === 'list'" class="flex items-center justify-between pt-1 border-t border-gray-100">
                 <button class="text-sm text-gray-400 hover:text-primary transition-colors mt-2" :title="`A separate, unconnected sequence of ${t('term', true, true)} — e.g. the Seniors' two halves`" @click="addSet">+ New {{ t('term', false, true) }} set</button>
                 <Button :label="`Save ${t('term', true, true)}`" size="small" :loading="savingTerms" class="mt-2"
                   style="background:#1E2157;border-color:#1E2157" @click="saveTerms" />
