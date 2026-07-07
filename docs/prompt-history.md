@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-140 sessions · 1149 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+140 sessions · 1150 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -2687,7 +2687,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:07** — better but still messy
 
 
-## Session 2026-07-05 23:26 (194 prompts)
+## Session 2026-07-05 23:26 (195 prompts)
 
 **23:26** — ok where did we get to ?
 
@@ -3488,6 +3488,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **22:18** — basically all reports should be in the reports page not in any othemenut items
 
 **22:24** — On the form builder for a group registration under who is registering it should aloow me to conenct it to a type of person or entity
+
+**22:36** — can we add add a new menu item to groups - this is called settings and will have all teh settings for groups here ( Manage views, organsie codes) will be on this page.
 
 
 ## Session 2026-07-05 23:33 (18 prompts)

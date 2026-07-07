@@ -31,6 +31,7 @@ const AUTHED_ROUTES = [
   '/groups/retention',
   '/groups/fees',
   '/groups/waitlists',
+  '/groups/settings',
   '/groups/allocator',
   '/groups/codes',
   '/groups/views',
