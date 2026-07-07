@@ -76,10 +76,9 @@ const integrations = computed(() => [
         <div v-if="loading" class="text-sm text-gray-400">Loading…</div>
 
         <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-4xl">
-          <component :is="i.to ? 'NuxtLink' : 'div'" v-for="i in integrations" :key="i.key"
-            :to="i.to || undefined"
+          <NuxtLink v-for="i in integrations" :key="i.key" :to="i.to || '#'"
             class="card p-5 flex flex-col gap-3"
-            :class="i.to ? 'hover:shadow-md transition-shadow' : 'opacity-90'">
+            :class="i.to ? 'hover:shadow-md transition-shadow' : 'opacity-90 pointer-events-none'">
             <div class="flex items-start gap-3">
               <span class="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0" :style="{ background: i.color }">
                 <i :class="['pi', i.icon, 'text-lg']" />
@@ -102,7 +101,7 @@ const integrations = computed(() => [
               <span class="text-xs text-gray-400">{{ i.statusText }}</span>
               <span v-if="i.cta" class="text-sm font-medium text-primary">{{ i.cta }}</span>
             </div>
-          </component>
+          </NuxtLink>
         </div>
       </div>
     </div>
