@@ -56,6 +56,7 @@ export const ROUTE_RESOURCES: RouteResource[] = [
   { prefix: '/assets', resource: 'uniforms' },
   { prefix: '/forms', resource: 'custom_fields' }, // registration form library
   // Admin
+  { prefix: '/settings/locations', resource: 'locations' },
   { prefix: '/settings', resource: 'settings' },
 ]
 

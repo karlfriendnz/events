@@ -45,6 +45,7 @@ export const PERMISSION_RESOURCES: PermResource[] = [
   { key: 'communications', label: 'Communications / Mailer', area: 'Content', description: 'Send bulk emails and manage communication topics and history.' },
   { key: 'notes', label: 'Notes', area: 'Content', description: 'Create, edit and delete notes on people across rosters, attendance and profiles.' },
   // Admin
+  { key: 'locations', label: 'Locations', area: 'Admin', description: 'Manage the club\u2019s locations \u2014 add sites and assign staff access to them.' },
   { key: 'organisations', label: 'Organisations', area: 'Admin', description: 'Manage organisation details and the org hierarchy/affiliations.' },
   { key: 'settings', label: 'Settings', area: 'Admin', description: 'Change club settings, branding, terminology and season.' },
   { key: 'permissions', label: 'Permission Groups', area: 'Admin', description: 'Manage permission groups and assign members to them.' },
