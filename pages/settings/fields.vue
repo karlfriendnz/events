@@ -249,7 +249,8 @@ watch(orgId, load, { immediate: true })
                   <th class="text-left px-3 py-2.5 font-medium w-28">Layout</th>
                   <th class="text-left px-3 py-2.5 font-medium w-24">Fields</th>
                   <th class="text-left px-3 py-2.5 font-medium w-36">{{ sec.kind === 'person' ? 'Permissions' : 'Members' }}</th>
-                  <th v-if="sec.kind === 'person'" class="text-left px-3 py-2.5 font-medium w-32">Dashboard</th>
+                  <th v-if="sec.kind === 'person'" class="text-left px-3 py-2.5 font-medium w-28">Landing page</th>
+                  <th v-if="sec.kind === 'person'" class="text-left px-3 py-2.5 font-medium w-24">Profile</th>
                   <th class="w-10" />
                 </tr>
               </thead>
@@ -274,7 +275,10 @@ watch(orgId, load, { immediate: true })
                     <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'access')"><i class="pi pi-shield text-[10px]" />{{ sec.kind === 'person' ? 'Permissions' : 'Members' }}</button>
                   </td>
                   <td v-if="sec.kind === 'person'" class="px-3 py-2.5">
-                    <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'dashboard')"><i class="pi pi-th-large text-[10px]" />Dashboard</button>
+                    <NuxtLink :to="`/dashboard?editTemplate=${t.key}`" class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap"><i class="pi pi-th-large text-[10px]" />Landing page</NuxtLink>
+                  </td>
+                  <td v-if="sec.kind === 'person'" class="px-3 py-2.5">
+                    <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'profile')"><i class="pi pi-user text-[10px]" />Profile</button>
                   </td>
                   <td class="px-3 py-2.5 text-center">
                     <button class="text-gray-300 hover:text-red-500" title="Delete type" @click="removeType(t)"><i class="pi pi-trash text-sm" /></button>
@@ -282,7 +286,7 @@ watch(orgId, load, { immediate: true })
                 </tr>
                 <!-- add-a-type row -->
                 <tr class="bg-gray-50/40">
-                  <td :colspan="sec.kind === 'person' ? 6 : 5" class="px-4 sm:px-5 py-2.5">
+                  <td :colspan="sec.kind === 'person' ? 7 : 5" class="px-4 sm:px-5 py-2.5">
                     <div class="flex items-center gap-2 max-w-md">
                       <InputText :model-value="sec.kind === 'person' ? newLabel : newEntityLabel"
                         @update:model-value="v => sec.kind === 'person' ? (newLabel = v) : (newEntityLabel = v)"
