@@ -249,7 +249,7 @@ async function create() {
             @drop.prevent="onRowDrop(r)" @dragend="resetDrag" @click="navigateTo(`/memberships/${r.id}`)">
             <td class="px-4 sm:px-5 py-3">
               <span class="flex items-center gap-2.5 pl-4 ml-[3px] border-l-2 border-gray-200">
-                <i class="pi pi-bars text-gray-200 group-hover:text-gray-400 text-xs cursor-grab shrink-0"
+                <i class="pi pi-bars text-gray-300 group-hover:text-gray-600 text-sm cursor-grab active:cursor-grabbing shrink-0 transition-colors"
                   title="Drag to reorder — or into another programme" @click.stop />
                 <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: r.color || '#94a3b8' }" />
                 <span class="font-semibold text-gray-900">{{ r.name }}</span>
@@ -277,7 +277,7 @@ async function create() {
             @drop.prevent="onRowDrop(r)" @dragend="resetDrag" @click="navigateTo(`/memberships/${r.id}`)">
             <td class="px-4 sm:px-5 py-3">
               <span class="flex items-center gap-2.5">
-                <i class="pi pi-bars text-gray-200 group-hover:text-gray-400 text-xs cursor-grab shrink-0"
+                <i class="pi pi-bars text-gray-300 group-hover:text-gray-600 text-sm cursor-grab active:cursor-grabbing shrink-0 transition-colors"
                   title="Drag to reorder — or into a programme" @click.stop />
                 <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: r.color || '#94a3b8' }" />
                 <span class="font-semibold text-gray-900">{{ r.name }}</span>

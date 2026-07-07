@@ -380,7 +380,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
               @click="navigateTo(`/groups/${g.id}`)">
               <td class="px-5 py-2.5">
                 <span class="flex items-center gap-2">
-                  <i class="pi pi-bars text-gray-200 group-hover:text-gray-400 text-xs cursor-grab shrink-0" title="Drag to reorder — drop on a programme name to move it there" />
+                  <i class="pi pi-bars text-gray-300 group-hover:text-gray-600 text-sm cursor-grab active:cursor-grabbing shrink-0 transition-colors" title="Drag to reorder — drop on a programme name to move it there" />
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: g.color || '#94a3b8' }" />
                   <span class="font-medium text-gray-800">{{ g.name }}</span>
                 </span>
