@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-140 sessions · 1153 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+143 sessions · 1162 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -2687,7 +2687,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:07** — better but still messy
 
 
-## Session 2026-07-05 23:26 (198 prompts)
+## Session 2026-07-05 23:26 (199 prompts)
 
 **23:26** — ok where did we get to ?
 
@@ -3496,6 +3496,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **22:43** — Rather then buttons for hte settgins for groups can we do the same layout as the other settigns pages?
 
 **22:48** — please center the terms page
+
+**22:49** — When you start a new organisation on the platform it should ask you some questions to get set up - it should be a set up flow - it should teach them how to set thigns up but also actually set thigns up while they are doing it.
 
 
 ## Session 2026-07-05 23:33 (18 prompts)
@@ -13645,4 +13647,323 @@ Every prompt given to Claude Code on this project, extracted from local session 
 >     body = restArgs[1];
 >     bodyIndex = 
 > … [truncated — 76281 chars total]
+
+
+## Session 2026-07-07 22:52 (6 prompts)
+
+**22:52** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+**22:55** — <task-notification>
+> <task-id>a2824d2bb5f22414d</task-id>
+> <tool-use-id>toolu_018ky4Yu6Jb4urdkW2dGXj99</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/f498e974-e2b5-473e-8531-cca32d497f3e/tasks/a2824d2bb5f22414d.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find memory leaks" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>All template-bound drag directives — Vue-managed, fine.
+> 
+> I've done a thorough sweep of `/pages` and `/components`. Good news: this codebase is unusually disciplined about cleanup — nearly every `addEventListener`/`setInterval`/`ResizeObserver`/`MutationObserver`/`Sortable.create` I found already has a correctly paired teardown in `onUnmounted`/`onBeforeUnmount`, including all of the specifically-named suspects (`TimetableGrid.vue`, `ChipMultiSelect.vue`, `ProfileDashboard.vue`, `groups/[id]/index.vue`, `FormDesigner.vue`'s SortableJS instances, `RichTextEditor.vue`'s TipTap `editor.destroy()`, `AvailabilityEditor.vue`, `FormFieldCanvas.vue`). There is no Supabase realtime `.channel()`/`.on()` usage anywhere in the repo, and `pages/groups/codes/*`, `pages/disciplines/index.vue`, `pages/groups/allocator.vue`, `components/ClassesBoard.vue` all use template-bound `@dragstart/@dragover/@drop` directives (Vue-managed, not manual `addEventListener`) so there's nothing to leak there. `dashwidgets/*` watchers on shared `orgId` are also fine — Vue ties `watch()` disposal to the currently-active component instance regardless of whether the source ref is local or shared, so these are auto-cleaned per widget instance.
+> 
+> I did find one real, concrete leak:
+> 
+> **1. `components/ReviewWidget.vue:815-828` — pin-mode document listeners not removed on unmount (real leak)**
+> 
+> ```javascript
+> // line 815-828
+> onMounted(() =&gt; {
+>   findMainEl()
+>   window.addEventListener('keydown', onKey)
+>   window.addEventListener('resize', onWindowResize)
+>   bodyObserver = new MutationObserver(() =&gt; { viewportTick.value++ })
+>   bodyObserver.observe(document.body, { childList: true, subtree: true })
+> })
+> onBeforeUnmount(() =&gt; {
+>   window.removeEventListener('keydown', onKey)
+>   window.removeEventListener('resize', onWindowResize)
+>   if (mainEl.value) mainEl.value.removeEventListener('scroll', onMainScroll)
+>   if (bodyObserver) { bodyObserver.disconnect(); bodyObserver = null }
+>   setPinningCursor(false)
+> })
+> ```
+> 
+> The `keydown`/`resize`/`scroll`/MutationObserver are all paired correctly. The bug is elsewhere in the same file — `togglePinning()` (line 881-893) conditionally attaches two more capture-phase listeners on `document` when the user enters "pin drop" mode:
+> 
+> ```javascript
+> // line 886-887
+> document.addEventListener('click', onPagePinClick, true)
+> document.addEventListener('mousemove', onPagePinMove, true)
+> ```
+> 
+> These are only removed in two places: `
+> … [truncated — 6534 chars total]
+
+**22:56** — <task-notification>
+> <task-id>a6d4ff061bf5ac43c</task-id>
+> <tool-use-id>toolu_01YBWJL445cbuKkJuS2RHkjY</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/f498e974-e2b5-473e-8531-cca32d497f3e/tasks/a6d4ff061bf5ac43c.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find caching opportunities" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Summary
+> 
+> `useOrgModules.loadModules()` and `useScopedRoles.loadRoleDefs()` establish a clear house style: module-level `useState` + a `loaded`/`loadedFor` flag + `force?` escape hatch, so repeat calls in the same session are free. Several other composables that serve equally static, org-scoped reference data (`useGroupCodes`, `useTermsMemberships`, `useOrgHierarchy.ancestors`, `useOrgFieldPolicy`, `useTerminology`) skip that pattern entirely — every call is a fresh Supabase round-trip (some doing an RPC). Because these are called from many independent pages/components with no shared cache, the same org-wide tables get re-fetched multiple times per single page load, and again on every navigation.
+> 
+> ## Findings (highest impact first)
+> 
+> **1. `composables/useGroupCodes.ts:64-72` — `loadCodes()` has no cache at all**
+> ```ts
+> async function loadCodes(): Promise&lt;GroupCode[]&gt; {
+>   if (!orgId.value) return []
+>   const { data } = await (db.from as any)('group_codes').select(...).eq('org_id', orgId.value)...
+>   return (data ?? []) as GroupCode[]
+> }
+> ```
+> Unlike `loadDefaultPositions(force?)` two functions above it in the same file, `loadCodes()` refetches all `group_codes` for the org on every call, no `useState`/`loaded` guard. It's called from 12+ pages/components (`pages/groups/index.vue`, `allocator.vue`, `codes/index.vue`, `codes/[id].vue`, `waitlists.vue`, `term-wizard.vue`, `views.vue`, `view/[id].vue`, `memberships/index.vue`, `memberships/programme/[id].vue`, `groups/[id]/index.vue`, `ClassesBoard.vue`, `MembershipHealth.vue`, `StaffCoverage.vue`).
+> Fix: mirror `loadRoleDefs`/`loadModules` — add `const codes = useState&lt;GroupCode[]&gt;('fm_group_codes', () =&gt; [])` + `const loadedFor = useState&lt;string|null&gt;(...)`, short-circuit unless `force` or org changed.
+> 
+> **2. `composables/useTermsMemberships.ts:138-145` — `loadTerms()` (and `loadPlans`, `loadTermSets`) have no cache**
+> ```ts
+> async function loadTerms(org = orgId.value): Promise&lt;OrgTerm[]&gt; {
+>   const { data } = await (db.from as any)('org_terms').select(...).eq('org_id', org)...
+>   return (data || []) as OrgTerm[]
+> }
+> ```
+> Called from 9+ places (`groups/index.vue`, `allocator.vue`, `codes/index.vue`, `codes/[id].vue`, `fees.vue`, `reports.vue`, `rollover.vue`, `term-wizard.vue`, `timetable.vue`, `waitlists.vue`, `ClassesBoard.vue`, `SeasonPulse.vue`, `groups/[id]/index.vue`). `org_terms` rarely changes within a session. Fix: same `use
+> … [truncated — 10665 chars total]
+
+**22:56** — <task-notification>
+> <task-id>ab6f84c6b2ad3a708</task-id>
+> <tool-use-id>toolu_011LdvXLot2nphEFFJxkSQPi</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/f498e974-e2b5-473e-8531-cca32d497f3e/tasks/ab6f84c6b2ad3a708.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find N+1 query patterns" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>I now have all the data needed. Let me compile the final structured report.
+> 
+> ## N+1 / Redundant Round-Trip Audit — fm-events
+> 
+> Overall the codebase is unusually disciplined about batching (`useGroupCodes`, `useClassTimetable`, `useScopedRoles`, `useTermRollover` loaders, `useTeamAllocator`, `useRetention`, `useEntities`, the group-page's `load()`, and the events-page `onMounted` load are all already `Promise.all`'d and `.in()`-batched, with explicit comments about having fixed this before). The real anti-patterns that remain are concentrated in **write-path loops** and a couple of **sequential independent reads**. Ranked by impact:
+> 
+> **1. `pages/events/[id].vue:5254-5270` — `propagateMasterToLinked()` — per-session delete+insert in a loop**
+> ```js
+> for (const linked of linkedSessions) {
+>   await db.from('fee_components').delete().eq('session_id', linkedId)
+>   if (namedFees.length &amp;&amp; ...) await db.from('fee_components').insert(namedFees.map(...))
+> }
+> ```
+> Classic N+1 write: for N linked sessions this is 2N sequential round trips every time a master session's fees are edited. Fix: `db.from('fee_components').delete().in('session_id', linkedIds)` once, then a single bulk `.insert()` of all rows (built by flat-mapping `linkedIds × namedFees`).
+> 
+> **2. `pages/events/[id].vue:5328-5334` — `saveSessions()` — sequential `await saveSession(s)` per session**
+> ```js
+> for (const s of sessions.value) { await saveSession(s) }
+> ```
+> Each `saveSession` does its own insert/update + `saveSessionFees` (delete+insert) + potentially `propagateMasterToLinked` (finding #1). For an event with many sessions this serializes dozens of round trips. Sessions are independent of each other (only sub-sessions within one session share a dependency), so this should be `await Promise.all(sessions.value.map(saveSession))`, and ideally `saveSessionFees`/session upserts themselves should be batched (bulk upsert instead of per-row delete+insert).
+> 
+> **3. `pages/events/[id].vue:4610-4622` — `onDropOnGroup()` — per-invitee update in a loop**
+> ```js
+> for (const id of ids) {
+>   ...
+>   await db.from('invitees').update({ sub_group_id: groupId }).eq('id', id)
+> }
+> ```
+> When dragging a multi-selection of invitees onto a sub-group, this issues one sequential UPDATE per invitee id. Fix: `db.from('invitees').update({ sub_group_id: groupId }).in('id', ids)`.
+> 
+> **4. `pages/events/[id].vue:4408-4412` — `executeAddToSubGroup()` — same pattern**
+> ```js
+> for (const invId 
+> … [truncated — 9323 chars total]
+
+**22:57** — <task-notification>
+> <task-id>ad2bc54fc1b0d66c7</task-id>
+> <tool-use-id>toolu_018zVbe2XuTR2RGy9uZ4s3a1</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/f498e974-e2b5-473e-8531-cca32d497f3e/tasks/ad2bc54fc1b0d66c7.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find redundant computations" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Redundant / Repeated Computation Audit — fm-events
+> 
+> Findings ordered by impact (worst first). All line numbers verified against the current working tree.
+> 
+> ---
+> 
+> ### 1. `pages/groups/[id]/index.vue:1113,1136,1159` + `2917-2926,2980-2981,3055-3056` — attendance matrix recomputes the same filter up to 6x per session
+> ```js
+> // 2917
+> const sessionTotal = (eventId) =&gt; eventId ? members.value.filter(m =&gt; attended(m.id, eventId)).length : 0
+> // 2980
+> const sectionTotal = (list, eventId) =&gt; eventId ? list.filter(p =&gt; attended(p.id, eventId)).length : 0
+> ```
+> `sectionTotal`/`sessionTotal` are plain functions (not computed/memoized) that `.filter()` a full roster list for a given `eventId`. They are called from the template header-total cells (`sectionTotal(members, s.eventId)` for every session column, ×3 lists), from `sectionGrand` (which loops `visibleSessions` calling `sectionTotal` again), from `totalAttendances`/`attendanceStats` (loop `visibleSessions` calling `sessionTotal`), and again from the chart dataset builder (`sectionTotal(members.value, s.eventId)` / `coaches.value`). That's `O(sessions × people)` work repeated ~5-6 independent times on every re-render, since these are inline template calls with no caching.
+> **Fix:** Since `attendedByPerson` is already a `Map&lt;personId, Set&lt;eventId&gt;&gt;`, build one `Map&lt;eventId, {members, coaches, visitors}&gt;` count table in a single computed (one pass over `attendanceRows.value`, cross-referenced with roster membership), and have `sectionTotal`, `sessionTotal`, `sectionGrand`, `totalAttendances`, and the chart datasets all read from it.
+> 
+> ### 2. `pages/events/[id].vue:809-889` — same subgroup filter repeated ~10x per row inside `v-for="sg in subGroups"`
+> ```html
+> &lt;div v-if="sessionFilteredInvitees.filter(inv =&gt; inviteeGroupMap[inv.id] === sg.id).length" ...&gt;
+>   ...{{ sessionFilteredInvitees.filter(inv =&gt; inviteeGroupMap[inv.id] === sg.id).length }} people
+>   &lt;Button :label="sessionFilteredInvitees.filter(inv =&gt; inviteeGroupMap[inv.id] === sg.id).every(...) ..."
+>           :icon="sessionFilteredInvitees.filter(inv =&gt; inviteeGroupMap[inv.id] === sg.id).every(...) ..."
+>           @click="() =&gt; { const ids = sessionFilteredInvitees.filter(inv =&gt; inviteeGroupMap[inv.id] === sg.id).map(...) ...}" /&gt;
+> ```
+> The identical predicate `inviteeGroupMap[inv.id] === sg.id` filters the full `sessionFilteredInvitees`/`invitees` 
+> … [truncated — 11892 chars total]
+
+**22:58** — <task-notification>
+> <task-id>af439c5ef4849424a</task-id>
+> <tool-use-id>toolu_01V5YC1e4SgJvxoTEBtC1eCT</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/f498e974-e2b5-473e-8531-cca32d497f3e/tasks/af439c5ef4849424a.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find Vue reactivity inefficiencies" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result># Reactivity Audit Findings — fm-events
+> 
+> Ordered by impact (highest first). File:line references point to the exact snippet.
+> 
+> ---
+> 
+> **1. `pages/events/[id].vue:2706-2733` (and duplicated at `:2827-2830`, `:2708/2711/2727/2730`) — filtering + `.includes()` inline in template, run 3x per chip**
+> ```vue
+> &lt;span class="text-xs text-gray-400 ml-auto"&gt;{{ sessionFilteredInvitees.filter(inv =&gt; inviteeGroupMap[inv.id] === sg.id).length }}&lt;/span&gt;
+> ...
+> &lt;span v-for="inv in sessionFilteredInvitees.filter(inv =&gt; inviteeGroupMap[inv.id] === sg.id)" :key="inv.id"
+>   :class="sessionInviteePicker.includes(inv.id) ? 'bg-primary text-white' : '...'"
+>   @click="sessionInviteePicker.includes(inv.id) ? sessionInviteePicker.splice(...) : sessionInviteePicker.push(inv.id)"&gt;
+>   ...&lt;i :class="sessionInviteePicker.includes(inv.id) ? 'pi-check' : 'pi-plus'" /&gt;
+> ```
+> Why wasteful: the exact same `.filter()` over `sessionFilteredInvitees` runs twice per sub-group (once for the count badge, once for the `v-for`), and `sessionInviteePicker.includes()`/`indexOf()` (linear array scan) is called 3 times per invitee chip on every re-render of this giant SFC. For an event with many invitees/sub-groups this is O(groups × invitees) repeated filtering plus O(n²) selection lookups.
+> Fix: compute a single `computed(() =&gt; groupBy(sessionFilteredInvitees, inv =&gt; inviteeGroupMap[inv.id]))` once, and back `sessionInviteePicker` with a reactive `Set`/`Record&lt;string,boolean&gt;` for O(1) membership checks instead of an array.
+> 
+> ---
+> 
+> **2. `pages/groups/[id]/index.vue:696-767` — `membersInSubGroup()`/`staffInSubGroup()`/`subGroupCount()` called as plain functions inside a nested `v-for`**
+> ```vue
+> &lt;div v-for="sg in subGroups" :key="sg.id"&gt;
+>   ...
+>   &lt;tr v-for="s in staffInSubGroup(sg.id)" ...&gt;
+>   &lt;tr v-if="staffInSubGroup(sg.id).length &amp;&amp; membersInSubGroup(sg.id).length"&gt;
+>   &lt;tr v-for="p in membersInSubGroup(sg.id)" ...&gt;
+>   &lt;tr v-if="!subGroupCount(sg.id)"&gt;
+> ```
+> ```js
+> function membersInSubGroup(sgId: string) {
+>   return allPeople.value.filter(p =&gt; !isStaffPerson(p) &amp;&amp; p.subGroupId === sgId).sort(sortByName)
+> }
+> function subGroupCount(sgId: string) { return membersInSubGroup(sgId).length + staffInSubGroup(sgId).length }
+> ```
+> Why wasteful: for every sub-group row, `membersInSubGroup`/`staffInSubGroup` each filter+sort the **entire** `allPeople` array from scratch, and each i
+> … [truncated — 12528 chars total]
+
+
+## Session 2026-07-07 22:55 (1 prompts)
+
+**22:55** — on /admin can you please make it so I can set up a club type gets these modules by default, has these people types, has this terminology
+
+
+## Session 2026-07-07 23:00 (1 prompts)
+
+**23:00** — Analyze test coverage and identify gaps:
+> - Find untested functions and classes
+> - Identify edge cases not covered
+> - Suggest new test scenarios
+> - Check for missing error handling tests
+> - Identify integration test gaps
+> 
+> For each gap, provide a test skeleton.
+> 
+> ## Codebase Context
+> 
+> --- tests/smoke.spec.ts (truncated) ---
+> /**
+>  * DEPLOYMENT SMOKE SUITE — run after every deploy.
+>  *
+>  *   TEST_BASE_URL=https://fm-events-five.vercel.app \
+>  *   TEST_EMAIL=... TEST_PASSWORD=... npm run test:smoke
+>  *
+>  * Principles:
+>  *  - STRICTLY READ-ONLY. Dev and prod share ONE database — these tests never
+>  *    write, click destructive buttons, or submit forms.
+>  *  - A route "passes" when it renders without a Nuxt 500, without uncaught
+>  *    page errors, without bouncing to /login, and with real content in <main>.
+>  *  - Data-independent: works on any org (asserts structure, not seed rows).
+>  *  - Auth'd sweep skips gracefully when TEST_EMAIL/TEST_PASSWORD aren't set,
+>  *    so the public subset still gates a deploy with no secrets available.
+>  */
+> import { test, expect, Page } from '@playwright/test'
+> 
+> const BASE = process.env.TEST_BASE_URL ?? 'http://localhost:3002'
+> const EMAIL = process.env.TEST_EMAIL ?? ''
+> const PASSWORD = process.env.TEST_PASSWORD ?? ''
+> const HAS_CREDS = !!(EMAIL && PASSWORD)
+> 
+> // Every core screen. Keep this list in sync with the URL table in CLAUDE.md —
+> // a new page ships with a row here (same spirit as the dashboard-widget rule).
+> const AUTHED_ROUTES = [
+>   '/dashboard',
+>   '/people',
+>   '/groups',
+>   '/groups/timetable',
+>   '/groups/reports',
+>   '/groups/retention',
+>   '/groups/fees',
+>   '/groups/waitlists',
+>   '/groups/settings',
+>   '/groups/allocator',
+>   '/groups/codes',
+>   '/groups/views',
+>   '/groups/rollover',
+>   '/groups/term-wizard',
+>   '/memberships',
+>   '/events',
+>   '/events/new-basic',
+>   '/events/reporting',
+>   '/bookables',
+>   '/bookings/new',
+>   '/attendance',
+>   '/resources',
+>   '/reports',
+>   '/finances',
+>   '/reporting',
+>   '/forms',
+>   '/organisations',
+>   '/settings',
+>   '/settings/terms',
+>   '/settings/memberships',
+>   '/settings/locations',
+>   '/settings/fields',
+>   '/settings/field-catalogue',
+>   '/settings/core-fields',
+>   '/settings/terminology',
+>   '/settings/modules',
+>   '/settings/calendars',
+>   '/settings/xero',
+>   '/settings/integrations',
+> ]
+> 
+> const PUBLIC_ROUTES = ['/login', '/book']
+> 
+> // Errors we tolerate (3rd-party noise, favicons, expected 4xx probes)
+> const IGNORABLE = [/favicon/i, /ResizeObserver loop/i, /sharedworker/i]
+> 
+> function watchErrors(page: Page) {
+>   const pageErrors: string[] = []
+>   const badResponses: string[] = []
+>   page.on('pageerror', e => pageErrors.push(String(e).slice(0, 200)))
+>   page.on('response', r => {
+>     // 5xx anywhere is a deploy problem; 4xx only from our own API/DB calls
+>     const url = r.url()
+>     if (IGNORABLE.some(rx => rx.test(url))) return
+>     if (r.status() >= 500) badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
+>     if (r.status() >= 400 && /supabase|\/api\//.test(url) && !/auth\/v1/.test(url)) {
+>       badResponses.push(
+> … [truncated — 15541 chars total]
 

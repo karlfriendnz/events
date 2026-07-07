@@ -660,6 +660,21 @@ async function resetLayout() {
 // "Remind me later" snoozes it for 3 days (localStorage, per org + term).
 const rolloverNudge = ref<RolloverNudge | null>(null)
 const rolloverNudgeHidden = ref(false)
+// Onboarding nudge — finish the optional setup steps
+const onboardingNudge = ref<{ done: number; total: number } | null>(null)
+async function loadOnboardingNudge() {
+  const ob = useOnboarding()
+  const st = await ob.load()
+  if (ob.coreDone(st) && !ob.allDone(st) && !st.dismissed && !st.completed_at) {
+    onboardingNudge.value = { done: ob.doneCount(st), total: ob.ONBOARDING_STEPS.length }
+  } else onboardingNudge.value = null
+}
+async function dismissOnboardingNudge() {
+  const ob = useOnboarding()
+  const st = await ob.load()
+  await ob.save({ ...st, dismissed: true })
+  onboardingNudge.value = null
+}
 // Club terminology for the banner copy ("class"/"term" are club-renamable).
 const nudgeTerminology = useTerminology()
 const nudgeTermMap = ref<Record<string, { singular?: string; plural?: string }>>({})
@@ -681,6 +696,7 @@ async function loadRolloverNudge() {
 
 watch(orgId, () => { if (orgId.value) { load(); loadRolloverNudge() } }, { immediate: true })
 watch(() => useActiveLocation().activeLocationId.value, () => { if (orgId.value) load() })
+watch(orgId, () => { if (orgId.value) loadOnboardingNudge() }, { immediate: true })
 </script>
 
 <template>
@@ -743,6 +759,16 @@ watch(() => useActiveLocation().activeLocationId.value, () => { if (orgId.value)
 
     <!-- Everything below the header sits above the banner image (which is absolutely positioned) -->
     <div class="relative z-[1]">
+    <!-- Onboarding nudge — finish the optional setup steps -->
+    <div v-if="onboardingNudge" class="mb-4 rounded-lg px-4 py-3 flex items-center gap-3" style="background:#EAF1FE;border-left:4px solid #3B82F6">
+      <i class="pi pi-check-circle shrink-0" style="color:#3B82F6" />
+      <p class="text-sm flex-1 min-w-0" style="color:#2563EB">
+        <b class="font-semibold">Finish setting up your club</b> — {{ onboardingNudge.done }} of {{ onboardingNudge.total }} steps done.
+      </p>
+      <NuxtLink to="/onboarding" class="text-xs font-semibold text-white px-3 py-1.5 rounded-full shrink-0" style="background:#3B82F6">Continue setup</NuxtLink>
+      <button type="button" class="text-gray-300 hover:text-gray-500 shrink-0" title="Remind me later" @click="dismissOnboardingNudge"><i class="pi pi-times text-xs" /></button>
+    </div>
+
     <!-- Term-rollover nudge — step 1 of the easy-rollover flow: tell the club it's time -->
     <div v-if="rolloverNudge && !rolloverNudgeHidden"
       class="mb-4 rounded-lg px-4 py-3 flex items-center gap-3"

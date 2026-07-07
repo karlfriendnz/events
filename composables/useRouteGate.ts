@@ -64,7 +64,7 @@ export const ROUTE_RESOURCES: RouteResource[] = [
 ]
 
 // Never gated — every user can reach these regardless of grid.
-export const UNGATED_PREFIXES = ['/dashboard', '/help', '/account', '/admin', '/switch-role']
+export const UNGATED_PREFIXES = ['/dashboard', '/help', '/account', '/admin', '/switch-role', '/onboarding']
 
 // Public / guest-accessible (embed layout) — mirrors auth.global.ts's allow-list.
 export const PUBLIC_PREFIXES = ['/book', '/booking', '/r/', '/login']
