@@ -38,7 +38,12 @@ async function setStaffRole(s2: LocationStaff, roleKey: string) {
 const sportOptions = computed(() => [{ label: 'All sports', value: null as string | null }, ...sports.value.map(sp => ({ label: sp.label, value: sp.id as string | null }))])
 function sportLabel(id: string | null) { return id ? (sports.value.find(sp => sp.id === id)?.label ?? 'Sport') : null }
 const classCounts = ref<Record<string, number>>({})
+// People who get access to a site AUTOMATICALLY via their class staff roles —
+// shown as an informational count so nobody re-enters coaches here.
+const derivedCounts = ref<Record<string, number>>({})
+const scoped = useScopedRoles()
 
+function cap(v: string) { return v.charAt(0).toUpperCase() + v.slice(1) }
 const PALETTE = ['#3B82F6', '#8B5CF6', '#EC4899', '#10B981', '#F59E0B', '#06B6D4']
 
 async function load() {
@@ -58,6 +63,16 @@ async function load() {
   const counts: Record<string, number> = {}
   for (const g of (groups ?? [])) counts[g.location_id] = (counts[g.location_id] || 0) + 1
   classCounts.value = counts
+  const { data: mships } = await (db.from as any)('member_group_memberships')
+    .select('person_id, roles, role, group:member_groups!inner(org_id, location_id)')
+    .eq('group.org_id', orgId.value).not('group.location_id', 'is', null)
+  const perLoc: Record<string, Set<string>> = {}
+  for (const m of (mships ?? [])) {
+    const roles = ((m.roles?.length ? m.roles : [m.role]) as string[]).filter(Boolean)
+    if (!roles.length || !scoped.isStaff('group', roles)) continue
+    ;(perLoc[m.group.location_id] ??= new Set()).add(m.person_id)
+  }
+  derivedCounts.value = Object.fromEntries(Object.entries(perLoc).map(([k, v]) => [k, v.size]))
   loading.value = false
 }
 
@@ -143,7 +158,7 @@ watch(orgId, v => { if (v) load() })
         <div class="flex items-start justify-between gap-3">
           <div>
             <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Locations</h1>
-            <p class="text-sm text-gray-500">The sites your club runs at. Assign staff to one or more locations — {{ t('group', true, true) }} attach to a location on their own page. With a single location, none of this appears elsewhere. Roles (and what each can do) are managed in <NuxtLink to="/groups/codes/default-roles" class="text-primary hover:underline">Default roles</NuxtLink>.</p>
+            <p class="text-sm text-gray-500">The sites your club runs at. <strong>{{ cap(t('group', false, true)) }} staff get access to their site automatically</strong> — assigning a coach to a {{ t('group', false, true) }} is enough. Add people here only for access <em>beyond</em> their {{ t('group', true, true) }}: location managers, admin staff, or someone covering a whole sport. Roles are managed in <NuxtLink to="/groups/codes/default-roles" class="text-primary hover:underline">Default roles</NuxtLink>.</p>
           </div>
           <Button label="Add location" icon="pi pi-plus" size="small" class="shrink-0"
             style="background:#1E2157;border-color:#1E2157" @click="addLocation" />
@@ -299,7 +314,9 @@ watch(orgId, v => { if (v) load() })
                   </tbody>
                 </table>
               </div>
-
+              <p v-if="derivedCounts[l.id]" class="text-xs text-gray-400">
+                <i class="pi pi-check-circle text-emerald-500 mr-1" />{{ derivedCounts[l.id] }} {{ t('group', false, true) }} staff already have access here through their {{ t('group', true, true) }} — they don't need a row above.
+              </p>
             </div>
           </div>
 

@@ -17,6 +17,11 @@ export function useActiveLocation() {
   // (location?, sport?) — null = all. Empty = unrestricted (never-lock-out);
   // super admins are never restricted.
   const myGrants = useState<LocationStaff[]>('fm-my-grants', () => [])
+  // Whether the grant set actually RESTRICTS this user. Explicit grants always
+  // do; derived class-staff scopes only restrict people with no org-wide
+  // permission group (same rule as scoped roles — a Club Admin who also
+  // coaches one class keeps the whole club).
+  const grantsRestrict = useState<boolean>('fm-my-grants-restrict', () => false)
   const grantsLoaded = useState<string | null>('fm-my-grants-org', () => null)
   const loadedFor = useState<string | null>('fm-locations-org', () => null)
   const activeLocationId = useState<string | null>('fm-active-location', () => null)
@@ -49,6 +54,7 @@ export function useActiveLocation() {
     if (grantsLoaded.value === orgId.value) return
     grantsLoaded.value = orgId.value
     myGrants.value = []
+    grantsRestrict.value = false
     try {
       const db = useDb()
       const user = useSupabaseUser()
@@ -62,7 +68,43 @@ export function useActiveLocation() {
       const { data: grants } = await (db.from as any)('location_staff')
         .select('id, location_id, sport_id, person_id, role_key')
         .eq('org_id', orgId.value).eq('person_id', me.id)
-      myGrants.value = (grants ?? []) as LocationStaff[]
+      const explicit = (grants ?? []) as LocationStaff[]
+      // DERIVED scopes: being STAFF ON A CLASS automatically carries access to
+      // that class's (location, sport) — no explicit grant needed. The grants
+      // page is only for access BEYOND your classes (location managers etc.).
+      const derived: LocationStaff[] = []
+      try {
+        const scoped = useScopedRoles()
+        const gc = useGroupCodes()
+        const [{ data: mships }, codes] = await Promise.all([
+          (db.from as any)('member_group_memberships')
+            .select('roles, role, group:member_groups!inner(org_id, location_id, code_id)')
+            .eq('person_id', me.id).eq('group.org_id', orgId.value),
+          gc.loadCodes(),
+        ])
+        const codesById: Record<string, any> = Object.fromEntries((codes ?? []).map((c: any) => [c.id, c]))
+        for (const m of (mships ?? [])) {
+          const roles = ((m.roles?.length ? m.roles : [m.role]) as string[]).filter(Boolean)
+          if (!roles.length || !scoped.isStaff('group', roles)) continue
+          const locId = m.group?.location_id
+          if (!locId) continue
+          derived.push({
+            id: `derived-${locId}-${m.group?.code_id ?? ''}`,
+            location_id: locId,
+            sport_id: gc.effectiveSportId({ code_id: m.group?.code_id }, codesById),
+            person_id: me.id,
+            role_key: 'class_staff',
+          })
+        }
+      } catch { /* derivation is additive — never blocks */ }
+      myGrants.value = [...explicit, ...derived]
+      let inPermGroup = false
+      try {
+        const { count } = await (db.from as any)('permission_group_members')
+          .select('id', { count: 'exact', head: true }).eq('person_id', me.id)
+        inPermGroup = (count ?? 0) > 0
+      } catch { /* fail open */ }
+      grantsRestrict.value = explicit.length > 0 || (derived.length > 0 && !inPermGroup)
       // Restricted users can't sit on a lens they don't hold: snap to their first location.
       if (restricted.value && activeLocationId.value && !allowedLocationIds.value.includes(activeLocationId.value)) {
         setActiveLocation(allowedLocationIds.value[0] ?? null)
@@ -73,7 +115,7 @@ export function useActiveLocation() {
     } catch { /* fail open */ }
   }
 
-  const restricted = computed(() => myGrants.value.length > 0)
+  const restricted = computed(() => grantsRestrict.value && myGrants.value.length > 0)
   const hasAllLocationsGrant = computed(() => myGrants.value.some(g => g.location_id == null))
   const allowedLocationIds = computed(() => {
     if (!restricted.value || hasAllLocationsGrant.value) return locations.value.map(l => l.id)
