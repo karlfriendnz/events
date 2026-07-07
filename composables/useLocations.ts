@@ -14,7 +14,8 @@ export interface ClubLocation {
 
 export interface LocationStaff {
   id: string
-  location_id: string
+  location_id: string | null   // null = ALL locations (scope-tuple grant, mig 238)
+  sport_id: string | null      // null = ALL sports
   person_id: string
   role_key: string
   person?: { id: string; first_name: string | null; last_name: string | null; email: string | null }
@@ -59,14 +60,25 @@ export function useLocations() {
   async function loadLocationStaff(org = orgId.value): Promise<LocationStaff[]> {
     if (!org) return []
     const { data } = await (db.from as any)('location_staff')
-      .select('id, location_id, person_id, role_key, person:persons(id, first_name, last_name, email)')
+      .select('id, location_id, sport_id, person_id, role_key, person:persons(id, first_name, last_name, email)')
       .eq('org_id', org)
     return (data ?? []) as LocationStaff[]
   }
 
-  async function assignStaff(locationId: string, personId: string, roleKey = 'staff'): Promise<void> {
+  async function assignStaff(locationId: string | null, personId: string, roleKey = 'staff', sportId: string | null = null): Promise<void> {
+    // Scope-tuple grant: null location = all locations, null sport = all sports.
     await (db.from as any)('location_staff')
-      .upsert({ org_id: orgId.value, location_id: locationId, person_id: personId, role_key: roleKey }, { onConflict: 'location_id,person_id,role_key' })
+      .insert({ org_id: orgId.value, location_id: locationId, person_id: personId, role_key: roleKey, sport_id: sportId })
+  }
+
+  /** Does this person's grant set cover (location, sport)? Nulls in a grant are
+   *  wildcards. A person with NO grants is unrestricted (never-lock-out). */
+  function grantsCover(grants: LocationStaff[], personId: string, locationId: string | null, sportId: string | null): boolean {
+    const mine = grants.filter(g => g.person_id === personId)
+    if (!mine.length) return true
+    return mine.some(g =>
+      (g.location_id == null || g.location_id === locationId) &&
+      (g.sport_id == null || g.sport_id === sportId))
   }
 
   async function removeStaff(id: string): Promise<void> {
@@ -75,8 +87,8 @@ export function useLocations() {
 
   /** All location ids a person holds any role at (multi-location staff). */
   function locationsOf(personId: string, staff: LocationStaff[]): string[] {
-    return [...new Set(staff.filter(s => s.person_id === personId).map(s => s.location_id))]
+    return [...new Set(staff.filter(s => s.person_id === personId && s.location_id).map(s => s.location_id as string))]
   }
 
-  return { loadLocations, createLocation, updateLocation, deleteLocation, loadLocationStaff, assignStaff, removeStaff, locationsOf }
+  return { loadLocations, createLocation, updateLocation, deleteLocation, loadLocationStaff, assignStaff, removeStaff, locationsOf, grantsCover }
 }

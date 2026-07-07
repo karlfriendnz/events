@@ -16,6 +16,8 @@ export interface GroupCode {
   color: string | null
   parent_id: string | null
   term_id: string | null
+  // The SPORT this programme belongs to (org_sports id, mig 238) — inherited down the chain
+  sport_id?: string | null
   sort_order: number
   created_at?: string
   member_type_key?: string | null
@@ -62,7 +64,7 @@ export function useGroupCodes() {
   async function loadCodes(): Promise<GroupCode[]> {
     if (!orgId.value) return []
     const { data } = await (db.from as any)('group_codes')
-      .select('id, org_id, name, color, parent_id, term_id, sort_order, created_at, member_type_key, lineage_id, role_minimums, member_positions, position_minimums')
+      .select('id, org_id, name, color, parent_id, term_id, sort_order, created_at, member_type_key, lineage_id, role_minimums, member_positions, position_minimums, sport_id')
       .eq('org_id', orgId.value)
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('name')
@@ -143,6 +145,22 @@ export function useGroupCodes() {
   // up the code parent chain: start at the group's code and walk to the root,
   // keeping the first value seen for each role key. So a child code's "Coach: 1"
   // overrides a parent code's "Coach: 2" (migration 215).
+  // The sport a group belongs to — its code chain's sport_id, closest wins (mig 238).
+  function effectiveSportId(
+    group: { code_id?: string | null } | null | undefined,
+    codesById: Record<string, GroupCode>,
+  ): string | null {
+    let codeId = group?.code_id ?? null
+    let guard = 0
+    while (codeId && guard++ < 20) {
+      const code = codesById[codeId]
+      if (!code) break
+      if (code.sport_id) return code.sport_id
+      codeId = code.parent_id
+    }
+    return null
+  }
+
   function effectiveRoleMins(
     group: { code_id?: string | null } | null | undefined,
     codesById: Record<string, GroupCode>,
@@ -251,5 +269,5 @@ export function useGroupCodes() {
     return [...set]
   }
 
-  return { loadCodes, createCode, updateCode, deleteCode, effectiveTermId, effectiveMemberType, effectiveRoleMins, effectivePositions, effectivePositionMins, addPositionToCode, defaultPositions, loadDefaultPositions, saveDefaultPositions, treeOptions, closeSelection }
+  return { loadCodes, createCode, updateCode, deleteCode, effectiveTermId, effectiveMemberType, effectiveSportId, effectiveRoleMins, effectivePositions, effectivePositionMins, addPositionToCode, defaultPositions, loadDefaultPositions, saveDefaultPositions, treeOptions, closeSelection }
 }

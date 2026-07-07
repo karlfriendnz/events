@@ -25,7 +25,13 @@ void ensureTerms()
 // Code details (name / colour / parent / term) — edited here, not on the list.
 const PALETTE = ['#1E2157', '#2563EB', '#0f766e', '#059669', '#9333ea', '#EC4899', '#c2410c', '#be123c', '#8B5CF6', '#64748b']
 const terms = ref<any[]>([])
-const detail = reactive<{ name: string; color: string; parent_id: string | null; term_id: string | null }>({ name: '', color: PALETTE[0], parent_id: null, term_id: null })
+const detail = reactive<{ name: string; color: string; parent_id: string | null; term_id: string | null; sport_id: string | null }>({ name: '', color: PALETTE[0], parent_id: null, term_id: null, sport_id: null })
+// The club's sports (mig 238: a programme belongs to a sport; classes inherit it)
+const codeSports = ref<{ id: string; label: string }[]>([])
+void (async () => {
+  const { data } = await (useDb().from as any)('org_sports').select('id, sport, display_name').eq('org_id', useOrg().orgId.value).order('sort_order')
+  codeSports.value = (data ?? []).map((x: any) => ({ id: x.id, label: x.display_name || x.sport }))
+})()
 const savingAll = ref(false)
 // Valid parents = every code except this one + its descendants (no cycles).
 const parentOptions = computed(() => {
@@ -140,7 +146,7 @@ async function load() {
   roleMins.value = { ...(code.value?.role_minimums || {}) }
   positions.value = [...(code.value?.member_positions || [])]
   positionMins.value = { ...(code.value?.position_minimums || {}) }
-  if (code.value) Object.assign(detail, { name: code.value.name, color: code.value.color || PALETTE[0], parent_id: code.value.parent_id, term_id: code.value.term_id })
+  if (code.value) Object.assign(detail, { name: code.value.name, color: code.value.color || PALETTE[0], parent_id: code.value.parent_id, term_id: code.value.term_id, sport_id: (code.value as any).sport_id ?? null })
 
   const ln = lineage.value
   const chain = code.value ? cr.lineageChain(code.value, codesById.value).filter(l => l !== ln) : []
@@ -172,7 +178,7 @@ async function saveAll() {
   const posMins: Record<string, number> = {}
   for (const [k, v] of Object.entries(positionMins.value)) if (typeof v === 'number' && v > 0) posMins[k] = v
   await gc.updateCode(code.value.id, {
-    name: detail.name.trim(), color: detail.color, parent_id: detail.parent_id, term_id: detail.term_id,
+    name: detail.name.trim(), color: detail.color, parent_id: detail.parent_id, term_id: detail.term_id, sport_id: detail.sport_id,
     member_type_key: memberType.value || null, role_minimums: mins,
     member_positions: positions.value.map(p => p.trim()).filter(Boolean),
     position_minimums: posMins,
@@ -261,6 +267,11 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
               <label class="text-xs font-medium text-gray-600">{{ t('term') }}</label>
               <Select v-model="detail.term_id" :options="terms" option-label="name" option-value="id"
                 :placeholder="`No ${t('term', false, true)}`" show-clear class="w-full" />
+            </div>
+            <div v-if="codeSports.length > 1" class="flex flex-col gap-1.5">
+              <label class="text-xs font-medium text-gray-600">Sport</label>
+              <Select v-model="detail.sport_id" :options="codeSports" option-label="label" option-value="id"
+                placeholder="Inherit / none" show-clear class="w-full" />
             </div>
           </div>
           <div class="flex items-center gap-2">

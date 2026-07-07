@@ -57,7 +57,9 @@ const termOptions = computed(() => [
 ])
 // A group belongs to the selected term via its code chain (else its own term_id).
 const inTerm = (g: ClassGroup) => termFilter.value === 'all' || gc.effectiveTermId(g, codeById.value) === termFilter.value
-const visibleGroups = computed(() => groups.value.filter(g => inTerm(g) && inActiveLocation(g.locationId)))
+const visibleGroups = computed(() => groups.value.filter(g =>
+  inTerm(g) && inActiveLocation(g.locationId) &&
+  (!boardRestricted.value || boardCanAccess(g.locationId, gc.effectiveSportId({ code_id: g.code_id }, codeById.value)))))
 
 const parentKey = (c: GroupCode) => (c.parent_id && codes.value.some(x => x.id === c.parent_id)) ? c.parent_id : null
 const sortSibs = (a: GroupCode, b: GroupCode) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)
@@ -199,7 +201,9 @@ async function createTab() {
 
 defineExpose({ reload: load })
 // Location lens: rows outside the active location are hidden (null lens = all).
-const { activeLocationId: boardActiveLocation, inActiveLocation } = useActiveLocation()
+// Restricted staff (access grants) are ALSO gated by sport: a class's sport
+// derives from its programme chain (group_codes.sport_id, mig 238).
+const { activeLocationId: boardActiveLocation, inActiveLocation, restricted: boardRestricted, canAccess: boardCanAccess } = useActiveLocation()
 watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
 </script>
 

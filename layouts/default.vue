@@ -343,11 +343,14 @@ const isSuper = computed(() => ((user.value as any)?.app_metadata?.role) === 'su
 const breadcrumbs = useBreadcrumbs()
 
 // ── Location lens (multi-site clubs): global active-location switcher ──
-const { locations: clubLocations2, activeLocationId, activeLocation, multiSite: locMultiSite, ensureLocations, setActiveLocation } = useActiveLocation()
+const { locations: clubLocations2, activeLocationId, activeLocation, multiSite: locMultiSite, ensureLocations, setActiveLocation, restricted: locRestricted, hasAllLocationsGrant, allowedLocationIds } = useActiveLocation()
 const locMenu = ref()
 const locMenuItems = computed(() => [
-  { label: 'All locations', icon: activeLocationId.value === null ? 'pi pi-check' : undefined, command: () => setActiveLocation(null) },
-  ...clubLocations2.value.map(l => ({
+  // Restricted staff only get "All locations" if a grant actually spans all sites.
+  ...((!locRestricted.value || hasAllLocationsGrant.value)
+    ? [{ label: 'All locations', icon: activeLocationId.value === null ? 'pi pi-check' : undefined, command: () => setActiveLocation(null) }]
+    : []),
+  ...clubLocations2.value.filter(l => allowedLocationIds.value.includes(l.id)).map(l => ({
     label: l.name,
     icon: activeLocationId.value === l.id ? 'pi pi-check' : undefined,
     command: () => setActiveLocation(l.id),
