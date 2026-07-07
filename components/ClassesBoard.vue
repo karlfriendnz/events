@@ -37,7 +37,7 @@ const showCol = (k: ViewColumnKey) => props.columns.includes(k)
 interface ClassGroup {
   id: string; name: string; code_id: string | null; term_id: string | null; capacity: number | null; color: string | null
   headName: string | null; gymnasts: number; waitlist: number | null; sport: string | null
-  gender: string | null; ageRange: string | null; feeLabel: string | null; feeCount: number; formId: string | null; locationId: string | null; attendances: number
+  gender: string | null; ageRange: string | null; feeLabel: string | null; feeCount: number; formId: string | null; locationId: string | null; sortOrder: number; attendances: number
 }
 
 // Gender restriction (migration 203) → short label; null = open to all.
@@ -101,7 +101,8 @@ function subtreeCodes(topId: string): GroupCode[] {
   walk(topId)
   return out
 }
-const groupsInCode = (codeId: string) => visibleGroups.value.filter(g => g.code_id === codeId).sort((a, b) => a.name.localeCompare(b.name))
+const bySavedOrder = (a: ClassGroup, b: ClassGroup) => ((a as any).sortOrder - (b as any).sortOrder) || a.name.localeCompare(b.name)
+const groupsInCode = (codeId: string) => visibleGroups.value.filter(g => g.code_id === codeId).sort(bySavedOrder)
 
 type Tab = { key: string; label: string }
 const tabs = computed<Tab[]>(() => {
@@ -115,7 +116,7 @@ watch(tabs, ts => { if (!ts.some(t => t.key === activeTab.value)) activeTab.valu
 interface Section { key: string; title: string; rows: ClassGroup[]; total: number }
 const activeSections = computed<Section[]>(() => {
   if (activeTab.value === '__other') {
-    const rows = visibleGroups.value.filter(g => !g.code_id || !codeById.value[g.code_id]).sort((a, b) => a.name.localeCompare(b.name))
+    const rows = visibleGroups.value.filter(g => !g.code_id || !codeById.value[g.code_id]).sort(bySavedOrder)
     return rows.length ? [{ key: '__other', title: 'Other', rows, total: rows.reduce((s, g) => s + g.gymnasts, 0) }] : []
   }
   const out: Section[] = []
@@ -135,6 +136,60 @@ function countClass(g: ClassGroup) {
 }
 const countLabel = (g: ClassGroup) => g.capacity == null ? String(g.gymnasts) : `${g.gymnasts} / ${g.capacity}`
 
+// ── Drag ordering (STANDING RULE: ordering is drag, never arrow buttons).
+// Drop near a row's top/bottom edge = reorder; drop on a SECTION HEADER =
+// move the class into that programme. Cross-section row drops re-home too.
+const dragGroup = ref<ClassGroup | null>(null)
+const dropMark = ref<{ id: string; pos: 'before' | 'after' } | null>(null)
+const dropSection = ref<string | null>(null)
+function onGroupDragStart(g: ClassGroup, e: DragEvent) {
+  dragGroup.value = g
+  if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', g.id) }
+}
+function onGroupDragOver(e: DragEvent, g: ClassGroup) {
+  if (!dragGroup.value || dragGroup.value.id === g.id) return
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  dropMark.value = { id: g.id, pos: (e.clientY - r.top) < r.height / 2 ? 'before' : 'after' }
+  dropSection.value = null
+}
+function onSectionHeaderDragOver(sec: Section) {
+  if (!dragGroup.value) return
+  dropSection.value = sec.key
+  dropMark.value = null
+}
+function resetDrag() { dragGroup.value = null; dropMark.value = null; dropSection.value = null }
+async function persistSectionOrder(list: ClassGroup[], codeId: string | null, moved: ClassGroup) {
+  const updates: any[] = []
+  list.forEach((row, idx) => {
+    const patch: Record<string, any> = {}
+    if ((row as any).sortOrder !== idx) { (row as any).sortOrder = idx; patch.sort_order = idx }
+    if (row.id === moved.id && (row.code_id ?? null) !== codeId) { row.code_id = codeId; patch.code_id = codeId }
+    if (Object.keys(patch).length) updates.push((db.from as any)('member_groups').update(patch).eq('id', row.id))
+  })
+  await Promise.all(updates)
+  groups.value = [...groups.value]
+}
+async function onGroupDrop(target: ClassGroup, sec: Section) {
+  const g = dragGroup.value
+  const pos = dropMark.value?.id === target.id ? dropMark.value.pos : 'after'
+  resetDrag()
+  if (!g || g.id === target.id) return
+  const codeId = sec.key === '__other' ? null : sec.key
+  const list = sec.rows.filter(r => r.id !== g.id)
+  const at = list.indexOf(target) + (pos === 'after' ? 1 : 0)
+  list.splice(at, 0, g)
+  await persistSectionOrder(list, codeId, g)
+}
+async function onSectionHeaderDrop(sec: Section) {
+  const g = dragGroup.value
+  resetDrag()
+  if (!g) return
+  const codeId = sec.key === '__other' ? null : sec.key
+  const list = sec.rows.filter(r => r.id !== g.id)
+  list.push(g)
+  await persistSectionOrder(list, codeId, g)
+}
+
 async function load() {
   if (!orgId.value) return
   loading.value = true
@@ -143,7 +198,7 @@ async function load() {
     gc.loadCodes(),
     tm.loadTerms(),
     tm.loadTermSets(),
-    (db.from as any)('member_groups').select('id, name, code_id, term_id, capacity, color, gender_restriction, age_range, waitlist_id, form_id, location_id, kind').eq('org_id', orgId.value),
+    (db.from as any)('member_groups').select('id, name, code_id, term_id, capacity, color, gender_restriction, age_range, waitlist_id, form_id, location_id, kind, sort_order').eq('org_id', orgId.value),
     (db.from as any)('member_group_memberships').select('group_id, role, roles, person:persons!inner(first_name, last_name)'),
     (db.from as any)('member_group_disciplines').select('group_id, discipline:disciplines(sport, name)'),
     (db.from as any)('group_fee_options').select('id, group_id, name, fee_type, period_unit, period_count, instalment_count, session_count, prorata, items:group_fee_option_items(amount)').eq('org_id', orgId.value),
@@ -183,6 +238,7 @@ async function load() {
       formId: g.form_id ?? null,
       locationId: g.location_id ?? null,
       kind: g.kind ?? 'class',
+      sortOrder: g.sort_order ?? 0,
       feeLabel: opts.length === 1 ? gf.priceLabel({ ...opts[0], items: opts[0].items ?? [] } as any) : null,
       attendances: attByGroup[g.id] || 0,
     }
@@ -262,7 +318,9 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         <table class="hidden md:table w-full text-sm">
           <thead>
             <tr class="border-b border-gray-200 text-left text-xs font-semibold text-gray-700">
-              <th class="px-5 py-3 w-[38%]">
+              <th class="px-5 py-3 w-[38%] rounded transition-shadow"
+                :class="dropSection === sec.key ? 'ring-2 ring-inset ring-[var(--brand-primary)] bg-primary/5' : ''"
+                @dragover.prevent="onSectionHeaderDragOver(sec)" @drop.prevent="onSectionHeaderDrop(sec)">
                 <NuxtLink v-if="sec.key !== '__other'" :to="`/groups/timetable?codes=${sec.key}`"
                   class="group/sec inline-flex items-center gap-1.5 hover:text-primary transition-colors"
                   v-tooltip.top="`Week view of ${sec.title}`">
@@ -283,10 +341,16 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
             </tr>
           </thead>
           <tbody>
-            <tr v-for="g in sec.rows" :key="g.id" class="border-b border-gray-50 hover:bg-gray-50/60 cursor-pointer"
+            <tr v-for="g in sec.rows" :key="g.id"
+              class="group border-b border-gray-50 hover:bg-gray-50/60 cursor-pointer"
+              :class="dropMark?.id === g.id ? (dropMark.pos === 'before' ? 'shadow-[inset_0_2px_0_0_var(--brand-primary)]' : 'shadow-[inset_0_-2px_0_0_var(--brand-primary)]') : ''"
+              draggable="true"
+              @dragstart="onGroupDragStart(g, $event)" @dragover.prevent="onGroupDragOver($event, g)"
+              @drop.prevent="onGroupDrop(g, sec)" @dragend="resetDrag"
               @click="navigateTo(`/groups/${g.id}`)">
               <td class="px-5 py-2.5">
-                <span class="inline-flex items-center gap-2">
+                <span class="flex items-center gap-2">
+                  <i class="pi pi-bars text-gray-200 group-hover:text-gray-400 text-xs cursor-grab shrink-0" title="Drag to reorder — drop on a programme name to move it there" />
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: g.color || '#94a3b8' }" />
                   <span class="font-medium text-gray-800">{{ g.name }}</span>
                 </span>

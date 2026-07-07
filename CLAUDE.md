@@ -523,6 +523,15 @@ So booking "Half A" on Court 1 writes two `bookings` rows on Q1 and Q2 — both 
 
 ---
 
+## Parallel development (two people / two Claude sessions)
+
+Two developers build this project simultaneously on separate machines, each with their own Claude session, sharing ONE GitHub remote and ONE remote Supabase database. Rules:
+
+1. **Branches:** each person works on their own feature branch and merges to `main` in small increments (at least daily). Every session should `git fetch origin` + rebase/merge `main` into its branch before starting significant work — long divergence in the giant files (`pages/events/[id].vue` ~8k lines) is the main conflict risk. Divide work **by module** (memberships / bookings / events / people / settings) whenever possible.
+2. **Migration numbers — CLAIM BEFORE WRITING.** Before creating a migration, run `git fetch origin && git ls-tree origin/main supabase/migrations/ | tail -3` and take the next number after the highest on **origin/main** (not just the local folder — the other session may have pushed). This has already collided once (228 landed from a parallel session, forcing form-targets to 229). **Never renumber a migration that has already been applied to the remote DB.** If you discover a number collision before pushing to the DB, renumber YOUR unpushed file.
+3. **`npx supabase db push` only from `main`** (after merge), never from a feature branch — the shared remote DB must only ever reflect merged migrations, otherwise the other person's next push sees missing files and drift. Keep migrations **additive** (new tables/columns; no drops/renames of things the other branch may read).
+4. **Doc merge conflicts (CLAUDE.md / DEVELOPER_HANDOFF.md):** both sessions append to these files constantly. Conflicts are almost always additive entries in the same section — resolve by **keeping BOTH sides** (both table rows, both bullets), never by discarding the other session's entry.
+
 ## Migrations
 Numbered sequentially in `/supabase/migrations/` (currently up to `146_`). `145_terminology.sql` adds `organisations.terminology jsonb` (club term overrides, resolved org + inherited via `useTerminology`). `146_orgid_indexes.sql` adds the missing `registration_forms(org_id)` + `categories(org_id)` indexes. **Security note:** only `org_members` has RLS; all other ~87 tables rely on app-level `.eq('org_id')` scoping (no DB-enforced tenant isolation) — RLS hardening is still outstanding before production. Migrations `134`–`143` add the org-federation foundation (org hierarchy/levels, permission groups, disciplines, field engine `field_definitions` + `person_target_types`). `144_subject_type_kind.sql` adds `person_target_types.kind ('person'|'entity')` so a form can register entities (Team/Company/School) with their own field structure, not just people.
 ```bash

@@ -20,7 +20,7 @@ useBreadcrumbs([{ label: 'Memberships' }])
 const loading = ref(true)
 interface Row {
   id: string; name: string; color: string | null; capacity: number | null
-  codeId: string | null
+  codeId: string | null; sortOrder: number
   members: number; feeLabel: string | null; feeCount: number
   waitlistId: string | null; waiting: number; included: number
 }
@@ -43,7 +43,7 @@ async function load() {
   if (!orgId.value) return
   loading.value = true
   const [{ data: groups }, { data: mems }, { data: feeOpts }, ents, wlCounts, codes] = await Promise.all([
-    (db.from as any)('member_groups').select('id, name, color, capacity, waitlist_id, kind, code_id').eq('org_id', orgId.value).eq('kind', 'membership').order('name'),
+    (db.from as any)('member_groups').select('id, name, color, capacity, waitlist_id, kind, code_id, sort_order').eq('org_id', orgId.value).eq('kind', 'membership').order('sort_order', { ascending: true, nullsFirst: false }).order('name'),
     (db.from as any)('member_group_memberships').select('group_id, group:member_groups!inner(org_id, kind)').eq('group.org_id', orgId.value).eq('group.kind', 'membership'),
     (db.from as any)('group_fee_options').select('id, group_id, name, fee_type, period_unit, period_count, instalment_count, session_count, prorata, items:group_fee_option_items(amount)').eq('org_id', orgId.value),
     ms.loadAllEntitlements(),
@@ -60,7 +60,7 @@ async function load() {
   rows.value = (groups ?? []).map((g: any) => {
     const fees = feesByGroup[g.id] ?? []
     return {
-      id: g.id, name: g.name, color: g.color, capacity: g.capacity, codeId: g.code_id ?? null,
+      id: g.id, name: g.name, color: g.color, capacity: g.capacity, codeId: g.code_id ?? null, sortOrder: g.sort_order ?? 0,
       members: memberCounts[g.id] ?? 0,
       feeLabel: fees.length === 1 ? gf.priceLabel(fees[0]) : fees.length > 1 ? `${fees.length} options` : null,
       feeCount: fees.length,
@@ -72,6 +72,59 @@ async function load() {
 }
 onMounted(load)
 watch(orgId, v => { if (v) load() })
+
+// ── Drag ordering — the /groups/codes pattern (native HTML5, platform
+// standard): drop near a row's top/bottom edge = reorder; drop ON a programme
+// row = move the membership under that umbrella. ──
+const dragRow = ref<Row | null>(null)
+const dropMark = ref<{ id: string; pos: 'before' | 'after' } | null>(null)
+const dropProgramme = ref<string | null>(null)
+function onRowDragStart(r: Row, e: DragEvent) {
+  dragRow.value = r
+  if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', r.id) }
+}
+function onRowDragOver(e: DragEvent, r: Row) {
+  if (!dragRow.value || dragRow.value.id === r.id) return
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  dropMark.value = { id: r.id, pos: (e.clientY - rect.top) < rect.height / 2 ? 'before' : 'after' }
+  dropProgramme.value = null
+}
+function onProgrammeDragOver(codeId: string) {
+  if (!dragRow.value) return
+  dropProgramme.value = codeId
+  dropMark.value = null
+}
+function resetDrag() { dragRow.value = null; dropMark.value = null; dropProgramme.value = null }
+async function persistList(list: Row[], codeId: string | null, moved: Row) {
+  const updates: any[] = []
+  list.forEach((row, idx) => {
+    const patch: Record<string, any> = {}
+    if (row.sortOrder !== idx) { row.sortOrder = idx; patch.sort_order = idx }
+    if (row.id === moved.id && row.codeId !== codeId) { row.codeId = codeId; patch.code_id = codeId }
+    if (Object.keys(patch).length) updates.push((db.from as any)('member_groups').update(patch).eq('id', row.id))
+  })
+  await Promise.all(updates)
+  rows.value = [...rows.value].sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name))
+}
+async function onRowDrop(target: Row) {
+  const g = dragRow.value
+  const pos = dropMark.value?.id === target.id ? dropMark.value.pos : 'after'
+  resetDrag()
+  if (!g || g.id === target.id) return
+  const codeId = target.codeId
+  const list = (codeId ? (sections.value.grouped.find(sec => sec.codeId === codeId)?.list ?? []) : sections.value.loose).filter(r => r.id !== g.id)
+  const at = list.indexOf(target) + (pos === 'after' ? 1 : 0)
+  list.splice(at, 0, g)
+  await persistList(list, codeId, g)
+}
+async function onProgrammeDrop(codeId: string) {
+  const g = dragRow.value
+  resetDrag()
+  if (!g) return
+  const list = (sections.value.grouped.find(sec => sec.codeId === codeId)?.list ?? []).filter(r => r.id !== g.id)
+  list.push(g)
+  await persistList(list, codeId, g)
+}
 
 // ── New membership ──
 const showCreate = ref(false)
@@ -124,20 +177,32 @@ async function create() {
           </tr>
         </thead>
         <tbody v-for="sec in sections.grouped" :key="sec.codeId" class="divide-y divide-gray-100 border-b border-gray-100">
-          <!-- Programme umbrella row — click for the everyone-across-tiers report -->
-          <tr class="bg-gray-50/70 hover:bg-gray-100 cursor-pointer" @click="navigateTo(`/memberships/programme/${sec.codeId}`)">
-            <td class="px-4 sm:px-5 py-2" colspan="5">
-              <span class="flex items-center gap-2">
+          <!-- Programme umbrella row (hierarchy parent) — click for the everyone report -->
+          <tr class="bg-gray-50/60 hover:bg-gray-100 cursor-pointer transition-shadow"
+            :class="dropProgramme === sec.codeId ? 'ring-2 ring-inset ring-[var(--brand-primary)] bg-primary/5' : ''"
+            @dragover.prevent="onProgrammeDragOver(sec.codeId)" @drop.prevent="onProgrammeDrop(sec.codeId)"
+            @click="navigateTo(`/memberships/programme/${sec.codeId}`)">
+            <td class="px-4 sm:px-5 py-2.5">
+              <span class="flex items-center gap-2.5">
+                <i class="pi pi-chevron-down text-[9px] text-gray-400 shrink-0" />
                 <span class="w-2.5 h-2.5 rounded-sm shrink-0" :style="{ background: sec.color || '#94a3b8' }" />
-                <span class="text-xs font-bold uppercase tracking-wide text-gray-500">{{ sec.name }}</span>
-                <span class="text-xs text-gray-400">· {{ sec.list.reduce((a, r) => a + r.members, 0) }} member{{ sec.list.reduce((a, r) => a + r.members, 0) === 1 ? '' : 's' }} across {{ sec.list.length }} tier{{ sec.list.length === 1 ? '' : 's' }}</span>
-                <span class="ml-auto text-xs text-primary font-medium">View everyone →</span>
+                <span class="font-bold text-gray-900">{{ sec.name }}</span>
+                <span class="text-xs text-gray-400 font-normal">{{ sec.list.length }} tier{{ sec.list.length === 1 ? '' : 's' }}</span>
               </span>
             </td>
+            <td class="px-3 py-2.5 num font-semibold">{{ sec.list.reduce((a, r) => a + r.members, 0) }}</td>
+            <td class="px-3 py-2.5 text-xs text-gray-400">by tier</td>
+            <td class="px-3 py-2.5 text-gray-300">—</td>
+            <td class="px-3 py-2.5"><span class="text-xs text-primary font-medium">View everyone →</span></td>
           </tr>
-          <tr v-for="r in sec.list" :key="r.id" class="hover:bg-gray-50 cursor-pointer" @click="navigateTo(`/memberships/${r.id}`)">
+          <tr v-for="r in sec.list" :key="r.id" class="group hover:bg-gray-50 cursor-pointer"
+            :class="dropMark?.id === r.id ? (dropMark.pos === 'before' ? 'shadow-[inset_0_2px_0_0_var(--brand-primary)]' : 'shadow-[inset_0_-2px_0_0_var(--brand-primary)]') : ''"
+            draggable="true" @dragstart="onRowDragStart(r, $event)" @dragover.prevent="onRowDragOver($event, r)"
+            @drop.prevent="onRowDrop(r)" @dragend="resetDrag" @click="navigateTo(`/memberships/${r.id}`)">
             <td class="px-4 sm:px-5 py-3">
-              <span class="flex items-center gap-2.5">
+              <span class="flex items-center gap-2.5 pl-4 ml-[3px] border-l-2 border-gray-200">
+                <i class="pi pi-bars text-gray-200 group-hover:text-gray-400 text-xs cursor-grab shrink-0"
+                  title="Drag to reorder — or into another programme" @click.stop />
                 <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: r.color || '#94a3b8' }" />
                 <span class="font-semibold text-gray-900">{{ r.name }}</span>
               </span>
@@ -158,9 +223,14 @@ async function create() {
           </tr>
         </tbody>
         <tbody class="divide-y divide-gray-100">
-          <tr v-for="r in sections.loose" :key="r.id" class="hover:bg-gray-50 cursor-pointer" @click="navigateTo(`/memberships/${r.id}`)">
+          <tr v-for="r in sections.loose" :key="r.id" class="group hover:bg-gray-50 cursor-pointer"
+            :class="dropMark?.id === r.id ? (dropMark.pos === 'before' ? 'shadow-[inset_0_2px_0_0_var(--brand-primary)]' : 'shadow-[inset_0_-2px_0_0_var(--brand-primary)]') : ''"
+            draggable="true" @dragstart="onRowDragStart(r, $event)" @dragover.prevent="onRowDragOver($event, r)"
+            @drop.prevent="onRowDrop(r)" @dragend="resetDrag" @click="navigateTo(`/memberships/${r.id}`)">
             <td class="px-4 sm:px-5 py-3">
               <span class="flex items-center gap-2.5">
+                <i class="pi pi-bars text-gray-200 group-hover:text-gray-400 text-xs cursor-grab shrink-0"
+                  title="Drag to reorder — or into a programme" @click.stop />
                 <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: r.color || '#94a3b8' }" />
                 <span class="font-semibold text-gray-900">{{ r.name }}</span>
               </span>
