@@ -41,11 +41,20 @@ const types = computed(() => kind.value === 'person' ? personTypes.value : entit
 const editingKey = ref<string | null>(null)
 const selected = computed(() => types.value.find(t => t.key === editingKey.value) || null)
 const tab = ref<'layout' | 'fields' | 'access' | 'dashboard' | 'profile'>('layout')
-function openEditor(key: string, t: 'layout' | 'fields' | 'access' | 'dashboard' | 'profile') { editingKey.value = key; tab.value = t }
+function openEditor(key: string, t: 'layout' | 'fields' | 'access' | 'dashboard' | 'profile') {
+  const found = allTypes.value.find(x => x.key === key)
+  if (found) kind.value = (found.kind ?? 'person') as any
+  editingKey.value = key; tab.value = t
+}
 function backToTable() { editingKey.value = null }
 const accessTabLabel = computed(() => kind.value === 'person' ? 'permissions' : 'members')
 const editingField = ref<any>(null)
 const loading = ref(true)
+// Both kinds shown stacked (People, then Entities) — no toggle.
+const sections = computed(() => [
+  { kind: 'person' as const, label: 'People', list: personTypes.value },
+  { kind: 'entity' as const, label: 'Entities', list: entityTypes.value },
+])
 const saving = ref(false)
 const adding = ref(false)
 const newLabel = ref('')
@@ -77,14 +86,16 @@ async function onTypeDrop(target: any) {
   const pos = dropMark.value?.key === target.key ? dropMark.value.pos : 'after'
   resetTypeDrag()
   if (!g || g.key === target.key) return
-  const list = types.value.filter(x => x.key !== g.key)
+  const gKind = (g.kind ?? 'person')
+  if ((target.kind ?? 'person') !== gKind) return // don't reorder across sections
+  const siblings = allTypes.value.filter(x => (x.kind ?? 'person') === gKind)
+  const list = siblings.filter(x => x.key !== g.key)
   const at = list.indexOf(target) + (pos === 'after' ? 1 : 0)
   list.splice(at, 0, g)
-  // Persist sort_order across this kind; keep allTypes in the new order.
   await Promise.all(list.map((row, idx) =>
     row.sort_order === idx ? null : (db.from as any)('person_target_types').update({ sort_order: idx }).eq('id', row.id).then(() => { row.sort_order = idx })
   ))
-  const others = allTypes.value.filter(x => (x.kind ?? 'person') !== kind.value)
+  const others = allTypes.value.filter(x => (x.kind ?? 'person') !== gKind)
   allTypes.value = [...others, ...list].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
 }
 
@@ -137,11 +148,6 @@ async function load() {
   loading.value = false
 }
 
-function switchKind(k: 'person' | 'entity') {
-  kind.value = k
-  editingKey.value = null
-}
-
 async function seedStandard() {
   const existing = new Set(personTypes.value.map(t => t.key))
   const rows = STANDARD.filter(s => !existing.has(s.key)).map((s, i) => ({
@@ -156,15 +162,18 @@ async function seedStandard() {
   toast.add({ severity: 'success', summary: 'Standard types added', life: 2000 })
 }
 
-async function addType() {
-  const label = newLabel.value.trim()
+const newEntityLabel = ref('')
+async function addType(k: 'person' | 'entity' = 'person') {
+  const ref2 = k === 'entity' ? newEntityLabel : newLabel
+  const label = ref2.value.trim()
   if (!label || !orgId.value) return
+  const count = allTypes.value.filter(x => (x.kind ?? 'person') === k).length
   const { error } = await (db.from as any)('person_target_types').insert({
     org_id: orgId.value, key: slugify(label) || 'type_' + Date.now(), label,
-    kind: kind.value, is_access: false, min_count: 0, max_count: null, sort_order: types.value.length,
+    kind: k, is_access: false, min_count: 0, max_count: null, sort_order: count,
   })
   if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
-  newLabel.value = ''; adding.value = false
+  ref2.value = ''; adding.value = false
   await load(); openEditor(slugify(label), 'layout')
 }
 async function removeType(t: any) {
@@ -220,90 +229,81 @@ watch(orgId, load, { immediate: true })
     <div class="flex-1 min-w-0">
       <div class="mb-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
-          <h1 class="text-xl font-semibold text-gray-900">Types &amp; fields</h1>
-          <p class="text-sm text-gray-500">The kinds of people and entities your club tracks — their fields, profile layout, and {{ kind === 'person' ? 'what they can do' : "who's in them" }}.</p>
+          <h1 class="text-xl font-semibold text-gray-900">People &amp; Entities</h1>
+          <p class="text-sm text-gray-500">The kinds of people and entities your club tracks — their fields, profile layout, and what they can do.</p>
         </div>
-        <button v-if="kind === 'person' && personTypes.length" class="text-xs text-primary hover:underline shrink-0 self-start sm:self-auto" @click="seedStandard">+ Add standard set</button>
-      </div>
-
-      <!-- People / Entities toggle -->
-      <div class="inline-flex rounded-lg border border-gray-200 p-0.5 mb-4">
-        <button v-for="k in (['person','entity'] as const)" :key="k" type="button"
-          class="px-4 py-1.5 text-sm font-medium rounded-md transition-colors"
-          :class="kind === k ? 'bg-primary text-white' : 'text-gray-500 hover:text-gray-800'"
-          @click="switchKind(k)">{{ k === 'person' ? 'People' : 'Entities' }}</button>
+        <button v-if="personTypes.length" class="text-xs text-primary hover:underline shrink-0 self-start sm:self-auto" @click="seedStandard">+ Add standard set</button>
       </div>
 
       <div v-if="loading" class="text-sm text-gray-400">Loading…</div>
 
-      <!-- empty state -->
-      <div v-else-if="!types.length" class="card p-8 text-center">
-        <p class="text-sm text-gray-600 mb-1">No {{ kind === 'person' ? 'people' : 'entity' }} types yet.</p>
-        <p class="text-xs text-gray-400 mb-4">{{ kind === 'person' ? 'Start from the standard set, or add your own.' : 'Add one (Team, Business, Family…).' }}</p>
-        <Button v-if="kind === 'person'" label="Add standard set (Member, Parent, Coach…)" size="small" @click="seedStandard" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
-        <div v-else class="flex items-center gap-2 justify-center max-w-sm mx-auto">
-          <InputText v-model="newLabel" placeholder="e.g. Team" size="small" @keyup.enter="addType" />
-          <Button label="Add" size="small" @click="addType" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
-        </div>
-      </div>
-
-      <!-- TABLE of types: Name · Layout · Fields · Permissions/Members -->
-      <div v-else-if="!editingKey" class="card p-0 overflow-x-auto max-w-4xl">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
-              <th class="text-left px-4 sm:px-5 py-2.5 font-medium">{{ kind === 'person' ? 'Person type' : 'Entity type' }}</th>
-              <th class="text-left px-3 py-2.5 font-medium w-28">Layout</th>
-              <th class="text-left px-3 py-2.5 font-medium w-24">Fields</th>
-              <th class="text-left px-3 py-2.5 font-medium w-36">{{ kind === 'person' ? 'Permissions' : 'Members' }}</th>
-              <th v-if="kind === 'person'" class="text-left px-3 py-2.5 font-medium w-32">Dashboard</th>
-              <th class="w-10" />
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="t in types" :key="t.key"
-              class="group border-b border-gray-50 hover:bg-gray-50/60"
-              :class="dropMark?.key === t.key ? (dropMark.pos === 'before' ? 'shadow-[inset_0_2px_0_0_var(--brand-primary)]' : 'shadow-[inset_0_-2px_0_0_var(--brand-primary)]') : ''"
-              draggable="true" @dragstart="onTypeDragStart(t, $event)" @dragover.prevent="onTypeDragOver($event, t)"
-              @drop.prevent="onTypeDrop(t)" @dragend="resetTypeDrag">
-              <td class="px-4 sm:px-5 py-2.5">
-                <span class="font-medium text-gray-800 inline-flex items-center gap-1.5">
-                  <i class="pi pi-bars text-gray-300 group-hover:text-gray-600 text-xs cursor-grab active:cursor-grabbing shrink-0 transition-colors" title="Drag to reorder" />
-                  {{ t.label }}<i v-if="t.is_access" v-tooltip.top="'Grants access (permissions)'" class="pi pi-shield text-[10px] text-emerald-400" /></span>
-              </td>
-              <td class="px-3 py-2.5">
-                <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'layout')"><i class="pi pi-window-maximize text-[10px]" />Layout</button>
-              </td>
-              <td class="px-3 py-2.5">
-                <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'fields')"><i class="pi pi-list text-[10px]" />Fields</button>
-              </td>
-              <td class="px-3 py-2.5">
-                <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'access')"><i class="pi pi-shield text-[10px]" />{{ kind === 'person' ? 'Permissions' : 'Members' }}</button>
-              </td>
-              <td v-if="kind === 'person'" class="px-3 py-2.5">
-                <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'dashboard')"><i class="pi pi-th-large text-[10px]" />Dashboard</button>
-              </td>
-              <td class="px-3 py-2.5 text-center">
-                <button class="text-gray-300 hover:text-red-500" title="Delete type" @click="removeType(t)"><i class="pi pi-trash text-sm" /></button>
-              </td>
-            </tr>
-            <!-- add-a-type row -->
-            <tr class="bg-gray-50/40">
-              <td :colspan="kind === 'person' ? 6 : 5" class="px-4 sm:px-5 py-2.5">
-                <div class="flex items-center gap-2 max-w-md">
-                  <InputText v-model="newLabel" :placeholder="kind === 'person' ? 'Add a person type (e.g. Coach)' : 'Add an entity type (e.g. Team)'" class="flex-1" size="small" @keyup.enter="addType" />
-                  <Button icon="pi pi-plus" label="Add" size="small" :disabled="!newLabel.trim()" @click="addType" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- STACKED sections: People, then Entities (no toggle) -->
+      <div v-else-if="!editingKey" class="space-y-8 max-w-4xl">
+        <section v-for="sec in sections" :key="sec.kind" class="space-y-2">
+          <h2 class="text-xs font-bold uppercase tracking-wide text-gray-400">{{ sec.label }}</h2>
+          <div class="card p-0 overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
+                  <th class="text-left px-4 sm:px-5 py-2.5 font-medium">{{ sec.kind === 'person' ? 'Person type' : 'Entity type' }}</th>
+                  <th class="text-left px-3 py-2.5 font-medium w-28">Layout</th>
+                  <th class="text-left px-3 py-2.5 font-medium w-24">Fields</th>
+                  <th class="text-left px-3 py-2.5 font-medium w-36">{{ sec.kind === 'person' ? 'Permissions' : 'Members' }}</th>
+                  <th v-if="sec.kind === 'person'" class="text-left px-3 py-2.5 font-medium w-32">Dashboard</th>
+                  <th class="w-10" />
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="t in sec.list" :key="t.key"
+                  class="group border-b border-gray-50 hover:bg-gray-50/60"
+                  :class="dropMark?.key === t.key ? (dropMark.pos === 'before' ? 'shadow-[inset_0_2px_0_0_var(--brand-primary)]' : 'shadow-[inset_0_-2px_0_0_var(--brand-primary)]') : ''"
+                  draggable="true" @dragstart="onTypeDragStart(t, $event)" @dragover.prevent="onTypeDragOver($event, t)"
+                  @drop.prevent="onTypeDrop(t)" @dragend="resetTypeDrag">
+                  <td class="px-4 sm:px-5 py-2.5">
+                    <span class="font-medium text-gray-800 inline-flex items-center gap-1.5">
+                      <i class="pi pi-bars text-gray-300 group-hover:text-gray-600 text-xs cursor-grab active:cursor-grabbing shrink-0 transition-colors" title="Drag to reorder" />
+                      {{ t.label }}<i v-if="t.is_access" v-tooltip.top="'Grants access (permissions)'" class="pi pi-shield text-[10px] text-emerald-400" /></span>
+                  </td>
+                  <td class="px-3 py-2.5">
+                    <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'layout')"><i class="pi pi-window-maximize text-[10px]" />Layout</button>
+                  </td>
+                  <td class="px-3 py-2.5">
+                    <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'fields')"><i class="pi pi-list text-[10px]" />Fields</button>
+                  </td>
+                  <td class="px-3 py-2.5">
+                    <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'access')"><i class="pi pi-shield text-[10px]" />{{ sec.kind === 'person' ? 'Permissions' : 'Members' }}</button>
+                  </td>
+                  <td v-if="sec.kind === 'person'" class="px-3 py-2.5">
+                    <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'dashboard')"><i class="pi pi-th-large text-[10px]" />Dashboard</button>
+                  </td>
+                  <td class="px-3 py-2.5 text-center">
+                    <button class="text-gray-300 hover:text-red-500" title="Delete type" @click="removeType(t)"><i class="pi pi-trash text-sm" /></button>
+                  </td>
+                </tr>
+                <!-- add-a-type row -->
+                <tr class="bg-gray-50/40">
+                  <td :colspan="sec.kind === 'person' ? 6 : 5" class="px-4 sm:px-5 py-2.5">
+                    <div class="flex items-center gap-2 max-w-md">
+                      <InputText :model-value="sec.kind === 'person' ? newLabel : newEntityLabel"
+                        @update:model-value="v => sec.kind === 'person' ? (newLabel = v) : (newEntityLabel = v)"
+                        :placeholder="sec.kind === 'person' ? 'Add a person type (e.g. Coach)' : 'Add an entity type (e.g. Team)'"
+                        class="flex-1" size="small" @keyup.enter="addType(sec.kind)" />
+                      <Button icon="pi pi-plus" label="Add" size="small"
+                        :disabled="!((sec.kind === 'person' ? newLabel : newEntityLabel).trim())"
+                        @click="addType(sec.kind)" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
 
       <!-- EDITOR for one type -->
       <div v-else-if="selected" class="space-y-3">
         <div class="flex items-center gap-2 flex-wrap">
-          <button class="text-sm text-gray-500 hover:text-primary inline-flex items-center gap-1" @click="backToTable"><i class="pi pi-arrow-left text-xs" /> All {{ kind === 'person' ? 'types' : 'entity types' }}</button>
+          <button class="text-sm text-gray-500 hover:text-primary inline-flex items-center gap-1" @click="backToTable"><i class="pi pi-arrow-left text-xs" /> All types</button>
           <span class="text-gray-300">/</span>
           <span class="text-sm font-semibold text-gray-800 inline-flex items-center gap-1.5">{{ selected.label }}<i v-if="selected.is_access" v-tooltip.top="'Grants access'" class="pi pi-shield text-[10px] text-emerald-400" /></span>
         </div>

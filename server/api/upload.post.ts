@@ -15,7 +15,14 @@ export default defineEventHandler(async (event) => {
 
   // Derive extension from original filename or content type
   const ext = file.filename.split('.').pop()?.toLowerCase() || 'jpg'
-  const allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'heic', 'heif', 'bmp', 'tiff', 'tif', 'avif']
+  const allowed = [
+    // images
+    'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'heic', 'heif', 'bmp', 'tiff', 'tif', 'avif',
+    // documents (Resources library)
+    'pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'csv', 'rtf', 'pages', 'key', 'numbers',
+    // video/audio (small files — large media should be added as embed links)
+    'mp4', 'mov', 'webm', 'm4v', 'avi', 'mkv', 'mp3', 'm4a', 'wav',
+  ]
   if (!allowed.includes(ext)) {
     throw createError({ statusCode: 400, message: `File type ".${ext}" not allowed (got "${file.filename}")` })
   }
