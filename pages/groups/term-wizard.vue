@@ -192,7 +192,7 @@
                   {{ c.label }} {{ c.have }}/{{ c.min }}
                 </span>
               </div>
-              <div class="rounded-lg border border-gray-200 overflow-hidden">
+              <div class="rounded-lg border border-gray-200 overflow-x-auto">
                 <table class="w-full text-sm">
                   <thead>
                     <tr class="bg-gray-50 border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -359,7 +359,7 @@
                   <span class="text-base font-semibold text-gray-900 truncate">{{ sec.name }}</span>
                   <span class="text-xs text-gray-400">{{ sec.list.length }} {{ sec.list.length === 1 ? classS : classP }}</span>
                 </div>
-                <div class="rounded-lg border border-gray-200 overflow-hidden">
+                <div class="rounded-lg border border-gray-200 overflow-x-auto">
                   <table class="w-full text-sm">
                     <thead>
                       <tr class="bg-gray-50 border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">

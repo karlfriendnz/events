@@ -149,7 +149,7 @@ watch(orgId, load, { immediate: true })
 </script>
 
 <template>
-  <div class="p-6 flex gap-6">
+  <div class="p-3 sm:p-6 flex flex-col md:flex-row gap-4 md:gap-6">
     <SettingsNav />
     <div class="flex-1 min-w-0">
       <div class="mb-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">

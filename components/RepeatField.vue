@@ -35,7 +35,7 @@
   </div>
 
   <!-- Skip dates dialog -->
-  <Dialog v-model:visible="exclusionsOpen" modal header="Skip dates" :style="{ width: '480px' }"
+  <Dialog v-model:visible="exclusionsOpen" modal header="Skip dates" :style="{ width: '95vw', maxWidth: '480px' }"
     :pt="{ content: { class: 'p-4' } }">
     <RecurrenceExclusions
       :model-value="exdates ?? []"
@@ -50,7 +50,7 @@
   </Dialog>
 
   <!-- Custom recurrence dialog -->
-  <Dialog v-model:visible="customOpen" modal header="Custom recurrence" :style="{ width: '460px' }"
+  <Dialog v-model:visible="customOpen" modal header="Custom recurrence" :style="{ width: '95vw', maxWidth: '460px' }"
     :pt="{ content: { class: 'p-0' } }">
     <div class="flex flex-col">
       <!-- Interval + Frequency -->
