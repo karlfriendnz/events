@@ -58,6 +58,36 @@ const personTypeOptions = computed(() => personTypes.value.map(t => ({ label: t.
 
 function slugify(s: string) { return s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') }
 
+// ── Drag ordering (STANDING RULE: ordering is drag). Reorder person/entity
+// types; persists person_target_types.sort_order for the current kind. ──
+const dragType = ref<any>(null)
+const dropMark = ref<{ key: string; pos: 'before' | 'after' } | null>(null)
+function onTypeDragStart(t: any, e: DragEvent) {
+  dragType.value = t
+  if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', t.key) }
+}
+function onTypeDragOver(e: DragEvent, t: any) {
+  if (!dragType.value || dragType.value.key === t.key) return
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  dropMark.value = { key: t.key, pos: (e.clientY - r.top) < r.height / 2 ? 'before' : 'after' }
+}
+function resetTypeDrag() { dragType.value = null; dropMark.value = null }
+async function onTypeDrop(target: any) {
+  const g = dragType.value
+  const pos = dropMark.value?.key === target.key ? dropMark.value.pos : 'after'
+  resetTypeDrag()
+  if (!g || g.key === target.key) return
+  const list = types.value.filter(x => x.key !== g.key)
+  const at = list.indexOf(target) + (pos === 'after' ? 1 : 0)
+  list.splice(at, 0, g)
+  // Persist sort_order across this kind; keep allTypes in the new order.
+  await Promise.all(list.map((row, idx) =>
+    row.sort_order === idx ? null : (db.from as any)('person_target_types').update({ sort_order: idx }).eq('id', row.id).then(() => { row.sort_order = idx })
+  ))
+  const others = allTypes.value.filter(x => (x.kind ?? 'person') !== kind.value)
+  allTypes.value = [...others, ...list].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+}
+
 // ── Dashboard tab (mig 245): what this person type SEES ──
 const LANDING_OPTIONS = [
   { label: 'Dashboard', value: null as string | null },
@@ -218,7 +248,7 @@ watch(orgId, load, { immediate: true })
       </div>
 
       <!-- TABLE of types: Name · Layout · Fields · Permissions/Members -->
-      <div v-else-if="!editingKey" class="card p-0 overflow-hidden max-w-3xl">
+      <div v-else-if="!editingKey" class="card p-0 overflow-x-auto max-w-4xl">
         <table class="w-full text-sm">
           <thead>
             <tr class="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
@@ -226,13 +256,20 @@ watch(orgId, load, { immediate: true })
               <th class="text-left px-3 py-2.5 font-medium w-28">Layout</th>
               <th class="text-left px-3 py-2.5 font-medium w-24">Fields</th>
               <th class="text-left px-3 py-2.5 font-medium w-36">{{ kind === 'person' ? 'Permissions' : 'Members' }}</th>
+              <th v-if="kind === 'person'" class="text-left px-3 py-2.5 font-medium w-32">Dashboard</th>
               <th class="w-10" />
             </tr>
           </thead>
           <tbody>
-            <tr v-for="t in types" :key="t.key" class="border-b border-gray-50 hover:bg-gray-50/60">
+            <tr v-for="t in types" :key="t.key"
+              class="group border-b border-gray-50 hover:bg-gray-50/60"
+              :class="dropMark?.key === t.key ? (dropMark.pos === 'before' ? 'shadow-[inset_0_2px_0_0_var(--brand-primary)]' : 'shadow-[inset_0_-2px_0_0_var(--brand-primary)]') : ''"
+              draggable="true" @dragstart="onTypeDragStart(t, $event)" @dragover.prevent="onTypeDragOver($event, t)"
+              @drop.prevent="onTypeDrop(t)" @dragend="resetTypeDrag">
               <td class="px-4 sm:px-5 py-2.5">
-                <span class="font-medium text-gray-800 inline-flex items-center gap-1.5">{{ t.label }}<i v-if="t.is_access" v-tooltip.top="'Grants access (permissions)'" class="pi pi-shield text-[10px] text-emerald-400" /></span>
+                <span class="font-medium text-gray-800 inline-flex items-center gap-1.5">
+                  <i class="pi pi-bars text-gray-300 group-hover:text-gray-600 text-xs cursor-grab active:cursor-grabbing shrink-0 transition-colors" title="Drag to reorder" />
+                  {{ t.label }}<i v-if="t.is_access" v-tooltip.top="'Grants access (permissions)'" class="pi pi-shield text-[10px] text-emerald-400" /></span>
               </td>
               <td class="px-3 py-2.5">
                 <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'layout')"><i class="pi pi-window-maximize text-[10px]" />Layout</button>
@@ -241,8 +278,10 @@ watch(orgId, load, { immediate: true })
                 <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'fields')"><i class="pi pi-list text-[10px]" />Fields</button>
               </td>
               <td class="px-3 py-2.5">
-                <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'access')"><i class="pi pi-shield text-[10px]" />{{ kind === 'person' ? 'Permissions' : 'Members' }}</button>
-                <button v-if="kind === 'person'" class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'dashboard')"><i class="pi pi-th-large text-[10px]" />Dashboard</button>
+                <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'access')"><i class="pi pi-shield text-[10px]" />{{ kind === 'person' ? 'Permissions' : 'Members' }}</button>
+              </td>
+              <td v-if="kind === 'person'" class="px-3 py-2.5">
+                <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'dashboard')"><i class="pi pi-th-large text-[10px]" />Dashboard</button>
               </td>
               <td class="px-3 py-2.5 text-center">
                 <button class="text-gray-300 hover:text-red-500" title="Delete type" @click="removeType(t)"><i class="pi pi-trash text-sm" /></button>
@@ -250,7 +289,7 @@ watch(orgId, load, { immediate: true })
             </tr>
             <!-- add-a-type row -->
             <tr class="bg-gray-50/40">
-              <td colspan="5" class="px-4 sm:px-5 py-2.5">
+              <td :colspan="kind === 'person' ? 6 : 5" class="px-4 sm:px-5 py-2.5">
                 <div class="flex items-center gap-2 max-w-md">
                   <InputText v-model="newLabel" :placeholder="kind === 'person' ? 'Add a person type (e.g. Coach)' : 'Add an entity type (e.g. Team)'" class="flex-1" size="small" @keyup.enter="addType" />
                   <Button icon="pi pi-plus" label="Add" size="small" :disabled="!newLabel.trim()" @click="addType" style="background:var(--brand-primary);border-color:var(--brand-primary)" />

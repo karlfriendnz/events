@@ -55,8 +55,6 @@ const AUTHED_ROUTES = [
   '/settings/core-fields',
   '/settings/terminology',
   '/settings/modules',
-  '/settings/profile-dashboard',
-  '/settings/dashboard-defaults',
   '/settings/calendars',
   '/settings/xero',
   '/settings/integrations',

@@ -13,8 +13,6 @@ const tabs = [
   { label: 'Club setup', icon: 'pi-sliders-v', to: '/settings/modules' },
   { label: 'Sports & locations', icon: 'pi-map-marker', to: '/settings/locations' },
   { label: 'Terminology', icon: 'pi-pencil', to: '/settings/terminology' },
-  { label: 'Profile dashboard', icon: 'pi-th-large', to: '/settings/profile-dashboard' },
-  { label: 'Dashboard defaults', icon: 'pi-sliders-h', to: '/settings/dashboard-defaults' },
   { label: 'Advanced', icon: 'pi-wrench', to: '/settings', tab: 'advanced' },
   // Module-specific settings live below the divider
   { divider: true },
