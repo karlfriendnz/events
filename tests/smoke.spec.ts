@@ -47,6 +47,7 @@ const AUTHED_ROUTES = [
   '/attendance',
   '/resources',
   '/reports',
+  '/reports/custom/new',
   '/finances',
   '/reporting',
   '/forms',
