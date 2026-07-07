@@ -81,6 +81,10 @@ export function useLocations() {
       (g.sport_id == null || g.sport_id === sportId))
   }
 
+  async function updateStaff(id: string, patch: Partial<Pick<LocationStaff, 'sport_id' | 'role_key'>>): Promise<void> {
+    await (db.from as any)('location_staff').update(patch).eq('id', id)
+  }
+
   async function removeStaff(id: string): Promise<void> {
     await (db.from as any)('location_staff').delete().eq('id', id)
   }
@@ -90,5 +94,5 @@ export function useLocations() {
     return [...new Set(staff.filter(s => s.person_id === personId && s.location_id).map(s => s.location_id as string))]
   }
 
-  return { loadLocations, createLocation, updateLocation, deleteLocation, loadLocationStaff, assignStaff, removeStaff, locationsOf, grantsCover }
+  return { loadLocations, createLocation, updateLocation, deleteLocation, loadLocationStaff, assignStaff, updateStaff, removeStaff, locationsOf, grantsCover }
 }

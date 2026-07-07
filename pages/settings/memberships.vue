@@ -300,7 +300,7 @@ watch(orgId, v => { if (v) load() })
                   <span>Name</span><span>Starts</span><span>Ends</span><span v-tooltip.top="`When ${t('member', false, true)} registration opens. Blank = open right away.`">Sign-up opens</span><span v-tooltip.top="`When registration closes. Blank = when the ${t('term', false, true)} ends.`">Sign-up closes</span><span></span>
                 </div>
                 <div v-for="t in sec.list" :key="t.id ?? t.sort_order + t.name"
-                  class="grid grid-cols-1 lg:grid-cols-[1fr_130px_130px_130px_130px_40px] gap-2 items-center">
+                  class="grid grid-cols-1 lg:grid-cols-[1fr_170px_170px_170px_170px_40px] gap-2 items-center">
                   <InputText v-model="t.name" placeholder="Term 1 2026" class="w-full" />
                   <DatePicker v-model="t.start_date" dateFormat="d M yy" showIcon class="w-full" placeholder="Start" />
                   <DatePicker v-model="t.end_date" dateFormat="d M yy" showIcon class="w-full" placeholder="End" />
