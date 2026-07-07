@@ -90,6 +90,7 @@
               <NuxtLink to="/groups/timetable" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-calendar text-gray-400 text-xs" />Week view</NuxtLink>
               <NuxtLink to="/groups/allocator" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-arrows-h text-gray-400 text-xs" />Allocate</NuxtLink>
               <NuxtLink to="/groups/waitlists" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-hourglass text-gray-400 text-xs" />Waitlists</NuxtLink>
+              <NuxtLink to="/settings/terms" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-clock text-gray-400 text-xs" />Terms</NuxtLink>
               <div class="border-t border-gray-100" />
               <NuxtLink to="/groups/settings" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-cog text-gray-400 text-xs" />Settings</NuxtLink>
             </div>

@@ -1,5 +1,8 @@
 <template>
-  <div class="p-3 sm:p-6 w-full">
+  <div class="p-3 sm:p-6 min-h-full">
+    <div class="flex flex-col md:flex-row gap-4 md:gap-6">
+      <GroupSettingsNav />
+      <div class="flex-1 min-w-0 w-full">
     <!-- Header -->
     <div class="mb-4 flex items-center gap-2">
       <NuxtLink to="/groups" class="text-gray-400 hover:text-gray-600">
@@ -169,6 +172,8 @@
     </Dialog>
 
     <Toast />
+  </div>
+    </div>
   </div>
 </template>
 

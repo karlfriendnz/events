@@ -63,7 +63,10 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
 </script>
 
 <template>
-  <div class="p-3 sm:p-6 max-w-5xl mx-auto space-y-4">
+  <div class="p-3 sm:p-6 min-h-full">
+    <div class="flex flex-col md:flex-row gap-4 md:gap-6">
+      <GroupSettingsNav />
+      <div class="flex-1 min-w-0 max-w-5xl space-y-4">
     <div>
       <NuxtLink to="/groups/codes" class="text-sm text-gray-500 hover:text-primary inline-flex items-center gap-1">
         <i class="pi pi-arrow-left text-xs" /> Organise {{ t('code', true, true) }}
@@ -100,5 +103,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         </div>
       </AppCard>
     </template>
+  </div>
+    </div>
   </div>
 </template>

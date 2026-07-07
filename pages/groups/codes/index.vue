@@ -191,7 +191,10 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
 </script>
 
 <template>
-  <div class="p-3 sm:p-6 max-w-4xl mx-auto space-y-5">
+  <div class="p-3 sm:p-6 min-h-full">
+    <div class="flex flex-col md:flex-row gap-4 md:gap-6">
+      <GroupSettingsNav />
+      <div class="flex-1 min-w-0 max-w-4xl space-y-5">
     <div class="flex items-start justify-between gap-3">
       <div>
         <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">{{ t('code') }} hierarchy</h1>
@@ -282,6 +285,8 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
           </tbody>
         </table>
       </div>
+    </div>
+  </div>
     </div>
   </div>
 </template>
