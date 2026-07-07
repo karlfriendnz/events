@@ -1571,19 +1571,21 @@
         </div>
       </div>
 
-      <!-- No form yet: design one (full builder), quick-create, or connect existing -->
+      <!-- No form yet: CONNECT one. Forms are created in ONE place (Settings →
+           Forms) so there's a single library — most clubs share one form across
+           many classes rather than designing per-class forms. -->
       <div v-else class="space-y-4">
-        <p class="text-sm text-gray-600">Give this {{ t('group', false, true) }} a public signup page — anyone can register from a link, no login needed.</p>
-        <Button label="Design the registration form" icon="pi pi-palette"
-          class="w-full justify-center" style="background:#1E2157;border-color:#1E2157"
-          @click="navigateTo(`/groups/${group?.id}/form`)" />
-        <Button label="Quick create (standard signup fields)" icon="pi pi-bolt" :loading="regCreating"
-          outlined class="w-full justify-center" @click="createDefaultRegForm" />
+        <p class="text-sm text-gray-600">Give this {{ t('group', false, true) }} a public signup page by connecting a registration form — anyone can register from a link, no login needed.</p>
         <div v-if="regForms.length" class="space-y-1.5">
-          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Or connect an existing form</p>
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Connect a form</p>
           <Select :options="regForms" optionLabel="name" optionValue="id" size="small" class="w-full"
             placeholder="Choose a form…" @update:modelValue="v => setGroupForm(v)" />
         </div>
+        <p v-else class="text-sm text-gray-500">No forms yet.</p>
+        <NuxtLink :to="`/forms/new`" class="block">
+          <Button label="Create a form (opens Forms)" icon="pi pi-file-edit" outlined class="w-full justify-center" />
+        </NuxtLink>
+        <p class="text-xs text-gray-400">Forms live in <NuxtLink to="/forms" class="text-primary hover:underline">Settings → Forms</NuxtLink> — one form can serve many {{ t('group', true, true) }} via its connections.</p>
       </div>
     </Dialog>
 
