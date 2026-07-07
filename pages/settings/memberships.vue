@@ -300,13 +300,28 @@ watch(orgId, v => { if (v) load() })
                   <span>Name</span><span>Starts</span><span>Ends</span><span v-tooltip.top="`When ${t('member', false, true)} registration opens. Blank = open right away.`">Sign-up opens</span><span v-tooltip.top="`When registration closes. Blank = when the ${t('term', false, true)} ends.`">Sign-up closes</span><span></span>
                 </div>
                 <div v-for="t in sec.list" :key="t.id ?? t.sort_order + t.name"
-                  class="grid grid-cols-1 lg:grid-cols-[1fr_170px_170px_170px_170px_40px] gap-2 items-center">
-                  <InputText v-model="t.name" placeholder="Term 1 2026" class="w-full" />
-                  <DatePicker v-model="t.start_date" dateFormat="d M yy" showIcon class="w-full" placeholder="Start" />
-                  <DatePicker v-model="t.end_date" dateFormat="d M yy" showIcon class="w-full" placeholder="End" />
-                  <DatePicker v-model="t.signup_open" dateFormat="d M yy" showIcon class="w-full" placeholder="Right away" />
-                  <DatePicker v-model="t.signup_close" dateFormat="d M yy" showIcon class="w-full" placeholder="Term end" />
-                  <button class="text-gray-400 hover:text-red-500 justify-self-start sm:justify-self-center" @click="removeTerm(t)">
+                  class="grid grid-cols-1 lg:grid-cols-[1fr_170px_170px_170px_170px_40px] gap-2 lg:items-center rounded-lg border border-gray-100 lg:border-0 p-3 lg:p-0">
+                  <div>
+                    <label class="lg:hidden block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Name</label>
+                    <InputText v-model="t.name" placeholder="Term 1 2026" class="w-full" />
+                  </div>
+                  <div>
+                    <label class="lg:hidden block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Starts</label>
+                    <DatePicker v-model="t.start_date" dateFormat="d M yy" showIcon class="w-full" placeholder="Start" />
+                  </div>
+                  <div>
+                    <label class="lg:hidden block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Ends</label>
+                    <DatePicker v-model="t.end_date" dateFormat="d M yy" showIcon class="w-full" placeholder="End" />
+                  </div>
+                  <div>
+                    <label class="lg:hidden block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Sign-up opens</label>
+                    <DatePicker v-model="t.signup_open" dateFormat="d M yy" showIcon class="w-full" placeholder="Right away" />
+                  </div>
+                  <div>
+                    <label class="lg:hidden block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Sign-up closes</label>
+                    <DatePicker v-model="t.signup_close" dateFormat="d M yy" showIcon class="w-full" placeholder="Term end" />
+                  </div>
+                  <button class="text-gray-400 hover:text-red-500 justify-self-end lg:justify-self-center" @click="removeTerm(t)">
                     <i class="pi pi-trash" />
                   </button>
                 </div>
