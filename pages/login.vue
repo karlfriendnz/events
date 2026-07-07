@@ -116,7 +116,24 @@ async function handleLogin() {
   if (data.user) supabaseUser.value = data.user as any
   if (data.user?.id) await prefetchOrg(data.user)
   // Super-admins land on the overarching all-orgs dashboard, not a club view.
-  const dest = (data.user as any)?.app_metadata?.role === 'super_admin' ? '/admin' : '/events'
+  // Everyone else lands where their person TYPE says (mig 245), default /dashboard.
+  let dest = '/dashboard'
+  if ((data.user as any)?.app_metadata?.role === 'super_admin') dest = '/admin'
+  else if (data.user?.email) {
+    try {
+      const { data: person } = await (db.from as any)('persons')
+        .select('person_types, person_type, org_id').ilike('email', data.user.email).limit(1).maybeSingle()
+      if (person) {
+        const keys = (person.person_types?.length ? person.person_types : [person.person_type]).filter(Boolean)
+        if (keys.length) {
+          const { data: types } = await (db.from as any)('person_target_types')
+            .select('key, landing_path').eq('org_id', person.org_id).in('key', keys)
+          const hit = (types ?? []).find((t: any) => t.landing_path)
+          if (hit?.landing_path) dest = hit.landing_path
+        }
+      }
+    } catch { /* default stands */ }
+  }
   await navigateTo(dest)
 }
 

@@ -639,12 +639,16 @@ async function load() {
     .then(({ data }: any) => { profileLayout.value = Array.isArray(data?.config?.fields) ? data.config.fields : null })
 
   // ── Dashboard bundle ──
-  const [{ data: orgRow }, { data: regs }, { data: notesData }] = await Promise.all([
+  const [{ data: orgRow }, { data: typeRow }, { data: regs }, { data: notesData }] = await Promise.all([
     (db.from as any)('organisations').select('profile_dashboard').eq('id', orgId.value).maybeSingle(),
+    typeKey
+      ? (db.from as any)('person_target_types').select('profile_dashboard').eq('org_id', orgId.value).eq('key', typeKey).maybeSingle()
+      : Promise.resolve({ data: null }),
     (db.from as any)('registrations').select('id, total_amount, paid_amount, status').eq('person_id', route.params.id),
     (db.from as any)('person_notes').select('*').eq('person_id', route.params.id).order('created_at', { ascending: false }),
   ])
-  dashConfig.value = orgRow?.profile_dashboard ?? null
+  // The person's TYPE layout (mig 245) wins over the club default.
+  dashConfig.value = typeRow?.profile_dashboard ?? orgRow?.profile_dashboard ?? null
   notes.value = notesData ?? []
 
   const regList = regs ?? []

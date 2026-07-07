@@ -4,10 +4,11 @@
       <SettingsNav />
       <div class="flex-1 min-w-0 settings-fill">
         <div class="mb-5">
-          <h1 class="text-xl font-semibold text-gray-900">Profile dashboard</h1>
+          <h1 class="text-xl font-semibold text-gray-900">Profile dashboard<span v-if="typeLabel" class="text-gray-400 font-normal"> — {{ typeLabel }}</span></h1>
           <p class="text-sm text-gray-500 mt-0.5">
-            Arrange the dashboard that appears on every member's profile. You're editing a
-            <strong>demo member</strong> — real profiles will use their own data.
+            <template v-if="typeLabel">Arrange the dashboard shown on every <strong>{{ typeLabel }}</strong>'s profile (overrides the club default for this type — <NuxtLink :to="'/settings/fields'" class="text-primary hover:underline">back to Types</NuxtLink>).</template>
+            <template v-else>Arrange the dashboard that appears on every member's profile.</template>
+            You're editing a <strong>demo member</strong> — real profiles will use their own data.
           </p>
         </div>
 
@@ -77,13 +78,23 @@ const DEMO_BUNDLE = reactive({
   ],
 })
 
+// Per-type mode (mig 245): ?type=<person type key> edits that TYPE's profile
+// dashboard (person_target_types.profile_dashboard); no param = the org default.
+const route = useRoute()
+const typeKey = computed(() => (route.query.type as string) || null)
+const typeLabel = ref<string | null>(null)
+
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [{ data: orgRow }, cat] = await Promise.all([
+  const [{ data: orgRow }, cat, typeRow] = await Promise.all([
     (db.from as any)('organisations').select('profile_dashboard').eq('id', orgId.value).maybeSingle(),
     loadFieldCatalogue(orgId.value as string),
+    typeKey.value
+      ? (db.from as any)('person_target_types').select('label, profile_dashboard').eq('org_id', orgId.value).eq('key', typeKey.value).maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
+  typeLabel.value = typeRow?.data?.label ?? null
   fields.value = cat
   // give the demo person plausible custom-field values so pickers preview something
   for (const f of cat) {
@@ -91,13 +102,19 @@ async function load() {
       demoPerson.custom_fields[f.key] = f.field_type === 'checkbox' ? true : f.field_type === 'number' ? 1 : 'Sample'
     }
   }
-  config.value = orgRow?.profile_dashboard ?? null
+  // Type mode seeds from the type's own layout, falling back to the org default.
+  config.value = (typeKey.value ? ((await (db.from as any)('person_target_types').select('profile_dashboard').eq('org_id', orgId.value).eq('key', typeKey.value).maybeSingle())?.data?.profile_dashboard ?? orgRow?.profile_dashboard) : orgRow?.profile_dashboard) ?? null
   loading.value = false
 }
 
 async function saveConfig(next: any[]) {
-  await (db.from as any)('organisations').update({ profile_dashboard: next }).eq('id', orgId.value)
-  toast.add({ severity: 'success', summary: 'Profile dashboard saved', life: 2000 })
+  if (typeKey.value) {
+    await (db.from as any)('person_target_types').update({ profile_dashboard: next }).eq('org_id', orgId.value).eq('key', typeKey.value)
+    toast.add({ severity: 'success', summary: `${typeLabel.value ?? 'Type'} profile dashboard saved`, life: 2000 })
+  } else {
+    await (db.from as any)('organisations').update({ profile_dashboard: next }).eq('id', orgId.value)
+    toast.add({ severity: 'success', summary: 'Profile dashboard saved', life: 2000 })
+  }
 }
 
 watch(orgId, load, { immediate: true })

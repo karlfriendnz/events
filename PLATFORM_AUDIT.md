@@ -373,12 +373,12 @@ The earlier 37-item list (Part 1) stands but **understated** the system. Materia
 
 ## Per-page / per-function breakdown (7 Jul 2026)
 
-### Dashboard — 54%
+### Dashboard — 72%
 
 | Feature | Status | What's been done | What needs to be done | Karl | Kate | Rodd | FM | HC |
 |---|---|---|---|---|---|---|---|---|
 | Members breakdown widget | ★ EXCEEDS | /dashboard stat tiles + custom chart widgets (any field, pie/bar); Configurable per-user grid + per-role default templates | — | ☐ | ☐ | ☐ | ☐ | ☐ |
-| Finance / outstanding widget | NOT STARTED | — | Outstanding-fees total + weekly trend widget; Requires the billing ledger first | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Finance / outstanding widget | BUILT | Outstanding money dashboard tile: unpaid registrations total + count, links to Finances | Fee due-date breakdown once the invoice ledger lands | ☐ | ☐ | ☐ | ☐ | ☐ |
 | Upcoming events widget | BUILT | /dashboard upcoming events card | — | ☐ | ☐ | ☐ | ☐ | ☐ |
 | Term-transfer banner | ★ EXCEEDS | Rollover nudge banner — lineage-aware, per-sequence, terminology-driven; 3-day snooze; links into the term wizard | — | ☐ | ☐ | ☐ | ☐ | ☐ |
 | Email-error banner | NOT STARTED | — | Bounce tracking on the send pipeline (arrives with Mailer) | ☐ | ☐ | ☐ | ☐ | ☐ |
@@ -416,7 +416,7 @@ The earlier 37-item list (Part 1) stands but **understated** the system. Materia
 | Term Transfer | ★ EXCEEDS | Batch rollover screen + 7-step Term set-up wizard; Programme management review w/ vacancy search; per-person staff carry; Per-programme fee confirmation w/ change tracking + reset; training-event generation; discontinued classes | — | ☐ | ☐ | ☐ | ☐ | ☐ |
 | Squad detail | ★ EXCEEDS | Group page: hero, session times, fees, sub-group boards, positions, attendance matrix; Public registration page + QR; waitlist-aware add-person | — | ☐ | ☐ | ☐ | ☐ | ☐ |
 | Squad Announcement | NOT STARTED | — | Message-a-class email (needs Mailer; wizard already stubs it) | ☐ | ☐ | ☐ | ☐ | ☐ |
-| Members / Squads reports | PARTIAL | Classes board columns + saved views + people-tab exports | Dedicated members/squads report views | ☐ | ☐ | ☐ | ☐ | ☐ |
+| Members / Squads reports | PARTIAL | Classes board columns + saved views + people-tab exports; Classes Reports page: classes/week, hours, spots filled, utilisation — overall + by location + by programme | Dedicated members/squads report views | ☐ | ☐ | ☐ | ☐ | ☐ |
 | Retention Report | BUILT | /groups/retention: A-to-B term comparison, segments, CSV, copy-emails | — | ☐ | ☐ | ☐ | ☐ | ☐ |
 
 ### Events — 90%
@@ -589,8 +589,7 @@ The earlier 37-item list (Part 1) stands but **understated** the system. Materia
 ## Still to do — the full list
 
 **Dashboard**
-- **Finance / outstanding widget** — Outstanding-fees total + weekly trend widget
-- **Finance / outstanding widget** — Requires the billing ledger first
+- **Finance / outstanding widget** — Fee due-date breakdown once the invoice ledger lands
 - **Email-error banner** — Bounce tracking on the send pipeline (arrives with Mailer)
 
 **People**

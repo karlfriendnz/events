@@ -154,11 +154,23 @@ async function resolveUserTypeKeys(): Promise<string[]> {
   for (const g of sorted) { keys.push(g.id); if (g.source_group_id) keys.push(g.source_group_id) }
   return keys
 }
+// The person's TYPE keys (mig 245): a type's dashboard template applies after
+// role templates but before '_default'.
+async function resolvePersonTypeKeys(): Promise<string[]> {
+  const email = user.value?.email; if (!email || !orgId.value) return []
+  const { data: person } = await (db.from as any)('persons').select('person_types, person_type').eq('org_id', orgId.value).ilike('email', email).limit(1).maybeSingle()
+  if (!person) return []
+  const keys = (person.person_types?.length ? person.person_types : [person.person_type]).filter(Boolean)
+  return keys as string[]
+}
 // Human label for a user_type key ('_default' or a permission_groups.id).
 async function resolveTypeLabel(userType: string): Promise<string> {
   if (userType === '_default') return 'All users'
   const { data } = await (db.from as any)('permission_groups').select('name').eq('id', userType).maybeSingle()
-  return data?.name ?? 'role'
+  if (data?.name) return data.name
+  // Person-type keys (Settings → Types & fields → Dashboard) are slugs, not ids
+  const { data: t2 } = await (db.from as any)('person_target_types').select('label').eq('org_id', orgId.value).eq('key', userType).maybeSingle()
+  return t2?.label ?? 'role'
 }
 const logoUrl = ref<string | null>(null)
 const bannerUrl = ref<string | null>(null)
@@ -398,7 +410,7 @@ async function load() {
     }
     base = savedCfg
     if (!base) {
-      const candidates = [...(await resolveUserTypeKeys()), '_default']
+      const candidates = [...(await resolveUserTypeKeys()), ...(await resolvePersonTypeKeys()), '_default']
       const { data: tpls } = await (db.from as any)('dashboard_templates').select('user_type, config')
         .eq('org_id', orgId.value).in('user_type', candidates)
       for (const k of candidates) { const t = (tpls ?? []).find((x: any) => x.user_type === k); if (t?.config) { base = t.config; break } }

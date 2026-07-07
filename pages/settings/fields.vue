@@ -40,8 +40,8 @@ const types = computed(() => kind.value === 'person' ? personTypes.value : entit
 // editingKey null = the TYPES TABLE; set = the editor for that type.
 const editingKey = ref<string | null>(null)
 const selected = computed(() => types.value.find(t => t.key === editingKey.value) || null)
-const tab = ref<'layout' | 'fields' | 'access'>('layout')
-function openEditor(key: string, t: 'layout' | 'fields' | 'access') { editingKey.value = key; tab.value = t }
+const tab = ref<'layout' | 'fields' | 'access' | 'dashboard'>('layout')
+function openEditor(key: string, t: 'layout' | 'fields' | 'access' | 'dashboard') { editingKey.value = key; tab.value = t }
 function backToTable() { editingKey.value = null }
 const accessTabLabel = computed(() => kind.value === 'person' ? 'permissions' : 'members')
 const editingField = ref<any>(null)
@@ -57,6 +57,42 @@ const fieldTargetOptions = computed(() =>
 const personTypeOptions = computed(() => personTypes.value.map(t => ({ label: t.label, value: t.key })))
 
 function slugify(s: string) { return s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') }
+
+// ── Dashboard tab (mig 245): what this person type SEES ──
+const LANDING_OPTIONS = [
+  { label: 'Dashboard', value: null as string | null },
+  { label: 'Classes', value: '/groups' },
+  { label: 'Events', value: '/events' },
+  { label: 'People', value: '/people' },
+  { label: 'Memberships', value: '/memberships' },
+  { label: 'Bookings', value: '/bookables?tab=bookings' },
+  { label: 'Attendance', value: '/attendance' },
+  { label: 'My profile & contacts', value: '/account/profiles' },
+]
+async function saveLanding(path: string | null) {
+  if (!selected.value) return
+  selected.value.landing_path = path
+  await (db.from as any)('person_target_types').update({ landing_path: path }).eq('id', selected.value.id)
+}
+// Club-dashboard template per type (dashboard_templates.user_type = the type key)
+const typeDashTemplate = ref<boolean | null>(null) // null = loading
+watch([selected, tab], async () => {
+  if (!selected.value || tab.value !== 'dashboard') return
+  typeDashTemplate.value = null
+  const { data } = await (db.from as any)('dashboard_templates')
+    .select('user_type').eq('org_id', orgId.value).eq('user_type', selected.value.key).maybeSingle()
+  typeDashTemplate.value = !!data
+})
+async function resetTypeDashboard() {
+  if (!selected.value) return
+  await (db.from as any)('dashboard_templates').delete().eq('org_id', orgId.value).eq('user_type', selected.value.key)
+  typeDashTemplate.value = false
+}
+async function resetTypeProfileDashboard() {
+  if (!selected.value) return
+  selected.value.profile_dashboard = null
+  await (db.from as any)('person_target_types').update({ profile_dashboard: null }).eq('id', selected.value.id)
+}
 
 async function load() {
   loading.value = true
@@ -206,6 +242,7 @@ watch(orgId, load, { immediate: true })
               </td>
               <td class="px-3 py-2.5">
                 <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'access')"><i class="pi pi-shield text-[10px]" />{{ kind === 'person' ? 'Permissions' : 'Members' }}</button>
+                <button v-if="kind === 'person'" class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'dashboard')"><i class="pi pi-th-large text-[10px]" />Dashboard</button>
               </td>
               <td class="px-3 py-2.5 text-center">
                 <button class="text-gray-300 hover:text-red-500" title="Delete type" @click="removeType(t)"><i class="pi pi-trash text-sm" /></button>
@@ -232,11 +269,54 @@ watch(orgId, load, { immediate: true })
           <span class="text-sm font-semibold text-gray-800 inline-flex items-center gap-1.5">{{ selected.label }}<i v-if="selected.is_access" v-tooltip.top="'Grants access'" class="pi pi-shield text-[10px] text-emerald-400" /></span>
         </div>
         <div class="flex gap-1 border-b border-gray-200">
-          <button v-for="tb in (['layout','fields','access'] as const)" :key="tb"
+          <button v-for="tb in (kind === 'person' ? ['layout','fields','access','dashboard'] : ['layout','fields','access'])" :key="tb"
             class="px-3 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition-colors"
             :class="tab === tb ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
-            @click="tab = tb">{{ tb === 'access' ? accessTabLabel : tb }}</button>
+            @click="tab = tb as any">{{ tb === 'access' ? accessTabLabel : tb }}</button>
         </div>
+
+          <!-- DASHBOARD: what this type sees (landing, club dashboard, profile dashboard) -->
+          <div v-show="tab === 'dashboard'" class="space-y-4 max-w-2xl">
+            <div class="card p-5 space-y-2">
+              <p class="text-sm font-semibold text-gray-800">Landing page</p>
+              <p class="text-xs text-gray-400">Where a {{ selected?.label }} lands right after logging in.</p>
+              <Select :model-value="selected?.landing_path ?? null" :options="LANDING_OPTIONS"
+                optionLabel="label" optionValue="value" class="w-full sm:w-72"
+                @update:model-value="saveLanding" />
+            </div>
+            <div class="card p-5 space-y-2">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-sm font-semibold text-gray-800">Club dashboard</p>
+                  <p class="text-xs text-gray-400">The widget layout a {{ selected?.label }} starts with on the main dashboard.</p>
+                </div>
+                <span class="text-xs px-2 py-0.5 rounded-full font-medium shrink-0"
+                  :class="typeDashTemplate ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'">
+                  {{ typeDashTemplate === null ? '…' : typeDashTemplate ? 'Custom' : 'Standard' }}
+                </span>
+              </div>
+              <div class="flex items-center gap-4">
+                <NuxtLink :to="`/dashboard?editTemplate=${selected?.key}`" class="text-sm font-medium text-primary hover:underline">Edit ›</NuxtLink>
+                <button v-if="typeDashTemplate" type="button" class="text-sm text-gray-400 hover:text-red-500" @click="resetTypeDashboard">Reset to standard</button>
+              </div>
+            </div>
+            <div class="card p-5 space-y-2">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-sm font-semibold text-gray-800">Profile dashboard</p>
+                  <p class="text-xs text-gray-400">The Dashboard tab shown on every {{ selected?.label }}'s profile page.</p>
+                </div>
+                <span class="text-xs px-2 py-0.5 rounded-full font-medium shrink-0"
+                  :class="selected?.profile_dashboard ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'">
+                  {{ selected?.profile_dashboard ? 'Custom' : 'Standard' }}
+                </span>
+              </div>
+              <div class="flex items-center gap-4">
+                <NuxtLink :to="`/settings/profile-dashboard?type=${selected?.key}`" class="text-sm font-medium text-primary hover:underline">Edit ›</NuxtLink>
+                <button v-if="selected?.profile_dashboard" type="button" class="text-sm text-gray-400 hover:text-red-500" @click="resetTypeProfileDashboard">Reset to standard</button>
+              </div>
+            </div>
+          </div>
 
           <!-- LAYOUT -->
           <div v-show="tab === 'layout'">
