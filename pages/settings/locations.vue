@@ -20,6 +20,21 @@ const loading = ref(true)
 const locations = ref<ClubLocation[]>([])
 const staff = ref<LocationStaff[]>([])
 const sports = ref<{ id: string; label: string }[]>([])
+// Roles come from the club's own staff-role catalogue (code_role_defs org-wide
+// defaults — Manager, Coach + any custom roles), managed with their permission
+// matrix at /groups/codes/default-roles. No parallel role vocabulary here.
+const cr = useCodeRoles()
+const roleDefs = ref<{ key: string; label: string }[]>([])
+const roleOptions = computed(() => roleDefs.value.map(r => ({ label: r.label, value: r.key })))
+function roleLabel2(key: string) {
+  return roleDefs.value.find(r => r.key === key)?.label
+    ?? LOCATION_STAFF_ROLES.find(r => r.key === key)?.label
+    ?? key
+}
+async function setStaffRole(s2: LocationStaff, roleKey: string) {
+  await loc.updateStaff(s2.id, { role_key: roleKey })
+  s2.role_key = roleKey
+}
 const sportOptions = computed(() => [{ label: 'All sports', value: null as string | null }, ...sports.value.map(sp => ({ label: sp.label, value: sp.id as string | null }))])
 function sportLabel(id: string | null) { return id ? (sports.value.find(sp => sp.id === id)?.label ?? 'Sport') : null }
 const classCounts = ref<Record<string, number>>({})
@@ -36,6 +51,8 @@ async function load() {
     (db.from as any)('org_sports').select('id, sport, display_name').eq('org_id', orgId.value).order('sort_order'),
   ])
   sports.value = (sp ?? []).map((x: any) => ({ id: x.id, label: x.display_name || x.sport }))
+  const defs = await cr.ensureDefaults()
+  roleDefs.value = defs.filter((d: any) => !d.code_lineage_id).map((d: any) => ({ key: d.key, label: d.label }))
   locations.value = locs
   staff.value = ls
   const counts: Record<string, number> = {}
@@ -99,7 +116,7 @@ async function addStaff(l: ClubLocation | null) {
   const key = l?.id ?? '__all'
   const person = pick[key]
   if (!person?.id) return
-  await loc.assignStaff(l?.id ?? null, person.id, pickRole[key] || 'staff', pickSport[key] ?? null)
+  await loc.assignStaff(l?.id ?? null, person.id, pickRole[key] || roleDefs.value[0]?.key || 'staff', pickSport[key] ?? null)
   pick[key] = null
   staff.value = await loc.loadLocationStaff()
   toast.add({ severity: 'success', summary: 'Access granted', life: 2000 })
@@ -126,7 +143,7 @@ watch(orgId, v => { if (v) load() })
         <div class="flex items-start justify-between gap-3">
           <div>
             <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Locations</h1>
-            <p class="text-sm text-gray-500">The sites your club runs at. Assign staff to one or more locations — {{ t('group', true, true) }} attach to a location on their own page. With a single location, none of this appears elsewhere.</p>
+            <p class="text-sm text-gray-500">The sites your club runs at. Assign staff to one or more locations — {{ t('group', true, true) }} attach to a location on their own page. With a single location, none of this appears elsewhere. Roles (and what each can do) are managed in <NuxtLink to="/groups/codes/default-roles" class="text-primary hover:underline">Default roles</NuxtLink>.</p>
           </div>
           <Button label="Add location" icon="pi pi-plus" size="small" class="shrink-0"
             style="background:#1E2157;border-color:#1E2157" @click="addLocation" />
@@ -161,7 +178,10 @@ watch(orgId, v => { if (v) load() })
                           <NuxtLink :to="`/people/${s2.person_id}`" class="text-sm text-primary hover:underline truncate">{{ personName(s2) }}</NuxtLink>
                         </span>
                       </td>
-                      <td class="px-3 py-2"><span class="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium">{{ roleLabel(s2.role_key) }}</span></td>
+                      <td class="px-3 py-2">
+                        <Select :model-value="s2.role_key" @update:model-value="(v: string) => setStaffRole(s2, v)"
+                          :options="roleOptions" optionLabel="label" optionValue="value" size="small" class="w-full" />
+                      </td>
                       <td class="px-3 py-2">
                         <Select v-if="sports.length > 1" :model-value="s2.sport_id" @update:model-value="(v: string | null) => setStaffSport(s2, v)"
                           :options="sportOptions" optionLabel="label" optionValue="value" size="small" class="w-full" />
@@ -183,7 +203,7 @@ watch(orgId, v => { if (v) load() })
                       </td>
                       <td class="px-3 py-2">
                         <Select :model-value="pickRole['__all'] || 'staff'" @update:model-value="(v: string) => pickRole['__all'] = v"
-                          :options="LOCATION_STAFF_ROLES" optionLabel="label" optionValue="key" size="small" class="w-full" />
+                          :options="roleOptions" optionLabel="label" optionValue="value" size="small" placeholder="Role" class="w-full" />
                       </td>
                       <td class="px-3 py-2">
                         <Select v-if="sports.length > 1" :model-value="pickSport['__all'] ?? null" @update:model-value="(v: string | null) => pickSport['__all'] = v"
@@ -240,7 +260,10 @@ watch(orgId, v => { if (v) load() })
                           <NuxtLink :to="`/people/${s.person_id}`" class="text-sm text-primary hover:underline truncate">{{ personName(s) }}</NuxtLink>
                         </span>
                       </td>
-                      <td class="px-3 py-2"><span class="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary font-medium">{{ roleLabel(s.role_key) }}</span></td>
+                      <td class="px-3 py-2">
+                        <Select :model-value="s.role_key" @update:model-value="(v: string) => setStaffRole(s, v)"
+                          :options="roleOptions" optionLabel="label" optionValue="value" size="small" class="w-full" />
+                      </td>
                       <td class="px-3 py-2">
                         <Select v-if="sports.length > 1" :model-value="s.sport_id" @update:model-value="(v: string | null) => setStaffSport(s, v)"
                           :options="sportOptions" optionLabel="label" optionValue="value" size="small" class="w-full" />
@@ -262,7 +285,7 @@ watch(orgId, v => { if (v) load() })
                       </td>
                       <td class="px-3 py-2">
                         <Select :model-value="pickRole[l.id] || 'staff'" @update:model-value="(v: string) => pickRole[l.id] = v"
-                          :options="LOCATION_STAFF_ROLES" optionLabel="label" optionValue="key" size="small" class="w-full" />
+                          :options="roleOptions" optionLabel="label" optionValue="value" size="small" placeholder="Role" class="w-full" />
                       </td>
                       <td class="px-3 py-2">
                         <Select v-if="sports.length > 1" :model-value="pickSport[l.id] ?? null" @update:model-value="(v: string | null) => pickSport[l.id] = v"
