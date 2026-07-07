@@ -20,7 +20,7 @@ useBreadcrumbs([{ label: 'Memberships' }])
 const loading = ref(true)
 interface Row {
   id: string; name: string; color: string | null; capacity: number | null
-  codeId: string | null; sortOrder: number
+  codeId: string | null; sortOrder: number; locationIds: string[]
   members: number; feeLabel: string | null; feeCount: number
   waitlistId: string | null; waiting: number; included: number
 }
@@ -29,10 +29,15 @@ const codesById = ref<Record<string, any>>({})
 // Board sections: one per PROGRAMME (code) that holds memberships — the
 // umbrella ("Senior Membership") over its tiers (Annual / Monthly) — plus a
 // plain section for standalone memberships.
+// Location lens: a membership shows if it's sold everywhere (no locations) or
+// at the active site.
+const { activeLocationId: lensId, activeLocation: lensLocation } = useActiveLocation()
+const lensHintName = computed(() => lensLocation.value?.name ?? null)
 const sections = computed(() => {
   const byCode: Record<string, Row[]> = {}
   const loose: Row[] = []
-  for (const r of rows.value) (r.codeId ? (byCode[r.codeId] ??= []).push(r) : loose.push(r))
+  const visible = rows.value.filter(r => !lensId.value || !r.locationIds.length || r.locationIds.includes(lensId.value))
+  for (const r of visible) (r.codeId ? (byCode[r.codeId] ??= []).push(r) : loose.push(r))
   const out = Object.entries(byCode).map(([codeId, list]) => ({
     codeId, name: codesById.value[codeId]?.name ?? 'Programme', color: codesById.value[codeId]?.color ?? null, list,
   })).sort((a, b) => a.name.localeCompare(b.name))
@@ -43,7 +48,7 @@ async function load() {
   if (!orgId.value) return
   loading.value = true
   const [{ data: groups }, { data: mems }, { data: feeOpts }, ents, wlCounts, codes] = await Promise.all([
-    (db.from as any)('member_groups').select('id, name, color, capacity, waitlist_id, kind, code_id, sort_order').eq('org_id', orgId.value).eq('kind', 'membership').order('sort_order', { ascending: true, nullsFirst: false }).order('name'),
+    (db.from as any)('member_groups').select('id, name, color, capacity, waitlist_id, kind, code_id, sort_order, location_ids').eq('org_id', orgId.value).eq('kind', 'membership').order('sort_order', { ascending: true, nullsFirst: false }).order('name'),
     (db.from as any)('member_group_memberships').select('group_id, group:member_groups!inner(org_id, kind)').eq('group.org_id', orgId.value).eq('group.kind', 'membership'),
     (db.from as any)('group_fee_options').select('id, group_id, name, fee_type, period_unit, period_count, instalment_count, session_count, prorata, items:group_fee_option_items(amount)').eq('org_id', orgId.value),
     ms.loadAllEntitlements(),
@@ -60,7 +65,7 @@ async function load() {
   rows.value = (groups ?? []).map((g: any) => {
     const fees = feesByGroup[g.id] ?? []
     return {
-      id: g.id, name: g.name, color: g.color, capacity: g.capacity, codeId: g.code_id ?? null, sortOrder: g.sort_order ?? 0,
+      id: g.id, name: g.name, color: g.color, capacity: g.capacity, codeId: g.code_id ?? null, sortOrder: g.sort_order ?? 0, locationIds: g.location_ids ?? [],
       members: memberCounts[g.id] ?? 0,
       feeLabel: fees.length === 1 ? gf.priceLabel(fees[0]) : fees.length > 1 ? `${fees.length} options` : null,
       feeCount: fees.length,
@@ -77,7 +82,7 @@ watch(orgId, v => { if (v) load() })
 // standard): drop near a row's top/bottom edge = reorder; drop ON a programme
 // row = move the membership under that umbrella. ──
 const dragRow = ref<Row | null>(null)
-const dropMark = ref<{ id: string; pos: 'before' | 'after' } | null>(null)
+const dropMark = ref<{ id: string; pos: 'before' | 'after' | 'inside' } | null>(null)
 const dropProgramme = ref<string | null>(null)
 function onRowDragStart(r: Row, e: DragEvent) {
   dragRow.value = r
@@ -86,7 +91,9 @@ function onRowDragStart(r: Row, e: DragEvent) {
 function onRowDragOver(e: DragEvent, r: Row) {
   if (!dragRow.value || dragRow.value.id === r.id) return
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-  dropMark.value = { id: r.id, pos: (e.clientY - rect.top) < rect.height / 2 ? 'before' : 'after' }
+  const y = (e.clientY - rect.top) / rect.height
+  // Middle band = nest UNDER this membership (same umbrella); edges = reorder.
+  dropMark.value = { id: r.id, pos: y < 0.3 ? 'before' : y > 0.7 ? 'after' : 'inside' }
   dropProgramme.value = null
 }
 function onProgrammeDragOver(codeId: string) {
@@ -111,6 +118,20 @@ async function onRowDrop(target: Row) {
   const pos = dropMark.value?.id === target.id ? dropMark.value.pos : 'after'
   resetDrag()
   if (!g || g.id === target.id) return
+  if (pos === 'inside') {
+    if (target.codeId) {
+      // Join the target's umbrella (append at the end of its tiers)
+      const list = (sections.value.grouped.find(sec => sec.codeId === target.codeId)?.list ?? []).filter(r => r.id !== g.id)
+      list.push(g)
+      await persistList(list, target.codeId, g)
+    } else {
+      // Neither has an umbrella yet — name a new programme to hold both
+      nestPair.value = { dragged: g, target }
+      nestName.value = ''
+      nestOpen.value = true
+    }
+    return
+  }
   const codeId = target.codeId
   const list = (codeId ? (sections.value.grouped.find(sec => sec.codeId === codeId)?.list ?? []) : sections.value.loose).filter(r => r.id !== g.id)
   const at = list.indexOf(target) + (pos === 'after' ? 1 : 0)
@@ -126,6 +147,27 @@ async function onProgrammeDrop(codeId: string) {
   await persistList(list, codeId, g)
 }
 
+// ── Nest two standalone memberships under a NEW programme (middle-band drop) ──
+const nestOpen = ref(false)
+const nestName = ref('')
+const nestPair = ref<{ dragged: Row; target: Row } | null>(null)
+const nesting = ref(false)
+async function confirmNest() {
+  if (!nestPair.value || !nestName.value.trim()) return
+  nesting.value = true
+  const code = await gc.createCode({ name: nestName.value.trim(), color: nestPair.value.target.color ?? '#1E2157', term_id: null, parent_id: null })
+  if (code) {
+    await Promise.all([
+      (db.from as any)('member_groups').update({ code_id: code.id, sort_order: 0 }).eq('id', nestPair.value.target.id),
+      (db.from as any)('member_groups').update({ code_id: code.id, sort_order: 1 }).eq('id', nestPair.value.dragged.id),
+    ])
+  }
+  nesting.value = false
+  nestOpen.value = false
+  nestPair.value = null
+  await load()
+}
+
 // ── New membership ──
 const showCreate = ref(false)
 const creating = ref(false)
@@ -134,8 +176,14 @@ const newMs = reactive({ name: '', color: PALETTE[0] })
 async function create() {
   if (!newMs.name.trim()) return
   creating.value = true
+  const createLens = (useActiveLocation().activeLocationId.value ?? null)
   const { data, error } = await (db.from as any)('member_groups')
-    .insert({ org_id: orgId.value, name: newMs.name.trim(), color: newMs.color, kind: 'membership' })
+    .insert({
+      org_id: orgId.value, name: newMs.name.trim(), color: newMs.color, kind: 'membership',
+      // Created under a location lens -> the membership belongs to that site;
+      // under "All locations" it spans the whole club (connect more sites later).
+      location_ids: createLens ? [createLens] : null,
+    })
     .select('id').single()
   creating.value = false
   if (error) return
@@ -196,7 +244,7 @@ async function create() {
             <td class="px-3 py-2.5"><span class="text-xs text-primary font-medium">View everyone →</span></td>
           </tr>
           <tr v-for="r in sec.list" :key="r.id" class="group hover:bg-gray-50 cursor-pointer"
-            :class="dropMark?.id === r.id ? (dropMark.pos === 'before' ? 'shadow-[inset_0_2px_0_0_var(--brand-primary)]' : 'shadow-[inset_0_-2px_0_0_var(--brand-primary)]') : ''"
+            :class="dropMark?.id === r.id ? (dropMark.pos === 'before' ? 'shadow-[inset_0_2px_0_0_var(--brand-primary)]' : dropMark.pos === 'after' ? 'shadow-[inset_0_-2px_0_0_var(--brand-primary)]' : 'ring-2 ring-inset ring-[var(--brand-primary)] bg-primary/5') : ''"
             draggable="true" @dragstart="onRowDragStart(r, $event)" @dragover.prevent="onRowDragOver($event, r)"
             @drop.prevent="onRowDrop(r)" @dragend="resetDrag" @click="navigateTo(`/memberships/${r.id}`)">
             <td class="px-4 sm:px-5 py-3">
@@ -224,7 +272,7 @@ async function create() {
         </tbody>
         <tbody class="divide-y divide-gray-100">
           <tr v-for="r in sections.loose" :key="r.id" class="group hover:bg-gray-50 cursor-pointer"
-            :class="dropMark?.id === r.id ? (dropMark.pos === 'before' ? 'shadow-[inset_0_2px_0_0_var(--brand-primary)]' : 'shadow-[inset_0_-2px_0_0_var(--brand-primary)]') : ''"
+            :class="dropMark?.id === r.id ? (dropMark.pos === 'before' ? 'shadow-[inset_0_2px_0_0_var(--brand-primary)]' : dropMark.pos === 'after' ? 'shadow-[inset_0_-2px_0_0_var(--brand-primary)]' : 'ring-2 ring-inset ring-[var(--brand-primary)] bg-primary/5') : ''"
             draggable="true" @dragstart="onRowDragStart(r, $event)" @dragover.prevent="onRowDragOver($event, r)"
             @drop.prevent="onRowDrop(r)" @dragend="resetDrag" @click="navigateTo(`/memberships/${r.id}`)">
             <td class="px-4 sm:px-5 py-3">
@@ -265,6 +313,25 @@ async function create() {
       </NuxtLink>
     </div>
 
+    <!-- Nest under a new programme (middle-band drop on a standalone membership) -->
+    <Dialog v-model:visible="nestOpen" modal header="Group these memberships" :style="{ width: '95vw', maxWidth: '440px' }">
+      <div class="space-y-3">
+        <p class="text-sm text-gray-600">
+          Put <b class="font-semibold">{{ nestPair?.dragged.name }}</b> and <b class="font-semibold">{{ nestPair?.target.name }}</b>
+          under one umbrella — e.g. tiers of the same membership.
+        </p>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium text-gray-700">Programme name</label>
+          <InputText v-model="nestName" placeholder="e.g. Senior Membership" class="w-full" autofocus @keyup.enter="confirmNest" />
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" text @click="nestOpen = false" />
+        <Button label="Create & group" :loading="nesting" :disabled="!nestName.trim()"
+          style="background:#1E2157;border-color:#1E2157" @click="confirmNest" />
+      </template>
+    </Dialog>
+
     <!-- New membership -->
     <Dialog v-model:visible="showCreate" modal header="New membership" :style="{ width: '95vw', maxWidth: '440px' }">
       <div class="space-y-4">
@@ -272,6 +339,9 @@ async function create() {
           <label class="text-sm font-medium text-gray-700">Name</label>
           <InputText v-model="newMs.name" placeholder="e.g. Senior Membership" class="w-full" autofocus @keyup.enter="create" />
         </div>
+        <p v-if="lensHintName" class="text-xs rounded-lg px-3 py-2" style="background:#EAF1FE;color:#2563EB">
+          Created for <b class="font-semibold">{{ lensHintName }}</b> (your current location) — you can add more locations in its Settings.
+        </p>
         <div class="flex items-center gap-2">
           <span class="text-sm font-medium text-gray-700 mr-1">Colour</span>
           <button v-for="c in PALETTE" :key="c" type="button" @click="newMs.color = c"

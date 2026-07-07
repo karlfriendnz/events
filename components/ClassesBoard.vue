@@ -105,8 +105,16 @@ const bySavedOrder = (a: ClassGroup, b: ClassGroup) => ((a as any).sortOrder - (
 const groupsInCode = (codeId: string) => visibleGroups.value.filter(g => g.code_id === codeId).sort(bySavedOrder)
 
 type Tab = { key: string; label: string }
+// A programme whose subtree holds ONLY memberships is a memberships umbrella
+// (e.g. "Senior Membership") — it belongs to the memberships board, not here.
+function isMembershipOnlyCode(topId: string): boolean {
+  const ids = new Set(subtreeCodes(topId).map(c => c.id))
+  ids.add(topId)
+  const inSubtree = groups.value.filter(g => g.code_id && ids.has(g.code_id))
+  return inSubtree.length > 0 && inSubtree.every(g => (g as any).kind === 'membership')
+}
 const tabs = computed<Tab[]>(() => {
-  const t: Tab[] = topCodes.value.map(c => ({ key: c.id, label: c.name }))
+  const t: Tab[] = topCodes.value.filter(c => !isMembershipOnlyCode(c.id)).map(c => ({ key: c.id, label: c.name }))
   if (hasUngrouped.value) t.push({ key: '__other', label: 'Other' })
   return t
 })
@@ -152,12 +160,31 @@ function onGroupDragOver(e: DragEvent, g: ClassGroup) {
   dropMark.value = { id: g.id, pos: (e.clientY - r.top) < r.height / 2 ? 'before' : 'after' }
   dropSection.value = null
 }
+// Tabs are drop targets too — drag a class onto a TAB to move it into that
+// top-level programme (covers programmes not visible as sections in this tab).
+const dropTab = ref<string | null>(null)
+function onTabDragOver(tabKey: string) {
+  if (!dragGroup.value || tabKey === '__other') return
+  dropTab.value = tabKey
+  dropMark.value = null
+  dropSection.value = null
+}
+async function onTabDrop(tabKey: string) {
+  const g = dragGroup.value
+  resetDrag()
+  if (!g || tabKey === '__other' || (g.code_id ?? null) === tabKey) return
+  const siblings = groups.value.filter(x => x.code_id === tabKey && x.id !== g.id).sort(bySavedOrder)
+  g.code_id = tabKey
+  ;(g as any).sortOrder = siblings.length
+  await (db.from as any)('member_groups').update({ code_id: tabKey, sort_order: siblings.length }).eq('id', g.id)
+  groups.value = [...groups.value]
+}
 function onSectionHeaderDragOver(sec: Section) {
   if (!dragGroup.value) return
   dropSection.value = sec.key
   dropMark.value = null
 }
-function resetDrag() { dragGroup.value = null; dropMark.value = null; dropSection.value = null }
+function resetDrag() { dragGroup.value = null; dropMark.value = null; dropSection.value = null; dropTab.value = null }
 async function persistSectionOrder(list: ClassGroup[], codeId: string | null, moved: ClassGroup) {
   const updates: any[] = []
   list.forEach((row, idx) => {
@@ -301,8 +328,11 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
       </div>
       <div v-if="tabs.length > 1" class="hidden md:flex items-center gap-1 border-b border-gray-200 overflow-x-auto no-scrollbar">
         <button v-for="t in tabs" :key="t.key" @click="activeTab = t.key"
-          class="px-3 py-2 text-sm whitespace-nowrap border-b-2 -mb-px transition"
-          :class="activeTab === t.key ? 'border-primary text-primary font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'">
+          class="px-3 py-2 text-sm whitespace-nowrap border-b-2 -mb-px transition rounded-t"
+          :class="[activeTab === t.key ? 'border-primary text-primary font-medium' : 'border-transparent text-gray-500 hover:text-gray-700',
+            dropTab === t.key ? 'ring-2 ring-inset ring-[var(--brand-primary)] bg-primary/5' : '']"
+          @dragover.prevent="onTabDragOver(t.key)" @dragleave="dropTab === t.key && (dropTab = null)"
+          @drop.prevent="onTabDrop(t.key)">
           {{ t.label }}
         </button>
         <button v-if="allowNewTab" @click="newTabOpen = true" v-tooltip.top="'New top-level tab'"

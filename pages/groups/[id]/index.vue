@@ -789,7 +789,7 @@
             </div>
             <div class="p-4 sm:p-5 space-y-4">
               <p class="text-xs text-gray-500 -mt-1">Holding this membership gives access to the things ticked below. Ticking a programme includes every {{ t('group', false, true) }} in it — including ones added later.</p>
-              <FormTargetsTree v-model:selection-keys="entSelectionKeys" @update:selection-keys="queueEntSave" />
+              <FormTargetsTree v-model:selection-keys="entSelectionKeys" :location-ids="msLocationIds" @update:selection-keys="queueEntSave" />
               <div class="flex flex-col gap-1.5 pt-1 border-t border-gray-100">
                 <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide pt-2">{{ t('event', true) }} included</label>
                 <MultiSelect v-model="entEventIds" :options="entEventOptions" optionLabel="label" optionValue="value"
@@ -925,7 +925,14 @@
             <span class="flex items-center gap-2 text-sm"><span class="w-6 h-6 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"><i class="pi pi-users text-gray-400 text-[12px]" /></span>Who can buy it</span>
           </div>
           <div class="p-4 sm:p-6 space-y-5 text-sm">
-            <section class="space-y-2.5">
+            <section v-if="clubLocations.length > 1" class="space-y-2.5">
+              <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Available at</p>
+              <MultiSelect :model-value="msLocationIds" :options="locationOptions" optionLabel="label" optionValue="value"
+                display="chip" placeholder="All locations" class="w-full sm:w-96"
+                @update:model-value="saveMsLocations" />
+              <p class="text-xs text-gray-400">Leave empty for the whole club.</p>
+            </section>
+            <section class="space-y-2.5 pt-4 border-t border-gray-100">
               <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Purchasable by</p>
               <Select v-model="msSettings.purchase.purchasable_by" :options="PURCHASABLE_BY_OPTIONS" optionLabel="label" optionValue="value" class="w-full sm:w-96" />
               <MultiSelect v-if="['specific_membership', 'casuals_and_specific'].includes(msSettings.purchase.purchasable_by)"
@@ -2039,7 +2046,13 @@ const toast = useToast()
 const { activeLocationId: lensId, inActiveLocation: lensPass, activeLocation: lensLoc } = useActiveLocation()
 watch([lensId, group], () => {
   if (!group.value || !lensId.value) return
-  if (isMembershipKind.value) return // memberships aren't site-bound
+  if (isMembershipKind.value) {
+    const ids = ((group.value as any).location_ids ?? []) as string[]
+    if (!ids.length || ids.includes(lensId.value)) return
+    toast.add({ severity: 'warn', summary: 'Not at this location', detail: `${group.value.name} isn't sold at ${lensLoc.value?.name ?? 'the selected location'}.`, life: 3500 })
+    navigateTo('/memberships')
+    return
+  }
   if (!lensPass((group.value as any).location_id ?? null)) {
     toast.add({ severity: 'warn', summary: 'Not at this location', detail: `${group.value.name} isn't at ${lensLoc.value?.name ?? 'the selected location'}.`, life: 3500 })
     navigateTo('/groups')
@@ -2143,7 +2156,7 @@ async function loadEntitlements() {
   entHydrating.value = true
   const [rows, { data: evs }] = await Promise.all([
     ms.loadEntitlements(group.value.id),
-    (db.from as any)('events').select('id, title, start_at').eq('org_id', orgId.value)
+    (db.from as any)('events').select('id, title, start_at, linked_group:member_groups(location_id)').eq('org_id', orgId.value)
       .is('recurrence_parent_id', null).neq('status', 'ARCHIVED').neq('status', 'CANCELLED')
       .order('start_at', { ascending: false }).limit(200),
   ])
@@ -2160,7 +2173,12 @@ async function loadEntitlements() {
   entBenefits.value = bens
   const { data: gNames } = await (db.from as any)('member_groups').select('id, name').eq('org_id', orgId.value)
   entGroupNames.value = Object.fromEntries((gNames ?? []).map((g: any) => [g.id, g.name]))
-  entEventOptions.value = (evs ?? []).map((e: any) => ({ label: e.title, value: e.id }))
+  // Events scope to the membership's locations via their linked class (an
+  // event with no class link has no site — always offered).
+  const scope = msLocationIds.value
+  entEventOptions.value = (evs ?? [])
+    .filter((e: any) => !scope.length || !e.linked_group?.location_id || scope.includes(e.linked_group.location_id))
+    .map((e: any) => ({ label: e.title, value: e.id }))
   // Keep the guard up until the tree has mounted + normalised (its load-time
   // emits must not count as edits).
   setTimeout(() => { entHydrating.value = false }, 900)
@@ -2216,6 +2234,18 @@ watch(msSettings, () => {
     setTimeout(() => { msSaved.value = false }, 2000)
   }, 700)
 }, { deep: true })
+// A membership is sold at one or MORE locations (mig 244); empty = whole club.
+const msLocationIds = ref<string[]>([])
+watch(() => group.value?.id, () => {
+  if (isMembershipKind.value) msLocationIds.value = ((group.value as any)?.location_ids ?? []) as string[]
+}, { immediate: true })
+async function saveMsLocations(ids: string[]) {
+  msLocationIds.value = ids
+  if (!group.value) return
+  await (db.from as any)('member_groups').update({ location_ids: ids.length ? ids : null }).eq('id', group.value.id)
+  ;(group.value as any).location_ids = ids.length ? ids : null
+  if (activeTab.value === 'includes') void loadEntitlements() // pickers follow the scope
+}
 const PURCHASABLE_BY_OPTIONS = [
   { label: 'Everyone with a profile', value: 'everyone' },
   { label: 'Members with any valid membership', value: 'any_member' },
@@ -2673,7 +2703,7 @@ async function load() {
   // since it needs both the event list and the resolved roster.
   const [gRes, membersRes, , schedsRes, bkblsRes, orgRes, , codesList, codeDefs, codeStaffList] = await Promise.all([
     (db.from as any)('member_groups')
-      .select('id, name, color, code, code_id, age_range, capacity, current_term, term_fee, sub_groups, term_id, lineage_id, rolled_from_group_id, gender_restriction, image_url, head_person_id, waitlist_id, form_id, location_id, kind, membership_settings')
+      .select('id, name, color, code, code_id, age_range, capacity, current_term, term_fee, sub_groups, term_id, lineage_id, rolled_from_group_id, gender_restriction, image_url, head_person_id, waitlist_id, form_id, location_id, kind, membership_settings, location_ids')
       .eq('id', id)
       .eq('org_id', orgId.value)
       .maybeSingle(),

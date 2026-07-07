@@ -8,7 +8,12 @@
   Used by <FormConnectionsDialog> and the /forms/new wizard.
 -->
 <script setup lang="ts">
-const props = defineProps<{ selectionKeys: Record<string, { checked?: boolean }> }>()
+const props = defineProps<{
+  selectionKeys: Record<string, { checked?: boolean }>
+  /** Scope the pickable classes to these locations (empty/omitted = whole club).
+   *  Site-less classes always show; codes with nothing left to pick are hidden. */
+  locationIds?: string[]
+}>()
 const emit = defineEmits<{ (e: 'update:selectionKeys', v: Record<string, { checked?: boolean }>): void }>()
 
 const db = useDb()
@@ -19,14 +24,17 @@ const tree = ref<any[]>([])
 
 onMounted(load)
 watch(orgId, load)
+watch(() => props.locationIds, load, { deep: true })
 async function load() {
   if (!orgId.value) return
   const [codes, { data: allGroups }] = await Promise.all([
     gc.loadCodes(),
-    (db.from as any)('member_groups').select('id, name, code_id').eq('org_id', orgId.value).order('name'),
+    (db.from as any)('member_groups').select('id, name, code_id, location_id, kind').eq('org_id', orgId.value).neq('kind', 'membership').order('name'),
   ])
+  const scope = props.locationIds ?? []
+  const inScope = (g: any) => !scope.length || !g.location_id || scope.includes(g.location_id)
   const groupsByCode: Record<string, any[]> = {}
-  for (const g of (allGroups ?? [])) (groupsByCode[g.code_id ?? '__none'] ??= []).push(g)
+  for (const g of (allGroups ?? [])) if (inScope(g)) (groupsByCode[g.code_id ?? '__none'] ??= []).push(g)
   const codesByParent: Record<string, any[]> = {}
   const sorted = [...(codes ?? [])].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))
   for (const c of sorted) {
@@ -41,7 +49,9 @@ async function load() {
       ...(groupsByCode[c.id] ?? []).map(groupNode),
     ],
   })
-  const t: any[] = (codesByParent['__root'] ?? []).map(codeNode)
+  const hasContent = (node: any): boolean => node.leaf || (node.children ?? []).some(hasContent)
+  const prune = (nodes: any[]): any[] => nodes.filter(hasContent).map(n => n.leaf ? n : { ...n, children: prune(n.children ?? []) })
+  const t: any[] = prune((codesByParent['__root'] ?? []).map(codeNode))
   if (groupsByCode['__none']?.length) {
     t.push({ key: '__ungrouped', label: 'Ungrouped', icon: 'pi pi-folder-open', selectable: false, children: groupsByCode['__none'].map(groupNode) })
   }
