@@ -15,7 +15,7 @@ export interface FinderParams {
   codeIds: string[]        // empty = any programme
   disciplineIds: string[]  // empty = any discipline
   gender: string | null    // MALE | FEMALE | NON_BINARY | null(any)
-  venue: string | null     // venue label | null(any)
+  venue: string | null     // LOCATION id (the club's sites, mig 237) | null(any)
   termId: string | null    // effective term | null(any)
   onlyWithSpace: boolean
 }
@@ -113,7 +113,7 @@ export function useClassFinder() {
         const { min, max } = parseAgeRange(s.ageRange)
         g = {
           groupId: s.groupId, name: s.groupName, codeId: s.codeId, codeName: s.codeName, color: s.color,
-          venues: [], coach: s.coach, count: s.count, capacity: s.capacity,
+          venues: [], locationId: s.locationId ?? null, coach: s.coach, count: s.count, capacity: s.capacity,
           spaces: s.capacity == null ? null : Math.max(s.capacity - s.count, 0),
           gender: s.genderRestriction, ageMin: min, ageMax: max, ageRange: s.ageRange, termId: s.termId,
           disciplineIds: [], disciplines: [], sessions: [], score: 0,
@@ -153,8 +153,8 @@ export function useClassFinder() {
       if (p.codeIds.length && !(c.codeId && p.codeIds.includes(c.codeId))) continue
       // discipline (hard)
       if (p.disciplineIds.length && !c.disciplineIds.some(id => p.disciplineIds.includes(id))) continue
-      // venue (hard)
-      if (p.venue && !c.venues.includes(p.venue)) continue
+      // location (hard) — p.venue holds a location id
+      if (p.venue && c.locationId !== p.venue) continue
       // gender (hard) — a restricted class must not conflict with the requested gender
       if (p.gender && c.gender && c.gender !== p.gender) continue
       if (p.gender && c.gender === p.gender) score += 1

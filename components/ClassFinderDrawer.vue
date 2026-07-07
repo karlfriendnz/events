@@ -48,12 +48,10 @@ watch(open, o => { if (o && !loaded.value) load() })
 const codeOptions = computed(() => gc.treeOptions(codes.value))
 const disciplineOptions = computed(() => disciplines.value.map(d => ({ label: d.name, value: d.id })))
 const termOptions = computed(() => [{ label: `Any ${t('term', false, true)}`, value: null }, ...terms.value.map((tm: any) => ({ label: tm.name, value: tm.id }))])
-const venueOptions = computed(() => {
-  const set = new Set<string>()
-  classes.value.forEach(c => c.venues.forEach(v => set.add(v)))
-  return [{ label: `Any ${t('venue', false, true)}`, value: null }, ...[...set].sort().map(v => ({ label: v, value: v }))]
-})
-
+const { locations: finderLocations, ensureLocations: ensureFinderLocations } = useActiveLocation()
+void ensureFinderLocations()
+const venueOptions = computed(() =>
+  [{ label: 'Any location', value: null }, ...finderLocations.value.map(l => ({ label: l.name, value: l.id }))])
 const results = computed(() => finder.match(classes.value, params.value))
 
 function toggleDay(d: number) {
@@ -151,7 +149,7 @@ function addPersonToClass(c: FinderClass) { finder.close(); navigateTo(`/groups/
                 <Select v-model="params.termId" :options="termOptions" optionLabel="label" optionValue="value" class="w-full" />
               </div>
               <div>
-                <label class="text-xs font-medium text-gray-500 block mb-1">{{ t('venue', false) }}</label>
+                <label class="text-xs font-medium text-gray-500 block mb-1">Location</label>
                 <Select v-model="params.venue" :options="venueOptions" optionLabel="label" optionValue="value" class="w-full" filter />
               </div>
             </div>

@@ -140,26 +140,6 @@ function openGroup(s: TimetableSession) { navigateTo(`/groups/${s.groupId}`) }
       </div>
     </div>
 
-    <!-- summary strip -->
-    <div v-if="!loading && filtered.length" class="flex flex-wrap items-stretch gap-2 sm:gap-3">
-      <div class="card px-4 py-3 flex-1 min-w-[130px]">
-        <p class="text-lg font-bold text-gray-900">{{ stats.classes }}</p>
-        <p class="text-xs text-gray-500">{{ t('group', true) }} / week</p>
-      </div>
-      <div class="card px-4 py-3 flex-1 min-w-[130px]">
-        <p class="text-lg font-bold text-gray-900">{{ stats.hours }}<span class="text-sm font-medium text-gray-400 ml-0.5">hrs</span></p>
-        <p class="text-xs text-gray-500">Scheduled time</p>
-      </div>
-      <div class="card px-4 py-3 flex-1 min-w-[130px]">
-        <p class="text-lg font-bold text-gray-900">{{ stats.filled }}<span v-if="stats.capacity" class="text-sm font-medium text-gray-400">/{{ stats.capacity }}</span></p>
-        <p class="text-xs text-gray-500">Spots filled</p>
-      </div>
-      <div v-if="stats.fillPct != null" class="card px-4 py-3 flex-1 min-w-[130px]">
-        <p class="text-lg font-bold" :class="stats.fillPct >= 90 ? 'text-red-600' : stats.fillPct >= 75 ? 'text-amber-600' : 'text-emerald-600'">{{ stats.fillPct }}%</p>
-        <p class="text-xs text-gray-500">Utilisation</p>
-      </div>
-    </div>
-
     <!-- loading -->
     <div v-if="loading" class="card p-16 text-center text-gray-400 text-sm">
       <i class="pi pi-spin pi-spinner text-2xl mb-2 block" /> Loading timetable…

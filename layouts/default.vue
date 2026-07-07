@@ -52,6 +52,7 @@
                 </NuxtLink></div><div class="border-t border-gray-100" /></template>
               <NuxtLink to="/groups" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-table text-gray-400 text-xs" />Classes</NuxtLink>
               <NuxtLink to="/groups/timetable" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-calendar text-gray-400 text-xs" />Week view</NuxtLink>
+              <NuxtLink to="/groups/reports" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-chart-bar text-gray-400 text-xs" />Reports</NuxtLink>
               <NuxtLink to="/groups/retention" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-chart-line text-gray-400 text-xs" />Retention report</NuxtLink>
               <NuxtLink to="/groups/views" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-th-large text-gray-400 text-xs" />Manage views</NuxtLink>
               <NuxtLink to="/groups/fees" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-dollar text-gray-400 text-xs" />Fees</NuxtLink>
