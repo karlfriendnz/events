@@ -664,15 +664,15 @@ const rolloverNudgeHidden = ref(false)
 const onboardingNudge = ref<{ done: number; total: number } | null>(null)
 async function loadOnboardingNudge() {
   const ob = useOnboarding()
-  const st = await ob.load()
-  if (ob.coreDone(st) && !ob.allDone(st) && !st.dismissed && !st.completed_at) {
-    onboardingNudge.value = { done: ob.doneCount(st), total: ob.ONBOARDING_STEPS.length }
+  const [st, done] = await Promise.all([ob.loadState(), ob.detect()])
+  if (ob.coreDone(done) && !ob.allDone(done) && !st.dismissed && !st.completed_at) {
+    onboardingNudge.value = { done: ob.doneCount(done), total: ob.ONBOARDING_STEPS.length }
   } else onboardingNudge.value = null
 }
 async function dismissOnboardingNudge() {
   const ob = useOnboarding()
-  const st = await ob.load()
-  await ob.save({ ...st, dismissed: true })
+  const st = await ob.loadState()
+  await ob.saveState({ ...st, dismissed: true })
   onboardingNudge.value = null
 }
 // Club terminology for the banner copy ("class"/"term" are club-renamable).

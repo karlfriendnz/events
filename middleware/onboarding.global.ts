@@ -18,19 +18,13 @@ export default defineNuxtRouteMiddleware(async (to) => {
     const { orgId } = useOrg()
     if (!orgId.value) return
 
-    const db = useDb()
     const ob = useOnboarding()
-    const state = await ob.load()
-    if (ob.coreDone(state) || state.completed_at) return // already set up
+    const [state, done] = await Promise.all([ob.loadState(), ob.detect()])
+    if (state.completed_at || state.dismissed) return // finished/dismissed — leave them be
+    if (ob.coreDone(done)) return                       // core set up already
 
-    // Is this a genuinely new, empty org? (no seasons AND no classes) — only
-    // then do we force setup. Established clubs are left alone.
-    const [{ count: termCount }, { count: groupCount }] = await Promise.all([
-      (db.from as any)('org_terms').select('id', { count: 'exact', head: true }).eq('org_id', orgId.value),
-      (db.from as any)('member_groups').select('id', { count: 'exact', head: true }).eq('org_id', orgId.value),
-    ])
-    if ((termCount ?? 0) === 0 && (groupCount ?? 0) === 0) {
-      return navigateTo('/onboarding')
-    }
+    // A genuinely new club (no season yet) is sent into setup; existing clubs
+    // (which have terms/classes) satisfy coreDone above and are never trapped.
+    return navigateTo('/onboarding')
   } catch { /* fail open */ }
 })
