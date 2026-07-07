@@ -1201,6 +1201,12 @@
             placeholder="Ungrouped" class="w-full" showClear />
           <p class="text-xs text-gray-400">The container this {{ t('group', false, true) }} lives in — it inherits the {{ t('code', false, true) }}'s {{ t('term', false, true) }}.</p>
         </div>
+        <div v-if="clubLocations.length > 1" class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Location</label>
+          <Select v-model="groupDraft.location_id" :options="locationOptions" optionLabel="label" optionValue="value"
+            placeholder="No location" class="w-full" showClear />
+          <p class="text-xs text-gray-400">The site this {{ t('group', false, true) }} runs at.</p>
+        </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">{{ t('group-head') }}</label>
           <Select v-model="groupDraft.head_person_id" :options="headPersonOptions" optionLabel="label" optionValue="value"
@@ -2308,7 +2314,7 @@ async function load() {
   // since it needs both the event list and the resolved roster.
   const [gRes, membersRes, , schedsRes, bkblsRes, orgRes, , codesList, codeDefs, codeStaffList] = await Promise.all([
     (db.from as any)('member_groups')
-      .select('id, name, color, code, code_id, age_range, capacity, current_term, term_fee, sub_groups, term_id, lineage_id, rolled_from_group_id, gender_restriction, image_url, head_person_id, waitlist_id, form_id')
+      .select('id, name, color, code, code_id, age_range, capacity, current_term, term_fee, sub_groups, term_id, lineage_id, rolled_from_group_id, gender_restriction, image_url, head_person_id, waitlist_id, form_id, location_id')
       .eq('id', id)
       .eq('org_id', orgId.value)
       .maybeSingle(),
@@ -2852,9 +2858,13 @@ const GENDER_RESTRICTION_OPTIONS = [
 ]
 const genderRestrictionLabel = (v: string | null | undefined) =>
   v ? (GENDER_RESTRICTION_OPTIONS.find(o => o.value === v)?.label ?? v) : ''
-const groupDraft = reactive<{ name: string; color: string | null; code_id: string | null; age_range: string | null; capacity: number | null; gender_restriction: string | null; image_url: string | null; head_person_id: string | null }>({
-  name: '', color: null, code_id: null, age_range: null, capacity: null, gender_restriction: null, image_url: null, head_person_id: null,
+const groupDraft = reactive<{ name: string; color: string | null; code_id: string | null; age_range: string | null; capacity: number | null; gender_restriction: string | null; image_url: string | null; head_person_id: string | null; location_id: string | null }>({
+  name: '', color: null, code_id: null, age_range: null, capacity: null, gender_restriction: null, image_url: null, head_person_id: null, location_id: null,
 })
+// Locations (migration 237) — the field only shows for multi-site clubs.
+const clubLocations = ref<{ id: string; name: string }[]>([])
+const locationOptions = computed(() => clubLocations.value.map(l => ({ label: l.name, value: l.id })))
+void (async () => { clubLocations.value = await useLocations().loadLocations() })()
 function openGroupEditor() {
   if (!group.value) return
   Object.assign(groupDraft, {
@@ -2863,6 +2873,7 @@ function openGroupEditor() {
     age_range: group.value.age_range ?? null, capacity: group.value.capacity ?? null,
     gender_restriction: group.value.gender_restriction ?? null,
     image_url: group.value.image_url ?? null, head_person_id: group.value.head_person_id ?? null,
+    location_id: group.value.location_id ?? null,
   })
   groupEditOpen.value = true
 }
@@ -2889,6 +2900,7 @@ async function saveGroup() {
     age_range: groupDraft.age_range || null, capacity: groupDraft.capacity ?? null,
     gender_restriction: groupDraft.gender_restriction || null,
     image_url: groupDraft.image_url || null, head_person_id: groupDraft.head_person_id || null,
+    location_id: groupDraft.location_id || null,
   }
   const { error } = await (db.from as any)('member_groups').update(patch).eq('id', group.value.id)
   savingGroup.value = false
