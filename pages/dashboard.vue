@@ -53,10 +53,12 @@ const ACTIVITY_DEF: WidgetDef = { key: 'activity', label: 'Activity', descriptio
 // Content instances use keys like "content:<id>" — a free-form block (rich
 // text, background, image, buttons) for member-facing dashboards.
 const CONTENT_DEF: WidgetDef = { key: 'content', label: 'Content block', description: 'Rich text, image and buttons', x: 0, y: 99, w: 6, h: 5, minW: 3, minH: 2 }
+const STAFF_DEF: WidgetDef = { key: 'staff', label: 'Staff', description: 'Showcase people as cards', x: 0, y: 99, w: 6, h: 5, minW: 3, minH: 3 }
 function isChart(key: string) { return key.startsWith('chart:') }
 function isActivity(key: string) { return key.startsWith('activity:') }
 function isContent(key: string) { return key.startsWith('content:') }
-function widgetDef(key: string): WidgetDef { return defById[key] ?? (isActivity(key) ? ACTIVITY_DEF : isContent(key) ? CONTENT_DEF : CHART_DEF) }
+function isStaff(key: string) { return key.startsWith('staff:') }
+function widgetDef(key: string): WidgetDef { return defById[key] ?? (isActivity(key) ? ACTIVITY_DEF : isContent(key) ? CONTENT_DEF : isStaff(key) ? STAFF_DEF : CHART_DEF) }
 // Display label for the Add-widget menu — term-aware for the registry widgets
 // (the registry keeps plain English labels; dynamic chart/activity fall through).
 function widgetLabel(key: string): string {
@@ -252,7 +254,7 @@ function reconcile(saved: any): CfgItem[] {
   const seen = new Set<string>()
   for (const it of Array.isArray(saved) ? saved : []) {
     // Keep registry widgets AND dynamic instances (chart:<id> / activity:<id>, not in the registry).
-    if (it && (valid.has(it.key) || isChart(it.key) || isActivity(it.key) || isContent(it.key)) && !seen.has(it.key)) {
+    if (it && (valid.has(it.key) || isChart(it.key) || isActivity(it.key) || isContent(it.key) || isStaff(it.key)) && !seen.has(it.key)) {
       const d = widgetDef(it.key)
       out.push({
         key: it.key, enabled: it.enabled !== false,
@@ -552,7 +554,7 @@ function cancelEdit() {
 }
 function removeWidget(key: string) {
   layout.value = layout.value.filter(l => l.i !== key)
-  if (isChart(key) || isActivity(key) || isContent(key)) {
+  if (isChart(key) || isActivity(key) || isContent(key) || isStaff(key)) {
     // Dynamic instances — delete entirely (don't linger as "hidden").
     config.value = config.value.filter(c => c.key !== key)
   } else {
@@ -610,6 +612,26 @@ async function onContentImage(e: Event) {
   if (!f) return
   const { url } = await uploadContentImage(f)
   contentCfg.image_url = url
+}
+
+let staffSeq = 0
+function addStaff() {
+  const id = `staff:${Date.now().toString(36)}${staffSeq++}`
+  const d = STAFF_DEF
+  config.value.push({ key: id, enabled: true, x: 0, y: 99, w: d.w, h: d.h, opts: { title: 'Staff', columns: 2, rows: [
+    { id: 'r_role', field: 'role', label: 'Role / title', icon: '' },
+    { id: 'r_sub', field: 'subtitle', label: 'Tagline', icon: '' },
+    { id: 'r_phone', field: 'phone', label: 'Phone', icon: 'phone' },
+    { id: 'r_email', field: 'email', label: 'Email', icon: 'email' },
+  ], people: [] } })
+  const maxY = layout.value.reduce((m, l) => Math.max(m, l.y + l.h), 0)
+  layout.value.push({ i: id, x: 0, y: maxY, w: d.w, h: d.h, minW: d.minW, minH: d.minH })
+}
+function staffOpts(key: string) { return (config.value.find(c => c.key === key)?.opts ?? {}) as any }
+async function saveStaffOpts(key: string, v: any) {
+  const c = config.value.find(x => x.key === key)
+  if (c) c.opts = v
+  await persistConfig(currentConfig())
 }
 
 let activitySeq = 0
@@ -741,6 +763,7 @@ watch(orgId, () => { if (orgId.value) loadOnboardingNudge() }, { immediate: true
                 <div v-if="hiddenWidgets.length" class="border-t border-gray-100 my-1" />
                 <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addChart(); addMenuOpen = false"><i class="pi pi-chart-pie text-[10px]" />Chart (choose a field)</button>
                 <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addActivity(); addMenuOpen = false"><i class="pi pi-bookmark text-[10px]" />Activity (connect to an activity)</button>
+                <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addStaff(); addMenuOpen = false"><i class="pi pi-users text-[10px]" />Staff (showcase people)</button>
                 <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addContent(); addMenuOpen = false"><i class="pi pi-align-left text-[10px]" />Content block (text, image, buttons)</button>
               </div>
             </template>
@@ -927,6 +950,8 @@ watch(orgId, () => { if (orgId.value) loadOnboardingNudge() }, { immediate: true
                   :style="{ background: b.color || '#1E2157' }">{{ b.label }}</a>
               </div>
             </div>
+
+            <DashwidgetsStaff v-else-if="isStaff(item.i)" :opts="staffOpts(item.i)" :editable="editing" class="h-full" @update:opts="v => saveStaffOpts(item.i, v)" />
 
             <div v-else-if="isChart(item.i)" class="card h-full flex flex-col">
               <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2 pointer-events-auto">
