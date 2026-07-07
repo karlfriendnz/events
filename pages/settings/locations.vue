@@ -143,7 +143,7 @@ watch(orgId, v => { if (v) load() })
             </div>
             <!-- Staff at this location -->
             <div class="px-4 sm:px-5 py-3 space-y-3">
-              <div v-if="staffFor(l.id).length" class="rounded-lg border border-gray-200 overflow-x-auto">
+              <div class="rounded-lg border border-gray-200 overflow-x-auto">
                 <table class="w-full text-sm">
                   <colgroup><col class="w-72" /><col class="w-44" /><col class="w-44" /><col /><col class="w-12" /></colgroup>
                   <thead>
@@ -175,22 +175,32 @@ watch(orgId, v => { if (v) load() })
                         <button type="button" class="text-gray-300 hover:text-red-500" :title="`Remove ${personName(s)} from ${l.name}`" @click="removeStaffRow(s)"><i class="pi pi-times-circle text-sm" /></button>
                       </td>
                     </tr>
+                    <!-- Add row — part of the table so it lines up with the columns -->
+                    <tr class="bg-gray-50/60">
+                      <td class="px-4 py-2">
+                        <AutoComplete :model-value="pick[l.id]" @update:model-value="(v: any) => pick[l.id] = v"
+                          :suggestions="suggestions" optionLabel="label" placeholder="Add a staff member…"
+                          class="w-full" @complete="searchPeople"
+                          :pt="{ pcInputText: { root: { class: '!py-1.5 !px-2.5 !text-sm w-full' } } }"
+                          @item-select="(e: any) => pick[l.id] = e.value" />
+                      </td>
+                      <td class="px-3 py-2">
+                        <Select :model-value="pickRole[l.id] || 'staff'" @update:model-value="(v: string) => pickRole[l.id] = v"
+                          :options="LOCATION_STAFF_ROLES" optionLabel="label" optionValue="key" size="small" class="w-full" />
+                      </td>
+                      <td class="px-3 py-2">
+                        <Select v-if="sports.length > 1" :model-value="pickSport[l.id] ?? null" @update:model-value="(v: string | null) => pickSport[l.id] = v"
+                          :options="sportOptions" optionLabel="label" optionValue="value" size="small" class="w-full" />
+                      </td>
+                      <td />
+                      <td class="px-3 py-2 text-right">
+                        <Button label="Add" size="small" :disabled="!pick[l.id]?.id" style="background:#1E2157;border-color:#1E2157" @click="addStaff(l)" />
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
-              <p v-else class="text-sm text-gray-400">No staff assigned to this location yet.</p>
-              <div class="flex flex-wrap items-center gap-2 pt-1">
-                <AutoComplete :model-value="pick[l.id]" @update:model-value="(v: any) => pick[l.id] = v"
-                  :suggestions="suggestions" optionLabel="label" placeholder="Add a staff member…"
-                  class="flex-1 min-w-0 max-w-xs" @complete="searchPeople"
-                  :pt="{ pcInputText: { root: { class: '!py-1.5 !px-2.5 !text-sm w-full' } } }"
-                  @item-select="(e: any) => pick[l.id] = e.value" />
-                <Select :model-value="pickRole[l.id] || 'staff'" @update:model-value="(v: string) => pickRole[l.id] = v"
-                  :options="LOCATION_STAFF_ROLES" optionLabel="label" optionValue="key" size="small" class="w-40" />
-                <Select v-if="sports.length > 1" :model-value="pickSport[l.id] ?? null" @update:model-value="(v: string | null) => pickSport[l.id] = v"
-                  :options="sportOptions" optionLabel="label" optionValue="value" size="small" class="w-40" />
-                <Button label="Add" size="small" :disabled="!pick[l.id]?.id" style="background:#1E2157;border-color:#1E2157" @click="addStaff(l)" />
-              </div>
+
             </div>
           </div>
 
@@ -200,7 +210,7 @@ watch(orgId, v => { if (v) load() })
               <p class="text-xs text-gray-400 mt-0.5">Grants that apply at all locations — optionally limited to one sport (e.g. "gymnastics everywhere").</p>
             </div>
             <div class="px-4 sm:px-5 py-3 space-y-3">
-              <div v-if="clubWideGrants.length" class="rounded-lg border border-gray-200 overflow-x-auto">
+              <div class="rounded-lg border border-gray-200 overflow-x-auto">
                 <table class="w-full text-sm">
                   <colgroup><col class="w-72" /><col class="w-44" /><col class="w-44" /><col /><col class="w-12" /></colgroup>
                   <thead>
@@ -232,22 +242,32 @@ watch(orgId, v => { if (v) load() })
                         <button type="button" class="text-gray-300 hover:text-red-500" title="Remove this grant" @click="removeStaffRow(s2)"><i class="pi pi-times-circle text-sm" /></button>
                       </td>
                     </tr>
+                    <!-- Add row — part of the table so it lines up with the columns -->
+                    <tr class="bg-gray-50/60">
+                      <td class="px-4 py-2">
+                        <AutoComplete :model-value="pick['__all']" @update:model-value="(v: any) => pick['__all'] = v"
+                          :suggestions="suggestions" optionLabel="label" placeholder="Add a staff member…"
+                          class="w-full" @complete="searchPeople"
+                          :pt="{ pcInputText: { root: { class: '!py-1.5 !px-2.5 !text-sm w-full' } } }"
+                          @item-select="(e: any) => pick['__all'] = e.value" />
+                      </td>
+                      <td class="px-3 py-2">
+                        <Select :model-value="pickRole['__all'] || 'staff'" @update:model-value="(v: string) => pickRole['__all'] = v"
+                          :options="LOCATION_STAFF_ROLES" optionLabel="label" optionValue="key" size="small" class="w-full" />
+                      </td>
+                      <td class="px-3 py-2">
+                        <Select v-if="sports.length > 1" :model-value="pickSport['__all'] ?? null" @update:model-value="(v: string | null) => pickSport['__all'] = v"
+                          :options="sportOptions" optionLabel="label" optionValue="value" size="small" class="w-full" />
+                      </td>
+                      <td />
+                      <td class="px-3 py-2 text-right">
+                        <Button label="Add" size="small" :disabled="!pick['__all']?.id" style="background:#1E2157;border-color:#1E2157" @click="addStaff(null)" />
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
-              <p v-else class="text-sm text-gray-400">No club-wide grants.</p>
-              <div class="flex flex-wrap items-center gap-2 pt-1">
-                <AutoComplete :model-value="pick['__all']" @update:model-value="(v: any) => pick['__all'] = v"
-                  :suggestions="suggestions" optionLabel="label" placeholder="Add a staff member…"
-                  class="flex-1 min-w-0 max-w-xs" @complete="searchPeople"
-                  :pt="{ pcInputText: { root: { class: '!py-1.5 !px-2.5 !text-sm w-full' } } }"
-                  @item-select="(e: any) => pick['__all'] = e.value" />
-                <Select :model-value="pickRole['__all'] || 'staff'" @update:model-value="(v: string) => pickRole['__all'] = v"
-                  :options="LOCATION_STAFF_ROLES" optionLabel="label" optionValue="key" size="small" class="w-40" />
-                <Select v-if="sports.length" :model-value="pickSport['__all'] ?? null" @update:model-value="(v: string | null) => pickSport['__all'] = v"
-                  :options="sportOptions" optionLabel="label" optionValue="value" size="small" class="w-40" />
-                <Button label="Add" size="small" :disabled="!pick['__all']?.id" style="background:#1E2157;border-color:#1E2157" @click="addStaff(null)" />
-              </div>
+
             </div>
           </div>
 
