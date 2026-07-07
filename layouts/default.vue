@@ -36,6 +36,27 @@
           </div>
         </div>
 
+        <!-- Bookings: icon + flyout (Bookings, Venues, Persons, Items) -->
+        <div v-else-if="item.bookings" class="relative" @mouseenter="onBookingsEnter" @mouseleave="onBookingsLeave">
+          <NuxtLink :to="item.href"
+            class="flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
+            :class="isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white'">
+            <i :class="['pi', item.icon, 'text-lg']" />
+          </NuxtLink>
+          <div v-show="bookingsHover" class="absolute left-full top-0 z-[70]" style="padding-left:10px"
+            @mouseenter="onBookingsEnter" @mouseleave="onBookingsLeave">
+            <div class="w-56 bg-white rounded-xl shadow-xl border border-gray-200 py-1 overflow-hidden">
+              <NuxtLink to="/bookables?tab=bookings" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="bookingsHover = false"><i class="pi pi-bookmark text-gray-400 text-xs" /><span class="flex-1">Bookings</span><span v-if="pendingBookingsCount > 0" class="text-[10px] font-bold bg-amber-500 text-white px-1.5 rounded-full">{{ pendingBookingsCount }}</span></NuxtLink>
+              <div class="border-t border-gray-100" />
+              <NuxtLink to="/bookables/venues" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="bookingsHover = false"><i class="pi pi-building text-gray-400 text-xs" />Venues</NuxtLink>
+              <NuxtLink to="/bookables/persons" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="bookingsHover = false"><i class="pi pi-user text-gray-400 text-xs" />Persons</NuxtLink>
+              <NuxtLink to="/bookables/items" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="bookingsHover = false"><i class="pi pi-box text-gray-400 text-xs" />Items</NuxtLink>
+              <div class="border-t border-gray-100" />
+              <NuxtLink to="/bookables?tab=activities" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="bookingsHover = false"><i class="pi pi-flag text-gray-400 text-xs" />Activities</NuxtLink>
+            </div>
+          </div>
+        </div>
+
         <!-- Groups: icon + flyout (Groups, Classes, saved views, manage) -->
         <div v-else-if="item.groups" class="relative" @mouseenter="onGroupsEnter" @mouseleave="onGroupsLeave">
           <NuxtLink :to="item.href"
@@ -559,6 +580,16 @@ function onGroupsEnter() {
 function onGroupsLeave() {
   groupsLeaveTimer = setTimeout(() => { groupsHover.value = false }, 180)
 }
+// Bookings flyout (Bookings / Venues / Persons / Items)
+const bookingsHover = ref(false)
+let bookingsLeaveTimer: any = null
+function onBookingsEnter() {
+  if (bookingsLeaveTimer) { clearTimeout(bookingsLeaveTimer); bookingsLeaveTimer = null }
+  bookingsHover.value = true
+}
+function onBookingsLeave() {
+  bookingsLeaveTimer = setTimeout(() => { bookingsHover.value = false }, 180)
+}
 const groupViews = ref<{ id: string; name: string }[]>([])
 const gvComposable = useGroupViews()
 async function loadGroupViews() {
@@ -599,7 +630,7 @@ const clubMenu = [
   { label: 'Fees',        icon: 'pi-dollar',        href: '/finances',                chevron: true, module: 'finances' },
   { label: 'Memberships', icon: 'pi-id-card',       href: '/memberships',             chevron: true, module: 'finances' },
   { label: 'Events',      icon: 'pi-calendar',      href: '/events',                  chevron: true, events: true, module: 'events' },
-  { label: 'Bookings',    icon: 'pi-bookmark',      href: '/bookables?tab=bookings',  chevron: true, module: 'bookings' },
+  { label: 'Bookings',    icon: 'pi-bookmark',      href: '/bookables?tab=bookings',  chevron: true, bookings: true, module: 'bookings' },
   { label: 'Attendance',  icon: 'pi-check-square',  href: '/attendance',              chevron: true, module: 'attendance' },
   { label: 'Mailer',      icon: 'pi-envelope',      href: '/settings/communications', chevron: true, module: 'communications' },
   { label: 'Resources',   icon: 'pi-video',         href: '/resources',               chevron: false, module: 'resources' },

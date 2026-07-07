@@ -2,7 +2,7 @@
   <div class="space-y-4">
     <!-- Tabs + new button -->
     <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-      <div class="flex gap-0 border-b border-gray-200 flex-1 overflow-x-auto no-scrollbar">
+      <div v-if="!fixedTab" class="flex gap-0 border-b border-gray-200 flex-1 overflow-x-auto no-scrollbar">
         <button v-for="tab in visibleTabs" :key="tab.value"
           class="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px"
           :class="activeTab === tab.value
@@ -19,7 +19,7 @@
           </span>
         </button>
       </div>
-      <div v-if="activeTab !== 'ARCHIVED'" class="flex items-center gap-2 shrink-0">
+      <div v-if="activeTab !== 'ARCHIVED'" class="flex items-center gap-2 shrink-0" :class="fixedTab ? 'ml-auto' : ''">
         <Button v-if="activeTab === 'VENUE'" label="Set up a sport" icon="pi pi-bolt" size="small"
           severity="secondary" outlined @click="setupWizardOpen = true" />
         <Button v-if="activeTab === 'ITEM'" label="Set up an item" icon="pi pi-bolt" size="small"
@@ -513,7 +513,8 @@ const bookables = ref<any[]>([])
 const loading = ref(true)
 const search = ref('')
 const statusFilter = ref('')
-const activeTab = ref<'VENUE' | 'PERSON' | 'ITEM' | 'ARCHIVED'>('VENUE')
+const props = defineProps<{ fixedTab?: 'VENUE' | 'PERSON' | 'ITEM' }>()
+const activeTab = ref<'VENUE' | 'PERSON' | 'ITEM' | 'ARCHIVED'>(props.fixedTab ?? 'VENUE')
 const setupWizardOpen = ref(false)
 const itemWizardOpen = ref(false)
 const coachWizardOpen = ref(false)

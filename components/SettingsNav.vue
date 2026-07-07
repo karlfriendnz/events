@@ -8,8 +8,6 @@ const route = useRoute()
 const tabs = [
   { label: 'General', icon: 'pi-cog', to: '/settings', tab: 'general' },
   { label: 'Club setup', icon: 'pi-sliders-v', to: '/settings/modules' },
-  { label: 'Bookings', icon: 'pi-calendar', to: '/settings', tab: 'bookings' },
-  { label: 'Events', icon: 'pi-megaphone', to: '/settings', tab: 'events' },
   { label: 'Forms', icon: 'pi-file-edit', to: '/forms' },
   { label: 'Locations', icon: 'pi-map-marker', to: '/settings/locations' },
   { label: 'Types & fields', icon: 'pi-id-card', to: '/settings/fields' },
@@ -18,6 +16,10 @@ const tabs = [
   { label: 'Dashboard defaults', icon: 'pi-sliders-h', to: '/settings/dashboard-defaults' },
   { label: 'Xero', icon: 'pi-link', to: '/settings/xero' },
   { label: 'Advanced', icon: 'pi-wrench', to: '/settings', tab: 'advanced' },
+  // Module-specific settings live below the divider
+  { divider: true },
+  { label: 'Events', icon: 'pi-megaphone', to: '/settings', tab: 'events' },
+  { label: 'Bookings', icon: 'pi-calendar', to: '/settings', tab: 'bookings' },
 ]
 function linkTo(t: any) {
   return t.tab ? { path: t.to, query: t.tab === 'general' ? {} : { tab: t.tab } } : t.to
@@ -31,10 +33,13 @@ function active(t: any) {
 <template>
   <!-- Horizontal scroll strip on mobile, vertical menu on md+ -->
   <nav class="flex md:flex-col gap-1 md:gap-0.5 md:w-48 md:shrink-0 overflow-x-auto md:overflow-visible pb-2 md:pb-0 -mx-1 px-1 md:mx-0 md:px-0">
-    <NuxtLink v-for="t in tabs" :key="t.label" :to="linkTo(t)"
-      class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0"
-      :class="active(t) ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'">
-      <i :class="['pi', t.icon, 'text-xs w-4 text-center']" />{{ t.label }}
-    </NuxtLink>
+    <template v-for="(t, i) in tabs" :key="t.label ?? `div-${i}`">
+      <div v-if="t.divider" class="hidden md:block border-t border-gray-200 my-2" />
+      <NuxtLink v-else :to="linkTo(t)"
+        class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0"
+        :class="active(t) ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'">
+        <i :class="['pi', t.icon, 'text-xs w-4 text-center']" />{{ t.label }}
+      </NuxtLink>
+    </template>
   </nav>
 </template>
