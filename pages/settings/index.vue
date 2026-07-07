@@ -81,11 +81,6 @@
                 </div>
                 <p class="text-xs text-surface-400">Your club's brand colours — used on branded surfaces like the invitation email header.</p>
               </div>
-              <div class="flex flex-col gap-1.5">
-                <label class="text-sm font-medium">Organisation level</label>
-                <p class="text-xs text-surface-500 -mt-0.5">Where this organisation sits in the hierarchy.</p>
-                <Select v-model="org.org_level" :options="orgLevelOptions" option-label="label" option-value="value" class="w-full" />
-              </div>
               <!-- Governing bodies set their parent directly here. Clubs set it via the
                    Sports card below (each sport → its NSO), so nothing shows here for them. -->
               <div v-if="isGoverningBody(org.org_level)" class="flex flex-col gap-1.5">
@@ -108,22 +103,6 @@
                 <label class="text-sm font-medium">Default sport name</label>
                 <p class="text-xs text-surface-500 -mt-0.5">The sport this body governs. Member clubs see this as the default name when they connect — they can rename it locally.</p>
                 <InputText v-model="org.default_sport_name" placeholder="e.g. Cricket" />
-              </div>
-              <div class="flex flex-col gap-1.5">
-                <label class="text-sm font-medium">Club type</label>
-                <p class="text-xs text-surface-500 -mt-0.5">
-                  <template v-if="org.org_level === 'CLUB'">Categorise this club. Types inherited from your governing bodies are shown locked.</template>
-                  <template v-else>Imparted to every club connected beneath this {{ orgLevelLabel(org.org_level).toLowerCase() }} (e.g. a cricket NSO → "Team Based").</template>
-                </p>
-                <div v-if="inheritedClubTypes.length" class="flex flex-wrap gap-1.5 mb-1">
-                  <span v-for="t in inheritedClubTypes" :key="t.id" v-tooltip.top="'From ' + t.from"
-                    class="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5">
-                    <i class="pi pi-lock text-[9px]" />{{ t.name }}
-                  </span>
-                </div>
-                <MultiSelect v-model="org.club_type_ids" :options="clubTypes" option-label="name" option-value="id"
-                  filter :placeholder="org.org_level === 'CLUB' ? 'Add club type(s)' : 'Select club type(s) to impart'"
-                  class="w-full" :max-selected-labels="4" :empty-message="'No club types yet — add them in /admin'" />
               </div>
               <div class="grid grid-cols-2 gap-3">
                 <div class="flex flex-col gap-1.5">

@@ -17,7 +17,7 @@ const isSuper = computed(() => ((user.value as any)?.app_metadata?.role) === 'su
 
 interface OrgRow {
   id: string; name: string; org_level: string; parent_id: string | null; logo_url: string | null
-  brand_id: string | null
+  brand_id: string | null; club_type_ids: string[] | null
   members: number; events: number; depth: number
 }
 
@@ -86,13 +86,15 @@ const totals = computed(() => ({
 
 async function load() {
   loading.value = true
-  const [{ data: orgData }, { data: personRows }, { data: eventRows }, { data: brandRows }] = await Promise.all([
-    (db.from as any)('organisations').select('id, name, org_level, parent_id, logo_url, brand_id').order('name'),
+  const [{ data: orgData }, { data: personRows }, { data: eventRows }, { data: brandRows }, { data: clubTypeRows }] = await Promise.all([
+    (db.from as any)('organisations').select('id, name, org_level, parent_id, logo_url, brand_id, club_type_ids').order('name'),
     (db.from as any)('persons').select('org_id'),
     (db.from as any)('events').select('org_id'),
     (db.from as any)('brands').select('id, name, logo_url, color').order('sort_order').order('name'),
+    (db.from as any)('club_types').select('id, name').order('name'),
   ])
   brands.value = brandRows ?? []
+  clubTypes.value = clubTypeRows ?? []
   const memberBy: Record<string, number> = {}
   for (const p of personRows ?? []) memberBy[p.org_id] = (memberBy[p.org_id] ?? 0) + 1
   const eventBy: Record<string, number> = {}
@@ -112,6 +114,23 @@ function openOrg(id: string) {
 }
 
 // ── Assign a club to a brand inline from the table ──
+const clubTypes = ref<{ id: string; name: string }[]>([])
+const savingLevel = ref<string | null>(null)
+const savingType = ref<string | null>(null)
+const orgLevelSelectOptions = (ORG_TYPE_OPTIONS as readonly string[]).map(v => ({ value: v, label: orgLevelLabel(v) }))
+async function setOrgLevel(row: OrgRow, level: string) {
+  if (row.org_level === level) return
+  savingLevel.value = row.id
+  await (db.from as any)('organisations').update({ org_level: level, type: level === 'CLUB' ? 'CLUB' : level === 'RST' ? 'RST' : 'NSO' }).eq('id', row.id)
+  savingLevel.value = null
+  const o = orgs.value.find(x => x.id === row.id); if (o) o.org_level = level
+}
+async function setClubTypes(row: OrgRow, ids: string[]) {
+  savingType.value = row.id
+  await (db.from as any)('organisations').update({ club_type_ids: ids?.length ? ids : null }).eq('id', row.id)
+  savingType.value = null
+  const o = orgs.value.find(x => x.id === row.id); if (o) o.club_type_ids = ids
+}
 const savingBrand = ref<string | null>(null)
 async function setBrand(row: OrgRow, brandId: string | null) {
   if (row.brand_id === brandId) return
@@ -235,9 +254,20 @@ onMounted(() => {
             </span>
           </template>
         </Column>
-        <Column header="Level">
+        <Column header="Level" headerStyle="width:11rem">
           <template #body="{ data }">
-            <span class="px-2 py-0.5 rounded text-[11px] bg-surface-100 text-surface-700">{{ orgLevelLabel(data.org_level) }}</span>
+            <Select :modelValue="data.org_level" :options="orgLevelSelectOptions" option-label="label" option-value="value"
+              size="small" class="w-36" :loading="savingLevel === data.id" :disabled="savingLevel === data.id"
+              @update:modelValue="v => setOrgLevel(data, v)" />
+          </template>
+        </Column>
+        <Column header="Club type" headerStyle="width:15rem">
+          <template #body="{ data }">
+            <MultiSelect v-if="data.org_level === 'CLUB'" :modelValue="data.club_type_ids || []" :options="clubTypes"
+              option-label="name" option-value="id" filter placeholder="Add type(s)" size="small" class="w-52"
+              :maxSelectedLabels="2" :loading="savingType === data.id"
+              @update:modelValue="v => setClubTypes(data, v)" />
+            <span v-else class="text-gray-300 text-xs">—</span>
           </template>
         </Column>
         <Column header="Brand" headerStyle="width:14rem">
