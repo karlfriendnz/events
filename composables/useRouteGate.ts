@@ -57,6 +57,8 @@ export const ROUTE_RESOURCES: RouteResource[] = [
   { prefix: '/forms', resource: 'custom_fields' }, // registration form library
   // Admin
   { prefix: '/settings/locations', resource: 'locations' },
+  { prefix: '/settings/integrations', resource: 'integrations' },
+  { prefix: '/settings/xero', resource: 'integrations' },
   { prefix: '/settings', resource: 'settings' },
 ]
 

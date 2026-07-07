@@ -17,6 +17,7 @@ const { ensureTerms, t } = useTerms()
 void ensureTerms()
 
 const loading = ref(true)
+const orgLevel = ref<string | null>(null)
 const locations = ref<ClubLocation[]>([])
 const staff = ref<LocationStaff[]>([])
 const sports = ref<{ id: string; label: string }[]>([])
@@ -49,12 +50,14 @@ const PALETTE = ['#3B82F6', '#8B5CF6', '#EC4899', '#10B981', '#F59E0B', '#06B6D4
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [locs, ls, { data: groups }, { data: sp }] = await Promise.all([
+  const [locs, ls, { data: groups }, { data: sp }, { data: orgRow }] = await Promise.all([
     loc.loadLocations(),
     loc.loadLocationStaff(),
     (db.from as any)('member_groups').select('id, location_id').eq('org_id', orgId.value).not('location_id', 'is', null),
     (db.from as any)('org_sports').select('id, sport, display_name').eq('org_id', orgId.value).order('sort_order'),
+    (db.from as any)('organisations').select('org_level').eq('id', orgId.value).maybeSingle(),
   ])
+  orgLevel.value = orgRow?.org_level ?? null
   sports.value = (sp ?? []).map((x: any) => ({ id: x.id, label: x.display_name || x.sport }))
   const defs = await cr.ensureDefaults()
   roleDefs.value = defs.filter((d: any) => !d.code_lineage_id).map((d: any) => ({ key: d.key, label: d.label }))
@@ -155,18 +158,30 @@ watch(orgId, v => { if (v) load() })
     <div class="flex flex-col md:flex-row gap-4 md:gap-6 flex-1 min-h-0">
       <SettingsNav />
       <div class="flex-1 min-w-0 space-y-5">
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Locations</h1>
-            <p class="text-sm text-gray-500">The sites your club runs at. <strong>{{ cap(t('group', false, true)) }} staff get access to their site automatically</strong> — assigning a coach to a {{ t('group', false, true) }} is enough. Add people here only for access <em>beyond</em> their {{ t('group', true, true) }}: location managers, admin staff, or someone covering a whole sport. Roles are managed in <NuxtLink to="/groups/codes/default-roles" class="text-primary hover:underline">Default roles</NuxtLink>.</p>
-          </div>
-          <Button label="Add location" icon="pi pi-plus" size="small" class="shrink-0"
-            style="background:#1E2157;border-color:#1E2157" @click="addLocation" />
+        <div>
+          <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Sports &amp; locations</h1>
+          <p class="text-sm text-gray-500">Your sports, who you're affiliated to, and the sites you run at.</p>
         </div>
 
         <div v-if="loading" class="text-sm text-gray-400">Loading…</div>
 
         <template v-else>
+          <!-- Sports & affiliation (clubs) — governing-body links per sport -->
+          <section v-if="orgLevel === 'CLUB'" class="space-y-2">
+            <h2 class="text-sm font-bold uppercase tracking-wide text-gray-400">Sports &amp; affiliation</h2>
+            <OrgSportsEditor />
+          </section>
+
+          <!-- Locations -->
+          <section class="space-y-4">
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <h2 class="text-sm font-bold uppercase tracking-wide text-gray-400">Locations</h2>
+                <p class="text-xs text-gray-400 mt-0.5 max-w-2xl">The sites you run at. {{ cap(t('group', false, true)) }} staff get site access automatically — add people here only for access <em>beyond</em> their {{ t('group', true, true) }} (location managers, admin, whole-sport cover).</p>
+              </div>
+              <Button label="Add location" icon="pi pi-plus" size="small" class="shrink-0"
+                style="background:#1E2157;border-color:#1E2157" @click="addLocation" />
+            </div>
           <div v-if="locations.length > 1" class="card p-0 overflow-hidden">
             <div class="px-4 sm:px-5 py-3 border-b border-gray-100">
               <h3 class="text-sm font-semibold text-gray-800">Club-wide access <span class="text-xs font-normal text-gray-400">— every location</span></h3>
@@ -321,6 +336,7 @@ watch(orgId, v => { if (v) load() })
           </div>
 
           <p v-if="!locations.length" class="text-sm text-gray-400">No locations yet — single-site clubs don't need any.</p>
+          </section>
         </template>
       </div>
     </div>

@@ -59,6 +59,7 @@ const AUTHED_ROUTES = [
   '/settings/dashboard-defaults',
   '/settings/calendars',
   '/settings/xero',
+  '/settings/integrations',
 ]
 
 const PUBLIC_ROUTES = ['/login', '/book']

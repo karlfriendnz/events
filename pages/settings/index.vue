@@ -141,8 +141,6 @@
             </div>
           </div>
 
-          <!-- Sports + per-sport NSO connection (clubs only) -->
-          <OrgSportsEditor v-if="org.org_level === 'CLUB'" />
         </TabPanel>
 
         <!-- ── BOOKINGS ── -->
