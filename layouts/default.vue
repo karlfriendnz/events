@@ -36,6 +36,22 @@
           </div>
         </div>
 
+        <!-- Fees: icon + flyout (Finances, Group Fees) -->
+        <div v-else-if="item.fees" class="relative" @mouseenter="onFeesEnter" @mouseleave="onFeesLeave">
+          <NuxtLink :to="item.href"
+            class="flex items-center justify-center w-10 h-10 rounded-xl transition-colors"
+            :class="isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white'">
+            <i :class="['pi', item.icon, 'text-lg']" />
+          </NuxtLink>
+          <div v-show="feesHover" class="absolute left-full top-0 z-[70]" style="padding-left:10px"
+            @mouseenter="onFeesEnter" @mouseleave="onFeesLeave">
+            <div class="w-52 bg-white rounded-xl shadow-xl border border-gray-200 py-1 overflow-hidden">
+              <NuxtLink to="/finances" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="feesHover = false"><i class="pi pi-dollar text-gray-400 text-xs" />Finances</NuxtLink>
+              <NuxtLink to="/groups/fees" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="feesHover = false"><i class="pi pi-sitemap text-gray-400 text-xs" />Group fees</NuxtLink>
+            </div>
+          </div>
+        </div>
+
         <!-- Bookings: icon + flyout (Bookings, Venues, Persons, Items) -->
         <div v-else-if="item.bookings" class="relative" @mouseenter="onBookingsEnter" @mouseleave="onBookingsLeave">
           <NuxtLink :to="item.href"
@@ -76,7 +92,6 @@
               <NuxtLink to="/groups/reports" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-chart-bar text-gray-400 text-xs" />Reports</NuxtLink>
               <NuxtLink to="/groups/retention" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-chart-line text-gray-400 text-xs" />Retention report</NuxtLink>
               <NuxtLink to="/groups/views" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-th-large text-gray-400 text-xs" />Manage views</NuxtLink>
-              <NuxtLink to="/groups/fees" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-dollar text-gray-400 text-xs" />Fees</NuxtLink>
               <NuxtLink to="/groups/allocator" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-arrows-h text-gray-400 text-xs" />Allocate</NuxtLink>
               <NuxtLink to="/groups/waitlists" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-hourglass text-gray-400 text-xs" />Waitlists</NuxtLink>
               <NuxtLink to="/settings/terms" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="groupsHover = false"><i class="pi pi-clock text-gray-400 text-xs" />Terms</NuxtLink>
@@ -580,6 +595,16 @@ function onGroupsEnter() {
 function onGroupsLeave() {
   groupsLeaveTimer = setTimeout(() => { groupsHover.value = false }, 180)
 }
+// Fees flyout (Finances / Group Fees)
+const feesHover = ref(false)
+let feesLeaveTimer: any = null
+function onFeesEnter() {
+  if (feesLeaveTimer) { clearTimeout(feesLeaveTimer); feesLeaveTimer = null }
+  feesHover.value = true
+}
+function onFeesLeave() {
+  feesLeaveTimer = setTimeout(() => { feesHover.value = false }, 180)
+}
 // Bookings flyout (Bookings / Venues / Persons / Items)
 const bookingsHover = ref(false)
 let bookingsLeaveTimer: any = null
@@ -627,11 +652,12 @@ const clubMenu = [
   { label: 'Dashboard',   icon: 'pi-th-large',      href: '/dashboard',               chevron: false },
   { label: 'People',      icon: 'pi-users',         href: '/people',                  chevron: true },
   { label: 'Classes',     icon: 'pi-sitemap',       href: '/groups',                  chevron: true, groups: true, module: 'groups' },
-  { label: 'Fees',        icon: 'pi-dollar',        href: '/finances',                chevron: true, module: 'finances' },
+  { label: 'Fees',        icon: 'pi-dollar',        href: '/finances',                chevron: true, fees: true, module: 'finances' },
   { label: 'Memberships', icon: 'pi-id-card',       href: '/memberships',             chevron: true, module: 'finances' },
   { label: 'Events',      icon: 'pi-calendar',      href: '/events',                  chevron: true, events: true, module: 'events' },
   { label: 'Bookings',    icon: 'pi-bookmark',      href: '/bookables?tab=bookings',  chevron: true, bookings: true, module: 'bookings' },
   { label: 'Attendance',  icon: 'pi-check-square',  href: '/attendance',              chevron: true, module: 'attendance' },
+  { label: 'Reports',     icon: 'pi-chart-bar',     href: '/reports',                 chevron: false },
   { label: 'Mailer',      icon: 'pi-envelope',      href: '/settings/communications', chevron: true, module: 'communications' },
   { label: 'Resources',   icon: 'pi-video',         href: '/resources',               chevron: false, module: 'resources' },
   { label: 'Assets',      icon: 'pi-shopping-cart', href: '/assets',                  chevron: true, module: 'assets' },
@@ -693,6 +719,7 @@ const pageTitles: Record<string, string> = {
   '/events': 'Events',
   '/bookables': 'Bookables',
   '/finances': 'Finances',
+  '/reports': 'Reports',
   '/registration': 'Registration',
   '/attendance': 'Attendance',
   '/groups': 'Groups',

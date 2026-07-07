@@ -43,6 +43,7 @@ const AUTHED_ROUTES = [
   '/bookables',
   '/bookings/new',
   '/attendance',
+  '/reports',
   '/finances',
   '/reporting',
   '/forms',
