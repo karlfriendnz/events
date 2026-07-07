@@ -284,7 +284,6 @@ watch(orgId, v => { if (v) load() })
                    each set is an independent sequence — rollover never crosses sets. -->
               <div v-for="sec in termSections" :key="sec.key" class="space-y-2">
                 <div v-if="sets.length || sec.set" class="flex items-center gap-2">
-                  <span class="w-2.5 h-2.5 rounded-full shrink-0" :class="sec.set ? 'bg-primary/60' : 'bg-gray-300'" />
                   <template v-if="sec.set">
                     <input v-model="sec.set.name" @change="onRenameSet(sec.set)"
                       class="text-base font-semibold text-gray-900 bg-transparent border border-transparent hover:border-gray-200 focus:border-[#1E2157] focus:bg-white focus:ring-1 focus:ring-[#1E2157] rounded-md px-1.5 -mx-1.5 py-0.5 outline-none transition-colors" />
@@ -301,25 +300,25 @@ watch(orgId, v => { if (v) load() })
                 </div>
                 <div v-for="t in sec.list" :key="t.id ?? t.sort_order + t.name"
                   class="grid grid-cols-1 lg:grid-cols-[1fr_170px_170px_170px_170px_40px] gap-2 lg:items-center rounded-lg border border-gray-100 lg:border-0 p-3 lg:p-0">
-                  <div>
-                    <label class="lg:hidden block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Name</label>
-                    <InputText v-model="t.name" placeholder="Term 1 2026" class="w-full" />
+                  <div class="flex items-center gap-3">
+                    <label class="lg:hidden w-28 shrink-0 text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</label>
+                    <InputText v-model="t.name" placeholder="Term 1 2026" class="w-full flex-1 min-w-0" />
                   </div>
-                  <div>
-                    <label class="lg:hidden block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Starts</label>
-                    <DatePicker v-model="t.start_date" dateFormat="d M yy" showIcon class="w-full" placeholder="Start" />
+                  <div class="flex items-center gap-3">
+                    <label class="lg:hidden w-28 shrink-0 text-xs font-semibold text-gray-500 uppercase tracking-wide">Starts</label>
+                    <DatePicker v-model="t.start_date" dateFormat="d M yy" showIcon class="w-full flex-1 min-w-0" placeholder="Start" />
                   </div>
-                  <div>
-                    <label class="lg:hidden block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Ends</label>
-                    <DatePicker v-model="t.end_date" dateFormat="d M yy" showIcon class="w-full" placeholder="End" />
+                  <div class="flex items-center gap-3">
+                    <label class="lg:hidden w-28 shrink-0 text-xs font-semibold text-gray-500 uppercase tracking-wide">Ends</label>
+                    <DatePicker v-model="t.end_date" dateFormat="d M yy" showIcon class="w-full flex-1 min-w-0" placeholder="End" />
                   </div>
-                  <div>
-                    <label class="lg:hidden block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Sign-up opens</label>
-                    <DatePicker v-model="t.signup_open" dateFormat="d M yy" showIcon class="w-full" placeholder="Right away" />
+                  <div class="flex items-center gap-3">
+                    <label class="lg:hidden w-28 shrink-0 text-xs font-semibold text-gray-500 uppercase tracking-wide">Sign-up opens</label>
+                    <DatePicker v-model="t.signup_open" dateFormat="d M yy" showIcon class="w-full flex-1 min-w-0" placeholder="Right away" />
                   </div>
-                  <div>
-                    <label class="lg:hidden block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Sign-up closes</label>
-                    <DatePicker v-model="t.signup_close" dateFormat="d M yy" showIcon class="w-full" placeholder="Term end" />
+                  <div class="flex items-center gap-3">
+                    <label class="lg:hidden w-28 shrink-0 text-xs font-semibold text-gray-500 uppercase tracking-wide">Sign-up closes</label>
+                    <DatePicker v-model="t.signup_close" dateFormat="d M yy" showIcon class="w-full flex-1 min-w-0" placeholder="Term end" />
                   </div>
                   <button class="text-gray-400 hover:text-red-500 justify-self-end lg:justify-self-center" @click="removeTerm(t)">
                     <i class="pi pi-trash" />
