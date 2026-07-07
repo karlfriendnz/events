@@ -26,7 +26,6 @@
                   <span :class="cal.name ? '' : 'italic text-gray-400'">{{ cal.name || 'Untitled calendar' }}</span>
                 </NuxtLink></div></template>
               <div class="border-t border-gray-100" />
-              <NuxtLink to="/events/reporting" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-chart-bar text-gray-400 text-xs" />Reporting</NuxtLink>
               <NuxtLink to="/bookables" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-building text-gray-400 text-xs" /><span class="flex-1">Venues &amp; Bookings</span><span v-if="pendingBookingsCount > 0" class="text-[10px] font-bold bg-amber-500 text-white px-1.5 rounded-full">{{ pendingBookingsCount }}</span></NuxtLink>
               <NuxtLink to="/registration" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-clipboard text-gray-400 text-xs" />Registration</NuxtLink>
               <NuxtLink to="/forms" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-file-edit text-gray-400 text-xs" />Forms</NuxtLink>
