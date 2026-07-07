@@ -827,25 +827,23 @@
 
       </div>
 
-      <!-- MEMBERSHIP SETTINGS (membership mode, migs 241+242) -->
-      <div v-show="activeTab === 'msettings'" class="space-y-3">
-        <div class="card overflow-hidden max-w-3xl">
+      <!-- MEMBERSHIP SETTINGS (membership mode, migs 241+242) — centered module cards -->
+      <div v-show="activeTab === 'msettings'" class="max-w-3xl mx-auto space-y-4 sm:space-y-5">
+        <div class="flex items-center justify-end h-4 -mb-2">
+          <span v-if="msSaving" class="text-xs text-gray-400">Saving…</span>
+          <span v-else-if="msSaved" class="text-xs text-emerald-600">Saved ✓</span>
+        </div>
+        <div class="card overflow-hidden">
           <div class="border-b border-gray-100 py-3 px-5 flex items-center justify-between text-sm font-semibold text-gray-800">
-            <span class="flex items-center gap-2 text-sm"><span class="w-6 h-6 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"><i class="pi pi-cog text-gray-400 text-[12px]" /></span>Membership settings</span>
-            <span v-if="msSaving" class="text-xs text-gray-400">Saving…</span>
-            <span v-else-if="msSaved" class="text-xs text-emerald-600">Saved ✓</span>
+            <span class="flex items-center gap-2 text-sm"><span class="w-6 h-6 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"><i class="pi pi-refresh text-gray-400 text-[12px]" /></span>Renewal</span>
           </div>
-          <div class="p-4 sm:p-6 space-y-7 text-sm">
-
-            <!-- Renewal by member -->
+          <div class="p-4 sm:p-6 space-y-5 text-sm">
             <section class="space-y-2.5">
               <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Renewal by {{ t('member', false, true) }}</p>
               <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.member_renewable" binary /> <span>{{ t('member', true) }} can renew this membership themselves when it expires</span></label>
               <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.expiry_reminder" binary /> <span>Email a reminder before the membership expires</span></label>
             </section>
-
-            <!-- Change windows -->
-            <section class="space-y-2.5">
+            <section class="space-y-2.5 pt-4 border-t border-gray-100">
               <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Can be changed or renewed this far out before it expires</p>
               <div class="flex flex-wrap items-center gap-4">
                 <InputNumber v-model="msSettings.renewal.change_before.count" :min="0" inputClass="w-16 text-center" />
@@ -857,9 +855,7 @@
                 <label v-for="u in RENEWAL_UNITS" :key="u.key" class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.change_after.unit" :value="u.key" /> {{ u.label }}</label>
               </div>
             </section>
-
-            <!-- Invoice due -->
-            <section class="space-y-2.5">
+            <section class="space-y-2.5 pt-4 border-t border-gray-100">
               <p class="text-xs font-bold uppercase tracking-wide text-gray-400">{{ t('invoice', true) }} due date</p>
               <label class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.invoice_due" value="default" /> Default</label>
               <div class="flex items-center gap-3">
@@ -869,38 +865,48 @@
                 </template>
               </div>
             </section>
-
-            <!-- Auto renewal -->
-            <section class="space-y-2.5">
-              <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Auto renewal</p>
-              <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.auto.enabled" binary /> <span>This membership is auto renewable</span></label>
-              <template v-if="msSettings.renewal.auto.enabled">
+          </div>
+        </div>
+        <div class="card overflow-hidden">
+          <div class="border-b border-gray-100 py-3 px-5 flex items-center justify-between text-sm font-semibold text-gray-800">
+            <span class="flex items-center gap-2 text-sm"><span class="w-6 h-6 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"><i class="pi pi-sync text-gray-400 text-[12px]" /></span>Auto renewal</span>
+          </div>
+          <div class="p-4 sm:p-6 space-y-5 text-sm">
+            <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.auto.enabled" binary /> <span>This membership is auto renewable</span></label>
+            <template v-if="msSettings.renewal.auto.enabled">
+              <section class="space-y-2.5">
                 <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.auto.reminders" binary /> <span>Send reminders when it's about to auto renew or has renewed</span></label>
                 <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.auto.default_on" binary /> <span>Turn auto renewal on by default for new members</span></label>
                 <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.auto.opt_in" binary /> <span>{{ t('member', true) }} can opt in to auto renewal</span></label>
                 <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.auto.opt_out" binary /> <span>{{ t('member', true) }} can opt out of auto renewal</span></label>
                 <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.auto.require_card" binary /> <span>Require a stored card for auto renewal</span></label>
-                <div class="flex items-center gap-2 pt-1">
-                  <span class="text-xs font-bold uppercase tracking-wide text-gray-400">Auto renewal timing</span>
-                </div>
+              </section>
+              <section class="space-y-2.5 pt-4 border-t border-gray-100">
+                <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Auto renewal timing</p>
                 <div class="flex items-center gap-2"><InputNumber v-model="msSettings.renewal.auto.days_before" :min="0" inputClass="w-16 text-center" /> <span class="text-gray-500">days before expiry</span></div>
-                <p class="text-xs font-bold uppercase tracking-wide text-gray-400 pt-1">Auto renewal payment strategy</p>
-                <div class="space-y-2">
-                  <label class="flex items-start gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.auto.strategy" value="renew_if_paid" class="mt-0.5" /> <span>Attempt payment and only renew if it succeeds<span class="block text-xs text-gray-400">Payment will be attempted multiple times</span></span></label>
-                  <label class="flex items-start gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.auto.strategy" value="renew_always" class="mt-0.5" /> <span>Attempt payment and renew even if it fails<span class="block text-xs text-gray-400">Payment will only be attempted once</span></span></label>
-                  <label class="flex items-start gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.auto.strategy" value="invoice_only" class="mt-0.5" /> <span>Renew and send an {{ t('invoice', false, true) }}, but don't collect payment<span class="block text-xs text-gray-400">The {{ t('invoice', false, true) }} is sent before expiry; no automatic collection</span></span></label>
-                </div>
-              </template>
-            </section>
-
-            <!-- Anchoring -->
-            <section class="space-y-2.5">
-              <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Anchoring</p>
-              <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.anchoring.enabled" binary /> <span>Anchor this membership to a fixed date each year</span></label>
-              <template v-if="msSettings.renewal.anchoring.enabled">
+              </section>
+              <section class="space-y-2.5 pt-4 border-t border-gray-100">
+                <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Auto renewal payment strategy</p>
+                <label class="flex items-start gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.auto.strategy" value="renew_if_paid" class="mt-0.5" /> <span>Attempt payment and only renew if it succeeds<span class="block text-xs text-gray-400">Payment will be attempted multiple times</span></span></label>
+                <label class="flex items-start gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.auto.strategy" value="renew_always" class="mt-0.5" /> <span>Attempt payment and renew even if it fails<span class="block text-xs text-gray-400">Payment will only be attempted once</span></span></label>
+                <label class="flex items-start gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.auto.strategy" value="invoice_only" class="mt-0.5" /> <span>Renew and send an {{ t('invoice', false, true) }}, but don't collect payment<span class="block text-xs text-gray-400">The {{ t('invoice', false, true) }} is sent before expiry; no automatic collection</span></span></label>
+              </section>
+            </template>
+          </div>
+        </div>
+        <div class="card overflow-hidden">
+          <div class="border-b border-gray-100 py-3 px-5 flex items-center justify-between text-sm font-semibold text-gray-800">
+            <span class="flex items-center gap-2 text-sm"><span class="w-6 h-6 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"><i class="pi pi-calendar text-gray-400 text-[12px]" /></span>Anchoring</span>
+          </div>
+          <div class="p-4 sm:p-6 space-y-5 text-sm">
+            <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.anchoring.enabled" binary /> <span>Anchor this membership to a fixed date each year</span></label>
+            <template v-if="msSettings.renewal.anchoring.enabled">
+              <section class="space-y-2.5">
                 <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.anchoring.prorate" binary /> <span>Pro-rate charges when {{ t('member', true, true) }} sign up part way through</span></label>
                 <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.renewal.anchoring.auto_next_term" binary /> <span>Automatically issue the next period's membership when someone signs up close to the end</span></label>
-                <p class="text-xs font-bold uppercase tracking-wide text-gray-400 pt-1">Anchor date</p>
+              </section>
+              <section class="space-y-2.5 pt-4 border-t border-gray-100">
+                <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Anchor date</p>
                 <div class="flex items-center gap-2">
                   <Select v-model="msSettings.renewal.anchoring.anchor_day" :options="ANCHOR_DAY_OPTIONS" optionLabel="label" optionValue="value" size="small" class="w-20" />
                   <Select v-model="msSettings.renewal.anchoring.anchor_month" :options="MONTH_OPTIONS" optionLabel="label" optionValue="value" size="small" class="w-40" />
@@ -910,10 +916,15 @@
                   <InputNumber v-model="msSettings.renewal.anchoring.threshold.count" :min="0" inputClass="w-16 text-center" />
                   <label v-for="u in RENEWAL_UNITS" :key="u.key" class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.renewal.anchoring.threshold.unit" :value="u.key" /> {{ u.label }}</label>
                 </div>
-              </template>
-            </section>
-
-            <!-- Who can buy it -->
+              </section>
+            </template>
+          </div>
+        </div>
+        <div class="card overflow-hidden">
+          <div class="border-b border-gray-100 py-3 px-5 flex items-center justify-between text-sm font-semibold text-gray-800">
+            <span class="flex items-center gap-2 text-sm"><span class="w-6 h-6 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"><i class="pi pi-users text-gray-400 text-[12px]" /></span>Who can buy it</span>
+          </div>
+          <div class="p-4 sm:p-6 space-y-5 text-sm">
             <section class="space-y-2.5">
               <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Purchasable by</p>
               <Select v-model="msSettings.purchase.purchasable_by" :options="PURCHASABLE_BY_OPTIONS" optionLabel="label" optionValue="value" class="w-full sm:w-96" />
@@ -925,9 +936,7 @@
                 <span class="flex items-center gap-2"><span class="text-xs font-bold uppercase tracking-wide text-gray-400">Maximum age</span> <InputNumber v-model="msSettings.purchase.max_age" :min="0" inputClass="w-16 text-center" /> <span class="text-gray-500">years</span></span>
               </div>
             </section>
-
-            <!-- Options -->
-            <section class="space-y-2.5">
+            <section class="space-y-2.5 pt-4 border-t border-gray-100">
               <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Options</p>
               <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.purchase.from_members_page" binary /> <span>{{ t('member', true) }} can buy it from their memberships page</span></label>
               <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.purchase.selectable_on_change" binary /> <span>{{ t('member', true) }} can pick it when changing their membership</span></label>
@@ -936,34 +945,38 @@
               <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.purchase.direct_link_only" binary /> <span>Only available via a direct link</span></label>
               <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.purchase.is_default" binary /> <span>This is the default membership for new {{ t('member', true, true) }}</span></label>
             </section>
-
-            <!-- Payment collection -->
+          </div>
+        </div>
+        <div class="card overflow-hidden">
+          <div class="border-b border-gray-100 py-3 px-5 flex items-center justify-between text-sm font-semibold text-gray-800">
+            <span class="flex items-center gap-2 text-sm"><span class="w-6 h-6 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"><i class="pi pi-credit-card text-gray-400 text-[12px]" /></span>Payment & approval</span>
+          </div>
+          <div class="p-4 sm:p-6 space-y-5 text-sm">
             <section class="space-y-2.5">
               <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Payment collection</p>
               <label class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.purchase.payment_collection" value="advance" /> Collect payment in advance during registration</label>
               <label class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.purchase.payment_collection" value="later" /> Allow payment later, after registration</label>
               <label class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.purchase.payment_collection" value="after_approval" /> Only collect payment after approval</label>
             </section>
-
-            <!-- Approval -->
-            <section class="space-y-2.5">
+            <section class="space-y-2.5 pt-4 border-t border-gray-100">
               <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Approval of new {{ t('member', true, true) }} by admin</p>
               <label class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.purchase.approval" value="none" /> Not required</label>
               <label class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.purchase.approval" value="on_payment_failure" /> Only required when payment fails</label>
               <label class="flex items-center gap-1.5 cursor-pointer"><RadioButton v-model="msSettings.purchase.approval" value="always" /> Always required</label>
             </section>
-
-            <!-- Benefits -->
-            <section class="space-y-2.5">
-              <p class="text-xs font-bold uppercase tracking-wide text-gray-400">Benefits — account credit</p>
-              <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.benefits.credit.enabled" binary /> <span>{{ t('member', true) }} receive an account credit top-up when this membership starts or renews</span></label>
-              <div v-if="msSettings.benefits.credit.enabled" class="flex items-center gap-2">
-                <span class="text-xs font-bold uppercase tracking-wide text-gray-400">Amount</span>
-                <InputNumber v-model="msSettings.benefits.credit.amount" mode="currency" currency="NZD" :min="0" inputClass="w-32" />
-              </div>
-              <p class="text-xs text-gray-400">{{ t('group', true) }} and {{ t('event', true, true) }} this membership includes are managed on the <button type="button" class="text-primary hover:underline" @click="activeTab = 'includes'">What's included</button> tab.</p>
-            </section>
-
+          </div>
+        </div>
+        <div class="card overflow-hidden">
+          <div class="border-b border-gray-100 py-3 px-5 flex items-center justify-between text-sm font-semibold text-gray-800">
+            <span class="flex items-center gap-2 text-sm"><span class="w-6 h-6 rounded-md bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0"><i class="pi pi-gift text-gray-400 text-[12px]" /></span>Benefits</span>
+          </div>
+          <div class="p-4 sm:p-6 space-y-5 text-sm">
+            <label class="flex items-center gap-2.5 cursor-pointer"><Checkbox v-model="msSettings.benefits.credit.enabled" binary /> <span>{{ t('member', true) }} receive an account credit top-up when this membership starts or renews</span></label>
+            <div v-if="msSettings.benefits.credit.enabled" class="flex items-center gap-2">
+              <span class="text-xs font-bold uppercase tracking-wide text-gray-400">Amount</span>
+              <InputNumber v-model="msSettings.benefits.credit.amount" mode="currency" currency="NZD" :min="0" inputClass="w-32" />
+            </div>
+            <p class="text-xs text-gray-400">{{ t('group', true) }} and {{ t('event', true, true) }} this membership includes are managed on the <button type="button" class="text-primary hover:underline" @click="activeTab = 'includes'">What's included</button> tab.</p>
           </div>
         </div>
       </div>
