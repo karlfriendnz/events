@@ -54,11 +54,15 @@ const ACTIVITY_DEF: WidgetDef = { key: 'activity', label: 'Activity', descriptio
 // text, background, image, buttons) for member-facing dashboards.
 const CONTENT_DEF: WidgetDef = { key: 'content', label: 'Content block', description: 'Rich text, image and buttons', x: 0, y: 99, w: 6, h: 5, minW: 3, minH: 2 }
 const STAFF_DEF: WidgetDef = { key: 'staff', label: 'Staff', description: 'Showcase people as cards', x: 0, y: 99, w: 6, h: 5, minW: 3, minH: 3 }
+const MYDETAILS_DEF: WidgetDef = { key: 'mydetails', label: 'My details', description: 'Your own profile card', x: 0, y: 99, w: 4, h: 4, minW: 3, minH: 3 }
+const BUTTONS_DEF: WidgetDef = { key: 'buttons', label: 'Buttons', description: 'One or more link buttons', x: 0, y: 99, w: 3, h: 3, minW: 2, minH: 2 }
 function isChart(key: string) { return key.startsWith('chart:') }
 function isActivity(key: string) { return key.startsWith('activity:') }
 function isContent(key: string) { return key.startsWith('content:') }
 function isStaff(key: string) { return key.startsWith('staff:') }
-function widgetDef(key: string): WidgetDef { return defById[key] ?? (isActivity(key) ? ACTIVITY_DEF : isContent(key) ? CONTENT_DEF : isStaff(key) ? STAFF_DEF : CHART_DEF) }
+function isMyDetails(key: string) { return key.startsWith('mydetails:') }
+function isButtons(key: string) { return key.startsWith('buttons:') }
+function widgetDef(key: string): WidgetDef { return defById[key] ?? (isActivity(key) ? ACTIVITY_DEF : isContent(key) ? CONTENT_DEF : isStaff(key) ? STAFF_DEF : isMyDetails(key) ? MYDETAILS_DEF : isButtons(key) ? BUTTONS_DEF : CHART_DEF) }
 // Display label for the Add-widget menu — term-aware for the registry widgets
 // (the registry keeps plain English labels; dynamic chart/activity fall through).
 function widgetLabel(key: string): string {
@@ -254,7 +258,7 @@ function reconcile(saved: any): CfgItem[] {
   const seen = new Set<string>()
   for (const it of Array.isArray(saved) ? saved : []) {
     // Keep registry widgets AND dynamic instances (chart:<id> / activity:<id>, not in the registry).
-    if (it && (valid.has(it.key) || isChart(it.key) || isActivity(it.key) || isContent(it.key) || isStaff(it.key)) && !seen.has(it.key)) {
+    if (it && (valid.has(it.key) || isChart(it.key) || isActivity(it.key) || isContent(it.key) || isStaff(it.key) || isMyDetails(it.key) || isButtons(it.key)) && !seen.has(it.key)) {
       const d = widgetDef(it.key)
       out.push({
         key: it.key, enabled: it.enabled !== false,
@@ -554,7 +558,7 @@ function cancelEdit() {
 }
 function removeWidget(key: string) {
   layout.value = layout.value.filter(l => l.i !== key)
-  if (isChart(key) || isActivity(key) || isContent(key) || isStaff(key)) {
+  if (isChart(key) || isActivity(key) || isContent(key) || isStaff(key) || isMyDetails(key) || isButtons(key)) {
     // Dynamic instances — delete entirely (don't linger as "hidden").
     config.value = config.value.filter(c => c.key !== key)
   } else {
@@ -631,6 +635,32 @@ function staffOpts(key: string) { return (config.value.find(c => c.key === key)?
 async function saveStaffOpts(key: string, v: any) {
   const c = config.value.find(x => x.key === key)
   if (c) c.opts = v
+  await persistConfig(currentConfig())
+}
+let myDetailsSeq = 0
+function addMyDetails() {
+  const id = `mydetails:${Date.now().toString(36)}${myDetailsSeq++}`
+  const d = MYDETAILS_DEF
+  config.value.push({ key: id, enabled: true, x: 0, y: 99, w: d.w, h: d.h, opts: { title: 'My details', rows: [] } })
+  const maxY = layout.value.reduce((m, l) => Math.max(m, l.y + l.h), 0)
+  layout.value.push({ i: id, x: 0, y: maxY, w: d.w, h: d.h, minW: d.minW, minH: d.minH })
+}
+function myDetailsOpts(key: string) { return (config.value.find(c => c.key === key)?.opts ?? {}) as any }
+async function saveMyDetailsOpts(key: string, v: any) {
+  const c = config.value.find(x => x.key === key); if (c) c.opts = v
+  await persistConfig(currentConfig())
+}
+let buttonsSeq = 0
+function addButtons() {
+  const id = `buttons:${Date.now().toString(36)}${buttonsSeq++}`
+  const d = BUTTONS_DEF
+  config.value.push({ key: id, enabled: true, x: 0, y: 99, w: d.w, h: d.h, opts: { title: '', layout: 'stack', buttons: [] } })
+  const maxY = layout.value.reduce((m, l) => Math.max(m, l.y + l.h), 0)
+  layout.value.push({ i: id, x: 0, y: maxY, w: d.w, h: d.h, minW: d.minW, minH: d.minH })
+}
+function buttonsOpts(key: string) { return (config.value.find(c => c.key === key)?.opts ?? {}) as any }
+async function saveButtonsOpts(key: string, v: any) {
+  const c = config.value.find(x => x.key === key); if (c) c.opts = v
   await persistConfig(currentConfig())
 }
 
@@ -764,6 +794,8 @@ watch(orgId, () => { if (orgId.value) loadOnboardingNudge() }, { immediate: true
                 <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addChart(); addMenuOpen = false"><i class="pi pi-chart-pie text-[10px]" />Chart (choose a field)</button>
                 <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addActivity(); addMenuOpen = false"><i class="pi pi-bookmark text-[10px]" />Activity (connect to an activity)</button>
                 <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addStaff(); addMenuOpen = false"><i class="pi pi-users text-[10px]" />Staff (showcase people)</button>
+                <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addMyDetails(); addMenuOpen = false"><i class="pi pi-user text-[10px]" />My details</button>
+                <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addButtons(); addMenuOpen = false"><i class="pi pi-bookmark text-[10px]" />Button(s)</button>
                 <button type="button" class="w-full flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-gray-50" @click="addContent(); addMenuOpen = false"><i class="pi pi-align-left text-[10px]" />Content block (text, image, buttons)</button>
               </div>
             </template>
@@ -952,6 +984,8 @@ watch(orgId, () => { if (orgId.value) loadOnboardingNudge() }, { immediate: true
             </div>
 
             <DashwidgetsStaff v-else-if="isStaff(item.i)" :opts="staffOpts(item.i)" :editable="editing" class="h-full" @update:opts="v => saveStaffOpts(item.i, v)" />
+            <DashwidgetsMyDetails v-else-if="isMyDetails(item.i)" :opts="myDetailsOpts(item.i)" :editable="editing" class="h-full" @update:opts="v => saveMyDetailsOpts(item.i, v)" />
+            <DashwidgetsButtons v-else-if="isButtons(item.i)" :opts="buttonsOpts(item.i)" :editable="editing" class="h-full" @update:opts="v => saveButtonsOpts(item.i, v)" />
 
             <div v-else-if="isChart(item.i)" class="card h-full flex flex-col">
               <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-2 pointer-events-auto">
