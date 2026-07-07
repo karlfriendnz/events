@@ -810,6 +810,13 @@ Any string works as a custom agent type.
 
 ```bash
 npm run build && npm test
+# Deployment smoke suite (STRICTLY READ-ONLY — dev+prod share one DB). Run after every deploy:
+#   TEST_BASE_URL=https://fm-events-five.vercel.app TEST_EMAIL=... TEST_PASSWORD=... npm run test:smoke
+# 42 checks: /login + /book public; 36 authed routes (no Nuxt 500, no uncaught page
+# errors, no failing supabase//api requests, no login bounce, non-empty <main>) +
+# structural deep-checks (dashboard header, classes/memberships boards, location pill).
+# Without creds it degrades to the public subset. NEW PAGES: add the route to
+# AUTHED_ROUTES in tests/smoke.spec.ts (same rule as the CLAUDE.md URL table).
 ```
 
 ## CLI Quick Reference

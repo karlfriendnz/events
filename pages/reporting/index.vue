@@ -226,7 +226,7 @@ async function load() {
       .select('*, category:categories(name, color)')
       .eq('org_id', orgId.value)
       .order('start_at'),
-    db.from('invitees').select('event_id, status').eq('org_id', orgId.value),
+    (db.from as any)('invitees').select('event_id, status, event:events!inner(org_id)').eq('event.org_id', orgId.value),
   ])
 
   const invitees = invData ?? []

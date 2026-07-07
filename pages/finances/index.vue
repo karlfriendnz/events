@@ -339,9 +339,9 @@ async function load() {
   ;(db.from as any)('organisations').select('currency').eq('id', orgId.value).single()
     .then(({ data }: any) => { orgCurrency.value = data?.currency || 'NZD' })
   const [{ data: fees }, { data: disc }, { data: adds }, { data: evts }] = await Promise.all([
-    db.from('fee_components').select('*, event:events(id,title)').eq('org_id', orgId.value).order('sort_order'),
+    (db.from as any)('fee_components').select('*, event:events!inner(id,title,org_id)').eq('event.org_id', orgId.value).order('sort_order'),
     db.from('discounts').select('*, event:events(id,title)').eq('org_id', orgId.value).order('created_at', { ascending: false }),
-    db.from('addons').select('*, event:events(id,title)').eq('org_id', orgId.value).order('sort_order'),
+    (db.from as any)('addons').select('*, event:events!inner(id,title,org_id)').eq('event.org_id', orgId.value).order('sort_order'),
     db.from('events').select('id,title').eq('org_id', orgId.value).neq('status', 'ARCHIVED').order('title'),
   ])
   feeComponents.value = fees ?? []
@@ -373,8 +373,7 @@ async function handleCreateDiscount() {
 
 async function handleCreateAddon() {
   creatingAddon.value = true
-  const { error } = await db.from('addons').insert({
-    org_id: orgId.value,
+  const { error } = await (db.from as any)('addons').insert({
     event_id: addonForm.value.event_id,
     name: addonForm.value.name,
     type: addonForm.value.type,
@@ -398,7 +397,7 @@ async function deleteDiscount(id: string) {
 }
 
 async function deleteAddon(id: string) {
-  await db.from('addons').delete().eq('id', id).eq('org_id', orgId.value)
+  await (db.from as any)('addons').delete().eq('id', id)
   toast.add({ severity: 'success', summary: 'Add-on deleted', life: 3000 })
   load()
 }
