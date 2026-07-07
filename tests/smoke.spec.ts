@@ -54,6 +54,7 @@ const AUTHED_ROUTES = [
   '/settings/memberships',
   '/settings/locations',
   '/settings/fields',
+  '/settings/field-catalogue',
   '/settings/core-fields',
   '/settings/terminology',
   '/settings/modules',

@@ -8,6 +8,7 @@ const route = useRoute()
 const tabs = [
   { label: 'General', icon: 'pi-cog', to: '/settings', tab: 'general' },
   { label: 'People & Entities', icon: 'pi-id-card', to: '/settings/fields' },
+  { label: 'Fields', icon: 'pi-list', to: '/settings/field-catalogue' },
   { label: 'Forms', icon: 'pi-file-edit', to: '/forms' },
   { label: 'Integrations', icon: 'pi-link', to: '/settings/integrations' },
   { label: 'Club setup', icon: 'pi-sliders-v', to: '/settings/modules' },

@@ -1,0 +1,124 @@
+<!--
+  Settings → Fields. The whole field catalogue at a glance: every field the club
+  has (own + inherited from governing bodies), as a GRID of fields × person
+  types, showing which types each field is connected to. Clicking a cell for an
+  OWN field toggles that connection (writes field_definitions.targets[]);
+  inherited (NSO) fields are read-only ticks. Fields are created contextually in
+  the profile Layout builder (People & Entities) — this page is the catalogue.
+-->
+<script setup lang="ts">
+const db = useDb()
+const { orgId } = useOrg()
+const toast = useToast()
+const { resolveFields, resolvePersonTypes, fieldAppliesTo } = useOrgFieldPolicy()
+
+const loading = ref(true)
+const fields = ref<any[]>([])
+const types = ref<any[]>([])
+const search = ref('')
+const savingKey = ref<string | null>(null)
+
+const personTypes = computed(() => types.value.filter(t => (t.kind ?? 'person') === 'person'))
+
+async function load() {
+  if (!orgId.value) return
+  loading.value = true
+  const [flds, tps] = await Promise.all([resolveFields(orgId.value), resolvePersonTypes(orgId.value)])
+  // Sort: own first, then inherited; alpha within.
+  fields.value = (flds ?? []).slice().sort((a: any, b: any) =>
+    (a.inherited === b.inherited ? 0 : a.inherited ? 1 : -1) || (a.label || '').localeCompare(b.label || ''))
+  types.value = tps ?? []
+  loading.value = false
+}
+onMounted(load)
+watch(orgId, v => { if (v) load() })
+
+const filtered = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  if (!q) return fields.value
+  return fields.value.filter(f => (f.label || '').toLowerCase().includes(q) || (f.field_type || '').toLowerCase().includes(q))
+})
+
+function applies(f: any, key: string) { return fieldAppliesTo(f, key) }
+
+// Toggle a field↔type connection (own fields only). Writes targets[].
+async function toggle(f: any, typeKey: string) {
+  if (f.inherited) return
+  const current: string[] = (Array.isArray(f.targets) && f.targets.length ? f.targets : [f.target || 'member']).map((s: string) => s.toLowerCase())
+  const k = typeKey.toLowerCase()
+  const next = current.includes(k) ? current.filter(x => x !== k) : [...current, k]
+  savingKey.value = f.id
+  await (db.from as any)('field_definitions').update({ targets: next, target: next[0] ?? null }).eq('id', f.id)
+  savingKey.value = null
+  f.targets = next; f.target = next[0] ?? f.target
+  toast.add({ severity: 'success', summary: 'Updated', life: 1200 })
+}
+
+function typeCount(f: any) { return personTypes.value.filter(t => applies(f, t.key)).length }
+</script>
+
+<template>
+  <div class="p-3 sm:p-6 min-h-full flex flex-col">
+    <div class="flex flex-col md:flex-row gap-4 md:gap-6 flex-1 min-h-0">
+      <SettingsNav />
+      <div class="flex-1 min-w-0 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+          <div>
+            <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Fields</h1>
+            <p class="text-sm text-gray-500">Every field in your club and which person types it's connected to. Tick a cell to connect an own field to a type; inherited fields are locked.</p>
+          </div>
+          <span class="relative w-full sm:w-64">
+            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+            <InputText v-model="search" placeholder="Search fields…" class="w-full !pl-8" size="small" />
+          </span>
+        </div>
+
+        <div v-if="loading" class="text-sm text-gray-400">Loading…</div>
+        <p v-else-if="!fields.length" class="card p-8 text-center text-sm text-gray-400">No fields yet — add them in the profile layout of a <NuxtLink to="/settings/fields" class="text-primary hover:underline">person type</NuxtLink>.</p>
+
+        <div v-else class="card p-0 overflow-x-auto">
+          <table class="text-sm border-collapse">
+            <thead>
+              <tr class="bg-gray-50 border-b border-gray-200">
+                <th class="sticky left-0 z-10 bg-gray-50 text-left px-4 py-2.5 font-semibold text-gray-600 min-w-[220px]">Field</th>
+                <th class="px-2 py-2.5 font-medium text-gray-500 text-center w-20">Type</th>
+                <th v-for="pt in personTypes" :key="pt.key" class="px-2 py-2.5 font-medium text-gray-500 text-center min-w-[80px]">
+                  <span class="inline-block leading-tight text-xs">{{ pt.label }}</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="f in filtered" :key="f.id" class="border-b border-gray-50 hover:bg-gray-50/50">
+                <td class="sticky left-0 z-10 bg-white px-4 py-2 align-middle">
+                  <span class="flex items-center gap-1.5">
+                    <span class="font-medium text-gray-800">{{ f.label }}</span>
+                    <i v-if="f.inherited" v-tooltip.top="'Inherited from ' + f.ownerName + ' — locked'" class="pi pi-lock text-[10px] text-gray-300" />
+                    <span class="ml-auto text-[10px] text-gray-300">{{ typeCount(f) }}</span>
+                  </span>
+                </td>
+                <td class="px-2 py-2 text-center">
+                  <span class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">{{ f.field_type }}</span>
+                </td>
+                <td v-for="pt in personTypes" :key="pt.key" class="px-2 py-2 text-center">
+                  <button type="button"
+                    class="w-5 h-5 rounded inline-flex items-center justify-center transition-colors"
+                    :class="[
+                      applies(f, pt.key) ? 'bg-emerald-500 text-white' : 'bg-gray-100 text-transparent hover:bg-gray-200',
+                      f.inherited ? 'cursor-default opacity-80' : 'cursor-pointer',
+                      savingKey === f.id ? 'opacity-50' : ''
+                    ]"
+                    :disabled="f.inherited || savingKey === f.id"
+                    :title="applies(f, pt.key) ? (f.inherited ? 'Connected (inherited, locked)' : 'Connected — click to disconnect') : 'Click to connect'"
+                    @click="toggle(f, pt.key)">
+                    <i class="pi pi-check text-[10px]" />
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <Toast />
+  </div>
+</template>
