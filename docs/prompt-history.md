@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-133 sessions · 1134 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+133 sessions · 1135 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -2687,7 +2687,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:07** — better but still messy
 
 
-## Session 2026-07-05 23:26 (190 prompts)
+## Session 2026-07-05 23:26 (191 prompts)
 
 **23:26** — ok where did we get to ?
 
@@ -3480,6 +3480,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:55** — rather then having tabs for people and entites pelase put entites below hte people list
 
 **22:03** — I should not be able to access settings page if I am not in the "all venues" location
+
+**22:09** — The permisions table doesn't nee dto be that wide
 
 
 ## Session 2026-07-05 23:33 (18 prompts)
