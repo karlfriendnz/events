@@ -650,25 +650,27 @@ watch(orgId, () => { if (orgId.value) { load(); loadRolloverNudge() } }, { immed
     <div class="relative z-[1]">
     <!-- Term-rollover nudge — step 1 of the easy-rollover flow: tell the club it's time -->
     <div v-if="rolloverNudge && !rolloverNudgeHidden"
-      class="mb-4 rounded-xl bg-amber-200 border border-amber-300 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2.5 sm:gap-3">
-      <span class="hidden sm:flex w-8 h-8 rounded-lg bg-white/60 items-center justify-center shrink-0"><i class="pi pi-history text-amber-800 text-sm" /></span>
-      <p class="text-sm text-amber-900 flex-1 min-w-0">
+      class="mb-4 rounded-lg px-4 py-3 flex items-center gap-3"
+      style="background:#EAF1FE;border-left:4px solid #3B82F6">
+      <i class="pi pi-history shrink-0" style="color:#3B82F6" />
+      <p class="text-sm flex-1 min-w-0" style="color:#2563EB">
         <b class="font-semibold">{{ rolloverNudge.currentTerm.name }}
           <template v-if="rolloverNudge.daysLeft > 0">ends in {{ rolloverNudge.daysLeft }} day{{ rolloverNudge.daysLeft === 1 ? '' : 's' }}</template>
           <template v-else-if="rolloverNudge.daysLeft === 0">ends today</template>
           <template v-else>ended {{ -rolloverNudge.daysLeft }} day{{ rolloverNudge.daysLeft === -1 ? '' : 's' }} ago</template></b>
         —
-        <template v-if="rolloverNudge.state === 'roll'">{{ rolloverNudge.remaining }} of {{ rolloverNudge.total }} {{ rolloverNudge.total === 1 ? nClassS : nClassP }} {{ rolloverNudge.remaining === 1 ? 'hasn’t' : 'haven’t' }} been rolled into <b class="font-semibold">{{ rolloverNudge.nextTerm!.name }}</b> yet.</template>
+        <template v-if="rolloverNudge.state === 'roll'">{{ rolloverNudge.remaining }} of {{ rolloverNudge.total }} {{ rolloverNudge.total === 1 ? nClassS : nClassP }} {{ rolloverNudge.remaining === 1 ? 'hasn\u2019t' : 'haven\u2019t' }} been rolled into <b class="font-semibold">{{ rolloverNudge.nextTerm!.name }}</b> yet.</template>
         <template v-else>set up your next {{ nTermS }} so your {{ rolloverNudge.total }} {{ rolloverNudge.total === 1 ? nClassS : nClassP }} can roll over.</template>
       </p>
-      <div class="flex items-center gap-2 shrink-0">
-        <NuxtLink to="/groups/term-wizard"
-          class="text-xs font-semibold text-white px-3.5 py-2 rounded-lg inline-flex items-center gap-1.5 hover:brightness-110"
-          style="background:var(--brand-primary)">
-          {{ rolloverNudge.state === 'roll' ? 'Roll over now' : `Set up the ${nTermS}` }} <i class="pi pi-arrow-right text-[9px]" />
-        </NuxtLink>
-        <button type="button" class="text-xs font-medium text-amber-800 hover:text-amber-900 px-2 py-2" @click="snoozeRolloverNudge">Remind me later</button>
-      </div>
+      <NuxtLink to="/groups/term-wizard"
+        class="shrink-0 text-xs font-semibold text-white px-3.5 py-2 rounded-lg inline-flex items-center gap-1.5 hover:brightness-110"
+        style="background:#3B82F6">
+        {{ rolloverNudge.state === 'roll' ? 'Roll over now' : `Set up the ${nTermS}` }} <i class="pi pi-arrow-right text-[9px]" />
+      </NuxtLink>
+      <button type="button" class="shrink-0 w-8 h-8 flex items-center justify-center rounded hover:bg-white/60"
+        style="color:#3B82F6" v-tooltip.left="'Remind me later'" @click="snoozeRolloverNudge">
+        <i class="pi pi-times text-sm" />
+      </button>
     </div>
     <div v-if="templateMode" class="mb-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800 flex items-center gap-2">
       <i class="pi pi-info-circle shrink-0" />You're editing the default dashboard for <b class="font-semibold">{{ templateLabel }}</b>. <span class="text-amber-700/80">Done saves it as the starting layout for everyone with that role (until they personalise their own).</span>

@@ -12,10 +12,10 @@
       </div>
 
       <!-- Frozen-term (history) banner -->
-      <div v-if="isHistory" class="mb-4 flex items-center gap-2 rounded-lg bg-amber-200 border border-amber-300 px-3 py-2.5 text-sm text-amber-900">
-        <i class="pi pi-history" />
+      <div v-if="isHistory" class="mb-4 flex items-center gap-3 rounded-lg px-4 py-3 text-sm" style="background:#EAF1FE;border-left:4px solid #3B82F6;color:#2563EB">
+        <i class="pi pi-history shrink-0" style="color:#3B82F6" />
         <span><strong>{{ groupTerm?.name }}</strong> has ended — this {{ t('group', false, true) }} is history and is read-only.</span>
-        <NuxtLink to="/groups/rollover" class="ml-auto text-primary hover:underline whitespace-nowrap text-xs font-medium">Roll over →</NuxtLink>
+        <NuxtLink to="/groups/rollover" class="ml-auto whitespace-nowrap text-xs font-semibold hover:underline" style="color:#3B82F6">Roll over →</NuxtLink>
       </div>
 
       <!-- Big group image — a faded banner filling the top-right of the Details area,
@@ -144,11 +144,11 @@
               </div>
             </div>
             <!-- Signup readiness — sits at the base of the stats card -->
-            <div v-if="!signupReady" class="bg-amber-200 border-t border-amber-300 flex items-stretch text-xs" :class="canManage ? 'cursor-pointer hover:bg-amber-300' : ''" @click="canManage && openSignupSetup()">
+            <div v-if="!signupReady" class="flex items-stretch text-xs" :class="canManage ? 'cursor-pointer hover:brightness-[0.98]' : ''" style="background:#EAF1FE;border-left:4px solid #3B82F6" @click="canManage && openSignupSetup()">
               <div class="flex items-center gap-2 flex-wrap flex-1 min-w-0 px-3.5 py-3.5">
-                <i class="pi pi-exclamation-triangle text-amber-700 shrink-0" />
-                <span class="text-amber-900"><span class="font-semibold">{{ t('member', true) }} can’t sign up yet</span> — <span class="text-amber-800">{{ signupIssues.join(' · ') }}</span></span>
-                <i v-if="canManage" class="pi pi-chevron-right text-amber-700 text-[10px] ml-auto shrink-0" />
+                <i class="pi pi-info-circle shrink-0" style="color:#3B82F6" />
+                <span style="color:#2563EB"><span class="font-semibold">{{ t('member', true) }} can’t sign up yet</span> — {{ signupIssues.join(' · ') }}</span>
+                <i v-if="canManage" class="pi pi-chevron-right text-[10px] ml-auto shrink-0" style="color:#3B82F6" />
               </div>
             </div>
             <div v-else class="bg-emerald-50 border-t border-emerald-100 flex items-stretch text-xs">
@@ -316,7 +316,7 @@
                   </td>
                 </tr>
                 <tr v-if="staffRoleShortfalls.length">
-                  <td :colspan="colCount" class="bg-amber-200 border-b border-amber-300 px-5 py-2 text-xs text-amber-900">
+                  <td :colspan="colCount" class="px-5 py-2 text-xs" style="background:#EAF1FE;border-left:4px solid #3B82F6;color:#2563EB">
                     <i class="pi pi-exclamation-triangle text-[10px] mr-1" />
                     Needs
                     <span v-for="(s, i) in staffRoleShortfalls" :key="s.key">{{ i ? ', ' : ' ' }}<span class="font-semibold">{{ s.need - s.have }} more {{ s.label }}</span> ({{ s.have }}/{{ s.need }})</span>
@@ -421,7 +421,7 @@
                   </td>
                 </tr>
                 <tr v-if="positionShortfalls.length">
-                  <td :colspan="colCount" class="bg-amber-200 border-b border-amber-300 px-5 py-2 text-xs text-amber-900">
+                  <td :colspan="colCount" class="px-5 py-2 text-xs" style="background:#EAF1FE;border-left:4px solid #3B82F6;color:#2563EB">
                     <i class="pi pi-exclamation-triangle text-[10px] mr-1" />
                     Needs
                     <span v-for="(s, i) in positionShortfalls" :key="s.name">{{ i ? ', ' : ' ' }}<span class="font-semibold">{{ s.need - s.have }} more {{ s.name }}</span> ({{ s.have }}/{{ s.need }})</span>
@@ -1035,7 +1035,7 @@
         </div>
 
         <!-- capacity → waitlist warning -->
-        <div v-if="addWaitlistWarn" class="rounded-lg bg-amber-200 border border-amber-300 px-3.5 py-2.5 text-sm text-amber-900">
+        <div v-if="addWaitlistWarn" class="rounded-lg px-3.5 py-2.5 text-sm" style="background:#EAF1FE;border-left:4px solid #3B82F6;color:#2563EB">
           <div class="flex items-start gap-2">
             <i class="pi pi-exclamation-triangle text-amber-500 mt-0.5 shrink-0" />
             <p>This {{ t('group', false, true) }} is <span class="font-semibold">full ({{ members.length }}/{{ group?.capacity }})</span> — add them to the waitlist <span class="font-semibold">{{ groupWaitlist?.name || '—' }}</span>, or to the {{ t('group', false, true) }} anyway.</p>
