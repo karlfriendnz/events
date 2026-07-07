@@ -389,15 +389,28 @@ const bulkType = ref<string | null>(null)
 const typeTabs = computed(() => [{ key: 'all', label: 'All' }, ...personTypes.value.map(t => ({ key: t.key, label: t.label }))])
 // A person's role keys — the multi array, falling back to the legacy single type.
 function typeKeysOf(p: any): string[] { return p?.person_types?.length ? p.person_types : (p?.person_type ? [p.person_type] : []) }
+// Counts respect the location lens (same rule as the table rows).
+const lensPeople = computed(() => {
+  if (!lensLocation.value) return people.value
+  return people.value.filter(p => {
+    const locs = personLocations.value[p.id]
+    return !locs || !locs.length || locs.includes(lensLocation.value!)
+  })
+})
 const typeCounts = computed(() => {
-  const c: Record<string, number> = { all: people.value.length }
-  for (const t of personTypes.value) c[t.key] = people.value.filter(p => typeKeysOf(p).includes(t.key)).length
+  const c: Record<string, number> = { all: lensPeople.value.length }
+  for (const t of personTypes.value) c[t.key] = lensPeople.value.filter(p => typeKeysOf(p).includes(t.key)).length
   return c
 })
 function typeLabel(key: string) { return personTypes.value.find(t => t.key === key)?.label ?? key }
 
+// Location lens: a person "belongs" to a location via class memberships or a
+// location_staff assignment. People with NO location connections at all stay
+// visible under any lens (parents/admins would otherwise vanish confusingly).
+const { activeLocationId: lensLocation } = useActiveLocation()
+const personLocations = ref<Record<string, string[]>>({})
 const filtered = computed(() => {
-  let list = people.value
+  let list = lensPeople.value
   if (activeType.value !== 'all') list = list.filter(p => typeKeysOf(p).includes(activeType.value))
   const q = search.value.trim().toLowerCase()
   if (!q) return list
@@ -448,11 +461,19 @@ async function loadColumns() {
 
 async function load() {
   loading.value = true
-  const { data } = await (db.from as any)('persons')
-    .select('*')
-    .eq('org_id', orgId.value)
-    .order('last_name', { ascending: true })
+  const [{ data }, { data: mships }, { data: lstaff }] = await Promise.all([
+    (db.from as any)('persons').select('*').eq('org_id', orgId.value).order('last_name', { ascending: true }),
+    (db.from as any)('member_group_memberships').select('person_id, group:member_groups!inner(org_id, location_id)').eq('group.org_id', orgId.value),
+    (db.from as any)('location_staff').select('person_id, location_id').eq('org_id', orgId.value),
+  ])
   people.value = data ?? []
+  const locMap: Record<string, string[]> = {}
+  for (const m of (mships ?? [])) {
+    const lid = m.group?.location_id
+    if (lid) (locMap[m.person_id] ??= []).push(lid)
+  }
+  for (const s2 of (lstaff ?? [])) (locMap[s2.person_id] ??= []).push(s2.location_id)
+  personLocations.value = locMap
   loading.value = false
 }
 

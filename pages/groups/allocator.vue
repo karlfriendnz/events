@@ -182,7 +182,10 @@ const termOptions = computed(() => [
 
 // A group belongs to the selected term (via its code chain, else its own term).
 // 'all' matches everything.
+const { inActiveLocation: allocInLens } = useActiveLocation()
 function groupInTerm(g: AllocGroup): boolean {
+  // The location lens gates everything the allocator offers (source + destinations).
+  if (!allocInLens((g as any).location_id)) return false
   if (term.value === 'all') return true
   return codes.effectiveTermId(g, codesById.value) === term.value
 }
@@ -371,7 +374,7 @@ async function load() {
     tm.loadTerms(),
     codes.loadCodes(),
     (db.from as any)('member_groups')
-      .select('id, name, color, code_id, capacity, term_id, sort_order')
+      .select('id, name, color, code_id, capacity, term_id, sort_order, location_id')
       .eq('org_id', orgId.value)
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('name'),

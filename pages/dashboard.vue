@@ -392,6 +392,19 @@ async function load() {
   stats.groups = groupCount ?? 0
   stats.upcomingEvents = eventCount ?? 0
 
+  // Location lens: the Members/Groups tiles narrow to the active site —
+  // members = distinct people in in-lens classes + that site's staff.
+  const lensId = useActiveLocation().activeLocationId.value
+  if (lensId) {
+    const [{ count: lensGroups }, { data: lensMships }, { data: lensStaff }] = await Promise.all([
+      (db.from as any)('member_groups').select('id', { count: 'exact', head: true }).eq('org_id', orgId.value).eq('location_id', lensId),
+      (db.from as any)('member_group_memberships').select('person_id, group:member_groups!inner(location_id)').eq('group.location_id', lensId),
+      (db.from as any)('location_staff').select('person_id').eq('location_id', lensId),
+    ])
+    stats.groups = lensGroups ?? 0
+    stats.members = new Set([...(lensMships ?? []).map((m: any) => m.person_id), ...(lensStaff ?? []).map((s2: any) => s2.person_id)]).size
+  }
+
   const typeCounts: Record<string, number> = {}
   for (const p of people) {
     const k = (p.membership_type || 'Unspecified').trim() || 'Unspecified'
@@ -587,6 +600,7 @@ async function loadRolloverNudge() {
 }
 
 watch(orgId, () => { if (orgId.value) { load(); loadRolloverNudge() } }, { immediate: true })
+watch(() => useActiveLocation().activeLocationId.value, () => { if (orgId.value) load() })
 </script>
 
 <template>

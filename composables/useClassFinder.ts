@@ -23,6 +23,7 @@ export interface FinderParams {
 export interface FinderSession { day: number; startMin: number; endMin: number; label: string }
 export interface FinderClass {
   groupId: string
+  locationId?: string | null
   name: string
   codeId: string | null
   codeName: string | null
@@ -101,7 +102,10 @@ export function useClassFinder() {
 
   // Aggregate the timetable's per-schedule sessions into one row per class (group).
   async function loadClasses(): Promise<{ classes: FinderClass[]; codes: any[]; disciplines: { id: string; name: string; sport: string | null }[] }> {
-    const { sessions, codes } = await ct.loadSessions()
+    const { sessions: allSessions2, codes } = await ct.loadSessions()
+    // Location lens: classes outside the active location never surface in the finder.
+    const { inActiveLocation } = useActiveLocation()
+    const sessions = allSessions2.filter(s => inActiveLocation(s.locationId))
     const byGroup = new Map<string, FinderClass>()
     for (const s of sessions as TimetableSession[]) {
       let g = byGroup.get(s.groupId)

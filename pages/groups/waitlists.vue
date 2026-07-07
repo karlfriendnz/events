@@ -30,6 +30,11 @@ const personEnrolled = ref<Record<string, number>>({})
 const loading = ref(true)
 
 const selectedId = ref<string | null>(null)
+const visibleWaitlists = computed(() => waitlists.value.filter(w => {
+  if (!wlLens.value) return true
+  const conn = allGroups.value.filter(g => g.waitlist_id === w.id)
+  return !conn.length || conn.some(g => wlInLens(g.location_id))
+}))
 const selected = computed(() => waitlists.value.find(w => w.id === selectedId.value) || null)
 
 // Groups connected to the selected waitlist (live from allGroups.waitlist_id).
@@ -47,7 +52,7 @@ const availableGroupOptions = computed(() => {
     label: g.waitlist_id ? `${g.name}  ·  on “${waitlistNameById.value[g.waitlist_id] || 'another waitlist'}”` : g.name,
     value: g.id, disabled: !!g.waitlist_id,
   })
-  const pickable = allGroups.value.filter(g => g.waitlist_id !== selectedId.value)
+  const pickable = allGroups.value.filter(g => g.waitlist_id !== selectedId.value && wlInLens(g.location_id))
   const byCode: Record<string, any[]> = {}
   for (const g of pickable) (byCode[g.code_id || '__none'] ??= []).push(g)
   const out: { label: string; items: any[] }[] = []
@@ -67,7 +72,7 @@ async function load() {
   loading.value = true
   const [wls, links, cts, { data: groups }, loadedTerms, loadedCodes] = await Promise.all([
     wl.loadWaitlists(), wl.loadGroupLinks(), wl.entryCounts(),
-    (db.from as any)('member_groups').select('id, name, color, waitlist_id, code_id, capacity').eq('org_id', orgId.value).order('name'),
+    (db.from as any)('member_groups').select('id, name, color, waitlist_id, code_id, capacity, location_id').eq('org_id', orgId.value).order('name'),
     tm.loadTerms(),
     gc.loadCodes(),
   ])
@@ -182,9 +187,12 @@ async function disconnectGroup(groupId: string) {
   await wl.connectGroup(groupId, null)
   await reloadGroups()
 }
+// Location lens: group pickers + connected lists only offer in-lens classes;
+// a waitlist shows if ANY of its connected classes is in the lens (or it has none).
+const { activeLocationId: wlLens, inActiveLocation: wlInLens } = useActiveLocation()
 async function reloadGroups() {
   const { data } = await (db.from as any)('member_groups')
-    .select('id, name, color, waitlist_id, code_id, capacity').eq('org_id', orgId.value).order('name')
+    .select('id, name, color, waitlist_id, code_id, capacity, location_id').eq('org_id', orgId.value).order('name')
   allGroups.value = data ?? []
 }
 
@@ -285,7 +293,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
       <!-- waitlist list -->
       <div class="card p-0 overflow-hidden h-fit">
         <div class="px-4 py-2.5 border-b border-gray-100 text-xs font-semibold text-gray-600 uppercase tracking-wide">Waitlists</div>
-        <button v-for="w in waitlists" :key="w.id" type="button"
+        <button v-for="w in visibleWaitlists" :key="w.id" type="button"
           class="w-full text-left px-4 py-2.5 text-sm border-b border-gray-50 hover:bg-gray-50 transition-colors flex items-center justify-between gap-2"
           :class="w.id === selectedId ? 'bg-gray-50 font-medium text-primary' : 'text-gray-700'"
           @click="selectWaitlist(w.id)">

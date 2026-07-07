@@ -64,7 +64,9 @@ const coachOptions = computed(() => {
   return [{ label: `All ${t('coach', true, true)}`, value: 'all' }, ...[...set].sort().map(c => ({ label: c, value: c }))]
 })
 
+const { inActiveLocation: inLens } = useActiveLocation()
 const filtered = computed(() => allSessions.value.filter(s =>
+  inLens(s.locationId) &&
   (termId.value === 'all' || s.termId === termId.value) &&
   (!codeIds.value.length || (s.codeId != null && codeIds.value.includes(s.codeId))) &&
   (venue.value === 'all' || s.venue === venue.value) &&
