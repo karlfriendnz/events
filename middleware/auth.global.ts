@@ -14,7 +14,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   // Public, guest-accessible routes: the booker (/book) and the public
   // registration form (/r/:context/:id). Everything else requires a login.
-  const isPublic = to.path.startsWith('/book') || to.path.startsWith('/r/') || to.path === '/set-password'
+  const isPublic = to.path.startsWith('/book') || to.path.startsWith('/r/') || to.path === '/set-password' || to.path === '/clubs'
   if (!user.value && to.path !== '/login' && !isPublic) {
     return navigateTo('/login')
   }

@@ -115,26 +115,21 @@ async function handleLogin() {
   const supabaseUser = useSupabaseUser()
   if (data.user) supabaseUser.value = data.user as any
   if (data.user?.id) await prefetchOrg(data.user)
-  // Super-admins land on the overarching all-orgs dashboard, not a club view.
-  // Everyone else lands where their person TYPE says (mig 245), default /dashboard.
-  let dest = '/dashboard'
-  if ((data.user as any)?.app_metadata?.role === 'super_admin') dest = '/admin'
-  else if (data.user?.email) {
-    try {
-      const { data: person } = await (db.from as any)('persons')
-        .select('person_types, person_type, org_id').ilike('email', data.user.email).limit(1).maybeSingle()
-      if (person) {
-        const keys = (person.person_types?.length ? person.person_types : [person.person_type]).filter(Boolean)
-        if (keys.length) {
-          const { data: types } = await (db.from as any)('person_target_types')
-            .select('key, landing_path').eq('org_id', person.org_id).in('key', keys)
-          const hit = (types ?? []).find((t: any) => t.landing_path)
-          if (hit?.landing_path) dest = hit.landing_path
-        }
-      }
-    } catch { /* default stands */ }
-  }
-  await navigateTo(dest)
+  await landAfterAuth(data.user)
+}
+
+// Route by identity: super-admin → /admin. Otherwise resolve every club this
+// login belongs to (by email) — exactly one → land in it; several → the
+// 'Choose your club' page; none → /clubs shows a 'not linked' state. The
+// active org is set here; the portal/permission middleware then decides admin
+// vs member experience for that club.
+async function landAfterAuth(u: any) {
+  if ((u as any)?.app_metadata?.role === 'super_admin') { await navigateTo('/admin'); return }
+  const { loadMyClubs } = useMyClubs()
+  let list: any[] = []
+  try { list = await loadMyClubs(true) } catch { /* ignore */ }
+  if (list.length === 1) { persistActiveOrg(list[0].orgId); await navigateTo('/'); return }
+  await navigateTo('/clubs')
 }
 
 async function handleRegister() {
@@ -153,7 +148,7 @@ async function handleRegister() {
     error.value = authError.message
   } else if (data.user?.id) {
     await prefetchOrg(data.user)
-    await navigateTo('/events')
+    await landAfterAuth(data.user)
   } else {
     success.value = 'Account created! Check your email to confirm your address.'
   }

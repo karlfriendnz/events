@@ -5,8 +5,11 @@
 //            permission group, OR is super_admin. → the full management app.
 //   PERSON = manages only THEMSELVES + their connections (family/circles). A
 //            member with no management access. → the self-service portal (/me).
-// Never-lock-out: a login with no matching person record is treated as ADMIN
-// (existing staff logins are never trapped in the portal). Cached per org.
+// A login with no matching person in the ACTIVE club gets the least privilege
+// (member portal) — real admins have a person record with an access-granting
+// type or staff role, and super-admins are exempt. Cross-club login lands you
+// in a club where you DO have a record (see useMyClubs / login routing), so this
+// only bites truly unrecognised sessions. Cached per org.
 export function useAccessLevel() {
   const db = useDb()
   const { orgId } = useOrg()
@@ -30,7 +33,7 @@ export function useAccessLevel() {
 
     const { data: person } = await (db.from as any)('persons')
       .select('id, person_types, person_type').eq('org_id', orgId.value).ilike('email', email).limit(1).maybeSingle()
-    if (!person) { isAdmin.value = true; myPersonId.value = null; return true } // unknown login → management
+    if (!person) { isAdmin.value = false; myPersonId.value = null; return false } // not a member of THIS club → least privilege (portal)
     myPersonId.value = person.id
 
     // 1) Access-granting person type?
