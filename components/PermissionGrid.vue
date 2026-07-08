@@ -55,14 +55,16 @@ function toggleArea(items: PermItem[], on: boolean) {
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5">
           <label v-for="item in block.items" :key="item.key"
-            class="flex items-center gap-2.5"
-            :class="readonly ? 'cursor-default' : 'cursor-pointer'"
-            v-tooltip.top="item.description || ''">
-            <input type="checkbox" class="w-4 h-4 accent-primary shrink-0"
+            class="flex items-start gap-2.5"
+            :class="readonly ? 'cursor-default' : 'cursor-pointer'">
+            <input type="checkbox" class="mt-0.5 w-4 h-4 accent-primary shrink-0"
               :class="readonly ? 'cursor-not-allowed' : 'cursor-pointer'"
               :checked="isOn(item)" :disabled="readonly"
               @change="toggle(item, ($event.target as HTMLInputElement).checked)" />
-            <span class="text-sm text-gray-700">{{ item.label }}</span>
+            <span class="min-w-0">
+              <span class="block text-sm text-gray-700 leading-tight">{{ item.label }}</span>
+              <span v-if="item.description" class="block text-[11px] leading-snug text-gray-400 mt-0.5">{{ item.description }}</span>
+            </span>
           </label>
         </div>
       </div>
