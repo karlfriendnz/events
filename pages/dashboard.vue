@@ -129,6 +129,9 @@ const accessLevel = useAccessLevel()
 // In this mode the page edits a ROLE'S default template, not the user's own layout.
 const templateType = computed(() => (isAdmin.value && route.query.editTemplate) ? String(route.query.editTemplate) : null)
 const templateMode = computed(() => !!templateType.value)
+// Master mode: editing a CLUB TYPE's starting dashboard for a person type
+// (?editTemplate=<key>&clubType=<id>). Saves to club_types.default_person_types.
+const clubTypeId = computed(() => (templateMode.value && route.query.clubType) ? String(route.query.clubType) : null)
 const templateLabel = ref('')
 
 // Per-person dashboard config lives in user_dashboards; per-role club templates in
@@ -460,7 +463,14 @@ async function load() {
   logoUrl.value = orgRow?.logo_url ?? null
   bannerUrl.value = orgRow?.dashboard_banner_url ?? null
   let base: any = null
-  if (templateMode.value) {
+  if (clubTypeId.value) {
+    // MASTER: editing a club-type template's per-type starting dashboard.
+    const { data: ct } = await (db.from as any)('club_types').select('name, default_person_types').eq('id', clubTypeId.value).maybeSingle()
+    const entry = (ct?.default_person_types ?? []).find((p: any) => p.key === templateType.value)
+    templateLabel.value = `${entry?.label ?? templateType.value} · ${ct?.name ?? 'template'}`
+    templateIsAccess.value = entry ? !!entry.is_access : true
+    base = entry?.dashboard ?? defaultDashboardFor(templateType.value!) ?? (templateIsAccess.value === false ? [] : null)
+  } else if (templateMode.value) {
     // Editing a role's default template — load THAT template (or fall back to defaults).
     templateLabel.value = await resolveTypeLabel(templateType.value!)
     try { const { data: tt } = await (db.from as any)('person_target_types').select('is_access').eq('org_id', orgId.value).eq('key', templateType.value).maybeSingle(); templateIsAccess.value = tt ? !!tt.is_access : true } catch { templateIsAccess.value = true }
@@ -620,7 +630,7 @@ const quickItems = computed(() => [
 const addMenuOpen = ref(false)
 function startEdit() { editing.value = true }
 function cancelEdit() {
-  if (templateMode.value) { navigateTo('/settings/fields'); return }
+  if (templateMode.value) { navigateTo(clubTypeId.value ? `/admin/club-defaults/${clubTypeId.value}` : '/settings/fields'); return }
   editing.value = false; addMenuOpen.value = false; rebuildLayout()
 }
 function removeWidget(key: string) {
@@ -768,6 +778,18 @@ async function saveLayout() {
   saving.value = true
   const next = currentConfig()
   config.value = next
+  if (clubTypeId.value) {
+    // MASTER: write the dashboard back onto the club-type template's person type.
+    const { data: ct } = await (db.from as any)('club_types').select('default_person_types').eq('id', clubTypeId.value).maybeSingle()
+    const list = [...(ct?.default_person_types ?? [])]
+    const idx = list.findIndex((p: any) => p.key === templateType.value)
+    if (idx >= 0) list[idx] = { ...list[idx], dashboard: next }
+    await (db.from as any)('club_types').update({ default_person_types: list }).eq('id', clubTypeId.value)
+    saving.value = false
+    toast.add({ severity: 'success', summary: `Template dashboard saved`, life: 2200 })
+    navigateTo(`/admin/club-defaults/${clubTypeId.value}`)
+    return
+  }
   if (templateMode.value) {
     // Save the role's default template, then return to Settings.
     await (db.from as any)('dashboard_templates').upsert(

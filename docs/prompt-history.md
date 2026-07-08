@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-252 sessions · 1384 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+252 sessions · 1386 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -2687,7 +2687,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:07** — better but still messy
 
 
-## Session 2026-07-05 23:26 (261 prompts)
+## Session 2026-07-05 23:26 (263 prompts)
 
 **23:26** — ok where did we get to ?
 
@@ -3644,6 +3644,10 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **09:15** — can the defaults be a page pleaes the modal doens't work
 
 **09:40** — i can't see any eye
+
+**09:47** — [Image #33] no eye
+
+**09:48** — I want to set this globably so its a tempalte
 
 
 ## Session 2026-07-05 23:33 (18 prompts)

@@ -83,6 +83,12 @@ function toggleMenu(p: any, href: string, on: boolean) {
 }
 function setTypeMenuCustom(p: any, on: boolean) { p.menu_items = on ? MENU.map(m => m.href) : null }
 function setTerm(key: string, which: 'singular' | 'plural', v: string) { (dTerm[key] ||= {})[which] = v }
+// Edit this type's starting dashboard in the real builder (master mode). Save the
+// template first so the type exists + local changes aren't lost.
+async function editDashboard(p: any) {
+  await save()
+  navigateTo(`/dashboard?editTemplate=${p.key}&clubType=${typeId.value}`)
+}
 
 async function save() {
   saving.value = true
@@ -170,6 +176,13 @@ async function save() {
                     {{ m.label }}
                   </label>
                 </div>
+              </div>
+              <div class="flex items-center gap-3">
+                <span class="text-xs font-medium text-gray-500 w-24 shrink-0">Dashboard</span>
+                <button type="button" class="text-sm text-primary hover:underline inline-flex items-center gap-1" @click="editDashboard(p)">
+                  <i class="pi pi-th-large text-[11px]" />Edit starting dashboard →
+                </button>
+                <span class="text-xs text-gray-400">saves the template first</span>
               </div>
               <div>
                 <span class="text-xs font-medium text-gray-500 block mb-1.5">Permissions</span>
