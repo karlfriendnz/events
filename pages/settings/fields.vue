@@ -305,11 +305,11 @@ watch(orgId, load, { immediate: true })
               <thead>
                 <tr class="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
                   <th class="text-left px-4 sm:px-5 py-2.5 font-medium">{{ sec.kind === 'person' ? 'Person type' : 'Entity type' }}</th>
-                  <th class="text-left px-3 py-2.5 font-medium w-24">Form</th>
-                  <th class="text-left px-3 py-2.5 font-medium w-36">{{ sec.kind === 'person' ? 'Permissions' : 'Members' }}</th>
-                  <th v-if="sec.kind === 'person'" class="text-left px-3 py-2.5 font-medium w-28">Landing page</th>
-                  <th v-if="sec.kind === 'person'" class="text-left px-3 py-2.5 font-medium w-24">Profile</th>
-                  <th v-if="sec.kind === 'person'" class="text-left px-3 py-2.5 font-medium w-24">Menu items</th>
+                  <th class="text-left px-4 py-3 font-medium w-24">Form</th>
+                  <th class="text-left px-4 py-3 font-medium w-36">{{ sec.kind === 'person' ? 'Permissions' : 'Members' }}</th>
+                  <th v-if="sec.kind === 'person'" class="text-left px-4 py-3 font-medium w-28">Landing page</th>
+                  <th v-if="sec.kind === 'person'" class="text-left px-4 py-3 font-medium w-24">Profile</th>
+                  <th v-if="sec.kind === 'person'" class="text-left px-4 py-3 font-medium w-24">Menu items</th>
                   <th class="w-16" />
                 </tr>
               </thead>
@@ -324,22 +324,22 @@ watch(orgId, load, { immediate: true })
                       <i class="pi pi-bars text-gray-300 group-hover:text-gray-600 text-xs cursor-grab active:cursor-grabbing shrink-0 transition-colors" title="Drag to reorder" />
                       {{ t.label }}<i v-if="t.is_access" v-tooltip.top="'Grants access (permissions)'" class="pi pi-shield text-[10px] text-emerald-400" /></span>
                   </td>
-                  <td class="px-3 py-2.5">
+                  <td class="px-4 py-3">
                     <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'layout')"><i class="pi pi-window-maximize text-[10px]" />Form</button>
                   </td>
-                  <td class="px-3 py-2.5">
+                  <td class="px-4 py-3">
                     <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'access')"><i class="pi pi-shield text-[10px]" />{{ sec.kind === 'person' ? 'Permissions' : 'Members' }}</button>
                   </td>
-                  <td v-if="sec.kind === 'person'" class="px-3 py-2.5">
+                  <td v-if="sec.kind === 'person'" class="px-4 py-3">
                     <NuxtLink :to="`/dashboard?editTemplate=${t.key}`" class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap"><i class="pi pi-th-large text-[10px]" />Landing page</NuxtLink>
                   </td>
-                  <td v-if="sec.kind === 'person'" class="px-3 py-2.5">
+                  <td v-if="sec.kind === 'person'" class="px-4 py-3">
                     <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'profile')"><i class="pi pi-user text-[10px]" />Profile</button>
                   </td>
-                  <td v-if="sec.kind === 'person'" class="px-3 py-2.5">
+                  <td v-if="sec.kind === 'person'" class="px-4 py-3">
                     <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'menu')"><i class="pi pi-bars text-[10px]" />Menu items</button>
                   </td>
-                  <td class="px-3 py-2.5">
+                  <td class="px-4 py-3">
                     <div class="flex items-center justify-center gap-3">
                       <button class="text-gray-300 hover:text-primary" title="Duplicate type" @click="duplicateType(t)"><i class="pi pi-copy text-sm" /></button>
                       <button class="text-gray-300 hover:text-red-500" title="Delete type" @click="removeType(t)"><i class="pi pi-trash text-sm" /></button>
