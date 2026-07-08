@@ -55,16 +55,19 @@ const ACTIVITY_DEF: WidgetDef = { key: 'activity', label: 'Activity', descriptio
 // Content instances use keys like "content:<id>" — a free-form block (rich
 // text, background, image, buttons) for member-facing dashboards.
 const CONTENT_DEF: WidgetDef = { key: 'content', label: 'Content block', description: 'Rich text, image and buttons', x: 0, y: 99, w: 6, h: 5, minW: 3, minH: 2 }
+// Image instances use keys like "image:<id>" — just a picture filling the card.
+const IMAGE_DEF: WidgetDef = { key: 'image', label: 'Image', description: 'Just an image', x: 0, y: 99, w: 4, h: 4, minW: 2, minH: 2 }
 const STAFF_DEF: WidgetDef = { key: 'staff', label: 'Staff', description: 'Showcase people as cards', x: 0, y: 99, w: 6, h: 5, minW: 3, minH: 3 }
 const MYDETAILS_DEF: WidgetDef = { key: 'mydetails', label: 'My details', description: 'Your own profile card', x: 0, y: 99, w: 4, h: 4, minW: 3, minH: 3 }
 const BUTTONS_DEF: WidgetDef = { key: 'buttons', label: 'Buttons', description: 'One or more link buttons', x: 0, y: 99, w: 3, h: 3, minW: 2, minH: 2 }
 function isChart(key: string) { return key.startsWith('chart:') }
 function isActivity(key: string) { return key.startsWith('activity:') }
 function isContent(key: string) { return key.startsWith('content:') }
+function isImage(key: string) { return key.startsWith('image:') }
 function isStaff(key: string) { return key.startsWith('staff:') }
 function isMyDetails(key: string) { return key.startsWith('mydetails:') }
 function isButtons(key: string) { return key.startsWith('buttons:') }
-function widgetDef(key: string): WidgetDef { return defById[key] ?? (isActivity(key) ? ACTIVITY_DEF : isContent(key) ? CONTENT_DEF : isStaff(key) ? STAFF_DEF : isMyDetails(key) ? MYDETAILS_DEF : isButtons(key) ? BUTTONS_DEF : CHART_DEF) }
+function widgetDef(key: string): WidgetDef { return defById[key] ?? (isActivity(key) ? ACTIVITY_DEF : isContent(key) ? CONTENT_DEF : isImage(key) ? IMAGE_DEF : isStaff(key) ? STAFF_DEF : isMyDetails(key) ? MYDETAILS_DEF : isButtons(key) ? BUTTONS_DEF : CHART_DEF) }
 // Display label for the Add-widget menu — term-aware for the registry widgets
 // (the registry keeps plain English labels; dynamic chart/activity fall through).
 function widgetLabel(key: string): string {
@@ -263,7 +266,7 @@ function reconcile(saved: any): CfgItem[] {
   const seen = new Set<string>()
   for (const it of Array.isArray(saved) ? saved : []) {
     // Keep registry widgets AND dynamic instances (chart:<id> / activity:<id>, not in the registry).
-    if (it && (valid.has(it.key) || isChart(it.key) || isActivity(it.key) || isContent(it.key) || isStaff(it.key) || isMyDetails(it.key) || isButtons(it.key)) && !seen.has(it.key) && widgetOkForAudience(it.key)) {
+    if (it && (valid.has(it.key) || isChart(it.key) || isActivity(it.key) || isContent(it.key) || isImage(it.key) || isStaff(it.key) || isMyDetails(it.key) || isButtons(it.key)) && !seen.has(it.key) && widgetOkForAudience(it.key)) {
       const d = widgetDef(it.key)
       out.push({
         key: it.key, enabled: it.enabled !== false,
@@ -305,6 +308,7 @@ function widgetDesc(key: string) { return widgetDef(key).description }
 const ALL_BUILD_WIDGETS = [
   { icon: 'pi-user', color: '#1E2157', label: 'My details', desc: 'Your own profile card', run: () => addMyDetails(), audience: 'both' },
   { icon: 'pi-align-left', color: '#0EA5E9', label: 'Content block', desc: 'Rich text, image & buttons', run: () => addContent(), audience: 'both' },
+  { icon: 'pi-image', color: '#10B981', label: 'Image', desc: 'Just an image', run: () => addImage(), audience: 'both' },
   { icon: 'pi-link', color: '#EC4899', label: 'Buttons', desc: 'One or more link buttons', run: () => addButtons(), audience: 'both' },
   { icon: 'pi-users', color: '#8B5CF6', label: 'Staff', desc: 'Showcase people as cards', run: () => addStaff(), audience: 'admin' },
   { icon: 'pi-chart-pie', color: '#3B82F6', label: 'Chart', desc: 'Pie or bar of any field', run: () => addChart(), audience: 'admin' },
@@ -323,7 +327,7 @@ const buildWidgets = computed(() => ALL_BUILD_WIDGETS.filter(w => w.audience ===
 // Buttons) suit a member; everything else (stat tiles, reports, staff, charts,
 // network…) is club management. A member dashboard only shows 'both'/'member'.
 function widgetAudience(key: string): 'member' | 'admin' | 'both' {
-  if (isMyDetails(key) || isContent(key) || isButtons(key)) return 'both'
+  if (isMyDetails(key) || isContent(key) || isImage(key) || isButtons(key)) return 'both'
   if (isStaff(key) || isChart(key) || isActivity(key)) return 'admin'
   return 'admin' // registry widgets are all management-oriented
 }
@@ -619,7 +623,7 @@ function cancelEdit() {
 }
 function removeWidget(key: string) {
   layout.value = layout.value.filter(l => l.i !== key)
-  if (isChart(key) || isActivity(key) || isContent(key) || isStaff(key) || isMyDetails(key) || isButtons(key)) {
+  if (isChart(key) || isActivity(key) || isContent(key) || isImage(key) || isStaff(key) || isMyDetails(key) || isButtons(key)) {
     // Dynamic instances — delete entirely (don't linger as "hidden").
     config.value = config.value.filter(c => c.key !== key)
   } else {
@@ -649,6 +653,21 @@ function addContent() {
   const maxY = layout.value.reduce((m, l) => Math.max(m, l.y + l.h), 0)
   layout.value.push({ i: id, x: 0, y: maxY, w: d.w, h: d.h, minW: d.minW, minH: d.minH })
   openContentSettings(id)
+}
+// Image widget: a single picture filling the card. Upload replaces opts.url.
+let imageSeq = 0
+function imageOpts(key: string) { return (config.value.find(c => c.key === key)?.opts ?? {}) as any }
+function addImage() {
+  const id = `image:${Date.now().toString(36)}${imageSeq++}`
+  const d = IMAGE_DEF
+  config.value.push({ key: id, enabled: true, x: 0, y: 99, w: d.w, h: d.h, opts: { url: null } })
+  const maxY = layout.value.reduce((m, l) => Math.max(m, l.y + l.h), 0)
+  layout.value.push({ i: id, x: 0, y: maxY, w: d.w, h: d.h, minW: d.minW, minH: d.minH })
+}
+async function onImagePick(key: string, e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return
+  const { url } = await uploadFile(file)
+  const c = config.value.find(x => x.key === key); if (c) c.opts = { ...(c.opts ?? {}), url }
 }
 // Content-block settings (cog): rich text + background + image + buttons
 const contentCfgOpen = ref(false)
@@ -1029,6 +1048,15 @@ watch(orgId, () => { if (orgId.value) loadOnboardingNudge() }, { immediate: true
                   class="inline-flex items-center px-3.5 py-1.5 rounded-lg text-sm font-medium text-white hover:brightness-110"
                   :style="{ background: b.color || '#1E2157' }">{{ b.label }}</a>
               </div>
+            </div>
+
+            <div v-else-if="isImage(item.i)" class="card h-full overflow-hidden relative flex items-center justify-center bg-gray-50">
+              <img v-if="imageOpts(item.i).url" :src="imageOpts(item.i).url" class="w-full h-full object-cover" />
+              <div v-else class="text-gray-300 text-sm flex flex-col items-center gap-1"><i class="pi pi-image text-2xl" /><span>No image</span></div>
+              <label v-if="editing" class="absolute top-1.5 right-9 z-10 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-400 hover:text-primary pointer-events-auto cursor-pointer" title="Upload image">
+                <i class="pi pi-upload text-xs" />
+                <input type="file" accept="image/*" class="hidden" @change="e => onImagePick(item.i, e)" />
+              </label>
             </div>
 
             <DashwidgetsStaff v-else-if="isStaff(item.i)" :opts="staffOpts(item.i)" :editable="editing" class="h-full" @update:opts="v => saveStaffOpts(item.i, v)" />
