@@ -122,7 +122,7 @@ async function saveLanding(path: string | null) {
 // ── Menu Items: which left-menu items THIS type sees (mig 254) ────────────────
 // person_target_types.menu_items = string[] of CLUB_MENU hrefs. null = not
 // customised → the nav falls back to the permission-driven default.
-const { CLUB_MENU } = useClubMenu()
+const { CLUB_MENU, CLUB_MENU_HREFS } = useClubMenu()
 const preview = usePreviewType()
 const menuCustomised = computed(() => Array.isArray(selected.value?.menu_items))
 async function persistMenuItems(v: string[] | null) {
@@ -140,7 +140,7 @@ function toggleMenuItem(href: string, on: boolean) {
   persistMenuItems(next)
 }
 // Turn customisation on (seed with everything, untick from there) or off (→ null).
-function setMenuCustomised(on: boolean) { persistMenuItems(on ? CLUB_MENU.map(i => i.href) : null) }
+function setMenuCustomised(on: boolean) { persistMenuItems(on ? [...CLUB_MENU_HREFS] : null) }
 // Club-dashboard template per type (dashboard_templates.user_type = the type key)
 const typeDashTemplate = ref<boolean | null>(null) // null = loading
 watch([selected, tab], async () => {
@@ -439,12 +439,21 @@ watch(orgId, load, { immediate: true })
                 <ToggleSwitch :modelValue="menuCustomised" @update:modelValue="setMenuCustomised" />
               </div>
               <div v-if="menuCustomised" class="border-t border-gray-100 -mx-5 px-5 pt-1 divide-y divide-gray-50">
-                <label v-for="m in CLUB_MENU" :key="m.href" class="flex items-center gap-3 py-2 cursor-pointer">
-                  <input type="checkbox" :checked="menuItemOn(m.href)" class="accent-primary w-4 h-4"
-                    @change="toggleMenuItem(m.href, ($event.target as HTMLInputElement).checked)" />
-                  <i :class="['pi', m.icon, 'text-gray-400 text-sm w-4 text-center']" />
-                  <span class="text-sm text-gray-700">{{ m.label }}</span>
-                </label>
+                <template v-for="m in CLUB_MENU" :key="m.href">
+                  <label class="flex items-center gap-3 py-2 cursor-pointer">
+                    <input type="checkbox" :checked="menuItemOn(m.href)" class="accent-primary w-4 h-4"
+                      @change="toggleMenuItem(m.href, ($event.target as HTMLInputElement).checked)" />
+                    <i :class="['pi', m.icon, 'text-gray-400 text-sm w-4 text-center']" />
+                    <span class="text-sm font-medium text-gray-700">{{ m.label }}</span>
+                    <span v-if="m.children?.length" class="text-[11px] text-gray-300">{{ m.children.length }} sub-items</span>
+                  </label>
+                  <label v-for="c in (m.children || [])" :key="c.href" class="flex items-center gap-3 py-1.5 pl-10 cursor-pointer">
+                    <input type="checkbox" :checked="menuItemOn(c.href)" class="accent-primary w-3.5 h-3.5"
+                      @change="toggleMenuItem(c.href, ($event.target as HTMLInputElement).checked)" />
+                    <i :class="['pi', c.icon, 'text-gray-300 text-xs w-4 text-center']" />
+                    <span class="text-sm text-gray-500">{{ c.label }}</span>
+                  </label>
+                </template>
               </div>
               <p v-else class="text-xs text-gray-400 border-t border-gray-100 pt-3">Using the default menu based on this type's permissions.</p>
             </div>

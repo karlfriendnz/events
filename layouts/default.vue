@@ -29,16 +29,16 @@
           <div v-show="eventsHover" class="absolute left-full top-0 z-[70]" style="padding-left:10px"
             @mouseenter="onEventsEnter" @mouseleave="onEventsLeave">
             <div class="bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden" style="width:220px">
-              <NuxtLink to="/events" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-calendar text-gray-400 text-xs" />View Events</NuxtLink>
+              <NuxtLink v-if="menuSubVisible('/events')" to="/events" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-calendar text-gray-400 text-xs" />View Events</NuxtLink>
               <template v-if="calendars.length"><div class="border-t border-gray-100" /><div class="py-1">
                 <NuxtLink v-for="cal in calendars" :key="cal.id" :to="`/events?calendar=${cal.id}`" class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" @click="eventsHover = false">
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: cal.color ?? '#94a3b8' }" />
                   <span :class="cal.name ? '' : 'italic text-gray-400'">{{ cal.name || 'Untitled calendar' }}</span>
                 </NuxtLink></div></template>
               <div class="border-t border-gray-100" />
-              <NuxtLink to="/bookables" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-building text-gray-400 text-xs" /><span class="flex-1">Venues &amp; Bookings</span><span v-if="pendingBookingsCount > 0" class="text-[10px] font-bold bg-amber-500 text-white px-1.5 rounded-full">{{ pendingBookingsCount }}</span></NuxtLink>
-              <NuxtLink to="/registration" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-clipboard text-gray-400 text-xs" />Registration</NuxtLink>
-              <NuxtLink to="/forms" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-file-edit text-gray-400 text-xs" />Forms</NuxtLink>
+              <NuxtLink v-if="menuSubVisible('/bookables')" to="/bookables" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-building text-gray-400 text-xs" /><span class="flex-1">Venues &amp; Bookings</span><span v-if="pendingBookingsCount > 0" class="text-[10px] font-bold bg-amber-500 text-white px-1.5 rounded-full">{{ pendingBookingsCount }}</span></NuxtLink>
+              <NuxtLink v-if="menuSubVisible('/registration')" to="/registration" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-clipboard text-gray-400 text-xs" />Registration</NuxtLink>
+              <NuxtLink v-if="menuSubVisible('/forms')" to="/forms" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-file-edit text-gray-400 text-xs" />Forms</NuxtLink>
               <div class="border-t border-gray-100" />
               <button class="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="openNewCalendarModal"><i class="pi pi-plus text-gray-400 text-xs" />New Category</button>
             </div>
@@ -57,8 +57,8 @@
           <div v-show="feesHover" class="absolute left-full top-0 z-[70]" style="padding-left:10px"
             @mouseenter="onFeesEnter" @mouseleave="onFeesLeave">
             <div class="w-52 bg-white rounded-xl shadow-xl border border-gray-200 py-1 overflow-hidden">
-              <NuxtLink to="/finances" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="feesHover = false"><i class="pi pi-dollar text-gray-400 text-xs" />Finances</NuxtLink>
-              <NuxtLink to="/groups/fees" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="feesHover = false"><i class="pi pi-sitemap text-gray-400 text-xs" />Group fees</NuxtLink>
+              <NuxtLink v-if="menuSubVisible('/finances')" to="/finances" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="feesHover = false"><i class="pi pi-dollar text-gray-400 text-xs" />Finances</NuxtLink>
+              <NuxtLink v-if="menuSubVisible('/groups/fees')" to="/groups/fees" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="feesHover = false"><i class="pi pi-sitemap text-gray-400 text-xs" />Group fees</NuxtLink>
             </div>
           </div>
         </div>
@@ -75,13 +75,13 @@
           <div v-show="bookingsHover" class="absolute left-full top-0 z-[70]" style="padding-left:10px"
             @mouseenter="onBookingsEnter" @mouseleave="onBookingsLeave">
             <div class="w-56 bg-white rounded-xl shadow-xl border border-gray-200 py-1 overflow-hidden">
-              <NuxtLink to="/bookables?tab=bookings" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="bookingsHover = false"><i class="pi pi-bookmark text-gray-400 text-xs" /><span class="flex-1">Bookings</span><span v-if="pendingBookingsCount > 0" class="text-[10px] font-bold bg-amber-500 text-white px-1.5 rounded-full">{{ pendingBookingsCount }}</span></NuxtLink>
+              <NuxtLink v-if="menuSubVisible('/bookables?tab=bookings')" to="/bookables?tab=bookings" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="bookingsHover = false"><i class="pi pi-bookmark text-gray-400 text-xs" /><span class="flex-1">Bookings</span><span v-if="pendingBookingsCount > 0" class="text-[10px] font-bold bg-amber-500 text-white px-1.5 rounded-full">{{ pendingBookingsCount }}</span></NuxtLink>
               <div class="border-t border-gray-100" />
-              <NuxtLink to="/bookables/venues" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="bookingsHover = false"><i class="pi pi-building text-gray-400 text-xs" />Venues</NuxtLink>
-              <NuxtLink to="/bookables/persons" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="bookingsHover = false"><i class="pi pi-user text-gray-400 text-xs" />Persons</NuxtLink>
-              <NuxtLink to="/bookables/items" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="bookingsHover = false"><i class="pi pi-box text-gray-400 text-xs" />Items</NuxtLink>
+              <NuxtLink v-if="menuSubVisible('/bookables/venues')" to="/bookables/venues" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="bookingsHover = false"><i class="pi pi-building text-gray-400 text-xs" />Venues</NuxtLink>
+              <NuxtLink v-if="menuSubVisible('/bookables/persons')" to="/bookables/persons" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="bookingsHover = false"><i class="pi pi-user text-gray-400 text-xs" />Persons</NuxtLink>
+              <NuxtLink v-if="menuSubVisible('/bookables/items')" to="/bookables/items" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="bookingsHover = false"><i class="pi pi-box text-gray-400 text-xs" />Items</NuxtLink>
               <div class="border-t border-gray-100" />
-              <NuxtLink to="/bookables?tab=activities" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="bookingsHover = false"><i class="pi pi-flag text-gray-400 text-xs" />Activities</NuxtLink>
+              <NuxtLink v-if="menuSubVisible('/bookables?tab=activities')" to="/bookables?tab=activities" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="bookingsHover = false"><i class="pi pi-flag text-gray-400 text-xs" />Activities</NuxtLink>
             </div>
           </div>
         </div>
@@ -125,9 +125,9 @@
           <div v-show="peopleHover" class="absolute left-full top-0 z-[70]" style="padding-left:10px"
             @mouseenter="onPeopleEnter" @mouseleave="onPeopleLeave">
             <div class="w-52 bg-white rounded-xl shadow-xl border border-gray-200 py-1 overflow-hidden">
-              <NuxtLink to="/people?view=people" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="peopleHover = false"><i class="pi pi-users text-gray-400 text-xs" />People</NuxtLink>
-              <NuxtLink to="/people?view=admins" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="peopleHover = false"><i class="pi pi-shield text-gray-400 text-xs" />Admins</NuxtLink>
-              <NuxtLink to="/people?view=organisations" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="peopleHover = false"><i class="pi pi-building text-gray-400 text-xs" />Organisations</NuxtLink>
+              <NuxtLink v-if="menuSubVisible('/people?view=people')" to="/people?view=people" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="peopleHover = false"><i class="pi pi-users text-gray-400 text-xs" />People</NuxtLink>
+              <NuxtLink v-if="menuSubVisible('/people?view=admins')" to="/people?view=admins" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="peopleHover = false"><i class="pi pi-shield text-gray-400 text-xs" />Admins</NuxtLink>
+              <NuxtLink v-if="menuSubVisible('/people?view=organisations')" to="/people?view=organisations" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="peopleHover = false"><i class="pi pi-building text-gray-400 text-xs" />Organisations</NuxtLink>
             </div>
           </div>
         </div>
@@ -749,6 +749,11 @@ const clubMenuForModules = computed(() => {
   if (isGoverningOrg.value) base.push({ label: 'Club managers', icon: 'pi-shield', href: '/managers', chevron: false } as any)
   return base
 })
+// A flyout sub-link shows when the type doesn't customise its menu (permission
+// default) OR when that sub-link's href is in the configured set.
+function menuSubVisible(href: string): boolean {
+  return !typeMenuHrefs.value || typeMenuHrefs.value.includes(href)
+}
 
 // ── Icon-rail expand/collapse (remembered across pages via localStorage) ──
 const railExpanded = ref(false)

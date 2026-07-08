@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-243 sessions · 1345 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+243 sessions · 1352 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -2687,7 +2687,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:07** — better but still messy
 
 
-## Session 2026-07-05 23:26 (246 prompts)
+## Session 2026-07-05 23:26 (247 prompts)
 
 **23:26** — ok where did we get to ?
 
@@ -3614,6 +3614,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **07:11** — deploy live
 
 **07:30** — on the add a widget screen I need a widget that is just an image
+
+**07:42** — The menu item http://localhost:3002/settings/fields on here should have all the submenu items as well
 
 
 ## Session 2026-07-05 23:33 (18 prompts)
@@ -21632,7 +21634,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > … [truncated — 74935 chars total]
 
 
-## Session 2026-07-08 07:38 (3 prompts)
+## Session 2026-07-08 07:38 (5 prompts)
 
 **07:38** — Analyze this codebase for performance optimizations:
 > - Identify N+1 query patterns
@@ -21720,6 +21722,51 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > 
 > **4. `components/BookingWizard.vue:1528-1533` — deep-watching a computed that's already a fres
 > … [truncated — 5325 chars total]
+
+**07:42** — <task-notification>
+> <task-id>ae8614927f7f1bef4</task-id>
+> <tool-use-id>toolu_01SBCrZcvDu7pQMps5JgGMFF</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/f5791fb6-4af1-460d-92da-ba85e91269da/tasks/ae8614927f7f1bef4.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find caching gaps and redundant computation" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Caching / redundant-computation audit — fm-events
+> 
+> ### Verified gaps (not yet cached)
+> 
+> **1. `composables/useGroupCodes.ts` `loadCodes()` (lines 64-72) — no cache at all**
+> Every call queries `group_codes` fresh, no `useState`/loaded-flag guard. Contrast with `loadDefaultPositions()` in the *same file* (lines 46-54), which correctly uses `defaultPositionsLoaded` useState to skip refetching. `loadCodes()` is called from `pages/groups/[id]/index.vue`, `pages/groups/index.vue`, `pages/groups/codes/index.vue`, `components/ClassesBoard.vue`, `components/CodeTabsSelect.vue`, `components/dashwidgets/*` — every mount of any of these re-queries the full org code tree even though it's effectively static for the session.
+> Fix: add `codesLoaded`/`codes` useState keyed by org (mirror `loadDefaultPositions`), with a `force` param for the settings pages that mutate it.
+> 
+> **2. `composables/useTermsMemberships.ts` `loadTerms()` / `loadPlans()` (lines 138-190) — no cache**
+> `loadPlans()` runs *two* sequential queries (plans, then options) with zero memoization. Both are called repeatedly — e.g. `pages/groups/[id]/index.vue`'s `loadBilling()` (line 2426) refetches org-wide terms and plans on every single `/groups/:id` mount, as does `pages/groups/fees.vue`, `pages/settings/terms.vue`, `pages/settings/memberships.vue`, `pages/memberships/index.vue`. Compare with `useTerms()` (`composables/useTerms.ts`, lines 16-27) which correctly caches terminology via `loadedFor` useState keyed to `orgId` — that's the pattern to copy here.
+> 
+> **3. `composables/useOrgFieldPolicy.ts` `resolveFields()` / `resolvePersonTypes()` (lines 29-67), and `composables/useOrgHierarchy.ts` `ancestors()` — no cache, 18+ independent call sites**
+> Every caller (`pages/people/index.vue`, `pages/people/[id].vue`, `pages/groups/[id]/index.vue`, `components/FormRenderer.vue`, `PersonFormBuilder.vue`, `BookingFormFields.vue`, etc.) independently recomputes the org's ancestor chain and re-queries `field_definitions`/`person_target_types`, joined to `organisations`. This is the same derived value (org's effective field catalogue / person types) recomputed per-component instead of once and shared. `pages/groups/[id]/index.vue` even has a local ad-hoc guard (`if (orgId.value &amp;&amp; !Object.keys(personTypeLabels.value).length)`, line 2744) — proof the team already recognizes the waste but only patched it locally, not in the composable.
+> Fix
+> … [truncated — 5272 chars total]
+
+**07:43** — <task-notification>
+> <task-id>ab6a5ead2e7b6731d</task-id>
+> <tool-use-id>toolu_01Hk334AqrNaCA5v5tJbkdVb</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/f5791fb6-4af1-460d-92da-ba85e91269da/tasks/ab6a5ead2e7b6731d.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find memory leaks and missing cleanup" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Good, that's clean too. I have enough to write the final report.
+> 
+> ## Findings
+> 
+> **1. `useXeroAccounts` — stale Xero chart-of-accounts leaks across org switches (real bug, org-scoped cache not invalidated)**
+> `/Users/karl/fm-events/composables/useXeroAccounts.ts:72-84` (`loadAllAccounts`) and `/Users/karl/fm-events/components/XeroAccountInput.vue:57-63` (`openPanel`).
+> `allAccounts` and `trackingCats` are global `useState` singletons. `loadAllAccounts()` guards with `if (!connected.value || allAccounts.value || allLoading.value) return`. Once a user opens the Xero picker in Org A, `allAccounts.value` becomes truthy and is **never reset** except when `loadXeroAccounts()` finds the new org disconnected (`if (!connected.value) allAccounts.value = null`, line 68). If the user switches to a different org that is *also* Xero-connected, `allAccounts.value` stays populated with Org A's chart of accounts, `loadAllAccounts()` no-ops on the truthy guard, and `&lt;XeroAccountInput&gt;` in Org B silently shows Org A's revenue accounts/tracking categories. This is exactly the "SPA never fully reloads, `ssr:false`" class of bug the org-switch check is meant to catch.
+> Fix: key the cache by org (e.g. store `{orgId, accounts}` or reset `allAccounts.value = null; trackingCats.value = []` whenever `orgId` changes, similar to how `loadedFor` already gates the cheap `shortlist` load).
+> 
+> **2. Everything else checked is clean — verified, not speculative:**
+> - `setInterval` (3 call sites total in the repo — `components/TimetableGrid.vue:148`, `components/BookingsList.vue:461`, `layouts/default.vue:509`): all three store the handle and clear it in `onBeforeUnmount`/`onUnmounted` (`TimetableGrid.vue:149`, `BookingsList.vue:463`, `layouts/default.vue:513`).
+> - `addEventListener` (checked every one of the ~24 call sites across `ReviewWidget.vue`, `ProfileDashboard.vue`, `XeroAccountInput.vue`, `SubVenueScheduler.vue`, `FeeLineItemsTable.vue`, `hooks/use-mobile.ts`, `layouts/default.vue`, `pages/dashboard.vue`, `pages/onboarding.vue`, `pages/bookables/[id].vue`, `pages/groups/term-wizard.vue`, `pages/groups/[id]/index.vue`, `pages/people/index.vue`, `pages/events/index.vue`, `pages/events/new-basic.vue`, `pages/events/[id].vue`): each has a matching `removeEventListener` in `onBeforeUnmount`/`onUnmounted`.
+> - `ResizeObserver`/`MutationObserver` (`components/ChipMultiSelect.vue:57-65`, `components/ProfileDashboard.vue:89
+> … [truncated — 5032 chars total]
 
 
 ## Session 2026-07-08 07:39 (1 prompts)
@@ -21813,7 +21860,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > … [truncated — 74935 chars total]
 
 
-## Session 2026-07-08 07:39 (1 prompts)
+## Session 2026-07-08 07:39 (5 prompts)
 
 **07:39** — Analyze this codebase for performance optimizations:
 > - Identify N+1 query patterns
@@ -21827,4 +21874,128 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > ## Instructions
 > 
 > Analyze the codebase and provide your response following the format specified in the task.
+
+**07:42** — <task-notification>
+> <task-id>aa9944556e0c569e2</task-id>
+> <tool-use-id>toolu_01UYS7rdCKYbktJJQ1D2sJUn</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/64b7c16d-bb5e-4f53-a8f1-739bdd4561da/tasks/aa9944556e0c569e2.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find caching and redundant computation opportunities" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Good, I have enough evidence. Let me write the final report.
+> 
+> ## Findings: Caching &amp; Redundant Computation Opportunities
+> 
+> **1. `useGroupCodes().loadCodes()` has zero caching — re-fetches the org's entire code tree on every call (`composables/useGroupCodes.ts:64-72`)**
+> No `useState`/loaded-flag guard (unlike `loadRoleDefs`/`loadModules` which already have this pattern). Called fresh from **18 different files** (pages/groups/index.vue, waitlists.vue, allocator.vue, views.vue, view/[id].vue, codes/index.vue, codes/[id].vue, term-wizard.vue, memberships/index.vue, memberships/programme/[id].vue, groups/[id]/index.vue, components/ClassesBoard.vue, FormTargetsTree.vue, dashwidgets/MembershipHealth.vue, StaffCoverage.vue, useClassTimetable.ts, useRetention.ts, useActiveLocation.ts). **Concrete double-fetch on one page:** `pages/groups/index.vue:186` calls `gc.loadCodes()` in its own `load()`, and it also renders `&lt;ClassesBoard&gt;` which independently calls `gc.loadCodes()` at `components/ClassesBoard.vue:225` — same org, same query, twice per page view. Fix: add `useState`-backed cache with `loaded`/`loadedOrg` flag + `force` param, mirroring `useOrgModules().loadModules(force?)`.
+> 
+> **2. `useTermsMemberships().loadTerms()` / `.loadPlans()` — same pattern, no cache (`composables/useTermsMemberships.ts:138-190`)**
+> Called from **15 places** including the same `pages/groups/index.vue` + `&lt;ClassesBoard&gt;` pair (`pages/groups/index.vue:186` and `components/ClassesBoard.vue:226`) — another literal duplicate fetch on `/groups`. Also hit fresh on every `/groups/:id` visit (`pages/groups/[id]/index.vue:2426`) alongside `loadCodes`. Fix: same `useState` cache treatment.
+> 
+> **3. `useOrgHierarchy().ancestors()` — uncached RPC, underlies almost every "resolve" composable (`composables/useOrgHierarchy.ts:43-47`)**
+> `resolveFields()`, `resolvePersonTypes()`, and `resolveTerminology()` (when not going through `useTerms()`) all call `ancestors(orgId)` fresh, doing a full `org_ancestors` RPC round-trip every time. On `/people/:id` this fires on every profile navigation (`pages/people/[id].vue:637-640`) and again inside `&lt;ProfileDashboard&gt;`'s field catalogue (`usePersonFields.ts:29` → `resolveFields`). On `/groups/:id` it fires via `policy.resolvePersonTypes(orgId.value)` (`pages/groups/[id]/index.vue:2745`). The ancestor chain for an org never changes within a session. Fix: memo
+> … [truncated — 7059 chars total]
+
+**07:43** — <task-notification>
+> <task-id>ae8429844258fc480</task-id>
+> <tool-use-id>toolu_012JZrGnetU571SdsjmdUZDP</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/64b7c16d-bb5e-4f53-a8f1-739bdd4561da/tasks/ae8429844258fc480.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find memory leak patterns" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Now I have everything needed to write the report.
+> 
+> ## Memory leak audit — fm-events
+> 
+> Overall the codebase has **unusually good cleanup hygiene** — every `ResizeObserver`, `setInterval`, and template-bound drag handler I checked (`TimetableGrid`, `ChipMultiSelect`, `ProfileDashboard`, `BookingsList`, `layouts/default.vue`, `RichTextEditor`, `SubVenueScheduler`, `XeroAccountInput`, `FeeLineItemsTable`'s outside-click listener, `FormDesigner`'s subject/field Sortables, `FormFieldCanvas`'s sectioned Sortables, `AvailabilityEditor`) is paired with a matching `onUnmounted`/`onBeforeUnmount` teardown. No Supabase realtime (`.channel()`) usage exists anywhere in the app, so that whole leak class is moot. Findings below are the real exceptions.
+> 
+> **1. `components/FeeLineItemsTable.vue:274-284` — undestroyed SortableJS instance (highest impact)**
+> ```js
+> onMounted(() =&gt; {
+>   ...
+>   if (tbodyEl.value) {
+>     Sortable.create(tbodyEl.value, { handle: '.drag-handle', ... })
+>   }
+> })
+> onUnmounted(() =&gt; {
+>   document.removeEventListener('click', closeOnOutsideClick)   // sortable never destroyed
+> })
+> ```
+> The Sortable instance is never assigned to a variable, so it can never be `.destroy()`'d. This component is embedded pervasively per CLAUDE.md (events/sessions fee tables, `/groups/:id` fees editor, `/groups/fees` bulk dialog, the term wizard's per-programme fee editor, booking discount/pricing editors) — i.e. mounted/unmounted repeatedly inside dialogs and wizard steps. Each mount leaves SortableJS's internal document-level drag listeners (`dragstart`/`pointerdown` etc.) bound, accumulating with every dialog open/close cycle. Fix: `let sortable: Sortable | null = null` at module scope, store the instance from `Sortable.create(...)`, and add `if (sortable) { sortable.destroy(); sortable = null }` inside the existing `onUnmounted`.
+> 
+> **2. Debounced-autosave `setTimeout` timers with no unmount cleanup (5 files, same pattern)**
+> - `components/PersonFormBuilder.vue:161-165` (`saveTimer`)
+> - `components/BookableAccessEditor.vue:210-213` (`saveTimer`, 250ms)
+> - `components/FormDesigner.vue:1965-1992` (`_formSaveTimer`)
+> - `components/EventInviteeManager.vue:364-369` (`personSearchTimer`, 250ms)
+> - `pages/groups/view/[id].vue:42-70` (`saveTimer` + `savedFlagTimer`)
+> 
+> All follow `if (timer) clearTimeout(timer); timer = setTimeout(fn, N)` — safe from accumulation (never more than one pending timer), but **none clear the timer on un
+> … [truncated — 5749 chars total]
+
+**07:43** — <task-notification>
+> <task-id>a348b24b3feefd5db</task-id>
+> <tool-use-id>toolu_01AcCb6C6t1vTZHFuYawkBdv</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/64b7c16d-bb5e-4f53-a8f1-739bdd4561da/tasks/a348b24b3feefd5db.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find Vue reactivity/re-render issues" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Now I have everything needed. Here is the ranked report.
+> 
+> ## Vue Reactivity Findings — fm-events (ranked by likely real-world impact)
+> 
+> **1. `pages/people/index.vue:687-691` — `typeCounts` computed does O(types × people) full-array rescans**
+> ```js
+> const typeCounts = computed(() =&gt; {
+>   const c: Record&lt;string, number&gt; = { all: peoplePopulation.value.length }
+>   for (const t of nonAdminTypes.value) c[t.key] = peoplePopulation.value.filter(p =&gt; typeKeysOf(p).includes(t.key)).length
+>   return c
+> })
+> ```
+> For a club with N people and M person types, this is M full `.filter()` passes (N×M work) every time it recomputes (on any people reload or location-lens switch). A club with thousands of people (governing-body "Club members" scope) and 6-8 types does tens of thousands of iterations for a simple tab-count. **Fix:** single pass building a tally map (`for (const p of peoplePopulation.value) for (const k of typeKeysOf(p)) c[k]=(c[k]||0)+1`).
+> 
+> **2. `pages/people/index.vue:444` + `pages/groups/[id]/index.vue:1738-1739` — large DB-row arrays as deep `ref` instead of `shallowRef`**
+> `const people = ref&lt;any[]&gt;([])` and `const members = ref&lt;Member[]&gt;([])` / `coaches = ref&lt;Coach[]&gt;([])`. Confirmed via grep that these are **only ever whole-array reassigned or `.filter()`'d** (`people.value = data ?? []`, `members.value = mapped...`) — never deep-mutated in place. Vue wraps every row (and every nested object/array in it, e.g. `custom_fields`) in a reactive Proxy for no benefit, adding proxy-creation + tracking overhead on load for lists that can run into the hundreds/thousands of rows. **Fix:** `shallowRef` for both — reassignment already triggers the needed updates; nothing depends on tracking a mutation to a single row's nested field.
+> 
+> **3. `pages/events/[id].vue:3430` — `const event = ref&lt;any&gt;(null)` holds the entire event row (incl. `config` jsonb driving the whole Forms tab) as one deeply-reactive object, referenced 71 times across the file feeding 46 computeds**
+> Not incorrect by itself (Vue's per-property tracking means unrelated computeds are fine), but it means every nested mutation anywhere in `event.value` (banner upload, form field edit, design settings, tickets config, etc.) goes through the same giant reactive proxy tree, and any code that reads `event.value` broadly (spreads, `Object.keys`, deep watches) forces full traversal. Given this file already had one
+> … [truncated — 10099 chars total]
+
+**07:44** — <task-notification>
+> <task-id>aaf305eb1c3fc3d72</task-id>
+> <tool-use-id>toolu_01DiN83BhauEdNthoFGLQDnn</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/64b7c16d-bb5e-4f53-a8f1-739bdd4561da/tasks/aaf305eb1c3fc3d72.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find N+1 query patterns" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>I have enough evidence now. Let me compile the final ranked report.
+> 
+> ## N+1 / Sequential Query Findings — fm-events
+> 
+> Ranked by real-world impact (frequency of the code path × scale of N).
+> 
+> **1. `components/AvailabilityEditor.vue:851-857` and `:1826-1830` — sequential per-row `sort_order` updates (true N+1, not even parallelized)**
+> ```js
+> async function persistRuleOrder(orderedIds: string[]) {
+>   for (let i = 0; i &lt; orderedIds.length; i++) {
+>     ...
+>     await (db.from as any)('availability_rules').update({ sort_order: i }).eq('id', ruleId)
+>   }
+> }
+> ```
+> Every drag-reorder of availability rules on any venue fires one sequential `await` round-trip per rule (N rules → N sequential queries, not even `Promise.all`'d). The second instance (line 1826) does the same when bumping conflicting rules down a priority slot. **Fix:** batch with `Promise.all(orderedIds.map((id,i)=&gt;...))`, or better, a single `upsert` with an array of `{id, sort_order}` rows.
+> 
+> **2. `pages/bookables/[id].vue:2044-2077` — Configuration sync to linked siblings (per-sibling query + multi-query save, sequential)**
+> ```js
+> for (const sibling of linkedItems.value) {
+>   const { data: sibChildren } = await (db.from as any)('bookables').select('id, master_id').eq('parent_id', sibling.id)...
+>   ...
+>   if (mappedSlots.length) await saveConfiguration(sibling.id, key, name, mappedSlots)
+> }
+> ```
+> For N linked sibling venues (e.g. 10-20 tennis courts sharing one "Halves/Quarters" template), each iteration does a `bookables` select **plus** `saveConfiguration()` (composables/useBookableConfigurations.ts:34) which itself is 3-4 sequential queries (select existing config, update/insert, delete-then-insert children). A 20-court club saving one configuration = ~100 sequential round trips. **Fix:** batch the `bookables` select up front with `.in('parent_id', linkedItems.value.map(s=&gt;s.id))`, group client-side, then run `saveConfiguration` calls via `Promise.all` (they're independent per sibling).
+> 
+> **3. `composables/useTermRollover.ts:180-197` (`rollOverGroups`) + `cloneOne` (245-328) — per-group term-rollover clone, fully sequential**
+> The while-loop clones one group at a time (`await cloneOne(...)`), and `cloneOne` itself does up to 7 sequential inserts/updates per group (member_groups insert, conditional lineage update, schedules insert, plans insert, member_group_terms insert, a **per-fee-option loop** with insert+items-insert each, memberships insert). F
+> … [truncated — 7740 chars total]
 
