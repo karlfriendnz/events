@@ -42,6 +42,8 @@ const DASHBOARD_WIDGETS: WidgetDef[] = [
   { key: 'membership_health', label: 'Memberships',             description: 'Tiers, counts and new this month',           x: 8, y: 110, w: 4, h: 5, minW: 3, minH: 3, defaultOff: true },
   { key: 'retention_snapshot',label: 'Retention tile',          description: 'Carry-over from last term',                  x: 0, y: 115, w: 3, h: 2, minW: 2, minH: 2, defaultOff: true },
   { key: 'birthdays',         label: 'Birthdays this week',     description: 'Upcoming member birthdays',                  x: 3, y: 115, w: 4, h: 5, minW: 3, minH: 3, defaultOff: true },
+  { key: 'network_overview',  label: 'Network overview',        description: 'Affiliated clubs + members (parent orgs)',   x: 0, y: 120, w: 4, h: 5, minW: 3, minH: 3, defaultOff: true },
+  { key: 'club_leaderboard',  label: 'Club leaderboard',        description: 'Clubs ranked by members (parent orgs)',      x: 4, y: 120, w: 4, h: 6, minW: 3, minH: 4, defaultOff: true },
 ]
 const defById = Object.fromEntries(DASHBOARD_WIDGETS.map(w => [w.key, w]))
 // Dynamic chart instances use keys like "chart:<id>" — they aren't in the
@@ -287,6 +289,7 @@ const REG_ICONS: Record<string, string> = {
   reg_week: 'pi-chart-line', not_live: 'pi-exclamation-triangle', outstanding: 'pi-dollar', utilisation: 'pi-gauge',
   waitlist_action: 'pi-hourglass', location_compare: 'pi-map-marker', season_pulse: 'pi-clock', attendance_pulse: 'pi-check-square',
   staff_coverage: 'pi-shield', membership_health: 'pi-id-card', retention_snapshot: 'pi-chart-line', birthdays: 'pi-gift',
+  network_overview: 'pi-share-alt', club_leaderboard: 'pi-trophy',
 }
 function widgetIcon(key: string) { return REG_ICONS[key] ?? 'pi-th-large' }
 function widgetDesc(key: string) { return widgetDef(key).description }
@@ -972,6 +975,8 @@ watch(orgId, () => { if (orgId.value) loadOnboardingNudge() }, { immediate: true
             <DashwidgetsMembershipHealth v-else-if="item.i === 'membership_health'" class="h-full" />
             <DashwidgetsRetentionSnapshot v-else-if="item.i === 'retention_snapshot'" class="h-full" />
             <DashwidgetsBirthdays v-else-if="item.i === 'birthdays'" class="h-full" />
+            <DashwidgetsNetworkOverview v-else-if="item.i === 'network_overview'" class="h-full" />
+            <DashwidgetsClubLeaderboard v-else-if="item.i === 'club_leaderboard'" class="h-full" />
 
             <!-- Content block: free-form rich text / image / buttons (member dashboards) -->
             <div v-else-if="isContent(item.i)" class="card h-full flex flex-col overflow-hidden relative"
