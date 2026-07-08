@@ -1,0 +1,14 @@
+-- CROSS-CLUB MEMBERS. A governing org (NSO / Regional / Association) can build a
+-- group (member_groups owned by the governing org) whose roster mixes:
+--   • its OWN members  (persons.org_id = the governing org), and
+--   • members PULLED from the clubs beneath it.
+--
+-- member_group_memberships has NO org_id, so a governing group can reference a
+-- club-owned persons row directly — no schema change is needed for the link.
+--
+-- This setting lets the PARENT choose how a pulled-in club member is stored:
+--   'reference' (default/null) → the group points at the club's persons row (no copy;
+--                                club keeps ownership; the person shows as read-only up here)
+--   'copy'                     → a governing-owned persons row is created (mirror), so the
+--                                governing org can edit it independently
+alter table organisations add column if not exists member_pull_mode text;   -- null | 'reference' | 'copy'

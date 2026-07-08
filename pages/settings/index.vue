@@ -120,6 +120,49 @@
             </div>
           </div>
 
+          <!-- Contact details (migration 251) -->
+          <div class="card p-5">
+            <h2 class="text-sm font-semibold text-surface-700 mb-4">Contact details</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium">Full name</label>
+                <InputText v-model="org.name" placeholder="Organisation name" />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium">Short name</label>
+                <InputText v-model="org.short_name" placeholder="A shorter display name" />
+              </div>
+              <div class="flex flex-col gap-1.5 sm:col-span-2">
+                <label class="text-sm font-medium">Address</label>
+                <Textarea v-model="org.address" rows="2" auto-resize placeholder="Street, suburb, city, postcode" />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium">Country</label>
+                <InputText v-model="org.country" placeholder="e.g. New Zealand" />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium">Timezone</label>
+                <Select v-model="org.timezone" :options="tzOptions" option-label="label" option-value="value"
+                  filter placeholder="Choose a timezone" class="w-full" show-clear />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium">Email address</label>
+                <InputText v-model="org.email" type="email" placeholder="club@example.com" />
+              </div>
+              <div class="flex flex-col gap-1.5">
+                <label class="text-sm font-medium">Phone number</label>
+                <InputText v-model="org.phone" placeholder="e.g. 027 537 4363" />
+              </div>
+              <div class="flex flex-col gap-1.5 sm:col-span-2">
+                <label class="text-sm font-medium">Website</label>
+                <InputText v-model="org.website" placeholder="https://yourclub.co.nz" />
+              </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+              <Button label="Save contact details" :loading="savingOrg" @click="saveOrg" size="small" />
+            </div>
+          </div>
+
         </TabPanel>
 
         <!-- ── BOOKINGS ── -->
@@ -411,6 +454,14 @@ const org = ref<{
   default_bank_account_id: string | null
   events_default_payment_method: string | null
   events_default_bank_account_id: string | null
+  // Contact details (migration 251)
+  short_name: string | null
+  address: string | null
+  country: string | null
+  timezone: string | null
+  email: string | null
+  phone: string | null
+  website: string | null
 }>({
   name: 'Demo Club', currency: 'AUD', locale: 'en-AU',
   season_start: null, season_end: null,
@@ -418,7 +469,15 @@ const org = ref<{
   logo_url: null, icon_url: null, brand_color: null, brand_text_color: null,
   default_form_id: null, default_payment_method: null, default_bank_account_id: null,
   events_default_payment_method: null, events_default_bank_account_id: null,
+  short_name: null, address: null, country: null, timezone: null, email: null, phone: null, website: null,
 })
+
+// Timezone options — the platform's full IANA list when available, else a small fallback.
+const timezoneOptions = (() => {
+  try { return (Intl as any).supportedValuesOf?.('timeZone') as string[] ?? [] } catch { return [] }
+})()
+const tzFallback = ['Pacific/Auckland', 'Australia/Sydney', 'Australia/Perth', 'Europe/London', 'America/New_York', 'America/Los_Angeles', 'UTC']
+const tzOptions = computed(() => (timezoneOptions.length ? timezoneOptions : tzFallback).map(z => ({ label: z.replace(/_/g, ' '), value: z })))
 
 // Org hierarchy (Club -> Regional -> Association -> National)
 const { buildChain } = useOrgHierarchy()
@@ -592,6 +651,13 @@ async function load() {
       default_bank_account_id: orgData.default_bank_account_id ?? null,
       events_default_payment_method: orgData.events_default_payment_method ?? null,
       events_default_bank_account_id: orgData.events_default_bank_account_id ?? null,
+      short_name: orgData.short_name ?? null,
+      address: orgData.address ?? null,
+      country: orgData.country ?? null,
+      timezone: orgData.timezone ?? null,
+      email: orgData.email ?? null,
+      phone: orgData.phone ?? null,
+      website: orgData.website ?? null,
     }
     defaultPaymentOptions.value = {
       invoice: false, credit_card: false, payment_plan: false, coupon: false,
@@ -656,6 +722,13 @@ async function saveOrg() {
     brand_text_color: org.value.brand_text_color,
     season_start: toIsoDate(org.value.season_start),
     season_end: toIsoDate(org.value.season_end),
+    short_name: org.value.short_name?.trim() || null,
+    address: org.value.address?.trim() || null,
+    country: org.value.country?.trim() || null,
+    timezone: org.value.timezone || null,
+    email: org.value.email?.trim() || null,
+    phone: org.value.phone?.trim() || null,
+    website: org.value.website?.trim() || null,
   }).eq('id', orgId.value)
   toast.add({ severity: 'success', summary: 'Organisation saved', life: 3000 })
   savingOrg.value = false

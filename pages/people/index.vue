@@ -1,11 +1,12 @@
 <template>
   <div class="p-3 sm:p-6">
     <!-- Title lives in the control bar (useBreadcrumbs). -->
-    <div class="inline-flex rounded-lg border border-gray-200 p-0.5 mb-4">
-      <button v-for="v in (['people','organisations'] as const)" :key="v" type="button"
+    <!-- Mobile: on-page switcher (desktop switches from the People nav flyout) -->
+    <div class="md:hidden inline-flex rounded-lg border border-gray-200 p-0.5 mb-4">
+      <button v-for="v in (['people','admins','organisations'] as const)" :key="v" type="button"
         class="px-4 py-1.5 text-sm font-medium rounded-md transition-colors"
         :class="view === v ? 'bg-[#1E2157] text-white' : 'text-gray-500 hover:text-gray-800'"
-        @click="view = v">{{ v === 'people' ? 'People' : 'Organisations' }}</button>
+        @click="view = v">{{ { people: 'People', admins: 'Admins', organisations: 'Organisations' }[v] }}</button>
     </div>
 
     <template v-if="view === 'people'">
@@ -256,6 +257,87 @@
     </Dialog>
     </template>
 
+    <!-- ADMINS view — people who hold an access-granting type (or a permission group) -->
+    <template v-else-if="view === 'admins'">
+      <div class="flex items-center justify-between mb-4 gap-4 flex-wrap">
+        <IconField iconPosition="left">
+          <InputIcon class="pi pi-search" />
+          <InputText v-model="search" placeholder="Search admins…" size="small" class="w-full sm:w-64" />
+        </IconField>
+        <Button label="Add admin" icon="pi pi-plus" size="small" :disabled="!adminTypeOptions.length"
+          style="background:#1E2157;border-color:#1E2157" @click="openAddAdmin" />
+      </div>
+      <p class="text-sm text-gray-500 mb-3 max-w-2xl">People who can manage parts of the club — anyone holding an access-granting type (or a permission group). Give someone access on their <span class="text-gray-700">Profile → Roles</span>, or define access types in <NuxtLink to="/settings/fields" class="text-primary hover:underline">Types &amp; fields</NuxtLink>.</p>
+
+      <!-- Access-type filter: dropdown on mobile, tab strip on desktop -->
+      <div class="md:hidden mb-4">
+        <Select v-model="adminActiveType" :options="adminTypeTabs" option-label="label" option-value="key" class="w-full">
+          <template #option="{ option }">
+            <span class="flex-1">{{ option.label }}</span>
+            <span class="ml-auto text-xs text-gray-400">{{ adminTypeCounts[option.key] ?? 0 }}</span>
+          </template>
+        </Select>
+      </div>
+      <div class="hidden md:flex items-center gap-1 mb-4 border-b border-gray-200 overflow-x-auto overflow-y-hidden no-scrollbar">
+        <button v-for="t in adminTypeTabs" :key="t.key" type="button"
+          class="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap"
+          :class="adminActiveType === t.key ? 'border-[#1E2157] text-[#1E2157]' : 'border-transparent text-gray-500 hover:text-gray-800'"
+          @click="adminActiveType = t.key">
+          {{ t.label }}
+          <span class="text-xs px-1.5 rounded-full" :class="adminActiveType === t.key ? 'bg-[#1E2157]/10 text-[#1E2157]' : 'bg-gray-100 text-gray-400'">{{ adminTypeCounts[t.key] ?? 0 }}</span>
+        </button>
+      </div>
+
+      <!-- Mobile: card list -->
+      <div class="md:hidden">
+        <div v-if="!admins.length" class="card p-10 text-center text-surface-400"><i class="pi pi-shield text-3xl mb-3 block" /><p>No admins yet.</p></div>
+        <div v-else class="space-y-2">
+          <div v-for="p in admins" :key="p.id" class="card p-3 flex items-center gap-3 cursor-pointer active:bg-gray-50" @click="openPerson(p)">
+            <span class="inline-flex items-center justify-center w-10 h-10 rounded-full text-sm font-semibold text-white shrink-0 overflow-hidden" :style="p.photo_url ? {} : { background: avatarColor(p.id) }">
+              <img v-if="p.photo_url" :src="p.photo_url" class="w-full h-full object-cover" /><span v-else>{{ initials(p) }}</span>
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="font-medium text-surface-800 truncate">{{ p.first_name }} {{ p.last_name }}</p>
+              <p class="text-xs text-surface-500 truncate">{{ p.email || p.phone || '—' }}</p>
+              <div class="flex flex-wrap gap-1 mt-1">
+                <Tag v-for="k in adminTypeKeys(p)" :key="k" :value="typeLabel(k)" />
+                <Tag v-if="!adminTypeKeys(p).length" value="Permission group" severity="secondary" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desktop: DataTable -->
+      <div class="card overflow-x-auto hidden md:block">
+        <DataTable :value="admins" row-hover striped-rows size="small" dataKey="id"
+          paginator :rows="25" :rowsPerPageOptions="[25, 50, 100]" sortField="last_name" :sortOrder="1"
+          @row-click="e => openPerson(e.data)" class="cursor-pointer">
+          <template #empty><div class="text-center py-12 text-surface-400"><i class="pi pi-shield text-3xl mb-3 block" /><p>No admins yet. Give someone an access-granting type.</p></div></template>
+          <Column field="last_name" header="Name" sortable>
+            <template #body="{ data }">
+              <div class="flex items-center gap-3">
+                <span class="inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-semibold text-white shrink-0 overflow-hidden" :style="data.photo_url ? {} : { background: avatarColor(data.id) }">
+                  <img v-if="data.photo_url" :src="data.photo_url" class="w-full h-full object-cover" /><span v-else>{{ initials(data) }}</span>
+                </span>
+                <span class="font-medium text-surface-800">{{ data.first_name }} {{ data.last_name }}</span>
+              </div>
+            </template>
+          </Column>
+          <Column header="Access" style="width:220px">
+            <template #body="{ data }">
+              <div class="flex flex-wrap gap-1">
+                <Tag v-for="k in adminTypeKeys(data)" :key="k" :value="typeLabel(k)" />
+                <Tag v-if="!adminTypeKeys(data).length" value="Permission group" severity="secondary" />
+              </div>
+            </template>
+          </Column>
+          <Column field="email" header="Email" sortable><template #body="{ data }"><span class="text-surface-600">{{ data.email || '—' }}</span></template></Column>
+          <Column field="phone" header="Phone"><template #body="{ data }"><span class="text-surface-600">{{ data.phone || '—' }}</span></template></Column>
+        </DataTable>
+      </div>
+    </template>
+
     <!-- ORGANISATIONS view (entity records) -->
     <template v-else>
       <div class="flex items-center justify-between gap-3 mb-4">
@@ -311,6 +393,39 @@
       </Dialog>
     </template>
 
+    <!-- Add admin: give an existing person an access-granting type -->
+    <Dialog v-model:visible="addAdminOpen" header="Add admin" modal :style="{ width: '95vw', maxWidth: '440px' }">
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1.5">
+          <div class="flex items-center justify-between">
+            <label class="text-sm font-medium">Person</label>
+            <button type="button" class="text-xs text-primary hover:underline" @click="adminNewMode = !adminNewMode">
+              {{ adminNewMode ? 'Search existing' : '+ New person' }}
+            </button>
+          </div>
+          <Select v-if="!adminNewMode" v-model="addAdminPersonId" :options="personPickOptions" option-label="label" option-value="value"
+            filter placeholder="Search a person…" class="w-full" />
+          <div v-else class="grid grid-cols-2 gap-2">
+            <InputText v-model="newAdmin.first_name" placeholder="First name" autofocus />
+            <InputText v-model="newAdmin.last_name" placeholder="Last name" />
+            <InputText v-model="newAdmin.email" type="email" placeholder="Email (optional)" class="col-span-2" />
+            <InputText v-model="newAdmin.phone" placeholder="Phone (optional)" class="col-span-2" />
+          </div>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Access type</label>
+          <Select v-model="addAdminTypeKey" :options="adminTypeOptions" option-label="label" option-value="value"
+            placeholder="Choose an access type" class="w-full" />
+          <p class="text-xs text-gray-400">Access types come from <NuxtLink to="/settings/fields" class="text-primary hover:underline">Types &amp; fields</NuxtLink> (types that grant access). This is added to the person's roles.</p>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" text size="small" @click="addAdminOpen = false" />
+        <Button :label="adminNewMode ? 'Create admin' : 'Add admin'" size="small" :loading="savingAdmin" :disabled="!canSaveAdmin"
+          style="background:#1E2157;border-color:#1E2157" @click="saveAddAdmin" />
+      </template>
+    </Dialog>
+
     <Toast />
   </div>
 </template>
@@ -362,8 +477,95 @@ const clubMembersFiltered = computed(() => {
   return clubMembers.value.filter((p: any) => `${p.first_name ?? ''} ${p.last_name ?? ''} ${p.email ?? ''} ${p.club_name}`.toLowerCase().includes(q))
 })
 
-// ── People | Organisations top-level view (entities live as a tab here) ──
-const view = ref<'people' | 'organisations'>('people')
+// ── People | Admins | Organisations top-level view ──
+const view = ref<'people' | 'admins' | 'organisations'>('people')
+
+// ── Admins: people with an access-granting type (or a legacy permission group) ──
+const accessTypeKeys = ref<Set<string>>(new Set())
+const adminMemberIds = ref<Set<string>>(new Set())
+async function loadAdmins() {
+  if (!orgId.value) return
+  const [{ data: types }, mem] = await Promise.all([
+    (db.from as any)('person_target_types').select('key').eq('org_id', orgId.value).eq('is_access', true),
+    (db.from as any)('permission_group_members').select('person_id, group:permission_groups!inner(org_id)').eq('group.org_id', orgId.value).then((r: any) => r).catch(() => ({ data: [] })),
+  ])
+  accessTypeKeys.value = new Set((types ?? []).map((t: any) => t.key))
+  adminMemberIds.value = new Set(((mem?.data) ?? []).map((m: any) => m.person_id))
+}
+function adminTypeKeys(p: any): string[] { return typeKeysOf(p).filter(k => accessTypeKeys.value.has(k)) }
+
+// Admins type tabs (mirror the People tabs, but over the access-granting types).
+const adminActiveType = ref('all')
+const adminAccessTypes = computed(() => personTypes.value.filter(t => accessTypeKeys.value.has(t.key)))
+const adminTypeTabs = computed(() => [{ key: 'all', label: 'All' }, ...adminAccessTypes.value.map(t => ({ key: t.key, label: t.label }))])
+const adminTypeCounts = computed(() => {
+  const base = people.value.filter(isAdminPerson)
+  const c: Record<string, number> = { all: base.length }
+  for (const t of adminAccessTypes.value) c[t.key] = base.filter(p => typeKeysOf(p).includes(t.key)).length
+  return c
+})
+
+// Add-admin: pick (or create) a person + give them an access-granting type.
+const addAdminOpen = ref(false)
+const addAdminPersonId = ref<string | null>(null)
+const addAdminTypeKey = ref<string | null>(null)
+const savingAdmin = ref(false)
+const adminNewMode = ref(false)   // true = create a new person instead of picking one
+const newAdmin = reactive({ first_name: '', last_name: '', email: '', phone: '' })
+const adminTypeOptions = computed(() => personTypes.value.filter(t => accessTypeKeys.value.has(t.key)).map(t => ({ label: t.label, value: t.key })))
+const personPickOptions = computed(() => people.value
+  .map(p => ({ label: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() + (p.email ? ` · ${p.email}` : ''), value: p.id }))
+  .sort((a, b) => a.label.localeCompare(b.label)))
+const canSaveAdmin = computed(() => !!addAdminTypeKey.value && (adminNewMode.value
+  ? !!(newAdmin.first_name.trim() || newAdmin.last_name.trim())
+  : !!addAdminPersonId.value))
+function openAddAdmin() {
+  addAdminPersonId.value = null
+  addAdminTypeKey.value = adminTypeOptions.value[0]?.value ?? null
+  adminNewMode.value = false
+  newAdmin.first_name = ''; newAdmin.last_name = ''; newAdmin.email = ''; newAdmin.phone = ''
+  addAdminOpen.value = true
+}
+async function saveAddAdmin() {
+  if (!canSaveAdmin.value || !addAdminTypeKey.value) return
+  savingAdmin.value = true
+  const typeKey = addAdminTypeKey.value
+  // NEW person → create with the admin type, then open their profile.
+  if (adminNewMode.value) {
+    const { data: created, error } = await (db.from as any)('persons').insert({
+      org_id: orgId.value,
+      first_name: newAdmin.first_name.trim() || null,
+      last_name: newAdmin.last_name.trim() || null,
+      email: newAdmin.email.trim() || null,
+      phone: newAdmin.phone.trim() || null,
+      person_types: [typeKey], person_type: typeKey,
+    }).select('id').single()
+    savingAdmin.value = false
+    if (error || !created) { toast.add({ severity: 'error', summary: 'Could not create admin', detail: error?.message, life: 4000 }); return }
+    addAdminOpen.value = false
+    navigateTo(`/people/${created.id}`)
+    return
+  }
+  // EXISTING person → append the access type.
+  const p = people.value.find(x => x.id === addAdminPersonId.value)
+  const existing = p ? typeKeysOf(p) : []
+  const arr = existing.includes(typeKey) ? existing : [...existing, typeKey]
+  const { error } = await (db.from as any)('persons')
+    .update({ person_types: arr, person_type: arr[0] ?? typeKey }).eq('id', addAdminPersonId.value)
+  savingAdmin.value = false
+  if (error) { toast.add({ severity: 'error', summary: 'Could not add admin', detail: error.message, life: 4000 }); return }
+  if (p) { p.person_types = arr; p.person_type = arr[0] ?? typeKey }
+  addAdminOpen.value = false
+  toast.add({ severity: 'success', summary: 'Admin added', life: 2000 })
+}
+function isAdminPerson(p: any): boolean { return adminTypeKeys(p).length > 0 || adminMemberIds.value.has(p.id) }
+const admins = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  let list = people.value.filter(isAdminPerson)
+  if (adminActiveType.value !== 'all') list = list.filter(p => typeKeysOf(p).includes(adminActiveType.value))
+  if (q) list = list.filter(p => `${p.first_name ?? ''} ${p.last_name ?? ''} ${p.email ?? ''} ${p.phone ?? ''}`.toLowerCase().includes(q))
+  return list
+})
 const entityTypes = ref<any[]>([])
 const entityRows = ref<any[]>([])
 const entityCounts = ref<Record<string, number>>({})
@@ -460,9 +662,18 @@ const menuItems = ref<any[]>([])
 const selected = ref<any[]>([])
 const bulkType = ref<string | null>(null)
 
-const typeTabs = computed(() => [{ key: 'all', label: 'All' }, ...personTypes.value.map(t => ({ key: t.key, label: t.label }))])
 // A person's role keys — the multi array, falling back to the legacy single type.
 function typeKeysOf(p: any): string[] { return p?.person_types?.length ? p.person_types : (p?.person_type ? [p.person_type] : []) }
+// The People view shows only NON-access types (members/gymnasts, parents, emergency
+// contacts…). Access-granting types (Admin/Committee/Manager) live on the Admins tab.
+const nonAdminTypes = computed(() => personTypes.value.filter(t => !accessTypeKeys.value.has(t.key)))
+// A person is "admin-only" when every type they hold is access-granting — those are
+// hidden from People (they show on Admins). Untyped people stay under People.
+function isAdminOnly(p: any): boolean {
+  const keys = typeKeysOf(p)
+  return keys.length > 0 && keys.every(k => accessTypeKeys.value.has(k))
+}
+const typeTabs = computed(() => [{ key: 'all', label: 'All' }, ...nonAdminTypes.value.map(t => ({ key: t.key, label: t.label }))])
 // Counts respect the location lens (same rule as the table rows).
 const lensPeople = computed(() => {
   if (!lensLocation.value) return people.value
@@ -471,9 +682,11 @@ const lensPeople = computed(() => {
     return !locs || !locs.length || locs.includes(lensLocation.value!)
   })
 })
+// People-view population: the lens people, minus anyone who is ONLY an admin.
+const peoplePopulation = computed(() => lensPeople.value.filter(p => !isAdminOnly(p)))
 const typeCounts = computed(() => {
-  const c: Record<string, number> = { all: lensPeople.value.length }
-  for (const t of personTypes.value) c[t.key] = lensPeople.value.filter(p => typeKeysOf(p).includes(t.key)).length
+  const c: Record<string, number> = { all: peoplePopulation.value.length }
+  for (const t of nonAdminTypes.value) c[t.key] = peoplePopulation.value.filter(p => typeKeysOf(p).includes(t.key)).length
   return c
 })
 function typeLabel(key: string) { return personTypes.value.find(t => t.key === key)?.label ?? key }
@@ -484,7 +697,7 @@ function typeLabel(key: string) { return personTypes.value.find(t => t.key === k
 const { activeLocationId: lensLocation } = useActiveLocation()
 const personLocations = ref<Record<string, string[]>>({})
 const filtered = computed(() => {
-  let list = lensPeople.value
+  let list = peoplePopulation.value
   if (activeType.value !== 'all') list = list.filter(p => typeKeysOf(p).includes(activeType.value))
   const q = search.value.trim().toLowerCase()
   if (!q) return list
@@ -682,12 +895,16 @@ function openMenu(event: Event, row: any) {
   rowMenu.value.toggle(event)
 }
 
+// The nav "People" flyout drives the view via ?view=people|admins|organisations.
+function applyViewFromQuery() {
+  const v = route.query.view
+  if (v === 'admins' || v === 'organisations' || v === 'people') view.value = v
+  if (view.value === 'organisations' && typeof route.query.type === 'string') activeEntityType.value = route.query.type
+}
+watch(() => route.query.view, applyViewFromQuery)
 onMounted(() => {
-  if (route.query.view === 'organisations') {
-    view.value = 'organisations'
-    if (typeof route.query.type === 'string') activeEntityType.value = route.query.type
-  }
-  load(); loadTypes(); loadColumns(); loadGoverning()
+  applyViewFromQuery()
+  load(); loadTypes(); loadColumns(); loadGoverning(); loadAdmins()
   document.addEventListener('click', onColDocClick)
 })
 onBeforeUnmount(() => document.removeEventListener('click', onColDocClick))

@@ -157,7 +157,9 @@ const hiddenWidgets = computed(() => config.value.filter(c => !c.enabled))
 function cfgFor(key: string) { return config.value.find(c => c.key === key) }
 
 // ── Edit mode (builder only) ──
-const editing = ref(false)
+// In the settings builder (editable) we land straight in edit mode — no "Customise
+// layout" click needed; the tab IS the editor. Read-only contexts stay non-editing.
+const editing = ref(props.editable === true)
 const saving = ref(false)
 const selectedKey = ref<string | null>(null)
 watch(editing, () => nextTick(measure))

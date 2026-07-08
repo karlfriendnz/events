@@ -113,6 +113,25 @@
           </div>
         </div>
 
+        <!-- People: icon + flyout (People / Admins / Organisations) -->
+        <div v-else-if="item.people" class="relative" :class="railExpanded ? 'w-full' : ''" @mouseenter="onPeopleEnter" @mouseleave="onPeopleLeave">
+          <NuxtLink :to="item.href"
+            class="flex items-center rounded-xl transition-colors"
+            :class="[railBtnClass, isActive(item.href) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white']">
+            <i :class="['pi', item.icon, 'text-lg']" />
+            <span v-if="railExpanded" class="flex-1 text-sm whitespace-nowrap text-left">{{ item.label }}</span>
+            <i v-if="railExpanded" class="pi pi-angle-right text-white/40 text-xs shrink-0" />
+          </NuxtLink>
+          <div v-show="peopleHover" class="absolute left-full top-0 z-[70]" style="padding-left:10px"
+            @mouseenter="onPeopleEnter" @mouseleave="onPeopleLeave">
+            <div class="w-52 bg-white rounded-xl shadow-xl border border-gray-200 py-1 overflow-hidden">
+              <NuxtLink to="/people?view=people" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="peopleHover = false"><i class="pi pi-users text-gray-400 text-xs" />People</NuxtLink>
+              <NuxtLink to="/people?view=admins" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="peopleHover = false"><i class="pi pi-shield text-gray-400 text-xs" />Admins</NuxtLink>
+              <NuxtLink to="/people?view=organisations" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="peopleHover = false"><i class="pi pi-building text-gray-400 text-xs" />Organisations</NuxtLink>
+            </div>
+          </div>
+        </div>
+
         <!-- Other items: icon + inline label (expanded) or hover tooltip (collapsed) -->
         <NuxtLink v-else :to="item.href"
           class="group relative flex items-center rounded-xl transition-colors"
@@ -626,6 +645,12 @@ function onBookingsEnter() {
 function onBookingsLeave() {
   bookingsLeaveTimer = setTimeout(() => { bookingsHover.value = false }, 180)
 }
+// People flyout (People / Admins / Organisations → /people?view=…)
+const peopleHover = ref(false)
+let peopleLeaveTimer: any = null
+function onPeopleEnter() { if (peopleLeaveTimer) { clearTimeout(peopleLeaveTimer); peopleLeaveTimer = null } peopleHover.value = true }
+function onPeopleLeave() { peopleLeaveTimer = setTimeout(() => { peopleHover.value = false }, 180) }
+
 const gvComposable = useGroupViews()
 // Shared reactive list — updates the instant a view is created/renamed/deleted.
 const groupViews = gvComposable.views
@@ -659,7 +684,7 @@ const navItems = [
 // Items without a built page point at a ComingSoon placeholder route.
 const clubMenu = [
   { label: 'Dashboard',   icon: 'pi-th-large',      href: '/dashboard',               chevron: false },
-  { label: 'People',      icon: 'pi-users',         href: '/people',                  chevron: true },
+  { label: 'People',      icon: 'pi-users',         href: '/people',                  chevron: true, people: true },
   { label: 'Classes',     icon: 'pi-sitemap',       href: '/groups',                  chevron: true, groups: true, module: 'groups' },
   { label: 'Fees',        icon: 'pi-dollar',        href: '/finances',                chevron: true, fees: true, module: 'finances' },
   { label: 'Memberships', icon: 'pi-id-card',       href: '/memberships',             chevron: true, module: 'finances' },
@@ -678,7 +703,12 @@ const clubMenu = [
 // parts of the system the club has turned off. Reactive — flipping a toggle on
 // /settings/modules updates the nav live (shared useState in useOrgModules).
 const orgModules = useOrgModules()
-const clubMenuForModules = computed(() => clubMenu.filter(i => orgModules.isEnabled((i as any).module)))
+const clubMenuForModules = computed(() => {
+  const base = clubMenu.filter(i => orgModules.isEnabled((i as any).module))
+  // Governing bodies (NSO/Regional/Association/RST) get a cross-club managers item.
+  if (isGoverningOrg.value) base.push({ label: 'Club managers', icon: 'pi-shield', href: '/managers', chevron: false } as any)
+  return base
+})
 
 // ── Icon-rail expand/collapse (remembered across pages via localStorage) ──
 const railExpanded = ref(false)

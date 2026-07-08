@@ -1226,11 +1226,16 @@
     <!-- Add a person (member and/or staff) -->
     <Dialog v-model:visible="addOpen" modal :style="{ width: '95vw', maxWidth: '520px' }" :header="`Add to ${group ? group.name : t('group', false, true)}`">
       <div class="flex flex-col gap-4">
+        <!-- Source: own people vs pull from clubs (governing orgs, migration 250) -->
+        <div v-if="orgIsGoverning" class="inline-flex rounded-lg border border-gray-200 p-0.5 self-start">
+          <button type="button" class="px-3 py-1 text-xs font-medium rounded-md transition-colors" :class="addSource === 'own' ? 'bg-primary text-white' : 'text-gray-500'" @click="setAddSource('own')">Our people</button>
+          <button type="button" class="px-3 py-1 text-xs font-medium rounded-md transition-colors" :class="addSource === 'clubs' ? 'bg-primary text-white' : 'text-gray-500'" @click="setAddSource('clubs')">From clubs</button>
+        </div>
         <!-- Person -->
         <div class="flex flex-col gap-1.5">
           <div class="flex items-center justify-between">
-            <label class="text-sm font-medium">Person</label>
-            <button type="button" class="text-xs text-primary hover:underline" @click="toggleNewPerson">
+            <label class="text-sm font-medium">{{ addSource === 'clubs' ? 'Club member' : 'Person' }}</label>
+            <button v-if="addSource === 'own'" type="button" class="text-xs text-primary hover:underline" @click="toggleNewPerson">
               {{ showNewPerson ? 'Search existing' : '+ New person' }}
             </button>
           </div>
@@ -2697,6 +2702,7 @@ async function load() {
   if (!orgId.value) return
   const id = route.params.id as string
   loading.value = true
+  loadGoverningContext()
 
   // The group row is looked up by its own id, and everything else keys off that
   // same id (or the org), all of which are known upfront — so fire the whole
@@ -3367,6 +3373,19 @@ watch(pendingPerson, async p => {
 })
 const personQuery = ref<any>('')
 const personResults = ref<any[]>([])
+// ── Pull members from clubs (governing orgs only, migration 250) ──
+const { clubsBeneath, searchClubPersons, resolvePulledPersonId } = useCrossClubMembers()
+const addSource = ref<'own' | 'clubs'>('own')
+const orgIsGoverning = ref(false)
+const governingClubs = ref<{ id: string; name: string }[]>([])
+const groupPullMode = ref<'reference' | 'copy'>('reference')
+async function loadGoverningContext() {
+  if (!orgId.value) return
+  const { data } = await (db.from as any)('organisations').select('org_level, member_pull_mode').eq('id', orgId.value).maybeSingle()
+  orgIsGoverning.value = !!data?.org_level && data.org_level !== 'CLUB'
+  groupPullMode.value = data?.member_pull_mode === 'copy' ? 'copy' : 'reference'
+  if (orgIsGoverning.value && !governingClubs.value.length) governingClubs.value = await clubsBeneath(orgId.value)
+}
 // Create-a-new-person inline (instead of searching an existing one).
 const showNewPerson = ref(false)
 const newPerson = reactive({ first_name: '', last_name: '', email: '', phone: '' })
@@ -3374,6 +3393,13 @@ function resetNewPerson() { newPerson.first_name = ''; newPerson.last_name = '';
 function toggleNewPerson() {
   showNewPerson.value = !showNewPerson.value
   if (showNewPerson.value) { pendingPerson.value = null; personQuery.value = '' } else resetNewPerson()
+}
+function setAddSource(s: 'own' | 'clubs') {
+  addSource.value = s
+  showNewPerson.value = false
+  pendingPerson.value = null
+  personQuery.value = ''
+  personResults.value = []
 }
 const canAddPerson = computed(() => showNewPerson.value
   ? !!(newPerson.first_name.trim() || newPerson.last_name.trim())
@@ -3466,6 +3492,7 @@ async function addNewPosition() {
 }
 function openAdd(mode: 'member' | 'coach', person?: any) {
   addMode.value = mode
+  addSource.value = 'own'
   // Seed sensible default roles depending on which card's Add was clicked. For
   // staff, prefer the code's "Coach" role, else its first configured staff role.
   const coachSeed = codeStaffRoles.value.some(r => r.key === 'coach') ? 'coach' : codeStaffRoles.value[0]?.key
@@ -3498,6 +3525,15 @@ function openAdd(mode: 'member' | 'coach', person?: any) {
 }
 async function searchPersons(e: { query: string }) {
   const q = (e.query || '').trim()
+  // Governing orgs pulling from clubs beneath them (migration 250).
+  if (addSource.value === 'clubs' && orgIsGoverning.value) {
+    const rows = await searchClubPersons(governingClubs.value, q)
+    personResults.value = rows.map((p: any) => ({
+      ...p, __club: true,
+      label: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() + ` · ${p.club_name}`,
+    }))
+    return
+  }
   // Existing members CAN be picked again — adding a role merges into their
   // membership (e.g. give a coach the Player role so they're both).
   let query = (db.from as any)('persons')
@@ -3528,6 +3564,14 @@ async function addPerson() {
     pendingPerson.value = created
   }
   if (!p?.id) return
+  // Governing org pulling a club member (migration 250): reference the club's
+  // person row, or copy it into a governing-owned mirror, per the parent setting.
+  const referencedClubPerson = !!p.__club && groupPullMode.value === 'reference'
+  if (p.__club) {
+    const eid = await resolvePulledPersonId(orgId.value as string, p, groupPullMode.value)
+    if (!eid) { toast.add({ severity: 'error', summary: 'Could not add club member', life: 4000 }); return }
+    p = { ...p, id: eid }
+  }
   // Merge with any roles they already hold so adding a role to an existing
   // member keeps the others (coach picking up Player → both, not replaced).
   const prev = coaches.value.find(x => x.id === p.id)?.allRoles
@@ -3550,8 +3594,9 @@ async function addPerson() {
       { onConflict: 'group_id,person_id' })
   if (!error) {
     // Stamp the code's member type on the person (joining as a member) so they
-    // pick up that type's custom fields.
-    if (groupMemberType.value && (!merged.length || memberRolesOf(merged).length)) {
+    // pick up that type's custom fields. NOT for a referenced club person — their
+    // record is owned by the club, so we don't mutate its types from up here.
+    if (!referencedClubPerson && groupMemberType.value && (!merged.length || memberRolesOf(merged).length)) {
       await ensurePersonType(p.id, groupMemberType.value)
     }
     const base = { id: p.id, name, email: p.email ?? null, phone: p.phone ?? null, allRoles: merged, positions }

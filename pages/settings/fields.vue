@@ -184,6 +184,41 @@ async function removeType(t: any) {
   editingKey.value = null; await load()
 }
 
+// Duplicate a person/entity type — copies the type row (permissions / member slots
+// / landing / profile dashboard), shares its OWN fields (adds the new key to their
+// targets[]) and copies its form LAYOUT (profile_forms). Works for both kinds.
+async function duplicateType(t: any) {
+  if (!orgId.value) return
+  const existing = new Set(allTypes.value.map(x => x.key))
+  const base = slugify(t.label + ' copy') || 'type_copy'
+  let key = base, n = 2
+  while (existing.has(key)) key = `${base}_${n++}`
+  const { data: src } = await (db.from as any)('person_target_types')
+    .select('label, kind, is_access, permissions, member_slots, min_count, max_count, landing_path, profile_dashboard')
+    .eq('id', t.id).maybeSingle()
+  const s = src ?? t
+  const count = allTypes.value.filter(x => (x.kind ?? 'person') === (s.kind ?? 'person')).length
+  const { error } = await (db.from as any)('person_target_types').insert({
+    org_id: orgId.value, key, label: `${s.label} (copy)`, kind: s.kind ?? 'person',
+    is_access: !!s.is_access, permissions: s.permissions ?? {}, member_slots: s.member_slots ?? [],
+    min_count: s.min_count ?? 0, max_count: s.max_count ?? null,
+    landing_path: s.landing_path ?? null, profile_dashboard: s.profile_dashboard ?? null,
+    sort_order: count,
+  })
+  if (error) { toast.add({ severity: 'error', summary: 'Could not duplicate', detail: error.message, life: 4000 }); return }
+  // Share the source type's OWN fields with the copy (inherited/NSO fields flow in on their own).
+  const own = fields.value.filter((f: any) => !f.inherited && fieldAppliesTo(f, t.key))
+  for (const f of own) {
+    const targets = Array.from(new Set([...(Array.isArray(f.targets) && f.targets.length ? f.targets : (f.target ? [f.target] : [])), key]))
+    await (db.from as any)('field_definitions').update({ targets }).eq('id', f.id)
+  }
+  // Copy the form layout if the source type has a designed one.
+  const { data: pf } = await (db.from as any)('profile_forms').select('config').eq('org_id', orgId.value).eq('type_key', t.key).maybeSingle()
+  if (pf?.config) await (db.from as any)('profile_forms').insert({ org_id: orgId.value, type_key: key, config: pf.config })
+  await load(); openEditor(key, 'layout')
+  toast.add({ severity: 'success', summary: `Duplicated "${t.label}"`, life: 2200 })
+}
+
 async function addField(p: any) {
   const { error } = await (db.from as any)('field_definitions').insert({
     org_id: orgId.value, label: p.label, field_type: p.type, is_required: p.required,
@@ -252,7 +287,7 @@ watch(orgId, load, { immediate: true })
                   <th class="text-left px-3 py-2.5 font-medium w-36">{{ sec.kind === 'person' ? 'Permissions' : 'Members' }}</th>
                   <th v-if="sec.kind === 'person'" class="text-left px-3 py-2.5 font-medium w-28">Landing page</th>
                   <th v-if="sec.kind === 'person'" class="text-left px-3 py-2.5 font-medium w-24">Profile</th>
-                  <th class="w-10" />
+                  <th class="w-16" />
                 </tr>
               </thead>
               <tbody>
@@ -278,8 +313,11 @@ watch(orgId, load, { immediate: true })
                   <td v-if="sec.kind === 'person'" class="px-3 py-2.5">
                     <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'profile')"><i class="pi pi-user text-[10px]" />Profile</button>
                   </td>
-                  <td class="px-3 py-2.5 text-center">
-                    <button class="text-gray-300 hover:text-red-500" title="Delete type" @click="removeType(t)"><i class="pi pi-trash text-sm" /></button>
+                  <td class="px-3 py-2.5">
+                    <div class="flex items-center justify-center gap-3">
+                      <button class="text-gray-300 hover:text-primary" title="Duplicate type" @click="duplicateType(t)"><i class="pi pi-copy text-sm" /></button>
+                      <button class="text-gray-300 hover:text-red-500" title="Delete type" @click="removeType(t)"><i class="pi pi-trash text-sm" /></button>
+                    </div>
                   </td>
                 </tr>
                 <!-- add-a-type row -->

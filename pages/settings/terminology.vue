@@ -21,10 +21,14 @@ const saving = ref(false)
 // org-level base; a sport edits that sport's own overrides (layered on top —
 // blank = inherit the club/NSO value, shown as the placeholder).
 const sports = ref<{ id: string; label: string; terminology: any; is_primary: boolean }[]>([])
-const scope = ref<string | null>(null)   // null = whole club, else org_sports.id
+// PrimeVue <Select> treats a null modelValue as "no selection" (renders blank), so
+// whole-club uses a non-null sentinel and we map it back to null (org-level) for the API.
+const CLUB = '__club'
+const scope = ref<string>(CLUB)          // '__club' = whole club, else org_sports.id
+const activeSportId = computed(() => scope.value === CLUB ? null : scope.value)
 const scopeOptions = computed(() => [
-  { label: 'Whole club', value: null as string | null },
-  ...sports.value.map(s => ({ label: s.label + (s.is_primary ? ' (primary)' : ''), value: s.id as string | null })),
+  { label: 'Whole club', value: CLUB },
+  ...sports.value.map(s => ({ label: s.label + (s.is_primary ? ' (primary)' : ''), value: s.id })),
 ])
 
 const grouped = computed(() => {
@@ -46,7 +50,7 @@ async function load() {
     ])
     sports.value = (sp ?? []).map((s: any) => ({ id: s.id, label: s.display_name || s.sport, terminology: s.terminology || {}, is_primary: !!s.is_primary }))
     const own = me?.terminology || {}
-    const activeSport = scope.value ? sports.value.find(s => s.id === scope.value) : null
+    const activeSport = activeSportId.value ? sports.value.find(s => s.id === activeSportId.value) : null
     const editing = activeSport ? activeSport.terminology : own
     TERM_DEFS.forEach(t => { overrides[t.key] = { singular: editing[t.key]?.singular || '', plural: editing[t.key]?.plural || '' } })
     // Inherited chain shown as placeholders: NSO ancestors, and — when editing
@@ -78,7 +82,7 @@ async function save() {
   if (!orgId.value) return
   saving.value = true
   try {
-    await saveTerminology(orgId.value, overrides, { sportId: scope.value })
+    await saveTerminology(orgId.value, overrides, { sportId: activeSportId.value })
     toast.add({ severity: 'success', summary: 'Terminology saved', life: 2000 })
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Could not save', detail: e?.message, life: 3500 })
