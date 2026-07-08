@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-252 sessions · 1380 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+252 sessions · 1384 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -2687,7 +2687,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:07** — better but still messy
 
 
-## Session 2026-07-05 23:26 (260 prompts)
+## Session 2026-07-05 23:26 (261 prompts)
 
 **23:26** — ok where did we get to ?
 
@@ -3642,6 +3642,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **08:33** — Im talking about here [Image #32] but I want to do this on a club type level so we have an overall default, and hten we have per club type we can set all these settings it basically acts as a template(starting point) for a org when its created
 
 **09:15** — can the defaults be a page pleaes the modal doens't work
+
+**09:40** — i can't see any eye
 
 
 ## Session 2026-07-05 23:33 (18 prompts)
@@ -22661,7 +22663,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > … [truncated — 74935 chars total]
 
 
-## Session 2026-07-08 09:19 (2 prompts)
+## Session 2026-07-08 09:19 (5 prompts)
 
 **09:19** — Analyze this codebase for performance optimizations:
 > - Identify N+1 query patterns
@@ -22721,6 +22723,103 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > Called from the term-wizard "Trainings" step across **every schedule of every included class in the term** (a club with 30 classes × 1-2 weekly slots = 30-60 iterations), each doing 3 sequential writes. This runs synchronously in one UI action.
 > **Fix:** each `sched` iteration is independent (master id only used within that iteration) — wrap the loop body in a function and run `Promise.all(scheds.map(processSchedule))
 > … [truncated — 11278 chars total]
+
+**09:23** — <task-notification>
+> <task-id>ae29c34c162114e72</task-id>
+> <tool-use-id>toolu_01BHNL26UczygDhoLU6p7HLm</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/8041e2c4-f4d6-4ba9-a314-7690a815aff7/tasks/ae29c34c162114e72.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find caching opportunities" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## FM-Events Caching Analysis — Findings
+> 
+> I searched the composables layer for the `loaded.value === orgId.value` guard pattern (used correctly in `useTerms`, `useOrgModules`, `useXeroAccounts`, and `useScopedRoles().loadRoleDefs()`) and found it's applied inconsistently. The clearest gap is `useOrgFieldPolicy()`, which several other composables and 38 call sites depend on but which has zero caching.
+> 
+> ### 1. `useOrgFieldPolicy().resolveFields()` / `.resolvePersonTypes()` / `.loadOrgTypes()` — no caching at all (highest-impact finding)
+> **File:** `composables/useOrgFieldPolicy.ts:30-83`
+> These three functions each do a fresh DB round-trip every single call — no `useState` cache, no `loaded`/`force` guard, unlike every sibling composable in this codebase. `resolveFields`/`resolvePersonTypes` also each call `ancestors(orgId)` (an RPC), so a single call is 1 RPC + 1 table query.
+> There are **38 call sites** (`grep -rln resolveFields\|resolvePersonTypes\|loadOrgTypes`), most damagingly:
+> - `pages/people/[id].vue:637,640` — calls both `resolveFields` and `resolvePersonTypes` on **every mount**. Since this is a dynamic route (`/people/:id`), clicking through a roster of members re-triggers full org field/type resolution on every single profile open, even though the field/type catalogue is identical for the whole org session.
+> - `pages/people/index.vue:739-741` — `loadTypes()` calls both functions again (independently from any other page), plus `loadEntitiesView()` at line 580 calls `loadOrgTypes` separately.
+> **Fix:** add a `useState` cache keyed by `orgId` inside `useOrgFieldPolicy` (mirror the pattern in `composables/useTerms.ts`), e.g. `const fieldsCache = useState&lt;Record&lt;string, FieldDef[]&gt;&gt;('fm-fields-cache', () =&gt; ({}))`, with a `force` param so `pages/settings/fields.vue`'s `onFieldChanged()` (which legitimately needs a refresh after editing) can bust it explicitly.
+> 
+> ### 2. `useOrgHierarchy().ancestors(orgId)` — uncached RPC, root cause of #1
+> **File:** `composables/useOrgHierarchy.ts:43-46`
+> Every call does a fresh `org_ancestors` Postgres RPC. It's the dependency underneath `resolveFields`, `resolvePersonTypes` (both in #1) and `useTerminology().resolveTerminology` (partially shielded because `useTerms()` wraps it with its own per-org cache — but `pages/settings/terminology.vue` calls `ancestors()` a second time directly, bypassing that). An org's ancestor chain never changes within a
+> … [truncated — 9211 chars total]
+
+**09:24** — <task-notification>
+> <task-id>a432f3c1f902cf666</task-id>
+> <tool-use-id>toolu_019mxDnJnCYhgenQ3wwbD29C</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/8041e2c4-f4d6-4ba9-a314-7690a815aff7/tasks/a432f3c1f902cf666.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find memory leaks and redundant computation" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Confirmed — genuine chain walk (up to 20 levels). Called twice per row in `roleCoverage()`. Good, that's a solid finding. I have enough verified material now. Let me compile the final report.
+> 
+> ## Findings
+> 
+> ### Part A — Memory leaks
+> 
+> Most timer/listener/observer pairs in this codebase are correctly cleaned up (verified `TimetableGrid.vue`'s 60s "now" interval, `BookingsList.vue`'s interval, `ChipMultiSelect.vue`'s `ResizeObserver`, `ProfileDashboard.vue`'s `ResizeObserver`+resize listener, `ReviewWidget.vue`'s `MutationObserver`+listeners, `XeroAccountInput.vue`, `SubVenueScheduler.vue`, and all the native-HTML5-drag handlers in `allocator.vue`/`disciplines/index.vue`/`groups/[id]/index.vue` — those are Vue template `@dragstart`/`@drop` bindings, not manual `addEventListener`, so Vue auto-detaches them). Two real gaps found:
+> 
+> 1. **`components/FormDesigner.vue:1990-1997`** — `persistEvtFormConfig()` debounce timer is never cleared on unmount:
+> ```js
+> let _formSaveTimer: ReturnType&lt;typeof setTimeout&gt; | null = null
+> function persistEvtFormConfig() {
+>   if (_formSaveTimer) clearTimeout(_formSaveTimer)
+>   _formSaveTimer = setTimeout(async () =&gt; {
+>     const formId = await ensureEventFormId()
+>     if (!formId) return
+>     await db.from('registration_forms').update({ config: buildEvtFormConfig() }).eq('id', formId)
+>   }, 600)
+> }
+> ```
+> `FormDesigner` mounts/unmounts as the events-page `forms` tab is switched (and standalone at `/forms/:id`). If a user edits a field and navigates away within the 600ms window, the timeout still fires after unmount, running a DB write against a component whose `event`/`orgId` refs may now be stale, and doing wasted/incorrect work. Fix: capture the timer in an `onBeforeUnmount(() =&gt; { if (_formSaveTimer) clearTimeout(_formSaveTimer) })`.
+> 
+> 2. **`components/PersonFormBuilder.vue:161-166`** — identical pattern, no unmount cleanup for its autosave `saveTimer`:
+> ```js
+> let saveTimer: any = null
+> ...
+> if (saveTimer) clearTimeout(saveTimer)
+> saveTimer = setTimeout(async () =&gt; { ... }, ...)
+> ```
+> Same fix. (Two lower-severity instances of the same class exist too: `components/BookableAccessEditor.vue:210-213` and `pages/groups/view/[id].vue:42,60-61` — both clear-before-reassign but never clear on unmount. Lower risk since their writes are smaller/idempotent, but worth sweeping with the same fix for consistency.)
+> 
+> No leaking Supabase realtime channels were found (no `
+> … [truncated — 7602 chars total]
+
+**09:25** — <task-notification>
+> <task-id>a23a7bde877f47db5</task-id>
+> <tool-use-id>toolu_015VRiXuc6BbaBb5TGu5Ymnj</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/8041e2c4-f4d6-4ba9-a314-7690a815aff7/tasks/a23a7bde877f47db5.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find Vue reactivity/re-render issues" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Findings
+> 
+> **1. `components/FormDesigner.vue:1592-1597` — loop-invariant `sessions.filter()` recomputed per instance inside `evtOrderRows`**
+> ```js
+> for (let i = 0; i &lt; evtAccordionPersonCount.value; i++) {
+>   ...
+>   const visibleSessions = sessions.value.filter((s: any) =&gt;
+>     s.display_on_form !== false &amp;&amp; sessionVisibleOnForm(s) &amp;&amp; getSessionMode(s.id ?? s._savedId) !== 'hidden')
+>   for (const s of visibleSessions) { ... }
+> }
+> ```
+> `visibleSessions` doesn't depend on the loop variable `i` at all, yet it's recomputed once per registrant instance. For a Team form (12 Player instances) with 20 term sessions, that's 240 filter evaluations (each calling `sessionVisibleOnForm`) instead of 20. `evtOrderRows` is a `computed`, so this cost is paid on every field edit / instance add/remove that invalidates it. **Fix:** hoist `visibleSessions` above the `for` loop.
+> 
+> **2. `components/FormDesigner.vue:1553-1574`, used at line 3560 (`v-for="child in evtSectionChildren(subject.key, field.id, inst)"`)** — un-memoized filter chain called per section × per instance × per subject
+> ```js
+> function evtFieldsForRender(subjectKey, inst) { const fields = evtFieldsForSubject(subjectKey); ...filter... }
+> function evtUnpinnedForRender(subjectKey, inst) { return evtFieldsForRender(subjectKey, inst).filter(f =&gt; !f.pinned) }
+> function evtTopLevelItems(subjectKey, inst) { return evtUnpinnedForRender(subjectKey, inst).filter(f =&gt; !f.parent_section) }
+> function evtSectionChildren(subjectKey, sectionId, inst) { return evtUnpinnedForRender(subjectKey, inst).filter(f =&gt; f.parent_section === sectionId) }
+> ```
+> These are plain functions (not `computed`), called directly from the template's `v-for` source expression. Vue re-evaluates the whole render function on any reactive change in this 4000-line component (e.g. typing in one instance's field, or dragging in the builder), so for every section in every instance in every subject, the field list is re-filtered from scratch (3 chained `.filter()` passes, each re-running `evtFieldVisible`/`evaluateEvtConditions` per field). With a 12-instance Team subject × 4 sections × ~20 fields, that's ~50+ calls doing ~150 array passes on a single keystroke elsewhere on the page. **Fix:** convert to a `computed` keyed by `subjectKey#inst` (a `Map` built once per evtPreviewSubjects/evtPersonValues change) instead of re-deriving on every template evaluation.
+> 
+> **3. `pa
+> … [truncated — 9230 chars total]
 
 
 ## Session 2026-07-08 09:22 (1 prompts)

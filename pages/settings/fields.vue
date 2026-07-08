@@ -312,7 +312,7 @@ watch(orgId, load, { immediate: true })
                   <th v-if="sec.kind === 'person'" class="text-left px-4 py-3 font-medium w-28">Landing page</th>
                   <th v-if="sec.kind === 'person'" class="text-left px-4 py-3 font-medium w-24">Profile</th>
                   <th v-if="sec.kind === 'person'" class="text-left px-4 py-3 font-medium w-24">Menu items</th>
-                  <th class="w-16" />
+                  <th class="w-40 text-left px-4 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -342,8 +342,8 @@ watch(orgId, load, { immediate: true })
                     <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'menu')"><i class="pi pi-bars text-[10px]" />Menu items</button>
                   </td>
                   <td class="px-4 py-3">
-                    <div class="flex items-center justify-center gap-3">
-                      <button v-if="sec.kind === 'person'" class="text-gray-300 hover:text-amber-500" title="Preview as this type" @click="preview.startPreview(t.key, t.label)"><i class="pi pi-eye text-sm" /></button>
+                    <div class="flex items-center gap-3">
+                      <button v-if="sec.kind === 'person'" class="inline-flex items-center gap-1 text-xs font-medium text-amber-600 hover:text-amber-700 whitespace-nowrap" title="See the app as this type" @click="preview.startPreview(t.key, t.label)"><i class="pi pi-eye text-[11px]" />Preview</button>
                       <button class="text-gray-300 hover:text-primary" title="Duplicate type" @click="duplicateType(t)"><i class="pi pi-copy text-sm" /></button>
                       <button class="text-gray-300 hover:text-red-500" title="Delete type" @click="removeType(t)"><i class="pi pi-trash text-sm" /></button>
                     </div>
