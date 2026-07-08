@@ -29,10 +29,16 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return
   }
 
-  // A person can belong to several clubs; honour their saved choice (from
-  // <ProfileMenu>) if it's one of their memberships, else fall back to the first.
-  const { data } = await db.from('org_members').select('org_id').eq('user_id', userId)
-  const ids = (data ?? []).map((r: any) => r.org_id)
+  // A person can belong to several clubs. Their accessible orgs come from
+  // org_members (staff/admin links) AND from persons rows matching their email
+  // (members — a parent/gymnast is a persons row, NOT an org_members row).
+  // Honour their saved choice if it's one of those, else fall back to the first.
+  const email = user.value?.email
+  const [{ data: mem }, { data: ppl }] = await Promise.all([
+    db.from('org_members').select('org_id').eq('user_id', userId),
+    email ? (db.from('persons') as any).select('org_id').ilike('email', email) : Promise.resolve({ data: [] }),
+  ])
+  const ids = [...new Set([...(mem ?? []).map((r: any) => r.org_id), ...((ppl ?? []) as any[]).map((r: any) => r.org_id)])].filter(Boolean)
   const saved = readActiveOrg()
   orgId.value = (saved && ids.includes(saved)) ? saved : (ids[0] ?? null)
   if (orgId.value) rememberResolvedOrg(orgId.value)

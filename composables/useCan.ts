@@ -36,7 +36,11 @@ export function useCan() {
     loadedOrg.value = orgId.value
     const isSuper = ((user.value as any)?.app_metadata?.role) === 'super_admin'
     const email = user.value?.email
-    if (isSuper || !email || !orgId.value) { unrestricted.value = true; perms.value = {}; loaded.value = true; return }
+    if (isSuper || !email) { unrestricted.value = true; perms.value = {}; loaded.value = true; return }
+    // Org not resolved yet (fresh-login race): DON'T cache a decision. Default to
+    // unrestricted transiently but leave loaded=false so this re-runs once orgId
+    // is ready — otherwise a member gets stuck 'unrestricted' (full admin menu).
+    if (!orgId.value) { unrestricted.value = true; perms.value = {}; loaded.value = false; loadedOrg.value = null; return }
 
     const { data: person } = await (db.from as any)('persons')
       .select('id, person_types, person_type').eq('org_id', orgId.value).ilike('email', email).limit(1).maybeSingle()
