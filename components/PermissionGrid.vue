@@ -1,68 +1,71 @@
 <!--
-  Reusable CRUD permission matrix (resources × Create/Read/Update/Delete),
-  bound to a PermissionMap via v-model. readonly disables editing (used to show
-  an inherited core template before a club overrides it).
+  Reusable permission CHECKLIST — a curated list of explicit, named capabilities
+  (PERMISSION_ITEMS) grouped by area, bound to a PermissionMap via v-model. Each
+  item toggles its underlying (resource, action) grants, so can() + the
+  permission-driven menu keep working. readonly disables editing (used to show an
+  inherited core template before a club overrides it).
 -->
 <script setup lang="ts">
 const props = defineProps<{ modelValue: PermissionMap; readonly?: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [PermissionMap] }>()
 
-const resourcesByArea = computed(() =>
-  PERMISSION_AREAS.map(area => ({ area, items: PERMISSION_RESOURCES.filter(r => r.area === area) })))
+const itemsByArea = computed(() =>
+  PERM_ITEM_AREAS.map(area => ({ area, items: PERMISSION_ITEMS.filter(i => i.area === area) })))
 
-function isOn(res: string, action: PermAction) { return !!props.modelValue?.[res]?.[action] }
-function emitWith(mut: (p: PermissionMap) => void) {
+// Accordion open-state (all collapsed by default).
+const open = ref<Record<string, boolean>>({})
+function toggleOpen(area: string) { open.value = { ...open.value, [area]: !open.value[area] } }
+
+function isOn(item: PermItem) { return permItemOn(props.modelValue, item) }
+function toggle(item: PermItem, on: boolean) {
   if (props.readonly) return
-  const p: PermissionMap = JSON.parse(JSON.stringify(props.modelValue || {}))
-  mut(p); emit('update:modelValue', p)
+  emit('update:modelValue', setPermItem(props.modelValue, item, on))
 }
-function setOn(res: string, action: PermAction, val: boolean) {
-  emitWith(p => { p[res] = { ...(p[res] || {}), [action]: val } })
-}
-function toggleResource(res: string, val: boolean) {
-  const r = PERMISSION_RESOURCES.find(x => x.key === res); if (!r) return
-  emitWith(p => { for (const a of resourceActions(r)) p[res] = { ...(p[res] || {}), [a]: val } })
-}
-function toggleColumn(action: PermAction, val: boolean) {
-  emitWith(p => { for (const r of PERMISSION_RESOURCES) if (resourceActions(r).includes(action)) p[r.key] = { ...(p[r.key] || {}), [action]: val } })
+function grantedCount(items: PermItem[]) { return items.filter(i => isOn(i)).length }
+function areaAllOn(items: PermItem[]) { return items.every(i => isOn(i)) }
+function toggleArea(items: PermItem[], on: boolean) {
+  if (props.readonly) return
+  let p: PermissionMap = props.modelValue || {}
+  for (const i of items) p = setPermItem(p, i, on)
+  emit('update:modelValue', p)
 }
 </script>
 
 <template>
-  <div class="card p-0 overflow-hidden" :class="{ 'opacity-90': readonly }">
-    <div class="overflow-x-auto">
-    <table class="w-full text-sm">
-      <thead>
-        <tr class="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
-          <th class="text-left px-4 py-2 font-medium">Function</th>
-          <th v-for="a in PERM_ACTIONS" :key="a.key" class="px-3 py-2 font-medium text-center w-20">
-            <div class="flex flex-col items-center gap-0.5">
-              <span>{{ a.label }}</span>
-              <button v-if="!readonly" class="text-[10px] text-gray-400 hover:text-primary" @click="toggleColumn(a.key, true)">all</button>
-            </div>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        <template v-for="block in resourcesByArea" :key="block.area">
-          <tr class="bg-gray-50/60">
-            <td :colspan="PERM_ACTIONS.length + 1" class="px-4 py-1.5 text-[11px] font-semibold text-gray-500 uppercase tracking-wide">{{ block.area }}</td>
-          </tr>
-          <tr v-for="r in block.items" :key="r.key" class="border-b border-gray-50 hover:bg-gray-50/60">
-            <td class="px-4 py-2 align-top">
-              <button class="block text-left text-gray-800 hover:text-primary font-medium" :disabled="readonly"
-                @click="toggleResource(r.key, !isOn(r.key, 'read'))">{{ r.label }}</button>
-              <p v-if="r.description" class="mt-0.5 text-[11px] leading-snug text-gray-400 max-w-[34ch]">{{ r.description }}</p>
-            </td>
-            <td v-for="a in PERM_ACTIONS" :key="a.key" class="px-3 py-2.5 text-center align-top">
-              <input type="checkbox" class="w-4 h-4 accent-primary" :class="readonly ? 'cursor-not-allowed' : 'cursor-pointer'"
-                :checked="isOn(r.key, a.key)" :disabled="readonly"
-                @change="setOn(r.key, a.key, ($event.target as HTMLInputElement).checked)" />
-            </td>
-          </tr>
-        </template>
-      </tbody>
-    </table>
+  <div class="card p-0 overflow-hidden divide-y divide-gray-100" :class="{ 'opacity-90': readonly }">
+    <!-- One accordion panel per section; permissions inside an aligned grid. -->
+    <div v-for="block in itemsByArea" :key="block.area">
+      <!-- header -->
+      <button type="button" class="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50/60"
+        @click="toggleOpen(block.area)">
+        <i class="pi text-xs text-gray-400 transition-transform" :class="open[block.area] ? 'pi-chevron-down' : 'pi-chevron-right'" />
+        <span class="text-sm font-semibold text-gray-800 flex-1">{{ block.area }}</span>
+        <span class="text-[11px] px-2 py-0.5 rounded-full"
+          :class="grantedCount(block.items) ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-400'">
+          {{ grantedCount(block.items) }} / {{ block.items.length }}
+        </span>
+      </button>
+      <!-- body -->
+      <div v-show="open[block.area]" class="px-4 pb-4">
+        <div class="flex justify-end -mt-1 mb-2">
+          <button v-if="!readonly" class="text-[11px] text-gray-400 hover:text-primary"
+            @click="toggleArea(block.items, !areaAllOn(block.items))">
+            {{ areaAllOn(block.items) ? 'Clear all' : 'Select all' }}
+          </button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5">
+          <label v-for="item in block.items" :key="item.key"
+            class="flex items-center gap-2.5"
+            :class="readonly ? 'cursor-default' : 'cursor-pointer'"
+            v-tooltip.top="item.description || ''">
+            <input type="checkbox" class="w-4 h-4 accent-primary shrink-0"
+              :class="readonly ? 'cursor-not-allowed' : 'cursor-pointer'"
+              :checked="isOn(item)" :disabled="readonly"
+              @change="toggle(item, ($event.target as HTMLInputElement).checked)" />
+            <span class="text-sm text-gray-700">{{ item.label }}</span>
+          </label>
+        </div>
+      </div>
     </div>
   </div>
 </template>
