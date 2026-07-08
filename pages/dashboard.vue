@@ -937,7 +937,10 @@ watch(orgId, () => { if (orgId.value) loadOnboardingNudge() }, { immediate: true
         <i class="pi pi-times text-sm" />
       </button>
     </div>
-    <div v-if="templateMode" class="mb-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800 flex items-center gap-2">
+    <div v-if="clubTypeId" class="mb-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800 flex items-center gap-2">
+      <i class="pi pi-th-large shrink-0" />Editing the <b class="font-semibold">{{ templateLabel }}</b> template dashboard. <span class="text-amber-700/80">Widgets preview against your current club for layout only — Done saves to the TEMPLATE (what new clubs start with); it does NOT change any club.</span>
+    </div>
+    <div v-else-if="templateMode" class="mb-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800 flex items-center gap-2">
       <i class="pi pi-info-circle shrink-0" />You're editing the default dashboard for <b class="font-semibold">{{ templateLabel }}</b>. <span class="text-amber-700/80">Done saves it as the starting layout for everyone with that role (until they personalise their own).</span>
     </div>
     <div v-if="editing" class="mb-3 text-xs text-gray-400"><i class="pi pi-arrows-alt mr-1" />Drag to move, drag the bottom-right corner to resize. Use <b class="font-medium">Add</b> (top right) for more widgets.</div>
