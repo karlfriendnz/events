@@ -136,15 +136,15 @@ export const PERMISSION_ITEMS: PermItem[] = [
   { key: 'access_manage',       label: 'Manage access control (doors / lights)', area: 'Bookings & Venues', grants: [{ resource: 'activities', action: 'manage_access' }], description: 'Configure door and light access control.' },
 
   // Finance
-  { key: 'invoices_view',       label: 'View invoices',                 area: 'Finance', grants: [{ resource: 'fees', action: 'read' }], description: 'See invoices and their status.' },
-  { key: 'invoices_raise',      label: 'Raise invoices',                area: 'Finance', grants: [{ resource: 'fees', action: 'create' }], description: 'Create new invoices.' },
-  { key: 'invoices_edit',       label: 'Edit / void invoices',          area: 'Finance', grants: [{ resource: 'fees', action: 'update' }], description: 'Edit or void existing invoices.' },
-  { key: 'payments_record',     label: 'Record payments',               area: 'Finance', grants: [{ resource: 'transactions', action: 'create' }], description: 'Record payments against invoices.' },
-  { key: 'payments_refund',     label: 'Issue refunds',                 area: 'Finance', grants: [{ resource: 'transactions', action: 'refund' }], description: 'Issue refunds.' },
-  { key: 'fees_manage',         label: 'Manage fees',                   area: 'Finance', grants: [{ resource: 'fees', action: 'manage' }], description: 'Define fee structures and line items.' },
-  { key: 'discounts_manage',    label: 'Manage discounts / vouchers',   area: 'Finance', grants: [{ resource: 'discounts', action: 'update' }], description: 'Create and manage discount codes and vouchers.' },
-  { key: 'finance_reports',     label: 'View financial reports',        area: 'Finance', grants: [{ resource: 'fees', action: 'reports' }], description: 'See financial and revenue reports.' },
-  { key: 'xero_sync',           label: 'Connect & sync Xero',           area: 'Finance', grants: [{ resource: 'integrations', action: 'xero' }], description: 'Connect Xero and sync invoices / payments.' },
+  { key: 'invoices_view',       label: 'View invoices',                 area: 'Finance', grants: [{ resource: 'fees', action: 'read' }], description: 'See invoices and their status.', group: 'Invoices & fees' },
+  { key: 'invoices_raise',      label: 'Raise invoices',                area: 'Finance', grants: [{ resource: 'fees', action: 'create' }], description: 'Create new invoices.', group: 'Invoices & fees' },
+  { key: 'invoices_edit',       label: 'Edit / void invoices',          area: 'Finance', grants: [{ resource: 'fees', action: 'update' }], description: 'Edit or void existing invoices.', group: 'Invoices & fees' },
+  { key: 'payments_record',     label: 'Record payments',               area: 'Finance', grants: [{ resource: 'transactions', action: 'create' }], description: 'Record payments against invoices.', group: 'Payments' },
+  { key: 'payments_refund',     label: 'Issue refunds',                 area: 'Finance', grants: [{ resource: 'transactions', action: 'refund' }], description: 'Issue refunds.', group: 'Payments' },
+  { key: 'fees_manage',         label: 'Manage fees',                   area: 'Finance', grants: [{ resource: 'fees', action: 'manage' }], description: 'Define fee structures and line items.', group: 'Invoices & fees' },
+  { key: 'discounts_manage',    label: 'Manage discounts / vouchers',   area: 'Finance', grants: [{ resource: 'discounts', action: 'update' }], description: 'Create and manage discount codes and vouchers.', group: 'Invoices & fees' },
+  { key: 'finance_reports',     label: 'View financial reports',        area: 'Finance', grants: [{ resource: 'fees', action: 'reports' }], description: 'See financial and revenue reports.', group: 'Reports & sync' },
+  { key: 'xero_sync',           label: 'Connect & sync Xero',           area: 'Finance', grants: [{ resource: 'integrations', action: 'xero' }], description: 'Connect Xero and sync invoices / payments.', group: 'Reports & sync' },
 
   // Communications
   { key: 'comms_send',          label: 'Send bulk email / SMS',         area: 'Communications', grants: [{ resource: 'communications', action: 'create' }], description: 'Send bulk email or SMS to members.' },
