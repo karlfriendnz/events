@@ -40,8 +40,8 @@ const types = computed(() => kind.value === 'person' ? personTypes.value : entit
 // editingKey null = the TYPES TABLE; set = the editor for that type.
 const editingKey = ref<string | null>(null)
 const selected = computed(() => types.value.find(t => t.key === editingKey.value) || null)
-const tab = ref<'layout' | 'fields' | 'access' | 'dashboard' | 'profile'>('layout')
-function openEditor(key: string, t: 'layout' | 'fields' | 'access' | 'dashboard' | 'profile') {
+const tab = ref<'layout' | 'fields' | 'access' | 'dashboard' | 'profile' | 'menu'>('layout')
+function openEditor(key: string, t: 'layout' | 'fields' | 'access' | 'dashboard' | 'profile' | 'menu') {
   const found = allTypes.value.find(x => x.key === key)
   if (found) kind.value = (found.kind ?? 'person') as any
   editingKey.value = key; tab.value = t
@@ -118,6 +118,28 @@ async function saveLanding(path: string | null) {
   selected.value.landing_path = path
   await (db.from as any)('person_target_types').update({ landing_path: path }).eq('id', selected.value.id)
 }
+
+// ── Menu Items: which left-menu items THIS type sees (mig 254) ────────────────
+// person_target_types.menu_items = string[] of CLUB_MENU hrefs. null = not
+// customised → the nav falls back to the permission-driven default.
+const { CLUB_MENU } = useClubMenu()
+const menuCustomised = computed(() => Array.isArray(selected.value?.menu_items))
+async function persistMenuItems(v: string[] | null) {
+  if (!selected.value) return
+  selected.value.menu_items = v
+  await (db.from as any)('person_target_types').update({ menu_items: v }).eq('id', selected.value.id)
+}
+function menuItemOn(href: string): boolean {
+  const mi = selected.value?.menu_items
+  return Array.isArray(mi) ? mi.includes(href) : false
+}
+function toggleMenuItem(href: string, on: boolean) {
+  const base = Array.isArray(selected.value?.menu_items) ? [...selected.value!.menu_items] : []
+  const next = on ? [...new Set([...base, href])] : base.filter((h: string) => h !== href)
+  persistMenuItems(next)
+}
+// Turn customisation on (seed with everything, untick from there) or off (→ null).
+function setMenuCustomised(on: boolean) { persistMenuItems(on ? CLUB_MENU.map(i => i.href) : null) }
 // Club-dashboard template per type (dashboard_templates.user_type = the type key)
 const typeDashTemplate = ref<boolean | null>(null) // null = loading
 watch([selected, tab], async () => {
@@ -287,6 +309,7 @@ watch(orgId, load, { immediate: true })
                   <th class="text-left px-3 py-2.5 font-medium w-36">{{ sec.kind === 'person' ? 'Permissions' : 'Members' }}</th>
                   <th v-if="sec.kind === 'person'" class="text-left px-3 py-2.5 font-medium w-28">Landing page</th>
                   <th v-if="sec.kind === 'person'" class="text-left px-3 py-2.5 font-medium w-24">Profile</th>
+                  <th v-if="sec.kind === 'person'" class="text-left px-3 py-2.5 font-medium w-24">Menu items</th>
                   <th class="w-16" />
                 </tr>
               </thead>
@@ -313,6 +336,9 @@ watch(orgId, load, { immediate: true })
                   <td v-if="sec.kind === 'person'" class="px-3 py-2.5">
                     <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'profile')"><i class="pi pi-user text-[10px]" />Profile</button>
                   </td>
+                  <td v-if="sec.kind === 'person'" class="px-3 py-2.5">
+                    <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'menu')"><i class="pi pi-bars text-[10px]" />Menu items</button>
+                  </td>
                   <td class="px-3 py-2.5">
                     <div class="flex items-center justify-center gap-3">
                       <button class="text-gray-300 hover:text-primary" title="Duplicate type" @click="duplicateType(t)"><i class="pi pi-copy text-sm" /></button>
@@ -322,7 +348,7 @@ watch(orgId, load, { immediate: true })
                 </tr>
                 <!-- add-a-type row -->
                 <tr class="bg-gray-50/40">
-                  <td :colspan="sec.kind === 'person' ? 6 : 4" class="px-4 sm:px-5 py-2.5">
+                  <td :colspan="sec.kind === 'person' ? 7 : 4" class="px-4 sm:px-5 py-2.5">
                     <div class="flex items-center gap-2 max-w-md">
                       <InputText v-model="newLabels[sec.id]"
                         :placeholder="sec.id === 'admins' ? 'Add an admin type (e.g. Coach)' : sec.kind === 'person' ? 'Add a person type (e.g. Member)' : 'Add an entity type (e.g. Team)'"
@@ -347,10 +373,10 @@ watch(orgId, load, { immediate: true })
           <span class="text-sm font-semibold text-gray-800 inline-flex items-center gap-1.5">{{ selected.label }}<i v-if="selected.is_access" v-tooltip.top="'Grants access'" class="pi pi-shield text-[10px] text-emerald-400" /></span>
         </div>
         <div class="flex gap-1 border-b border-gray-200">
-          <button v-for="tb in (kind === 'person' ? ['layout','fields','access','dashboard','profile'] : ['layout','fields','access'])" :key="tb"
+          <button v-for="tb in (kind === 'person' ? ['layout','fields','access','dashboard','profile','menu'] : ['layout','fields','access'])" :key="tb"
             class="px-3 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition-colors whitespace-nowrap"
             :class="tab === tb ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
-            @click="tab = tb as any">{{ tb === 'access' ? accessTabLabel : tb === 'profile' ? 'Profile dashboard' : tb === 'layout' ? 'Form' : tb }}</button>
+            @click="tab = tb as any">{{ tb === 'access' ? accessTabLabel : tb === 'profile' ? 'Profile dashboard' : tb === 'layout' ? 'Form' : tb === 'menu' ? 'Menu items' : tb }}</button>
         </div>
 
           <!-- DASHBOARD: what this type sees after login (landing + club dashboard) -->
@@ -397,6 +423,28 @@ watch(orgId, load, { immediate: true })
                 <NuxtLink :to="`/settings/profile-dashboard?type=${selected?.key}`" class="text-sm font-medium text-primary hover:underline">Edit ›</NuxtLink>
                 <button v-if="selected?.profile_dashboard" type="button" class="text-sm text-gray-400 hover:text-red-500" @click="resetTypeProfileDashboard">Reset to standard</button>
               </div>
+            </div>
+          </div>
+
+          <!-- MENU ITEMS: which left-menu items this type sees -->
+          <div v-show="tab === 'menu'" class="space-y-4 max-w-2xl">
+            <div class="card p-5 space-y-3">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-sm font-semibold text-gray-800">Menu items</p>
+                  <p class="text-xs text-gray-400">Choose exactly which left-menu items a {{ selected?.label }} sees. Off = decide automatically from their permissions.</p>
+                </div>
+                <ToggleSwitch :modelValue="menuCustomised" @update:modelValue="setMenuCustomised" />
+              </div>
+              <div v-if="menuCustomised" class="border-t border-gray-100 -mx-5 px-5 pt-1 divide-y divide-gray-50">
+                <label v-for="m in CLUB_MENU" :key="m.href" class="flex items-center gap-3 py-2 cursor-pointer">
+                  <input type="checkbox" :checked="menuItemOn(m.href)" class="accent-primary w-4 h-4"
+                    @change="toggleMenuItem(m.href, ($event.target as HTMLInputElement).checked)" />
+                  <i :class="['pi', m.icon, 'text-gray-400 text-sm w-4 text-center']" />
+                  <span class="text-sm text-gray-700">{{ m.label }}</span>
+                </label>
+              </div>
+              <p v-else class="text-xs text-gray-400 border-t border-gray-100 pt-3">Using the default menu based on this type's permissions.</p>
             </div>
           </div>
 

@@ -703,8 +703,32 @@ const clubMenu = [
 // parts of the system the club has turned off. Reactive — flipping a toggle on
 // /settings/modules updates the nav live (shared useState in useOrgModules).
 const orgModules = useOrgModules()
+// A person's TYPE can pin an explicit menu (Settings → People & Entities → Menu
+// items, person_target_types.menu_items). When any of the signed-in person's
+// types configures one, that wins (union across types); otherwise the menu is
+// permission-driven. Module on/off is always respected.
+const typeMenuHrefs = useState<string[] | null>('fm_type_menu', () => null)
+async function resolveTypeMenu() {
+  typeMenuHrefs.value = null
+  const email = user.value?.email
+  if (!email || !orgId.value) return
+  if (((user.value as any)?.app_metadata?.role) === 'super_admin') return
+  const { data: person } = await (db.from as any)('persons').select('person_types, person_type').eq('org_id', orgId.value).ilike('email', email).limit(1).maybeSingle()
+  if (!person) return
+  const keys = (person.person_types?.length ? person.person_types : [person.person_type]).filter(Boolean)
+  if (!keys.length) return
+  const { data: types } = await (db.from as any)('person_target_types').select('menu_items').eq('org_id', orgId.value).in('key', keys)
+  const configured = (types ?? []).filter((t: any) => Array.isArray(t.menu_items))
+  if (configured.length) typeMenuHrefs.value = [...new Set(configured.flatMap((t: any) => t.menu_items as string[]))]
+}
+watch([orgId, user], () => { if (orgId.value) resolveTypeMenu() }, { immediate: true })
+
 const clubMenuForModules = computed(() => {
-  const base = clubMenu.filter(i => orgModules.isEnabled((i as any).module) && ((i as any).resource ? can((i as any).resource, 'read') : true))
+  const base = typeMenuHrefs.value
+    // Explicit per-type menu: exactly these items (still respect module on/off).
+    ? clubMenu.filter(i => typeMenuHrefs.value!.includes(i.href) && orgModules.isEnabled((i as any).module))
+    // Default: permission-driven.
+    : clubMenu.filter(i => orgModules.isEnabled((i as any).module) && ((i as any).resource ? can((i as any).resource, 'read') : true))
   // Always give a signed-in person their own profile (their record, scoped to
   // them) — a member sees 'My Profile' even without the org-wide People permission.
   if (myPersonId.value) base.splice(1, 0, { label: 'My Profile', icon: 'pi-user', href: `/people/${myPersonId.value}#profile`, chevron: false } as any)

@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-220 sessions · 1314 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+220 sessions · 1316 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -2687,7 +2687,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:07** — better but still messy
 
 
-## Session 2026-07-05 23:26 (242 prompts)
+## Session 2026-07-05 23:26 (244 prompts)
 
 **23:26** — ok where did we get to ?
 
@@ -3606,6 +3606,10 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > … [truncated — 19382 chars total]
 
 **05:56** — no your not gettign it - I wnat to have a dashbaord for the parents but i want it to use the tempalte for that person type
+
+**06:21** — allll right now we are cooking!!!!!
+
+**06:44** — ok now on the people and entities we need a new item on the row - called Menu Items
 
 
 ## Session 2026-07-05 23:33 (18 prompts)

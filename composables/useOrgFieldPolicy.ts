@@ -70,7 +70,7 @@ export function useOrgFieldPolicy() {
    *  the /proto/* prototype uses, so there's no duplicate/two-concept confusion. */
   async function loadOrgTypes(orgId: string) {
     const { data } = await (db.from as any)('person_target_types')
-      .select('id, org_id, key, label, kind, is_access, permissions, member_slots, sort_order, landing_path, profile_dashboard')
+      .select('id, org_id, key, label, kind, is_access, permissions, member_slots, sort_order, landing_path, profile_dashboard, menu_items')
       .eq('org_id', orgId).order('sort_order')
     return (data ?? []).map((t: any) => ({
       ...t, kind: t.kind ?? 'person', is_access: !!t.is_access, inherited: false, ownerName: '',
