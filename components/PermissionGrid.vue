@@ -22,6 +22,13 @@ function toggle(item: PermItem, on: boolean) {
   emit('update:modelValue', setPermItem(props.modelValue, item, on))
 }
 function grantedCount(items: PermItem[]) { return items.filter(i => isOn(i)).length }
+// Split an area's items into their optional sub-groups (order preserved). A
+// section with no groups returns a single { group: null } block (flat).
+function subGroupsFor(items: PermItem[]) {
+  const order: string[] = []; const map: Record<string, PermItem[]> = {}
+  for (const it of items) { const g = it.group || ''; if (!(g in map)) { map[g] = []; order.push(g) } map[g].push(it) }
+  return order.map(g => ({ group: g || null, items: map[g] }))
+}
 function areaAllOn(items: PermItem[]) { return items.every(i => isOn(i)) }
 function toggleArea(items: PermItem[], on: boolean) {
   if (props.readonly) return
@@ -53,19 +60,22 @@ function toggleArea(items: PermItem[], on: boolean) {
             {{ areaAllOn(block.items) ? 'Clear all' : 'Select all' }}
           </button>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5">
-          <label v-for="item in block.items" :key="item.key"
-            class="flex items-start gap-2.5"
-            :class="readonly ? 'cursor-default' : 'cursor-pointer'">
-            <input type="checkbox" class="mt-0.5 w-4 h-4 accent-primary shrink-0"
-              :class="readonly ? 'cursor-not-allowed' : 'cursor-pointer'"
-              :checked="isOn(item)" :disabled="readonly"
-              @change="toggle(item, ($event.target as HTMLInputElement).checked)" />
-            <span class="min-w-0">
-              <span class="block text-sm text-gray-700 leading-tight">{{ item.label }}</span>
-              <span v-if="item.description" class="block text-[11px] leading-snug text-gray-400 mt-0.5">{{ item.description }}</span>
-            </span>
-          </label>
+        <div v-for="sg in subGroupsFor(block.items)" :key="sg.group || 'flat'">
+          <div v-if="sg.group" class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mt-4 first:mt-0 mb-2">{{ sg.group }}</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2.5">
+            <label v-for="item in sg.items" :key="item.key"
+              class="flex items-start gap-2.5"
+              :class="readonly ? 'cursor-default' : 'cursor-pointer'">
+              <input type="checkbox" class="mt-0.5 w-4 h-4 accent-primary shrink-0"
+                :class="readonly ? 'cursor-not-allowed' : 'cursor-pointer'"
+                :checked="isOn(item)" :disabled="readonly"
+                @change="toggle(item, ($event.target as HTMLInputElement).checked)" />
+              <span class="min-w-0">
+                <span class="block text-sm text-gray-700 leading-tight">{{ item.label }}</span>
+                <span v-if="item.description" class="block text-[11px] leading-snug text-gray-400 mt-0.5">{{ item.description }}</span>
+              </span>
+            </label>
+          </div>
         </div>
       </div>
     </div>

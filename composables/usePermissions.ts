@@ -73,38 +73,39 @@ export interface PermItem {
   area: string
   grants: PermGrant[]
   description?: string
+  group?: string // optional sub-group within an area
 }
 
 export const PERMISSION_ITEMS: PermItem[] = [
   // People & Members
-  { key: 'members_view',        label: 'View members',                  area: 'People', grants: [{ resource: 'people', action: 'read' }], description: 'See the member directory and open profiles.' },
-  { key: 'members_contacts',    label: 'View contact details',          area: 'People', grants: [{ resource: 'people', action: 'view_contacts' }], description: 'See members\' phone, email and address.' },
-  { key: 'members_sensitive',   label: 'View medical & sensitive info', area: 'People', grants: [{ resource: 'people', action: 'view_sensitive' }], description: 'See medical notes and other sensitive fields.' },
-  { key: 'members_financials',  label: 'View member financials',        area: 'People', grants: [{ resource: 'people', action: 'view_financials' }], description: 'See a member\'s balance, invoices and payments.' },
-  { key: 'members_add',         label: 'Add members',                   area: 'People', grants: [{ resource: 'people', action: 'create' }], description: 'Create new member records.' },
-  { key: 'members_edit',        label: 'Edit member details',           area: 'People', grants: [{ resource: 'people', action: 'update' }], description: 'Change member details and custom fields.' },
-  { key: 'members_delete',      label: 'Delete members',                area: 'People', grants: [{ resource: 'people', action: 'delete' }], description: 'Permanently remove member records.' },
-  { key: 'members_merge',       label: 'Merge duplicate members',       area: 'People', grants: [{ resource: 'people', action: 'merge' }], description: 'Combine duplicate member records into one.' },
-  { key: 'members_export',      label: 'Export members',                area: 'People', grants: [{ resource: 'people', action: 'export' }], description: 'Download members to a CSV file.' },
-  { key: 'members_import',      label: 'Import members',                area: 'People', grants: [{ resource: 'people', action: 'import' }], description: 'Bulk-import members from a file.' },
-  { key: 'members_invite',      label: 'Send a login invite',           area: 'People', grants: [{ resource: 'people', action: 'invite' }], description: 'Send a member a login / set-password invite.' },
-  { key: 'members_notes',       label: 'Manage member notes',           area: 'People', grants: [{ resource: 'notes', action: 'update' }], description: 'Add and edit notes on member profiles.' },
-  { key: 'members_contacts_mng',label: 'Manage families & contacts',    area: 'People', grants: [{ resource: 'people', action: 'manage_contacts' }], description: 'Manage a member\'s family, guardians and contacts.' },
+  { key: 'members_view',        label: 'View members',                  area: 'People', grants: [{ resource: 'people', action: 'read' }], description: 'See the member directory and open profiles.', group: 'Viewing' },
+  { key: 'members_contacts',    label: 'View contact details',          area: 'People', grants: [{ resource: 'people', action: 'view_contacts' }], description: 'See members\' phone, email and address.', group: 'Viewing' },
+  { key: 'members_sensitive',   label: 'View medical & sensitive info', area: 'People', grants: [{ resource: 'people', action: 'view_sensitive' }], description: 'See medical notes and other sensitive fields.', group: 'Viewing' },
+  { key: 'members_financials',  label: 'View member financials',        area: 'People', grants: [{ resource: 'people', action: 'view_financials' }], description: 'See a member\'s balance, invoices and payments.', group: 'Viewing' },
+  { key: 'members_add',         label: 'Add members',                   area: 'People', grants: [{ resource: 'people', action: 'create' }], description: 'Create new member records.', group: 'Managing' },
+  { key: 'members_edit',        label: 'Edit member details',           area: 'People', grants: [{ resource: 'people', action: 'update' }], description: 'Change member details and custom fields.', group: 'Managing' },
+  { key: 'members_delete',      label: 'Delete members',                area: 'People', grants: [{ resource: 'people', action: 'delete' }], description: 'Permanently remove member records.', group: 'Managing' },
+  { key: 'members_merge',       label: 'Merge duplicate members',       area: 'People', grants: [{ resource: 'people', action: 'merge' }], description: 'Combine duplicate member records into one.', group: 'Managing' },
+  { key: 'members_export',      label: 'Export members',                area: 'People', grants: [{ resource: 'people', action: 'export' }], description: 'Download members to a CSV file.', group: 'Data & contacts' },
+  { key: 'members_import',      label: 'Import members',                area: 'People', grants: [{ resource: 'people', action: 'import' }], description: 'Bulk-import members from a file.', group: 'Data & contacts' },
+  { key: 'members_invite',      label: 'Send a login invite',           area: 'People', grants: [{ resource: 'people', action: 'invite' }], description: 'Send a member a login / set-password invite.', group: 'Data & contacts' },
+  { key: 'members_notes',       label: 'Manage member notes',           area: 'People', grants: [{ resource: 'notes', action: 'update' }], description: 'Add and edit notes on member profiles.', group: 'Data & contacts' },
+  { key: 'members_contacts_mng',label: 'Manage families & contacts',    area: 'People', grants: [{ resource: 'people', action: 'manage_contacts' }], description: 'Manage a member\'s family, guardians and contacts.', group: 'Data & contacts' },
 
   // Classes / Groups
-  { key: 'classes_view',        label: 'View classes',                  area: 'Classes', grants: [{ resource: 'groups', action: 'read' }], description: 'See the classes board and class details.' },
-  { key: 'classes_create',      label: 'Create classes',                area: 'Classes', grants: [{ resource: 'groups', action: 'create' }], description: 'Create new classes / groups.' },
-  { key: 'classes_edit',        label: 'Edit class details',            area: 'Classes', grants: [{ resource: 'groups', action: 'update' }], description: 'Change a class\'s name, capacity and settings.' },
-  { key: 'classes_delete',      label: 'Delete classes',                area: 'Classes', grants: [{ resource: 'groups', action: 'delete' }], description: 'Remove classes / groups.' },
-  { key: 'classes_members',     label: 'Add & remove members',          area: 'Classes', grants: [{ resource: 'groups', action: 'manage_members' }], description: 'Add and remove members from classes.' },
-  { key: 'classes_sessions',    label: 'Manage session / training times',area: 'Classes', grants: [{ resource: 'groups', action: 'manage_schedule' }], description: 'Set a class\'s weekly training times.' },
-  { key: 'attendance_take',     label: 'Take attendance',               area: 'Classes', grants: [{ resource: 'attendance', action: 'update' }], description: 'Mark attendance for training sessions.' },
-  { key: 'attendance_edit',     label: 'Edit past attendance',          area: 'Classes', grants: [{ resource: 'attendance', action: 'edit_past' }], description: 'Change attendance that\'s already recorded.' },
-  { key: 'waitlists_manage',    label: 'Manage waitlists',              area: 'Classes', grants: [{ resource: 'groups', action: 'manage_waitlists' }], description: 'Manage class waitlists and enrol from them.' },
-  { key: 'teams_allocate',      label: 'Allocate teams & sub-groups',   area: 'Classes', grants: [{ resource: 'groups', action: 'allocate' }], description: 'Move members between teams and sub-groups.' },
-  { key: 'classes_fees',        label: 'Manage class fees',             area: 'Classes', grants: [{ resource: 'groups', action: 'manage_fees' }], description: 'Set the fees a class charges to join.' },
-  { key: 'terms_rollover',      label: 'Roll over a term',              area: 'Classes', grants: [{ resource: 'groups', action: 'rollover' }], description: 'Roll classes over into a new term.' },
-  { key: 'codes_manage',        label: 'Manage codes / programmes',     area: 'Classes', grants: [{ resource: 'groups', action: 'manage_codes' }], description: 'Organise codes / programmes and their hierarchy.' },
+  { key: 'classes_view',        label: 'View classes',                  area: 'Classes', grants: [{ resource: 'groups', action: 'read' }], description: 'See the classes board and class details.', group: 'Classes' },
+  { key: 'classes_create',      label: 'Create classes',                area: 'Classes', grants: [{ resource: 'groups', action: 'create' }], description: 'Create new classes / groups.', group: 'Classes' },
+  { key: 'classes_edit',        label: 'Edit class details',            area: 'Classes', grants: [{ resource: 'groups', action: 'update' }], description: 'Change a class\'s name, capacity and settings.', group: 'Classes' },
+  { key: 'classes_delete',      label: 'Delete classes',                area: 'Classes', grants: [{ resource: 'groups', action: 'delete' }], description: 'Remove classes / groups.', group: 'Classes' },
+  { key: 'classes_members',     label: 'Add & remove members',          area: 'Classes', grants: [{ resource: 'groups', action: 'manage_members' }], description: 'Add and remove members from classes.', group: 'Members & teams' },
+  { key: 'classes_sessions',    label: 'Manage session / training times',area: 'Classes', grants: [{ resource: 'groups', action: 'manage_schedule' }], description: 'Set a class\'s weekly training times.', group: 'Sessions & attendance' },
+  { key: 'attendance_take',     label: 'Take attendance',               area: 'Classes', grants: [{ resource: 'attendance', action: 'update' }], description: 'Mark attendance for training sessions.', group: 'Sessions & attendance' },
+  { key: 'attendance_edit',     label: 'Edit past attendance',          area: 'Classes', grants: [{ resource: 'attendance', action: 'edit_past' }], description: 'Change attendance that\'s already recorded.', group: 'Sessions & attendance' },
+  { key: 'waitlists_manage',    label: 'Manage waitlists',              area: 'Classes', grants: [{ resource: 'groups', action: 'manage_waitlists' }], description: 'Manage class waitlists and enrol from them.', group: 'Members & teams' },
+  { key: 'teams_allocate',      label: 'Allocate teams & sub-groups',   area: 'Classes', grants: [{ resource: 'groups', action: 'allocate' }], description: 'Move members between teams and sub-groups.', group: 'Members & teams' },
+  { key: 'classes_fees',        label: 'Manage class fees',             area: 'Classes', grants: [{ resource: 'groups', action: 'manage_fees' }], description: 'Set the fees a class charges to join.', group: 'Fees & terms' },
+  { key: 'terms_rollover',      label: 'Roll over a term',              area: 'Classes', grants: [{ resource: 'groups', action: 'rollover' }], description: 'Roll classes over into a new term.', group: 'Fees & terms' },
+  { key: 'codes_manage',        label: 'Manage codes / programmes',     area: 'Classes', grants: [{ resource: 'groups', action: 'manage_codes' }], description: 'Organise codes / programmes and their hierarchy.', group: 'Classes' },
 
   // Terms & Memberships
   { key: 'terms_manage',        label: 'Manage terms & seasons',        area: 'Terms & Memberships', grants: [{ resource: 'terms', action: 'update' }], description: 'Create and edit terms and seasons.' },
@@ -112,17 +113,17 @@ export const PERMISSION_ITEMS: PermItem[] = [
   { key: 'membership_plans',    label: 'Manage membership plans',       area: 'Terms & Memberships', grants: [{ resource: 'fees', action: 'manage_plans' }], description: 'Define membership plans and their options.' },
 
   // Events
-  { key: 'events_view',         label: 'View events',                   area: 'Events', grants: [{ resource: 'events', action: 'read' }], description: 'See the events list and event details.' },
-  { key: 'events_create',       label: 'Create events',                 area: 'Events', grants: [{ resource: 'events', action: 'create' }], description: 'Create new events.' },
-  { key: 'events_edit',         label: 'Edit events',                   area: 'Events', grants: [{ resource: 'events', action: 'update' }], description: 'Change event details and sessions.' },
-  { key: 'events_delete',       label: 'Delete events',                 area: 'Events', grants: [{ resource: 'events', action: 'delete' }], description: 'Remove events.' },
-  { key: 'events_invitees',     label: 'Manage invitees',               area: 'Events', grants: [{ resource: 'events', action: 'manage_invitees' }], description: 'Add and manage who\'s invited to events.' },
-  { key: 'events_forms',        label: 'Manage registration forms',     area: 'Events', grants: [{ resource: 'events', action: 'manage_forms' }], description: 'Build an event\'s registration form.' },
-  { key: 'events_checkin',      label: 'Check-in attendees',            area: 'Events', grants: [{ resource: 'events', action: 'checkin' }], description: 'Check attendees in on the day.' },
-  { key: 'events_tickets',      label: 'Manage tickets',                area: 'Events', grants: [{ resource: 'events', action: 'manage_tickets' }], description: 'Set up ticket types and prices.' },
-  { key: 'events_discounts',    label: 'Manage event discounts',        area: 'Events', grants: [{ resource: 'events', action: 'manage_discounts' }], description: 'Create discount codes for events.' },
-  { key: 'events_reports',      label: 'View event reports',            area: 'Events', grants: [{ resource: 'events', action: 'reports' }], description: 'See registrations, revenue and check-in reports.' },
-  { key: 'events_comms',        label: 'Send event communications',     area: 'Events', grants: [{ resource: 'events', action: 'communicate' }], description: 'Email an event\'s registrants.' },
+  { key: 'events_view',         label: 'View events',                   area: 'Events', grants: [{ resource: 'events', action: 'read' }], description: 'See the events list and event details.', group: 'Event setup' },
+  { key: 'events_create',       label: 'Create events',                 area: 'Events', grants: [{ resource: 'events', action: 'create' }], description: 'Create new events.', group: 'Event setup' },
+  { key: 'events_edit',         label: 'Edit events',                   area: 'Events', grants: [{ resource: 'events', action: 'update' }], description: 'Change event details and sessions.', group: 'Event setup' },
+  { key: 'events_delete',       label: 'Delete events',                 area: 'Events', grants: [{ resource: 'events', action: 'delete' }], description: 'Remove events.', group: 'Event setup' },
+  { key: 'events_invitees',     label: 'Manage invitees',               area: 'Events', grants: [{ resource: 'events', action: 'manage_invitees' }], description: 'Add and manage who\'s invited to events.', group: 'Registration' },
+  { key: 'events_forms',        label: 'Manage registration forms',     area: 'Events', grants: [{ resource: 'events', action: 'manage_forms' }], description: 'Build an event\'s registration form.', group: 'Registration' },
+  { key: 'events_checkin',      label: 'Check-in attendees',            area: 'Events', grants: [{ resource: 'events', action: 'checkin' }], description: 'Check attendees in on the day.', group: 'Registration' },
+  { key: 'events_tickets',      label: 'Manage tickets',                area: 'Events', grants: [{ resource: 'events', action: 'manage_tickets' }], description: 'Set up ticket types and prices.', group: 'Registration' },
+  { key: 'events_discounts',    label: 'Manage event discounts',        area: 'Events', grants: [{ resource: 'events', action: 'manage_discounts' }], description: 'Create discount codes for events.', group: 'Registration' },
+  { key: 'events_reports',      label: 'View event reports',            area: 'Events', grants: [{ resource: 'events', action: 'reports' }], description: 'See registrations, revenue and check-in reports.', group: 'Follow-up' },
+  { key: 'events_comms',        label: 'Send event communications',     area: 'Events', grants: [{ resource: 'events', action: 'communicate' }], description: 'Email an event\'s registrants.', group: 'Follow-up' },
 
   // Bookings & Venues
   { key: 'bookings_view',       label: 'View bookings',                 area: 'Bookings & Venues', grants: [{ resource: 'bookings', action: 'read' }], description: 'See the bookings calendar.' },
@@ -162,14 +163,22 @@ export const PERMISSION_ITEMS: PermItem[] = [
   { key: 'reports_build',       label: 'Build custom reports',          area: 'Reporting', grants: [{ resource: 'reports', action: 'build' }], description: 'Create and save custom reports.' },
   { key: 'reports_export',      label: 'Export reports',                area: 'Reporting', grants: [{ resource: 'reports', action: 'export' }], description: 'Download report results.' },
 
-  // Admin & Settings
-  { key: 'settings_manage',     label: 'Manage club settings & branding',area: 'Admin & Settings', grants: [{ resource: 'settings', action: 'update' }], description: 'Change club settings, branding and season.' },
-  { key: 'terminology_manage',  label: 'Manage terminology',            area: 'Admin & Settings', grants: [{ resource: 'settings', action: 'manage_terminology' }], description: 'Rename the club\'s terminology.' },
-  { key: 'locations_manage',    label: 'Manage locations',              area: 'Admin & Settings', grants: [{ resource: 'locations', action: 'update' }], description: 'Add locations and assign staff to them.' },
-  { key: 'permissions_manage',  label: 'Manage permissions & roles',    area: 'Admin & Settings', grants: [{ resource: 'permissions', action: 'update' }], description: 'Edit permissions, roles and person types.' },
-  { key: 'integrations_manage', label: 'Manage integrations',           area: 'Admin & Settings', grants: [{ resource: 'integrations', action: 'update' }], description: 'Connect and configure integrations.' },
-  { key: 'org_manage',          label: 'Manage organisation & affiliations', area: 'Admin & Settings', grants: [{ resource: 'organisations', action: 'update' }], description: 'Manage org details, affiliations and hierarchy.' },
-  { key: 'fields_manage',       label: 'Manage custom fields',          area: 'Admin & Settings', grants: [{ resource: 'custom_fields', action: 'update' }], description: 'Define custom fields on people and forms.' },
+  // Admin & Settings — Configuration
+  { key: 'settings_manage',     label: 'Update club settings & branding', area: 'Admin & Settings', group: 'Configuration', grants: [{ resource: 'settings', action: 'update' }], description: 'Change club settings, branding and season.' },
+  { key: 'terminology_manage',  label: 'Manage terminology',            area: 'Admin & Settings', group: 'Configuration', grants: [{ resource: 'settings', action: 'manage_terminology' }], description: 'Rename the club\'s terminology.' },
+  { key: 'fields_manage',       label: 'Manage custom fields',          area: 'Admin & Settings', group: 'Configuration', grants: [{ resource: 'custom_fields', action: 'update' }], description: 'Define custom fields on people and forms.' },
+  { key: 'types_manage',        label: 'Manage person & entity types',  area: 'Admin & Settings', group: 'Configuration', grants: [{ resource: 'permissions', action: 'manage_types' }], description: 'Create and edit the club\'s person and entity types.' },
+  { key: 'modules_manage',      label: 'Turn modules on / off',         area: 'Admin & Settings', group: 'Configuration', grants: [{ resource: 'settings', action: 'manage_modules' }], description: 'Enable or disable parts of the system for the club.' },
+  // Admin & Settings — Dashboards & menus
+  { key: 'dashboard_customise', label: 'Customise own dashboard',       area: 'Admin & Settings', group: 'Dashboards & menus', grants: [{ resource: 'settings', action: 'customise_dashboard' }], description: 'Drag, resize and add widgets on their own dashboard.' },
+  { key: 'dashboard_defaults',  label: 'Manage dashboard defaults',     area: 'Admin & Settings', group: 'Dashboards & menus', grants: [{ resource: 'settings', action: 'manage_dashboards' }], description: 'Set the starting dashboard layout for each person type.' },
+  { key: 'menu_manage',         label: 'Customise menus',               area: 'Admin & Settings', group: 'Dashboards & menus', grants: [{ resource: 'permissions', action: 'manage_menu' }], description: 'Choose which menu items each person type sees.' },
+  // Admin & Settings — Access & org
+  { key: 'permissions_manage',  label: 'Manage permissions',            area: 'Admin & Settings', group: 'Access & org', grants: [{ resource: 'permissions', action: 'update' }], description: 'Edit what each person type can see and do.' },
+  { key: 'roles_manage',        label: 'Manage roles',                  area: 'Admin & Settings', group: 'Access & org', grants: [{ resource: 'permissions', action: 'manage_roles' }], description: 'Define scoped roles for groups and events.' },
+  { key: 'locations_manage',    label: 'Manage locations',              area: 'Admin & Settings', group: 'Access & org', grants: [{ resource: 'locations', action: 'update' }], description: 'Add locations and assign staff to them.' },
+  { key: 'integrations_manage', label: 'Manage integrations',           area: 'Admin & Settings', group: 'Access & org', grants: [{ resource: 'integrations', action: 'update' }], description: 'Connect and configure integrations.' },
+  { key: 'org_manage',          label: 'Manage organisation & affiliations', area: 'Admin & Settings', group: 'Access & org', grants: [{ resource: 'organisations', action: 'update' }], description: 'Manage org details, affiliations and hierarchy.' },
 ]
 
 export const PERM_ITEM_AREAS = [...new Set(PERMISSION_ITEMS.map(i => i.area))]
