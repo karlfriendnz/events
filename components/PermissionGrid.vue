@@ -60,8 +60,8 @@ function toggleArea(items: PermItem[], on: boolean) {
             {{ areaAllOn(block.items) ? 'Clear all' : 'Select all' }}
           </button>
         </div>
-        <div v-for="sg in subGroupsFor(block.items)" :key="sg.group || 'flat'">
-          <div v-if="sg.group" class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mt-4 first:mt-0 mb-2">{{ sg.group }}</div>
+        <div v-for="sg in subGroupsFor(block.items)" :key="sg.group || 'flat'" class="pb-4 last:pb-0">
+          <div v-if="sg.group" class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide mt-4 first:mt-0 mb-2.5">{{ sg.group }}</div>
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-2.5">
             <label v-for="item in sg.items" :key="item.key"
               class="flex items-start gap-2.5"
