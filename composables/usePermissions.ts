@@ -183,6 +183,44 @@ export const PERMISSION_ITEMS: PermItem[] = [
 
 export const PERM_ITEM_AREAS = [...new Set(PERMISSION_ITEMS.map(i => i.area))]
 
+// ── DEFAULT permission sets per standard person type ─────────────────────────
+// Applied when a club seeds the standard set (and a sensible starting point a
+// club then tweaks). 'ALL' = every permission. Member types get own-scoped view
+// permissions (their data); staff/admin types get management ones.
+const areaKeys = (area: string) => PERMISSION_ITEMS.filter(i => i.area === area).map(i => i.key)
+const MANAGER_KEYS = [
+  ...areaKeys('People'), ...areaKeys('Classes'), ...areaKeys('Events'),
+  ...areaKeys('Bookings & Venues'), ...areaKeys('Terms & Memberships'),
+  ...areaKeys('Communications'), ...areaKeys('Content & Assets'),
+  'reports_view', 'reports_export', 'dashboard_customise',
+]
+export const DEFAULT_TYPE_PERMISSIONS: Record<string, string[] | 'ALL'> = {
+  admin: 'ALL',
+  manager: MANAGER_KEYS,
+  location_manager: MANAGER_KEYS,
+  coach: [
+    'members_view', 'members_contacts', 'members_notes',
+    'classes_view', 'classes_members', 'classes_sessions', 'attendance_take', 'attendance_edit', 'waitlists_manage', 'teams_allocate',
+    'events_view', 'events_invitees', 'events_checkin', 'comms_send', 'reports_view', 'dashboard_customise',
+  ],
+  committee: ['members_view', 'members_contacts', 'classes_view', 'events_view', 'events_reports', 'invoices_view', 'finance_reports', 'reports_view', 'dashboard_customise'],
+  // Member types — own-scoped (they see THEIR data; "Grants access" is off)
+  member: ['members_view', 'events_view', 'classes_view', 'invoices_view', 'dashboard_customise'],
+  gymnast: ['members_view', 'events_view', 'classes_view', 'invoices_view', 'dashboard_customise'],
+  parent: ['members_view', 'members_contacts_mng', 'events_view', 'classes_view', 'invoices_view', 'dashboard_customise'],
+  emergency_contact: ['dashboard_customise'],
+}
+
+// Build the PermissionMap a standard type should start with (empty for unknowns).
+export function defaultPermissionsFor(typeKey: string): any {
+  const def = DEFAULT_TYPE_PERMISSIONS[typeKey]
+  if (!def) return {}
+  const keys = def === 'ALL' ? PERMISSION_ITEMS.map(i => i.key) : def
+  let map: any = {}
+  for (const k of keys) { const item = PERMISSION_ITEMS.find(i => i.key === k); if (item) map = setPermItem(map, item, true) }
+  return map
+}
+
 // Is an explicit permission fully granted in this map? (all its grants present)
 export function permItemOn(map: any, item: PermItem): boolean {
   return item.grants.every(g => !!map?.[g.resource]?.[g.action])

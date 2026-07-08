@@ -179,6 +179,7 @@ async function seedStandard() {
   const rows = STANDARD.filter(s => !existing.has(s.key)).map((s, i) => ({
     org_id: orgId.value, key: s.key, label: s.label, kind: 'person',
     is_access: s.is_access, min_count: 0, max_count: null, sort_order: personTypes.value.length + i,
+    permissions: defaultPermissionsFor(s.key), // sensible starting permissions
   }))
   if (rows.length) {
     const { error } = await (db.from as any)('person_target_types').insert(rows)
