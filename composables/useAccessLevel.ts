@@ -26,6 +26,12 @@ export function useAccessLevel() {
     resolvedOrg.value = orgId.value
     resolved.value = true
 
+    // Preview-as-type: reflect that type's admin/member status.
+    const { previewKey } = usePreviewType()
+    if (previewKey.value && orgId.value) {
+      const { data: pt } = await (db.from as any)('person_target_types').select('is_access').eq('org_id', orgId.value).eq('key', previewKey.value).maybeSingle()
+      isAdmin.value = !!pt?.is_access; myPersonId.value = null; return isAdmin.value
+    }
     const isSuper = ((user.value as any)?.app_metadata?.role) === 'super_admin'
     if (isSuper) { isAdmin.value = true; return true }
     const email = user.value?.email

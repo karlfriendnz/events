@@ -170,6 +170,8 @@ async function resolveUserTypeKeys(): Promise<string[]> {
 // The person's TYPE keys (mig 245): a type's dashboard template applies after
 // role templates but before '_default'.
 async function resolvePersonTypeKeys(): Promise<string[]> {
+  const { previewKey } = usePreviewType()
+  if (previewKey.value) return [previewKey.value] // preview-as-type: load THAT type's template
   const email = user.value?.email; if (!email || !orgId.value) return []
   const { data: person } = await (db.from as any)('persons').select('person_types, person_type').eq('org_id', orgId.value).ilike('email', email).limit(1).maybeSingle()
   if (!person) return []

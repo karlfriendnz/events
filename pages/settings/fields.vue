@@ -123,6 +123,7 @@ async function saveLanding(path: string | null) {
 // person_target_types.menu_items = string[] of CLUB_MENU hrefs. null = not
 // customised → the nav falls back to the permission-driven default.
 const { CLUB_MENU } = useClubMenu()
+const preview = usePreviewType()
 const menuCustomised = computed(() => Array.isArray(selected.value?.menu_items))
 async function persistMenuItems(v: string[] | null) {
   if (!selected.value) return
@@ -341,6 +342,7 @@ watch(orgId, load, { immediate: true })
                   </td>
                   <td class="px-4 py-3">
                     <div class="flex items-center justify-center gap-3">
+                      <button v-if="sec.kind === 'person'" class="text-gray-300 hover:text-amber-500" title="Preview as this type" @click="preview.startPreview(t.key, t.label)"><i class="pi pi-eye text-sm" /></button>
                       <button class="text-gray-300 hover:text-primary" title="Duplicate type" @click="duplicateType(t)"><i class="pi pi-copy text-sm" /></button>
                       <button class="text-gray-300 hover:text-red-500" title="Delete type" @click="removeType(t)"><i class="pi pi-trash text-sm" /></button>
                     </div>

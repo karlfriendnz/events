@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-238 sessions · 1338 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+243 sessions · 1345 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -21448,4 +21448,383 @@ Every prompt given to Claude Code on this project, extracted from local session 
 >     if (r.status() >= 500) badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
 >     if (r.status() >= 400 && /supabase|\/api\//.test(url) &
 > … [truncated — 15541 chars total]
+
+
+## Session 2026-07-08 07:38 (1 prompts)
+
+**07:38** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 74935 chars total]
+
+
+## Session 2026-07-08 07:38 (1 prompts)
+
+**07:38** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 74935 chars total]
+
+
+## Session 2026-07-08 07:38 (3 prompts)
+
+**07:38** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+**07:41** — <task-notification>
+> <task-id>af0ed8ab9f3cbec33</task-id>
+> <tool-use-id>toolu_0112nagyEpzJYoGCHEFnwtno</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/f5791fb6-4af1-460d-92da-ba85e91269da/tasks/af0ed8ab9f3cbec33.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find N+1 query patterns" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Now I have enough to compile the report.
+> 
+> ## N+1 Query Findings
+> 
+> **1. `composables/useTermRollover.ts:296-306` — `cloneOne()` fee-option clone loop**
+> `for (const fo of feeOptsBy[src.id]) { await insert('group_fee_options')...; await insert('group_fee_option_items')... }`, called once per cloned group inside `rollOverGroups`'s `pending` loop. N = groups × fee-options-per-group, each doing 2 inserts. Since each `group_fee_options` insert needs its own generated id before items can reference it, true batching requires either a DB function/RPC or inserting all options in one batched insert with `.select('id')` then building one batched `group_fee_option_items` insert keyed by array position — currently it's fully serialized per fee-option.
+> 
+> **2. `composables/useTermRollover.ts:362-425` — `generateTrainingEvents()` per-schedule insert loop**
+> ```js
+> for (const sched of (scheds ?? [])) {
+>   const { data: master } = await (db.from as any)('events').insert({...}).select('id').single()
+>   ...
+>   const { data: kids } = await (db.from as any)('events').insert(childRows).select('id')
+>   ...
+>   await (db.from as any)('invitees').insert(inviteeRows)
+> }
+> ```
+> N = number of weekly schedules for the term's groups; 3 round trips per schedule. Fix: build all master rows in one batched `.insert(masterRows).select('id')`, then batch all child rows (tagged with a temp key) into one insert, then one combined `invitees` insert built from all event ids at once.
+> 
+> **3. `pages/groups/[id]/index.vue:3658-3734` — `createAttendanceEvent()` (identical pattern, single-group scope)**
+> Same per-schedule `for (const sched of toCreate) { insert events (master) → insert events (children) → insert invitees }`. N = schedules for one group; same batching fix as #2 (this looks like the same logic duplicated rather than reused from `useTermRollover`).
+> 
+> **4. `pages/events/[id].vue:4818-4870` — `createBulkSessions()` template loop**
+> ```js
+> for (const tpl of bulkNamedTemplates.value) {
+>   const { data: master } = await db.from('sessions').insert({...}).select('id').single()
+>   const { data: linkedData } = await db.from('sessions').insert(linked).select('id')
+>   await db.from('fee_components').insert(feeRows)
+> }
+> ```
+> N = number of session templates × (1–3 inserts each). Fix: insert all master sessions in one batch, all linked sessions in one batch (referencing master via a client-generated temp id column mapped after insert), then one combined `fee_components
+> … [truncated — 5744 chars total]
+
+**07:41** — <task-notification>
+> <task-id>aae940046d5cd8fad</task-id>
+> <tool-use-id>toolu_01PtJbWqXyGa21KKiZDgX4q3</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/f5791fb6-4af1-460d-92da-ba85e91269da/tasks/aae940046d5cd8fad.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find Vue reactivity/re-render issues" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>I have sufficient verified findings. Here is the report.
+> 
+> **1. `pages/events/[id].vue:855-886` — same `.filter()` re-run 3x per sub-group, directly in template, not memoized**
+> ```
+> v-if="invitees.filter(inv =&gt; (viewingSession.invitee_ids ?? []).includes(inv.id) &amp;&amp; inviteeGroupMap[inv.id] === sg.id).length"
+> ... {{ invitees.filter(inv =&gt; ...).length }}
+> v-for="inv in invitees.filter(inv =&gt; ...)"
+> ```
+> Each sub-group row scans the full `invitees` array three separate times, every render (including unrelated re-renders like a dialog opening). With this pattern repeated for the "ungrouped" bucket too (lines 872-887) and again at `pages/events/[id].vue:2706,2725,2825`, this is O(subgroups × invitees) work that never gets cached. Fix: hoist to a `computed()` keyed by sub-group id (e.g. `groupedByInviteeIds`), used for both the count badge and the `v-for`.
+> 
+> **2. `pages/events/[id].vue:4231-4249` — `memberGroupAttendanceSections` does an O(n·m) `.find()` inside a loop, on a chain fed by every keystroke**
+> ```js
+> const memberGroupAttendanceSections = computed(() =&gt; {
+>   for (const inv of filteredSortedAttendees.value) {
+>     const entry = memberGroupsForInvitees.value.find(m =&gt; m.personId === inv.person_id) // O(m) per invitee
+> ```
+> `filteredSortedAttendees` (line 4384) itself filters+sorts on every `attendanceSearch.value` keystroke, and this computed depends on it, re-running the `.find()` loop (O(n×m)) on every character typed in the attendance search box. Fix: build a `Map` from `memberGroupsForInvitees` once (`computed(() =&gt; new Map(memberGroupsForInvitees.value.map(m =&gt; [m.personId, m.group])))`) for O(1) lookups, and consider decoupling grouping from the search-filtered list (group first, filter within groups).
+> 
+> **3. `pages/events/[id].vue:2853,2881` — inline array-literal props inside `v-for`**
+> ```
+> &lt;Select v-model="fee.type" :options="[{label:'Standard',value:'STANDARD'},...]" .../&gt;
+> ```
+> Rendered once per row in `v-for="fee in editingSubSession.fees"`. A new array (and new object literals) is created every parent re-render, defeating PrimeVue's prop-equality checks on `Select` and forcing it to re-diff/reset its internal options state each time any sibling field changes. Fix: hoist `FEE_TYPE_OPTIONS`/`DISCOUNT_TYPE_OPTIONS` to module-level constants outside `setup()`.
+> 
+> **4. `components/BookingWizard.vue:1528-1533` — deep-watching a computed that's already a fres
+> … [truncated — 5325 chars total]
+
+
+## Session 2026-07-08 07:39 (1 prompts)
+
+**07:39** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 74935 chars total]
+
+
+## Session 2026-07-08 07:39 (1 prompts)
+
+**07:39** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
 

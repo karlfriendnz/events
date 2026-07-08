@@ -285,6 +285,12 @@
 
       <!-- Page content -->
       <main class="flex-1 overflow-y-auto relative pb-16 md:pb-0">
+        <!-- Preview-as-type banner: an admin is viewing the app as a person type -->
+        <div v-if="preview.active.value" class="sticky top-0 z-40 flex items-center justify-center gap-3 px-4 py-2 bg-amber-500 text-white text-sm font-medium">
+          <i class="pi pi-eye text-xs" />
+          <span>Previewing as <b>{{ preview.previewLabel.value }}</b> — this is what they see.</span>
+          <button type="button" class="ml-1 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-white/20 hover:bg-white/30 transition-colors" @click="preview.exitPreview()"><i class="pi pi-times text-[10px]" />Exit preview</button>
+        </div>
         <template v-if="orgReady">
           <!-- Developer gate: only approved pages are visible to users with role='developer' -->
           <div v-if="gate.blocked.value" class="min-h-full flex flex-col items-center justify-center px-6 py-12 bg-[#F5F8FA]">
@@ -710,6 +716,13 @@ const orgModules = useOrgModules()
 const typeMenuHrefs = useState<string[] | null>('fm_type_menu', () => null)
 async function resolveTypeMenu() {
   typeMenuHrefs.value = null
+  // Preview-as-type: use the previewed type's menu config.
+  const { previewKey } = usePreviewType()
+  if (previewKey.value && orgId.value) {
+    const { data: pt } = await (db.from as any)('person_target_types').select('menu_items').eq('org_id', orgId.value).eq('key', previewKey.value).maybeSingle()
+    typeMenuHrefs.value = Array.isArray(pt?.menu_items) ? pt.menu_items : null
+    return
+  }
   const email = user.value?.email
   if (!email || !orgId.value) return
   if (((user.value as any)?.app_metadata?.role) === 'super_admin') return
@@ -762,6 +775,7 @@ watch(() => route.path, () => { mobileMenuOpen.value = false })
 // Permission enforcement + governing-body extras.
 const { can, load: loadPerms } = useCan()
 const { myPersonId, isAdmin, resolveAccessLevel } = useAccessLevel()
+const preview = usePreviewType()
 watch(orgId, () => { if (orgId.value) resolveAccessLevel() }, { immediate: true })
 const isGoverningOrg = ref(false)
 const activeOrgName = ref('')

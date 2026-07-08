@@ -34,6 +34,12 @@ export function useCan() {
   async function load() {
     loaded.value = false
     loadedOrg.value = orgId.value
+    // Preview-as-type: resolve THAT type's grid (overrides real access, incl. super).
+    const { previewKey } = usePreviewType()
+    if (previewKey.value && orgId.value) {
+      const { data: pt } = await (db.from as any)('person_target_types').select('permissions').eq('org_id', orgId.value).eq('key', previewKey.value).maybeSingle()
+      const m: PermissionMap = {}; mergeInto(m, pt?.permissions); perms.value = m; unrestricted.value = false; loaded.value = true; return
+    }
     const isSuper = ((user.value as any)?.app_metadata?.role) === 'super_admin'
     const email = user.value?.email
     if (isSuper || !email) { unrestricted.value = true; perms.value = {}; loaded.value = true; return }
