@@ -9,12 +9,24 @@
     </div>
 
     <template v-if="view === 'people'">
+    <!-- Governing orgs: own people vs members pulled up from the clubs beneath -->
+    <div v-if="isGoverning" class="flex items-center gap-1 mb-4 border-b border-gray-200">
+      <button type="button" class="px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+        :class="peopleScope === 'own' ? 'border-[#1E2157] text-[#1E2157]' : 'border-transparent text-gray-500 hover:text-gray-800'"
+        @click="peopleScope = 'own'">Our people</button>
+      <button type="button" class="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+        :class="peopleScope === 'club' ? 'border-[#1E2157] text-[#1E2157]' : 'border-transparent text-gray-500 hover:text-gray-800'"
+        @click="peopleScope = 'club'">
+        Club members
+        <span class="text-xs px-1.5 rounded-full" :class="peopleScope === 'club' ? 'bg-[#1E2157]/10 text-[#1E2157]' : 'bg-gray-100 text-gray-400'">{{ clubMembers.length }}</span>
+      </button>
+    </div>
     <div class="flex items-center justify-between mb-6 gap-4 flex-wrap">
       <IconField iconPosition="left">
         <InputIcon class="pi pi-search" />
         <InputText v-model="search" placeholder="Search people…" size="small" class="w-full sm:w-64" />
       </IconField>
-      <div class="flex items-center gap-2 flex-wrap">
+      <div v-if="peopleScope === 'own'" class="flex items-center gap-2 flex-wrap">
         <!-- Per-tab column chooser (desktop table) -->
         <div ref="colMenuWrap" class="relative hidden md:block">
           <Button label="Columns" icon="pi pi-sliders-h" size="small" severity="secondary" outlined @click="colMenuOpen = !colMenuOpen" />
@@ -38,7 +50,7 @@
     </div>
 
     <!-- Type filter: dropdown on mobile, tab strip on desktop -->
-    <div class="md:hidden mb-4">
+    <div v-show="peopleScope === 'own'" class="md:hidden mb-4">
       <Select v-model="activeType" :options="typeTabs" option-label="label" option-value="key" class="w-full">
         <template #option="{ option }">
           <span class="flex-1">{{ option.label }}</span>
@@ -46,7 +58,7 @@
         </template>
       </Select>
     </div>
-    <div class="hidden md:flex items-center gap-1 mb-4 border-b border-gray-200 overflow-x-auto overflow-y-hidden no-scrollbar">
+    <div v-show="peopleScope === 'own'" class="hidden md:flex items-center gap-1 mb-4 border-b border-gray-200 overflow-x-auto overflow-y-hidden no-scrollbar">
       <button v-for="t in typeTabs" :key="t.key" type="button"
         class="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap"
         :class="activeType === t.key ? 'border-[#1E2157] text-[#1E2157]' : 'border-transparent text-gray-500 hover:text-gray-800'"
@@ -57,7 +69,7 @@
     </div>
 
     <!-- Bulk actions -->
-    <div v-if="selected.length" class="flex items-center gap-3 mb-3 px-3 py-2 rounded-lg bg-[#1E2157]/5 border border-[#1E2157]/15 flex-wrap">
+    <div v-if="selected.length && peopleScope === 'own'" class="flex items-center gap-3 mb-3 px-3 py-2 rounded-lg bg-[#1E2157]/5 border border-[#1E2157]/15 flex-wrap">
       <span class="text-sm font-medium text-[#1E2157]">{{ selected.length }} selected</span>
       <span class="text-gray-300 hidden sm:inline">·</span>
       <span class="text-sm text-gray-500">Set type</span>
@@ -72,7 +84,7 @@
     </div>
 
     <!-- Mobile: card list (table is desktop-only) -->
-    <div class="md:hidden">
+    <div v-show="peopleScope === 'own'" class="md:hidden">
       <div v-if="loading" class="card p-6 text-center text-surface-400"><i class="pi pi-spin pi-spinner text-xl" /></div>
       <div v-else-if="!filtered.length" class="card p-10 text-center text-surface-400">
         <i class="pi pi-users text-3xl mb-3 block" />
@@ -104,7 +116,7 @@
       </div>
     </div>
 
-    <div class="card overflow-x-auto hidden md:block">
+    <div v-show="peopleScope === 'own'" class="card overflow-x-auto hidden md:block">
       <DataTable :value="filtered" :loading="loading" row-hover striped-rows size="small"
         v-model:selection="selected" dataKey="id"
         paginator :rows="25" :rowsPerPageOptions="[25, 50, 100]"
@@ -175,6 +187,44 @@
       </DataTable>
     </div>
 
+    <!-- Club members — people pulled up from the clubs beneath this org -->
+    <div v-if="peopleScope === 'club'">
+      <div class="flex items-start justify-between gap-3 mb-3 flex-wrap">
+        <p class="text-sm text-gray-500 max-w-xl">People pulled into this organisation's groups from the clubs beneath it. Each is owned by their club — their profile is edited at the club.</p>
+        <div class="flex items-center gap-2 text-xs shrink-0">
+          <span class="text-gray-400" v-tooltip.left="'How a club member is stored when added to one of your groups'">Pull in as:</span>
+          <div class="inline-flex rounded-lg border border-gray-200 p-0.5">
+            <button type="button" class="px-2.5 py-1 rounded-md font-medium transition-colors" :class="pullMode === 'reference' ? 'bg-[#1E2157] text-white' : 'text-gray-500'" @click="setPullMode('reference')">Reference</button>
+            <button type="button" class="px-2.5 py-1 rounded-md font-medium transition-colors" :class="pullMode === 'copy' ? 'bg-[#1E2157] text-white' : 'text-gray-500'" @click="setPullMode('copy')">Copy</button>
+          </div>
+        </div>
+      </div>
+      <div class="card overflow-x-auto">
+        <table class="w-full text-sm min-w-[560px]">
+          <thead>
+            <tr class="text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
+              <th class="text-left font-medium px-4 py-2">Name</th>
+              <th class="text-left font-medium px-4 py-2">Club</th>
+              <th class="text-left font-medium px-4 py-2">Email</th>
+              <th class="text-left font-medium px-4 py-2">Phone</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="clubLoading"><td colspan="4" class="px-4 py-6 text-gray-400">Loading…</td></tr>
+            <tr v-else-if="!clubMembersFiltered.length"><td colspan="4" class="px-4 py-10 text-center text-gray-400">No club members pulled in yet. Add people from clubs when building a group.</td></tr>
+            <tr v-for="p in clubMembersFiltered" :key="p.id" class="border-b border-gray-50 hover:bg-gray-50">
+              <td class="px-4 py-2.5 font-medium text-gray-800">{{ p.first_name }} {{ p.last_name }}</td>
+              <td class="px-4 py-2.5">
+                <span class="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100"><i class="pi pi-building text-[10px]" />{{ p.club_name }}</span>
+              </td>
+              <td class="px-4 py-2.5 text-gray-600">{{ p.email || '—' }}</td>
+              <td class="px-4 py-2.5 text-gray-600">{{ p.phone || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <Menu ref="rowMenu" :model="menuItems" :popup="true" />
 
     <!-- Add Person Dialog -->
@@ -183,31 +233,24 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium">First name</label>
-            <InputText v-model="newPerson.first_name" autofocus />
+            <InputText v-model="newPerson.first_name" autofocus @keyup.enter="handleCreate" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium">Last name</label>
-            <InputText v-model="newPerson.last_name" />
+            <InputText v-model="newPerson.last_name" @keyup.enter="handleCreate" />
           </div>
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Email</label>
-          <InputText v-model="newPerson.email" type="email" />
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Phone</label>
-          <InputText v-model="newPerson.phone" />
         </div>
         <div v-if="personTypes.length" class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Type</label>
           <Select v-model="newPerson.person_type" :options="personTypes" optionLabel="label" optionValue="key"
-            placeholder="Select a type" class="w-full" showClear />
+            placeholder="Select a type" class="w-full" />
         </div>
+        <p class="text-xs text-gray-400">You'll go straight to their profile to fill in the rest.</p>
       </div>
       <template #footer>
         <Button label="Cancel" severity="secondary" text @click="showCreate = false" />
-        <Button label="Add" :loading="creating"
-          :disabled="!newPerson.first_name.trim() || !newPerson.last_name.trim()"
+        <Button label="Create & open profile" :loading="creating"
+          :disabled="!newPerson.first_name.trim() || !newPerson.last_name.trim() || !newPerson.person_type"
           style="background:#1E2157;border-color:#1E2157" @click="handleCreate" />
       </template>
     </Dialog>
@@ -287,6 +330,37 @@ const people = ref<any[]>([])
 const personTypes = ref<any[]>([])
 const customFields = ref<any[]>([])
 const activeType = ref('all')
+
+// ── Cross-club members (governing orgs only, migration 250) ──
+const { savePullMode, clubMembersForOrg } = useCrossClubMembers()
+const orgLevel = ref<string | null>(null)
+const isGoverning = computed(() => !!orgLevel.value && orgLevel.value !== 'CLUB')
+const peopleScope = ref<'own' | 'club'>('own')
+const clubMembers = ref<any[]>([])
+const clubLoading = ref(false)
+const pullMode = ref<'reference' | 'copy'>('reference')
+async function loadClubMembers() {
+  if (!orgId.value || !isGoverning.value) return
+  clubLoading.value = true
+  clubMembers.value = await clubMembersForOrg(orgId.value)
+  clubLoading.value = false
+}
+async function setPullMode(m: 'reference' | 'copy') {
+  pullMode.value = m
+  if (orgId.value) await savePullMode(orgId.value, m)
+}
+async function loadGoverning() {
+  if (!orgId.value) return
+  const { data } = await (db.from as any)('organisations').select('org_level, member_pull_mode').eq('id', orgId.value).maybeSingle()
+  orgLevel.value = data?.org_level ?? null
+  pullMode.value = data?.member_pull_mode === 'copy' ? 'copy' : 'reference'
+  if (isGoverning.value) loadClubMembers()
+}
+const clubMembersFiltered = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  if (!q) return clubMembers.value
+  return clubMembers.value.filter((p: any) => `${p.first_name ?? ''} ${p.last_name ?? ''} ${p.email ?? ''} ${p.club_name}`.toLowerCase().includes(q))
+})
 
 // ── People | Organisations top-level view (entities live as a tab here) ──
 const view = ref<'people' | 'organisations'>('people')
@@ -484,26 +558,24 @@ function openCreate() {
 }
 
 async function handleCreate() {
-  if (!newPerson.value.first_name.trim() || !newPerson.value.last_name.trim()) return
+  if (!newPerson.value.first_name.trim() || !newPerson.value.last_name.trim() || !newPerson.value.person_type) return
   creating.value = true
-  const { error } = await (db.from as any)('persons').insert({
+  const { data, error } = await (db.from as any)('persons').insert({
     org_id: orgId.value,
     first_name: newPerson.value.first_name.trim(),
     last_name: newPerson.value.last_name.trim(),
-    email: newPerson.value.email.trim() || null,
-    phone: newPerson.value.phone.trim() || null,
-    person_type: newPerson.value.person_type || null,
-    person_types: newPerson.value.person_type ? [newPerson.value.person_type] : null,
-  })
-  if (!error) {
-    toast.add({ severity: 'success', summary: 'Person added', life: 3000 })
-    showCreate.value = false
-    newPerson.value = { first_name: '', last_name: '', email: '', phone: '', person_type: null }
-    load()
-  } else {
-    toast.add({ severity: 'error', summary: 'Could not add person', detail: error.message, life: 4000 })
-  }
+    person_type: newPerson.value.person_type,
+    person_types: [newPerson.value.person_type],
+  }).select('id').maybeSingle()
   creating.value = false
+  if (error || !data?.id) {
+    toast.add({ severity: 'error', summary: 'Could not add person', detail: error?.message, life: 4000 })
+    return
+  }
+  showCreate.value = false
+  newPerson.value = { first_name: '', last_name: '', email: '', phone: '', person_type: null }
+  // Straight to the new person's profile (renders their type's layout) to finish.
+  navigateTo(`/people/${data.id}`)
 }
 
 async function bulkSetType(typeKey: string | null) {
@@ -615,7 +687,7 @@ onMounted(() => {
     view.value = 'organisations'
     if (typeof route.query.type === 'string') activeEntityType.value = route.query.type
   }
-  load(); loadTypes(); loadColumns()
+  load(); loadTypes(); loadColumns(); loadGoverning()
   document.addEventListener('click', onColDocClick)
 })
 onBeforeUnmount(() => document.removeEventListener('click', onColDocClick))
