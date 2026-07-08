@@ -19,7 +19,7 @@ const toast = useToast()
 const { ensureTerms, t } = useTerms()
 
 // Registry — defaults (slot + size) for orgs with no saved config.
-interface WidgetDef { key: string; label: string; description: string; x: number; y: number; w: number; h: number; minW: number; minH: number; defaultOff?: boolean }
+interface WidgetDef { key: string; label: string; description: string; x: number; y: number; w: number; h: number; minW: number; minH: number; defaultOff?: boolean; parentOnly?: boolean }
 const DASHBOARD_WIDGETS: WidgetDef[] = [
   { key: 'stat_members',   label: 'Members tile',            description: 'Total people in the club',                   x: 0, y: 0,  w: 3,  h: 2, minW: 2, minH: 2 },
   { key: 'stat_groups',    label: 'Groups tile',             description: 'Squads & member groups count',              x: 3, y: 0,  w: 3,  h: 2, minW: 2, minH: 2 },
@@ -42,8 +42,8 @@ const DASHBOARD_WIDGETS: WidgetDef[] = [
   { key: 'membership_health', label: 'Memberships',             description: 'Tiers, counts and new this month',           x: 8, y: 110, w: 4, h: 5, minW: 3, minH: 3, defaultOff: true },
   { key: 'retention_snapshot',label: 'Retention tile',          description: 'Carry-over from last term',                  x: 0, y: 115, w: 3, h: 2, minW: 2, minH: 2, defaultOff: true },
   { key: 'birthdays',         label: 'Birthdays this week',     description: 'Upcoming member birthdays',                  x: 3, y: 115, w: 4, h: 5, minW: 3, minH: 3, defaultOff: true },
-  { key: 'network_overview',  label: 'Network overview',        description: 'Affiliated clubs + members (parent orgs)',   x: 0, y: 120, w: 4, h: 5, minW: 3, minH: 3, defaultOff: true },
-  { key: 'club_leaderboard',  label: 'Club leaderboard',        description: 'Clubs ranked by members (parent orgs)',      x: 4, y: 120, w: 4, h: 6, minW: 3, minH: 4, defaultOff: true },
+  { key: 'network_overview',  label: 'Network overview',        description: 'Affiliated clubs + members (parent orgs)',   x: 0, y: 120, w: 4, h: 5, minW: 3, minH: 3, defaultOff: true, parentOnly: true },
+  { key: 'club_leaderboard',  label: 'Club leaderboard',        description: 'Clubs ranked by members (parent orgs)',      x: 4, y: 120, w: 4, h: 6, minW: 3, minH: 4, defaultOff: true, parentOnly: true },
 ]
 const defById = Object.fromEntries(DASHBOARD_WIDGETS.map(w => [w.key, w]))
 // Dynamic chart instances use keys like "chart:<id>" — they aren't in the
@@ -281,7 +281,10 @@ function rebuildLayout() {
     return { i: c.key, x: c.x, y: c.y, w: c.w, h: c.h, minW: d.minW, minH: d.minH }
   })
 }
-const hiddenWidgets = computed(() => config.value.filter(c => !c.enabled))
+const isParentOrg = ref(false)
+// Parent-only widgets (network overview, leaderboard) never surface for a club.
+function widgetAllowed(key: string) { return isParentOrg.value || !(defById[key]?.parentOnly) }
+const hiddenWidgets = computed(() => config.value.filter(c => !c.enabled && widgetAllowed(c.key)))
 // Icons for the registry widgets in the Add-widget gallery.
 const REG_ICONS: Record<string, string> = {
   stat_members: 'pi-users', stat_groups: 'pi-sitemap', stat_events: 'pi-calendar', stat_bookings: 'pi-bookmark',
@@ -411,7 +414,7 @@ async function load() {
   void ensureTerms()
   loading.value = true
   const [{ data: orgRow }, { data: persons }, { count: groupCount }, { data: events, count: eventCount }, { data: bookables }] = await Promise.all([
-    (db.from as any)('organisations').select('name, logo_url, dashboard_banner_url, dashboard_config').eq('id', orgId.value).maybeSingle(),
+    (db.from as any)('organisations').select('name, logo_url, dashboard_banner_url, dashboard_config, org_level').eq('id', orgId.value).maybeSingle(),
     (db.from as any)('persons').select('id, first_name, last_name, email, membership_type, gender, dob, custom_fields, created_at').eq('org_id', orgId.value),
     (db.from as any)('member_groups').select('id', { count: 'exact', head: true }).eq('org_id', orgId.value).neq('kind', 'membership'),
     (db.from as any)('events').select('id, title, start_at, end_at, location_type, address, status', { count: 'exact' })
@@ -421,6 +424,7 @@ async function load() {
   ])
 
   orgName.value = orgRow?.name ?? ''
+  isParentOrg.value = isGoverningBody(orgRow?.org_level)
   logoUrl.value = orgRow?.logo_url ?? null
   bannerUrl.value = orgRow?.dashboard_banner_url ?? null
   let base: any = null
