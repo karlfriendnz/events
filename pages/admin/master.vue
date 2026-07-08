@@ -67,7 +67,13 @@ async function removeClubType(id: string) {
 // ── Club-type DEFAULTS (setup template — migration 248) ──
 const { MODULE_DEFS } = useOrgModules()
 const { TERM_DEFS } = useTerminology()
-const { loadDefaults, saveDefaults } = useClubTypes()
+const { loadDefaults, saveDefaults, loadOverallDefaultId } = useClubTypes()
+// The platform-wide "Overall default" template every new club is seeded from.
+const overallDefault = ref<ClubTypeRow | null>(null)
+async function loadOverall() {
+  const id = await loadOverallDefaultId()
+  overallDefault.value = id ? { id, name: 'Overall default', sort_order: -1 } : null
+}
 const STANDARD_TYPES = [
   { key: 'member', label: 'Member', is_access: false },
   { key: 'parent', label: 'Parent', is_access: false },
@@ -87,7 +93,7 @@ const defaultsOpen = ref(false)
 const defaultsType = ref<ClubTypeRow | null>(null)
 const savingDefaults = ref(false)
 const modOn = reactive<Record<string, boolean>>({})           // module key → enabled
-const dPersonTypes = ref<{ key: string; label: string; is_access: boolean }[]>([])
+const dPersonTypes = ref<any[]>([])
 const dTerm = reactive<Record<string, { singular?: string; plural?: string }>>({})
 const newTypeLabel = ref('')
 
@@ -96,21 +102,38 @@ async function openDefaults(t: ClubTypeRow) {
   const d = await loadDefaults(t.id)
   // Modules: null = "all on" → tick every module.
   for (const m of MODULE_DEFS) modOn[m.key] = d.default_modules === null ? true : (m.core || d.default_modules.includes(m.key))
-  dPersonTypes.value = (d.default_person_types ?? []).map(p => ({ key: p.key, label: p.label, is_access: !!p.is_access }))
+  dPersonTypes.value = (d.default_person_types ?? []).map(p => ({ key: p.key, label: p.label, is_access: !!p.is_access, permissions: p.permissions ?? {}, menu_items: p.menu_items ?? null, landing_path: p.landing_path ?? null }))
+  configIdx.value = null
   for (const k of Object.keys(dTerm)) delete dTerm[k]
   Object.assign(dTerm, d.default_terminology ?? {})
   defaultsOpen.value = true
 }
 function addStandardTypes() {
   const have = new Set(dPersonTypes.value.map(p => p.key))
-  for (const s of STANDARD_TYPES) if (!have.has(s.key)) dPersonTypes.value.push({ ...s })
+  for (const s of STANDARD_TYPES) if (!have.has(s.key)) dPersonTypes.value.push({ ...s, permissions: defaultPermissionsFor(s.key), menu_items: null, landing_path: null })
 }
 function addPersonType() {
   const label = newTypeLabel.value.trim(); if (!label) return
   const key = slugify(label) || 'type_' + dPersonTypes.value.length
-  if (!dPersonTypes.value.some(p => p.key === key)) dPersonTypes.value.push({ key, label, is_access: false })
+  if (!dPersonTypes.value.some(p => p.key === key)) dPersonTypes.value.push({ key, label, is_access: false, permissions: {}, menu_items: null, landing_path: null })
   newTypeLabel.value = ''
 }
+// Per-type config expand (Permissions / Menu / Landing) inside the Defaults dialog.
+const configIdx = ref<number | null>(null)
+function toggleConfig(i: number) { configIdx.value = configIdx.value === i ? null : i }
+const { CLUB_MENU: MASTER_MENU } = useClubMenu()
+function menuOn(p: any, href: string) { return Array.isArray(p.menu_items) ? p.menu_items.includes(href) : false }
+function toggleMenu(p: any, href: string, on: boolean) {
+  const base = Array.isArray(p.menu_items) ? [...p.menu_items] : []
+  p.menu_items = on ? [...new Set([...base, href])] : base.filter((h: string) => h !== href)
+}
+function setTypeMenuCustom(p: any, on: boolean) { p.menu_items = on ? MASTER_MENU.map(m => m.href) : null }
+const MASTER_LANDING = [
+  { label: 'Dashboard', value: null as string | null }, { label: 'Classes', value: '/groups' },
+  { label: 'Events', value: '/events' }, { label: 'People', value: '/people' },
+  { label: 'Memberships', value: '/memberships' }, { label: 'Bookings', value: '/bookables?tab=bookings' },
+  { label: 'Attendance', value: '/attendance' }, { label: 'My profile & contacts', value: '/account/profiles' },
+]
 function removePersonType(i: number) { dPersonTypes.value.splice(i, 1) }
 function setTerm(key: string, which: 'singular' | 'plural', v: string) {
   if (!dTerm[key]) dTerm[key] = {}
@@ -130,7 +153,7 @@ async function saveDefaultsNow() {
     if (Object.keys(out).length) term[def.key] = out
   }
   const types = dPersonTypes.value.filter(p => p.key && p.label.trim())
-    .map(p => ({ key: p.key, label: p.label.trim(), is_access: p.is_access }))
+    .map(p => ({ key: p.key, label: p.label.trim(), is_access: p.is_access, permissions: p.permissions ?? {}, menu_items: p.menu_items ?? null, landing_path: p.landing_path ?? null }))
   await saveDefaults(defaultsType.value.id, {
     default_modules: modules,
     default_person_types: types.length ? types : null,
@@ -143,7 +166,7 @@ async function saveDefaultsNow() {
 
 onMounted(() => {
   if (!isSuper.value) { navigateTo('/'); return }
-  loadBrands(); loadClubTypes()
+  loadBrands(); loadClubTypes(); loadOverall()
 })
 </script>
 
@@ -203,6 +226,12 @@ onMounted(() => {
               <p class="text-xs text-gray-500">Clubs pick from these (multi-select) on Settings → General. <span class="text-gray-400">"Defaults" sets the modules, people types and terminology a new club of this type starts with.</span></p>
             </div>
             <div class="space-y-2 max-w-xl">
+              <!-- Overall default: the base template every new club is seeded from -->
+              <div v-if="overallDefault" class="flex items-center gap-2 rounded-lg bg-primary/5 border border-primary/15 px-3 py-2 mb-1">
+                <i class="pi pi-star-fill text-primary text-xs" />
+                <span class="flex-1 text-sm font-medium text-gray-800">Overall default <span class="text-xs text-gray-400 font-normal">— every new club starts here</span></span>
+                <button type="button" class="text-xs text-primary hover:underline shrink-0 px-1" @click="openDefaults(overallDefault)">Edit template</button>
+              </div>
               <div v-for="t in clubTypes" :key="t.id" class="flex items-center gap-2">
                 <InputText v-model="t.name" class="flex-1" @blur="renameClubType(t)" />
                 <button type="button" class="text-xs text-primary hover:underline shrink-0 px-1" @click="openDefaults(t)">Defaults</button>
@@ -222,7 +251,7 @@ onMounted(() => {
     </Tabs>
 
     <!-- Club-type defaults (setup template) -->
-    <Dialog v-model:visible="defaultsOpen" modal :header="`${defaultsType?.name || 'Club type'} — defaults`" :style="{ width: '95vw', maxWidth: '46rem' }">
+    <Dialog v-model:visible="defaultsOpen" modal :header="`${defaultsType?.name || 'Club type'} — defaults`" :style="{ width: '95vw', maxWidth: '56rem' }">
       <p class="text-xs text-gray-500 -mt-1 mb-4">Seeds a new club created with this type. Existing clubs aren't changed.</p>
 
       <!-- Modules -->
@@ -243,15 +272,43 @@ onMounted(() => {
           <h3 class="text-xs font-bold uppercase tracking-wide text-gray-400">People types</h3>
           <button type="button" class="text-xs text-primary hover:underline" @click="addStandardTypes">+ Add standard set</button>
         </div>
+        <p class="text-xs text-gray-400 mb-2">Each type's Permissions, Menu and Landing seed a new club — its starting point.</p>
         <div class="space-y-2">
-          <div v-for="(p, i) in dPersonTypes" :key="i" class="flex items-center gap-2">
-            <InputText v-model="p.label" class="flex-1" size="small" />
-            <label class="flex items-center gap-1.5 text-xs text-gray-500 shrink-0" v-tooltip.top="'Grants access (permission-bearing type)'">
-              <Checkbox v-model="p.is_access" :binary="true" /> Access
-            </label>
-            <button type="button" class="text-gray-300 hover:text-red-500 w-7 h-7 flex items-center justify-center shrink-0" @click="removePersonType(i)">
-              <i class="pi pi-trash text-xs" />
-            </button>
+          <div v-for="(p, i) in dPersonTypes" :key="i" class="rounded-lg border border-gray-100">
+            <div class="flex items-center gap-2 px-2 py-1.5">
+              <InputText v-model="p.label" class="flex-1" size="small" />
+              <label class="flex items-center gap-1.5 text-xs text-gray-500 shrink-0" v-tooltip.top="'Grants access (manages the whole club)'">
+                <Checkbox v-model="p.is_access" :binary="true" /> Access
+              </label>
+              <button type="button" class="text-xs shrink-0 px-2 py-1 rounded" :class="configIdx === i ? 'bg-primary/10 text-primary' : 'text-gray-400 hover:text-primary'" @click="toggleConfig(i)">Configure</button>
+              <button type="button" class="text-gray-300 hover:text-red-500 w-7 h-7 flex items-center justify-center shrink-0" @click="removePersonType(i)">
+                <i class="pi pi-trash text-xs" />
+              </button>
+            </div>
+            <!-- per-type config -->
+            <div v-if="configIdx === i" class="border-t border-gray-100 p-3 space-y-3 bg-gray-50/50">
+              <div class="flex items-center gap-3">
+                <span class="text-xs font-medium text-gray-500 w-24 shrink-0">Landing page</span>
+                <Select v-model="p.landing_path" :options="MASTER_LANDING" optionLabel="label" optionValue="value" class="w-56" size="small" />
+              </div>
+              <div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <span class="text-xs font-medium text-gray-500">Custom menu</span>
+                  <ToggleSwitch :modelValue="Array.isArray(p.menu_items)" @update:modelValue="v => setTypeMenuCustom(p, v)" />
+                </div>
+                <div v-if="Array.isArray(p.menu_items)" class="grid grid-cols-2 gap-x-4 gap-y-1 max-h-40 overflow-y-auto pr-1">
+                  <label v-for="m in MASTER_MENU" :key="m.href" class="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                    <input type="checkbox" class="accent-primary w-3.5 h-3.5" :checked="menuOn(p, m.href)" @change="toggleMenu(p, m.href, ($event.target as HTMLInputElement).checked)" />
+                    {{ m.label }}
+                  </label>
+                </div>
+                <p v-else class="text-xs text-gray-400">Menu decided by permissions.</p>
+              </div>
+              <div>
+                <span class="text-xs font-medium text-gray-500 block mb-1.5">Permissions</span>
+                <PermissionGrid v-model="p.permissions" />
+              </div>
+            </div>
           </div>
           <p v-if="!dPersonTypes.length" class="text-sm text-gray-400">No people types — the club starts empty.</p>
           <div class="flex items-center gap-2 pt-1">

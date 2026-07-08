@@ -7,20 +7,37 @@
 export interface ClubType { id: string; name: string }
 export interface InheritedClubType extends ClubType { from: string }
 
-/** The setup template a club type carries (migration 248). */
+/** A person type in a defaults template — carries its FULL starting config so a
+ *  new club is seeded with permissions, menu and landing already set. */
+export interface DefaultPersonType {
+  key: string
+  label: string
+  is_access?: boolean
+  permissions?: Record<string, any> | null
+  menu_items?: string[] | null
+  landing_path?: string | null
+}
+
+/** The setup template a club type carries (migrations 248 + 255). */
 export interface ClubTypeDefaults {
   default_modules: string[] | null                              // enabled module keys; null = leave all on
-  default_person_types: { key: string; label: string; is_access?: boolean }[] | null
+  default_person_types: DefaultPersonType[] | null
   default_terminology: Record<string, { singular?: string; plural?: string }> | null
 }
 
 export function useClubTypes() {
   const db = useDb()
 
-  /** The platform-wide catalogue. */
+  /** The platform-wide catalogue (assignable types only — excludes the overall default). */
   async function loadCatalog(): Promise<ClubType[]> {
-    const { data } = await (db.from as any)('club_types').select('id, name').order('sort_order').order('name')
+    const { data } = await (db.from as any)('club_types').select('id, name').eq('is_overall_default', false).order('sort_order').order('name')
     return data ?? []
+  }
+
+  /** The id of the platform-wide "Overall default" template row (migration 255). */
+  async function loadOverallDefaultId(): Promise<string | null> {
+    const { data } = await (db.from as any)('club_types').select('id').eq('is_overall_default', true).maybeSingle()
+    return data?.id ?? null
   }
 
   /** A single club type's defaults template. */
@@ -50,10 +67,17 @@ export function useClubTypes() {
    * terminology wins). Never clobbers a person type the org already has.
    */
   async function applyClubTypeDefaults(orgId: string, typeIds: string[]): Promise<void> {
-    if (!orgId || !typeIds?.length) return
-    const { data: types } = await (db.from as any)('club_types')
-      .select('default_modules, default_person_types, default_terminology').in('id', typeIds)
-    if (!types?.length) return
+    if (!orgId) return
+    // The Overall default template is the BASE for every club; the club's own
+    // types EXTEND/override it (applied after, later-wins per person-type key).
+    const overallId = await loadOverallDefaultId()
+    const ids = [...(overallId ? [overallId] : []), ...(typeIds ?? [])]
+    if (!ids.length) return
+    const { data: rawTypes } = await (db.from as any)('club_types')
+      .select('id, default_modules, default_person_types, default_terminology').in('id', ids)
+    if (!rawTypes?.length) return
+    // Re-order to match ids (overall default first) so later-wins is deterministic.
+    const types = ids.map(id => rawTypes.find((t: any) => t.id === id)).filter(Boolean)
 
     // Modules — union of every type that specifies a set; if none specify, leave null (all on).
     const moduleSets = types.filter((t: any) => Array.isArray(t.default_modules)).map((t: any) => t.default_modules as string[])
@@ -68,10 +92,11 @@ export function useClubTypes() {
     if (Object.keys(terminology).length) patch.terminology = terminology
     if (Object.keys(patch).length) await (db.from as any)('organisations').update(patch).eq('id', orgId)
 
-    // Person types — union by key, skip any the org already has.
-    const ptByKey = new Map<string, { key: string; label: string; is_access?: boolean }>()
+    // Person types — later-wins per key (overall default first, then club types
+    // extend/override), seeding the FULL config. Skip any the org already has.
+    const ptByKey = new Map<string, DefaultPersonType>()
     for (const t of types) for (const pt of (t.default_person_types ?? [])) {
-      if (pt?.key && !ptByKey.has(pt.key)) ptByKey.set(pt.key, pt)
+      if (pt?.key) ptByKey.set(pt.key, pt)
     }
     if (ptByKey.size) {
       const { data: existing } = await (db.from as any)('person_target_types').select('key').eq('org_id', orgId)
@@ -79,6 +104,9 @@ export function useClubTypes() {
       const rows = [...ptByKey.values()].filter(pt => !have.has(pt.key)).map((pt, i) => ({
         org_id: orgId, key: pt.key, label: pt.label, kind: 'person',
         is_access: !!pt.is_access, min_count: 0, max_count: null, sort_order: i,
+        permissions: pt.permissions ?? {},
+        menu_items: pt.menu_items ?? null,
+        landing_path: pt.landing_path ?? null,
       }))
       if (rows.length) await (db.from as any)('person_target_types').insert(rows)
     }
@@ -125,5 +153,5 @@ export function useClubTypes() {
     return [...ids].map(id => ({ id, name: nameById[id] ?? '—' }))
   }
 
-  return { loadCatalog, loadDefaults, saveDefaults, applyClubTypeDefaults, governingOrgs, resolveInherited, resolveEffective }
+  return { loadCatalog, loadOverallDefaultId, loadDefaults, saveDefaults, applyClubTypeDefaults, governingOrgs, resolveInherited, resolveEffective }
 }
