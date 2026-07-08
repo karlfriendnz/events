@@ -215,6 +215,31 @@
             :disabled="!isDirty || !(form.first_name || '').trim() || !(form.last_name || '').trim()"
             style="background:#1E2157;border-color:#1E2157" @click="save" />
         </div>
+
+        <!-- Login / access -->
+        <AppCard title="Login access" description="Give this person a login to sign in and see their own dashboard." class="mt-4">
+          <div class="p-4 sm:p-5">
+            <div v-if="!(form.email || '').trim()" class="text-sm text-gray-500">Add an email above and save, then you can send a login invite.</div>
+            <div v-else class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm text-gray-700">{{ form.email }}</p>
+                <p class="text-xs mt-0.5" :class="person?.invited_at ? 'text-emerald-600' : 'text-gray-400'">
+                  <i :class="['pi', person?.invited_at ? 'pi-check-circle' : 'pi-info-circle', 'text-[10px] mr-1']" />
+                  {{ person?.invited_at ? 'Invite sent' : 'No login yet' }}
+                </p>
+              </div>
+              <Button :label="person?.invited_at ? 'Resend invite' : 'Send login invite'" icon="pi pi-send" size="small"
+                :loading="inviting" @click="sendInvite" style="background:#1E2157;border-color:#1E2157" />
+            </div>
+            <div v-if="inviteLink" class="mt-3 rounded-lg bg-gray-50 border border-gray-200 p-3">
+              <p class="text-xs text-gray-500 mb-1">Set-password link (share if the email doesn't arrive):</p>
+              <div class="flex items-center gap-2">
+                <code class="text-[11px] break-all flex-1 text-gray-700">{{ inviteLink }}</code>
+                <Button icon="pi pi-copy" size="small" text @click="copyInviteLink" />
+              </div>
+            </div>
+          </div>
+        </AppCard>
       </div>
 
       <!-- ── MEMBERSHIP ── -->
@@ -414,6 +439,23 @@ const snapshot = ref('') // canon JSON of form at load / last save, for Cancel +
 // Treat '' / undefined / null as equal so typing then clearing a field isn't "dirty".
 function canonForm() { return JSON.stringify(form, (_k, v) => (v === '' || v === undefined ? null : v)) }
 const isDirty = computed(() => canonForm() !== snapshot.value)
+// ── Login invite ──
+const inviting = ref(false)
+const inviteLink = ref<string | null>(null)
+async function sendInvite() {
+  if (!(form.email || '').trim()) { toast.add({ severity: 'warn', summary: 'Add an email first', life: 3000 }); return }
+  inviting.value = true
+  try {
+    const res: any = await $fetch('/api/invite-person', { method: 'POST', body: { personId: route.params.id } })
+    inviteLink.value = res?.link ?? null
+    if (person.value) person.value.invited_at = new Date().toISOString()
+    toast.add({ severity: 'success', summary: res?.emailStatus === 'sent' ? 'Invite emailed' : 'Invite ready', detail: res?.emailStatus === 'sent' ? `Sent to ${form.email}` : 'Email not configured — copy the link below', life: 4000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not send invite', detail: e?.data?.message || e?.message, life: 5000 })
+  }
+  inviting.value = false
+}
+async function copyInviteLink() { if (inviteLink.value) { await navigator.clipboard.writeText(inviteLink.value); toast.add({ severity: 'success', summary: 'Link copied', life: 1500 }) } }
 
 // Avatar upload
 const { uploadFile } = useUpload()
