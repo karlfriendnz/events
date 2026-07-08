@@ -52,9 +52,12 @@ const editingField = ref<any>(null)
 const loading = ref(true)
 // Both kinds shown stacked (People, then Entities) — no toggle.
 const sections = computed(() => [
-  { kind: 'person' as const, label: 'People', list: personTypes.value },
-  { kind: 'entity' as const, label: 'Entities', list: entityTypes.value },
+  { id: 'people', kind: 'person' as const, access: false, label: 'People', hint: 'Members who manage themselves', list: personTypes.value.filter(t => !t.is_access) },
+  { id: 'admins', kind: 'person' as const, access: true, label: 'Admins', hint: 'Manage other people (grant access)', list: personTypes.value.filter(t => t.is_access) },
+  { id: 'entities', kind: 'entity' as const, access: false, label: 'Entities', hint: '', list: entityTypes.value },
 ])
+// per-section add-a-type input models
+const newLabels = reactive<Record<string, string>>({ people: '', admins: '', entities: '' })
 const saving = ref(false)
 const adding = ref(false)
 const newLabel = ref('')
@@ -87,15 +90,15 @@ async function onTypeDrop(target: any) {
   resetTypeDrag()
   if (!g || g.key === target.key) return
   const gKind = (g.kind ?? 'person')
-  if ((target.kind ?? 'person') !== gKind) return // don't reorder across sections
-  const siblings = allTypes.value.filter(x => (x.kind ?? 'person') === gKind)
+  if ((target.kind ?? 'person') !== gKind || !!g.is_access !== !!target.is_access) return // don't reorder across sections
+  const siblings = allTypes.value.filter(x => (x.kind ?? 'person') === gKind && !!x.is_access === !!g.is_access)
   const list = siblings.filter(x => x.key !== g.key)
   const at = list.indexOf(target) + (pos === 'after' ? 1 : 0)
   list.splice(at, 0, g)
   await Promise.all(list.map((row, idx) =>
     row.sort_order === idx ? null : (db.from as any)('person_target_types').update({ sort_order: idx }).eq('id', row.id).then(() => { row.sort_order = idx })
   ))
-  const others = allTypes.value.filter(x => (x.kind ?? 'person') !== gKind)
+  const others = allTypes.value.filter(x => !((x.kind ?? 'person') === gKind && !!x.is_access === !!g.is_access))
   allTypes.value = [...others, ...list].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
 }
 
@@ -163,17 +166,16 @@ async function seedStandard() {
 }
 
 const newEntityLabel = ref('')
-async function addType(k: 'person' | 'entity' = 'person') {
-  const ref2 = k === 'entity' ? newEntityLabel : newLabel
-  const label = ref2.value.trim()
+async function addType(sec: any) {
+  const label = (newLabels[sec.id] ?? '').trim()
   if (!label || !orgId.value) return
-  const count = allTypes.value.filter(x => (x.kind ?? 'person') === k).length
+  const count = allTypes.value.filter(x => (x.kind ?? 'person') === sec.kind && !!x.is_access === !!sec.access).length
   const { error } = await (db.from as any)('person_target_types').insert({
     org_id: orgId.value, key: slugify(label) || 'type_' + Date.now(), label,
-    kind: k, is_access: false, min_count: 0, max_count: null, sort_order: count,
+    kind: sec.kind, is_access: !!sec.access, min_count: 0, max_count: null, sort_order: count,
   })
   if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
-  ref2.value = ''; adding.value = false
+  newLabels[sec.id] = ''; adding.value = false
   await load(); openEditor(slugify(label), 'layout')
 }
 async function removeType(t: any) {
@@ -240,7 +242,7 @@ watch(orgId, load, { immediate: true })
       <!-- STACKED sections: People, then Entities (no toggle) -->
       <div v-else-if="!editingKey" class="space-y-8 max-w-4xl">
         <section v-for="sec in sections" :key="sec.kind" class="space-y-2">
-          <h2 class="text-xs font-bold uppercase tracking-wide text-gray-400">{{ sec.label }}</h2>
+          <h2 class="text-xs font-bold uppercase tracking-wide text-gray-400">{{ sec.label }}<span v-if="sec.hint" class="ml-2 font-normal normal-case text-gray-300">{{ sec.hint }}</span></h2>
           <div class="card p-0 overflow-x-auto">
             <table class="w-full text-sm">
               <thead>
@@ -284,13 +286,12 @@ watch(orgId, load, { immediate: true })
                 <tr class="bg-gray-50/40">
                   <td :colspan="sec.kind === 'person' ? 6 : 4" class="px-4 sm:px-5 py-2.5">
                     <div class="flex items-center gap-2 max-w-md">
-                      <InputText :model-value="sec.kind === 'person' ? newLabel : newEntityLabel"
-                        @update:model-value="v => sec.kind === 'person' ? (newLabel = v) : (newEntityLabel = v)"
-                        :placeholder="sec.kind === 'person' ? 'Add a person type (e.g. Coach)' : 'Add an entity type (e.g. Team)'"
-                        class="flex-1" size="small" @keyup.enter="addType(sec.kind)" />
+                      <InputText v-model="newLabels[sec.id]"
+                        :placeholder="sec.id === 'admins' ? 'Add an admin type (e.g. Coach)' : sec.kind === 'person' ? 'Add a person type (e.g. Member)' : 'Add an entity type (e.g. Team)'"
+                        class="flex-1" size="small" @keyup.enter="addType(sec)" />
                       <Button icon="pi pi-plus" label="Add" size="small"
-                        :disabled="!((sec.kind === 'person' ? newLabel : newEntityLabel).trim())"
-                        @click="addType(sec.kind)" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+                        :disabled="!(newLabels[sec.id] ?? '').trim()"
+                        @click="addType(sec)" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
                     </div>
                   </td>
                 </tr>
