@@ -230,11 +230,11 @@ onMounted(() => {
               <div v-if="overallDefault" class="flex items-center gap-2 rounded-lg bg-primary/5 border border-primary/15 px-3 py-2 mb-1">
                 <i class="pi pi-star-fill text-primary text-xs" />
                 <span class="flex-1 text-sm font-medium text-gray-800">Overall default <span class="text-xs text-gray-400 font-normal">— every new club starts here</span></span>
-                <button type="button" class="text-xs text-primary hover:underline shrink-0 px-1" @click="openDefaults(overallDefault)">Edit template</button>
+                <button type="button" class="text-xs text-primary hover:underline shrink-0 px-1" @click="navigateTo(`/admin/club-defaults/${overallDefault!.id}`)">Edit template</button>
               </div>
               <div v-for="t in clubTypes" :key="t.id" class="flex items-center gap-2">
                 <InputText v-model="t.name" class="flex-1" @blur="renameClubType(t)" />
-                <button type="button" class="text-xs text-primary hover:underline shrink-0 px-1" @click="openDefaults(t)">Defaults</button>
+                <button type="button" class="text-xs text-primary hover:underline shrink-0 px-1" @click="navigateTo(`/admin/club-defaults/${t.id}`)">Defaults</button>
                 <button type="button" class="text-gray-300 hover:text-red-500 w-8 h-8 flex items-center justify-center" @click="removeClubType(t.id)">
                   <i class="pi pi-trash text-xs" />
                 </button>
@@ -250,96 +250,6 @@ onMounted(() => {
       </TabPanels>
     </Tabs>
 
-    <!-- Club-type defaults (setup template) -->
-    <Dialog v-model:visible="defaultsOpen" modal :header="`${defaultsType?.name || 'Club type'} — defaults`" :style="{ width: '95vw', maxWidth: '56rem' }">
-      <p class="text-xs text-gray-500 -mt-1 mb-4">Seeds a new club created with this type. Existing clubs aren't changed.</p>
-
-      <!-- Modules -->
-      <div class="mb-5">
-        <h3 class="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">Modules</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-          <label v-for="m in MODULE_DEFS" :key="m.key" class="flex items-center gap-2 py-1.5" :class="m.core ? 'opacity-60' : 'cursor-pointer'">
-            <ToggleSwitch v-model="modOn[m.key]" :disabled="m.core" />
-            <i class="pi text-gray-400 text-sm" :class="m.icon" />
-            <span class="text-sm text-gray-700">{{ m.label }}<span v-if="m.core" class="text-gray-400"> · always on</span></span>
-          </label>
-        </div>
-      </div>
-
-      <!-- People types -->
-      <div class="mb-5 border-t border-gray-100 pt-4">
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="text-xs font-bold uppercase tracking-wide text-gray-400">People types</h3>
-          <button type="button" class="text-xs text-primary hover:underline" @click="addStandardTypes">+ Add standard set</button>
-        </div>
-        <p class="text-xs text-gray-400 mb-2">Each type's Permissions, Menu and Landing seed a new club — its starting point.</p>
-        <div class="space-y-2">
-          <div v-for="(p, i) in dPersonTypes" :key="i" class="rounded-lg border border-gray-100">
-            <div class="flex items-center gap-2 px-2 py-1.5">
-              <InputText v-model="p.label" class="flex-1" size="small" />
-              <label class="flex items-center gap-1.5 text-xs text-gray-500 shrink-0" v-tooltip.top="'Grants access (manages the whole club)'">
-                <Checkbox v-model="p.is_access" :binary="true" /> Access
-              </label>
-              <button type="button" class="text-xs shrink-0 px-2 py-1 rounded" :class="configIdx === i ? 'bg-primary/10 text-primary' : 'text-gray-400 hover:text-primary'" @click="toggleConfig(i)">Configure</button>
-              <button type="button" class="text-gray-300 hover:text-red-500 w-7 h-7 flex items-center justify-center shrink-0" @click="removePersonType(i)">
-                <i class="pi pi-trash text-xs" />
-              </button>
-            </div>
-            <!-- per-type config -->
-            <div v-if="configIdx === i" class="border-t border-gray-100 p-3 space-y-3 bg-gray-50/50">
-              <div class="flex items-center gap-3">
-                <span class="text-xs font-medium text-gray-500 w-24 shrink-0">Landing page</span>
-                <Select v-model="p.landing_path" :options="MASTER_LANDING" optionLabel="label" optionValue="value" class="w-56" size="small" />
-              </div>
-              <div>
-                <div class="flex items-center justify-between mb-1.5">
-                  <span class="text-xs font-medium text-gray-500">Custom menu</span>
-                  <ToggleSwitch :modelValue="Array.isArray(p.menu_items)" @update:modelValue="v => setTypeMenuCustom(p, v)" />
-                </div>
-                <div v-if="Array.isArray(p.menu_items)" class="grid grid-cols-2 gap-x-4 gap-y-1 max-h-40 overflow-y-auto pr-1">
-                  <label v-for="m in MASTER_MENU" :key="m.href" class="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
-                    <input type="checkbox" class="accent-primary w-3.5 h-3.5" :checked="menuOn(p, m.href)" @change="toggleMenu(p, m.href, ($event.target as HTMLInputElement).checked)" />
-                    {{ m.label }}
-                  </label>
-                </div>
-                <p v-else class="text-xs text-gray-400">Menu decided by permissions.</p>
-              </div>
-              <div>
-                <span class="text-xs font-medium text-gray-500 block mb-1.5">Permissions</span>
-                <PermissionGrid v-model="p.permissions" />
-              </div>
-            </div>
-          </div>
-          <p v-if="!dPersonTypes.length" class="text-sm text-gray-400">No people types — the club starts empty.</p>
-          <div class="flex items-center gap-2 pt-1">
-            <InputText v-model="newTypeLabel" placeholder="Add a type e.g. Player" class="flex-1" size="small" @keyup.enter="addPersonType" />
-            <Button label="Add" size="small" severity="secondary" outlined @click="addPersonType" />
-          </div>
-        </div>
-      </div>
-
-      <!-- Terminology -->
-      <div class="border-t border-gray-100 pt-4">
-        <h3 class="text-xs font-bold uppercase tracking-wide text-gray-400 mb-2">Terminology</h3>
-        <p class="text-xs text-gray-400 mb-3">Blank = keep the default. Rename what this kind of club calls things.</p>
-        <div v-for="grp in termGroups" :key="grp.group" class="mb-3">
-          <div class="text-xs font-semibold text-gray-500 mb-1.5">{{ grp.group }}</div>
-          <div class="space-y-1.5">
-            <div v-for="def in grp.defs" :key="def.key" class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-              <span class="text-sm text-gray-600 w-full sm:w-32 shrink-0">{{ def.singular }}</span>
-              <InputText :modelValue="dTerm[def.key]?.singular" @update:modelValue="v => setTerm(def.key, 'singular', v)"
-                :placeholder="def.singular" class="flex-1" size="small" />
-              <InputText :modelValue="dTerm[def.key]?.plural" @update:modelValue="v => setTerm(def.key, 'plural', v)"
-                :placeholder="def.plural" class="flex-1" size="small" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <template #footer>
-        <Button label="Cancel" severity="secondary" text @click="defaultsOpen = false" />
-        <Button label="Save defaults" :loading="savingDefaults" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveDefaultsNow" />
-      </template>
-    </Dialog>
+    
   </div>
 </template>
