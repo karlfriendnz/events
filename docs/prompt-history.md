@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-158 sessions · 1199 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+158 sessions · 1200 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -2687,7 +2687,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:07** — better but still messy
 
 
-## Session 2026-07-05 23:26 (214 prompts)
+## Session 2026-07-05 23:26 (215 prompts)
 
 **23:26** — ok where did we get to ?
 
@@ -3533,6 +3533,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **01:05** — can we add some widgets for dashboard for parent organisations
 
 **01:09** — thes should only be showing for parent orgs not clubs
+
+**01:15** — We need a distictoin between Admins and People (admins meaning the management of other people) People meaining managmetn of themself and thier conenctions if allowed
 
 
 ## Session 2026-07-05 23:33 (18 prompts)

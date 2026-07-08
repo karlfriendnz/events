@@ -35,6 +35,7 @@
 </template>
 
 <script setup lang="ts">
+definePageMeta({ layout: 'portal' })
 const db = useDb()
 const { orgId } = useOrg()
 const user = useSupabaseUser()

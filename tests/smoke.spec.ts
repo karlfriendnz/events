@@ -24,6 +24,7 @@ const HAS_CREDS = !!(EMAIL && PASSWORD)
 // a new page ships with a row here (same spirit as the dashboard-widget rule).
 const AUTHED_ROUTES = [
   '/dashboard',
+  '/me',
   '/onboarding',
   '/people',
   '/groups',
