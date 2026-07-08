@@ -127,7 +127,7 @@ async function setOrgLevel(row: OrgRow, level: string) {
 }
 async function setClubTypes(row: OrgRow, ids: string[]) {
   savingType.value = row.id
-  await (db.from as any)('organisations').update({ club_type_ids: ids?.length ? ids : null }).eq('id', row.id)
+  await (db.from as any)('organisations').update({ club_type_ids: ids ?? [] }).eq('id', row.id)
   savingType.value = null
   const o = orgs.value.find(x => x.id === row.id); if (o) o.club_type_ids = ids
 }
@@ -149,8 +149,9 @@ const orgLevelOptions = (ORG_TYPE_OPTIONS as readonly string[]).map(v => ({ valu
 const showCreate = ref(false)
 const creating = ref(false)
 const createError = ref('')
-const newOrg = reactive<{ name: string; org_level: 'CLUB' | 'REGIONAL' | 'ASSOCIATION' | 'NATIONAL' | 'RST'; parent_id: string | null; default_sport_name: string; brand_id: string | null }>({
-  name: '', org_level: 'CLUB', parent_id: null, default_sport_name: '', brand_id: null,
+const { applyClubTypeDefaults } = useClubTypes()
+const newOrg = reactive<{ name: string; org_level: 'CLUB' | 'REGIONAL' | 'ASSOCIATION' | 'NATIONAL' | 'RST'; parent_id: string | null; default_sport_name: string; brand_id: string | null; club_type_ids: string[] }>({
+  name: '', org_level: 'CLUB', parent_id: null, default_sport_name: '', brand_id: null, club_type_ids: [],
 })
 // Parents must sit higher in the hierarchy than the new org.
 const newParentOptions = computed(() => orgs.value
@@ -159,26 +160,56 @@ const newParentOptions = computed(() => orgs.value
   .sort((a, b) => a._label.localeCompare(b._label)))
 
 function openCreate() {
-  newOrg.name = ''; newOrg.org_level = 'CLUB'; newOrg.parent_id = null; newOrg.default_sport_name = ''; newOrg.brand_id = null
+  newOrg.name = ''; newOrg.org_level = 'CLUB'; newOrg.parent_id = null; newOrg.default_sport_name = ''; newOrg.brand_id = null; newOrg.club_type_ids = []
   createError.value = ''; showCreate.value = true
 }
 async function createOrg() {
   if (!newOrg.name.trim()) { createError.value = 'Name is required'; return }
   creating.value = true; createError.value = ''
+  const isClub = newOrg.org_level === 'CLUB'
+  const typeIds = isClub ? newOrg.club_type_ids : []
   const payload: any = {
     name: newOrg.name.trim(),
-    type: isGoverningBody(newOrg.org_level) ? 'NSO' : (newOrg.org_level === 'CLUB' ? 'CLUB' : 'RST'),
+    type: isGoverningBody(newOrg.org_level) ? 'NSO' : (isClub ? 'CLUB' : 'RST'),
     org_level: newOrg.org_level,
     parent_id: newOrg.parent_id,
     default_sport_name: isGoverningBody(newOrg.org_level) ? (newOrg.default_sport_name.trim() || null) : null,
     brand_id: newOrg.brand_id,
+    club_type_ids: typeIds,
   }
-  const { error } = await (db.from as any)('organisations').insert(payload)
+  const { data: created, error } = await (db.from as any)('organisations').insert(payload).select('id').single()
+  if (error) { creating.value = false; createError.value = error.message; return }
+  // Seed the new club from its club types' defaults (modules / people types / terminology).
+  if (created?.id && typeIds.length) {
+    try { await applyClubTypeDefaults(created.id, typeIds) } catch (e) { /* non-fatal — org still created */ }
+  }
   creating.value = false
-  if (error) { createError.value = error.message; return }
   showCreate.value = false
   await load()
 }
+// ── Delete an organisation (super-admin, type-to-confirm) ──
+// Safe: FK'd child data is ON DELETE CASCADE; child ORGS' parent_id is ON DELETE
+// SET NULL (they become top-level, never wiped). Non-FK org_id rows are harmless
+// orphans once the org is gone.
+const deleteTarget = ref<OrgRow | null>(null)
+const deleteConfirm = ref('')
+const deleting = ref(false)
+const deleteError = ref('')
+const canDelete = computed(() => !!deleteTarget.value && deleteConfirm.value.trim() === deleteTarget.value.name.trim())
+function openDelete(row: OrgRow) {
+  deleteTarget.value = row; deleteConfirm.value = ''; deleteError.value = ''
+}
+async function deleteOrg() {
+  if (!deleteTarget.value || !canDelete.value) return
+  deleting.value = true; deleteError.value = ''
+  const { error } = await (db.from as any)('organisations').delete().eq('id', deleteTarget.value.id)
+  deleting.value = false
+  if (error) { deleteError.value = error.message; return }
+  toast.add({ severity: 'success', summary: 'Organisation deleted', detail: deleteTarget.value.name, life: 2500 })
+  deleteTarget.value = null
+  await load()
+}
+
 // Clearing parent isn't required, but if the chosen level no longer allows the
 // current parent, drop it.
 watch(() => newOrg.org_level, () => {
@@ -300,9 +331,14 @@ onMounted(() => {
         <Column header="Events" headerStyle="text-align:right" bodyStyle="text-align:right">
           <template #body="{ data }"><span class="tabular-nums text-gray-700">{{ data.events }}</span></template>
         </Column>
-        <Column headerStyle="width:6rem" bodyStyle="text-align:right">
+        <Column headerStyle="width:8rem" bodyStyle="text-align:right">
           <template #body="{ data }">
-            <button type="button" class="text-xs font-medium text-primary hover:underline" @click="openOrg(data.id)">Open →</button>
+            <div class="inline-flex items-center gap-3">
+              <button type="button" class="text-xs font-medium text-primary hover:underline" @click="openOrg(data.id)">Open →</button>
+              <button type="button" class="text-gray-300 hover:text-red-500" v-tooltip.left="'Delete organisation'" @click="openDelete(data)">
+                <i class="pi pi-trash text-xs" />
+              </button>
+            </div>
           </template>
         </Column>
         <template #empty><div class="p-3 sm:p-6 text-sm text-gray-400">No organisations at this level.</div></template>
@@ -347,6 +383,12 @@ onMounted(() => {
             </template>
           </Select>
         </div>
+        <div v-if="newOrg.org_level === 'CLUB'" class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Club type <span class="text-gray-400 font-normal">(optional)</span></label>
+          <MultiSelect v-model="newOrg.club_type_ids" :options="clubTypes" option-label="name" option-value="id"
+            placeholder="No type" display="chip" filter class="w-full" />
+          <p v-if="newOrg.club_type_ids.length" class="text-xs text-gray-400">The club will be seeded with this type's default modules, people types and terminology.</p>
+        </div>
         <div v-if="isGoverningBody(newOrg.org_level)" class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Default sport name <span class="text-gray-400 font-normal">(optional)</span></label>
           <InputText v-model="newOrg.default_sport_name" placeholder="e.g. Cricket" />
@@ -357,6 +399,26 @@ onMounted(() => {
       <template #footer>
         <Button label="Cancel" severity="secondary" text @click="showCreate = false" />
         <Button label="Create" :loading="creating" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="createOrg" />
+      </template>
+    </Dialog>
+
+    <!-- Delete organisation — type-to-confirm -->
+    <Dialog :visible="!!deleteTarget" modal header="Delete organisation" :style="{ width: '95vw', maxWidth: '30rem' }"
+      @update:visible="v => { if (!v) deleteTarget = null }">
+      <div v-if="deleteTarget" class="flex flex-col gap-3">
+        <div class="flex items-start gap-2.5 rounded-lg bg-red-50 border border-red-100 p-3">
+          <i class="pi pi-exclamation-triangle text-red-500 mt-0.5" />
+          <p class="text-sm text-red-700">This permanently deletes <span class="font-semibold">{{ deleteTarget.name }}</span> and all of its data (members, groups, events, bookings, etc.). Any child organisations become top-level. This cannot be undone.</p>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Type <span class="font-semibold">{{ deleteTarget.name }}</span> to confirm</label>
+          <InputText v-model="deleteConfirm" :placeholder="deleteTarget.name" autofocus @keyup.enter="canDelete && deleteOrg()" />
+        </div>
+        <p v-if="deleteError" class="text-xs text-red-600">{{ deleteError }}</p>
+      </div>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text @click="deleteTarget = null" />
+        <Button label="Delete organisation" severity="danger" :loading="deleting" :disabled="!canDelete" @click="deleteOrg" />
       </template>
     </Dialog>
 
