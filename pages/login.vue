@@ -99,8 +99,17 @@ async function prefetchOrg(u: any) {
     orgReady.value = true
     return
   }
-  const { data } = await db.from('org_members').select('org_id').eq('user_id', u?.id).single()
-  orgId.value = data?.org_id ?? null
+  // A member (parent/gymnast) is a persons row, NOT an org_members row — resolve
+  // accessible orgs from BOTH so orgId isn't left null (which would strand them
+  // on a broken session). Mirrors middleware/org.global.ts.
+  const email = u?.email
+  const [{ data: mem }, { data: ppl }] = await Promise.all([
+    db.from('org_members').select('org_id').eq('user_id', u?.id),
+    email ? (db.from('persons') as any).select('org_id').ilike('email', email) : Promise.resolve({ data: [] }),
+  ])
+  const ids = [...new Set([...(mem ?? []).map((r: any) => r.org_id), ...(((ppl ?? []) as any[]).map((r: any) => r.org_id))])].filter(Boolean)
+  const saved = readActiveOrg()
+  orgId.value = (saved && ids.includes(saved)) ? saved : (ids[0] ?? null)
   orgReady.value = true
 }
 
@@ -128,21 +137,8 @@ async function landAfterAuth(u: any) {
   const { loadMyClubs } = useMyClubs()
   let list: any[] = []
   try { list = await loadMyClubs(true) } catch { /* ignore */ }
-  if (list.length === 1) { persistActiveOrg(list[0].orgId); await landInClub(list[0].orgId); return }
+  if (list.length === 1) { persistActiveOrg(list[0].orgId); await navigateTo('/'); return }
   await navigateTo('/clubs')
-}
-
-// Land in a single club, on the RIGHT home: an admin (manages others) → the
-// admin dashboard; a member → their self-service portal (/me). We set the active
-// org + resolve the access level here so we can route directly, instead of
-// bouncing through /dashboard first while the middleware is still resolving.
-async function landInClub(orgIdValue: string) {
-  const { orgId, orgReady } = useOrg()
-  orgId.value = orgIdValue
-  orgReady.value = true
-  let admin = true
-  try { admin = await useAccessLevel().resolveAccessLevel(true) } catch { /* default to full app */ }
-  await navigateTo(admin ? '/' : '/me')
 }
 
 async function handleRegister() {

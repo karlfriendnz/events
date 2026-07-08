@@ -120,6 +120,8 @@ const loading = ref(true)
 const orgName = ref('')
 // Who can edit the club's per-role default templates.
 const isAdmin = computed(() => ((user.value as any)?.app_metadata?.role === 'super_admin') || unrestricted.value || can('settings', 'update'))
+// The Admin-vs-Member distinction that drives which dashboard audience applies.
+const accessLevel = useAccessLevel()
 // Template-edit mode: arrive from Settings → Dashboard defaults with ?editTemplate=<userType>.
 // In this mode the page edits a ROLE'S default template, not the user's own layout.
 const templateType = computed(() => (isAdmin.value && route.query.editTemplate) ? String(route.query.editTemplate) : null)
@@ -228,10 +230,11 @@ if (import.meta.client) {
   onBeforeUnmount(() => window.removeEventListener('resize', updateNarrow))
 }
 const displayLayout = computed(() => {
-  if (!isNarrow.value) return layout.value
+  const src = layout.value.filter(l => widgetOkForAudience(String(l.i)))
+  if (!isNarrow.value) return src
   // Mobile: stack in visual order. Stat tiles go 2-up (compact); everything else
   // is full-width. Keeps it dense and app-like rather than tall sparse cards.
-  const sorted = [...layout.value].sort((a, b) => (a.y - b.y) || (a.x - b.x))
+  const sorted = [...src].sort((a, b) => (a.y - b.y) || (a.x - b.x))
   const out: any[] = []
   let y = 0
   for (let i = 0; i < sorted.length; i++) {
@@ -312,7 +315,8 @@ const ALL_BUILD_WIDGETS = [
 const templateIsAccess = ref<boolean | null>(null)
 const dashAudience = computed<'member' | 'admin'>(() => {
   if (templateMode.value) return templateIsAccess.value ? 'admin' : 'member'
-  return isAdmin.value ? 'admin' : 'member'
+  // A member sees their member dashboard; an admin sees the management one.
+  return accessLevel.isAdmin.value ? 'admin' : 'member'
 })
 const buildWidgets = computed(() => ALL_BUILD_WIDGETS.filter(w => w.audience === 'both' || w.audience === dashAudience.value))
 // The audience a widget belongs to. Personal widgets (My details / Content /
@@ -471,6 +475,9 @@ async function load() {
         .eq('user_id', uid).eq('org_id', orgId.value).maybeSingle()
       savedCfg = ud?.config ?? null
     }
+    // Resolve member-vs-admin first so dashAudience is correct before we pick +
+    // filter widgets (otherwise a member flashes the admin dashboard on load).
+    try { await accessLevel.resolveAccessLevel() } catch { /* default handled by audience */ }
     base = savedCfg
     if (!base) {
       const candidates = [...(await resolveUserTypeKeys()), ...(await resolvePersonTypeKeys()), '_default']
