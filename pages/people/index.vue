@@ -543,7 +543,7 @@ async function saveAddAdmin() {
     savingAdmin.value = false
     if (error || !created) { toast.add({ severity: 'error', summary: 'Could not create admin', detail: error?.message, life: 4000 }); return }
     addAdminOpen.value = false
-    navigateTo(`/people/${created.id}`)
+    navigateTo(`/people/${created.id}#profile`)
     return
   }
   // EXISTING person → append the access type.
@@ -788,7 +788,7 @@ async function handleCreate() {
   showCreate.value = false
   newPerson.value = { first_name: '', last_name: '', email: '', phone: '', person_type: null }
   // Straight to the new person's profile (renders their type's layout) to finish.
-  navigateTo(`/people/${data.id}`)
+  navigateTo(`/people/${data.id}#profile`)
 }
 
 async function bulkSetType(typeKey: string | null) {
