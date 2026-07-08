@@ -22,6 +22,15 @@ export default defineNuxtRouteMiddleware(async (to) => {
     const resource = routeResourceForPath(to.path)
     if (!resource) return // ungated route
 
+    // A person can always view their OWN profile, even without People access.
+    if (resource === 'people') {
+      try {
+        const { myPersonId, resolveAccessLevel } = useAccessLevel()
+        await resolveAccessLevel()
+        if (myPersonId.value && to.path === `/people/${myPersonId.value}`) return
+      } catch { /* fall through to normal gate */ }
+    }
+
     const { ensureLoaded, can, unrestricted } = useCan()
     await ensureLoaded()
 

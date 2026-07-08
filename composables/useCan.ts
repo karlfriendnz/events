@@ -45,7 +45,10 @@ export function useCan() {
     const merged: PermissionMap = {}
     let scoped = false
 
-    // NEW model — union of the person's access-granting types' permission grids.
+    // Union of EVERY person type's permission grid — member types (Parent,
+    // Emergency contact…) are configurable too, so their grid drives their menu
+    // and access (scoped to their own data on the pages; see useAccessLevel for
+    // the admin/own distinction). is_access is no longer required to have a grid.
     const typeKeys: string[] = Array.isArray(person.person_types) && person.person_types.length
       ? person.person_types
       : (person.person_type ? [person.person_type] : [])
@@ -53,7 +56,8 @@ export function useCan() {
       const { data: types } = await (db.from as any)('person_target_types')
         .select('key, permissions, is_access').eq('org_id', orgId.value).in('key', typeKeys)
       for (const t of types ?? []) {
-        if (!t.is_access) continue
+        // A person WITH a type is governed by their type(s)' grids — even an empty
+        // grid means "minimal menu" (restricted), which is the member default.
         scoped = true
         mergeInto(merged, t.permissions)
       }

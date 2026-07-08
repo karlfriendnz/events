@@ -584,7 +584,7 @@ const quickItems = computed(() => [
 const addMenuOpen = ref(false)
 function startEdit() { editing.value = true }
 function cancelEdit() {
-  if (templateMode.value) { navigateTo('/settings/dashboard-defaults'); return }
+  if (templateMode.value) { navigateTo('/settings/fields'); return }
   editing.value = false; addMenuOpen.value = false; rebuildLayout()
 }
 function removeWidget(key: string) {
@@ -725,7 +725,7 @@ async function saveLayout() {
     )
     saving.value = false
     toast.add({ severity: 'success', summary: `Saved default for ${templateLabel.value}`, life: 2200 })
-    navigateTo('/settings/dashboard-defaults')
+    navigateTo('/settings/fields')
     return
   }
   const { error } = await persistConfig(next)

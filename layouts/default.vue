@@ -705,6 +705,9 @@ const clubMenu = [
 const orgModules = useOrgModules()
 const clubMenuForModules = computed(() => {
   const base = clubMenu.filter(i => orgModules.isEnabled((i as any).module) && ((i as any).resource ? can((i as any).resource, 'read') : true))
+  // Always give a signed-in person their own profile (their record, scoped to
+  // them) — a member sees 'My Profile' even without the org-wide People permission.
+  if (myPersonId.value) base.splice(1, 0, { label: 'My Profile', icon: 'pi-user', href: `/people/${myPersonId.value}#profile`, chevron: false } as any)
   // Governing bodies (NSO/Regional/Association/RST) get a cross-club managers item.
   if (isGoverningOrg.value) base.push({ label: 'Club managers', icon: 'pi-shield', href: '/managers', chevron: false } as any)
   return base
@@ -734,6 +737,8 @@ watch(() => route.path, () => { mobileMenuOpen.value = false })
 
 // Permission enforcement + governing-body extras.
 const { can, load: loadPerms } = useCan()
+const { myPersonId, isAdmin, resolveAccessLevel } = useAccessLevel()
+watch(orgId, () => { if (orgId.value) resolveAccessLevel() }, { immediate: true })
 const isGoverningOrg = ref(false)
 const activeOrgName = ref('')
 // Brand mark shown top-left: the org's own icon, else its connected brand's icon.
