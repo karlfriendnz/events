@@ -458,6 +458,10 @@ async function load() {
     base = base ?? orgRow?.dashboard_config
   }
   config.value = base ? reconcile(base) : defaultConfig()
+  // Safety: a fresh/mis-resolved config that ends up with nothing enabled should
+  // fall back to the defaults rather than render a blank "No widgets" dashboard.
+  // (templateMode edits the raw template, so it's exempt.)
+  if (!templateMode.value && !config.value.some(c => c.enabled)) config.value = defaultConfig()
   if (templateMode.value) editing.value = true
   rebuildLayout()
 
