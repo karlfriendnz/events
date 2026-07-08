@@ -297,7 +297,7 @@ watch(orgId, load, { immediate: true })
       <div v-if="loading" class="text-sm text-gray-400">Loading…</div>
 
       <!-- STACKED sections: People, then Entities (no toggle) -->
-      <div v-else-if="!editingKey" class="space-y-8 max-w-4xl">
+      <div v-else-if="!editingKey" class="space-y-8">
         <section v-for="sec in sections" :key="sec.kind" class="space-y-2">
           <h2 class="text-xs font-bold uppercase tracking-wide text-gray-400">{{ sec.label }}<span v-if="sec.hint" class="ml-2 font-normal normal-case text-gray-300">{{ sec.hint }}</span></h2>
           <div class="card p-0 overflow-x-auto">
