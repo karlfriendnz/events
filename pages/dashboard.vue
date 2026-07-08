@@ -297,14 +297,24 @@ const REG_ICONS: Record<string, string> = {
 function widgetIcon(key: string) { return REG_ICONS[key] ?? 'pi-th-large' }
 function widgetDesc(key: string) { return widgetDef(key).description }
 // "Create your own" widgets in the gallery — dynamic instances.
-const buildWidgets = computed(() => [
-  { icon: 'pi-user', color: '#1E2157', label: 'My details', desc: 'Your own profile card', run: addMyDetails },
-  { icon: 'pi-users', color: '#8B5CF6', label: 'Staff', desc: 'Showcase people as cards', run: addStaff },
-  { icon: 'pi-chart-pie', color: '#3B82F6', label: 'Chart', desc: 'Pie or bar of any field', run: addChart },
-  { icon: 'pi-bookmark', color: '#F59E0B', label: 'Activity', desc: 'Bookings for one activity', run: addActivity },
-  { icon: 'pi-link', color: '#EC4899', label: 'Buttons', desc: 'One or more link buttons', run: addButtons },
-  { icon: 'pi-align-left', color: '#0EA5E9', label: 'Content block', desc: 'Rich text, image & buttons', run: addContent },
-])
+// Audience: 'member' widgets suit a person's own dashboard (their data);
+// 'admin' widgets are club-management; 'both' fit either.
+const ALL_BUILD_WIDGETS = [
+  { icon: 'pi-user', color: '#1E2157', label: 'My details', desc: 'Your own profile card', run: () => addMyDetails(), audience: 'both' },
+  { icon: 'pi-align-left', color: '#0EA5E9', label: 'Content block', desc: 'Rich text, image & buttons', run: () => addContent(), audience: 'both' },
+  { icon: 'pi-link', color: '#EC4899', label: 'Buttons', desc: 'One or more link buttons', run: () => addButtons(), audience: 'both' },
+  { icon: 'pi-users', color: '#8B5CF6', label: 'Staff', desc: 'Showcase people as cards', run: () => addStaff(), audience: 'admin' },
+  { icon: 'pi-chart-pie', color: '#3B82F6', label: 'Chart', desc: 'Pie or bar of any field', run: () => addChart(), audience: 'admin' },
+  { icon: 'pi-bookmark', color: '#F59E0B', label: 'Activity', desc: 'Bookings for one activity', run: () => addActivity(), audience: 'admin' },
+]
+// Which audience is THIS dashboard for? Editing a member type's template → member;
+// an admin type's template → admin; otherwise the current user's own level.
+const templateIsAccess = ref<boolean | null>(null)
+const dashAudience = computed<'member' | 'admin'>(() => {
+  if (templateMode.value) return templateIsAccess.value ? 'admin' : 'member'
+  return isAdmin.value ? 'admin' : 'member'
+})
+const buildWidgets = computed(() => ALL_BUILD_WIDGETS.filter(w => w.audience === 'both' || w.audience === dashAudience.value))
 function runAdd(fn: () => void) { fn(); addMenuOpen.value = false }
 
 const nowIso = computed(() => new Date().toISOString())
@@ -431,6 +441,7 @@ async function load() {
   if (templateMode.value) {
     // Editing a role's default template — load THAT template (or fall back to defaults).
     templateLabel.value = await resolveTypeLabel(templateType.value!)
+    try { const { data: tt } = await (db.from as any)('person_target_types').select('is_access').eq('org_id', orgId.value).eq('key', templateType.value).maybeSingle(); templateIsAccess.value = tt ? !!tt.is_access : true } catch { templateIsAccess.value = true }
     const { data: tpl } = await (db.from as any)('dashboard_templates').select('config')
       .eq('org_id', orgId.value).eq('user_type', templateType.value).maybeSingle()
     base = tpl?.config ?? orgRow?.dashboard_config
