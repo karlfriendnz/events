@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-245 sessions · 1361 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+245 sessions · 1362 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -2687,7 +2687,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:07** — better but still messy
 
 
-## Session 2026-07-05 23:26 (254 prompts)
+## Session 2026-07-05 23:26 (255 prompts)
 
 **23:26** — ok where did we get to ?
 
@@ -3630,6 +3630,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **08:04** — please create the permisions
 
 **08:14** — yes
+
+**08:18** — make the width of permisions module be wider
 
 
 ## Session 2026-07-05 23:33 (18 prompts)

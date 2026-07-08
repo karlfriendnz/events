@@ -507,7 +507,7 @@ watch(orgId, load, { immediate: true })
           </div>
 
           <!-- ACCESS: permissions (people) / members (entities) -->
-          <div v-show="tab === 'access'" class="space-y-3 max-w-2xl">
+          <div v-show="tab === 'access'" class="space-y-3">
             <template v-if="kind === 'person'">
               <div class="flex items-center justify-between">
                 <p class="text-xs text-gray-500">What a {{ selected.label }} can do across the club. A person's real access is the union of all their people types.</p>
