@@ -10,9 +10,11 @@
 definePageMeta({ layout: 'admin' })
 
 const db = useDb()
+const route = useRoute()
 const user = useSupabaseUser()
 const toast = useToast()
 const { uploadFile } = useUpload()
+const activeTab = computed(() => String(route.query.tab || 'brands'))
 const isSuper = computed(() => ((user.value as any)?.app_metadata?.role) === 'super_admin')
 
 // ── Brands ──
@@ -177,7 +179,7 @@ onMounted(() => {
       <p class="text-sm text-gray-500">Platform-wide catalogues every club draws from.</p>
     </div>
 
-    <Tabs value="brands">
+    <Tabs :value="activeTab" @update:value="v => navigateTo({ query: { tab: v } })">
       <TabList>
         <Tab value="brands">Brands</Tab>
         <Tab value="club-types">Club Types</Tab>

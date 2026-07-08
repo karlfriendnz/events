@@ -11,9 +11,15 @@ const email = computed(() => user.value?.email ?? '')
 
 const navItems = [
   { to: '/admin', label: 'Organisations', icon: 'pi-building' },
-  { to: '/admin/master', label: 'Master', icon: 'pi-database' },
+  { to: '/admin/master?tab=brands', base: '/admin/master', tab: 'brands', label: 'Brands', icon: 'pi-palette' },
+  { to: '/admin/master?tab=club-types', base: '/admin/master', tab: 'club-types', label: 'Club Types', icon: 'pi-database' },
   { to: '/admin/permissions', label: 'Permission Templates', icon: 'pi-lock' },
 ]
+function navActive(item: any) {
+  const base = item.base ?? item.to
+  if (route.path !== base) return false
+  return item.tab ? (String(route.query.tab || 'brands') === item.tab) : true
+}
 
 async function logout() {
   await db.auth.signOut()
@@ -40,7 +46,7 @@ watch(() => route.path, () => { navOpen.value = false })
       <nav class="flex-1 px-2 space-y-0.5">
         <NuxtLink v-for="item in navItems" :key="item.to" :to="item.to"
           class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors"
-          :class="route.path === item.to
+          :class="navActive(item)
             ? 'bg-white shadow-sm font-medium text-primary'
             : 'text-primary/80 hover:bg-white/70'">
           <i :class="['pi', item.icon, 'text-sm']" />
