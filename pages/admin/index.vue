@@ -87,7 +87,7 @@ const totals = computed(() => ({
 async function load() {
   loading.value = true
   const [{ data: orgData }, { data: personRows }, { data: eventRows }, { data: brandRows }, { data: clubTypeRows }] = await Promise.all([
-    (db.from as any)('organisations').select('id, name, org_level, parent_id, logo_url, brand_id, club_type_ids').order('name'),
+    (db.from as any)('organisations').select('id, name, org_level, parent_id, logo_url, brand_id, club_type_ids').eq('is_sandbox', false).order('name'),
     (db.from as any)('persons').select('org_id'),
     (db.from as any)('events').select('org_id'),
     (db.from as any)('brands').select('id, name, logo_url, color').order('sort_order').order('name'),

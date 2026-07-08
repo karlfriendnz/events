@@ -630,7 +630,8 @@ const quickItems = computed(() => [
 const addMenuOpen = ref(false)
 function startEdit() { editing.value = true }
 function cancelEdit() {
-  if (templateMode.value) { navigateTo(clubTypeId.value ? `/admin/club-defaults/${clubTypeId.value}` : '/settings/fields'); return }
+  if (clubTypeId.value) { restoreOrgAndLeave(); return }
+  if (templateMode.value) { navigateTo('/settings/fields'); return }
   editing.value = false; addMenuOpen.value = false; rebuildLayout()
 }
 function removeWidget(key: string) {
@@ -774,6 +775,15 @@ function currentConfig(): CfgItem[] {
     return l ? { ...c, enabled: true, x: l.x, y: l.y, w: l.w, h: l.h } : { ...c, enabled: false }
   })
 }
+// Leaving the master template dashboard editor: restore the club we came from
+// (we borrowed the sandbox as the preview canvas) and full-reload back to master.
+function restoreOrgAndLeave() {
+  if (import.meta.client) {
+    const ret = sessionStorage.getItem('fm_tpl_return_org')
+    if (ret) { persistActiveOrg(ret); sessionStorage.removeItem('fm_tpl_return_org') }
+    window.location.href = `/admin/club-defaults/${clubTypeId.value}`
+  } else navigateTo(`/admin/club-defaults/${clubTypeId.value}`)
+}
 async function saveLayout() {
   saving.value = true
   const next = currentConfig()
@@ -787,7 +797,7 @@ async function saveLayout() {
     await (db.from as any)('club_types').update({ default_person_types: list }).eq('id', clubTypeId.value)
     saving.value = false
     toast.add({ severity: 'success', summary: `Template dashboard saved`, life: 2200 })
-    navigateTo(`/admin/club-defaults/${clubTypeId.value}`)
+    restoreOrgAndLeave()
     return
   }
   if (templateMode.value) {

@@ -84,10 +84,13 @@ function toggleMenu(p: any, href: string, on: boolean) {
 function setTypeMenuCustom(p: any, on: boolean) { p.menu_items = on ? MENU.map(m => m.href) : null }
 function setTerm(key: string, which: 'singular' | 'plural', v: string) { (dTerm[key] ||= {})[which] = v }
 // Edit this type's starting dashboard in the real builder (master mode). Save the
-// template first so the type exists + local changes aren't lost.
+// template first, then switch to the SANDBOX club so the preview never shows a real
+// club — the dashboard restores the current club on the way back.
 async function editDashboard(p: any) {
   await save()
-  navigateTo(`/dashboard?editTemplate=${p.key}&clubType=${typeId.value}`)
+  const { data: sb } = await (db.from as any)('organisations').select('id').eq('is_sandbox', true).maybeSingle()
+  if (sb?.id && import.meta.client) { sessionStorage.setItem('fm_tpl_return_org', readActiveOrg() || ''); persistActiveOrg(sb.id) }
+  window.location.href = `/dashboard?editTemplate=${p.key}&clubType=${typeId.value}`
 }
 
 async function save() {
