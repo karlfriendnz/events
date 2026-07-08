@@ -684,19 +684,19 @@ const navItems = [
 // Items without a built page point at a ComingSoon placeholder route.
 const clubMenu = [
   { label: 'Dashboard',   icon: 'pi-th-large',      href: '/dashboard',               chevron: false },
-  { label: 'People',      icon: 'pi-users',         href: '/people',                  chevron: true, people: true },
-  { label: 'Classes',     icon: 'pi-sitemap',       href: '/groups',                  chevron: true, groups: true, module: 'groups' },
-  { label: 'Fees',        icon: 'pi-dollar',        href: '/finances',                chevron: true, fees: true, module: 'finances' },
-  { label: 'Memberships', icon: 'pi-id-card',       href: '/memberships',             chevron: true, module: 'finances' },
-  { label: 'Events',      icon: 'pi-calendar',      href: '/events',                  chevron: true, events: true, module: 'events' },
-  { label: 'Bookings',    icon: 'pi-bookmark',      href: '/bookables?tab=bookings',  chevron: true, bookings: true, module: 'bookings' },
-  { label: 'Attendance',  icon: 'pi-check-square',  href: '/attendance',              chevron: true, module: 'attendance' },
+  { label: 'People',      icon: 'pi-users',         href: '/people',                  chevron: true, people: true, resource: 'people' },
+  { label: 'Classes',     icon: 'pi-sitemap',       href: '/groups',                  chevron: true, groups: true, module: 'groups', resource: 'groups' },
+  { label: 'Fees',        icon: 'pi-dollar',        href: '/finances',                chevron: true, fees: true, module: 'finances', resource: 'fees' },
+  { label: 'Memberships', icon: 'pi-id-card',       href: '/memberships',             chevron: true, module: 'finances', resource: 'fees' },
+  { label: 'Events',      icon: 'pi-calendar',      href: '/events',                  chevron: true, events: true, module: 'events', resource: 'events' },
+  { label: 'Bookings',    icon: 'pi-bookmark',      href: '/bookables?tab=bookings',  chevron: true, bookings: true, module: 'bookings', resource: 'bookings' },
+  { label: 'Attendance',  icon: 'pi-check-square',  href: '/attendance',              chevron: true, module: 'attendance', resource: 'attendance' },
   { label: 'Reports',     icon: 'pi-chart-bar',     href: '/reports',                 chevron: false },
-  { label: 'Mailer',      icon: 'pi-envelope',      href: '/settings/communications', chevron: true, module: 'communications' },
-  { label: 'Resources',   icon: 'pi-video',         href: '/resources',               chevron: false, module: 'resources' },
-  { label: 'Assets',      icon: 'pi-shopping-cart', href: '/assets',                  chevron: true, module: 'assets' },
+  { label: 'Mailer',      icon: 'pi-envelope',      href: '/settings/communications', chevron: true, module: 'communications', resource: 'communications' },
+  { label: 'Resources',   icon: 'pi-video',         href: '/resources',               chevron: false, module: 'resources', resource: 'resources' },
+  { label: 'Assets',      icon: 'pi-shopping-cart', href: '/assets',                  chevron: true, module: 'assets', resource: 'uniforms' },
   { label: 'Mobile App',  icon: 'pi-mobile',        href: '/mobile-app',              chevron: true, module: 'mobile_app' },
-  { label: 'Programme',   icon: 'pi-flag',          href: '/programme',               chevron: true, module: 'programme' },
+  { label: 'Programme',   icon: 'pi-flag',          href: '/programme',               chevron: true, module: 'programme', resource: 'programmes' },
   { label: 'GNZ',         icon: 'pi-user',          href: '/gnz',                     chevron: true, module: 'gnz' },
 ]
 // Club setup (Settings → Club setup, organisations.enabled_modules): hide the
@@ -704,7 +704,7 @@ const clubMenu = [
 // /settings/modules updates the nav live (shared useState in useOrgModules).
 const orgModules = useOrgModules()
 const clubMenuForModules = computed(() => {
-  const base = clubMenu.filter(i => orgModules.isEnabled((i as any).module))
+  const base = clubMenu.filter(i => orgModules.isEnabled((i as any).module) && ((i as any).resource ? can((i as any).resource, 'read') : true))
   // Governing bodies (NSO/Regional/Association/RST) get a cross-club managers item.
   if (isGoverningOrg.value) base.push({ label: 'Club managers', icon: 'pi-shield', href: '/managers', chevron: false } as any)
   return base
@@ -725,10 +725,10 @@ function toggleMenu(label: string) { expandedMenu.value = expandedMenu.value ===
 // ── Mobile navigation (bottom tab bar + "More" sheet) ──
 const mobilePrimary = [
   { label: 'People', icon: 'pi-users',        href: '/people' },
-  { label: 'Events', icon: 'pi-calendar',     href: '/events',   module: 'events' },
-  { label: 'Fees',   icon: 'pi-dollar',       href: '/finances', module: 'finances' },
+  { label: 'Events', icon: 'pi-calendar',     href: '/events',   module: 'events', resource: 'events' },
+  { label: 'Fees',   icon: 'pi-dollar',       href: '/finances', module: 'finances', resource: 'fees' },
 ]
-const mobilePrimaryForModules = computed(() => mobilePrimary.filter(i => orgModules.isEnabled((i as any).module)))
+const mobilePrimaryForModules = computed(() => mobilePrimary.filter(i => orgModules.isEnabled((i as any).module) && ((i as any).resource ? can((i as any).resource, 'read') : true)))
 const mobileMenuOpen = ref(false)
 watch(() => route.path, () => { mobileMenuOpen.value = false })
 

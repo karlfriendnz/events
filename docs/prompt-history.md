@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-188 sessions · 1249 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+188 sessions · 1251 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -2687,7 +2687,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:07** — better but still messy
 
 
-## Session 2026-07-05 23:26 (221 prompts)
+## Session 2026-07-05 23:26 (223 prompts)
 
 **23:26** — ok where did we get to ?
 
@@ -3547,6 +3547,10 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **03:22** — ok where are we at?
 
 **03:26** — When a person is added please make it so it goes to the #profile on the person page
+
+**03:29** — how do i login to a profile i just creatd?
+
+**03:34** — The left menu needs to change depenadnt on the type of person you are and what permisions you have
 
 
 ## Session 2026-07-05 23:33 (18 prompts)
