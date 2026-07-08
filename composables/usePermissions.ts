@@ -211,6 +211,50 @@ export const DEFAULT_TYPE_PERMISSIONS: Record<string, string[] | 'ALL'> = {
   emergency_contact: ['dashboard_customise'],
 }
 
+// ── DEFAULT dashboards per standard person type ──────────────────────────────
+// A sensible starting dashboard layout (dashboard_templates config) seeded per
+// type. Members get a personal welcome + their-own shortcuts; staff/admins get
+// management widgets. Widget keys match the /dashboard registry + dynamic
+// instances (content:/mydetails:/buttons:). Add/adjust freely.
+const MEMBER_DASH = (welcome: string, buttons: any[]) => ([
+  { key: 'content:welcome', enabled: true, x: 0, y: 0, w: 12, h: 2, opts: { html: `<p style="font-size:15px">${welcome}</p>`, bg: '#FFFFFF', text: '#111827', buttons: [], image_url: null } },
+  { key: 'mydetails:me', enabled: true, x: 0, y: 2, w: 4, h: 6, opts: {} },
+  { key: 'buttons:quick', enabled: true, x: 4, y: 2, w: 8, h: 2, opts: { buttons } },
+])
+const ADMIN_DASH = [
+  { key: 'stat_members', enabled: true, x: 0, y: 0, w: 3, h: 2 }, { key: 'stat_groups', enabled: true, x: 3, y: 0, w: 3, h: 2 },
+  { key: 'stat_events', enabled: true, x: 6, y: 0, w: 3, h: 2 }, { key: 'stat_bookings', enabled: true, x: 9, y: 0, w: 3, h: 2 },
+  { key: 'quick_actions', enabled: true, x: 0, y: 2, w: 12, h: 1 },
+  { key: 'upcoming_events', enabled: true, x: 0, y: 3, w: 8, h: 6 }, { key: 'members_by_type', enabled: true, x: 8, y: 3, w: 4, h: 6 },
+  { key: 'recent_members', enabled: true, x: 0, y: 9, w: 12, h: 5 },
+]
+export const DEFAULT_TYPE_DASHBOARDS: Record<string, any[]> = {
+  admin: ADMIN_DASH,
+  manager: ADMIN_DASH,
+  location_manager: ADMIN_DASH,
+  committee: [
+    { key: 'stat_members', enabled: true, x: 0, y: 0, w: 3, h: 2 }, { key: 'stat_groups', enabled: true, x: 3, y: 0, w: 3, h: 2 },
+    { key: 'stat_events', enabled: true, x: 6, y: 0, w: 3, h: 2 }, { key: 'stat_bookings', enabled: true, x: 9, y: 0, w: 3, h: 2 },
+    { key: 'upcoming_events', enabled: true, x: 0, y: 2, w: 8, h: 6 }, { key: 'members_by_type', enabled: true, x: 8, y: 2, w: 4, h: 6 },
+  ],
+  coach: [
+    { key: 'content:welcome', enabled: true, x: 0, y: 0, w: 12, h: 2, opts: { html: '<p style="font-size:15px"><b>Hi coach!</b> Your classes, attendance and upcoming sessions.</p>', bg: '#FFFFFF', text: '#111827', buttons: [], image_url: null } },
+    { key: 'mydetails:me', enabled: true, x: 0, y: 2, w: 4, h: 6, opts: {} },
+    { key: 'buttons:quick', enabled: true, x: 4, y: 2, w: 8, h: 2, opts: { buttons: [{ label: 'Take attendance', href: '/attendance', color: '#1E2157' }, { label: 'My classes', href: '/groups', color: '#1E2157' }] } },
+    { key: 'upcoming_events', enabled: true, x: 4, y: 4, w: 8, h: 4 },
+  ],
+  member: MEMBER_DASH('<b>Welcome back!</b> Everything you need in one place.', [{ label: 'My classes', href: '/groups', color: '#1E2157' }, { label: 'My events', href: '/events', color: '#1E2157' }, { label: 'My invoices', href: '/finances', color: '#1E2157' }]),
+  gymnast: MEMBER_DASH('<b>Welcome back!</b> Your classes, events and account.', [{ label: 'My classes', href: '/groups', color: '#1E2157' }, { label: 'My events', href: '/events', color: '#1E2157' }, { label: 'My invoices', href: '/finances', color: '#1E2157' }]),
+  parent: MEMBER_DASH('<b>Welcome!</b> Manage your family, their classes and payments.', [{ label: 'My family', href: '/account/profiles', color: '#1E2157' }, { label: 'Classes', href: '/groups', color: '#1E2157' }, { label: 'Events', href: '/events', color: '#1E2157' }, { label: 'Invoices', href: '/finances', color: '#1E2157' }]),
+  emergency_contact: [
+    { key: 'content:welcome', enabled: true, x: 0, y: 0, w: 12, h: 2, opts: { html: '<p style="font-size:15px">You\'re listed as an emergency contact. Keep your details up to date.</p>', bg: '#FFFFFF', text: '#111827', buttons: [], image_url: null } },
+    { key: 'mydetails:me', enabled: true, x: 0, y: 2, w: 5, h: 6, opts: {} },
+  ],
+}
+export function defaultDashboardFor(typeKey: string): any[] | null {
+  return DEFAULT_TYPE_DASHBOARDS[typeKey] ?? null
+}
+
 // Build the PermissionMap a standard type should start with (empty for unknowns).
 export function defaultPermissionsFor(typeKey: string): any {
   const def = DEFAULT_TYPE_PERMISSIONS[typeKey]

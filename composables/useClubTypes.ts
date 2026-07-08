@@ -16,6 +16,7 @@ export interface DefaultPersonType {
   permissions?: Record<string, any> | null
   menu_items?: string[] | null
   landing_path?: string | null
+  dashboard?: any[] | null   // starting dashboard layout (dashboard_templates config)
 }
 
 /** The setup template a club type carries (migrations 248 + 255). */
@@ -109,6 +110,21 @@ export function useClubTypes() {
         landing_path: pt.landing_path ?? null,
       }))
       if (rows.length) await (db.from as any)('person_target_types').insert(rows)
+    }
+
+    // Per-type starting DASHBOARD → dashboard_templates (user_type = the type key).
+    // Use the template's dashboard if set, else the sensible code default. Skip
+    // any the org already has.
+    const dashByKey = new Map<string, any[]>()
+    for (const pt of ptByKey.values()) {
+      const dash = pt.dashboard ?? defaultDashboardFor(pt.key)
+      if (Array.isArray(dash) && dash.length) dashByKey.set(pt.key, dash)
+    }
+    if (dashByKey.size) {
+      const { data: existing } = await (db.from as any)('dashboard_templates').select('user_type').eq('org_id', orgId)
+      const have = new Set((existing ?? []).map((r: any) => r.user_type))
+      const dashRows = [...dashByKey.entries()].filter(([k]) => !have.has(k)).map(([user_type, config]) => ({ org_id: orgId, user_type, config }))
+      if (dashRows.length) await (db.from as any)('dashboard_templates').insert(dashRows)
     }
   }
 

@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-249 sessions · 1374 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+252 sessions · 1380 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -22299,7 +22299,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > … [truncated — 74935 chars total]
 
 
-## Session 2026-07-08 09:15 (4 prompts)
+## Session 2026-07-08 09:15 (6 prompts)
 
 **09:15** — Analyze this codebase for performance optimizations:
 > - Identify N+1 query patterns
@@ -22412,6 +22412,61 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > 
 > **3. `useGroupCodes().loadCodes()`.** `composables/useGroupCodes.ts:64-72` — no `useState`, no loaded flag. 14 independent call sites: `components/ClassesBoard.vue:225`, `pages/groups/index.vue:186`, `pages/groups/[id]/index.vue:2736`, `allocator.vue`, `waitlists.vue`, `fees.vue`, `views.vue`, `view/[id].vue`, `codes/index.vue`, `codes/[id].vue`, `term-wizard.vue`, `memberships/index.vue`, `components/FormTargetsTree.vue`, and dashboard widgets `StaffCoverage.vue`/`MembershipHealth.vue`. Since codes rarely change, every navigation inside the Groups nav flyout re-fetches the whole tree. Fix: same `useState('group-codes-'+orgId)` + `force` pattern already used for `defaultPositions` in the same f
 > … [truncated — 5029 chars total]
+
+**09:20** — <task-notification>
+> <task-id>ab876b5c4e29de457</task-id>
+> <tool-use-id>toolu_01CY69fx5bxv5fZdJpX6rm2W</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/00b80aca-8d5f-4409-9cc4-bd20c4ec8bd0/tasks/ab876b5c4e29de457.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find redundant computations" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>I now have enough concrete findings. Let me write the final report.
+> 
+> ## Findings: redundant/repeated computations
+> 
+> **1. `components/FormDesigner.vue` — `evtSubjectCount()` re-derived 7-8x per instance, per render (lines 3482-3517)**
+> The subject-instance `v-for="inst in evtSubjectCount(subject.key)"` loop body calls `evtSubjectCount(subject.key)` again 6 more times inside itself (lines 3493, 3495, 3496, 3497, 3508, 3517) plus `evtSubjectMin`/`evtSubjectMax` (each re-running `evtSubjectBounds`, itself doing `.find()` in `evtSubjectCount`). For a 12-instance Team form that's ~84+ linear scans of `evtPreviewSubjects.value` every re-render. **Fix**: build a computed (e.g. `evtSubjectViewModels`) that maps each subject once into `{ key, label, count, min, max, maxReached }`, and read those fields in the template instead of re-invoking the functions per instance.
+> 
+> **2. `components/FormDesigner.vue` — `evtRequiredDefsFor()`/`evtSubjectMissingRequired()` unmemoized despite a sibling comment saying it should be (lines 452-465, 611-616, used at 2356)**
+> `evtFieldsBySubject` is explicitly a `computed()` "so per-subject reads in render loops are O(1)" — but `evtRequiredDefsFor(key)` sits right next to it and still does `evtOrgFieldDefs.value.filter(d =&gt; d.is_required &amp;&amp; evtDefApplies(d, key))` (a targets-array scan) fresh on every call, invoked per subject row in the "Who is registering" list. **Fix**: precompute a `requiredDefsBySubject` computed keyed by subject, same pattern as `evtFieldsBySubject`.
+> 
+> **3. `pages/people/index.vue` — `typeCounts`/`adminTypeCounts` are O(types × people) instead of O(people) (lines 687-691, 501-504)**
+> Both computeds loop every person type and `.filter()` the *entire* people/population array per type (`peoplePopulation.value.filter(p =&gt; typeKeysOf(p).includes(t.key)).length`). With N people and T types this is N×T work recomputed on every people/type-list change. **Fix**: single pass building a `Record&lt;key, number&gt;` tally (`for (const p of peoplePopulation.value) for (const k of typeKeysOf(p)) c[k]++`).
+> 
+> **4. `pages/people/index.vue` — `typeLabel(key)` linear-searches `personTypes.value.find()` on every tag render (line 692, called at 108/160)**
+> Called per role chip per row (`typeLabel(k)` inside `v-for="k in typeKeysOf(p)"`). **Fix**: a `computed(() =&gt; new Map(personTypes.value.map(t =&gt; [t.key, t.label])))` looked up by `.get(key)`.
+> 
+> **5. `pages/gr
+> … [truncated — 5784 chars total]
+
+**09:21** — <task-notification>
+> <task-id>a2364384e29ffb255</task-id>
+> <tool-use-id>toolu_01G9ToaGVpaGPE8ANqN3QVWQ</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/00b80aca-8d5f-4409-9cc4-bd20c4ec8bd0/tasks/a2364384e29ffb255.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find Vue reactivity/re-render issues" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Vue Reactivity / Performance Findings — fm-events
+> 
+> **1. `components/FormFieldCanvas.vue:282`** — HIGH
+> ```js
+> watch(() =&gt; [props.sectioned, renderContainers.value] as const, () =&gt; {
+>   if (props.sectioned) nextTick(buildSectioned)
+>   else destroySectioned()
+> }, { immediate: true })
+> ```
+> `renderContainers` is a `computed()` over the *entire* field array. Any edit that replaces `modelValue` by reference (label keystroke, option add, etc. — the standard `next[i]={...}; emit('update:modelValue', next)` pattern used throughout the codebase) changes `renderContainers`'s identity, which tears down and rebuilds **every Sortable.js instance** across every section/tab page (`destroySectioned()` + `buildSectioned()`). This runs on every keystroke while editing a field label in `&lt;PersonFormBuilder&gt;` / the events forms tab. **Fix:** only rebuild sortables when structural shape changes (section/tab count, field-key set) — diff a lightweight signature (e.g. `renderContainers.map(c=&gt;c.key+':'+c.groups?.map(g=&gt;g.key))`) instead of the full computed object.
+> 
+> **2. `components/FormDesigner.vue:2136-2140`** — HIGH
+> ```js
+> watch([evtFormGroupModes, evtFormGroupDesigns, evtFormGroupSessions, evtFormGroupsList, evtFormGroupFields],
+>   () =&gt; persistEvtFormConfig(), { deep: true })
+> ```
+> `evtFormGroupFields` (`reactive&lt;Record&lt;string, FormField[]&gt;&gt;({})`, line 434) holds every field for every subject/group, each with nested `visibility_conditions[]`, `financial_rules[]`, `options[]`. It's already deeply reactive via `reactive()`; wrapping it again in a `deep:true` array-watch forces Vue to eagerly `traverse()` the whole tree to register dependencies, and re-traverse on every nested mutation. On a multi-subject form (e.g. the Team preset: 12 players × several fields each) this means every option/label edit walks the full tree. **Fix:** split into a shallow watch on `evtFormGroupsList`/`evtFormGroupModes` and a separate watch using a cheap `JSON.stringify`-free dirty flag set by field mutators, or debounce the deep watch itself (persist already debounces 600ms — the traversal cost happens on every keystroke regardless).
+> 
+> **3. `components/FormDesigner.vue:96-140`** — MEDIUM
+> `evtPreviewSessionSelections`/`evtPersonValues` are refs mutated via full top-level clone-and-replace (`evtPreviewSessionSelections.value = { ...evtPreviewSessionSelections.value, [personIdx]: personMap }`) on every sin
+> … [truncated — 6172 chars total]
 
 
 ## Session 2026-07-08 09:16 (1 prompts)
@@ -22604,4 +22659,258 @@ Every prompt given to Claude Code on this project, extracted from local session 
 >     body = restArgs[1];
 >     bodyIndex = 
 > … [truncated — 74935 chars total]
+
+
+## Session 2026-07-08 09:19 (2 prompts)
+
+**09:19** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+**09:23** — <task-notification>
+> <task-id>a0852463a6b635667</task-id>
+> <tool-use-id>toolu_01FYvbzu32hsRcC6vyFeMg4M</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/8041e2c4-f4d6-4ba9-a314-7690a815aff7/tasks/a0852463a6b635667.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find N+1 query patterns" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result># N+1 Query Pattern Analysis — fm-events
+> 
+> ## Summary
+> The codebase is generally disciplined about batching reads (`.in()` + Map/Record bucketing is the dominant pattern — e.g. `useClassTimetable`, `useTeamAllocator`, `useTermRollover.loadTermGroups`, and `PersonNotes`'s `initial-count` prop are all correctly batched). The real N+1 problems cluster in **write-heavy loops** (one insert/update/delete per row instead of one batched call) and a couple of genuine **N+1 reads** inside sibling/config propagation code. Ranked by production impact below.
+> 
+> ---
+> 
+> ### 1. `composables/useGroupFees.ts:169-184` — `addFeeOptionToGroups` (HIGH)
+> ```ts
+> async function addFeeOptionToGroups(groupIds: string[], option: GroupFeeOption): Promise&lt;number&gt; {
+>   ...
+>   for (const gid of groupIds) {
+>     const { data: created } = await (db.from as any)('group_fee_options')
+>       .insert(optionCols(option, gid, countBy[gid] || 0)).select('id').single()
+>     const items = optionItemRows(option, created.id)
+>     if (items.length) await (db.from as any)('group_fee_option_items').insert(items)
+>     added++
+>   }
+> }
+> ```
+> This is the backing function for the `/groups/fees` "Add fee to groups" **bulk** dialog and the term-wizard's "Add one fee to every class" step — explicitly designed to target many groups at once (could be 20-40+). Each group does 2 sequential round trips.
+> **Fix:** batch-insert all option rows in one `.insert(groupIds.map(...))` call (Supabase returns the array with generated ids in order), then build one flat `items` array keyed to each returned id and insert it in a single call.
+> 
+> ### 2. `composables/useTermRollover.ts:335-427` — `generateTrainingEvents` (HIGH)
+> ```ts
+> for (const sched of (scheds ?? [])) {
+>   if (alreadyLinked.has(sched.id)) continue
+>   ...
+>   const { data: master } = await (db.from as any)('events').insert({...}).select('id').single()
+>   ...
+>   const { data: kids } = await (db.from as any)('events').insert(childRows).select('id')
+>   ...
+>   await (db.from as any)('invitees').insert(inviteeRows)
+> }
+> ```
+> Called from the term-wizard "Trainings" step across **every schedule of every included class in the term** (a club with 30 classes × 1-2 weekly slots = 30-60 iterations), each doing 3 sequential writes. This runs synchronously in one UI action.
+> **Fix:** each `sched` iteration is independent (master id only used within that iteration) — wrap the loop body in a function and run `Promise.all(scheds.map(processSchedule))
+> … [truncated — 11278 chars total]
+
+
+## Session 2026-07-08 09:22 (1 prompts)
+
+**09:22** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 74935 chars total]
+
+
+## Session 2026-07-08 09:23 (1 prompts)
+
+**09:23** — Analyze test coverage and identify gaps:
+> - Find untested functions and classes
+> - Identify edge cases not covered
+> - Suggest new test scenarios
+> - Check for missing error handling tests
+> - Identify integration test gaps
+> 
+> For each gap, provide a test skeleton.
+> 
+> ## Codebase Context
+> 
+> --- tests/smoke.spec.ts (truncated) ---
+> /**
+>  * DEPLOYMENT SMOKE SUITE — run after every deploy.
+>  *
+>  *   TEST_BASE_URL=https://fm-events-five.vercel.app \
+>  *   TEST_EMAIL=... TEST_PASSWORD=... npm run test:smoke
+>  *
+>  * Principles:
+>  *  - STRICTLY READ-ONLY. Dev and prod share ONE database — these tests never
+>  *    write, click destructive buttons, or submit forms.
+>  *  - A route "passes" when it renders without a Nuxt 500, without uncaught
+>  *    page errors, without bouncing to /login, and with real content in <main>.
+>  *  - Data-independent: works on any org (asserts structure, not seed rows).
+>  *  - Auth'd sweep skips gracefully when TEST_EMAIL/TEST_PASSWORD aren't set,
+>  *    so the public subset still gates a deploy with no secrets available.
+>  */
+> import { test, expect, Page } from '@playwright/test'
+> 
+> const BASE = process.env.TEST_BASE_URL ?? 'http://localhost:3002'
+> const EMAIL = process.env.TEST_EMAIL ?? ''
+> const PASSWORD = process.env.TEST_PASSWORD ?? ''
+> const HAS_CREDS = !!(EMAIL && PASSWORD)
+> 
+> // Every core screen. Keep this list in sync with the URL table in CLAUDE.md —
+> // a new page ships with a row here (same spirit as the dashboard-widget rule).
+> const AUTHED_ROUTES = [
+>   '/dashboard',
+>   '/me',
+>   '/onboarding',
+>   '/people',
+>   '/groups',
+>   '/groups/timetable',
+>   '/groups/reports',
+>   '/groups/retention',
+>   '/groups/fees',
+>   '/groups/waitlists',
+>   '/groups/settings',
+>   '/groups/allocator',
+>   '/groups/codes',
+>   '/groups/views',
+>   '/groups/rollover',
+>   '/groups/term-wizard',
+>   '/memberships',
+>   '/events',
+>   '/events/new-basic',
+>   '/events/reporting',
+>   '/bookables',
+>   '/bookings/new',
+>   '/attendance',
+>   '/resources',
+>   '/reports',
+>   '/reports/custom/new',
+>   '/finances',
+>   '/reporting',
+>   '/forms',
+>   '/organisations',
+>   '/settings',
+>   '/settings/terms',
+>   '/settings/memberships',
+>   '/settings/locations',
+>   '/settings/fields',
+>   '/settings/field-catalogue',
+>   '/settings/core-fields',
+>   '/settings/terminology',
+>   '/settings/modules',
+>   '/settings/calendars',
+>   '/settings/xero',
+>   '/settings/integrations',
+> ]
+> 
+> const PUBLIC_ROUTES = ['/login', '/book']
+> 
+> // Errors we tolerate (3rd-party noise, favicons, expected 4xx probes)
+> const IGNORABLE = [/favicon/i, /ResizeObserver loop/i, /sharedworker/i]
+> 
+> function watchErrors(page: Page) {
+>   const pageErrors: string[] = []
+>   const badResponses: string[] = []
+>   page.on('pageerror', e => pageErrors.push(String(e).slice(0, 200)))
+>   page.on('response', r => {
+>     // 5xx anywhere is a deploy problem; 4xx only from our own API/DB calls
+>     const url = r.url()
+>     if (IGNORABLE.some(rx => rx.test(url))) return
+>     if (r.status() >= 500) badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
+>     if (r.status() >= 400 && /supabase|\/api\//.test(url) &
+> … [truncated — 15541 chars total]
 
