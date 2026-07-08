@@ -17,10 +17,24 @@ const done = ref(false)
 const ready = ref(false)
 
 onMounted(async () => {
-  // Give the Supabase client a moment to consume the token from the URL hash.
-  await new Promise(r => setTimeout(r, 400))
-  const { data } = await supabase.auth.getSession()
-  ready.value = !!data.session || !!user.value
+  // The invite/recovery link puts tokens in the URL hash (implicit flow).
+  // Establish the session from them explicitly, then let them set a password.
+  try {
+    const hash = (window.location.hash || '').replace(/^#/, '')
+    const params = new URLSearchParams(hash)
+    const access_token = params.get('access_token')
+    const refresh_token = params.get('refresh_token')
+    const errDesc = params.get('error_description')
+    if (errDesc) { error.value = decodeURIComponent(errDesc); return }
+    if (access_token && refresh_token) {
+      const { error: se } = await supabase.auth.setSession({ access_token, refresh_token })
+      if (!se) { ready.value = true; history.replaceState(null, '', window.location.pathname); return }
+    }
+    // Fall back to any existing session (e.g. already-consumed hash).
+    await new Promise(r => setTimeout(r, 300))
+    const { data } = await supabase.auth.getSession()
+    ready.value = !!data.session || !!user.value
+  } catch { ready.value = false }
   if (!ready.value) error.value = 'This link has expired or is invalid. Ask your club to send a new invite.'
 })
 
