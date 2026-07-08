@@ -18,6 +18,33 @@ const types = ref<any[]>([])
 const search = ref('')
 const savingKey = ref<string | null>(null)
 
+// ── Add a new field ──
+const addOpen = ref(false)
+const creating = ref(false)
+const draft = reactive<{ label: string; field_type: string; options: string; targets: string[] }>({ label: '', field_type: 'text', options: '', targets: [] })
+const FIELD_TYPES = [
+  { label: 'Short text', value: 'text' }, { label: 'Long text', value: 'textarea' },
+  { label: 'Number', value: 'number' }, { label: 'Date', value: 'date' },
+  { label: 'Email', value: 'email' }, { label: 'Phone', value: 'phone' },
+  { label: 'Dropdown', value: 'select' }, { label: 'Checkbox', value: 'checkbox' },
+]
+function openAdd() { draft.label = ''; draft.field_type = 'text'; draft.options = ''; draft.targets = []; addOpen.value = true }
+async function createField() {
+  if (!draft.label.trim() || !draft.targets.length) return
+  creating.value = true
+  const opts = draft.field_type === 'select' ? draft.options.split('\n').map(o => o.trim()).filter(Boolean) : []
+  const { error } = await (db.from as any)('field_definitions').insert({
+    org_id: orgId.value, label: draft.label.trim(), field_type: draft.field_type,
+    target: draft.targets[0], targets: draft.targets, is_required: false, options: opts,
+    meta: { col_span: 1 }, rules: [], sort_order: fields.value.length,
+  })
+  creating.value = false
+  if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
+  addOpen.value = false
+  toast.add({ severity: 'success', summary: 'Field added', life: 2000 })
+  await load()
+}
+
 const personTypes = computed(() => types.value.filter(t => (t.kind ?? 'person') === 'person'))
 
 async function load() {
@@ -67,10 +94,13 @@ function typeCount(f: any) { return personTypes.value.filter(t => applies(f, t.k
             <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Fields</h1>
             <p class="text-sm text-gray-500">Every field in your club and which person types it's connected to. Tick a cell to connect an own field to a type; inherited fields are locked.</p>
           </div>
-          <span class="relative w-full sm:w-64">
-            <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
-            <InputText v-model="search" placeholder="Search fields…" class="w-full !pl-8" size="small" />
-          </span>
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <span class="relative flex-1 sm:w-64">
+              <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+              <InputText v-model="search" placeholder="Search fields…" class="w-full !pl-8" size="small" />
+            </span>
+            <Button label="Add field" icon="pi pi-plus" size="small" class="shrink-0" @click="openAdd" style="background:#1E2157;border-color:#1E2157" />
+          </div>
         </div>
 
         <div v-if="loading" class="text-sm text-gray-400">Loading…</div>
@@ -119,6 +149,19 @@ function typeCount(f: any) { return personTypes.value.filter(t => applies(f, t.k
         </div>
       </div>
     </div>
+
+    <Dialog v-model:visible="addOpen" modal header="Add a field" :style="{ width: '95vw', maxWidth: '32rem' }">
+      <div class="space-y-4">
+        <div class="flex flex-col gap-1.5"><label class="text-sm font-medium">Field name</label><InputText v-model="draft.label" placeholder="e.g. Medical notes" autofocus /></div>
+        <div class="flex flex-col gap-1.5"><label class="text-sm font-medium">Type</label><Select v-model="draft.field_type" :options="FIELD_TYPES" optionLabel="label" optionValue="value" class="w-full" /></div>
+        <div v-if="draft.field_type === 'select'" class="flex flex-col gap-1.5"><label class="text-sm font-medium">Options <span class="text-gray-400 font-normal">— one per line</span></label><Textarea v-model="draft.options" rows="4" placeholder="Beginner&#10;Intermediate&#10;Advanced" /></div>
+        <div class="flex flex-col gap-1.5"><label class="text-sm font-medium">Applies to</label><MultiSelect v-model="draft.targets" :options="personTypes" optionLabel="label" optionValue="key" display="chip" placeholder="Which person types?" class="w-full" /></div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text @click="addOpen = false" />
+        <Button label="Add field" :loading="creating" :disabled="!draft.label.trim() || !draft.targets.length" @click="createField" style="background:#1E2157;border-color:#1E2157" />
+      </template>
+    </Dialog>
     <Toast />
   </div>
 </template>
