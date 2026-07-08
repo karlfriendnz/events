@@ -252,7 +252,7 @@ const displayLayout = computed(() => {
 })
 
 function defaultConfig(): CfgItem[] {
-  return DASHBOARD_WIDGETS.map(w => ({ key: w.key, enabled: !w.defaultOff, x: w.x, y: w.y, w: w.w, h: w.h }))
+  return DASHBOARD_WIDGETS.filter(w => widgetOkForAudience(w.key)).map(w => ({ key: w.key, enabled: !w.defaultOff, x: w.x, y: w.y, w: w.w, h: w.h }))
 }
 function reconcile(saved: any): CfgItem[] {
   const valid = new Set(DASHBOARD_WIDGETS.map(w => w.key))
@@ -260,7 +260,7 @@ function reconcile(saved: any): CfgItem[] {
   const seen = new Set<string>()
   for (const it of Array.isArray(saved) ? saved : []) {
     // Keep registry widgets AND dynamic instances (chart:<id> / activity:<id>, not in the registry).
-    if (it && (valid.has(it.key) || isChart(it.key) || isActivity(it.key) || isContent(it.key) || isStaff(it.key) || isMyDetails(it.key) || isButtons(it.key)) && !seen.has(it.key)) {
+    if (it && (valid.has(it.key) || isChart(it.key) || isActivity(it.key) || isContent(it.key) || isStaff(it.key) || isMyDetails(it.key) || isButtons(it.key)) && !seen.has(it.key) && widgetOkForAudience(it.key)) {
       const d = widgetDef(it.key)
       out.push({
         key: it.key, enabled: it.enabled !== false,
@@ -271,12 +271,12 @@ function reconcile(saved: any): CfgItem[] {
       seen.add(it.key)
     }
   }
-  for (const w of DASHBOARD_WIDGETS) if (!seen.has(w.key)) out.push({ key: w.key, enabled: !w.defaultOff, x: w.x, y: w.y, w: w.w, h: w.h })
+  for (const w of DASHBOARD_WIDGETS) if (!seen.has(w.key) && widgetOkForAudience(w.key)) out.push({ key: w.key, enabled: !w.defaultOff, x: w.x, y: w.y, w: w.w, h: w.h })
   return out
 }
 // Build the grid-layout model from the enabled config items.
 function rebuildLayout() {
-  layout.value = config.value.filter(c => c.enabled).map(c => {
+  layout.value = config.value.filter(c => c.enabled && widgetOkForAudience(c.key)).map(c => {
     const d = widgetDef(c.key)
     return { i: c.key, x: c.x, y: c.y, w: c.w, h: c.h, minW: d.minW, minH: d.minH }
   })
@@ -315,6 +315,18 @@ const dashAudience = computed<'member' | 'admin'>(() => {
   return isAdmin.value ? 'admin' : 'member'
 })
 const buildWidgets = computed(() => ALL_BUILD_WIDGETS.filter(w => w.audience === 'both' || w.audience === dashAudience.value))
+// The audience a widget belongs to. Personal widgets (My details / Content /
+// Buttons) suit a member; everything else (stat tiles, reports, staff, charts,
+// network…) is club management. A member dashboard only shows 'both'/'member'.
+function widgetAudience(key: string): 'member' | 'admin' | 'both' {
+  if (isMyDetails(key) || isContent(key) || isButtons(key)) return 'both'
+  if (isStaff(key) || isChart(key) || isActivity(key)) return 'admin'
+  return 'admin' // registry widgets are all management-oriented
+}
+function widgetOkForAudience(key: string): boolean {
+  const a = widgetAudience(key)
+  return a === 'both' || a === dashAudience.value
+}
 function runAdd(fn: () => void) { fn(); addMenuOpen.value = false }
 
 const nowIso = computed(() => new Date().toISOString())
@@ -444,7 +456,7 @@ async function load() {
     try { const { data: tt } = await (db.from as any)('person_target_types').select('is_access').eq('org_id', orgId.value).eq('key', templateType.value).maybeSingle(); templateIsAccess.value = tt ? !!tt.is_access : true } catch { templateIsAccess.value = true }
     const { data: tpl } = await (db.from as any)('dashboard_templates').select('config')
       .eq('org_id', orgId.value).eq('user_type', templateType.value).maybeSingle()
-    base = tpl?.config ?? orgRow?.dashboard_config
+    base = tpl?.config ?? (templateIsAccess.value === false ? [] : orgRow?.dashboard_config)
   } else {
     // Resolution: this user's own layout → their role's template → '_default' → club default → code.
     let savedCfg: any = null
