@@ -57,8 +57,11 @@
       <div class="px-5 py-4 border-b border-gray-100">
         <p class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Repeat every</p>
         <div class="flex items-center gap-2">
+          <!-- w-full on the INPUT too: PrimeVue's input keeps its own default
+               width, overflows a narrow wrapper, and the centred value ends up
+               hidden under the next control. -->
           <InputNumber v-model="custom.interval" :min="1" :max="99"
-            :pt="{ root: { class: 'w-20' }, pcInputText: { root: { class: 'text-center' } } }" />
+            :pt="{ root: { class: 'w-20' }, pcInputText: { root: { class: 'w-full text-center' } } }" />
           <Select v-model="custom.freq" :options="freqOptions"
             option-label="label" option-value="value" class="flex-1" />
         </div>

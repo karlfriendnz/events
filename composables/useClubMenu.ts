@@ -35,9 +35,6 @@ export const CLUB_MENU: ClubMenuItem[] = [
   { label: 'Memberships', icon: 'pi-id-card',       href: '/memberships',             chevron: true, module: 'finances', resource: 'fees' },
   { label: 'Events',      icon: 'pi-calendar',      href: '/events',                  chevron: true, events: true, module: 'events', resource: 'events', children: [
     { label: 'View Events', icon: 'pi-calendar', href: '/events' },
-    { label: 'Venues & Bookings', icon: 'pi-building', href: '/bookables' },
-    { label: 'Registration', icon: 'pi-clipboard', href: '/registration' },
-    { label: 'Forms', icon: 'pi-file-edit', href: '/forms' },
   ] },
   { label: 'Bookings',    icon: 'pi-bookmark',      href: '/bookables?tab=bookings',  chevron: true, bookings: true, module: 'bookings', resource: 'bookings', children: [
     { label: 'Bookings', icon: 'pi-bookmark', href: '/bookables?tab=bookings' },

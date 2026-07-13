@@ -78,6 +78,16 @@ async function save() {
   saving.value = false
 }
 
+// One discipline available = no choice to make: carry it forward automatically
+// rather than asking. (Zero available still shows the picker, empty.)
+watch([sportDisciplines, selected], () => {
+  if (loading.value || saving.value) return
+  if (sportDisciplines.value.length === 1 && selected.value.length === 0) {
+    selected.value = [sportDisciplines.value[0].id]
+    save()
+  }
+})
+
 // Switching sport drops any disciplines from the previous sport (an event/group
 // is one sport) and re-seeds from existing links for the new sport.
 function onSportChange() {

@@ -1,19 +1,27 @@
 <template>
-  <div class="flex flex-col" style="height: calc(100vh - 3.5rem)">
+  <!-- Rendered as a modal over the app — see new-basic.vue for the pattern. -->
+  <Teleport to="body">
+  <div class="app-modal-overlay fixed inset-0 flex items-stretch sm:items-center justify-center sm:p-6 bg-slate-900/45 backdrop-blur-[2px]"
+    style="z-index: 1000">
+  <div class="flex flex-col bg-white w-full h-full sm:h-[92vh] sm:max-w-[1200px] sm:rounded-xl shadow-2xl overflow-hidden">
 
     <!-- Step progress header -->
     <div class="bg-white border-b border-gray-200 shrink-0">
-      <!-- Top bar: cancel + title + save-draft -->
-      <div class="flex items-center justify-between px-4 md:px-6 py-3">
-        <button class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors" @click="navigateTo('/events')">
-          <i class="pi pi-times text-xs" />
-          <span class="hidden sm:inline">Cancel</span>
-        </button>
-        <span class="text-sm font-semibold text-gray-800">Create Advanced Event</span>
-        <button class="text-sm text-primary hover:underline font-medium" @click="saveDraft">
-          <span class="hidden sm:inline">Save draft</span>
-          <i class="pi pi-bookmark sm:hidden" />
-        </button>
+      <!-- Top bar: solid brand bar (matches the global dialog chrome) -->
+      <div class="modal-header-bar flex items-center justify-between">
+        <span class="modal-header-title">Create Advanced Event</span>
+        <div class="flex items-center gap-3">
+          <button class="text-sm font-medium text-white/80 hover:text-white" @click="saveDraft">
+            <span class="hidden sm:inline">Save draft</span>
+            <i class="pi pi-bookmark sm:hidden" />
+          </button>
+          <button
+            class="w-7 h-7 rounded-md flex items-center justify-center text-white/75 hover:text-white hover:bg-white/15 transition-colors"
+            aria-label="Close"
+            @click="navigateTo('/events')">
+            <i class="pi pi-times text-sm" />
+          </button>
+        </div>
       </div>
 
       <!-- Step indicators -->
@@ -396,6 +404,8 @@
       </div>
     </div>
   </div>
+  </div>
+  </Teleport>
 
   <!-- New Category Dialog -->
   <Dialog v-model:visible="showNewCategoryDialog" header="New Category" modal :style="{ width: '95vw', maxWidth: '360px' }">

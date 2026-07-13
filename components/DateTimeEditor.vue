@@ -1,46 +1,53 @@
 <template>
   <div class="divide-y divide-gray-100">
-    <!-- Date -->
+    <!-- When + All day.
+         One line on wide screens: [start date][start time] → [end date][end time] [all day].
+         Below lg the four pickers can't breathe side by side, so each half
+         (start / end) stacks and the arrow is dropped. -->
     <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4" :class="rowPadding">
-      <span class="text-sm text-gray-500 shrink-0" :class="labelWidth">Date</span>
-      <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-1 w-full min-w-0">
-        <DatePicker :model-value="startDate" :manual-input="false" show-icon date-format="dd/mm/yy" placeholder="Start date" fluid class="flex-1 min-w-0"
-          :min-date="minStartDate"
-          :max-date="maxDate ?? undefined"
-          @update:model-value="onStartDate" />
-        <span class="text-sm text-gray-300 shrink-0 hidden sm:inline">→</span>
-        <DatePicker :model-value="endDate" :manual-input="false" show-icon date-format="dd/mm/yy" placeholder="End date" fluid class="flex-1 min-w-0"
-          :min-date="minEndDate ?? startDate ?? undefined"
-          :max-date="maxDate ?? undefined"
-          @update:model-value="onEndDate" />
-      </div>
-    </div>
-    <!-- Time -->
-    <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4" :class="rowPadding">
-      <span class="text-sm text-gray-500 shrink-0" :class="labelWidth">Time</span>
-      <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 flex-1 w-full min-w-0">
-        <DatePicker :model-value="startTime" time-only show-icon hour-format="12" placeholder="Start" fluid class="flex-1 min-w-0"
-          :disabled="isAllDay"
-          @update:model-value="onStartTime" />
-        <span class="text-sm text-gray-300 shrink-0 hidden sm:inline">→</span>
-        <DatePicker :model-value="endTime" time-only show-icon hour-format="12" placeholder="End" fluid class="flex-1 min-w-0"
-          :disabled="isAllDay"
-          @update:model-value="onEndTime" />
-      </div>
-    </div>
-    <!-- All day + Outside event dates -->
-    <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4" :class="rowPadding">
-      <span class="text-sm text-gray-500 shrink-0" :class="labelWidth">All day</span>
-      <div class="flex items-center gap-2 w-full">
-        <ToggleSwitch :model-value="isAllDay" @update:model-value="emit('update:isAllDay', $event)" />
-        <div v-if="showOutsideEventDates" class="flex items-center gap-2 ml-auto">
-          <span class="text-xs text-gray-400">Outside event dates</span>
-          <ToggleSwitch :model-value="outsideEventDates" @update:model-value="emit('update:outsideEventDates', $event)" />
+      <span class="text-sm shrink-0" :class="[labelWidth, labelClass]">
+        {{ label }}<span v-if="required && label" class="text-red-400 ml-0.5">*</span>
+      </span>
+      <div class="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3 flex-1 w-full min-w-0">
+        <!-- Start -->
+        <div class="flex items-center gap-2 flex-1 min-w-0">
+          <DatePicker :model-value="startDate" :manual-input="false" show-icon date-format="dd/mm/yy" :placeholder="`${startLabel} date`" fluid class="flex-1 min-w-0"
+            :min-date="minStartDate"
+            :max-date="maxDate ?? undefined"
+            @update:model-value="onStartDate" />
+          <DatePicker :model-value="startTime" time-only show-icon hour-format="12" :placeholder="`${startLabel} time`" fluid class="flex-1 min-w-0"
+            :disabled="isAllDay"
+            @update:model-value="onStartTime" />
+        </div>
+        <span class="text-sm text-gray-300 shrink-0 hidden lg:inline">→</span>
+        <!-- End -->
+        <div class="flex items-center gap-2 flex-1 min-w-0">
+          <DatePicker :model-value="endDate" :manual-input="false" show-icon date-format="dd/mm/yy" :placeholder="`${endLabel} date`" fluid class="flex-1 min-w-0"
+            :min-date="minEndDate ?? startDate ?? undefined"
+            :max-date="maxDate ?? undefined"
+            @update:model-value="onEndDate" />
+          <DatePicker :model-value="endTime" time-only show-icon hour-format="12" :placeholder="`${endLabel} time`" fluid class="flex-1 min-w-0"
+            :disabled="isAllDay"
+            @update:model-value="onEndTime" />
+        </div>
+        <!-- All day -->
+        <div v-if="showAllDay" class="flex items-center gap-2 shrink-0">
+          <span class="text-xs text-gray-500 lg:hidden">All day</span>
+          <ToggleSwitch :model-value="isAllDay" v-tooltip.top="'All day'"
+            @update:model-value="emit('update:isAllDay', $event)" />
         </div>
       </div>
     </div>
+    <!-- Outside event dates (session-only affordance) -->
+    <div v-if="showOutsideEventDates" class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4" :class="rowPadding">
+      <span class="text-sm text-gray-500 shrink-0" :class="labelWidth">Outside</span>
+      <div class="flex items-center gap-2 w-full">
+        <ToggleSwitch :model-value="outsideEventDates" @update:model-value="emit('update:outsideEventDates', $event)" />
+        <span class="text-xs text-gray-400">Allow a date outside the event's range</span>
+      </div>
+    </div>
     <!-- Repeat (dropdown + exclusions calendar) -->
-    <div class="flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-4" :class="rowPadding">
+    <div v-if="showRepeat" class="flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-4" :class="rowPadding">
       <span class="text-sm text-gray-500 shrink-0 sm:pt-2" :class="labelWidth">Repeat</span>
       <RepeatField
         :model-value="repeat"
@@ -66,9 +73,17 @@ const props = withDefaults(defineProps<{
   endDate: Date | null
   startTime: Date | null
   endTime: Date | null
-  isAllDay: boolean
-  repeat: string
+  isAllDay?: boolean
+  repeat?: string
   exdates?: string[]
+  // Turn the editor into a plain start→end range picker (used by the sign-up
+  // window, which has no all-day or recurrence concept).
+  showAllDay?: boolean
+  showRepeat?: boolean
+  label?: string
+  required?: boolean
+  startLabel?: string
+  endLabel?: string
   showCustomRepeat?: boolean
   showOutsideEventDates?: boolean
   outsideEventDates?: boolean
@@ -77,11 +92,21 @@ const props = withDefaults(defineProps<{
   maxDate?: Date | null
   rowPadding?: string
   labelWidth?: string
+  labelClass?: string
 }>(), {
+  isAllDay: false,
+  repeat: 'NONE',
+  showAllDay: true,
+  showRepeat: true,
+  label: 'Date',
+  required: false,
+  startLabel: 'Start',
+  endLabel: 'End',
   showOutsideEventDates: false,
   outsideEventDates: false,
   rowPadding: 'px-5 py-3',
   labelWidth: 'w-12',
+  labelClass: 'text-gray-500',
 })
 
 const emit = defineEmits<{

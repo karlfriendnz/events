@@ -24,6 +24,22 @@
       :style="{ left: `${cursorViewport.x}px`, top: `${cursorViewport.y}px`, zIndex: 2147483000 }">
       <div class="w-7 h-7 rounded-full bg-amber-400/60 ring-2 ring-white shadow-md" />
     </div>
+
+    <!-- Modal-safe panel trigger. The header comment button sits under
+         PrimeVue's dialog mask, so while a modal is open there is no way to
+         open the panel. This floating twin is teleported above the mask and
+         only appears in exactly that situation. -->
+    <button v-if="modalOpen && !expanded" type="button"
+      class="fixed top-3 right-4 w-9 h-9 rounded-full bg-white border border-gray-200 shadow-lg flex items-center justify-center text-primary hover:bg-gray-50"
+      style="z-index: 2147483002"
+      v-tooltip.left="'Comments & review'"
+      @click="expanded = true">
+      <i class="pi pi-comments text-base" />
+      <span v-if="openCount > 0"
+        class="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+        {{ openCount }}
+      </span>
+    </button>
   </Teleport>
 
   <!-- Inline dock — placed in the layout header next to the prototype
@@ -68,9 +84,16 @@
       </button>
     </div>
 
-    <Transition name="rw-drawer">
+    <!-- Teleported to <body>: the widget is mounted inside the layout header,
+         which is its own stacking context, so any z-index here is clamped
+         under PrimeVue's body-level dialog mask (z-1100) and the panel becomes
+         unclickable whenever a modal is open. Teleporting lifts it out so a
+         comment can be pinned onto a dialog. -->
+    <Teleport to="body">
     <div v-if="expanded"
-      class="fixed top-0 right-0 bottom-0 w-full md:w-[440px] bg-white border-l border-gray-200 shadow-2xl overflow-hidden flex flex-col z-[80]">
+      data-review-panel
+      class="fixed top-0 right-0 bottom-0 w-full md:w-[440px] bg-white border-l border-gray-200 shadow-2xl overflow-hidden flex flex-col"
+      style="z-index: 2147483001">
       <!-- Header: tab pills -->
       <div class="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
         <div class="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
@@ -167,6 +190,16 @@
             size="small" outlined class="flex-1"
             :disabled="!canPost"
             @click="togglePinning" />
+          <!-- Pin visibility lives here as well as on the pill: the pill is
+               hidden in the default layout, so without this the toggle is a
+               one-way door — pins off, no way back on. -->
+          <button type="button"
+            class="w-8 h-8 rounded-md flex items-center justify-center shrink-0 transition-colors"
+            :class="pinsVisible ? 'text-gray-700 hover:bg-gray-100' : 'text-gray-300 hover:bg-gray-50'"
+            v-tooltip.top="pinsVisible ? 'Hide on-screen pins' : 'Show on-screen pins'"
+            @click="pinsVisible = !pinsVisible">
+            <i :class="pinsVisible ? 'pi pi-eye' : 'pi pi-eye-slash'" class="text-sm" />
+          </button>
           <label class="flex items-center gap-1.5 text-[11px] text-gray-500 select-none cursor-pointer">
             <input type="checkbox" v-model="hideResolved" class="accent-primary w-3 h-3" />
             Hide resolved
@@ -445,7 +478,7 @@
       </div>
 
     </div>
-    </Transition>
+    </Teleport>
   </div>
 
   <!-- Comment compose dialog -->
@@ -841,6 +874,16 @@ const viewportTick = ref(0)
 //     restores it in the same spot.
 // Triggered to re-evaluate on scroll, resize, and dialog open/close
 // (see the MutationObserver in onMounted).
+// True while any PrimeVue modal is up. Recomputed off the same viewportTick
+// the body MutationObserver bumps, so it tracks dialog open/close.
+const modalOpen = computed(() => {
+  void viewportTick.value
+  if (typeof document === 'undefined') return false
+  // .app-modal-overlay = a page rendered as a modal (e.g. the event wizards),
+  // which covers the header trigger just like a PrimeVue mask does.
+  return !!document.querySelector('.p-dialog-mask, .app-modal-overlay')
+})
+
 const screenPinPositions = computed(() => {
   void viewportTick.value
   const out: { pin: any; left: number; top: number }[] = []
@@ -882,7 +925,9 @@ function togglePinning() {
   pinning.value = !pinning.value
   setPinningCursor(pinning.value)
   if (pinning.value) {
-    expanded.value = false
+    // Panel stays open: it's docked beside the page (not over it), and while a
+    // modal is up the header trigger sits under PrimeVue's mask — closing it
+    // here would strand the user with no way to reopen it.
     document.addEventListener('click', onPagePinClick, true)
     document.addEventListener('mousemove', onPagePinMove, true)
   } else {
@@ -958,6 +1003,9 @@ function onPagePinMove(e: MouseEvent) {
 function onPagePinClick(e: MouseEvent) {
   const target = e.target as HTMLElement
   if (target.closest('.fixed.bottom-4.right-4')) return
+  // The panel stays open during pin mode — clicks on its own controls must
+  // not drop a pin onto it.
+  if (target.closest('[data-review-panel]')) return
   const coords = relativeCoords(e)
   if (!coords) return
   e.preventDefault()

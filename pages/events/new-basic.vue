@@ -1,43 +1,50 @@
 <template>
-  <div class="flex flex-col" style="height: calc(100vh - 3.5rem)">
+  <!-- Rendered as a modal over the app: the wizard is a focused task, so the
+       left rail + page chrome are covered by the scrim rather than framing it.
+       `app-modal-overlay` is the hook <ReviewWidget> uses to know a modal is
+       up (so its floating comment trigger appears). -->
+  <!-- Teleported to <body>: rendered in place it sits inside <main>, which is
+       below the nav rail (z-60), so the rail stayed clickable through the
+       scrim. At body level it covers the whole app, like a real modal. -->
+  <Teleport to="body">
+  <div class="app-modal-overlay fixed inset-0 flex items-stretch sm:items-center justify-center sm:p-6 bg-slate-900/45 backdrop-blur-[2px]"
+    style="z-index: 1000">
+  <div class="flex flex-col bg-white w-full h-full sm:h-[92vh] sm:max-w-[1200px] sm:rounded-xl shadow-2xl overflow-hidden">
 
-    <!-- ── Mobile header (step nav + progress bar) ── -->
-    <div v-if="isMobile" class="bg-white border-b border-gray-200 shrink-0">
-      <div class="flex items-center gap-3 px-4 py-3">
+    <!-- ── Stepped header (step nav + progress bar) — same brand bar as the
+         desktop header and every dialog. ── -->
+    <div v-if="isMobile" class="shrink-0">
+      <div class="modal-header-bar flex items-center gap-3 !py-2.5">
         <button
-          class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition-colors"
+          class="w-9 h-9 flex items-center justify-center rounded-lg text-white/75 hover:text-white hover:bg-white/15 transition-colors"
           @click="mobileBack">
-          <i class="pi pi-chevron-left text-sm text-gray-600" />
+          <i class="pi pi-chevron-left text-sm" />
         </button>
         <div class="flex-1 text-center">
-          <p class="text-[11px] text-gray-400 font-medium uppercase tracking-wide">Step {{ mobileStep + 1 }} of {{ mobileSteps.length }}</p>
-          <p class="text-sm font-semibold text-gray-800 leading-tight">{{ mobileSteps[mobileStep].label }}</p>
+          <p class="text-[11px] text-white/60 font-medium uppercase tracking-wide">Step {{ mobileStep + 1 }} of {{ mobileSteps.length }}</p>
+          <p class="modal-header-title leading-tight">{{ mobileSteps[mobileStep].label }}</p>
         </div>
         <button
-          class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-gray-100 transition-colors"
+          class="w-9 h-9 flex items-center justify-center rounded-lg text-white/75 hover:text-white hover:bg-white/15 transition-colors"
           @click="navigateTo('/events')">
-          <i class="pi pi-times text-sm text-gray-500" />
+          <i class="pi pi-times text-sm" />
         </button>
-      </div>
-      <!-- Progress bar -->
-      <div class="h-1 bg-gray-100">
-        <div class="h-full bg-primary transition-all duration-300"
-          :style="{ width: `${((mobileStep + 1) / mobileSteps.length) * 100}%` }" />
       </div>
     </div>
 
-    <!-- ── Desktop header ── -->
-    <div v-else class="bg-white border-b border-gray-200 px-6 py-3.5 flex items-center justify-between shrink-0">
-      <div class="flex items-center gap-3">
-        <NuxtLink to="/events" class="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1">
-          <i class="pi pi-chevron-left text-xs" /> Events
-        </NuxtLink>
-        <span class="text-gray-300">/</span>
-        <span class="text-sm font-medium text-gray-800">Create new event</span>
-      </div>
+    <!-- ── Desktop header (solid brand bar — matches the global dialog chrome) ── -->
+    <div v-else class="modal-header-bar flex items-center justify-between shrink-0">
+      <span class="modal-header-title">Create new event</span>
       <div class="flex items-center gap-2">
-        <Button label="Cancel" severity="secondary" outlined size="small" @click="navigateTo('/events')" />
-        <Button label="Save Event" icon="pi pi-check" size="small" :loading="saving" :disabled="!form.title.trim()" @click="saveEvent" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+        <!-- White on the solid header — a brand-coloured button would vanish into it. -->
+        <Button label="Save Event" icon="pi pi-check" size="small" :loading="saving" :disabled="!form.title.trim()" @click="saveEvent"
+          style="background:#fff; border-color:#fff; color:var(--brand-primary)" />
+        <button
+          class="w-7 h-7 rounded-md flex items-center justify-center text-white/75 hover:text-white hover:bg-white/15 transition-colors"
+          aria-label="Close"
+          @click="navigateTo('/events')">
+          <i class="pi pi-times text-sm" />
+        </button>
       </div>
     </div>
 
@@ -47,85 +54,26 @@
 
         <!-- ─ Event Info ─ -->
         <div :class="isMobile ? (mobileStep === 0 ? 'px-4 py-5 space-y-4' : 'hidden') : ''">
-          <h2 v-if="!isMobile" class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Event Info</h2>
+          <div class="mb-3">
+            <h2 class="text-sm font-semibold text-gray-800">Event info</h2>
+            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Event info') }}</p>
+          </div>
           <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <!-- Title -->
             <div class="px-5 py-4 border-b border-gray-100">
-              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] items-center gap-4'">
-                <label class="text-sm font-medium text-gray-700">Event Title <span class="text-red-400">*</span></label>
+              <!-- Label sits LEFT of the field, in the stepped view too (it only
+                   stacks on a genuinely narrow screen). -->
+              <div class="grid grid-cols-1 sm:grid-cols-[120px_1fr] items-center gap-1.5 sm:gap-4">
+                <label class="text-sm font-semibold text-gray-800">Event Title <span class="text-red-400">*</span></label>
                 <InputText v-model="form.title" placeholder="Enter the name of your event" class="w-full" autofocus />
               </div>
             </div>
-            <!-- Description -->
+            <!-- Date (lives on step 1, right after the name) -->
             <div class="px-5 py-4 border-b border-gray-100">
-              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
-                <label class="text-sm font-medium text-gray-700 pt-1">Description</label>
-                <RichTextEditor v-model="form.description" placeholder="Describe your event here…" />
-              </div>
-            </div>
-            <!-- Category + Discipline -->
-            <div class="px-5 py-4 space-y-4">
-              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] items-center gap-4'">
-                <label class="text-sm font-medium text-gray-700">Category</label>
-                <div class="flex items-center gap-2">
-                  <MultiSelect
-                    v-model="form.category_ids"
-                    :options="categories"
-                    option-label="name"
-                    option-value="id"
-                    placeholder="Choose categories"
-                    class="flex-1"
-                    display="chip"
-                    :max-selected-labels="3"
-                  >
-                    <template #chip="{ value }">
-                      <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-white" :style="{ background: categories.find(c => c.id === value)?.color ?? '#1E2157' }">
-                        {{ categories.find(c => c.id === value)?.name }}
-                      </div>
-                    </template>
-                  </MultiSelect>
-                  <Button icon="pi pi-plus" size="small" severity="secondary" outlined v-tooltip.top="'New calendar'" @click="showNewCategoryDialog = true" />
-                </div>
-              </div>
-              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] items-center gap-4'">
-                <label class="text-sm font-medium text-gray-700">Discipline</label>
-                <Select v-model="form.discipline" :options="disciplines" option-label="label" option-value="value" placeholder="Choose Discipline" show-clear class="w-full" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- ─ Date & Sign Up ─ -->
-        <div :class="isMobile ? (mobileStep === 1 ? 'px-4 py-5 space-y-5' : 'hidden') : 'space-y-8'">
-
-          <!-- Date -->
-          <div>
-            <h2 v-if="!isMobile" class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Date <span class="text-red-400 normal-case font-normal ml-1">required</span></h2>
-            <h2 v-else class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Date</h2>
-            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-              <!-- Collapsible toggle (desktop only) -->
-              <div v-if="!isMobile"
-                class="flex items-center gap-4 px-5 py-3 cursor-pointer hover:bg-gray-50 transition-colors group"
-                :class="dateOpen ? 'border-b border-gray-100 bg-gray-50' : ''"
-                @click="dateOpen = !dateOpen">
-                <span class="text-sm text-gray-700 flex items-center flex-1">
-                  <template v-if="formDateDisplay.start">
-                    {{ formDateDisplay.start }}
-                    <template v-if="formDateDisplay.end">
-                      <span class="mx-[10px] text-gray-400">→</span>{{ formDateDisplay.end }}
-                    </template>
-                  </template>
-                  <span v-else class="text-gray-400 italic">No date set</span>
-                </span>
-                <span v-if="formDateDisplay.days !== null"
-                  class="text-xs font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                  {{ formDateDisplay.days }} {{ formDateDisplay.days === 1 ? 'day' : 'days' }}
-                </span>
-                <i class="pi text-sm text-gray-300 group-hover:text-gray-500 transition-colors shrink-0"
-                  :class="dateOpen ? 'pi-chevron-up' : 'pi-chevron-down'" />
-              </div>
+              <!-- No accordion: the fields ARE the summary. Each editor row carries
+                   its own 120px label column, matching the card's, so every input
+                   lines up with Event Title. -->
               <DateTimeEditor
-                v-if="isMobile || dateOpen"
                 v-model:startDate="form.start_date"
                 v-model:endDate="form.end_date"
                 v-model:startTime="form.start_time"
@@ -135,23 +83,109 @@
                 v-model:exdates="form.exdates"
                 :minStartDate="twoWeeksAgo"
                 :minEndDate="form.start_date ?? twoWeeksAgo"
+                label="Date"
+                required
+                label-width="w-[120px]"
+                label-class="text-gray-800 font-semibold"
+                row-padding="px-0 py-2"
               />
-            </div>
-          </div>
-
-          <!-- Sign Up Window -->
-          <div>
-            <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Sign Up Window</h2>
-            <div class="bg-white rounded-xl border border-gray-200 p-5">
-              <p class="text-xs text-gray-500 mb-4">Optionally set when sign-ups open and close. Leave blank to allow sign-ups at any time.</p>
-              <div :class="isMobile ? 'space-y-3' : 'grid grid-cols-2 gap-4'">
-                <div class="flex flex-col gap-1.5">
-                  <label class="text-sm font-medium text-gray-700">Opens</label>
-                  <DatePicker v-model="form.reg_open_at" show-icon show-time hour-format="12" date-format="dd/mm/yy" class="w-full" placeholder="No open date" />
+              <!-- Sign-up window lives in the same box: it's a date range about
+                   the same event. Only asked for once sign-up is required. -->
+              <div class="flex items-center gap-4 py-2">
+                <span class="text-sm text-gray-500 shrink-0 w-[120px]">Sign up</span>
+                <div class="flex items-center gap-3">
+                  <ToggleSwitch v-model="signupRequired" @update:model-value="onSignupRequired" />
+                  <span class="text-sm text-gray-700">Attendees need to sign up to this event.</span>
                 </div>
-                <div class="flex flex-col gap-1.5">
-                  <label class="text-sm font-medium text-gray-700">Closes</label>
-                  <DatePicker v-model="form.reg_close_at" show-icon show-time hour-format="12" date-format="dd/mm/yy" class="w-full" placeholder="No close date" />
+              </div>
+              <DateTimeEditor
+                v-if="signupRequired"
+                v-model:startDate="regOpenDate"
+                v-model:startTime="regOpenTime"
+                v-model:endDate="regCloseDate"
+                v-model:endTime="regCloseTime"
+                :show-all-day="false"
+                :show-repeat="false"
+                label=""
+                start-label="Opens"
+                end-label="Closes"
+                label-width="w-[120px]"
+                row-padding="px-0 py-2" />
+            </div>
+            <!-- Description -->
+            <div class="px-5 py-4 border-b border-gray-100">
+              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
+                <label class="text-sm font-semibold text-gray-800 pt-1">Description</label>
+                <RichTextEditor v-model="form.description" placeholder="Describe your event here…" />
+              </div>
+            </div>
+            <!-- Category + Discipline — two columns, sharing the field column.
+                 Disciplines come from the governing body (club's sport → its NSO
+                 chain), NOT a local list. <DisciplineLinker> resolves + persists
+                 to event_disciplines itself, so it needs the draft event row. -->
+            <div class="px-5 py-4 border-b border-gray-100">
+              <!-- Both columns are titled above their field: with two side-by-side
+                   controls there's no single left label that can name them. -->
+              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] items-start gap-4'">
+                <span />
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <!-- Category -->
+                  <div class="min-w-0">
+                  <label class="block text-sm font-semibold text-gray-800 mb-1.5">Category</label>
+                  <div class="flex items-center gap-2 min-w-0">
+                    <MultiSelect
+                      v-model="form.category_ids"
+                      :options="categories"
+                      option-label="name"
+                      option-value="id"
+                      placeholder="Choose categories"
+                      class="flex-1 min-w-0"
+                      display="chip"
+                      :max-selected-labels="3"
+                    >
+                      <template #chip="{ value }">
+                        <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-white" :style="{ background: categories.find(c => c.id === value)?.color ?? '#1E2157' }">
+                          {{ categories.find(c => c.id === value)?.name }}
+                        </div>
+                      </template>
+                    </MultiSelect>
+                    <Button icon="pi pi-plus" size="small" severity="secondary" outlined v-tooltip.top="'New calendar'" @click="showNewCategoryDialog = true" />
+                  </div>
+                  </div>
+                  <!-- Discipline -->
+                  <div class="min-w-0">
+                    <label class="block text-sm font-semibold text-gray-800 mb-1.5">Discipline</label>
+                    <DisciplineLinker v-if="draftEventId" entity-type="event" :entity-id="draftEventId" />
+                    <p v-else class="text-sm text-gray-400 flex items-center gap-2">
+                      <i class="pi pi-spin pi-spinner text-xs" /> Preparing…
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Banner -->
+            <div class="px-5 py-4">
+              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
+                <label class="text-sm font-semibold text-gray-800 pt-1">Banner</label>
+                <div>
+                  <div v-if="!form.banner_url"
+                    class="border-2 border-dashed border-gray-300 rounded-xl px-4 py-5 flex flex-col items-center gap-2 hover:border-primary transition-colors cursor-pointer"
+                    @click="triggerBannerUpload">
+                    <i class="pi pi-image text-2xl text-gray-400" />
+                    <Button label="Upload banner image" severity="secondary" outlined size="small" icon="pi pi-upload" />
+                    <p class="text-xs text-gray-500">For best results upload an image that is 1200 × 350</p>
+                  </div>
+                  <div v-else class="relative rounded-xl overflow-hidden">
+                    <img :src="form.banner_url" class="w-full h-32 object-cover" />
+                    <div v-if="uploadingBanner" class="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <i class="pi pi-spin pi-spinner text-white text-xl" />
+                    </div>
+                    <template v-else>
+                      <Button icon="pi pi-upload" severity="secondary" rounded size="small" class="absolute top-2 right-11" @click="triggerBannerUpload" />
+                      <Button icon="pi pi-times" severity="danger" rounded size="small" class="absolute top-2 right-2" @click="form.banner_url = ''" />
+                    </template>
+                  </div>
+                  <input ref="bannerInput" type="file" accept="image/*" class="hidden" @change="handleBannerUpload" />
                 </div>
               </div>
             </div>
@@ -159,8 +193,11 @@
         </div>
 
         <!-- ─ Location ─ -->
-        <div :class="isMobile ? (mobileStep === 2 ? 'px-4 py-5' : 'hidden') : ''">
-          <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Location</h2>
+        <div :class="isMobile ? (mobileStep === 1 ? 'px-4 py-5' : 'hidden') : ''">
+          <div class="mb-3">
+            <h2 class="text-sm font-semibold text-gray-800">Location</h2>
+            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Location') }}</p>
+          </div>
           <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
             <LocationEditor v-model="form.locations" :availabilityMap="availabilityMap">
               <template #bookable-header>
@@ -177,8 +214,11 @@
         </div>
 
         <!-- ─ Invitees ─ -->
-        <div :class="isMobile ? (mobileStep === 3 ? 'px-4 py-5' : 'hidden') : ''">
-          <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Invitees</h2>
+        <div :class="isMobile ? (mobileStep === 2 ? 'px-4 py-5' : 'hidden') : ''">
+          <div class="mb-3">
+            <h2 class="text-sm font-semibold text-gray-800">Invitees</h2>
+            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Invitees') }}</p>
+          </div>
           <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
             <i class="pi pi-spin pi-spinner text-xl text-gray-300 block mb-2" />
             Setting up invitees…
@@ -187,8 +227,11 @@
         </div>
 
         <!-- ─ Visibility ─ -->
-        <div :class="isMobile ? (mobileStep === 4 ? 'px-4 py-5' : 'hidden') : ''">
-          <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Visibility</h2>
+        <div :class="isMobile ? (mobileStep === 3 ? 'px-4 py-5' : 'hidden') : ''">
+          <div class="mb-3">
+            <h2 class="text-sm font-semibold text-gray-800">Visibility</h2>
+            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Visibility') }}</p>
+          </div>
           <div class="bg-white rounded-xl border border-gray-200 p-5">
             <div :class="isMobile ? 'space-y-3' : 'grid grid-cols-2 gap-4'">
               <div v-for="vis in visibilityOptions" :key="vis.key" class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
@@ -230,7 +273,7 @@
              the same <FormBuilder> the advanced event uses; on save we
              persist the form to registration_forms / form_fields and
              link it via events.form_id. -->
-        <div :class="isMobile ? (mobileStep === 4 ? 'px-4 py-5 mt-5' : 'hidden') : ''">
+        <div :class="isMobile ? (mobileStep === 3 ? 'px-4 py-5 mt-5' : 'hidden') : ''">
           <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Registration form</h2>
           <div class="bg-white rounded-xl border border-gray-200 p-5">
             <div class="flex items-center justify-between">
@@ -252,8 +295,11 @@
         </div>
 
         <!-- ─ Fees ─ -->
-        <div :class="isMobile ? (mobileStep === 5 ? 'px-4 py-5' : 'hidden') : ''">
-          <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Fees</h2>
+        <div :class="isMobile ? (mobileStep === 4 ? 'px-4 py-5' : 'hidden') : ''">
+          <div class="mb-3">
+            <h2 class="text-sm font-semibold text-gray-800">Fees</h2>
+            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Fees') }}</p>
+          </div>
           <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
             <div class="flex items-center justify-between">
               <div>
@@ -287,30 +333,15 @@
         </div>
 
         <!-- ─ Settings ─ -->
-        <div :class="isMobile ? (mobileStep === 6 ? 'px-4 py-5' : 'hidden') : ''">
-          <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Settings</h2>
+        <div :class="isMobile ? (mobileStep === 5 ? 'px-4 py-5' : 'hidden') : ''">
+          <div class="mb-3">
+            <h2 class="text-sm font-semibold text-gray-800">Settings</h2>
+            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Settings') }}</p>
+          </div>
           <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-6">
 
-            <!-- Banner image -->
-            <div>
-              <h3 class="text-sm font-semibold text-gray-800 mb-1">Banner image</h3>
-              <p class="text-xs text-gray-500 mb-3">For best results upload an image that is 1200 × 350</p>
-              <div v-if="!form.banner_url" class="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center gap-2 hover:border-primary transition-colors cursor-pointer" @click="triggerBannerUpload">
-                <i class="pi pi-image text-2xl text-gray-400" />
-                <Button label="Upload banner image" severity="secondary" outlined size="small" icon="pi pi-upload" />
-              </div>
-              <div v-else class="relative rounded-xl overflow-hidden">
-                <img :src="form.banner_url" class="w-full h-32 object-cover" />
-                <div v-if="uploadingBanner" class="absolute inset-0 bg-black/40 flex items-center justify-center">
-                  <i class="pi pi-spin pi-spinner text-white text-xl" />
-                </div>
-                <Button v-else icon="pi pi-times" severity="danger" rounded size="small" class="absolute top-2 right-2" @click="form.banner_url = ''" />
-              </div>
-              <input ref="bannerInput" type="file" accept="image/*" class="hidden" @change="handleBannerUpload" />
-            </div>
-
             <!-- Terms & Conditions -->
-            <div class="border-t border-gray-100 pt-5">
+            <div>
               <h3 class="text-sm font-semibold text-gray-800 mb-3">Terms and Conditions</h3>
               <div class="space-y-2 mb-3">
                 <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
@@ -389,6 +420,8 @@
       />
     </div>
   </div>
+  </div>
+  </Teleport>
 
   <!-- Add Admin Dialog -->
   <Dialog v-model:visible="showAddAdminDialog" header="Add Event Administrator" modal :style="{ width: '95vw', maxWidth: '360px' }">
@@ -478,15 +511,18 @@ const savingCategory = ref(false)
 const forceWizard = route.query.wizard === '1'
 const isMobile = ref(false)
 const mobileStep = ref(0)
+// The wizard's steps. `desc` tells the user what this step is for — shown at the
+// top of each section (and it's the single source of truth for the step count,
+// which is why Date isn't listed: it lives inside Event Info now).
 const mobileSteps = [
-  { label: 'Event Info' },
-  { label: 'Date & Sign Up' },
-  { label: 'Location' },
-  { label: 'Invitees' },
-  { label: 'Visibility' },
-  { label: 'Fees' },
-  { label: 'Settings' },
+  { label: 'Event info', desc: 'Name the event, set when it runs, and how people find it.' },
+  { label: 'Location', desc: 'Where is it happening? Pick a venue, an address, or make it online.' },
+  { label: 'Invitees', desc: 'Choose who gets invited. You can add more people after it is created.' },
+  { label: 'Visibility', desc: 'Decide who can see this event and whether the public can find it.' },
+  { label: 'Fees', desc: 'Add any charges for attending. Leave empty if the event is free.' },
+  { label: 'Settings', desc: 'Registration form, terms, and the finishing touches.' },
 ]
+const stepDesc = (label: string) => mobileSteps.find(s => s.label.toLowerCase() === label.toLowerCase())?.desc ?? ''
 
 function mobileNext() {
   if (mobileStep.value < mobileSteps.length - 1) {
@@ -562,16 +598,6 @@ async function recheckAvailability() {
   toast.add({ severity: 'success', summary: 'Availability updated', life: 2000 })
 }
 
-const disciplines = [
-  { label: 'Swimming', value: 'swimming' },
-  { label: 'Athletics', value: 'athletics' },
-  { label: 'Football', value: 'football' },
-  { label: 'Basketball', value: 'basketball' },
-  { label: 'Tennis', value: 'tennis' },
-  { label: 'Volleyball', value: 'volleyball' },
-  { label: 'Gymnastics', value: 'gymnastics' },
-  { label: 'Other', value: 'other' },
-]
 
 const visibilityOptions = [
   { key: 'is_public',           label: 'Public event',          desc: 'Visible to anyone' },
@@ -602,6 +628,48 @@ twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
 twoWeeksAgo.setHours(0, 0, 0, 0)
 
 const dateOpen = ref(true)
+
+// The sign-up window is stored as two single date-times, but <DateTimeEditor>
+// models date and time separately. Split on read, merge on write — picking a
+// time before a date seeds today so the value is never half-formed.
+function withDate(base: Date | null, d: Date | null): Date | null {
+  if (!d) return null
+  const out = base ? new Date(base) : new Date(d)
+  out.setFullYear(d.getFullYear(), d.getMonth(), d.getDate())
+  if (!base) out.setHours(0, 0, 0, 0)
+  return out
+}
+function withTime(base: Date | null, t: Date | null): Date | null {
+  if (!t) return base ? null : null
+  const out = base ? new Date(base) : new Date()
+  out.setHours(t.getHours(), t.getMinutes(), 0, 0)
+  return out
+}
+// Does this event require sign-up? Gates the sign-up window. Turning it off
+// clears any window already picked so a stale one can't be saved.
+const signupRequired = ref(false)
+function onSignupRequired(v: boolean) {
+  if (!v) {
+    form.reg_open_at = null
+    form.reg_close_at = null
+  }
+}
+const regOpenDate = computed({
+  get: () => form.reg_open_at,
+  set: (v: Date | null) => { form.reg_open_at = withDate(form.reg_open_at, v) },
+})
+const regOpenTime = computed({
+  get: () => form.reg_open_at,
+  set: (v: Date | null) => { form.reg_open_at = withTime(form.reg_open_at, v) },
+})
+const regCloseDate = computed({
+  get: () => form.reg_close_at,
+  set: (v: Date | null) => { form.reg_close_at = withDate(form.reg_close_at, v) },
+})
+const regCloseTime = computed({
+  get: () => form.reg_close_at,
+  set: (v: Date | null) => { form.reg_close_at = withTime(form.reg_close_at, v) },
+})
 
 const formDateDisplay = computed(() => {
   const fDate = (d: Date) => d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })
@@ -637,7 +705,6 @@ const form = reactive({
   title: (route.query.name as string) ?? '',
   description: '',
   category_ids: [] as string[],
-  discipline: null as string | null,
   // Dates
   is_all_day: false,
   start_date: parseDateParam(route.query.date as string ?? null),

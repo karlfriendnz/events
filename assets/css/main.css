@@ -77,3 +77,61 @@ body {
 .p-multiselect-chip-icon { font-size: 0.75rem; width: 0.75rem; height: 0.75rem; color: #94a3b8; }
 .p-multiselect-chip-icon:hover { color: #475569; }
 
+
+/* ── SYSTEM RULE: modal (Dialog) chrome ──
+   Every PrimeVue <Dialog> in the app wears the same shell: a SOLID brand
+   header (club brand colour, so white-label orgs get their own) with a white
+   title + close icon, over a rounded, deeply-shadowed body. Do NOT restyle
+   dialog headers per-instance — change it here so every modal stays uniform. */
+.p-dialog {
+  border-radius: 0.875rem;               /* rounded-xl+ — matches .card */
+  overflow: hidden;                      /* clip the solid header's corners */
+  border: none;
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.35);
+}
+/* The header bar itself. Shared with page-level "modal" wizards via
+   .modal-header-bar so a dialog and a wizard read as the same object. */
+.p-dialog .p-dialog-header,
+.modal-header-bar {
+  position: relative;
+  background:
+    radial-gradient(120% 180% at 0% 0%, rgb(255 255 255 / 0.16) 0%, transparent 55%),
+    linear-gradient(100deg, var(--brand-primary) 0%, var(--brand-primary-hover) 100%);
+  color: #fff;
+  padding: 0.875rem 1.25rem;
+  border-bottom: none;
+  border-radius: 0;                      /* .p-dialog already clips */
+  /* Crisp inner top highlight + a hairline base — gives the bar an edge
+     instead of reading as a flat block of colour. */
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.14),
+    inset 0 -1px 0 rgb(0 0 0 / 0.18);
+}
+.p-dialog .p-dialog-title,
+.modal-header-bar .modal-header-title {
+  color: #fff;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+/* Close button sits on the solid header — invert it. */
+.p-dialog .p-dialog-header .p-dialog-close-button {
+  color: rgba(255, 255, 255, 0.75);
+  width: 1.75rem;
+  height: 1.75rem;
+}
+.p-dialog .p-dialog-header .p-dialog-close-button:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+}
+.p-dialog .p-dialog-header .p-dialog-close-button:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 1px;
+}
+.p-dialog .p-dialog-content { padding: 1.25rem; }
+.p-dialog .p-dialog-footer { padding: 0.875rem 1.25rem; border-top: 1px solid #f1f5f9; }
+/* Softer, slightly blurred scrim so the modal reads as lifted off the page. */
+.p-dialog-mask.p-overlay-mask {
+  background: rgb(15 23 42 / 0.45);
+  backdrop-filter: blur(2px);
+}
