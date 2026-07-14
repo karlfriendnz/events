@@ -127,8 +127,8 @@
             No filters — every {{ t('event', false, true) }} is showing. Add one below to narrow the calendar.
           </p>
 
-          <!-- One card per active filter -->
-          <div v-for="f in calSettings.filters" :key="f.id" class="border border-gray-200 rounded-lg p-3">
+          <!-- One row per active filter, separated by a divider (no boxes) -->
+          <div v-for="f in calSettings.filters" :key="f.id" class="pb-3 border-b border-gray-100">
             <div class="flex items-center justify-between mb-2">
               <p class="text-sm font-semibold text-gray-700">
                 <i :class="`pi ${filterDef(f.key)?.icon} text-xs text-gray-400 mr-1.5`" />{{ filterDef(f.key)?.label }}
