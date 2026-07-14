@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>*{box-sizing:border-box}body{margin:0}img{max-width:100%}</style>
+</head>
+<body>
+<title>Events: Pink Zebra × Friendly Manager</title>
+<style>
+  :root{
+    --pz:#C2185B;            /* Pink Zebra */
+    --pz-soft:#FCE7F0;
+    --fm:#1E2157;            /* Friendly Manager navy */
+    --fm-soft:#E5E7F5;
+    --both:#7A5AA8;
+    --ink:#171622;
+    --ink-2:#4E4C60;
+    --ink-3:#807D93;
+    --rule:#E3E1EA;
+    --bg:#FBFAFC;
+    --card:#FFFFFF;
+    --warn:#B45309;
+    --warn-soft:#FDF2E2;
+    --ok:#1F7A54;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --pz:#F27BAD; --pz-soft:#3A1E2C;
+      --fm:#A9AEE8; --fm-soft:#1E2033;
+      --both:#B79BE0;
+      --ink:#EFEDF4; --ink-2:#B9B6C7; --ink-3:#87839A;
+      --rule:#302E3D; --bg:#131220; --card:#1A1928;
+      --warn:#E0A458; --warn-soft:#33261A; --ok:#5FC397;
+    }
+  }
+  :root[data-theme="dark"]{
+    --pz:#F27BAD; --pz-soft:#3A1E2C;
+    --fm:#A9AEE8; --fm-soft:#1E2033;
+    --both:#B79BE0;
+    --ink:#EFEDF4; --ink-2:#B9B6C7; --ink-3:#87839A;
+    --rule:#302E3D; --bg:#131220; --card:#1A1928;
+    --warn:#E0A458; --warn-soft:#33261A; --ok:#5FC397;
+  }
+  :root[data-theme="light"]{
+    --pz:#C2185B; --pz-soft:#FCE7F0;
+    --fm:#1E2157; --fm-soft:#E5E7F5;
+    --both:#7A5AA8;
+    --ink:#171622; --ink-2:#4E4C60; --ink-3:#807D93;
+    --rule:#E3E1EA; --bg:#FBFAFC; --card:#FFFFFF;
+    --warn:#B45309; --warn-soft:#FDF2E2; --ok:#1F7A54;
+  }
+
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+    font-size:16px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1000px;margin:0 auto;padding:56px 24px 120px;display:flex;flex-direction:column;gap:44px;}
+  header{border-bottom:1px solid var(--rule);padding-bottom:28px;display:flex;flex-direction:column;gap:14px;}
+  .kicker{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);}
+  h1{font-size:clamp(30px,4.4vw,44px);line-height:1.1;font-weight:700;letter-spacing:-.02em;text-wrap:balance;margin:0;}
+  h1 em{font-style:normal;color:var(--pz);}
+  h1 b{font-weight:700;color:var(--fm);}
+  .lede{max-width:66ch;color:var(--ink-2);font-size:17px;margin:0;}
+  section{display:flex;flex-direction:column;gap:16px;}
+  h2{font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:600;margin:0;padding-bottom:8px;border-bottom:1px solid var(--rule);}
+  h3{font-size:19px;font-weight:650;letter-spacing:-.01em;margin:0;}
+  p{margin:0;max-width:70ch;color:var(--ink-2);}
+  p.tight{max-width:74ch;}
+  strong{color:var(--ink);font-weight:600;}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;background:var(--fm-soft);color:var(--ink);padding:1px 5px;border-radius:4px;}
+
+  .card{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:22px 24px;display:flex;flex-direction:column;gap:12px;}
+
+  /* ownership chips */
+  .chip{display:inline-flex;align-items:center;gap:5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;font-weight:600;letter-spacing:.06em;padding:2px 8px;border-radius:20px;white-space:nowrap;}
+  .chip.pz{background:var(--pz-soft);color:var(--pz);}
+  .chip.fm{background:var(--fm-soft);color:var(--fm);}
+  .chip.both{background:transparent;color:var(--both);border:1px dashed var(--both);}
+
+  .tablewrap{overflow-x:auto;border:1px solid var(--rule);border-radius:10px;background:var(--card);}
+  table{border-collapse:collapse;width:100%;min-width:660px;font-size:14.5px;}
+  th{text-align:left;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:600;padding:12px 16px;border-bottom:1px solid var(--rule);white-space:nowrap;}
+  td{padding:13px 16px;border-bottom:1px solid var(--rule);color:var(--ink-2);vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  td:first-child{color:var(--ink);font-weight:550;}
+  td.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;}
+
+  .mermaid{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:20px;overflow-x:auto;}
+
+  .note{border-left:3px solid var(--warn);background:var(--warn-soft);padding:14px 18px;border-radius:0 8px 8px 0;}
+  .note p{color:var(--ink);}
+  .note .lbl{font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--warn);font-weight:700;display:block;margin-bottom:4px;}
+
+  ul{margin:0;padding-left:20px;color:var(--ink-2);display:flex;flex-direction:column;gap:7px;max-width:72ch;}
+  li::marker{color:var(--ink-3);}
+
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;}
+
+  .api{display:flex;flex-direction:column;gap:10px;}
+  .ep{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;padding:10px 0;border-bottom:1px dashed var(--rule);}
+  .ep:last-child{border-bottom:none;}
+  .verb{font-family:ui-monospace,monospace;font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px;background:var(--fm-soft);color:var(--fm);min-width:52px;text-align:center;}
+  .verb.post{background:var(--pz-soft);color:var(--pz);}
+  .path{font-family:ui-monospace,monospace;font-size:13px;color:var(--ink);font-weight:550;}
+  .desc{color:var(--ink-3);font-size:14px;flex:1;min-width:200px;}
+
+  footer{border-top:1px solid var(--rule);padding-top:20px;color:var(--ink-3);font-size:13.5px;}
+</style>
+
+<div class="wrap">
+
+<header>
+  <span class="kicker">Integration spec · Simple event</span>
+  <h1>Putting events back into <b>Friendly Manager</b>, built in <em>Pink&nbsp;Zebra</em></h1>
+  <p class="lede">A simple event lives in Pink Zebra, but it can't exist alone: its venue, its people and its money all belong to Friendly Manager. This is the ownership split, the API surface each side has to expose, and the flows that stitch them together.</p>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <span class="chip pz">PZ owns</span>
+    <span class="chip fm">FM owns</span>
+    <span class="chip both">shared / synced</span>
+  </div>
+</header>
+
+<section>
+  <h2>The shape of it</h2>
+  <p>Pink Zebra is the <strong>event brain</strong> — it holds the event record, the registration form, the visibility rules and the terms. Friendly Manager stays the <strong>system of record for the club</strong> — its people, its venues, its money. Everything PZ needs from the club it fetches by ID; everything the club needs to know about a registration, PZ pushes back.</p>
+
+  <pre class="mermaid">
+flowchart LR
+  subgraph PZ["Pink Zebra — the event"]
+    E["Event record<br/>name · dates · recurrence<br/>description · banner · categories"]
+    V["Visibility &amp; access rules"]
+    F["Public registration form<br/>+ custom fields"]
+    T["Terms &amp; conditions"]
+    A["Event admin settings"]
+  end
+
+  subgraph FM["Friendly Manager — the club"]
+    P["People &amp; groups"]
+    VE["Venues"]
+    FE["Fees / invoices / payments"]
+    CP["Core member profile"]
+  end
+
+  VE -- "read venue list" --> E
+  P -- "read people + groups<br/>(invitees, admins)" --> E
+  E -- "create fee / invoice on registration" --> FE
+  F -- "write core profile fields" --> CP
+  F -- "keeps custom answers locally" --> F
+  A -. "which FM people, PZ decides what they can do" .-> P
+  </pre>
+</section>
+
+<section>
+  <h2>Ownership matrix</h2>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Thing</th><th>Owner</th><th>Source of truth</th><th>How it crosses the line</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Event details<br/><span style="color:var(--ink-3);font-weight:400;font-size:13.5px;">name, dates, recurrence, sign-up description, banner, categories</span></td>
+          <td><span class="chip pz">PZ</span></td>
+          <td>PZ <code>events</code></td>
+          <td>Doesn't. FM shows a read-only summary at most (title, date, link).</td>
+        </tr>
+        <tr>
+          <td>Venues</td>
+          <td><span class="chip fm">FM</span></td>
+          <td>FM venue table</td>
+          <td>PZ <strong>reads</strong> the venue list, stores only <code>fm_venue_id</code> + a cached label on the event.</td>
+        </tr>
+        <tr>
+          <td>Fees</td>
+          <td><span class="chip both">shared</span></td>
+          <td>Fee <em>definition</em> in PZ · fee <em>ledger</em> in FM</td>
+          <td>PZ defines the fee lines on the event; on a registration PZ <strong>calls FM's API to raise the fee/invoice</strong> against the FM person. FM owns payment status and pushes it back.</td>
+        </tr>
+        <tr>
+          <td>Invitees</td>
+          <td><span class="chip fm">FM</span></td>
+          <td>FM people + groups</td>
+          <td>PZ <strong>pulls</strong> people/groups from FM and stores <code>fm_person_id</code> / <code>fm_group_id</code> references — never copies of the people.</td>
+        </tr>
+        <tr>
+          <td>Visibility settings</td>
+          <td><span class="chip pz">PZ</span></td>
+          <td>PZ event config</td>
+          <td>Evaluated in PZ. Where a rule is "members of group X", it evaluates against a pulled FM group id.</td>
+        </tr>
+        <tr>
+          <td>Public registration form</td>
+          <td><span class="chip pz">PZ</span></td>
+          <td>PZ form builder</td>
+          <td>The form and its <em>custom</em> answers stay in PZ.</td>
+        </tr>
+        <tr>
+          <td>Core profile fields<br/><span style="color:var(--ink-3);font-weight:400;font-size:13.5px;">name, email, phones, gender, DOB, address, medical, tags, school…</span></td>
+          <td><span class="chip fm">FM</span></td>
+          <td>FM person record</td>
+          <td>PZ renders them on the form but <strong>writes them straight back to FM</strong> — match by email, create the FM person if new. PZ never becomes a second people database.</td>
+        </tr>
+        <tr>
+          <td>Terms &amp; conditions</td>
+          <td><span class="chip pz">PZ</span></td>
+          <td>PZ event config</td>
+          <td>Acceptance is recorded on the PZ registration (timestamp + version).</td>
+        </tr>
+        <tr>
+          <td>Event admins</td>
+          <td><span class="chip both">shared</span></td>
+          <td>Person from FM · permissions from PZ</td>
+          <td>PZ picks an <code>fm_person_id</code>; what that admin can do on the event is a PZ-side setting.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>The linchpin: one identity, two systems</h2>
+  <p>Everything above depends on a single rule: <strong>a person exists once, in FM, and PZ only ever holds a pointer to them.</strong> Get this wrong and you end up with duplicate members, split registration history and fees raised against ghosts.</p>
+  <div class="card">
+    <h3>What PZ stores per registrant</h3>
+    <div class="tablewrap" style="border:none;">
+      <table style="min-width:520px;">
+        <tbody>
+          <tr><td class="mono">fm_person_id</td><td>The only durable link. Resolved at registration time.</td></tr>
+          <tr><td class="mono">fm_org_id</td><td>Which club the event belongs to — scopes every API call.</td></tr>
+          <tr><td class="mono">answers (jsonb)</td><td>Custom form answers only. Core fields are not kept here.</td></tr>
+          <tr><td class="mono">terms_accepted_at / version</td><td>Proof of acceptance.</td></tr>
+          <tr><td class="mono">fm_fee_id</td><td>The fee/invoice FM raised for this registration.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="tight"><strong>Matching rule:</strong> email is the match key. Exact match → use the existing FM person. No match → FM creates the person from the core fields and returns the new id. Ambiguous (same email, different name) → FM decides, PZ never guesses.</p>
+  </div>
+</section>
+
+<section>
+  <h2>What FM has to expose</h2>
+  <p>PZ can be built against a small, boring REST surface. Auth: a per-club API key or service token issued by FM, scoped to <code>fm_org_id</code>.</p>
+  <div class="card api">
+    <div class="ep"><span class="verb">GET</span><span class="path">/api/venues</span><span class="desc">Venue list for the club — id, name, address. Read-only for PZ.</span></div>
+    <div class="ep"><span class="verb">GET</span><span class="path">/api/people?search=</span><span class="desc">Person search for the invitee + admin pickers.</span></div>
+    <div class="ep"><span class="verb">GET</span><span class="path">/api/groups</span><span class="desc">Groups/teams, so an event can invite a whole group.</span></div>
+    <div class="ep"><span class="verb">GET</span><span class="path">/api/groups/:id/members</span><span class="desc">Expand a group into people at invite time.</span></div>
+    <div class="ep"><span class="verb post">POST</span><span class="path">/api/people/resolve</span><span class="desc"><strong>The important one.</strong> Send core profile fields → FM matches by email or creates the person → returns <code>fm_person_id</code>. Idempotent.</span></div>
+    <div class="ep"><span class="verb post">POST</span><span class="path">/api/fees</span><span class="desc">Raise a fee/invoice against a person, with an idempotency key so a retried registration doesn't double-charge.</span></div>
+    <div class="ep"><span class="verb">GET</span><span class="path">/api/fees/:id</span><span class="desc">Payment status, for showing "paid / unpaid" on the PZ registration list.</span></div>
+  </div>
+  <div class="note">
+    <span class="lbl">Idempotency is not optional</span>
+    <p>Both <code>people/resolve</code> and <code>fees</code> will be retried — by network failures, by double-clicks, by a registration that half-succeeded. Every write from PZ to FM carries a key (<code>registration_id</code> works) and FM returns the existing record rather than creating a second one.</p>
+  </div>
+</section>
+
+<section>
+  <h2>What PZ has to expose back</h2>
+  <div class="card api">
+    <div class="ep"><span class="verb">GET</span><span class="path">/api/events?org=</span><span class="desc">So FM can list a club's events in its own UI without owning them.</span></div>
+    <div class="ep"><span class="verb">GET</span><span class="path">/api/people/:fm_person_id/registrations</span><span class="desc">So an FM member profile can show "events they're registered for".</span></div>
+    <div class="ep"><span class="verb post">POST</span><span class="path">/webhooks/fee-paid</span><span class="desc">FM tells PZ a fee was paid → PZ flips the registration to confirmed.</span></div>
+    <div class="ep"><span class="verb post">POST</span><span class="path">/webhooks/person-merged</span><span class="desc">FM merged two members → PZ repoints its <code>fm_person_id</code> references. Skip this and merges silently orphan registrations.</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Flow 1 — Staff creates a simple event</h2>
+  <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant S as Staff
+  participant PZ as Pink Zebra
+  participant FM as Friendly Manager
+  S->>PZ: Open "New event"
+  PZ->>FM: GET /venues
+  FM-->>PZ: venue list
+  S->>PZ: Name, dates, recurrence, banner, category, description
+  S->>PZ: Pick venue (stores fm_venue_id)
+  S->>PZ: Define fee lines (definition only — nothing raised yet)
+  PZ->>FM: GET /people, GET /groups
+  FM-->>PZ: people + groups
+  S->>PZ: Choose invitees + event admins (fm ids)
+  S->>PZ: Set visibility, build public form, write terms
+  S->>PZ: Publish
+  PZ-->>S: Public event URL
+  </pre>
+</section>
+
+<section>
+  <h2>Flow 2 — Someone registers on the public form</h2>
+  <p>This is where the two systems actually touch, and where the failure modes live.</p>
+  <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant R as Registrant
+  participant PZ as Pink Zebra
+  participant FM as Friendly Manager
+  R->>PZ: Opens public event page
+  PZ->>PZ: Evaluate visibility rules
+  R->>PZ: Fills core profile fields + custom fields
+  R->>PZ: Accepts terms
+  R->>PZ: Submit
+  PZ->>FM: POST /people/resolve (core fields, key = registration_id)
+  FM->>FM: Match by email, else create member
+  FM-->>PZ: fm_person_id
+  PZ->>PZ: Save registration (fm_person_id + custom answers + terms)
+  PZ->>FM: POST /fees (fm_person_id, fee lines, key = registration_id)
+  FM-->>PZ: fm_fee_id (unpaid)
+  PZ-->>R: Confirmation + payment link
+  FM->>PZ: webhook: fee-paid
+  PZ->>PZ: Registration → confirmed
+  </pre>
+  <div class="note">
+    <span class="lbl">Decide before you build</span>
+    <p>Does payment happen <strong>in FM</strong> (PZ hands off to FM's payment page and waits for the webhook) or <strong>in PZ</strong> (PZ takes the money and tells FM it's paid)? Fees living in FM points strongly at the first — but it means the registrant leaves the PZ form to pay, and a half-finished payment leaves an unpaid registration you have to chase or expire.</p>
+  </div>
+</section>
+
+<section>
+  <h2>The core-profile boundary</h2>
+  <p>The fields in the FM member screen are the ones PZ must <em>collect but not keep</em>. Everything else on the form is PZ's.</p>
+  <div class="grid2">
+    <div class="card">
+      <h3><span class="chip fm">FM</span> &nbsp;Written back to the member record</h3>
+      <ul>
+        <li>First / last name</li>
+        <li>Email, primary phone, alternate phone, work phone</li>
+        <li>Gender, date of birth</li>
+        <li>Address (street, suburb, city, post code)</li>
+        <li>Medical notes</li>
+        <li>Tags, school, referral type</li>
+        <li>Privacy (photo consent), newsletter opt-in</li>
+        <li>System access, join date — <strong>FM sets these, PZ never sends them</strong></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3><span class="chip pz">PZ</span> &nbsp;Stays with the event</h3>
+      <ul>
+        <li>Every custom question on the registration form</li>
+        <li>Which sessions / options they chose</li>
+        <li>Terms acceptance (timestamp + version)</li>
+        <li>Registration status and history</li>
+        <li>Anything event-specific: dietary for <em>this</em> event, t-shirt size, notes to the organiser</li>
+      </ul>
+    </div>
+  </div>
+  <p class="tight"><strong>The rule to hold the line with:</strong> if a club would still want the answer after the event is over and forgotten, it's a core field and belongs in FM. If it only makes sense in the context of this event, it stays in PZ.</p>
+</section>
+
+<section>
+  <h2>What actually needs building</h2>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Side</th><th>Work</th><th>Why it's on the critical path</th></tr></thead>
+      <tbody>
+        <tr><td><span class="chip fm">FM</span></td><td>Public API + per-club service token</td><td>Nothing else can start without it.</td></tr>
+        <tr><td><span class="chip fm">FM</span></td><td><code>POST /people/resolve</code> with email matching + create</td><td>The single most important endpoint. Owns the duplicate-member problem.</td></tr>
+        <tr><td><span class="chip fm">FM</span></td><td><code>POST /fees</code> + fee-paid webhook</td><td>Without it, a paid event can't take money.</td></tr>
+        <tr><td><span class="chip fm">FM</span></td><td>Venue + people + group read endpoints</td><td>Unblocks the event editor's pickers.</td></tr>
+        <tr><td><span class="chip pz">PZ</span></td><td>Store FM ids, not FM data (venue, person, group, fee)</td><td>Determines whether the two systems can ever drift.</td></tr>
+        <tr><td><span class="chip pz">PZ</span></td><td>Core-field mapping layer on the form builder</td><td>Marks which fields write back to FM vs stay local.</td></tr>
+        <tr><td><span class="chip pz">PZ</span></td><td>Registration → resolve → fee pipeline, with retries</td><td>The one flow that spans both systems and can half-fail.</td></tr>
+        <tr><td><span class="chip pz">PZ</span></td><td>Event admin permissions, keyed by <code>fm_person_id</code></td><td>PZ's own permission model over FM's people.</td></tr>
+        <tr><td><span class="chip both">both</span></td><td>SSO / session hand-off so staff don't log in twice</td><td>Not required for a working prototype; required before anyone likes it.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>Open questions to settle first</h2>
+  <ul>
+    <li><strong>Where does payment happen</strong> — FM's payment page, or PZ takes the money? This changes the registration flow, not just a setting.</li>
+    <li><strong>Does FM show events at all</strong>, or does the events tab just deep-link into PZ? Deep-link is far cheaper and can be replaced later.</li>
+    <li><strong>Recurring events and fees</strong> — one fee per series, or one per occurrence? FM's ledger needs to know.</li>
+    <li><strong>What happens to an unpaid registration?</strong> Held, expired after N days, or confirmed anyway.</li>
+    <li><strong>Member merges and deletions in FM</strong> — the webhook above is the answer, but someone has to own it.</li>
+    <li><strong>Non-members registering publicly</strong> — do they become FM members the moment they register, or does FM hold them as contacts until someone approves?</li>
+  </ul>
+</section>
+
+<footer>Simple event · Pink Zebra × Friendly Manager · working spec, subject to the six questions above.</footer>
+
+</div>
+<script>
+const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+mermaid.initialize({ startOnLoad: true, theme: dark ? "dark" : "neutral", securityLevel: "loose" });
+</script>
+</body>
+</html>
