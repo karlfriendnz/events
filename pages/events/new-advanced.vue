@@ -707,7 +707,6 @@ async function saveEvent() {
       location_type: (form.locations[0]?.type ?? 'ADDRESS') as 'ADDRESS' | 'ONLINE' | 'BOOKABLE',
       address: form.locations[0]?.type === 'ADDRESS' ? (form.locations[0].address || null) : null,
       meeting_link: form.locations[0]?.type === 'ONLINE' ? (form.locations[0].meeting_link || null) : null,
-      has_capacity: form.has_capacity,
       capacity_max: form.has_capacity ? (form.capacity_max ?? null) : null,
       has_waitlist: form.has_waitlist,
       allow_guests: form.allow_guests,
