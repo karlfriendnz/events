@@ -1,6 +1,10 @@
 <template>
   <div class="space-y-3">
-    <div v-for="(loc, locIdx) in modelValue" :key="locIdx" class="border border-gray-200 rounded-xl p-3 space-y-3">
+    <!-- No box per location — it sits inside a card already. Multiple locations
+         are separated by a divider line instead. -->
+    <div v-for="(loc, locIdx) in modelValue" :key="locIdx"
+      class="space-y-3"
+      :class="locIdx > 0 ? 'border-t border-gray-100 pt-4' : ''">
       <div v-if="modelValue.length > 1" class="flex items-center justify-between">
         <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Location {{ locIdx + 1 }}</span>
         <button class="text-xs text-red-500 hover:text-red-700" @click="remove(locIdx)">Remove</button>
@@ -48,7 +52,7 @@
           <i class="pi pi-spin pi-spinner text-gray-400" />
         </div>
         <div v-else-if="flatVenueTree.length === 0" class="py-6 text-center text-sm text-gray-400">
-          No venues yet.
+          No venues yet — create one to get started.
         </div>
         <div v-else>
           <template v-for="node in flatVenueTree" :key="node.id">
@@ -87,13 +91,45 @@
       </div>
     </div>
 
-    <Button v-if="multi" label="Add another location" icon="pi pi-plus" severity="secondary" outlined size="small" @click="add" />
+    <div class="flex items-center gap-2 flex-wrap">
+      <Button v-if="multi" :label="addLabel" icon="pi pi-plus" severity="secondary" outlined size="small" @click="add" />
+      <!-- Pushed to the right edge; only offered while a venue is being picked. -->
+      <Button v-if="hasBookableLocation" label="Create new venue" icon="pi pi-plus" severity="secondary" outlined size="small" class="ml-auto" @click="openCreateVenue" />
+    </div>
+
+    <!-- Quick-create a venue without leaving the form. Deliberately minimal —
+         just enough to pick it here; the full venue setup (availability,
+         sub-venues, access) lives on /bookables/:id. -->
+    <Dialog v-model:visible="createVenueOpen" header="Create new venue" modal
+      :style="{ width: '95vw', maxWidth: '420px' }" @keydown.enter="saveNewVenue">
+      <div class="space-y-4 pt-1">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Venue name <span class="text-red-400">*</span></label>
+          <InputText v-model="newVenue.name" placeholder="e.g. Main Hall" class="w-full" autofocus />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1.5">Inside another venue</label>
+          <Select v-model="newVenue.parent_id" :options="parentVenueOptions" option-label="label" option-value="value"
+            placeholder="Top level — not inside anything" show-clear class="w-full" />
+          <p class="text-xs text-gray-400 mt-1">Optional. Use this for a court, room or field inside a bigger venue.</p>
+        </div>
+        <p v-if="newVenueError" class="text-xs text-red-500">{{ newVenueError }}</p>
+        <div class="flex justify-end gap-2">
+          <Button label="Cancel" size="small" severity="secondary" text @click="createVenueOpen = false" />
+          <Button label="Create venue" icon="pi pi-check" size="small" :loading="savingVenue"
+            :disabled="!newVenue.name.trim()"
+            style="background:var(--brand-primary);border-color:var(--brand-primary)"
+            @click="saveNewVenue" />
+        </div>
+      </div>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-const { orgId } = useOrg()
 import type { LocationEntry } from '~/composables/useLocation'
+
+const { orgId } = useOrg()
 
 const props = withDefaults(defineProps<{
   modelValue: LocationEntry[]
@@ -107,6 +143,15 @@ const props = withDefaults(defineProps<{
   startAt: null,
   endAt: null,
   excludeEventId: null,
+})
+
+// "Add another location" tells you nothing about which one you're adding. Name
+// the ordinal instead: Add secondary / third / fourth… location.
+const ORDINALS = ['secondary', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth']
+const addLabel = computed(() => {
+  const next = props.modelValue.length            // 1 existing → adding the secondary
+  const word = ORDINALS[next - 1]
+  return word ? `Add ${word} location` : 'Add another location'
 })
 
 const emit = defineEmits<{
@@ -126,7 +171,7 @@ const allBookables = ref<any[]>([])
 const bookablesLoading = ref(false)
 const expandedIds = reactive<Record<string, boolean>>({})
 
-onMounted(async () => {
+async function loadBookables() {
   bookablesLoading.value = true
   const { data, error } = await db.from('bookables')
     .select('id, name, location, parent_id')
@@ -148,7 +193,66 @@ onMounted(async () => {
   bookablesLoading.value = false
   initExpanded()
   if (hasBookableLocation.value) fetchAvailability()
-})
+}
+
+onMounted(loadBookables)
+
+// ---- Quick-create a venue ------------------------------------------------
+// Inline rather than navigating to /bookables/new: this picker usually sits
+// inside a modal wizard, and leaving would throw away the half-built event.
+// Name + optional parent is all that's needed to pick it here; everything else
+// (availability, sub-venues, access) is set later on the venue's own page.
+const createVenueOpen = ref(false)
+const savingVenue = ref(false)
+const newVenueError = ref('')
+const newVenue = reactive({ name: '', parent_id: null as string | null })
+
+const parentVenueOptions = computed(() =>
+  flatVenueTree.value.map(n => ({
+    value: n.id,
+    label: `${'— '.repeat(n._depth)}${n.name}`,
+  })),
+)
+
+function openCreateVenue() {
+  newVenue.name = ''
+  newVenue.parent_id = null
+  newVenueError.value = ''
+  createVenueOpen.value = true
+}
+
+async function saveNewVenue() {
+  const name = newVenue.name.trim()
+  if (!name || savingVenue.value) return
+  savingVenue.value = true
+  newVenueError.value = ''
+  try {
+    const { data, error } = await (db.from as any)('bookables').insert({
+      org_id: orgId.value,
+      name,
+      type: 'VENUE',
+      status: 'ACTIVE',
+      is_public: true,
+      parent_id: newVenue.parent_id,
+    }).select('id, name, location, parent_id').single()
+
+    if (error || !data) {
+      newVenueError.value = error?.message ?? 'Could not create the venue.'
+      return
+    }
+
+    await loadBookables()
+    // Tick it straight away — they created it to use it.
+    const idx = props.modelValue.findIndex(l => l.type === 'BOOKABLE')
+    if (idx !== -1 && !props.modelValue[idx].bookable_ids?.includes(data.id)) {
+      toggleVenue(idx, data.id)
+    }
+    if (data.parent_id) expandedIds[data.parent_id] = true
+    createVenueOpen.value = false
+  } finally {
+    savingVenue.value = false
+  }
+}
 
 function initExpanded() {
   const selectedIds = props.modelValue

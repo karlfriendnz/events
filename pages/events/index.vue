@@ -1,5 +1,9 @@
 <template>
-  <div class="p-3 sm:p-6 flex flex-col h-full">
+  <!-- While the settings drawer is open the page gives up its right-hand 420px
+       instead of being covered: the calendar shifts left and stays fully visible,
+       so you watch a filter bite as you set it. -->
+  <div class="p-3 sm:p-6 flex flex-col h-full transition-[margin] duration-200"
+    :class="showCalSettings ? 'md:mr-[420px]' : ''">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-5">
       <div class="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -45,131 +49,171 @@
       </div>
     </div>
 
-    <!-- Calendar Settings Dialog -->
-    <Dialog v-model:visible="showCalSettings" :header="activeCalendar ? `Calendar Settings — ${activeCalendar.name}` : 'Calendar Settings'" modal :style="{ width: '95vw', maxWidth: '460px' }">
-      <div class="flex flex-col gap-5 py-1">
-
-        <!-- New calendar / edit calendar -->
-        <div class="flex flex-col gap-2">
-          <div class="flex items-center justify-between">
-            <label class="text-sm font-semibold text-gray-700">
-              {{ editingCalendarId ? `Edit "${newCalendarName || 'calendar'}"` : 'New Calendar' }}
-            </label>
-            <button
-              v-if="editingCalendarId"
-              class="text-xs text-red-500 hover:text-red-700 hover:underline"
-              @click="deleteCalendar"
-            >Delete</button>
-          </div>
-          <InputText v-model="newCalendarName" placeholder="Calendar name" class="w-full" />
-          <MultiSelect
-            v-model="newCalendarCategoryIds"
-            :options="allCategories"
-            option-label="name"
-            option-value="id"
-            placeholder="Assign categories…"
-            display="chip"
-            class="w-full"
-          >
-            <template #option="{ option }">
-              <div class="flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: option.color ?? '#94a3b8' }" />
-                <span>{{ option.name }}</span>
-              </div>
-            </template>
-          </MultiSelect>
+    <!-- Calendar settings — a left slide-out, not a modal, so the calendar stays
+         visible while you tune it. Display / Filter / Export. -->
+    <!-- Non-modal + non-dismissable on purpose: the calendar stays live beside it
+         (you can see a filter bite as you set it), and a click on a Select/date
+         overlay — which teleports OUTSIDE the drawer — no longer slams it shut. -->
+    <Drawer v-model:visible="showCalSettings" position="right" :modal="false" :dismissable="false"
+      :style="{ width: '95vw', maxWidth: '420px' }" :pt="{ content: { class: 'p-0 flex flex-col' } }">
+      <template #header>
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-gray-800 truncate">Calendar settings</p>
+          <p v-if="activeCalendar" class="text-xs text-gray-500 truncate">{{ activeCalendar.name }}</p>
         </div>
-
-        <div class="border-t border-gray-100" />
-
-        <!-- Color by -->
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-gray-700">Colour events by</label>
-          <SelectButton
-            v-model="calSettings.colorBy"
-            :options="colorByOptions"
-            option-label="label"
-            option-value="value"
-            size="small"
-          />
-        </div>
-
-        <!-- Default view -->
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-gray-700">Default view</label>
-          <SelectButton
-            v-model="calSettings.defaultView"
-            :options="[{ label: 'Month', value: 'dayGridMonth' }, { label: 'Week', value: 'timeGridWeek' }, { label: 'Day', value: 'timeGridDay' }, { label: 'List', value: 'listWeek' }]"
-            option-label="label"
-            option-value="value"
-            size="small"
-          />
-        </div>
-
-        <!-- Week start -->
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-gray-700">Week starts on</label>
-          <SelectButton
-            v-model="calSettings.weekStart"
-            :options="[{ label: 'Sunday', value: 0 }, { label: 'Monday', value: 1 }]"
-            option-label="label"
-            option-value="value"
-            size="small"
-          />
-        </div>
-
-        <!-- Show weekends -->
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm font-semibold text-gray-700">Show weekends</p>
-            <p class="text-xs text-gray-500">Display Saturday and Sunday on the calendar</p>
-          </div>
-          <ToggleSwitch v-model="calSettings.showWeekends" />
-        </div>
-
-        <!-- Venue filter -->
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-gray-700">Filter by venue</label>
-          <MultiSelect
-            v-model="calSettings.visibleBookableIds"
-            :options="allBookables"
-            option-label="name"
-            option-value="id"
-            placeholder="All venues"
-            display="chip"
-            filter
-            class="w-full" />
-          <p class="text-xs text-gray-500">Leave empty to show all venues.</p>
-        </div>
-
-        <!-- Category filter -->
-        <div class="flex flex-col gap-2">
-          <label class="text-sm font-semibold text-gray-700">Filter by category</label>
-          <MultiSelect
-            v-model="calSettings.visibleCategoryIds"
-            :options="allCategories"
-            option-label="name"
-            option-value="id"
-            placeholder="All categories"
-            display="chip"
-            filter
-            class="w-full">
-            <template #option="{ option }">
-              <div class="flex items-center gap-2">
-                <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: option.color ?? '#94a3b8' }" />
-                <span>{{ option.name }}</span>
-              </div>
-            </template>
-          </MultiSelect>
-          <p class="text-xs text-gray-500">Leave empty to show all categories.</p>
-        </div>
-
-      </div>
-      <template #footer>
-        <Button label="Reset to defaults" severity="secondary" text @click="resetCalSettings" />
-        <Button label="Apply" @click="applyCalSettings" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
       </template>
-    </Dialog>
+
+      <!-- Tabs -->
+      <div class="flex border-b border-gray-200 px-4 shrink-0">
+        <button v-for="tb in CAL_TABS" :key="tb.key"
+          class="px-3 py-2 text-sm border-b-2 -mb-px whitespace-nowrap transition-colors"
+          :class="calTab === tb.key ? 'border-primary text-primary font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'"
+          @click="calTab = tb.key">
+          <i :class="`pi ${tb.icon} mr-1.5 text-xs`" />{{ tb.label }}
+        </button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4">
+
+        <!-- ── Display ───────────────────────────────────────────── -->
+        <div v-if="calTab === 'display'" class="flex flex-col gap-5">
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center justify-between">
+              <label class="text-sm font-semibold text-gray-700">
+                {{ editingCalendarId ? `Edit "${newCalendarName || 'calendar'}"` : 'New calendar' }}
+              </label>
+              <button v-if="editingCalendarId" class="text-xs text-red-500 hover:text-red-700 hover:underline"
+                @click="deleteCalendar">Delete</button>
+            </div>
+            <InputText v-model="newCalendarName" placeholder="Calendar name" class="w-full" />
+          </div>
+
+          <div class="border-t border-gray-100" />
+
+          <div class="flex flex-col gap-2">
+            <label class="text-sm font-semibold text-gray-700">Colour events by</label>
+            <SelectButton v-model="calSettings.colorBy" :options="colorByOptions"
+              option-label="label" option-value="value" size="small" />
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <label class="text-sm font-semibold text-gray-700">Default view</label>
+            <SelectButton
+              v-model="calSettings.defaultView"
+              :options="[{ label: 'Month', value: 'dayGridMonth' }, { label: 'Week', value: 'timeGridWeek' }, { label: 'Day', value: 'timeGridDay' }, { label: 'List', value: 'listWeek' }]"
+              option-label="label" option-value="value" size="small" />
+          </div>
+
+          <div class="flex flex-col gap-2">
+            <label class="text-sm font-semibold text-gray-700">Week starts on</label>
+            <SelectButton
+              v-model="calSettings.weekStart"
+              :options="[{ label: 'Sunday', value: 0 }, { label: 'Monday', value: 1 }]"
+              option-label="label" option-value="value" size="small" />
+          </div>
+
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm font-semibold text-gray-700">Show weekends</p>
+              <p class="text-xs text-gray-500">Display Saturday and Sunday on the calendar</p>
+            </div>
+            <ToggleSwitch v-model="calSettings.showWeekends" />
+          </div>
+        </div>
+
+        <!-- ── Filter ────────────────────────────────────────────── -->
+        <div v-else-if="calTab === 'filter'" class="flex flex-col gap-3">
+          <p v-if="!calSettings.filters.length" class="text-sm text-gray-500">
+            No filters — every {{ t('event', false, true) }} is showing. Add one below to narrow the calendar.
+          </p>
+
+          <!-- One card per active filter -->
+          <div v-for="f in calSettings.filters" :key="f.id" class="border border-gray-200 rounded-lg p-3">
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-sm font-semibold text-gray-700">
+                <i :class="`pi ${filterDef(f.key)?.icon} text-xs text-gray-400 mr-1.5`" />{{ filterDef(f.key)?.label }}
+              </p>
+              <Button icon="pi pi-times" severity="secondary" text size="small"
+                v-tooltip.left="'Remove filter'" @click="removeFilter(f.id)" />
+            </div>
+
+            <MultiSelect v-if="f.key === 'venue'" v-model="f.value" :options="bookableTree"
+              option-label="name" option-value="id" placeholder="Any venue" display="chip" filter class="w-full">
+              <template #option="{ option }">
+                <div class="flex items-center gap-2" :style="{ paddingLeft: `${option._depth * 16}px` }">
+                  <i v-if="option._hasChildren" class="pi pi-building text-xs text-gray-400" />
+                  <i v-else-if="option._depth" class="pi pi-angle-right text-xs text-gray-300" />
+                  <span :class="option._depth ? 'text-gray-700' : 'font-medium text-gray-800'">{{ option.name }}</span>
+                </div>
+              </template>
+            </MultiSelect>
+
+            <MultiSelect v-else-if="f.key === 'category'" v-model="f.value" :options="allCategories"
+              option-label="name" option-value="id" placeholder="Any calendar" display="chip" filter class="w-full">
+              <template #option="{ option }">
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: option.color ?? '#94a3b8' }" />
+                  <span>{{ option.name }}</span>
+                </div>
+              </template>
+            </MultiSelect>
+
+            <MultiSelect v-else-if="f.key === 'status'" v-model="f.value" :options="STATUS_OPTIONS"
+              option-label="label" option-value="value" placeholder="Any status" display="chip" class="w-full" />
+
+            <MultiSelect v-else-if="f.key === 'type'" v-model="f.value" :options="STYLE_OPTIONS"
+              option-label="label" option-value="value" placeholder="Any type" display="chip" class="w-full" />
+
+            <div v-else-if="f.key === 'dates'" class="flex flex-col gap-2">
+              <DatePicker v-model="f.value" selection-mode="range" :manual-input="false"
+                date-format="D d M yy" placeholder="Pick a date range" show-icon class="w-full" />
+              <p class="text-xs text-gray-500">Only {{ t('event', true, true) }} starting inside this range.</p>
+            </div>
+          </div>
+
+          <!-- Add another -->
+          <div class="flex items-center gap-2 pt-1">
+            <Select v-model="pendingFilterKey" :options="addableFilters" option-label="label" option-value="key"
+              placeholder="Choose a filter…" class="flex-1 min-w-0" :disabled="!addableFilters.length" />
+            <Button label="Add" icon="pi pi-plus" size="small" :disabled="!pendingFilterKey"
+              @click="addFilter()" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+          </div>
+          <p v-if="!addableFilters.length" class="text-xs text-gray-400">Every filter is already in use.</p>
+        </div>
+
+        <!-- ── Export ────────────────────────────────────────────── -->
+        <div v-else class="flex flex-col gap-4">
+          <p class="text-sm text-gray-600">
+            Exports exactly what's on the calendar now — your filters and search apply.
+            <span class="font-semibold text-gray-800">{{ exportRows.length }}</span>
+            {{ exportRows.length === 1 ? t('event', false, true) : t('event', true, true) }} ready.
+          </p>
+
+          <div class="flex flex-col gap-2">
+            <label class="text-sm font-semibold text-gray-700">Format</label>
+            <SelectButton v-model="exportFormat" :options="EXPORT_FORMATS"
+              option-label="label" option-value="value" size="small" />
+            <p class="text-xs text-gray-500">
+              {{ exportFormat === 'csv'
+                ? 'A spreadsheet — one row per event, with dates, venue, status and category.'
+                : 'A calendar file you can import into Google Calendar, Outlook or Apple Calendar.' }}
+            </p>
+          </div>
+
+          <Button :label="`Download ${exportFormat.toUpperCase()}`" icon="pi pi-download"
+            :disabled="!exportRows.length" @click="runExport"
+            style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="flex items-center justify-between w-full">
+          <Button label="Reset to defaults" severity="secondary" text size="small" @click="resetCalSettings" />
+          <Button label="Done" size="small" @click="applyCalSettings"
+            style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+        </div>
+      </template>
+    </Drawer>
 
     <!-- Move-recurring dialog -->
     <Dialog v-model:visible="dropDialog.open" modal :header="`Move recurring ${t('event', false, true)}`" :style="{ width: '95vw', maxWidth: '480px' }">
@@ -304,9 +348,48 @@
     <!-- Row menu -->
     <Menu ref="rowMenu" :model="menuItems" :popup="true" />
 
-    <!-- Event name modal (step 1) -->
-    <Dialog v-model:visible="showEventNameModal" :header="`New ${t('event', false, true)}`" modal :style="{ width: '95vw', maxWidth: '420px' }" @keydown.enter.prevent="submitEventName">
-      <div class="space-y-4 pt-1">
+    <!-- New event: three ways in — describe it to the AI, walk the wizard, or
+         build it yourself. (createWithAi() + /api/ai-parse-event already
+         existed; the AI box had simply never been rendered anywhere.) -->
+    <Dialog v-model:visible="showEventNameModal" :header="`New ${t('event', false, true)}`" modal :style="{ width: '95vw', maxWidth: '560px' }">
+      <div class="space-y-5 pt-1">
+
+        <!-- 1. Describe it — hidden for now (flip AI_EVENT_BOX to bring it back;
+             createWithAi() + /api/ai-parse-event are live and working). -->
+        <div v-if="AI_EVENT_BOX" class="rounded-xl border border-gray-200 overflow-hidden">
+          <div class="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-violet-50 to-blue-50 border-b border-gray-100">
+            <i class="pi pi-sparkles text-violet-500 text-sm" />
+            <span class="text-sm font-semibold text-gray-800">Describe your {{ t('event', false, true) }}</span>
+            <span class="text-xs text-gray-500">— we'll fill in the details</span>
+          </div>
+          <div class="p-4 space-y-2">
+            <Textarea
+              v-model="aiPrompt"
+              rows="3"
+              autoResize
+              class="w-full text-sm"
+              :placeholder="`e.g. Junior training every Tuesday 4–5pm at the main hall, starting next week, $5 per session`" />
+            <p v-if="aiError" class="text-xs text-red-500">{{ aiError }}</p>
+            <div class="flex justify-end">
+              <Button
+                label="Create with AI"
+                icon="pi pi-sparkles"
+                size="small"
+                :loading="aiLoading"
+                :disabled="!aiPrompt.trim()"
+                style="background:var(--brand-primary);border-color:var(--brand-primary)"
+                @click="createWithAi" />
+            </div>
+          </div>
+        </div>
+
+        <div v-if="AI_EVENT_BOX" class="flex items-center gap-3">
+          <div class="flex-1 h-px bg-gray-100" />
+          <span class="text-xs text-gray-400 uppercase tracking-wide">or start from scratch</span>
+          <div class="flex-1 h-px bg-gray-100" />
+        </div>
+
+        <!-- 2 + 3. Name it, then pick how you want to build it -->
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1.5">{{ t('event', false) }} name</label>
           <InputText
@@ -314,13 +397,79 @@
             v-model="newEventName"
             placeholder="Enter name of event"
             class="w-full"
-            autofocus
-            @keydown.enter="submitEventName"
-          />
+            @keydown.enter="startWizard" />
         </div>
-        <div class="flex justify-end gap-2">
-          <Button label="Cancel" size="small" severity="secondary" text @click="showEventNameModal = false" />
-          <Button label="Next" icon="pi pi-arrow-right" icon-pos="right" size="small" :disabled="!newEventName.trim()" @click="submitEventName" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <button type="button"
+            class="text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
+            :disabled="!newEventName.trim()"
+            @click="startWizard">
+            <div class="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center mb-2">
+              <i class="pi pi-list-check text-primary" />
+            </div>
+            <h3 class="text-sm font-semibold text-gray-900">Create by wizard</h3>
+            <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Guided, one step at a time.</p>
+          </button>
+          <button type="button"
+            class="text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
+            :disabled="!newEventName.trim()"
+            @click="startCustom">
+            <div class="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center mb-2">
+              <i class="pi pi-sliders-h text-purple-700" />
+            </div>
+            <h3 class="text-sm font-semibold text-gray-900">Custom {{ t('event', false, true) }}</h3>
+            <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Choose the type and set it up yourself.</p>
+          </button>
+          <button type="button"
+            class="text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
+            :disabled="!newEventName.trim()"
+            @click="startAdvanced">
+            <div class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center mb-2">
+              <i class="pi pi-sliders-v text-amber-700" />
+            </div>
+            <h3 class="text-sm font-semibold text-gray-900">Advanced {{ t('event', false, true) }}</h3>
+            <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Sessions, fees, forms, discounts and automation.</p>
+          </button>
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- Is the event split into parts people sign up to separately? That — not
+         how many DAYS it spans — is what decides the simple vs multi-session
+         builder. A one-day event can be split into 3 sessions; a 4-day camp is
+         one session per day. The user never sees the word "multi-session". -->
+    <Dialog v-model:visible="showSessionCountModal" header="Is this event split into sessions?" modal :style="{ width: '95vw', maxWidth: '580px' }">
+      <div class="space-y-4 pt-1">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button type="button"
+            class="text-left border-2 rounded-xl p-4 transition-colors hover:border-primary hover:bg-[#F0F4FF] flex flex-col items-start"
+            @click="chooseSingleSession">
+            <!-- Fixed-height box so both cards' icons sit on the same baseline
+                 regardless of each artwork's aspect ratio. -->
+            <div class="h-[39px] flex items-center mb-3">
+              <IconsIconEventSingle class="w-[46px] h-[39px] text-primary" />
+            </div>
+            <h3 class="text-sm font-semibold text-gray-900">No — it's one single event</h3>
+            <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">
+              People sign up to the whole thing. A game, a prizegiving, an AGM, a one-off training.
+            </p>
+          </button>
+          <button type="button"
+            class="text-left border-2 rounded-xl p-4 transition-colors hover:border-primary hover:bg-[#F0F4FF] flex flex-col items-start"
+            @click="chooseMultiSession">
+            <div class="h-[39px] flex items-center mb-3">
+              <IconsIconEventSessions class="w-[46px] h-[39px] text-primary" />
+            </div>
+            <h3 class="text-sm font-semibold text-gray-900">Yes — it's split into sessions</h3>
+            <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">
+              People can sign up to some sessions or all of them. Three sessions in one day, or one a day across a
+              four-day camp — either way.
+            </p>
+          </button>
+        </div>
+        <div class="flex justify-start pt-1">
+          <Button label="Back" icon="pi pi-arrow-left" size="small" severity="secondary" text @click="backToNewEvent" />
         </div>
       </div>
     </Dialog>
@@ -395,9 +544,6 @@
 </template>
 
 <script setup lang="ts">
-const { orgId } = useOrg()
-const { ensureTerms, t } = useTerms()
-void ensureTerms()
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import FullCalendar from '@fullcalendar/vue3'
@@ -405,6 +551,13 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
+
+// Auto-imported composables must be called BELOW the import block: Vite rewrites
+// imports in place rather than hoisting them, so a call above them resolves to
+// an undefined binding ("useOrg is not defined") at runtime.
+const { orgId } = useOrg()
+const { ensureTerms, t } = useTerms()
+void ensureTerms()
 
 const db = useDb()
 const toast = useToast()
@@ -419,10 +572,15 @@ const search = ref('')
 const showCalSettings = useCalendarSettingsOpen()
 const showEventNameModal = ref(false)
 const showEventTypeModal = ref(false)
+const showSessionCountModal = ref(false)
 const useWizard = ref(true)
 const newEventName = ref('')
 const clickedDate = ref<string | null>(null)
 const clickedEndDate = ref<string | null>(null)
+// The "Describe your event" AI box on the New event modal. Parked for now —
+// createWithAi() + /api/ai-parse-event work; flip this to surface it again.
+const AI_EVENT_BOX = false
+
 const aiPrompt = ref('')
 const aiLoading = ref(false)
 const aiError = ref('')
@@ -437,6 +595,7 @@ async function createWithAi() {
       body: { description: aiPrompt.value },
     })
     sessionStorage.setItem('ai_event_prefill', JSON.stringify(result))
+    showEventNameModal.value = false
     showEventTypeModal.value = false
     aiPrompt.value = ''
     const params = new URLSearchParams()
@@ -465,6 +624,91 @@ function submitEventName() {
   if (!newEventName.value.trim()) return
   showEventNameModal.value = false
   showEventTypeModal.value = true
+}
+
+// Both routes ask how often it runs first. The answer decides which builder they
+// land in (single vs multi-session); the user never sees those words.
+//   wizard + once     → the stepped basic wizard
+//   wizard + several  → the multi-session wizard
+//   custom + once     → the full advanced form
+//   custom + several  → the multi-session form
+const creationMode = ref<'wizard' | 'custom'>('wizard')
+
+function startWizard() {
+  if (!newEventName.value.trim()) return
+  creationMode.value = 'wizard'
+  showEventNameModal.value = false
+  showSessionCountModal.value = true
+}
+function startCustom() {
+  if (!newEventName.value.trim()) return
+  creationMode.value = 'custom'
+  showEventNameModal.value = false
+  showSessionCountModal.value = true
+}
+// Straight into the full advanced builder — it already covers sessions, so it
+// skips the "split into sessions?" question the other two routes ask.
+function startAdvanced() {
+  if (!newEventName.value.trim()) return
+  showEventNameModal.value = false
+  const params = new URLSearchParams()
+  if (clickedDate.value) params.set('date', clickedDate.value)
+  if (clickedEndDate.value) params.set('endDate', clickedEndDate.value)
+  params.set('name', newEventName.value.trim())
+  navigateTo(`/events/new-advanced?${params}`)
+}
+function backToNewEvent() {
+  showSessionCountModal.value = false
+  showEventNameModal.value = true
+}
+async function chooseSingleSession() {
+  showSessionCountModal.value = false
+  if (creationMode.value === 'wizard') {
+    useWizard.value = true
+    createBasicEvent()
+  } else {
+    await createCustomEvent()
+  }
+}
+
+// "Custom" = the full event editor, not a wizard. The editor is keyed to an
+// event id, so create the row first and land the user on it — the /events/:id
+// edit view, just with a brand-new event in it.
+const creatingCustom = ref(false)
+async function createCustomEvent() {
+  if (creatingCustom.value) return
+  creatingCustom.value = true
+  try {
+    const payload: any = {
+      org_id: orgId.value,
+      title: newEventName.value.trim(),
+      status: 'DRAFT',
+      style: 'BASIC',
+      created_via: 'custom',    // opens in the full event page, not the wizard
+    }
+    if (clickedDate.value) payload.start_at = clickedDate.value
+    if (clickedEndDate.value) payload.end_at = clickedEndDate.value
+    const { data, error } = await (db.from as any)('events').insert(payload).select('id').single()
+    if (error || !data) {
+      toast.add({ severity: 'error', summary: 'Could not create the event', detail: error?.message, life: 4000 })
+      return
+    }
+    // Custom = the same form as the wizard, but every section on one page.
+    navigateTo(`/events/new-basic?draft=${data.id}&mode=full`)
+  } finally {
+    creatingCustom.value = false
+  }
+}
+function chooseMultiSession() {
+  showSessionCountModal.value = false
+  // Split into sessions:
+  //   wizard → the guided multi-session wizard
+  //   custom → the advanced event builder
+  if (creationMode.value === 'custom') {
+    createAdvancedEvent()
+  } else {
+    createMultiSessionEvent()
+  }
 }
 
 function createBasicEvent() {
@@ -499,15 +743,144 @@ function createAdvancedEvent() {
 }
 
 // Calendar settings
+// `filters` is a BUILT list — the user picks a filter, presses Add, and gets a row
+// to fill in. No row for a dimension = no constraint on it, which is why an empty
+// list shows everything.
+type CalFilter = { id: string; key: string; value: any }
+
 const calSettings = reactive({
   colorBy: 'category',
   defaultView: 'dayGridMonth',
   weekStart: 1,
   showWeekends: true,
-  visibleCategoryIds: [] as string[],
-  showUncategorised: true,
-  visibleBookableIds: [] as string[], // empty = all venues
+  filters: [] as CalFilter[],
 })
+
+const CAL_TABS = [
+  { key: 'display', label: 'Display', icon: 'pi-sliders-h' },
+  { key: 'filter', label: 'Filter', icon: 'pi-filter' },
+  { key: 'export', label: 'Export', icon: 'pi-download' },
+]
+const calTab = ref('display')
+
+const FILTER_DEFS = [
+  { key: 'venue', label: 'Venue', icon: 'pi-map-marker', empty: () => [] as string[] },
+  { key: 'category', label: 'Calendar', icon: 'pi-tag', empty: () => [] as string[] },
+  { key: 'status', label: 'Status', icon: 'pi-flag', empty: () => [] as string[] },
+  { key: 'type', label: 'Event type', icon: 'pi-sitemap', empty: () => [] as string[] },
+  { key: 'dates', label: 'Date range', icon: 'pi-calendar', empty: () => null as any },
+]
+const STATUS_OPTIONS = [
+  { label: 'Draft', value: 'DRAFT' },
+  { label: 'Published', value: 'PUBLISHED' },
+  { label: 'Cancelled', value: 'CANCELLED' },
+  { label: 'Completed', value: 'COMPLETED' },
+]
+const STYLE_OPTIONS = [
+  { label: 'Basic', value: 'BASIC' },
+  { label: 'Advanced', value: 'ADVANCED' },
+  { label: 'Multi-session', value: 'MULTI_SESSION' },
+  { label: 'Competition', value: 'SPORTS_COMPETITION' },
+  { label: 'Holiday programme', value: 'HOLIDAY_PROGRAM' },
+  { label: 'Attendance', value: 'ATTENDANCE' },
+]
+
+const pendingFilterKey = ref<string | null>(null)
+const filterDef = (key: string) => FILTER_DEFS.find(d => d.key === key)
+// One row per dimension — a second "Venue" filter would just be an AND against
+// itself, so already-used dimensions drop out of the picker.
+const addableFilters = computed(() =>
+  FILTER_DEFS.filter(d => !calSettings.filters.some(f => f.key === d.key)),
+)
+function addFilter(key?: string) {
+  const k = key ?? pendingFilterKey.value
+  if (!k || calSettings.filters.some(f => f.key === k)) return
+  calSettings.filters.push({ id: `${k}-${calSettings.filters.length}-${Math.random().toString(36).slice(2, 7)}`, key: k, value: filterDef(k)!.empty() })
+  pendingFilterKey.value = null
+}
+function removeFilter(id: string) {
+  calSettings.filters = calSettings.filters.filter(f => f.id !== id)
+  saveCalPrefs()
+}
+function filterValue(key: string) {
+  return calSettings.filters.find(f => f.key === key)?.value
+}
+
+// ── Export ────────────────────────────────────────────────────────────────
+// What you see is what you get: the export walks the SAME list the calendar is
+// rendering, so filters and the search box carry through with no extra plumbing.
+const EXPORT_FORMATS = [
+  { label: 'Spreadsheet (CSV)', value: 'csv' },
+  { label: 'Calendar (iCal)', value: 'ics' },
+]
+const exportFormat = ref<'csv' | 'ics'>('csv')
+
+const exportRows = computed(() =>
+  (calendarEvents.value as any[])
+    .filter(i => !i.extendedProps?._isSession)
+    .map(i => i.extendedProps)
+    .sort((a, b) => new Date(a.start_at ?? 0).getTime() - new Date(b.start_at ?? 0).getTime()),
+)
+
+function venueNamesFor(e: any) {
+  const ids: string[] = []
+  if (e.bookable_id) ids.push(e.bookable_id)
+  for (const loc of e.locations ?? []) if (loc?.bookable_ids?.length) ids.push(...loc.bookable_ids)
+  return [...new Set(ids)]
+    .map(id => allBookables.value.find((b: any) => b.id === id)?.name)
+    .filter(Boolean)
+    .join(', ')
+}
+
+function download(name: string, mime: string, body: string) {
+  const url = URL.createObjectURL(new Blob([body], { type: mime }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function runExport() {
+  const rows = exportRows.value
+  if (!rows.length) return
+  const stamp = new Date().toISOString().slice(0, 10)
+
+  if (exportFormat.value === 'csv') {
+    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const lines = [
+      ['Title', 'Starts', 'Ends', 'All day', 'Status', 'Type', 'Calendar', 'Venue'].join(','),
+      ...rows.map(e => [
+        e.title, e.start_at ?? '', e.end_at ?? '', e.is_all_day ? 'Yes' : 'No',
+        e.status ?? '', e.style ?? 'BASIC',
+        categoriesById.value[e.category_id]?.name ?? '', venueNamesFor(e),
+      ].map(esc).join(',')),
+    ]
+    download(`events-${stamp}.csv`, 'text/csv;charset=utf-8', lines.join('\n'))
+    toast.add({ severity: 'success', summary: `${rows.length} exported`, life: 2500 })
+    return
+  }
+
+  // iCal — UTC basic-format timestamps, CRLF line endings (RFC 5545).
+  const ical = (d: any) => new Date(d).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+  const clean = (s: any) => String(s ?? '').replace(/([,;\\])/g, '\\$1').replace(/\n/g, '\\n')
+  const body = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//FriendlyManager//Events//EN',
+    ...rows.flatMap(e => [
+      'BEGIN:VEVENT',
+      `UID:${e.id}@friendlymanager`,
+      `DTSTAMP:${ical(new Date())}`,
+      `DTSTART:${ical(e.start_at ?? new Date())}`,
+      `DTEND:${ical(e.end_at ?? e.start_at ?? new Date())}`,
+      `SUMMARY:${clean(e.title)}`,
+      venueNamesFor(e) ? `LOCATION:${clean(venueNamesFor(e))}` : null,
+      'END:VEVENT',
+    ].filter(Boolean) as string[]),
+    'END:VCALENDAR',
+  ].join('\r\n')
+  download(`events-${stamp}.ics`, 'text/calendar;charset=utf-8', body)
+  toast.add({ severity: 'success', summary: `${rows.length} exported`, life: 2500 })
+}
 
 const colorByOptions = [
   { label: 'Calendar', value: 'category' },
@@ -518,20 +891,34 @@ const colorByOptions = [
 const namedCalendars = ref<any[]>([])
 const allCategories = ref<any[]>([])
 const allBookables = ref<any[]>([])
+
+// Venues are a hierarchy (Main Hall › Room 1, Room 2), so the filter shows them
+// as one — a flat alphabetical list hid which room belonged to which venue.
+const bookableTree = computed(() => {
+  const ids = new Set(allBookables.value.map((b: any) => b.id))
+  const byParent: Record<string, any[]> = {}
+  for (const b of allBookables.value) {
+    // A venue whose parent isn't in the list (archived/deleted parent) would be
+    // dropped by the walk below — treat it as a root so nothing vanishes.
+    const parent = b.parent_id && ids.has(b.parent_id) ? b.parent_id : '__root'
+    ;(byParent[parent] ??= []).push(b)
+  }
+  const out: any[] = []
+  const walk = (parent: string, depth: number) => {
+    for (const b of (byParent[parent] ?? []).sort((a, c) => a.name.localeCompare(c.name))) {
+      out.push({ ...b, _depth: depth, _hasChildren: !!byParent[b.id]?.length })
+      walk(b.id, depth + 1)
+    }
+  }
+  walk('__root', 0)
+  return out
+})
 const categoriesById = computed(() => Object.fromEntries(allCategories.value.map((c: any) => [c.id, c])))
 
 const activeCalendar = computed(() => {
   const calId = route.query.calendar as string | undefined
   if (!calId) return null
   return namedCalendars.value.find(c => c.id === calId) ?? null
-})
-
-// Categories shown in the sidebar filter — scoped to active calendar if one is selected
-const sidebarCategories = computed(() => {
-  if (activeCalendar.value?.categoryIds?.length) {
-    return allCategories.value.filter((c: any) => activeCalendar.value!.categoryIds.includes(c.id))
-  }
-  return allCategories.value
 })
 
 async function loadCalendars() {
@@ -545,7 +932,7 @@ async function loadCalendars() {
       .eq('org_id', orgId.value)
       .order('name'),
     (db.from as any)('bookables')
-      .select('id, name, type')
+      .select('id, name, type, parent_id')   // parent_id: sub-venues nest under their venue
       .eq('org_id', orgId.value)
       .eq('type', 'VENUE')
       .neq('status', 'ARCHIVED')
@@ -572,9 +959,8 @@ function saveCalPrefs() {
     defaultView: calSettings.defaultView,
     weekStart: calSettings.weekStart,
     showWeekends: calSettings.showWeekends,
-    showUncategorised: calSettings.showUncategorised,
-    visibleCategoryIds: [...calSettings.visibleCategoryIds],
-    visibleBookableIds: [...calSettings.visibleBookableIds],
+    // Dates round-trip through JSON as ISO strings; restore revives them.
+    filters: calSettings.filters.map(f => ({ ...f, value: f.value })),
   }
   localStorage.setItem(CAL_PREFS_KEY, JSON.stringify(all))
 }
@@ -583,51 +969,36 @@ function restoreCalPrefs(calId: string | undefined) {
   const key = calId ?? 'all'
   const all = JSON.parse(localStorage.getItem(CAL_PREFS_KEY) ?? '{}')
   const saved = all[key]
-  if (saved) {
-    calSettings.colorBy = saved.colorBy ?? 'category'
-    calSettings.defaultView = saved.defaultView ?? 'dayGridMonth'
-    calSettings.weekStart = saved.weekStart ?? 1
-    calSettings.showWeekends = saved.showWeekends ?? true
-    calSettings.showUncategorised = saved.showUncategorised ?? true
-    // Restore venue filter (drop any stale IDs that no longer exist)
-    if (saved.visibleBookableIds?.length) {
-      calSettings.visibleBookableIds = saved.visibleBookableIds.filter((id: string) =>
-        allBookables.value.some((b: any) => b.id === id),
-      )
-    } else {
-      calSettings.visibleBookableIds = []
-    }
-    if (saved.visibleCategoryIds?.length) {
-      // Drop any stale category IDs that no longer exist (e.g. after a DB reset).
-      // If none remain valid, fall through to defaults.
-      const valid = saved.visibleCategoryIds.filter((id: string) =>
-        allCategories.value.some((c: any) => c.id === id),
-      )
-      if (valid.length) {
-        calSettings.visibleCategoryIds = valid
-        return true
-      }
-    }
-  }
-  return false
+  if (!saved) return false
+
+  calSettings.colorBy = saved.colorBy ?? 'category'
+  calSettings.defaultView = saved.defaultView ?? 'dayGridMonth'
+  calSettings.weekStart = saved.weekStart ?? 1
+  calSettings.showWeekends = saved.showWeekends ?? true
+
+  // Drop stale IDs (a venue/calendar deleted since the pref was saved) and revive
+  // the date range, which JSON flattened to ISO strings.
+  calSettings.filters = (saved.filters ?? [])
+    .filter((f: CalFilter) => filterDef(f.key))
+    .map((f: CalFilter) => {
+      if (f.key === 'venue') return { ...f, value: (f.value ?? []).filter((id: string) => allBookables.value.some((b: any) => b.id === id)) }
+      if (f.key === 'category') return { ...f, value: (f.value ?? []).filter((id: string) => allCategories.value.some((c: any) => c.id === id)) }
+      if (f.key === 'dates') return { ...f, value: Array.isArray(f.value) ? f.value.map((d: any) => (d ? new Date(d) : null)) : null }
+      return f
+    })
+  return true
 }
 
 function applyActiveCalendarFilter() {
   const calId = route.query.calendar as string | undefined
-  // Restore saved prefs first (covers view settings + category visibility)
   const hadSaved = restoreCalPrefs(calId)
-  if (!hadSaved) {
-    // First visit — default to the calendar's assigned categories
-    if (calId) {
-      const cal = namedCalendars.value.find(c => c.id === calId)
-      if (cal?.categoryIds?.length) {
-        calSettings.visibleCategoryIds = [...cal.categoryIds]
-      } else {
-        calSettings.visibleCategoryIds = allCategories.value.map((c: any) => c.id)
-      }
-    } else {
-      calSettings.visibleCategoryIds = allCategories.value.map((c: any) => c.id)
-    }
+  if (hadSaved) return
+
+  // First visit to a NAMED calendar — start filtered to the calendars it covers.
+  calSettings.filters = []
+  const cal = calId ? namedCalendars.value.find(c => c.id === calId) : null
+  if (cal?.categoryIds?.length) {
+    calSettings.filters = [{ id: 'category-seed', key: 'category', value: [...cal.categoryIds] }]
   }
 }
 
@@ -639,8 +1010,7 @@ function resetCalSettings() {
   calSettings.defaultView = 'dayGridMonth'
   calSettings.weekStart = 1
   calSettings.showWeekends = true
-  calSettings.visibleCategoryIds = allCategories.value.map(c => c.id)
-  calSettings.showUncategorised = true
+  calSettings.filters = []
   // Clear saved prefs for this calendar so defaults are used next time
   const calId = (route.query.calendar as string) ?? 'all'
   const all = JSON.parse(localStorage.getItem(CAL_PREFS_KEY) ?? '{}')
@@ -678,6 +1048,7 @@ function openCalSettings() {
     newCalendarCategoryIds.value = []
     editingCalendarId.value = null
   }
+  calTab.value = 'display'
   showCalSettings.value = true
 }
 
@@ -838,7 +1209,13 @@ function evWhen(iso: any) { return new Date(iso).toLocaleDateString(undefined, {
 
 // Map our events into the shape BookingsCalendar expects
 const bookingsCalEvents = computed(() => {
-  return (calendarEvents.value as any[]).map((e: any) => ({
+  // Search actually FILTERS the calendar. It used to only tag non-matches with a
+  // `fc-event-dimmed` class — styling for FullCalendar, which this page no longer
+  // renders — so typing in the box did nothing at all.
+  const q = search.value.trim().toLowerCase()
+  return (calendarEvents.value as any[])
+    .filter((e: any) => !q || (e.title ?? '').toLowerCase().includes(q))
+    .map((e: any) => ({
     id: e.id,
     start_at: e.start,
     end_at: e.end,
@@ -853,12 +1230,35 @@ const bookingsCalEvents = computed(() => {
   }))
 })
 
+// Reopen an event where it was built. ONLY an unfinished wizard draft goes back
+// to the wizard — a live event, or one made in the custom/advanced/multi builders,
+// opens on the full event page. (created_via, migration 257: `style` couldn't tell
+// a wizard draft from a Custom one — both are BASIC.)
+function openEvent(evt: { id: string; status?: string; created_via?: string | null; style?: string }) {
+  const unfinished = evt.status === 'DRAFT'
+
+  // An unfinished wizard draft resumes in the wizard, on the step it was left on.
+  if (unfinished && evt.created_via === 'wizard') {
+    navigateTo(`/events/new-basic?draft=${evt.id}`)
+    return
+  }
+  // Everything single-session — a finished wizard event, or a Custom one —
+  // opens the SAME form as one long page.
+  const singleSession = (evt.style ?? 'BASIC') === 'BASIC'
+  if (singleSession && evt.created_via !== 'advanced' && evt.created_via !== 'multi') {
+    navigateTo(`/events/new-basic?draft=${evt.id}&mode=full`)
+    return
+  }
+  // Advanced / multi-session keep their own editor.
+  navigateTo(`/events/${evt.id}`)
+}
+
 function onCalendarEventClick(item: any) {
   const ext = item.extendedProps
   if (ext?._isSession) {
     navigateTo(`/events/${ext._eventId}?tab=sessions`)
   } else if (ext?.id) {
-    navigateTo(`/events/${ext.id}`)
+    openEvent(ext)
   }
 }
 
@@ -1039,29 +1439,49 @@ function eventColor(e: any) {
   return EVENT_COLORS[e.status] ?? '#1E2157'
 }
 
-const calendarEvents = computed(() => {
-  const categoryFilter = (categoryId: string | null) => {
-    // Empty selection = show everything (same as the venue filter).
-    if (!calSettings.visibleCategoryIds.length) return true
-    if (categoryId) return calSettings.visibleCategoryIds.includes(categoryId)
-    return calSettings.showUncategorised
-  }
-
-  const venueFilter = (e: any) => {
-    if (!calSettings.visibleBookableIds.length) return true
-    const ids: string[] = []
-    if (e.bookable_id) ids.push(e.bookable_id)
-    for (const loc of e.locations ?? []) {
-      if (loc?.bookable_ids?.length) ids.push(...loc.bookable_ids)
+// Every built filter must pass (AND). A filter with nothing chosen in it is
+// inert — it's a row the user is still filling in, not "show nothing".
+function passesFilters(e: any) {
+  for (const f of calSettings.filters) {
+    if (f.key === 'category') {
+      if (!f.value?.length) continue
+      if (!e.category_id || !f.value.includes(e.category_id)) return false
     }
-    return ids.some((id: string) => calSettings.visibleBookableIds.includes(id))
+    if (f.key === 'venue') {
+      if (!f.value?.length) continue
+      const ids: string[] = []
+      if (e.bookable_id) ids.push(e.bookable_id)
+      for (const loc of e.locations ?? []) {
+        if (loc?.bookable_ids?.length) ids.push(...loc.bookable_ids)
+      }
+      if (!ids.some((id: string) => f.value.includes(id))) return false
+    }
+    if (f.key === 'status') {
+      if (!f.value?.length) continue
+      if (!f.value.includes(e.status)) return false
+    }
+    if (f.key === 'type') {
+      if (!f.value?.length) continue
+      if (!f.value.includes(e.style ?? 'BASIC')) return false
+    }
+    if (f.key === 'dates') {
+      const [from, to] = f.value ?? []
+      if (!from || !to) continue
+      if (!e.start_at) return false
+      const start = new Date(e.start_at).getTime()
+      const lo = new Date(from); lo.setHours(0, 0, 0, 0)
+      const hi = new Date(to); hi.setHours(23, 59, 59, 999)
+      if (start < lo.getTime() || start > hi.getTime()) return false
+    }
   }
+  return true
+}
 
+const calendarEvents = computed(() => {
   const q = search.value.trim().toLowerCase()
 
   const eventItems = events.value
-    .filter(e => categoryFilter(e.category_id))
-    .filter(venueFilter)
+    .filter(passesFilters)
     .map(e => {
       const matches = !q || e.title.toLowerCase().includes(q)
       return {
@@ -1078,8 +1498,10 @@ const calendarEvents = computed(() => {
       }
     })
 
+  // A session inherits its parent event's filterability — hiding an event but
+  // leaving its sessions on the calendar would be nonsense.
   const sessionItems = separateSessions.value
-    .filter(s => categoryFilter(s.event?.category_id ?? null))
+    .filter(s => !s.event || passesFilters({ ...s.event, start_at: s.start_at }))
     .map(s => {
       const categoryColor = categoriesById.value[s.event?.category_id]?.color ?? '#1E2157'
       const category = categoriesById.value[s.event?.category_id] ?? null
@@ -1214,7 +1636,7 @@ async function load() {
 function openMenu(event: Event, row: any) {
   menuEvent = row
   menuItems.value = [
-    { label: 'View', icon: 'pi pi-eye', command: () => navigateTo(`/events/${menuEvent.id}`) },
+    { label: menuEvent.status === 'DRAFT' ? 'Continue setup' : 'View', icon: menuEvent.status === 'DRAFT' ? 'pi pi-pencil' : 'pi pi-eye', command: () => openEvent(menuEvent) },
     ...(row.status === 'DRAFT' ? [{ label: 'Publish', icon: 'pi pi-send', command: () => publishEvent(menuEvent.id) }] : []),
     { separator: true },
     { label: 'Archive', icon: 'pi pi-trash', class: 'text-red-500', command: () => archiveEvent(menuEvent.id) },

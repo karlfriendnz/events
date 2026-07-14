@@ -21,7 +21,7 @@ const { orgId } = useOrg()
 const joinTable = props.entityType === 'group' ? 'member_group_disciplines' : 'event_disciplines'
 const fk = props.entityType === 'group' ? 'group_id' : 'event_id'
 
-interface Disc { id: string; name: string; sport: string | null; nso: string }
+interface Disc { id: string; name: string; sport: string | null; parent_id: string | null; sort_order: number; nso: string }
 const orgSports = ref<{ sport: string; nso_org_id: string | null }[]>([])
 const allDisciplines = ref<Disc[]>([])          // every discipline reachable across the club's connected sports
 const selectedSport = ref<string | null>(null)
@@ -55,8 +55,8 @@ async function load() {
   const govIds = (ancRes?.data ?? []).map((a: any) => a.id)
   if (govIds.length) {
     const { data: discs } = await (db.from as any)('disciplines')
-      .select('id, name, sport, organisations(name)').in('org_id', govIds).order('sport').order('sort_order').order('name')
-    allDisciplines.value = (discs ?? []).map((d: any) => ({ id: d.id, name: d.name, sport: d.sport, nso: d.organisations?.name ?? '' }))
+      .select('id, name, sport, parent_id, sort_order, organisations(name)').in('org_id', govIds).order('sport').order('sort_order').order('name')
+    allDisciplines.value = (discs ?? []).map((d: any) => ({ id: d.id, name: d.name, sport: d.sport, parent_id: d.parent_id ?? null, sort_order: d.sort_order ?? 0, nso: d.organisations?.name ?? '' }))
   } else {
     allDisciplines.value = []
   }
@@ -78,21 +78,55 @@ async function save() {
   saving.value = false
 }
 
-// One discipline available = no choice to make: carry it forward automatically
-// rather than asking. (Zero available still shows the picker, empty.)
-watch([sportDisciplines, selected], () => {
-  if (loading.value || saving.value) return
-  if (sportDisciplines.value.length === 1 && selected.value.length === 0) {
-    selected.value = [sportDisciplines.value[0].id]
+// One discipline available = no choice to make: carry it forward automatically.
+// Runs ONCE — otherwise clearing the selection instantly re-added it and the user
+// could never change their mind.
+const autoPicked = ref(false)
+watch(sportDisciplines, discs => {
+  if (loading.value || saving.value || autoPicked.value) return
+  if (discs.length === 1 && selected.value.length === 0) {
+    autoPicked.value = true
+    selected.value = [discs[0].id]
     save()
   }
-})
+}, { immediate: true })
 
 // Switching sport drops any disciplines from the previous sport (an event/group
 // is one sport) and re-seeds from existing links for the new sport.
 function onSportChange() {
   const keep = new Set(sportDisciplines.value.map(d => d.id))
   selected.value = selected.value.filter(id => keep.has(id))
+  save()
+}
+
+// Sport heading → its disciplines, depth-ordered so a child sits under its parent.
+const disciplineGroups = computed(() => {
+  if (!selectedSport.value) return []
+  const discs = sportDisciplines.value
+  const ids = new Set(discs.map(d => d.id))
+  const byParent: Record<string, Disc[]> = {}
+  for (const d of discs) {
+    // A discipline whose parent isn't in this sport is treated as a root, so it
+    // can never silently vanish from the list.
+    const parent = d.parent_id && ids.has(d.parent_id) ? d.parent_id : '__root'
+    ;(byParent[parent] ??= []).push(d)
+  }
+  const items: any[] = []
+  const walk = (parent: string, depth: number) => {
+    for (const d of (byParent[parent] ?? []).sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name))) {
+      items.push({ ...d, _depth: depth })
+      walk(d.id, depth + 1)
+    }
+  }
+  walk('__root', 0)
+  return items.length ? [{ label: selectedSport.value, items }] : []
+})
+
+// Changed your mind — drop every linked discipline (and don't let the
+// one-discipline auto-pick immediately put it back).
+function clearDisciplines() {
+  autoPicked.value = true
+  selected.value = []
   save()
 }
 
@@ -107,18 +141,30 @@ watch(() => props.entityId, (v) => { if (v) load() }, { immediate: true })
         placeholder="Choose a sport" class="w-full" @change="onSportChange" />
     </div>
 
-    <!-- Discipline picker — only when the sport is connected to a governing body -->
+    <!-- Discipline picker — one hierarchy: Sport heading, disciplines nested
+         beneath it (Seniors › Premiers › B Grade). Chips are removable and the
+         whole thing is clearable, so a choice can always be undone. -->
     <template v-if="selectedSport && isConnected">
-      <MultiSelect v-model="selected" :options="sportDisciplines" option-label="name" option-value="id" filter
-        :placeholder="sportDisciplines.length ? 'Link to disciplines' : 'No disciplines defined yet'"
-        :disabled="!sportDisciplines.length" class="w-full" :max-selected-labels="4" @hide="save">
-        <template #option="{ option }">
-          <div class="flex items-center gap-2">
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-surface-100 text-surface-600">{{ option.nso }}</span>
-            <span>{{ option.name }}</span>
-          </div>
-        </template>
-      </MultiSelect>
+      <div class="flex items-center gap-2">
+        <MultiSelect v-model="selected" :options="disciplineGroups"
+          option-label="name" option-value="id"
+          option-group-label="label" option-group-children="items"
+          filter display="chip"
+          :placeholder="sportDisciplines.length ? 'Link to disciplines' : 'No disciplines defined yet'"
+          :disabled="!sportDisciplines.length" class="flex-1 min-w-0" @hide="save">
+          <template #optiongroup="{ option }">
+            <span class="text-xs font-bold uppercase tracking-wide text-gray-500">{{ option.label }}</span>
+          </template>
+          <template #option="{ option }">
+            <div class="flex items-center gap-2" :style="{ paddingLeft: `${option._depth * 16}px` }">
+              <i v-if="option._depth" class="pi pi-angle-right text-[10px] text-gray-300" />
+              <span :class="option._depth ? 'text-gray-700' : 'font-medium text-gray-800'">{{ option.name }}</span>
+            </div>
+          </template>
+        </MultiSelect>
+        <Button v-if="selected.length" icon="pi pi-times" size="small" severity="secondary" text
+          v-tooltip.top="'Clear disciplines'" @click="clearDisciplines" />
+      </div>
       <p class="text-xs text-surface-400 mt-1">
         Maps this {{ entityType }} to <span class="font-medium">{{ selectedSport }}</span> disciplines so it rolls up for cross-club reporting.
         <span v-if="saving" class="text-primary">· saving…</span>

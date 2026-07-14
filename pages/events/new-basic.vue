@@ -1,46 +1,60 @@
 <template>
-  <!-- Rendered as a modal over the app: the wizard is a focused task, so the
-       left rail + page chrome are covered by the scrim rather than framing it.
-       `app-modal-overlay` is the hook <ReviewWidget> uses to know a modal is
-       up (so its floating comment trigger appears). -->
-  <!-- Teleported to <body>: rendered in place it sits inside <main>, which is
-       below the nav rail (z-60), so the rail stayed clickable through the
-       scrim. At body level it covers the whole app, like a real modal. -->
-  <Teleport to="body">
-  <div class="app-modal-overlay fixed inset-0 flex items-stretch sm:items-center justify-center sm:p-6 bg-slate-900/45 backdrop-blur-[2px]"
-    style="z-index: 1000">
-  <div class="flex flex-col bg-white w-full h-full sm:h-[92vh] sm:max-w-[1200px] sm:rounded-xl shadow-2xl overflow-hidden">
+  <!-- STEPPED = a modal over the app. The wizard is a focused task, so the left
+       rail and page chrome are covered by the scrim rather than framing it.
+       Teleported to <body> because rendered in place it sits inside <main>,
+       which is below the nav rail (z-60) — the rail stayed clickable through
+       the scrim. `app-modal-overlay` is the hook <ReviewWidget> uses to know a
+       modal is up (so its floating comment trigger appears).
+
+       FULL = an ordinary page inside the app shell. No teleport, no scrim: it's
+       somewhere you sit and edit, not a task you're pushed through. -->
+  <!-- Host for full mode. Teleport's `to` is switched rather than `disabled`:
+       a disabled Teleport at a page root under Suspense crashes Vue's
+       moveTeleport ("insertBefore: parameter 1 is not of type 'Node'"). -->
+  <div id="event-form-host" />
+
+  <Teleport :to="stepped ? 'body' : '#event-form-host'">
+  <div :class="stepped
+      ? 'app-modal-overlay fixed inset-0 flex items-stretch sm:items-center justify-center sm:p-6 bg-slate-900/45 backdrop-blur-[2px]'
+      : ''"
+    :style="stepped ? 'z-index: 1000' : ''">
+  <div :class="stepped
+      ? 'flex flex-col bg-white w-full h-full sm:h-[92vh] sm:max-w-[1200px] sm:rounded-xl shadow-2xl overflow-hidden'
+      : 'flex flex-col bg-white h-[calc(100vh-3.5rem)]'">
 
     <!-- ── Stepped header (step nav + progress bar) — same brand bar as the
          desktop header and every dialog. ── -->
-    <div v-if="isMobile" class="shrink-0">
+    <div v-if="stepped" class="shrink-0">
       <div class="modal-header-bar flex items-center gap-3 !py-2.5">
-        <button
+        <button v-if="stepped"
           class="w-9 h-9 flex items-center justify-center rounded-lg text-white/75 hover:text-white hover:bg-white/15 transition-colors"
           @click="mobileBack">
           <i class="pi pi-chevron-left text-sm" />
         </button>
-        <div class="flex-1 text-center">
+        <div v-if="stepped" class="flex-1 text-center">
           <p class="text-[11px] text-white/60 font-medium uppercase tracking-wide">Step {{ mobileStep + 1 }} of {{ mobileSteps.length }}</p>
-          <p class="modal-header-title leading-tight">{{ mobileSteps[mobileStep].label }}</p>
+          <p class="modal-header-title leading-tight">{{ mobileSteps[mobileStep]?.label }}</p>
         </div>
+        <!-- Full (one-page) mode: no steps, so save lives up here. -->
+        <template v-else>
+          <span class="modal-header-title flex-1">{{ form.title.trim() || 'Event' }}</span>
+          <Button label="Save Event" icon="pi pi-check" size="small" :loading="saving"
+            :disabled="!step1Complete"
+            v-tooltip.bottom="step1Complete ? undefined : (dateInvalidReason || 'Give the event a name.')"
+            style="background:#fff; border-color:#fff; color:var(--brand-primary)"
+            @click="saveEvent" />
+        </template>
+        <!-- Bin the event outright — closing only leaves the draft behind. -->
+        <button
+          class="w-9 h-9 flex items-center justify-center rounded-lg text-white/75 hover:text-white hover:bg-red-500/60 transition-colors"
+          v-tooltip.bottom="'Delete this event'"
+          aria-label="Delete event"
+          @click="confirmDeleteOpen = true">
+          <i class="pi pi-trash text-sm" />
+        </button>
         <button
           class="w-9 h-9 flex items-center justify-center rounded-lg text-white/75 hover:text-white hover:bg-white/15 transition-colors"
-          @click="navigateTo('/events')">
-          <i class="pi pi-times text-sm" />
-        </button>
-      </div>
-    </div>
-
-    <!-- ── Desktop header (solid brand bar — matches the global dialog chrome) ── -->
-    <div v-else class="modal-header-bar flex items-center justify-between shrink-0">
-      <span class="modal-header-title">Create new event</span>
-      <div class="flex items-center gap-2">
-        <!-- White on the solid header — a brand-coloured button would vanish into it. -->
-        <Button label="Save Event" icon="pi pi-check" size="small" :loading="saving" :disabled="!form.title.trim()" @click="saveEvent"
-          style="background:#fff; border-color:#fff; color:var(--brand-primary)" />
-        <button
-          class="w-7 h-7 rounded-md flex items-center justify-center text-white/75 hover:text-white hover:bg-white/15 transition-colors"
+          v-tooltip.bottom="'Close — your progress is kept'"
           aria-label="Close"
           @click="navigateTo('/events')">
           <i class="pi pi-times text-sm" />
@@ -48,12 +62,44 @@
       </div>
     </div>
 
+    <Dialog v-model:visible="confirmDeleteOpen" header="Delete this event?" modal
+      :style="{ width: '95vw', maxWidth: '420px' }">
+      <p class="text-sm text-gray-600">
+        <span class="font-medium text-gray-800">{{ form.title.trim() || 'This event' }}</span> will be deleted, along
+        with anything set up on it so far. This can't be undone.
+      </p>
+      <template #footer>
+        <Button label="Keep it" size="small" severity="secondary" text @click="confirmDeleteOpen = false" />
+        <Button label="Delete event" icon="pi pi-trash" size="small" severity="danger"
+          :loading="deleting" @click="deleteEvent" />
+      </template>
+    </Dialog>
+
+    <!-- Full mode: a plain action row, no brand bar. -->
+    <div v-if="!stepped" class="shrink-0 border-b border-gray-200 bg-white px-6 py-3 flex items-center justify-end gap-2">
+      <button
+        class="w-8 h-8 flex items-center justify-center rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+        v-tooltip.bottom="'Delete this event'"
+        @click="confirmDeleteOpen = true">
+        <i class="pi pi-trash text-sm" />
+      </button>
+      <Button label="Save Event" icon="pi pi-check" size="small" :loading="saving"
+        :disabled="!step1Complete"
+        v-tooltip.bottom="step1Complete ? undefined : (dateInvalidReason || 'Give the event a name.')"
+        style="background:var(--brand-primary); border-color:var(--brand-primary)"
+        @click="saveEvent" />
+    </div>
+
+    <!-- ── Body: form on the left, live summary rail on the right ── -->
+    <div class="flex-1 min-h-0 flex">
+
     <!-- ── Scrollable content ── -->
-    <div class="flex-1 overflow-y-auto bg-[#F5F8FA]">
-      <div :class="isMobile ? 'h-full' : 'max-w-[1140px] mx-auto px-6 py-6 space-y-8'">
+    <div class="flex-1 min-w-0 overflow-y-auto bg-[#F5F8FA]">
+      <div class="mx-auto px-4 sm:px-6 py-5 sm:py-6"
+        :class="stepped ? 'max-w-[1140px]' : 'max-w-[900px] space-y-8'">
 
         <!-- ─ Event Info ─ -->
-        <div :class="isMobile ? (mobileStep === 0 ? 'px-4 py-5 space-y-4' : 'hidden') : ''">
+        <div :class="isStep('info') ? 'px-1' : 'hidden'">
           <div class="mb-3">
             <h2 class="text-sm font-semibold text-gray-800">Event info</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Event info') }}</p>
@@ -89,28 +135,15 @@
                 label-class="text-gray-800 font-semibold"
                 row-padding="px-0 py-2"
               />
-              <!-- Sign-up window lives in the same box: it's a date range about
-                   the same event. Only asked for once sign-up is required. -->
-              <div class="flex items-center gap-4 py-2">
-                <span class="text-sm text-gray-500 shrink-0 w-[120px]">Sign up</span>
-                <div class="flex items-center gap-3">
-                  <ToggleSwitch v-model="signupRequired" @update:model-value="onSignupRequired" />
-                  <span class="text-sm text-gray-700">Attendees need to sign up to this event.</span>
-                </div>
+              <!-- Why you can't proceed — a disabled button with no reason is a
+                   dead end. Only nags once the user has engaged with the form. -->
+              <div v-if="dateInvalidReason && (form.title.trim() || form.start_date)"
+                class="py-1 sm:pl-[136px]">
+                <span class="inline-flex items-center gap-2 rounded-md bg-red-50 border border-red-100 px-2.5 py-1.5">
+                  <i class="pi pi-exclamation-circle text-red-500 text-xs" />
+                  <span class="text-xs font-medium text-red-600">{{ dateInvalidReason }}</span>
+                </span>
               </div>
-              <DateTimeEditor
-                v-if="signupRequired"
-                v-model:startDate="regOpenDate"
-                v-model:startTime="regOpenTime"
-                v-model:endDate="regCloseDate"
-                v-model:endTime="regCloseTime"
-                :show-all-day="false"
-                :show-repeat="false"
-                label=""
-                start-label="Opens"
-                end-label="Closes"
-                label-width="w-[120px]"
-                row-padding="px-0 py-2" />
             </div>
             <!-- Description -->
             <div class="px-5 py-4 border-b border-gray-100">
@@ -193,7 +226,7 @@
         </div>
 
         <!-- ─ Location ─ -->
-        <div :class="isMobile ? (mobileStep === 1 ? 'px-4 py-5' : 'hidden') : ''">
+        <div :class="isStep('location') ? 'px-1' : 'hidden'">
           <div class="mb-3">
             <h2 class="text-sm font-semibold text-gray-800">Location</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Location') }}</p>
@@ -213,27 +246,231 @@
           </div>
         </div>
 
+        <!-- ─ Fees ─ -->
+        <div :class="isStep('fees') ? 'px-1' : 'hidden'">
+          <div class="mb-3">
+            <h2 class="text-sm font-semibold text-gray-800">Fees</h2>
+            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Fees') }}</p>
+          </div>
+          <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-gray-700">Are attendees charged?</p>
+                <p class="text-xs text-gray-500 mt-0.5">Enable to add fee components to this event</p>
+              </div>
+              <div class="flex gap-0">
+                <button class="px-4 py-2 text-sm font-medium border rounded-l-lg transition-colors" :class="!form.is_paid ? 'bg-primary border-primary text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'" @click="setFees(false)">Free</button>
+                <button class="px-4 py-2 text-sm font-medium border rounded-r-lg transition-colors" :class="form.is_paid ? 'bg-primary border-primary text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'" @click="setFees(true)">Charged</button>
+              </div>
+            </div>
+            <!-- The app's one fee table (drag-to-reorder, Xero account picker,
+                 token insert, mobile card layout). This step used to hand-roll
+                 its own copy, which drifted from the other nine usages. -->
+            <FeeLineItemsTable v-if="form.is_paid" v-model="form.fees" />
+          </div>
+
+          <!-- Discounts — the SAME rule shape the booking discount engine
+               evaluates (useBookingDiscounts), built with the SAME criteria
+               editor as <BookingDiscountsList>. Not a second discount model. -->
+          <div v-if="form.is_paid" class="bg-white rounded-xl border border-gray-200 p-5 space-y-4 mt-4">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="text-sm font-medium text-gray-700">Discounts</p>
+                <p class="text-xs text-gray-500 mt-0.5">Early bird, members only, siblings, promo codes — set who qualifies.</p>
+              </div>
+              <Button label="Add discount" icon="pi pi-plus" size="small" severity="secondary" outlined @click="addDiscount" />
+            </div>
+
+            <div v-if="!form.discounts.length" class="text-center py-4 text-sm text-gray-400">
+              No discounts. Everyone pays the full {{ money(totalFees) }}.
+            </div>
+
+            <div v-else class="space-y-4">
+              <div v-for="(d, idx) in form.discounts" :key="d.id" class="border border-gray-200 rounded-xl overflow-hidden">
+                <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-gray-50">
+                  <InputText v-model="d.name" placeholder="Discount name — e.g. Early bird" size="small" class="flex-1" />
+                  <Button icon="pi pi-trash" text severity="danger" size="small" @click="form.discounts.splice(idx, 1)" />
+                </div>
+
+                <div class="px-4 py-4 space-y-4">
+                  <!-- Amount first (it's the thing you're setting), then the
+                       unit it's in. The amount only needs room for a number. -->
+                  <div class="grid grid-cols-1 sm:grid-cols-[110px_140px_1fr] gap-3">
+                    <div class="min-w-0">
+                      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Amount</label>
+                      <!-- w-full on the INPUT too: PrimeVue's input keeps its own
+                           default width and overflows a narrow cell, covering the
+                           control next to it. -->
+                      <!-- Numbers only, no % suffix — the "Take off" toggle beside
+                           it already says whether it's a % or an amount. Decimals
+                           allowed for the odd $12.50; a % is capped at 100. -->
+                      <InputNumber v-model="d.modifier_value" :min="0"
+                        :max="d.modifier_type === 'PERCENT' ? 100 : undefined"
+                        :minFractionDigits="0" :maxFractionDigits="2"
+                        :useGrouping="false"
+                        size="small" class="w-full"
+                        :pt="{ root: { class: 'w-full' }, pcInputText: { root: { class: 'w-full', inputmode: 'decimal' } } }"
+                        @blur="clampDiscount(d)" />
+                    </div>
+                    <div class="min-w-0">
+                      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Take off</label>
+                      <div class="flex rounded-md border border-gray-200 overflow-hidden text-sm font-semibold bg-white">
+                        <button type="button" class="flex-1 py-2 border-r border-gray-200 transition-all"
+                          :class="d.modifier_type === 'PERCENT' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
+                          @click="d.modifier_type = 'PERCENT'; clampDiscount(d)">%</button>
+                        <button type="button" class="flex-1 py-2 transition-all"
+                          :class="d.modifier_type === 'FLAT' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
+                          @click="d.modifier_type = 'FLAT'">{{ currencySymbol }}</button>
+                      </div>
+                    </div>
+                    <div class="min-w-0">
+                      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Promo code <span class="text-gray-400 font-normal normal-case">(optional)</span></label>
+                      <InputText v-model="d.form_text" placeholder="e.g. EARLY20" size="small" class="w-full" />
+                    </div>
+                  </div>
+
+                  <!-- The shared criteria builder — same vocabulary the engine evaluates. -->
+                  <DiscountCriteriaEditor v-model="d.conditions" :contexts="['Person']" :member-groups="discountMemberGroups" />
+
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                    <div>
+                      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Valid from</label>
+                      <DatePicker v-model="d.valid_from" show-icon date-format="dd/mm/yy" placeholder="Always" show-button-bar size="small" class="w-full" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Valid until</label>
+                      <DatePicker v-model="d.valid_until" show-icon date-format="dd/mm/yy" placeholder="No end" show-button-bar size="small" class="w-full" />
+                    </div>
+                    <div>
+                      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Max uses</label>
+                      <InputNumber v-model="d.max_uses" :min="1" placeholder="Unlimited" size="small" class="w-full"
+                        :pt="{ root: { class: 'w-full' }, pcInputText: { root: { class: 'w-full' } } }" />
+                    </div>
+                  </div>
+
+                  <p class="text-xs text-gray-500">{{ discountSummary(d) }}</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
         <!-- ─ Invitees ─ -->
-        <div :class="isMobile ? (mobileStep === 2 ? 'px-4 py-5' : 'hidden') : ''">
+        <div :class="isStep('invitees') ? 'px-1' : 'hidden'">
           <div class="mb-3">
             <h2 class="text-sm font-semibold text-gray-800">Invitees</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Invitees') }}</p>
           </div>
-          <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
-            <i class="pi pi-spin pi-spinner text-xl text-gray-300 block mb-2" />
-            Setting up invitees…
+          <!-- Who's this for? Not mutually exclusive — a club event can also be
+               open to the public. Each choice switches on what it needs:
+               club → the invitee list; public → a public registration form. -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <button type="button"
+              class="text-left border-2 rounded-xl p-4 flex flex-col items-start transition-colors"
+              :class="inviteClub ? 'border-primary bg-[#F0F4FF]' : 'border-gray-200 bg-white hover:border-gray-300'"
+              @click="inviteClub = !inviteClub">
+              <div class="flex items-center justify-between w-full mb-2">
+                <div class="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <i class="pi pi-users text-primary" />
+                </div>
+                <i v-if="inviteClub" class="pi pi-check-circle text-primary" />
+              </div>
+              <h3 class="text-sm font-semibold text-gray-900">Invite people from my club</h3>
+              <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                Pick classes or individual people. They'll get an invitation and show on the attendee list.
+              </p>
+            </button>
+
+            <button type="button"
+              class="text-left border-2 rounded-xl p-4 flex flex-col items-start transition-colors"
+              :class="invitePublic ? 'border-primary bg-[#F0F4FF]' : 'border-gray-200 bg-white hover:border-gray-300'"
+              @click="setInvitePublic(!invitePublic)">
+              <div class="flex items-center justify-between w-full mb-2">
+                <div class="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center">
+                  <i class="pi pi-globe text-emerald-700" />
+                </div>
+                <i v-if="invitePublic" class="pi pi-check-circle text-primary" />
+              </div>
+              <h3 class="text-sm font-semibold text-gray-900">Open it up to the public</h3>
+              <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                Anyone with the link can sign up themselves — no club membership needed.
+              </p>
+            </button>
           </div>
-          <EventInviteeManager v-else :event-id="draftEventId" />
+
+          <!-- Sign-up: it's about HOW people register, so it sits with the
+               audience rather than with the event's dates. -->
+          <div class="bg-white rounded-xl border border-gray-200 p-5 mb-4">
+            <div class="flex items-center gap-3">
+              <ToggleSwitch v-model="signupRequired" @update:model-value="onSignupRequired" />
+              <div>
+                <p class="text-sm font-medium text-gray-800">Attendees need to sign up to this event.</p>
+                <p class="text-xs text-gray-500 mt-0.5">Set a window for when sign-ups open and close, or leave it blank to allow them any time.</p>
+              </div>
+            </div>
+            <DateTimeEditor
+              v-if="signupRequired"
+              class="mt-3 pt-3 border-t border-gray-100"
+              v-model:startDate="regOpenDate"
+              v-model:startTime="regOpenTime"
+              v-model:endDate="regCloseDate"
+              v-model:endTime="regCloseTime"
+              :show-all-day="false"
+              :show-repeat="false"
+              label="Sign up"
+              start-label="Opens"
+              end-label="Closes"
+              label-width="w-[120px]"
+              row-padding="px-0 py-2" />
+          </div>
+
+          <!-- Club invitees -->
+          <template v-if="inviteClub">
+            <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
+              <i class="pi pi-spin pi-spinner text-xl text-gray-300 block mb-2" />
+              Setting up invitees…
+            </div>
+            <EventInviteeManager v-else :event-id="draftEventId" />
+          </template>
+
+          <!-- Public -->
+          <div v-if="invitePublic" class="bg-white rounded-xl border border-gray-200 p-5 mt-3">
+            <div class="flex items-start gap-3">
+              <i class="pi pi-globe text-emerald-600 mt-0.5" />
+              <div>
+                <p class="text-sm font-medium text-gray-800">A public registration form will be created</p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  People sign up themselves through it — no login needed. You can add your own questions to the form on
+                  the Settings step, and you'll get a shareable link once the event is saved.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <p v-if="!inviteClub && !invitePublic" class="text-center text-sm text-gray-400 py-6">
+            Choose at least one — how will people know about this event?
+          </p>
         </div>
 
         <!-- ─ Visibility ─ -->
-        <div :class="isMobile ? (mobileStep === 3 ? 'px-4 py-5' : 'hidden') : ''">
+        <div :class="isStep('visibility') ? 'px-1' : 'hidden'">
           <div class="mb-3">
             <h2 class="text-sm font-semibold text-gray-800">Visibility</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Visibility') }}</p>
           </div>
           <div class="bg-white rounded-xl border border-gray-200 p-5">
-            <div :class="isMobile ? 'space-y-3' : 'grid grid-cols-2 gap-4'">
+            <!-- Honesty notice: these choices are saved but not yet enforced. -->
+            <div class="flex items-start gap-2 mb-4 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
+              <i class="pi pi-info-circle text-amber-500 text-xs mt-0.5" />
+              <p class="text-xs text-amber-800">
+                These choices are saved with the event, but aren't enforced yet — the public events page is still
+                being built. For now, anyone with the registration link can sign up.
+              </p>
+            </div>
+            <!-- Two columns in the stepped wizard too — only a phone-width screen
+                 needs them stacked. -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div v-for="vis in visibilityOptions" :key="vis.key" class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
                 <div>
                   <p class="text-sm font-medium text-gray-700">{{ vis.label }}</p>
@@ -242,7 +479,7 @@
                 <ToggleSwitch v-model="form[vis.key]" />
               </div>
             </div>
-            <div :class="isMobile ? 'space-y-3 mt-3' : 'flex gap-4 mt-4'">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3 sm:mt-4">
               <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg flex-1">
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-medium text-gray-700">Limit capacity</p>
@@ -273,67 +510,70 @@
              the same <FormBuilder> the advanced event uses; on save we
              persist the form to registration_forms / form_fields and
              link it via events.form_id. -->
-        <div :class="isMobile ? (mobileStep === 3 ? 'px-4 py-5 mt-5' : 'hidden') : ''">
-          <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Registration form</h2>
-          <div class="bg-white rounded-xl border border-gray-200 p-5">
-            <div class="flex items-center justify-between">
-              <div class="flex-1 min-w-0 pr-4">
-                <p class="text-sm font-medium text-gray-700">Public registration form</p>
-                <p class="text-xs text-gray-500 mt-0.5">Let people sign up themselves through a custom form (name, email, plus any extra questions you ask). Off by default — invitees still sign up via your invitee list.</p>
-              </div>
-              <ToggleSwitch v-model="form.use_registration_form" />
-            </div>
-            <p v-if="form.use_registration_form" class="text-[11px] text-gray-400 mt-3">
-              Default fields below cover the basics. Add more by clicking "+ Add field" inside the builder. The form name defaults to the event title.
-            </p>
+        <!-- Its own step, and only when the event is open to the public — the
+             audience choice on the Invitees step is what turns it on. -->
+        <div v-if="form.use_registration_form" :class="isStep('form') ? 'px-1' : 'hidden'">
+          <div class="mb-3">
+            <h2 class="text-sm font-semibold text-gray-800">Registration form</h2>
+            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Registration form') }}</p>
           </div>
-          <div v-if="form.use_registration_form" class="mt-4 bg-white rounded-xl border border-gray-200 overflow-hidden" style="min-height:560px">
+          <!-- Same choice the events forms tab opens with: take the standard
+               form, or build your own. Custom hands over to <FormBuilder>, which
+               already owns who-registers, the presets and the fields. -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button type="button"
+              class="text-left border-2 rounded-xl p-4 flex flex-col items-start transition-colors"
+              :class="regFormType === 'basic' ? 'border-primary bg-[#F0F4FF]' : 'border-gray-200 bg-white hover:border-gray-300'"
+              @click="regFormType = 'basic'">
+              <div class="flex items-center justify-between w-full mb-2">
+                <div class="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <i class="pi pi-bolt text-primary" />
+                </div>
+                <i v-if="regFormType === 'basic'" class="pi pi-check-circle text-primary" />
+              </div>
+              <h3 class="text-sm font-semibold text-gray-900">Basic</h3>
+              <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                Just the essentials — name, email and phone. Nothing to set up.
+              </p>
+            </button>
+
+            <button type="button"
+              class="text-left border-2 rounded-xl p-4 flex flex-col items-start transition-colors"
+              :class="regFormType === 'custom' ? 'border-primary bg-[#F0F4FF]' : 'border-gray-200 bg-white hover:border-gray-300'"
+              @click="regFormType = 'custom'">
+              <div class="flex items-center justify-between w-full mb-2">
+                <div class="w-9 h-9 rounded-lg bg-violet-100 flex items-center justify-center">
+                  <i class="pi pi-sliders-h text-violet-700" />
+                </div>
+                <i v-if="regFormType === 'custom'" class="pi pi-check-circle text-primary" />
+              </div>
+              <h3 class="text-sm font-semibold text-gray-900">Custom</h3>
+              <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                Choose who registers (individual, family, team…) and ask your own questions.
+              </p>
+            </button>
+          </div>
+
+          <!-- Basic: nothing to configure, so say what they'll get. -->
+          <div v-if="regFormType === 'basic'" class="mt-3 bg-white rounded-xl border border-gray-200 p-5">
+            <p class="text-sm font-medium text-gray-800 mb-2">People will be asked for:</p>
+            <ul class="text-sm text-gray-600 space-y-1">
+              <li class="flex items-center gap-2"><i class="pi pi-check text-emerald-500 text-xs" /> First and last name</li>
+              <li class="flex items-center gap-2"><i class="pi pi-check text-emerald-500 text-xs" /> Email address</li>
+              <li class="flex items-center gap-2"><i class="pi pi-check text-emerald-500 text-xs" /> Phone number</li>
+            </ul>
+          </div>
+
+          <!-- Custom: the builder owns everything from here. -->
+          <div v-else-if="regFormType === 'custom'" class="mt-3 bg-white rounded-xl border border-gray-200 overflow-hidden" style="min-height:560px">
             <FormBuilder v-model="form.registration_form"
               :context="{ title: form.title || 'Registration', description: form.description }"
               :allow-multiple-persons="false" />
           </div>
         </div>
 
-        <!-- ─ Fees ─ -->
-        <div :class="isMobile ? (mobileStep === 4 ? 'px-4 py-5' : 'hidden') : ''">
-          <div class="mb-3">
-            <h2 class="text-sm font-semibold text-gray-800">Fees</h2>
-            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Fees') }}</p>
-          </div>
-          <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm font-medium text-gray-700">Are attendees charged?</p>
-                <p class="text-xs text-gray-500 mt-0.5">Enable to add fee components to this event</p>
-              </div>
-              <div class="flex gap-0">
-                <button class="px-4 py-2 text-sm font-medium border rounded-l-lg transition-colors" :class="!form.is_paid ? 'bg-primary border-primary text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'" @click="form.is_paid = false">Free</button>
-                <button class="px-4 py-2 text-sm font-medium border rounded-r-lg transition-colors" :class="form.is_paid ? 'bg-primary border-primary text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'" @click="form.is_paid = true">Charged</button>
-              </div>
-            </div>
-            <div v-if="form.is_paid" class="border border-gray-200 rounded-xl overflow-hidden">
-              <div class="grid px-4 py-2.5 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide" style="grid-template-columns:2fr 2fr 1fr 40px">
-                <span>Fee Name</span><span>Account</span><span>Amount</span><span />
-              </div>
-              <div v-for="(fee, idx) in form.fees" :key="idx" class="grid px-4 py-2.5 border-b border-gray-100 items-center gap-3" style="grid-template-columns:2fr 2fr 1fr 40px">
-                <InputText v-model="fee.name" placeholder="e.g. Tournament Fee" size="small" class="w-full" />
-                <XeroAccountInput v-model="fee.account" placeholder="Account code" class="w-full"
-                  input-class="w-full h-9 px-2.5 text-sm text-gray-800 placeholder-gray-400 border border-gray-300 rounded-md outline-none focus:border-primary" />
-                <InputNumber v-model="fee.amount" mode="currency" :currency="orgCurrency" locale="en-NZ" size="small" class="w-full" input-class="text-right" />
-                <Button icon="pi pi-trash" text severity="danger" size="small" @click="form.fees.splice(idx, 1)" />
-              </div>
-              <div class="grid px-4 py-2.5 border-b border-gray-200 font-semibold text-sm" style="grid-template-columns:2fr 2fr 1fr 40px">
-                <span class="text-gray-700">Total</span><span /><span class="text-gray-900">${{ totalFees.toFixed(2) }}</span><span />
-              </div>
-              <div class="px-4 py-2.5">
-                <Button icon="pi pi-plus" label="Add Fee" size="small" severity="secondary" text @click="addFee" />
-              </div>
-            </div>
-          </div>
-        </div>
-
         <!-- ─ Settings ─ -->
-        <div :class="isMobile ? (mobileStep === 5 ? 'px-4 py-5' : 'hidden') : ''">
+        <div :class="isStep('settings') ? 'px-1' : 'hidden'">
           <div class="mb-3">
             <h2 class="text-sm font-semibold text-gray-800">Settings</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Settings') }}</p>
@@ -396,8 +636,93 @@
       </div>
     </div>
 
+    <!-- ── Live summary rail — what the event looks like so far. Mirrors the
+         booking wizard's invoice panel. Hidden on narrow screens, where the
+         form itself needs the full width. ── -->
+    <aside v-if="stepped" class="hidden lg:flex w-80 shrink-0 flex-col border-l border-gray-200 bg-white overflow-y-auto">
+      <!-- Banner -->
+      <div v-if="form.banner_url" class="h-28 shrink-0 bg-gray-100">
+        <img :src="form.banner_url" class="w-full h-full object-cover" />
+      </div>
+
+      <div class="p-5 space-y-4">
+        <div>
+          <p class="text-[11px] font-bold uppercase tracking-wide text-gray-400">Your event</p>
+          <h3 class="text-base font-semibold mt-0.5" :class="form.title.trim() ? 'text-gray-900' : 'text-gray-300'">
+            {{ form.title.trim() || 'Untitled event' }}
+          </h3>
+          <div v-if="summaryCategories.length" class="flex flex-wrap gap-1 mt-2">
+            <span v-for="c in summaryCategories" :key="c.id"
+              class="px-2 py-0.5 rounded-full text-[11px] font-medium text-white"
+              :style="{ background: c.color || '#1E2157' }">{{ c.name }}</span>
+          </div>
+        </div>
+
+        <div class="border-t border-gray-100 pt-3 space-y-3">
+          <!-- Each row greys out until it's actually been filled in, so the rail
+               doubles as a checklist of what's left. -->
+          <div class="flex gap-2.5">
+            <i class="pi pi-calendar text-xs mt-1 shrink-0" :class="form.start_date ? 'text-primary' : 'text-gray-300'" />
+            <div class="min-w-0">
+              <p class="text-sm" :class="form.start_date ? 'text-gray-800' : 'text-gray-400'">{{ summaryWhen }}</p>
+              <p v-if="summaryRepeat" class="text-xs text-gray-400">{{ summaryRepeat }}</p>
+              <p v-if="summarySkipped" class="text-xs text-red-500 mt-0.5">{{ summarySkipped }}</p>
+            </div>
+          </div>
+
+          <div class="flex gap-2.5">
+            <i class="pi pi-map-marker text-xs mt-1 shrink-0" :class="summaryWhere ? 'text-primary' : 'text-gray-300'" />
+            <p class="text-sm min-w-0 break-words" :class="summaryWhere ? 'text-gray-800' : 'text-gray-400'">
+              {{ summaryWhere || 'No location yet' }}
+            </p>
+          </div>
+
+          <!-- Fees only appear once the user has actually answered the fees
+               question — "Free event" on a rail the user hasn't reached yet
+               reads as a decision they never made. -->
+          <div v-if="feesTouched" class="flex gap-2.5">
+            <i class="pi pi-wallet text-xs mt-1 shrink-0" :class="form.is_paid ? 'text-primary' : 'text-gray-300'" />
+            <div class="min-w-0 flex-1">
+              <p class="text-sm" :class="form.is_paid ? 'text-gray-800' : 'text-gray-400'">
+                {{ form.is_paid ? 'Charged' : 'Free event' }}
+              </p>
+              <template v-if="form.is_paid">
+                <div v-for="fee in summaryFees" :key="fee.id" class="flex justify-between gap-2 text-xs text-gray-500 mt-0.5">
+                  <span class="truncate">{{ fee.name || 'Unnamed fee' }}</span>
+                  <span class="tabular-nums shrink-0">{{ money(fee.amount ?? 0) }}</span>
+                </div>
+                <div v-if="summaryFees.length" class="flex justify-between gap-2 text-xs font-semibold text-gray-800 mt-1 pt-1 border-t border-gray-100">
+                  <span>Total</span><span class="tabular-nums">{{ money(totalFees) }}</span>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <div v-if="signupRequired" class="flex gap-2.5">
+            <i class="pi pi-user-plus text-xs mt-1 shrink-0 text-primary" />
+            <p class="text-sm text-gray-800">Sign-up required</p>
+          </div>
+
+          <div v-if="form.is_public" class="flex gap-2.5">
+            <i class="pi pi-globe text-xs mt-1 shrink-0 text-primary" />
+            <p class="text-sm text-gray-800">Public event</p>
+          </div>
+
+          <div v-if="form.has_capacity && form.capacity_max" class="flex gap-2.5">
+            <i class="pi pi-users text-xs mt-1 shrink-0 text-primary" />
+            <p class="text-sm text-gray-800">Capped at {{ form.capacity_max }} attendees</p>
+          </div>
+        </div>
+
+        <p v-if="dateInvalidReason" class="text-xs text-red-500 border-t border-gray-100 pt-3">{{ dateInvalidReason }}</p>
+      </div>
+    </aside>
+
+    </div>
+
     <!-- ── Mobile bottom navigation ── -->
-    <div v-if="isMobile" class="bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-3 shrink-0">
+    <!-- Step nav — stepped mode only; the full page saves from its header. -->
+    <div v-if="stepped" class="bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-3 shrink-0">
       <Button
         v-if="mobileStep > 0"
         label="Back"
@@ -412,7 +737,7 @@
         :label="mobileStep === mobileSteps.length - 1 ? 'Save Event' : 'Next'"
         :icon="mobileStep === mobileSteps.length - 1 ? 'pi pi-check' : 'pi pi-chevron-right'"
         icon-pos="right"
-        :disabled="mobileStep === 0 && !form.title.trim()"
+        :disabled="mobileStep === 0 && !step1Complete"
         :loading="saving && mobileStep === mobileSteps.length - 1"
         class="flex-1"
         style="background:var(--brand-primary); border-color:var(--brand-primary)"
@@ -508,24 +833,90 @@ const newCategoryColor = ref('#1E2157')
 const savingCategory = ref(false)
 
 // ── Mobile wizard ──────────────────────────────────────────────────────────
-const forceWizard = route.query.wizard === '1'
-const isMobile = ref(false)
+// This page has TWO presentations of the same form:
+//   stepped (default) — the wizard: one step at a time, Back/Next.
+//   full  (?mode=full) — every section on one scrolling page. This is what the
+//                        "Custom event" route opens.
+// They share all the fields, validation and saving — only the chrome differs.
+//
+// `narrow` is a separate concern: a phone-width screen, where a label can't sit
+// beside its field. It was previously conflated with "stepped", which is what
+// made reopening a draft dump you into the wrong layout.
+const stepped = computed(() => route.query.mode !== 'full')
+const narrow = ref(false)
+// Kept as an alias so the field-layout branches below keep reading naturally.
+const isMobile = narrow
 const mobileStep = ref(0)
-// The wizard's steps. `desc` tells the user what this step is for — shown at the
-// top of each section (and it's the single source of truth for the step count,
-// which is why Date isn't listed: it lives inside Event Info now).
-const mobileSteps = [
-  { label: 'Event info', desc: 'Name the event, set when it runs, and how people find it.' },
-  { label: 'Location', desc: 'Where is it happening? Pick a venue, an address, or make it online.' },
-  { label: 'Invitees', desc: 'Choose who gets invited. You can add more people after it is created.' },
-  { label: 'Visibility', desc: 'Decide who can see this event and whether the public can find it.' },
-  { label: 'Fees', desc: 'Add any charges for attending. Leave empty if the event is free.' },
-  { label: 'Settings', desc: 'Registration form, terms, and the finishing touches.' },
-]
-const stepDesc = (label: string) => mobileSteps.find(s => s.label.toLowerCase() === label.toLowerCase())?.desc ?? ''
+
+// The summary rail stays silent about fees until the user has actually answered
+// the Free/Charged question — on mobile, reaching the step counts as arriving at
+// it; on desktop, only picking an answer does.
+
+const feesTouched = ref(false)
+const setFees = (paid: boolean) => {
+  form.is_paid = paid
+  feesTouched.value = true
+  // Charging? Seed the first line item with the event's name — that's what the
+  // fee is for, and it saves retyping it. Only when there's nothing there yet.
+  if (paid && !form.fees.length) {
+    form.fees.push({
+      id: crypto.randomUUID(),
+      name: form.title.trim(),
+      xero_code: '',
+      amount: null,
+    })
+  }
+}
+// Once they've reached the Fees step, the summary rail can show Free/Charged.
+watch(mobileStep, () => { if (isStep('fees')) feesTouched.value = true })
+
+// ── Registration form: basic or custom? ────────────────────────────────────
+// The same first choice the events forms tab opens with. "Custom" hands over to
+// <FormBuilder>, which already owns who-registers (its own preset picker,
+// terminology-aware) and the fields — we don't re-implement any of that here.
+const regFormType = ref<'basic' | 'custom'>('basic')
+
+// ── Who is this event for? ─────────────────────────────────────────────────
+// Not exclusive: a club event can also be open to the public. "Public" is just
+// the front end of two existing settings — is_public + the registration form —
+// so the user picks an audience rather than hunting toggles on later steps.
+const inviteClub = ref(true)
+const invitePublic = ref(false)
+
+function setInvitePublic(v: boolean) {
+  invitePublic.value = v
+  form.is_public = v
+  form.use_registration_form = v
+}
+
+// Step 1 needs a name AND a valid date before you can move on (or save). A date
+// is valid when there's a start, and — if an end is given — it isn't before it.
+const dateInvalidReason = computed(() => {
+  if (!form.start_date) return 'Pick a start date for the event.'
+  if (form.end_date && new Date(form.end_date as Date) < new Date(form.start_date as Date)) {
+    return 'The end date is before the start date.'
+  }
+  // An event needs a time window — unless it's explicitly an all-day event.
+  if (!form.is_all_day) {
+    if (!form.start_time || !form.end_time) {
+      return 'Set a start and end time, or mark it as an all-day event.'
+    }
+    const s = new Date(form.start_time as Date), e = new Date(form.end_time as Date)
+    const sameDay = !form.end_date
+      || new Date(form.end_date as Date).toDateString() === new Date(form.start_date as Date).toDateString()
+    if (sameDay && e <= s) return 'The end time is before the start time.'
+  }
+  return ''
+})
+const step1Complete = computed(() => !!form.title.trim() && !dateInvalidReason.value)
 
 function mobileNext() {
-  if (mobileStep.value < mobileSteps.length - 1) {
+  // Don't advance past step 1 on an incomplete/invalid date.
+  if (mobileStep.value === 0 && !step1Complete.value) {
+    toast.add({ severity: 'warn', summary: 'Check the details', detail: dateInvalidReason.value || 'Give the event a name.', life: 3000 })
+    return
+  }
+  if (mobileStep.value < mobileSteps.value.length - 1) {
     mobileStep.value++
     // Scroll content area back to top on step change
     nextTick(() => {
@@ -576,18 +967,42 @@ async function createCategory() {
 const bannerInput = ref<HTMLInputElement | null>(null)
 
 import type { LocationEntry } from '~/composables/useLocation'
+import type { FeeLineItem } from '~/composables/useFeeGroups'
 
 // Availability checking for venue bookables
 const allBookables = ref<any[]>([])
 const availabilityMap = reactive<Record<string, 'available' | 'booked'>>({})
 const checkingAvailability = ref(false)
 
+// "Availability for: 11:09am" doesn't say which day, or for how long. Show the
+// whole window: "Sat 12th Jan · 11:09am – 12:09pm".
+function clockLabel(d: Date) {
+  const h = d.getHours(); const m = d.getMinutes().toString().padStart(2, '0')
+  return `${h % 12 || 12}:${m}${h >= 12 ? 'pm' : 'am'}`
+}
+function ordinalDay(n: number) {
+  if (n % 100 >= 11 && n % 100 <= 13) return `${n}th`
+  return `${n}${['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'}`
+}
 const availabilityTimeLabel = computed(() => {
-  if (!form.start_time) return 'event time not set'
-  const t = new Date(form.start_time as Date)
-  const h = t.getHours(); const m = t.getMinutes().toString().padStart(2, '0')
-  const ampm = h >= 12 ? 'pm' : 'am'
-  return `${h % 12 || 12}:${m}${ampm}`
+  const parts: string[] = []
+  if (form.start_date) {
+    const d = new Date(form.start_date as Date)
+    const day = d.toLocaleDateString('en-NZ', { weekday: 'short' })
+    const mon = d.toLocaleDateString('en-NZ', { month: 'short' })
+    parts.push(`${day} ${ordinalDay(d.getDate())} ${mon}`)
+  }
+  // An all-day event has no clock times — say so rather than "time not set".
+  if (form.is_all_day) {
+    parts.push('All day')
+  } else if (form.start_time) {
+    const start = new Date(form.start_time as Date)
+    const end = form.end_time ? new Date(form.end_time as Date) : null
+    parts.push(end ? `${clockLabel(start)} – ${clockLabel(end)}` : clockLabel(start))
+  } else {
+    parts.push('event time not set')
+  }
+  return parts.join(' · ')
 })
 
 async function recheckAvailability() {
@@ -599,13 +1014,17 @@ async function recheckAvailability() {
 }
 
 
+// NOTE: these all persist to `events` but NOTHING reads them yet — there is no
+// public events listing, and /r/event/:id serves any non-cancelled event
+// regardless of is_public. The copy below describes the INTENDED behaviour;
+// the step shows a "not enforced yet" notice so nobody is misled.
 const visibilityOptions = [
-  { key: 'is_public',           label: 'Public event',          desc: 'Visible to anyone' },
-  { key: 'is_featured',         label: 'Featured',              desc: 'Highlighted on member profiles' },
-  { key: 'show_attendee_list',  label: 'Show attendee list',    desc: 'Members can see who is attending' },
-  { key: 'show_attendee_count', label: 'Show attendee count',   desc: 'Display registration numbers' },
-  { key: 'allow_interest',      label: 'Allow interest',        desc: 'Members can indicate interest' },
-  { key: 'hold_spot_enabled',   label: 'Hold-spot registration',desc: 'Allow pending confirmation spots' },
+  { key: 'is_public',           label: 'Public event',           desc: 'Anyone can find and register — shows on your public events page and is shareable by link. No login needed.' },
+  { key: 'is_featured',         label: 'Featured',               desc: 'Pinned to the top of the events page and highlighted on member dashboards.' },
+  { key: 'show_attendee_list',  label: 'Show attendee list',     desc: 'Registrants can see who else is coming, by name, on the event page.' },
+  { key: 'show_attendee_count', label: 'Show attendee count',    desc: 'Shows how many have registered (and spots left) without naming them.' },
+  { key: 'allow_interest',      label: 'Allow interest',         desc: 'Members can register interest without committing — useful before you open sign-ups.' },
+  { key: 'hold_spot_enabled',   label: 'Hold-spot registration', desc: 'Holds a spot while payment or approval is pending, instead of releasing it.' },
 ]
 
 const adminDraft = reactive({ name: '', registrations: true, changes: false, notes: false })
@@ -730,7 +1149,9 @@ const form = reactive({
   reg_close_at: null as Date | null,
   // Fees
   is_paid: false,
-  fees: [] as { name: string; account: string; amount: number | null }[],
+  // Shared FeeLineItem shape (id / name / xero_code / amount) so <FeeLineItemsTable> can drive it.
+  fees: [] as FeeLineItem[],
+  discounts: [] as DraftDiscount[],
   // Settings
   banner_url: '',
   custom_terms: [] as string[],
@@ -739,6 +1160,34 @@ const form = reactive({
   // FormBuilder + /forms/[id].vue use, so save logic is portable.
   use_registration_form: false,
   registration_form: emptyRegistrationForm() as any,
+})
+
+// The wizard's steps. Keyed, not index-based, because the step list is DYNAMIC —
+// the registration-form step only exists once the event is open to the public.
+// `desc` tells the user what the step is for and is the single source of truth
+// for the step count (Date isn't listed: it lives inside Event info now).
+const ALL_STEPS: { key: string; label: string; desc: string; when?: () => boolean }[] = [
+  { key: 'info',       label: 'Event info',        desc: 'Name the event, set when it runs, and how people find it.' },
+  { key: 'location',   label: 'Location',          desc: 'Where is it happening? Pick a venue, an address, or make it online.' },
+  { key: 'fees',       label: 'Fees',              desc: 'Add any charges for attending. Leave empty if the event is free.' },
+  { key: 'invitees',   label: 'Invitees',          desc: 'Choose who this event is for, and whether they need to sign up.' },
+  { key: 'visibility', label: 'Visibility',        desc: 'Decide who can see this event and whether the public can find it.' },
+  { key: 'form',       label: 'Registration form', desc: 'Build the form the public fills in to sign up.',
+    when: () => form.use_registration_form },
+  { key: 'settings',   label: 'Settings',          desc: 'Terms, admins, and the finishing touches.' },
+]
+const mobileSteps = computed(() => ALL_STEPS.filter(s => !s.when || s.when()))
+
+// A section shows when it's the current step (stepped view) or always (desktop).
+// In full mode every section renders (one long page); stepped shows one at a time.
+const isStep = (key: string) => !stepped.value || mobileSteps.value[mobileStep.value]?.key === key
+const stepDesc = (label: string) =>
+  ALL_STEPS.find(s => s.label.toLowerCase() === label.toLowerCase())?.desc ?? ''
+
+// Dropping the form step (e.g. the event stops being public) must not strand the
+// user past the end of the list.
+watch(mobileSteps, steps => {
+  if (mobileStep.value > steps.length - 1) mobileStep.value = Math.max(0, steps.length - 1)
 })
 
 // Mirrors emptyForm() / coreFields() from /pages/forms/[id].vue so
@@ -774,8 +1223,124 @@ const totalFees = computed(() =>
   form.fees.reduce((sum, f) => sum + (f.amount ?? 0), 0)
 )
 
+// ── Discounts ──────────────────────────────────────────────────────────────
+// Same rule shape useBookingDiscounts() evaluates, and the same criteria editor
+// <BookingDiscountsList> uses. One discount model, not a wizard-only variant.
+import type { DiscountCondition } from '~/composables/useBookingDiscounts'
+
+interface DraftDiscount {
+  id: string
+  name: string
+  form_text: string
+  modifier_type: 'PERCENT' | 'FLAT'
+  modifier_value: number | null
+  conditions: DiscountCondition[]
+  valid_from: Date | null
+  valid_until: Date | null
+  max_uses: number | null
+}
+
+const discountMemberGroups = ref<{ id: string; name: string }[]>([])
+// Feeds the "Member group" criterion in <DiscountCriteriaEditor>.
+onMounted(async () => {
+  const { data } = await (db.from as any)('member_groups')
+    .select('id, name').eq('org_id', orgId.value).order('name')
+  discountMemberGroups.value = data ?? []
+})
+
+const toIsoDate = (d: Date) => new Date(d).toISOString().slice(0, 10)
+
+function addDiscount() {
+  form.discounts.push({
+    id: crypto.randomUUID(),
+    name: '',
+    form_text: '',
+    modifier_type: 'PERCENT',
+    modifier_value: 10,
+    conditions: [],
+    valid_from: null,
+    valid_until: null,
+    max_uses: null,
+  })
+}
+
+const currencySymbol = computed(() => {
+  const parts = new Intl.NumberFormat('en-NZ', { style: 'currency', currency: orgCurrency.value || 'NZD' })
+    .formatToParts(0)
+  return parts.find(p => p.type === 'currency')?.value ?? '$'
+})
+
+// PrimeVue's :max isn't enforced while typing — 3433% was reachable. Clamp on blur,
+// and again whenever the unit flips from $ to %.
+function clampDiscount(d: DraftDiscount) {
+  if (d.modifier_value == null) return
+  if (d.modifier_value < 0) d.modifier_value = 0
+  if (d.modifier_type === 'PERCENT' && d.modifier_value > 100) d.modifier_value = 100
+}
+
+function discountSummary(d: DraftDiscount) {
+  const v = d.modifier_value ?? 0
+  if (!v) return 'Set an amount to see what this takes off.'
+  const off = d.modifier_type === 'PERCENT' ? (totalFees.value * v) / 100 : Math.min(v, totalFees.value)
+  const label = d.modifier_type === 'PERCENT' ? `${v}% off` : `${money(v)} off`
+  const code = d.form_text?.trim() ? ` with code ${d.form_text.trim().toUpperCase()}` : ''
+  const who = d.conditions.filter(c => c.key).length
+    ? ` for anyone matching ${d.conditions.filter(c => c.key).length} criteria`
+    : ' for everyone'
+  return `${label}${code}${who} — they'd pay ${money(Math.max(0, totalFees.value - off))} instead of ${money(totalFees.value)}.`
+}
+
+// ── Live summary rail ──────────────────────────────────────────────────────
+const money = (n: number) =>
+  new Intl.NumberFormat('en-NZ', { style: 'currency', currency: orgCurrency.value || 'NZD' }).format(n)
+
+const summaryCategories = computed(() =>
+  categories.value.filter(c => form.category_ids.includes(c.id)),
+)
+const summaryFees = computed(() => form.fees.filter(f => (f.name || '').trim() || f.amount))
+
+const summaryWhen = computed(() => {
+  if (!form.start_date) return 'No date yet'
+  const d = new Date(form.start_date as Date)
+  const day = d.toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', month: 'short' })
+  if (form.is_all_day) return `${day} · All day`
+  if (!form.start_time) return day
+  const s = new Date(form.start_time as Date)
+  const e = form.end_time ? new Date(form.end_time as Date) : null
+  return `${day} · ${clockLabel(s)}${e ? ` – ${clockLabel(e)}` : ''}`
+})
+
+const summaryRepeat = computed(() => {
+  if (!form.repeat || form.repeat === 'NONE') return ''
+  return rruleToSummary(form.repeat)
+})
+
+// Skipped dates are part of "when the event runs" — the rail has to say so, or
+// the repeat line quietly overstates the schedule.
+const summarySkipped = computed(() => {
+  const keys = [...(form.exdates ?? [])].sort()
+  if (!keys.length || !form.repeat || form.repeat === 'NONE') return ''
+  const label = (k: string) => {
+    const [y, m, d] = k.split('-').map(Number)
+    return new Date(y, m - 1, d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+  }
+  const shown = keys.slice(0, 3).map(label).join(', ')
+  const rest = keys.length - 3
+  return `Skipping ${keys.length} ${keys.length === 1 ? 'date' : 'dates'}: ${shown}${rest > 0 ? ` +${rest} more` : ''}`
+})
+
+const summaryWhere = computed(() => {
+  const locs = form.locations ?? []
+  if (!locs.length) return ''
+  const s = locationSummary(locs)
+  // The helper returns this sentinel when nothing is filled in yet — treat it
+  // as "empty" so the rail greys the row out instead of asserting a location.
+  return s === 'No location' ? '' : s
+})
+
+// <FeeLineItemsTable> owns add/remove/reorder now; kept for the AI prefill path.
 function addFee() {
-  form.fees.push({ name: '', account: '', amount: null })
+  form.fees.push({ id: crypto.randomUUID(), name: '', xero_code: '', amount: null })
 }
 
 const { uploadFile } = useUpload()
@@ -907,7 +1472,7 @@ async function saveEvent() {
       if (error) throw error
       evtId = draftEventId.value
     } else {
-      const { data, error } = await db.from('events').insert({ ...payload, org_id: orgId.value, style: 'BASIC' }).select('id').single()
+      const { data, error } = await db.from('events').insert({ ...payload, org_id: orgId.value, style: 'BASIC', created_via: 'wizard' }).select('id').single()
       if (error) throw error
       evtId = data.id
     }
@@ -917,9 +1482,29 @@ async function saveEvent() {
         event_id: evtId,
         name: f.name.trim(),
         amount: f.amount ?? 0,
-        xero_code: f.account || null,
+        xero_code: f.xero_code || null,
       }))
       if (feeRows.length) await db.from('fee_components').insert(feeRows)
+
+      // Discounts — same shape the event editor's Discounts tab writes.
+      const discountRows = form.discounts
+        .filter(d => d.name.trim())
+        .map(d => ({
+          event_id: evtId,
+          type: 'CODE' as const,
+          name: d.name.trim(),
+          form_text: d.form_text?.trim() || null,
+          is_active: true,
+          modifier_value: d.modifier_value ?? 0,
+          modifier_type: d.modifier_type,
+          apply_to: 'BOOKING',
+          // The engine's condition vocabulary — evaluated by qualifies().
+          conditions: JSON.parse(JSON.stringify(d.conditions.filter(c => c.key))),
+          valid_from: d.valid_from ? toIsoDate(d.valid_from) : null,
+          valid_until: d.valid_until ? toIsoDate(d.valid_until) : null,
+          max_uses: d.max_uses ?? null,
+        }))
+      if (discountRows.length) await db.from('discounts').insert(discountRows)
     }
 
     // Sync venue bookings — create EVENT_DRIVEN booking rows so the event
@@ -944,8 +1529,12 @@ async function saveEvent() {
       )
     }
 
+    // Finished — stop offering to resume it.
+    forgetDraft()
     toast.add({ severity: 'success', summary: 'Event saved!', life: 3000 })
-    navigateTo(`/events/${evtId}`)
+    // Land on the same form as one page, not the tabbed editor — it's the event
+    // they just built, so they should see all of it and be able to keep editing.
+    navigateTo(`/events/new-basic?draft=${evtId}&mode=full`)
   } catch (err: any) {
     toast.add({ severity: 'error', summary: 'Could not save', detail: err?.message, life: 4000 })
   } finally {
@@ -956,9 +1545,9 @@ async function saveEvent() {
 onMounted(async () => {
   ;(db.from as any)('organisations').select('currency').eq('id', orgId.value).single()
     .then(({ data }: any) => { orgCurrency.value = data?.currency || 'NZD' })
-  // Detect mobile — wizard also forced via ?wizard=1 query param
-  isMobile.value = forceWizard || window.innerWidth < 768
-  const onResize = () => { if (!forceWizard) isMobile.value = window.innerWidth < 768 }
+
+  narrow.value = window.innerWidth < 768
+  const onResize = () => { narrow.value = window.innerWidth < 768 }
   window.addEventListener('resize', onResize)
   onUnmounted(() => window.removeEventListener('resize', onResize))
 
@@ -970,13 +1559,130 @@ onMounted(async () => {
   allBookables.value = bookableData ?? []
   for (const b of allBookables.value) availabilityMap[b.id] = 'available'
 
+  // Resume an unfinished draft if there is one, rather than stranding it and
+  // starting another. Falls through to a fresh draft when there's nothing to
+  // pick up (or the stored one has since been deleted/published).
+  if (await resumeDraft()) return
+
   // Create a draft event so EventInviteeManager has an ID to work with
   const { data } = await db.from('events').insert({
     org_id: orgId.value,
-    title: '(draft)',
+    title: form.title || '(draft)',
     style: 'BASIC',
     status: 'DRAFT',
+    created_via: 'wizard',      // reopening a wizard draft returns to the wizard
   }).select('id').single()
-  if (data) draftEventId.value = data.id
+  if (data) {
+    draftEventId.value = data.id
+    rememberDraft()
+  }
 })
+
+// ── Resume an in-progress draft ────────────────────────────────────────────
+// The wizard is a modal you can close mid-way. Remember WHICH draft you were on
+// and WHICH step you'd reached, so reopening picks up where you left off instead
+// of leaving an orphan "(draft)" behind and starting again.
+const draftKey = computed(() => `fm_event_wizard:${orgId.value}`)
+
+function rememberDraft() {
+  if (!import.meta.client || !draftEventId.value) return
+  localStorage.setItem(draftKey.value, JSON.stringify({
+    eventId: draftEventId.value,
+    step: mobileStep.value,
+  }))
+}
+function forgetDraft() {
+  if (import.meta.client) localStorage.removeItem(draftKey.value)
+}
+
+// ── Delete ─────────────────────────────────────────────────────────────────
+const confirmDeleteOpen = ref(false)
+const deleting = ref(false)
+
+async function deleteEvent() {
+  const id = draftEventId.value
+  if (!id) { navigateTo('/events'); return }
+  deleting.value = true
+  try {
+    // Clear the rows that hang off the event first — anything the wizard may
+    // already have written (invitees, disciplines, the venue bookings it syncs).
+    for (const table of ['invitees', 'event_disciplines', 'fee_components', 'discounts', 'sessions', 'bookings']) {
+      await (db.from as any)(table).delete().eq('event_id', id)
+    }
+    const { error } = await (db.from as any)('events').delete().eq('id', id)
+    if (error) {
+      toast.add({ severity: 'error', summary: 'Could not delete', detail: error.message, life: 4000 })
+      return
+    }
+    forgetDraft()
+    confirmDeleteOpen.value = false
+    toast.add({ severity: 'success', summary: 'Event deleted', life: 2500 })
+    navigateTo('/events')
+  } finally {
+    deleting.value = false
+  }
+}
+
+// Step changes are what we're remembering — persist as they happen.
+watch(mobileStep, rememberDraft)
+
+async function resumeDraft(): Promise<boolean> {
+  if (!import.meta.client) return false
+
+  // ?draft=<id> — the user reopened an unfinished draft from the events list.
+  // That's explicit, so it wins over whatever we last remembered.
+  const explicit = route.query.draft as string | undefined
+
+  let stored: { eventId?: string; step?: number } | null = null
+  if (explicit) {
+    stored = { eventId: explicit }
+    // Reuse the remembered step if it's the same draft.
+    try {
+      const prev = JSON.parse(localStorage.getItem(draftKey.value) ?? 'null')
+      if (prev?.eventId === explicit) stored.step = prev.step
+    } catch { /* ignore */ }
+  } else {
+    // A fresh "new event" (name passed in) always starts clean.
+    if (route.query.name) return false
+    try { stored = JSON.parse(localStorage.getItem(draftKey.value) ?? 'null') } catch { /* ignore */ }
+  }
+  if (!stored?.eventId) return false
+
+  const { data: evt } = await (db.from as any)('events')
+    .select('*').eq('id', stored.eventId).eq('org_id', orgId.value).maybeSingle()
+
+  if (!evt) { forgetDraft(); return false }
+  // An explicit ?draft=<id> opens that event whatever its status — full mode is
+  // how a saved single-session event is edited. Only the *remembered* draft has
+  // to still be a draft (otherwise we'd resurrect a finished event).
+  if (!explicit && evt.status !== 'DRAFT') { forgetDraft(); return false }
+
+  draftEventId.value = evt.id
+  form.title = evt.title === '(draft)' ? '' : (evt.title ?? '')
+  form.description = evt.description ?? ''
+  form.banner_url = evt.banner_url ?? ''
+  if (evt.start_at) {
+    form.start_date = new Date(evt.start_at)
+    form.start_time = new Date(evt.start_at)
+  }
+  if (evt.end_at) {
+    form.end_date = new Date(evt.end_at)
+    form.end_time = new Date(evt.end_at)
+  }
+  form.is_all_day = !!evt.is_all_day
+  form.capacity_max = evt.capacity_max ?? null
+  form.has_capacity = evt.capacity_max != null
+  if (evt.reg_open_at) form.reg_open_at = new Date(evt.reg_open_at)
+  if (evt.reg_close_at) form.reg_close_at = new Date(evt.reg_close_at)
+  signupRequired.value = !!(evt.reg_open_at || evt.reg_close_at)
+
+  // Land them back on the step they'd reached.
+  const step = Number(stored.step ?? 0)
+  // mobileSteps is a computed — .length on the ref itself is undefined, which
+  // produced a NaN step and hid every section.
+  const lastStep = mobileSteps.value.length - 1
+  mobileStep.value = Number.isFinite(step) ? Math.min(Math.max(step, 0), lastStep) : 0
+
+  return true
+}
 </script>

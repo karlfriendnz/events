@@ -7,7 +7,7 @@
         <div v-for="d in DAYS" :key="d" class="text-center text-[11px] font-semibold text-gray-400 py-1">{{ d }}</div>
       </div>
       <div class="flex-1 flex flex-col gap-1">
-        <div v-for="(week, wi) in monthDays" :key="wi" class="flex-1 relative">
+        <div v-for="(week, wi) in monthDays" :key="wi" :ref="el => { if (wi === 0) weekRowRef = el as HTMLElement }" class="flex-1 relative">
           <!-- Day cells -->
           <div class="absolute inset-0 grid grid-cols-7 gap-1">
             <div v-for="day in week" :key="day.toISOString()"
@@ -30,10 +30,10 @@
               <!-- One bar per individual slot — three slots = three bars,
                    matching the booked-session bar style so an empty
                    day's availability reads visually the same as a busy
-                   one. Capped at three with a "+N more" if there are
-                   lots of slots in a single day. -->
+                   one. Collapsed into "+N more" only when the cell actually
+                   runs out of room (MAX_LANES is measured, not hardcoded). -->
               <div v-if="ruleSlotsForDate(day).length" class="flex flex-col gap-0.5 mt-1">
-                <div v-for="(s, si) in ruleSlotsForDate(day).slice(0, 3)" :key="si"
+                <div v-for="(s, si) in ruleSlotsForDate(day).slice(0, MAX_LANES)" :key="si"
                   class="rounded-md text-[10px] font-medium leading-[16px] px-1.5 truncate"
                   :style="{
                     backgroundColor: s.color + '22',
@@ -42,8 +42,8 @@
                   }">
                   <span class="font-semibold tabular-nums">{{ s.label }}</span>
                 </div>
-                <div v-if="ruleSlotsForDate(day).length > 3" class="text-[9px] text-gray-400 px-1">
-                  +{{ ruleSlotsForDate(day).length - 3 }} more
+                <div v-if="ruleSlotsForDate(day).length > MAX_LANES" class="text-[9px] text-gray-400 px-1">
+                  +{{ ruleSlotsForDate(day).length - MAX_LANES }} more
                 </div>
               </div>
             </div>
@@ -107,6 +107,59 @@
         </div>
 
         <template v-for="day in mth.days" :key="day.date.toISOString()">
+          <!-- Event-driven rows. The rule-driven rows below only exist inside an
+               availability slot, so a calendar with no rules (e.g. /events, which
+               passes customEvents and no bookableId) rendered NOTHING. Draw the
+               day's items directly instead. -->
+          <template v-if="!wizardMode && !day.rules.length">
+            <div v-for="(booking, bi) in day.bookings" :key="booking.id"
+              class="grid items-center border-b border-gray-100 border-l-4 px-5 transition-colors cursor-pointer hover:bg-blue-50/40"
+              :style="{
+                gridTemplateColumns: '72px 1fr 130px 1fr 96px',
+                borderLeftColor: bookingHeaderColor(booking),
+              }"
+              @click="$emit('booking-click', booking)">
+              <!-- Date (first row of the day only) -->
+              <div class="py-3 shrink-0">
+                <template v-if="bi === 0">
+                  <div class="text-[10px] font-semibold uppercase"
+                    :class="isToday(day.date) ? 'text-blue-500' : 'text-gray-400'">
+                    {{ day.date.toLocaleDateString('en-AU', { weekday: 'short' }) }}
+                  </div>
+                  <div class="text-xl font-bold leading-none mt-0.5"
+                    :class="isToday(day.date) ? 'text-blue-600' : 'text-gray-700'">
+                    {{ day.date.getDate() }}
+                  </div>
+                </template>
+              </div>
+              <!-- Title -->
+              <div class="py-3 flex items-center gap-2 min-w-0">
+                <span class="w-2 h-2 rounded-full shrink-0" :style="{ backgroundColor: bookingHeaderColor(booking) }" />
+                <i v-if="booking.status === 'PENDING'"
+                  class="pi pi-clock text-amber-500 text-xs shrink-0 booking-pending-icon"
+                  v-tooltip.top="'Awaiting approval'" />
+                <span class="text-sm font-medium text-gray-800 truncate">{{ bookingTitle(booking) }}</span>
+              </div>
+              <!-- Time -->
+              <div class="py-3 text-sm text-gray-500 tabular-nums">
+                {{ clockAt(booking.start_at) }}<template v-if="booking.end_at"> – {{ clockAt(booking.end_at) }}</template>
+              </div>
+              <!-- Secondary detail -->
+              <div class="py-3 min-w-0">
+                <span v-if="booking.activity_mode" class="text-xs font-medium" :style="{ color: booking.activity_mode.color || '#6366f1' }">{{ booking.activity_mode.name }}</span>
+                <span v-else-if="booking.contact_name" class="text-xs text-gray-400 truncate">{{ booking.contact_name }}</span>
+              </div>
+              <!-- Status -->
+              <div class="py-3 flex justify-end">
+                <span v-if="booking.status"
+                  class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-semibold" :class="bookingStatusClass(booking.status)">
+                  <i v-if="booking.status === 'PENDING'" class="pi pi-clock text-[9px] booking-pending-icon" />
+                  {{ booking.status }}
+                </span>
+              </div>
+            </div>
+          </template>
+
           <template v-if="!wizardMode || day.rules.length">
             <template v-for="(rule, ruleIdx) in day.rules" :key="rule.id">
               <div v-for="(slot, slotIdx) in ruleSlots(rule)" :key="slotIdx"
@@ -634,7 +687,36 @@ const weekDays = computed(() => {
   })
 })
 
-const MAX_LANES = 3
+// How many event bars fit in a month cell. Measured, not hardcoded: a fixed 3
+// collapsed into "+N more" even when the cell had room to spare (the rows are
+// flex-1, so their height depends on the calendar's height).
+const LANE_H = 21                 // one bar + its gap
+const DAY_NUM_H = 22              // the date number above the bars
+const OVERFLOW_H = 14             // room to show the "+N more" line itself
+const weekRowRef = ref<HTMLElement | null>(null)
+const weekRowHeight = ref(0)
+
+const MAX_LANES = computed(() => {
+  const h = weekRowHeight.value
+  if (!h) return 3               // pre-measure fallback
+  const usable = h - DAY_NUM_H - OVERFLOW_H
+  return Math.max(1, Math.floor(usable / LANE_H))
+})
+
+// The month grid is v-if'd (the calendar may start on Day/Week), so the row
+// doesn't exist at mount — observe it the moment it appears.
+let weekRowObserver: ResizeObserver | null = null
+watch(weekRowRef, el => {
+  weekRowObserver?.disconnect()
+  weekRowObserver = null
+  if (!el) { weekRowHeight.value = 0; return }
+  weekRowHeight.value = el.getBoundingClientRect().height
+  weekRowObserver = new ResizeObserver(([entry]) => {
+    weekRowHeight.value = entry.contentRect.height
+  })
+  weekRowObserver.observe(el)
+}, { immediate: true, flush: 'post' })
+onBeforeUnmount(() => { weekRowObserver?.disconnect(); weekRowObserver = null })
 
 const weekLayout = computed(() => {
   const bars: any[][] = []
@@ -672,7 +754,7 @@ const weekLayout = computed(() => {
 
       let lane = 0
       while (lane < laneEnds.length && laneEnds[lane] >= startCol) lane++
-      if (lane >= MAX_LANES) {
+      if (lane >= MAX_LANES.value) {
         for (let c = startCol; c <= endCol; c++) overflowByCol[c] = (overflowByCol[c] ?? 0) + 1
         continue
       }
@@ -1016,6 +1098,14 @@ function bookingStatusClass(status: string): string {
 
 function bookingTitle(b: any): string {
   return b.event?.title || b.notes || 'Booking'
+}
+
+// formatTime() takes an "HH:MM" rule string; list rows carry ISO timestamps.
+function clockAt(iso: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const h = d.getHours(); const m = d.getMinutes().toString().padStart(2, '0')
+  return `${h % 12 || 12}:${m}${h >= 12 ? 'pm' : 'am'}`
 }
 
 function bookingHeaderColor(b: any): string {

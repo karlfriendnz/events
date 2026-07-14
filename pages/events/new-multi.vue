@@ -221,6 +221,7 @@ async function createEvent() {
       org_id: orgId.value,
       title: form.title.trim(),
       style: 'ADVANCED',
+      created_via: 'multi',
       status: 'DRAFT',
       start_at: form.startDate!.toISOString(),
       end_at: form.endDate!.toISOString(),

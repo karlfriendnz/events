@@ -649,6 +649,7 @@ async function saveEvent() {
     const { data, error } = await db.from('events').insert({
       org_id: orgId.value,
       style: 'ADVANCED',
+      created_via: 'advanced',
       status: 'DRAFT',
       title: form.title.trim(),
       description: form.description.trim() || null,

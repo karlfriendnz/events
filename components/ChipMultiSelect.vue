@@ -9,16 +9,29 @@ const props = withDefaults(defineProps<{
   optionLabel?: string
   optionValue?: string
   placeholder?: string
+  // Grouped options (e.g. classes under their code). When set, `options` is a
+  // list of groups and the flat option list is derived from their children.
+  optionGroupLabel?: string
+  optionGroupChildren?: string
+  filter?: boolean
 }>(), {
   optionLabel: 'label',
   optionValue: 'key',
   placeholder: 'Select…',
+  filter: false,
+})
+
+// Chips resolve against the FLAT option list — with grouped options the labels
+// live one level down, inside each group's children.
+const flatOptions = computed<any[]>(() => {
+  if (!props.optionGroupChildren) return props.options ?? []
+  return (props.options ?? []).flatMap((g: any) => g[props.optionGroupChildren!] ?? [])
 })
 
 const emit = defineEmits<{ (e: 'update:modelValue', v: any[]): void }>()
 
 const selectedOpts = computed(() =>
-  (props.modelValue ?? []).map(v => props.options.find(o => o[props.optionValue!] === v) ?? { [props.optionValue!]: v, [props.optionLabel!]: v })
+  (props.modelValue ?? []).map(v => flatOptions.value.find(o => o[props.optionValue!] === v) ?? { [props.optionValue!]: v, [props.optionLabel!]: v })
 )
 const labelOf = (o: any) => o[props.optionLabel!]
 const keyOf = (o: any) => o[props.optionValue!]
@@ -70,7 +83,13 @@ onBeforeUnmount(() => { ro?.disconnect(); ro = null })
     :modelValue="modelValue"
     @update:modelValue="emit('update:modelValue', $event)"
     :options="options" :optionLabel="optionLabel" :optionValue="optionValue"
+    :optionGroupLabel="optionGroupLabel" :optionGroupChildren="optionGroupChildren"
+    :filter="filter"
     :placeholder="placeholder" :showToggleAll="false" class="w-full">
+    <!-- Let hosts own the group header (e.g. click a code to select all its classes). -->
+    <template v-if="$slots.optiongroup" #optiongroup="sp">
+      <slot name="optiongroup" v-bind="sp" />
+    </template>
     <template #value="sp">
       <span v-if="!sp.value || sp.value.length === 0" class="text-sm text-gray-400">{{ placeholder }}</span>
       <div v-else class="relative w-full min-w-0">

@@ -122,13 +122,55 @@ const emit = defineEmits<{
   (e: 'customRepeat'): void
 }>()
 
+// The range can't end before it starts. Rather than let the user pick an
+// invalid window and then scold them, keep the end pinned ahead of the start:
+// an end that would land before the start is pushed to start + 1h.
+const HOUR = 60 * 60 * 1000
+
+// Times only need comparing when both ends land on the same calendar day —
+// an 8pm→6am overnight event across two dates is perfectly valid.
+function sameDay(a: Date | null, b: Date | null) {
+  if (!a || !b) return true          // no end date given → treated as same day
+  return a.toDateString() === b.toDateString()
+}
+function plusHour(d: Date) { return new Date(d.getTime() + HOUR) }
+
 function onStartDate(v: Date | null) {
   emit('update:startDate', v)
+  // End date before the new start → drop it rather than keep an invalid range.
   if (v && props.endDate && v > props.endDate) emit('update:endDate', null)
   emit('change')
+  syncEndTime(props.startTime, props.endTime)
 }
-function onEndDate(v: Date | null) { emit('update:endDate', v); emit('change') }
-function onStartTime(v: Date | null) { emit('update:startTime', v); emit('change') }
-function onEndTime(v: Date | null) { emit('update:endTime', v); emit('change') }
+function onEndDate(v: Date | null) {
+  emit('update:endDate', v)
+  emit('change')
+  // Collapsing a multi-day event back onto one day can strand the end time.
+  syncEndTime(props.startTime, props.endTime, v)
+}
+function onStartTime(v: Date | null) {
+  emit('update:startTime', v)
+  emit('change')
+  syncEndTime(v, props.endTime)
+}
+function onEndTime(v: Date | null) {
+  // Reject an end that's before the start on the same day — snap it forward.
+  if (v && props.startTime && sameDay(props.startDate, props.endDate) && v <= props.startTime) {
+    emit('update:endTime', plusHour(props.startTime))
+    emit('change')
+    return
+  }
+  emit('update:endTime', v)
+  emit('change')
+}
+
+// Keeps the end time valid after the start (or the dates) move under it.
+function syncEndTime(start: Date | null, end: Date | null, endDate: Date | null = props.endDate) {
+  if (!start || !end) return
+  if (!sameDay(props.startDate, endDate)) return
+  if (end > start) return
+  emit('update:endTime', plusHour(start))
+  emit('change')
+}
 
 </script>

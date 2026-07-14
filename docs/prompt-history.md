@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-274 sessions · 1483 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+322 sessions · 1584 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -23152,7 +23152,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:51** — on the events drop down please change the "new category" > "New calendar"
 
 
-## Session 2026-07-13 21:11 (48 prompts)
+## Session 2026-07-13 21:11 (79 prompts)
 
 **21:11** — Hye
 
@@ -23249,6 +23249,74 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:17** — is is that fees module the same as the shared component for fees it looks diffenret
 
 **02:21** — I like the idea of having a suammary like the booking on the right hand side of the wiazrd to show me what my evnet looks liek as i go through the wizard
+
+**06:27** — on the fees page I want to add the ability to create discounts
+
+**06:35** — Hold on we have an awesome discounting tool already - whenever we/you and i desing or  build somethign it should check to see what we have done and you should ask me - hey we have this - shoudl i use it or should we crate somehting
+
+**06:49** — Member groups shoudl be a tree
+
+**06:54** — can i see the other option please
+
+**07:01** — [Image #14] this should say test, wag step 4 + 16 others
+
+**07:03** — there should not be a scroll bar
+
+**07:04** — put the amount box beore the the take off box ie swithc them - make th eamout box shorter
+
+**07:06** — can yoy please make it so if the event is in draft stauts and the user chose to do an event that it rememebrs the step and reloads the step when opening it again
+
+**08:06** — If the option is "charged" then the name of the fee for the first line intem should be the name of the event
+
+**08:09** — [Image #15] somthign is not right here
+
+**08:11** — The amout should not have or accpet anythgi but a number - could be a decimil place number but likly a full numebr
+
+**08:35** — [Image #16] no % sign
+
+**08:38** — [Image #17] make this the stat for teh remove row
+
+**08:40** — remove this - Discounts are saved with the event, but aren't applied at checkout yet — the registration form doesn't subtract them.
+
+**08:42** — ok the invitees section we need to have a buttons that says somethign like - I want to invite people from my club / I want to invite people from the public
+
+**08:45** — [Image #18] lets move this to the invitees tab
+
+**08:46** — A public registration form - should be a new step
+
+**08:55** — <task-notification>
+> <task-id>bv0tfx42u</task-id>
+> <tool-use-id>toolu_01YM55qir4ySxjdbzHN145JV</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/8798c09a-b579-42dd-8e1c-e66ecbbd98e5/tasks/bv0tfx42u.output</output-file>
+> <status>completed</status>
+> <summary>Background command "Find remaining init-order issue" completed (exit code 0)</summary>
+> </task-notification>
+
+**08:56** — [Image #19] this should be hireachy
+
+**09:01** — I want the first step - ie. basic or custom
+
+**09:06** — the wizard test is a draft it should open back up to the wizard ?
+
+**09:12** — please dont show the alert for the draft
+
+**09:15** — ok its not quite right - so I was on the wizard view got to step 4 for the evnet test and it opened up the full basic view in a modal - not sure why we have this view anyway
+
+**09:20** — [Image #20] i think you need to do some testing
+
+**09:24** — in the modal i should be able to delete the evnet
+
+**09:28** — only events that have been crated using the wizard modal should open in wizard - ie track was it crated in wizard is it live or not - if its live then take me to the live full event, if its a custom event it should take me to the full page event form if its and advaced evet takes me to teh full event in advaced mode
+
+**09:33** — http://localhost:3002/events/8a2d6351-149b-48e0-9ca9-1d8021a7d63f this is tnot the right full evnet page - it shoudl be the basic page which has all the sections on page wher i can scroll down and see everything
+
+**09:36** — the one page should not be in a modal
+
+**09:40** — [Image #21] why does this say 2 more when there is still lots of space left
+
+**09:46** — [Image #22] remove this category drop down
+
+**09:50** — If i set a discipline and then change my mind i need to eb able to cancel it - also can oyu please make the disicpline a hirarchy drop drop ie. Sport > disiplines etc
 
 
 ## Session 2026-07-13 21:33 (1 prompts)
@@ -24187,7 +24255,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > … [truncated — 15541 chars total]
 
 
-## Session 2026-07-14 02:15 (11 prompts)
+## Session 2026-07-14 02:15 (12 prompts)
 
 **02:15** — I need to be able to put the events module back in to friendly manager I need to create diagram/docuemtn of the simple evnet and what would need to happen to make this work - 
 > 
@@ -24221,6 +24289,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **03:11** — yes polease
 
 **03:12** — can we please put this into the repo so we can get it live to others
+
+**05:49** — deploy live
 
 
 ## Session 2026-07-14 02:25 (1 prompts)
@@ -24714,4 +24784,3936 @@ Every prompt given to Claude Code on this project, extracted from local session 
 >     body = restArgs[1];
 >     bodyIndex = 
 > … [truncated — 74935 chars total]
+
+
+## Session 2026-07-14 03:13 (1 prompts)
+
+**03:13** — Analyze test coverage and identify gaps:
+> - Find untested functions and classes
+> - Identify edge cases not covered
+> - Suggest new test scenarios
+> - Check for missing error handling tests
+> - Identify integration test gaps
+> 
+> For each gap, provide a test skeleton.
+> 
+> ## Codebase Context
+> 
+> --- tests/smoke.spec.ts (truncated) ---
+> /**
+>  * DEPLOYMENT SMOKE SUITE — run after every deploy.
+>  *
+>  *   TEST_BASE_URL=https://fm-events-five.vercel.app \
+>  *   TEST_EMAIL=... TEST_PASSWORD=... npm run test:smoke
+>  *
+>  * Principles:
+>  *  - STRICTLY READ-ONLY. Dev and prod share ONE database — these tests never
+>  *    write, click destructive buttons, or submit forms.
+>  *  - A route "passes" when it renders without a Nuxt 500, without uncaught
+>  *    page errors, without bouncing to /login, and with real content in <main>.
+>  *  - Data-independent: works on any org (asserts structure, not seed rows).
+>  *  - Auth'd sweep skips gracefully when TEST_EMAIL/TEST_PASSWORD aren't set,
+>  *    so the public subset still gates a deploy with no secrets available.
+>  */
+> import { test, expect, Page } from '@playwright/test'
+> 
+> const BASE = process.env.TEST_BASE_URL ?? 'http://localhost:3002'
+> const EMAIL = process.env.TEST_EMAIL ?? ''
+> const PASSWORD = process.env.TEST_PASSWORD ?? ''
+> const HAS_CREDS = !!(EMAIL && PASSWORD)
+> 
+> // Every core screen. Keep this list in sync with the URL table in CLAUDE.md —
+> // a new page ships with a row here (same spirit as the dashboard-widget rule).
+> const AUTHED_ROUTES = [
+>   '/dashboard',
+>   '/me',
+>   '/onboarding',
+>   '/people',
+>   '/groups',
+>   '/groups/timetable',
+>   '/groups/reports',
+>   '/groups/retention',
+>   '/groups/fees',
+>   '/groups/waitlists',
+>   '/groups/settings',
+>   '/groups/allocator',
+>   '/groups/codes',
+>   '/groups/views',
+>   '/groups/rollover',
+>   '/groups/term-wizard',
+>   '/memberships',
+>   '/events',
+>   '/events/new-basic',
+>   '/events/reporting',
+>   '/bookables',
+>   '/bookings/new',
+>   '/attendance',
+>   '/resources',
+>   '/reports',
+>   '/reports/custom/new',
+>   '/finances',
+>   '/reporting',
+>   '/forms',
+>   '/organisations',
+>   '/settings',
+>   '/settings/terms',
+>   '/settings/memberships',
+>   '/settings/locations',
+>   '/settings/fields',
+>   '/settings/field-catalogue',
+>   '/settings/core-fields',
+>   '/settings/terminology',
+>   '/settings/modules',
+>   '/settings/calendars',
+>   '/settings/xero',
+>   '/settings/integrations',
+> ]
+> 
+> const PUBLIC_ROUTES = ['/login', '/book']
+> 
+> // Errors we tolerate (3rd-party noise, favicons, expected 4xx probes)
+> const IGNORABLE = [/favicon/i, /ResizeObserver loop/i, /sharedworker/i]
+> 
+> function watchErrors(page: Page) {
+>   const pageErrors: string[] = []
+>   const badResponses: string[] = []
+>   page.on('pageerror', e => pageErrors.push(String(e).slice(0, 200)))
+>   page.on('response', r => {
+>     // 5xx anywhere is a deploy problem; 4xx only from our own API/DB calls
+>     const url = r.url()
+>     if (IGNORABLE.some(rx => rx.test(url))) return
+>     if (r.status() >= 500) badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
+>     if (r.status() >= 400 && /supabase|\/api\//.test(url) &
+> … [truncated — 15541 chars total]
+
+
+## Session 2026-07-14 03:13 (1 prompts)
+
+**03:13** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 74935 chars total]
+
+
+## Session 2026-07-14 03:49 (1 prompts)
+
+**03:49** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+
+## Session 2026-07-14 03:49 (1 prompts)
+
+**03:49** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 74935 chars total]
+
+
+## Session 2026-07-14 03:53 (1 prompts)
+
+**03:53** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 74935 chars total]
+
+
+## Session 2026-07-14 03:56 (1 prompts)
+
+**03:56** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+
+## Session 2026-07-14 03:56 (1 prompts)
+
+**03:56** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 74935 chars total]
+
+
+## Session 2026-07-14 03:56 (1 prompts)
+
+**03:56** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 74935 chars total]
+
+
+## Session 2026-07-14 03:57 (1 prompts)
+
+**03:57** — Analyze test coverage and identify gaps:
+> - Find untested functions and classes
+> - Identify edge cases not covered
+> - Suggest new test scenarios
+> - Check for missing error handling tests
+> - Identify integration test gaps
+> 
+> For each gap, provide a test skeleton.
+> 
+> ## Codebase Context
+> 
+> --- tests/smoke.spec.ts (truncated) ---
+> /**
+>  * DEPLOYMENT SMOKE SUITE — run after every deploy.
+>  *
+>  *   TEST_BASE_URL=https://fm-events-five.vercel.app \
+>  *   TEST_EMAIL=... TEST_PASSWORD=... npm run test:smoke
+>  *
+>  * Principles:
+>  *  - STRICTLY READ-ONLY. Dev and prod share ONE database — these tests never
+>  *    write, click destructive buttons, or submit forms.
+>  *  - A route "passes" when it renders without a Nuxt 500, without uncaught
+>  *    page errors, without bouncing to /login, and with real content in <main>.
+>  *  - Data-independent: works on any org (asserts structure, not seed rows).
+>  *  - Auth'd sweep skips gracefully when TEST_EMAIL/TEST_PASSWORD aren't set,
+>  *    so the public subset still gates a deploy with no secrets available.
+>  */
+> import { test, expect, Page } from '@playwright/test'
+> 
+> const BASE = process.env.TEST_BASE_URL ?? 'http://localhost:3002'
+> const EMAIL = process.env.TEST_EMAIL ?? ''
+> const PASSWORD = process.env.TEST_PASSWORD ?? ''
+> const HAS_CREDS = !!(EMAIL && PASSWORD)
+> 
+> // Every core screen. Keep this list in sync with the URL table in CLAUDE.md —
+> // a new page ships with a row here (same spirit as the dashboard-widget rule).
+> const AUTHED_ROUTES = [
+>   '/dashboard',
+>   '/me',
+>   '/onboarding',
+>   '/people',
+>   '/groups',
+>   '/groups/timetable',
+>   '/groups/reports',
+>   '/groups/retention',
+>   '/groups/fees',
+>   '/groups/waitlists',
+>   '/groups/settings',
+>   '/groups/allocator',
+>   '/groups/codes',
+>   '/groups/views',
+>   '/groups/rollover',
+>   '/groups/term-wizard',
+>   '/memberships',
+>   '/events',
+>   '/events/new-basic',
+>   '/events/reporting',
+>   '/bookables',
+>   '/bookings/new',
+>   '/attendance',
+>   '/resources',
+>   '/reports',
+>   '/reports/custom/new',
+>   '/finances',
+>   '/reporting',
+>   '/forms',
+>   '/organisations',
+>   '/settings',
+>   '/settings/terms',
+>   '/settings/memberships',
+>   '/settings/locations',
+>   '/settings/fields',
+>   '/settings/field-catalogue',
+>   '/settings/core-fields',
+>   '/settings/terminology',
+>   '/settings/modules',
+>   '/settings/calendars',
+>   '/settings/xero',
+>   '/settings/integrations',
+> ]
+> 
+> const PUBLIC_ROUTES = ['/login', '/book']
+> 
+> // Errors we tolerate (3rd-party noise, favicons, expected 4xx probes)
+> const IGNORABLE = [/favicon/i, /ResizeObserver loop/i, /sharedworker/i]
+> 
+> function watchErrors(page: Page) {
+>   const pageErrors: string[] = []
+>   const badResponses: string[] = []
+>   page.on('pageerror', e => pageErrors.push(String(e).slice(0, 200)))
+>   page.on('response', r => {
+>     // 5xx anywhere is a deploy problem; 4xx only from our own API/DB calls
+>     const url = r.url()
+>     if (IGNORABLE.some(rx => rx.test(url))) return
+>     if (r.status() >= 500) badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
+>     if (r.status() >= 400 && /supabase|\/api\//.test(url) &
+> … [truncated — 15541 chars total]
+
+
+## Session 2026-07-14 04:22 (1 prompts)
+
+**04:22** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+
+## Session 2026-07-14 04:22 (1 prompts)
+
+**04:22** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 74935 chars total]
+
+
+## Session 2026-07-14 05:46 (1 prompts)
+
+**05:46** — Analyze test coverage and identify gaps:
+> - Find untested functions and classes
+> - Identify edge cases not covered
+> - Suggest new test scenarios
+> - Check for missing error handling tests
+> - Identify integration test gaps
+> 
+> For each gap, provide a test skeleton.
+> 
+> ## Codebase Context
+> 
+> --- tests/smoke.spec.ts (truncated) ---
+> /**
+>  * DEPLOYMENT SMOKE SUITE — run after every deploy.
+>  *
+>  *   TEST_BASE_URL=https://fm-events-five.vercel.app \
+>  *   TEST_EMAIL=... TEST_PASSWORD=... npm run test:smoke
+>  *
+>  * Principles:
+>  *  - STRICTLY READ-ONLY. Dev and prod share ONE database — these tests never
+>  *    write, click destructive buttons, or submit forms.
+>  *  - A route "passes" when it renders without a Nuxt 500, without uncaught
+>  *    page errors, without bouncing to /login, and with real content in <main>.
+>  *  - Data-independent: works on any org (asserts structure, not seed rows).
+>  *  - Auth'd sweep skips gracefully when TEST_EMAIL/TEST_PASSWORD aren't set,
+>  *    so the public subset still gates a deploy with no secrets available.
+>  */
+> import { test, expect, Page } from '@playwright/test'
+> 
+> const BASE = process.env.TEST_BASE_URL ?? 'http://localhost:3002'
+> const EMAIL = process.env.TEST_EMAIL ?? ''
+> const PASSWORD = process.env.TEST_PASSWORD ?? ''
+> const HAS_CREDS = !!(EMAIL && PASSWORD)
+> 
+> // Every core screen. Keep this list in sync with the URL table in CLAUDE.md —
+> // a new page ships with a row here (same spirit as the dashboard-widget rule).
+> const AUTHED_ROUTES = [
+>   '/dashboard',
+>   '/me',
+>   '/onboarding',
+>   '/people',
+>   '/groups',
+>   '/groups/timetable',
+>   '/groups/reports',
+>   '/groups/retention',
+>   '/groups/fees',
+>   '/groups/waitlists',
+>   '/groups/settings',
+>   '/groups/allocator',
+>   '/groups/codes',
+>   '/groups/views',
+>   '/groups/rollover',
+>   '/groups/term-wizard',
+>   '/memberships',
+>   '/events',
+>   '/events/new-basic',
+>   '/events/reporting',
+>   '/bookables',
+>   '/bookings/new',
+>   '/attendance',
+>   '/resources',
+>   '/reports',
+>   '/reports/custom/new',
+>   '/finances',
+>   '/reporting',
+>   '/forms',
+>   '/organisations',
+>   '/settings',
+>   '/settings/terms',
+>   '/settings/memberships',
+>   '/settings/locations',
+>   '/settings/fields',
+>   '/settings/field-catalogue',
+>   '/settings/core-fields',
+>   '/settings/terminology',
+>   '/settings/modules',
+>   '/settings/calendars',
+>   '/settings/xero',
+>   '/settings/integrations',
+> ]
+> 
+> const PUBLIC_ROUTES = ['/login', '/book']
+> 
+> // Errors we tolerate (3rd-party noise, favicons, expected 4xx probes)
+> const IGNORABLE = [/favicon/i, /ResizeObserver loop/i, /sharedworker/i]
+> 
+> function watchErrors(page: Page) {
+>   const pageErrors: string[] = []
+>   const badResponses: string[] = []
+>   page.on('pageerror', e => pageErrors.push(String(e).slice(0, 200)))
+>   page.on('response', r => {
+>     // 5xx anywhere is a deploy problem; 4xx only from our own API/DB calls
+>     const url = r.url()
+>     if (IGNORABLE.some(rx => rx.test(url))) return
+>     if (r.status() >= 500) badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
+>     if (r.status() >= 400 && /supabase|\/api\//.test(url) &
+> … [truncated — 15541 chars total]
+
+
+## Session 2026-07-14 05:46 (1 prompts)
+
+**05:46** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 74935 chars total]
+
+
+## Session 2026-07-14 05:58 (2 prompts)
+
+**05:58** — Analyze test coverage and identify gaps:
+> - Find untested functions and classes
+> - Identify edge cases not covered
+> - Suggest new test scenarios
+> - Check for missing error handling tests
+> - Identify integration test gaps
+> 
+> For each gap, provide a test skeleton.
+> 
+> ## Codebase Context
+> 
+> --- tests/smoke.spec.ts (truncated) ---
+> /**
+>  * DEPLOYMENT SMOKE SUITE — run after every deploy.
+>  *
+>  *   TEST_BASE_URL=https://fm-events-five.vercel.app \
+>  *   TEST_EMAIL=... TEST_PASSWORD=... npm run test:smoke
+>  *
+>  * Principles:
+>  *  - STRICTLY READ-ONLY. Dev and prod share ONE database — these tests never
+>  *    write, click destructive buttons, or submit forms.
+>  *  - A route "passes" when it renders without a Nuxt 500, without uncaught
+>  *    page errors, without bouncing to /login, and with real content in <main>.
+>  *  - Data-independent: works on any org (asserts structure, not seed rows).
+>  *  - Auth'd sweep skips gracefully when TEST_EMAIL/TEST_PASSWORD aren't set,
+>  *    so the public subset still gates a deploy with no secrets available.
+>  */
+> import { test, expect, Page } from '@playwright/test'
+> 
+> const BASE = process.env.TEST_BASE_URL ?? 'http://localhost:3002'
+> const EMAIL = process.env.TEST_EMAIL ?? ''
+> const PASSWORD = process.env.TEST_PASSWORD ?? ''
+> const HAS_CREDS = !!(EMAIL && PASSWORD)
+> 
+> // Every core screen. Keep this list in sync with the URL table in CLAUDE.md —
+> // a new page ships with a row here (same spirit as the dashboard-widget rule).
+> const AUTHED_ROUTES = [
+>   '/dashboard',
+>   '/me',
+>   '/onboarding',
+>   '/people',
+>   '/groups',
+>   '/groups/timetable',
+>   '/groups/reports',
+>   '/groups/retention',
+>   '/groups/fees',
+>   '/groups/waitlists',
+>   '/groups/settings',
+>   '/groups/allocator',
+>   '/groups/codes',
+>   '/groups/views',
+>   '/groups/rollover',
+>   '/groups/term-wizard',
+>   '/memberships',
+>   '/events',
+>   '/events/new-basic',
+>   '/events/reporting',
+>   '/bookables',
+>   '/bookings/new',
+>   '/attendance',
+>   '/resources',
+>   '/reports',
+>   '/reports/custom/new',
+>   '/finances',
+>   '/reporting',
+>   '/forms',
+>   '/organisations',
+>   '/settings',
+>   '/settings/terms',
+>   '/settings/memberships',
+>   '/settings/locations',
+>   '/settings/fields',
+>   '/settings/field-catalogue',
+>   '/settings/core-fields',
+>   '/settings/terminology',
+>   '/settings/modules',
+>   '/settings/calendars',
+>   '/settings/xero',
+>   '/settings/integrations',
+> ]
+> 
+> const PUBLIC_ROUTES = ['/login', '/book']
+> 
+> // Errors we tolerate (3rd-party noise, favicons, expected 4xx probes)
+> const IGNORABLE = [/favicon/i, /ResizeObserver loop/i, /sharedworker/i]
+> 
+> function watchErrors(page: Page) {
+>   const pageErrors: string[] = []
+>   const badResponses: string[] = []
+>   page.on('pageerror', e => pageErrors.push(String(e).slice(0, 200)))
+>   page.on('response', r => {
+>     // 5xx anywhere is a deploy problem; 4xx only from our own API/DB calls
+>     const url = r.url()
+>     if (IGNORABLE.some(rx => rx.test(url))) return
+>     if (r.status() >= 500) badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
+>     if (r.status() >= 400 && /supabase|\/api\//.test(url) &
+> … [truncated — 15541 chars total]
+
+**06:01** — <task-notification>
+> <task-id>a87a2be56ea8401ed</task-id>
+> <tool-use-id>toolu_01F2VwS8vARYQoDTiqx19caH</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/bad266c1-c9dc-41e1-90c4-6ba8a4f73666/tasks/a87a2be56ea8401ed.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Survey test suite and testable logic" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Full inventory complete. Report below.
+> 
+> ## 1. Test files (`/Users/karl/fm-events`)
+> 
+> No `test/`, `e2e/`, or `__tests__/` dirs exist — everything lives under `tests/`.
+> 
+> | Path | Framework | Covers |
+> |---|---|---|
+> | `tests/smoke.spec.ts` (186 lines) | Playwright | Deploy smoke suite, **read-only**. Two `describe` blocks: `public pages` (loops `PUBLIC_ROUTES = ['/login','/book']`, asserts no 500/page errors) and `authenticated sweep` (loops ~35 `AUTHED_ROUTES` — dashboard, people, groups/*, memberships, events, bookables, bookings/new, attendance, resources, reports, finances, forms, organisations, settings/* — asserting no 500, no bounce to `/login`, non-empty `&lt;main&gt;`, no failing supabase/api requests). Skips authed block if `TEST_EMAIL`/`TEST_PASSWORD` unset. Plus 3 structural spot-checks (dashboard header, classes board, memberships board, location switcher). |
+> | `tests/uat.spec.ts` (437 lines) | Playwright | Interactive/CRUD-ish UAT flows, 12 `describe` blocks: `Login`, `Events`, `Bookings`, `New Booking Wizard`, `Bookables`, `Finances`, `Reporting`, `Access Control`, `Settings – General`, `Settings – Categories &amp; Calendars`, `Settings – Venues`, `Category lifecycle`. Logs in via UI, clicks through wizards/dialogs, asserts visible state (no direct DB assertions). |
+> | `tests/unit/formProfilePresets.test.ts` (207 lines) | Vitest | Unit tests `PROFILE_PRESETS` catalogue shape + `resolvePreset()` against a fixture `SubjectType[]` (NZC seed types) for all 7 presets (individual/couple/parent_child/family/team/company/school), plus edge cases (entity-only types, missing role fallback). This is the **only** unit test in the repo and the only composable with dedicated tests. |
+> 
+> No other test-like files found (checked `find . -iname "*test*"` excluding `node_modules` — only build artifacts / claude-flow logs, not real tests).
+> 
+> ## 2. Test runner config
+> 
+> `package.json` scripts:
+> - `"test": "playwright test"` — runs **all** files under `testDir` per `playwright.config.ts`, i.e. both `smoke.spec.ts` and `uat.spec.ts`.
+> - `"test:ui": "playwright test --ui"`
+> - `"test:unit": "vitest run"` — wired to `vitest.config.ts`, `include: ['tests/unit/**/*.test.ts']`, `environment: 'node'`. Comment in the config confirms intent: *"Unit tests only — isolated from the Nuxt runtime. Pure logic (preset resolver, helpers) lives in composables and is imported directly."*
+> - `"test:unit:watch": "vitest"`
+> - `"
+> … [truncated — 14992 chars total]
+
+
+## Session 2026-07-14 05:58 (5 prompts)
+
+**05:58** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+**06:00** — <task-notification>
+> <task-id>ae46c31242dfdf8f1</task-id>
+> <tool-use-id>toolu_01U1EKvENQRBrXS9qqeuuD89</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/77f391c4-4f10-404d-a939-565d4ba880b3/tasks/ae46c31242dfdf8f1.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find caching gaps and redundant fetches" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Caching Audit — Top Findings
+> 
+> **1. `useOrgFieldPolicy().resolveFields()` / `resolvePersonTypes()` — 15+ call sites, no caching at all**
+> `/Users/karl/fm-events/composables/useOrgFieldPolicy.ts` — both functions are plain `async function`s with **no `useState`**, no `force` param, nothing. Every call re-walks `ancestors(orgId)` (an RPC round-trip) plus a fresh `field_definitions`/`person_target_types` query. Called from `pages/people/[id].vue`, `pages/people/index.vue`, `pages/organisations/[id].vue`, `pages/settings/field-catalogue.vue`, `pages/settings/fields.vue`, `pages/reports/custom/[id].vue`, `pages/me.vue`, `usePersonFields.ts` (used by `PersonFormBuilder.vue`, `BookingFormFields.vue`), `FormRenderer.vue`, plus 3 `/proto/*` pages. On `people/[id].vue` alone, opening a profile fires `resolveFields` **and** `resolvePersonTypes` independently (lines ~637/640), each re-walking the ancestor chain — and navigating between member profiles repeats this every time even though the field catalogue almost never changes mid-session. **Fix:** hoist both to `useState` keyed by `orgId` (e.g. `useState('field-defs-'+orgId)`), add `force?: boolean`, and memoize `ancestors()` itself (see #4) so nested calls don't re-hit the RPC.
+> 
+> **2. `useGroupCodes().loadCodes()` — ~19 call sites, zero caching, actively double-fetched on real pages**
+> `/Users/karl/fm-events/composables/useGroupCodes.ts` line 64 — no `useState`, unlike its sibling `loadDefaultPositions()` two functions above it (which *does* use `useState`/`force`, showing the pattern is known but wasn't applied here). Confirmed redundant fetch: `pages/groups/index.vue` calls `gc.loadCodes()` in its own `Promise.all` **and** renders `&lt;ClassesBoard&gt;`, which calls `gc.loadCodes()` again independently — two `group_codes` queries for the same org on one page load. Similarly `pages/dashboard.vue` can render both `DashwidgetsStaffCoverage` and `DashwidgetsMembershipHealth` simultaneously, each calling `gc.loadCodes()` separately. **Fix:** cache in `useState('fm_group_codes')` keyed/invalidated by `orgId`, add `force`, and have the widgets/child components read the shared state instead of re-querying.
+> 
+> **3. `useOrgHierarchy().ancestors(orgId)` — the root cause behind #1 and terminology**
+> `/Users/karl/fm-events/composables/useOrgHierarchy.ts` line 43 — plain RPC call, no memoization by `orgId`. It's the shared dependency of `resolveFields`, `r
+> … [truncated — 4424 chars total]
+
+**06:00** — <task-notification>
+> <task-id>ae10f06dbdb87d43a</task-id>
+> <tool-use-id>toolu_01T236yejm3NA9oxa7tryVLH</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/77f391c4-4f10-404d-a939-565d4ba880b3/tasks/ae10f06dbdb87d43a.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find N+1 query patterns" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## N+1 Query Audit — fm-events
+> 
+> Ranked by how often the code path actually runs (public/hot request &gt; admin UI action &gt; rare admin/setup action).
+> 
+> **1. `server/api/public-form-submit.post.ts:128-139` — `upsertPerson()` looped per registrant (HOTTEST — runs on every public registration/booking form submit)**
+> The nested loop `for (const s of subjects) { for (const inst of s.instances) { await upsertPerson(inst) } }` calls `upsertPerson` sequentially, and each call does a `select` by email (line 101) plus an `insert`/`update` (lines 104/112) — 2 sequential round trips per family member/registrant. A family submitting for 4 kids does 8 sequential DB calls that directly add to the request's response latency.
+> Fix: batch-select existing persons in one `select().in('email', emails)` call, split into "existing" vs "new", then a single bulk `upsert` for creates and a batched update (or per-row `upsert` with `onConflict`) for updates.
+> 
+> **2. `server/api/send-notification-email.post.ts:52-55` — Auth admin lookup per org member (HOT — fired fire-and-forget on every booking/registration)**
+> `for (const uid of userIds) { await supabase.auth.admin.getUserById(uid) }` hits the GoTrue Admin API once per org member to resolve emails. For an org with dozens of staff this is dozens of sequential external calls on every single notification send.
+> Fix: cache emails on `org_members` (or a `profiles` view) so this becomes one table query, or use `supabase.auth.admin.listUsers()` once and filter client-side instead of per-id lookups.
+> 
+> **3. `pages/events/[id].vue:4408-4417` (`executeAddToSubGroup`) and `pages/events/[id].vue:4610-4622` (`onDropOnGroup`) — per-invitee update loops (HOT — event attendance page, common admin action)**
+> Both loop over selected/dragged invitee ids and run `await db.from('invitees').update({ sub_group_id }).eq('id', invId)` once per id.
+> Fix: `db.from('invitees').update({ sub_group_id }).in('id', ids)` in a single call.
+> 
+> **4. `pages/events/[id].vue:5254-5270` (`propagateMasterToLinked`) — fee_components delete+insert per linked session (HOT — runs every time a master/recurring session is saved)**
+> For each linked session in a recurring series, it awaits a `delete().eq('session_id', linkedId)` then an `insert(...)` — 2 queries per occurrence. A weekly term series with 15-20 occurrences means 30-40 sequential queries on a single save.
+> Fix: `delete().in('session_id', linkedIds)` once, then one bulk
+> … [truncated — 4475 chars total]
+
+**06:00** — <task-notification>
+> <task-id>a9bc571db4de19e4c</task-id>
+> <tool-use-id>toolu_01AtHbvQmp3iGaxXMiBs6n1a</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/77f391c4-4f10-404d-a939-565d4ba880b3/tasks/a9bc571db4de19e4c.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find Vue reactivity/re-render issues" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Vue Reactivity/Rendering Audit — Top Findings
+> 
+> **1. `pages/groups/[id]/index.vue:2023-2030` — expensive functions called directly in `v-for`, not memoized**
+> `membersInSubGroup(sgId)` and `staffInSubGroup(sgId)` each run `.filter().sort()` over the full `allPeople` computed array. They're invoked per-row in four separate `v-for` loops (lines 696, 722, 752, 761), and `subGroupCount(sgId)` (line 2030) calls *both* again just to get lengths. For N subgroups this is O(N × people) recomputed on every re-render.
+> *Fix:* build a single `computed(() =&gt; groupBy(allPeople.value, p =&gt; p.subGroupId))` map once, and have `membersInSubGroup`/`staffInSubGroup`/`subGroupCount` do O(1) lookups into it.
+> 
+> **2. `components/BookingsCalendar.vue:917-1046` — `rulesForDate()`/`bookingsForDate()` called per calendar cell, uncached**
+> `rulesForDate(date)` does filter + sort + interval-subtraction math (lines 917-987); `bookingsForDate(date)` filters the full `bookings.value` array (line 1046). Both are called directly in `v-for` over calendar days (month view ≈ 35-42 cells), and `ruleSlotsForDate()` (line 1014) calls `rulesForDate()` again internally — doubling the work per cell. None of this is memoized, so it reruns on any reactive trigger, not just when `rules`/`bookings` change.
+> *Fix:* wrap results in `computed(() =&gt; new Map(days.map(d =&gt; [dateKey(d), rulesForDate(d)])))` keyed by date, recomputed only when `rules.value`/`bookings.value` change.
+> 
+> **3. `components/FormDesigner.vue:2136-2140` (also 482-485, 605-608, 1515) — deep watchers on multiple large form-structure objects**
+> `watch([evtFormGroupModes, evtFormGroupDesigns, evtFormGroupSessions, evtFormGroupsList, evtFormGroupFields], ..., { deep: true })` triggers a full recursive diff walk across five potentially large nested objects on *every* keystroke/field edit while building a form. The actual save is debounced 600ms (`persistEvtFormConfig`), but the deep-watch tracking/diff cost is paid synchronously on each mutation regardless.
+> *Fix:* drop `deep: true` and instead call a lightweight "mark dirty" function from the mutator functions that change these structures, or watch a shallow version counter instead of deep-diffing the whole tree.
+> 
+> **4. `pages/people/index.vue:96` — unpaginated `v-for` on mobile, unlike desktop**
+> The mobile card list uses `v-for="p in filtered"` with no pagination, while the desktop view of the same data uses a Pr
+> … [truncated — 4096 chars total]
+
+**06:01** — <task-notification>
+> <task-id>a6b6d5fa1049ee244</task-id>
+> <tool-use-id>toolu_01PgupP8qWNPJphcTDLqGdzx</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/77f391c4-4f10-404d-a939-565d4ba880b3/tasks/a6b6d5fa1049ee244.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find memory leaks and redundant computations" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>That's fine (cheap, distinct from `useScopedRoles.isStaff`). I have sufficient evidence. Writing up the final report now.
+> 
+> ## Audit Findings (ranked: leaks first, then redundant computation)
+> 
+> **Memory leaks — none found active.** I checked every `setInterval`/`ResizeObserver`/`addEventListener`/`MutationObserver` instance and Supabase realtime usage in the repo:
+> - `components/TimetableGrid.vue:148-149` — "now" line interval is correctly cleared in `onBeforeUnmount`.
+> - `components/BookingsList.vue:459-463` — same pattern, correctly cleared.
+> - `layouts/default.vue:503-510` — poll interval + document click listener both cleaned up.
+> - `components/ChipMultiSelect.vue:60-65` and `components/ProfileDashboard.vue:80-90` — `ResizeObserver`s are `.disconnect()`'d on unmount.
+> - `components/ReviewWidget.vue:847-859` — `MutationObserver` and all `keydown`/`resize`/`scroll` listeners are removed in `onBeforeUnmount`.
+> - No `.channel(`/`.subscribe(` calls exist anywhere in the codebase (no Supabase realtime in use), so no unsubscribe leak is possible.
+> - `useState`-backed caches (`useScopedRoles.ts:104-107`, `useXeroAccounts.ts:47-53`) are all **overwritten** on reload, not pushed to, so they don't accumulate across org switches.
+> 
+> The "known candidates" named in the brief (TimetableGrid, ChipMultiSelect, ProfileDashboard) all turned out to have correct cleanup — worth confirming to the team so nobody "fixes" a non-bug.
+> 
+> **Redundant computations — real issues found:**
+> 
+> 1. **`pages/events/[id].vue:809-838`** (repeated at `854-884`) — Inside `v-for="sg in subGroups"`, the template calls `sessionFilteredInvitees.filter(inv =&gt; inviteeGroupMap[inv.id] === sg.id)` **six separate times per row** (count badge, `.length` display, `.every()` for the Added/Add-all label, icon, severity, and the click handler), and a near-identical block filters `invitees` again on the right-hand "selected" panel. Each filter re-scans the full invitee array on every re-render, per group, per keystroke in the search box. Fix: replace with a single `computed(() =&gt; new Map&lt;string, Invitee[]&gt;())` grouping invitees by `inviteeGroupMap[inv.id]` once, then look up by `sg.id` in the template.
+> 
+> 2. **`pages/events/[id].vue:2608`** — `sessions.filter(s =&gt; s.master_id === master.id).length` is computed **twice in the same interpolated string** (once for the count, once for the singular/plural check), inside a `v-for="m
+> … [truncated — 4434 chars total]
+
+
+## Session 2026-07-14 06:06 (4 prompts)
+
+**06:06** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+**06:09** — <task-notification>
+> <task-id>a6a4b0b5e3b7fdcf9</task-id>
+> <tool-use-id>toolu_01LcGcqMsSid3Ph8WeviFrs1</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/9ad3997b-4d2e-4358-876d-c7ef6dd0bf09/tasks/a6a4b0b5e3b7fdcf9.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find memory leak patterns" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>That one's fine (mouseup listener cleaned up). I have enough verified findings. Let me write the report.
+> 
+> ## Findings
+> 
+> **1. `&lt;FeeLineItemsTable&gt;` — Sortable.js instance never destroyed** — `components/FeeLineItemsTable.vue:275-284`
+> ```js
+> if (tbodyEl.value) {
+>   Sortable.create(tbodyEl.value, { handle: '.drag-handle', ... })
+> }
+> ```
+> The instance return value is discarded (no local var), and `onUnmounted` (line 290) only removes the outside-click listener, not this Sortable instance. This component is nested throughout the app per CLAUDE.md (session/mode/booking fee editors, term-wizard's `&lt;WizardFeeRowsEditor&gt;` which renders one instance *per programme box*, availability editors). Each dialog open/close or wizard-step render leaves a live Sortable binding (with its own pointer/drag listeners on the tbody + document) attached to a detached DOM subtree. Fix: capture the instance (`sortableFees = Sortable.create(...)`) and call `sortableFees?.destroy()` alongside the existing `onUnmounted`.
+> 
+> **2. `&lt;ReviewWidget&gt;` — pin-mode document listeners survive unmount if pinning is active** — `components/ReviewWidget.vue:925-936` vs `onBeforeUnmount` at `:855-861`
+> ```js
+> function togglePinning() {
+>   ...
+>   document.addEventListener('click', onPagePinClick, true)
+>   document.addEventListener('mousemove', onPagePinMove, true)
+>   ...
+> }
+> onBeforeUnmount(() =&gt; {
+>   window.removeEventListener('keydown', onKey)
+>   window.removeEventListener('resize', onWindowResize)
+>   if (mainEl.value) mainEl.value.removeEventListener('scroll', onMainScroll)
+>   if (bodyObserver) { bodyObserver.disconnect(); bodyObserver = null }
+>   setPinningCursor(false)   // &lt;-- resets cursor styling, but doesn't remove the two listeners above
+> })
+> ```
+> `ReviewWidget` is conditionally mounted (`v-if="orgReady &amp;&amp; user &amp;&amp; !gate.isDeveloper.value"` in `layouts/default.vue:227`) and the app switches to the `embed` layout (no `ReviewWidget`) on `/book` and `/r/:context/:id`. If a reviewer starts "Add comment" pin mode (`pinning.value = true`, capture-phase `click`/`mousemove` bound to `document`) then navigates to a page that unmounts the widget (org switch, logout, embed route, dev-mode flip), the two `true`-capture document listeners are never removed — every future click/mousemove in the whole app keeps calling handlers referencing a dead component's `cursor`/`screenPins` refs. Fix: in `onBeforeUnmount`, unconditionally `do
+> … [truncated — 5112 chars total]
+
+**06:11** — <task-notification>
+> <task-id>a3b7ba003c88a2b12</task-id>
+> <tool-use-id>toolu_01T8v8wpZD3oHPVmEHPvtN8R</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/9ad3997b-4d2e-4358-876d-c7ef6dd0bf09/tasks/a3b7ba003c88a2b12.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find Vue reactivity inefficiencies" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Findings — Vue reactivity/rendering inefficiencies
+> 
+> **1. `components/FormDesigner.vue:1576-1623` — order-summary computed recomputes for every instance on every keystroke, anywhere**
+> ```js
+> const evtOrderRows = computed&lt;OrderRow[][]&gt;(() =&gt; {
+>   const result: OrderRow[][] = []
+>   for (let i = 0; i &lt; evtAccordionPersonCount.value; i++) {
+>     ...
+>     for (const field of currentEvtFormFields.value) {
+>       for (const rule of field.financial_rules) {
+>         if (evaluateEvtConditions(rule.conditions, i)) { ... }
+> ```
+> `evaluateEvtConditions` reads `evtPersonValues.value` (a plain `ref` deep-reactivated by Vue). Because the computed depends on the *whole* `evtPersonValues` object rather than the one field being typed, typing a character into Player 12's field on a 12-instance Team form re-runs this triple-nested loop (instances × fields × financial rules) plus a full `sessions` filter per instance, which then cascades into `evtOrderTotal`, `evtApplicableDiscounts` (another O(instances×rows) pass, line 1636) and `evtTotalDiscountSavings` — all re-rendering the Order Summary on every subject card. Fix: key the mutation setter (`evtPersonValues.value[g][label] = v`, ~line 1440) so it patches via a shallow map keyed by `gIdx`, and split `evtOrderRows` into a per-instance memoized function (`Map&lt;gIdx, OrderRow[]&gt;`) invalidated only for the instance whose value changed, or debounce the live-preview recompute.
+> 
+> **2. `pages/dashboard.vue:377-391` + `:1119`** — chart props rebuilt as fresh literals every render, not memoized
+> ```js
+> function chartData(key: string) { ... return { labels: ..., datasets: [{ data: ... }] } }
+> ```
+> ```html
+> &lt;Chart :type="chartType(item.i)" :data="chartData(item.i)" :options="chartOptions(item.i)" .../&gt;
+> ```
+> These are plain functions, not `computed`, invoked directly in the template. Every reactive tick on the page (dragging any widget, `stats` reactive updating, editing another chart's title) creates brand-new array/object identities for *every* chart widget, defeating PrimeVue `&lt;Chart&gt;`'s prop-diffing and forcing chart.js to tear down/rebuild each canvas. Fix: memoize per chart key, e.g. `const chartDataByKey = computed(() =&gt; Object.fromEntries(chartWidgetKeys.value.map(k =&gt; [k, buildChartData(k)])))`, or wrap each in its own `computed` inside a `v-for` sub-component.
+> 
+> **3. `components/TimetableGrid.vue:75-94` — `byDay` filters the full sessio
+> … [truncated — 5942 chars total]
+
+**06:13** — <task-notification>
+> <task-id>ab849c8f8d5332aef</task-id>
+> <tool-use-id>toolu_01REpxQtxcwAKDuSqB8rXx9H</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/9ad3997b-4d2e-4358-876d-c7ef6dd0bf09/tasks/ab849c8f8d5332aef.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find N+1 query patterns" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## N+1 / Inefficient DB Access — Findings
+> 
+> Investigated via subagent sweep across `composables/*.ts` and the large `pages/**/*.vue` files. Ranked by likely real-world cost.
+> 
+> **1. `pages/admin/index.vue:91-92`** — unbounded full-table scan
+> ```js
+> (db.from as any)('persons').select('org_id'),
+> (db.from as any)('events').select('org_id'),
+> ```
+> Scans every row of the platform-wide `persons`/`events` tables (no filter, no limit) just to `reduce()` per-org counts client-side. Fix: a `GROUP BY org_id` RPC instead of pulling raw rows.
+> 
+> **2. `composables/useTermRollover.ts:181-197` + `cloneOne` (245-327)** — sequential per-group clone
+> Each group in a term rollover triggers ~6-8 sequential inserts (group, schedules, plan links, term row, per-fee-option loop at 296-307). A 30-50 class rollover = 150-400+ round trips blocking the UI. Fix: batch-insert group rows in one call, then batch schedules/plans/fee-options across all new groups.
+> 
+> **3. Duplicate "resolve current person by email" query — 6+ composables, no shared cache**
+> `useCan.ts:51-52`, `useScopedRoles.ts:201-202`, `useAccessLevel.ts:41`, `useActiveLocation.ts:66`, `useMyClubs.ts:~28`, `useOrgManagers.ts:107` each independently query `persons` by `(org_id, email)`. A single page touching several of these fires 4-6 duplicate identical queries. Fix: one shared `useCurrentPerson()` with a single `useState`-cached lookup.
+> 
+> **4. `composables/useOrgFieldPolicy.ts` `resolveFields`/`resolvePersonTypes`** — uncached across 21+9 call sites
+> Every call re-runs the `org_ancestors` RPC + a full field-definitions query, unlike `useTerms()` which caches via `useState`. Fix: mirror `useTerms()`'s caching layer.
+> 
+> **5-6. `pages/events/[id].vue:4408-4412` and `:4610-4622`** — per-invitee UPDATE loops
+> ```js
+> for (const invId of attendanceSelected.value) {
+>   await db.from('invitees').update({ sub_group_id: ... }).eq('id', invId)
+> }
+> ```
+> One UPDATE per selected invitee (attendance sub-group assign, and drag-drop onto a sub-group). Fix: `.in('id', ids)` single update.
+> 
+> **7. `pages/groups/[id]/index.vue:3183-3193`** — per-row schedule UPDATE loop on every Session Times save. Fix: `upsert()` the whole array in one call.
+> 
+> **8-9. `composables/useGroupFees.ts:169-184` (`addFeeOptionToGroups`) and `:104-138` (`saveFeeOptions`)** — 2 sequential inserts per group/option, used by the "bulk add fee to classes" dialog and every group-fee save. 30-50 classes = 60-100 round trips. Fix: bulk-i
+> … [truncated — 4629 chars total]
+
+
+## Session 2026-07-14 06:06 (1 prompts)
+
+**06:06** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 79310 chars total]
+
+
+## Session 2026-07-14 06:29 (1 prompts)
+
+**06:29** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+
+## Session 2026-07-14 06:29 (1 prompts)
+
+**06:29** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+
+## Session 2026-07-14 06:35 (1 prompts)
+
+**06:35** — Analyze test coverage and identify gaps:
+> - Find untested functions and classes
+> - Identify edge cases not covered
+> - Suggest new test scenarios
+> - Check for missing error handling tests
+> - Identify integration test gaps
+> 
+> For each gap, provide a test skeleton.
+> 
+> ## Codebase Context
+> 
+> --- tests/smoke.spec.ts (truncated) ---
+> /**
+>  * DEPLOYMENT SMOKE SUITE — run after every deploy.
+>  *
+>  *   TEST_BASE_URL=https://fm-events-five.vercel.app \
+>  *   TEST_EMAIL=... TEST_PASSWORD=... npm run test:smoke
+>  *
+>  * Principles:
+>  *  - STRICTLY READ-ONLY. Dev and prod share ONE database — these tests never
+>  *    write, click destructive buttons, or submit forms.
+>  *  - A route "passes" when it renders without a Nuxt 500, without uncaught
+>  *    page errors, without bouncing to /login, and with real content in <main>.
+>  *  - Data-independent: works on any org (asserts structure, not seed rows).
+>  *  - Auth'd sweep skips gracefully when TEST_EMAIL/TEST_PASSWORD aren't set,
+>  *    so the public subset still gates a deploy with no secrets available.
+>  */
+> import { test, expect, Page } from '@playwright/test'
+> 
+> const BASE = process.env.TEST_BASE_URL ?? 'http://localhost:3002'
+> const EMAIL = process.env.TEST_EMAIL ?? ''
+> const PASSWORD = process.env.TEST_PASSWORD ?? ''
+> const HAS_CREDS = !!(EMAIL && PASSWORD)
+> 
+> // Every core screen. Keep this list in sync with the URL table in CLAUDE.md —
+> // a new page ships with a row here (same spirit as the dashboard-widget rule).
+> const AUTHED_ROUTES = [
+>   '/dashboard',
+>   '/me',
+>   '/onboarding',
+>   '/people',
+>   '/groups',
+>   '/groups/timetable',
+>   '/groups/reports',
+>   '/groups/retention',
+>   '/groups/fees',
+>   '/groups/waitlists',
+>   '/groups/settings',
+>   '/groups/allocator',
+>   '/groups/codes',
+>   '/groups/views',
+>   '/groups/rollover',
+>   '/groups/term-wizard',
+>   '/memberships',
+>   '/events',
+>   '/events/new-basic',
+>   '/events/reporting',
+>   '/bookables',
+>   '/bookings/new',
+>   '/attendance',
+>   '/resources',
+>   '/reports',
+>   '/reports/custom/new',
+>   '/finances',
+>   '/reporting',
+>   '/forms',
+>   '/organisations',
+>   '/settings',
+>   '/settings/terms',
+>   '/settings/memberships',
+>   '/settings/locations',
+>   '/settings/fields',
+>   '/settings/field-catalogue',
+>   '/settings/core-fields',
+>   '/settings/terminology',
+>   '/settings/modules',
+>   '/settings/calendars',
+>   '/settings/xero',
+>   '/settings/integrations',
+> ]
+> 
+> const PUBLIC_ROUTES = ['/login', '/book']
+> 
+> // Errors we tolerate (3rd-party noise, favicons, expected 4xx probes)
+> const IGNORABLE = [/favicon/i, /ResizeObserver loop/i, /sharedworker/i]
+> 
+> function watchErrors(page: Page) {
+>   const pageErrors: string[] = []
+>   const badResponses: string[] = []
+>   page.on('pageerror', e => pageErrors.push(String(e).slice(0, 200)))
+>   page.on('response', r => {
+>     // 5xx anywhere is a deploy problem; 4xx only from our own API/DB calls
+>     const url = r.url()
+>     if (IGNORABLE.some(rx => rx.test(url))) return
+>     if (r.status() >= 500) badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
+>     if (r.status() >= 400 && /supabase|\/api\//.test(url) &
+> … [truncated — 15541 chars total]
+
+
+## Session 2026-07-14 06:35 (6 prompts)
+
+**06:35** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+**06:37** — <task-notification>
+> <task-id>a70e6c4a1df3d9109</task-id>
+> <tool-use-id>toolu_01FRB1bdoUpLQro7anwg5yGD</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/f3b4cb33-1132-4cfd-9d6b-5b7d6cac2455/tasks/a70e6c4a1df3d9109.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find caching opportunities" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Caching opportunities in fm-events
+> 
+> **1. `useGroupCodes().loadCodes()`** (`composables/useGroupCodes.ts:64-72`)
+> Plain `async function`, no `useState`, no loaded-guard — every call re-queries `group_codes` for the whole org. 18 call sites (`pages/groups/index.vue`, `groups/[id]/index.vue`, `ClassesBoard.vue`, `useClassTimetable.ts`, `waitlists.vue`, `allocator.vue`, `term-wizard.vue`, `codes/index.vue`, `codes/[id].vue`, `views.vue`, `view/[id].vue`, `memberships/index.vue`, `memberships/programme/[id].vue`, dashboard widgets, etc.). Ironically `loadDefaultPositions()` in the *same file* already shows the right pattern (`useState` + `loaded` guard) — `loadCodes` just doesn't use it. Fix: mirror that pattern (`useState('fm_group_codes', ...)` + `force` param).
+> 
+> **2. Same-page duplicate query, compounding #1**: `pages/groups/index.vue`'s `loadOptions()` calls `gc.loadCodes()` + `tm.loadTerms()` directly (line 186), and it also mounts `&lt;ClassesBoard&gt;`, whose own `load()` (lines 224-234) calls `gc.loadCodes()`, `tm.loadTerms()`, and `tm.loadTermSets()` again. A single `/groups` visit fires `group_codes`/`org_terms` queries twice from two different call sites on the same page. Caching #1/#4 fixes this for free.
+> 
+> **3. `useTermsMemberships().loadTerms()` / `loadTermSets()` / `loadPlans()`** (`composables/useTermsMemberships.ts:138-190`)
+> All plain functions, no cache. `loadTerms` alone has 15 call sites (`groups/index`, `timetable`, `waitlists`, `rollover`, `fees`, `codes/index`, `codes/[id]`, `term-wizard`, `allocator`, `reports`, `[id]/index`, `ClassesBoard`, `ClassFinderDrawer`, `SeasonPulse` dashboard widget). `loadPlans` runs two sequential queries (plans, then plan_options) every call. Fix: `useState` cache keyed by org with a `force` guard, same shape as `useOrgModules`/`useXeroAccounts`.
+> 
+> **4. `useOrgFieldPolicy().resolveFields` / `resolvePersonTypes` / `loadOrgTypes`** (`composables/useOrgFieldPolicy.ts`)
+> No caching at all — every call first walks `ancestors(orgId)` (a Postgres RPC) then queries `field_definitions`/`person_target_types`. `resolveFields` has 15 call sites (`people/index`, `people/[id]`, `settings/fields`, `settings/field-catalogue`, `me.vue`, several `proto/*` pages, `reports/custom/[id]`); `resolvePersonTypes` has 9. These rarely-changing catalogues get fully re-resolved (RPC + 2 queries) on every page mount. Fix: cache per `orgId` (+ optionally per `typeKey`) in `use
+> … [truncated — 5236 chars total]
+
+**06:38** — <task-notification>
+> <task-id>a89de7e9214bd2b1e</task-id>
+> <tool-use-id>toolu_01HmeCLUt6BurncqS9g9J5sY</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/f3b4cb33-1132-4cfd-9d6b-5b7d6cac2455/tasks/a89de7e9214bd2b1e.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find N+1 query patterns" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## N+1 Query Findings — fm-events
+> 
+> I searched composables/, pages/, and components/ for DB calls inside loops. The good news: the main list-loading paths (ClassesBoard `load()`, `useTeamAllocator`, `useClassTimetable`, `useOrgFieldPolicy`, dashboard.vue, people/index.vue) are already well-batched with `.in()` + client-side grouping. The N+1 patterns that do exist are concentrated in **bulk mutation/reorder actions** — one query per row instead of one batched query — mostly in `pages/events/[id].vue`.
+> 
+> **1. `pages/events/[id].vue:4478-4480` — bulk attendance sign-in**
+> ```js
+> await Promise.all(
+>   attendanceSelected.value.map(invId =&gt; db.from('invitees').update({ attended: true }).eq('id', invId))
+> )
+> ```
+> N = number of selected attendees (could be 50-200+ on a large roster). One UPDATE per invitee, fired in parallel.
+> Fix: `await db.from('invitees').update({ attended: true }).in('id', attendanceSelected.value)`.
+> 
+> **2. `pages/events/[id].vue:4610-4622` — `onDropOnGroup` (drag invitees to sub-group)**
+> ```js
+> for (const id of ids) {
+>   ...
+>   await db.from('invitees').update({ sub_group_id: groupId }).eq('id', id)
+> }
+> ```
+> Worse than #1 — this is a **sequential** `await` inside a `for` loop (not even parallelized), so N round-trips execute one after another. N = number of dragged/selected invitees.
+> Fix: single `db.from('invitees').update({ sub_group_id: groupId }).in('id', ids)`.
+> 
+> **3. `pages/events/[id].vue:4408-4412` — `executeAddToSubGroup`**
+> ```js
+> for (const invId of attendanceSelected.value) {
+>   inviteeGroupMap.value[invId] = addToSubGroupTarget.value
+>   await db.from('invitees').update({ sub_group_id: addToSubGroupTarget.value }).eq('id', invId)
+> }
+> ```
+> Same sequential-per-row pattern as #2, same fix: one `.in('id', attendanceSelected.value)` update since the target group is identical for every row.
+> 
+> **4. `components/ClassesBoard.vue:188-197` — `persistSectionOrder` (drag-reorder classes)**
+> ```js
+> list.forEach((row, idx) =&gt; {
+>   ...
+>   if (Object.keys(patch).length) updates.push((db.from as any)('member_groups').update(patch).eq('id', row.id))
+> })
+> await Promise.all(updates)
+> ```
+> N = classes in the section being reordered. Each row gets its own UPDATE. Since patches differ per row (sort_order, sometimes code_id), a single query isn't trivial, but could use a Postgres `upsert`/RPC with a values array, or at minimum batch same-code_id rows together.
+> 
+> **5. `composables/useWaitlists.ts:161` — `reorderEntries`**
+> `
+> … [truncated — 4579 chars total]
+
+**06:38** — <task-notification>
+> <task-id>a09a663dcba60e1ef</task-id>
+> <tool-use-id>toolu_01PNV2kKp6iABMxo4eReaNs8</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/f3b4cb33-1132-4cfd-9d6b-5b7d6cac2455/tasks/a09a663dcba60e1ef.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find redundant computations" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Good, that's a computed base list already, but it's then re-filtered 4-5× inline in the template per sub-group with no memoization. I have enough to report.
+> 
+> ## Findings: Redundant Computations in fm-events
+> 
+> **1. `pages/events/[id].vue:809-838` — same `.filter()` re-run 4-5× per row, in the template**
+> `sessionFilteredInvitees.filter(inv =&gt; inviteeGroupMap[inv.id] === sg.id)` is called separately for the row's `v-if`, the count label, the button `label`, `icon`, `severity`, and again inside the `@click` handler — 4-5 independent full array scans per sub-group, per re-render (and the "ungrouped" block at 825-836 repeats the same pattern for `!inviteeGroupMap[inv.id]`). A `groupedInvitees`-style computed already exists elsewhere in the file (line 4536) doing this correctly with one pass.
+> **Fix:** build a `computed` (e.g. `sessionInviteesByGroup`) that groups `sessionFilteredInvitees` into a `Map&lt;groupId, invitee[]&gt;` once, then read `.length`/`.every(...)` off that array in the template.
+> 
+> **2. `pages/events/[id].vue:3997-4022` (`loadReporting`) — O(sessions × regSessions) linear scan done twice**
+> `rsRows.filter(r =&gt; r.session_id === s.id ...)` runs inside `.map()` over `sessions.value` in `reportingSessionRows` (line 4002) and again independently in `reportingSessionBreakdown` (line 4022) — the same grouping of `rsRows` by `session_id` is recomputed from scratch twice.
+> **Fix:** build `const rsBySession = new Map&lt;string, typeof rsRows&gt;()` once (single pass over `rsRows`), then look up `rsBySession.get(s.id) ?? []` in both places.
+> 
+> **3. `pages/events/[id].vue:3979-3986` (`loadReporting`) — 6 separate full-array passes over `rows`**
+> `confirmed`, `pending`, `cancelled`, `waitlisted`, `checkedIn`, `totalRevenue`, `paidRevenue` each call their own `.filter()`/`.reduce()` over the same `rows` array.
+> **Fix:** one `for`/`reduce` pass accumulating all counters together.
+> 
+> **4. `pages/groups/[id]/index.vue:2916-2934` — `sessionTotal` recomputed twice across two computeds**
+> `attendanceStats` (2927-2934) and `totalAttendances` (2926) both independently call `sessionTotal(s.eventId)` for every session in `visibleSessions`, and `sessionTotal` itself does `members.value.filter(m =&gt; attended(...))` per call — so the full O(sessions × members) attendance count is computed twice per render.
+> **Fix:** compute per-session totals once in a shared computed (e.g. `sessionTotals = visibleSessions.value
+> … [truncated — 5714 chars total]
+
+**06:38** — <task-notification>
+> <task-id>aad73289328a90feb</task-id>
+> <tool-use-id>toolu_01DPda4fpuu3JiSjEf9foKnu</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/f3b4cb33-1132-4cfd-9d6b-5b7d6cac2455/tasks/aad73289328a90feb.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find Vue reactivity/re-render costs" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>I have enough evidence. Here is the report.
+> 
+> ## Findings: Vue Reactivity/Rendering Performance Issues in fm-events
+> 
+> **1. `components/FormDesigner.vue:2131-2139` — deep watchers spanning five large reactive form-builder trees**
+> ```js
+> watch([evtFormPayment, evtFormTermsSelections, evtDiscountSettings], () =&gt; persistEvtFormConfig(), { deep: true })
+> watch([evtFormGroupModes, evtFormGroupDesigns, evtFormGroupSessions, evtFormGroupsList, evtFormGroupFields], () =&gt; persistEvtFormConfig(), { deep: true })
+> ```
+> `evtFormGroupDesigns`/`evtFormGroupFields`/`evtFormGroupSessions` hold the entire multi-group, multi-field, multi-section registration-form config. A deep watcher over 5 combined sources forces Vue to recursively walk and subscribe to every nested key across the whole form builder state, and re-walks on every keystroke/toggle anywhere in the designer (label edits, field reorder, section visibility, etc.), even though the debounce in `persistEvtFormConfig` (600ms) only throttles the *save*, not the *deep traversal cost* of the watcher itself. **Fix:** split into narrower watchers keyed on the specific field currently being edited, or use a manual "dirty" flag set from the specific mutating functions (`patchEvtProfile`, field editors, etc.) instead of `deep: true` over five large trees.
+> 
+> **2. `components/FormDesigner.vue:481-484` and `:607-609` — additional deep watches on array-of-objects state that don't need `deep`**
+> `watch([currentEvtFormProfiles, selectedFormGroupId], ..., { deep: true })` and `watch(currentEvtFormProfiles, ..., { deep: true })` only need the *keys* (`p.key`) of the profiles array, not deep mutation tracking of every profile field. **Fix:** narrow the source to `() =&gt; currentEvtFormProfiles.value.map(p =&gt; p.key).join(',')` or drop `deep: true` since profile reassignment already goes through `currentEvtFormProfiles.value = next` (a new array).
+> 
+> **3. `pages/dashboard.vue:1119` and `:1124` — non-memoized `chartData(item.i)` / `chartTableRows(item.i)` called directly in template**
+> ```html
+> &lt;Chart :type="chartType(item.i)" :data="chartData(item.i)" :options="chartOptions(item.i)" .../&gt;
+> &lt;tr v-for="r in chartTableRows(item.i)" :key="r.label"&gt;
+> ```
+> `chartData()` builds a brand-new `{ labels, datasets: [...] }` object (and `chartOptions()` a new options object) on *every* render pass of the dashboard — which, with `grid-layout-plus`, re-renders frequently
+> … [truncated — 8260 chars total]
+
+**06:39** — <task-notification>
+> <task-id>aaa2916aab76c8354</task-id>
+> <tool-use-id>toolu_01Y8ykCnaHkEQaChLEh6r7vG</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/f3b4cb33-1132-4cfd-9d6b-5b7d6cac2455/tasks/aaa2916aab76c8354.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find memory leaks" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Summary
+> 
+> I did a systematic audit of the codebase for leaked listeners/timers/observers/subscriptions across `pages/**/*.vue`, `components/*.vue`, `composables/*.ts`, and `layouts/*.vue`, checking every acquire call against its matching cleanup call in the same file.
+> 
+> **Result: No real memory leaks found.** Every candidate I checked — including all the ones flagged as likely suspects — has correctly paired cleanup:
+> 
+> - **`addEventListener`** (18 files, ~24 call sites: `pages/dashboard.vue`, `pages/onboarding.vue`, `pages/bookables/[id].vue`, `pages/groups/term-wizard.vue`, `pages/groups/[id]/index.vue`, `pages/people/index.vue`, `pages/events/index.vue`, `pages/events/new-basic.vue`, `pages/events/[id].vue`, `components/ReviewWidget.vue`, `components/SubVenueScheduler.vue`, `components/ProfileDashboard.vue`, `components/FeeLineItemsTable.vue`, `components/XeroAccountInput.vue`, `layouts/default.vue`) — every one has a matching `removeEventListener` in `onBeforeUnmount`/`onUnmounted`. `layouts/default.vue` does NOT have a nav-rail resize listener as hinted — only a `document.addEventListener('click', onDocClick)` for a dropdown, cleanly removed at layouts/default.vue:508.
+> - **`setInterval`**: `components/TimetableGrid.vue:148` (the "now" line refresh) is cleared at line 149 via `onBeforeUnmount(() =&gt; timer &amp;&amp; clearInterval(timer))`. `components/BookingsList.vue:461` cleared at 463. `layouts/default.vue:505` (notification polling) cleared at 509.
+> - **`ResizeObserver`/`MutationObserver`**: `components/ChipMultiSelect.vue:62` → `.disconnect()` at line 65. `components/ProfileDashboard.vue:85` → `.disconnect()` at line 90. `components/ReviewWidget.vue:852` (MutationObserver) → `.disconnect()` at line 859.
+> - **`setTimeout` debounce patterns** (autosave in `pages/groups/[id]/index.vue`, `pages/groups/view/[id].vue`, `pages/events/[id].vue`, `pages/events/index.vue`, `components/FormDesigner.vue`, `components/EventInviteeManager.vue`, `components/PersonFormBuilder.vue`, `components/BookableAccessEditor.vue`, `components/FeeLineItemsTable.vue`) all correctly call `clearTimeout` on the stored handle before re-setting. No unbounded accumulation found.
+> - **SortableJS** (`components/AvailabilityEditor.vue`, `components/FormFieldCanvas.vue`, `components/FormDesigner.vue` including the `evtSubjectListEl`/`registerSubjectGrid`/`subjectSortables` map, `components/FeeLineItemsTable.vue`) — every instance is 
+> … [truncated — 4010 chars total]
+
+
+## Session 2026-07-14 06:38 (1 prompts)
+
+**06:38** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+
+## Session 2026-07-14 06:40 (1 prompts)
+
+**06:40** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 79310 chars total]
+
+
+## Session 2026-07-14 07:06 (1 prompts)
+
+**07:06** — Analyze test coverage and identify gaps:
+> - Find untested functions and classes
+> - Identify edge cases not covered
+> - Suggest new test scenarios
+> - Check for missing error handling tests
+> - Identify integration test gaps
+> 
+> For each gap, provide a test skeleton.
+> 
+> ## Codebase Context
+> 
+> --- tests/smoke.spec.ts (truncated) ---
+> /**
+>  * DEPLOYMENT SMOKE SUITE — run after every deploy.
+>  *
+>  *   TEST_BASE_URL=https://fm-events-five.vercel.app \
+>  *   TEST_EMAIL=... TEST_PASSWORD=... npm run test:smoke
+>  *
+>  * Principles:
+>  *  - STRICTLY READ-ONLY. Dev and prod share ONE database — these tests never
+>  *    write, click destructive buttons, or submit forms.
+>  *  - A route "passes" when it renders without a Nuxt 500, without uncaught
+>  *    page errors, without bouncing to /login, and with real content in <main>.
+>  *  - Data-independent: works on any org (asserts structure, not seed rows).
+>  *  - Auth'd sweep skips gracefully when TEST_EMAIL/TEST_PASSWORD aren't set,
+>  *    so the public subset still gates a deploy with no secrets available.
+>  */
+> import { test, expect, Page } from '@playwright/test'
+> 
+> const BASE = process.env.TEST_BASE_URL ?? 'http://localhost:3002'
+> const EMAIL = process.env.TEST_EMAIL ?? ''
+> const PASSWORD = process.env.TEST_PASSWORD ?? ''
+> const HAS_CREDS = !!(EMAIL && PASSWORD)
+> 
+> // Every core screen. Keep this list in sync with the URL table in CLAUDE.md —
+> // a new page ships with a row here (same spirit as the dashboard-widget rule).
+> const AUTHED_ROUTES = [
+>   '/dashboard',
+>   '/me',
+>   '/onboarding',
+>   '/people',
+>   '/groups',
+>   '/groups/timetable',
+>   '/groups/reports',
+>   '/groups/retention',
+>   '/groups/fees',
+>   '/groups/waitlists',
+>   '/groups/settings',
+>   '/groups/allocator',
+>   '/groups/codes',
+>   '/groups/views',
+>   '/groups/rollover',
+>   '/groups/term-wizard',
+>   '/memberships',
+>   '/events',
+>   '/events/new-basic',
+>   '/events/reporting',
+>   '/bookables',
+>   '/bookings/new',
+>   '/attendance',
+>   '/resources',
+>   '/reports',
+>   '/reports/custom/new',
+>   '/finances',
+>   '/reporting',
+>   '/forms',
+>   '/organisations',
+>   '/settings',
+>   '/settings/terms',
+>   '/settings/memberships',
+>   '/settings/locations',
+>   '/settings/fields',
+>   '/settings/field-catalogue',
+>   '/settings/core-fields',
+>   '/settings/terminology',
+>   '/settings/modules',
+>   '/settings/calendars',
+>   '/settings/xero',
+>   '/settings/integrations',
+> ]
+> 
+> const PUBLIC_ROUTES = ['/login', '/book']
+> 
+> // Errors we tolerate (3rd-party noise, favicons, expected 4xx probes)
+> const IGNORABLE = [/favicon/i, /ResizeObserver loop/i, /sharedworker/i]
+> 
+> function watchErrors(page: Page) {
+>   const pageErrors: string[] = []
+>   const badResponses: string[] = []
+>   page.on('pageerror', e => pageErrors.push(String(e).slice(0, 200)))
+>   page.on('response', r => {
+>     // 5xx anywhere is a deploy problem; 4xx only from our own API/DB calls
+>     const url = r.url()
+>     if (IGNORABLE.some(rx => rx.test(url))) return
+>     if (r.status() >= 500) badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
+>     if (r.status() >= 400 && /supabase|\/api\//.test(url) &
+> … [truncated — 15541 chars total]
+
+
+## Session 2026-07-14 07:06 (1 prompts)
+
+**07:06** — Analyze test coverage and identify gaps:
+> - Find untested functions and classes
+> - Identify edge cases not covered
+> - Suggest new test scenarios
+> - Check for missing error handling tests
+> - Identify integration test gaps
+> 
+> For each gap, provide a test skeleton.
+> 
+> ## Codebase Context
+> 
+> --- tests/smoke.spec.ts (truncated) ---
+> /**
+>  * DEPLOYMENT SMOKE SUITE — run after every deploy.
+>  *
+>  *   TEST_BASE_URL=https://fm-events-five.vercel.app \
+>  *   TEST_EMAIL=... TEST_PASSWORD=... npm run test:smoke
+>  *
+>  * Principles:
+>  *  - STRICTLY READ-ONLY. Dev and prod share ONE database — these tests never
+>  *    write, click destructive buttons, or submit forms.
+>  *  - A route "passes" when it renders without a Nuxt 500, without uncaught
+>  *    page errors, without bouncing to /login, and with real content in <main>.
+>  *  - Data-independent: works on any org (asserts structure, not seed rows).
+>  *  - Auth'd sweep skips gracefully when TEST_EMAIL/TEST_PASSWORD aren't set,
+>  *    so the public subset still gates a deploy with no secrets available.
+>  */
+> import { test, expect, Page } from '@playwright/test'
+> 
+> const BASE = process.env.TEST_BASE_URL ?? 'http://localhost:3002'
+> const EMAIL = process.env.TEST_EMAIL ?? ''
+> const PASSWORD = process.env.TEST_PASSWORD ?? ''
+> const HAS_CREDS = !!(EMAIL && PASSWORD)
+> 
+> // Every core screen. Keep this list in sync with the URL table in CLAUDE.md —
+> // a new page ships with a row here (same spirit as the dashboard-widget rule).
+> const AUTHED_ROUTES = [
+>   '/dashboard',
+>   '/me',
+>   '/onboarding',
+>   '/people',
+>   '/groups',
+>   '/groups/timetable',
+>   '/groups/reports',
+>   '/groups/retention',
+>   '/groups/fees',
+>   '/groups/waitlists',
+>   '/groups/settings',
+>   '/groups/allocator',
+>   '/groups/codes',
+>   '/groups/views',
+>   '/groups/rollover',
+>   '/groups/term-wizard',
+>   '/memberships',
+>   '/events',
+>   '/events/new-basic',
+>   '/events/reporting',
+>   '/bookables',
+>   '/bookings/new',
+>   '/attendance',
+>   '/resources',
+>   '/reports',
+>   '/reports/custom/new',
+>   '/finances',
+>   '/reporting',
+>   '/forms',
+>   '/organisations',
+>   '/settings',
+>   '/settings/terms',
+>   '/settings/memberships',
+>   '/settings/locations',
+>   '/settings/fields',
+>   '/settings/field-catalogue',
+>   '/settings/core-fields',
+>   '/settings/terminology',
+>   '/settings/modules',
+>   '/settings/calendars',
+>   '/settings/xero',
+>   '/settings/integrations',
+> ]
+> 
+> const PUBLIC_ROUTES = ['/login', '/book']
+> 
+> // Errors we tolerate (3rd-party noise, favicons, expected 4xx probes)
+> const IGNORABLE = [/favicon/i, /ResizeObserver loop/i, /sharedworker/i]
+> 
+> function watchErrors(page: Page) {
+>   const pageErrors: string[] = []
+>   const badResponses: string[] = []
+>   page.on('pageerror', e => pageErrors.push(String(e).slice(0, 200)))
+>   page.on('response', r => {
+>     // 5xx anywhere is a deploy problem; 4xx only from our own API/DB calls
+>     const url = r.url()
+>     if (IGNORABLE.some(rx => rx.test(url))) return
+>     if (r.status() >= 500) badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
+>     if (r.status() >= 400 && /supabase|\/api\//.test(url) &
+> … [truncated — 15541 chars total]
+
+
+## Session 2026-07-14 07:09 (1 prompts)
+
+**07:09** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+
+## Session 2026-07-14 07:11 (1 prompts)
+
+**07:11** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 79310 chars total]
+
+
+## Session 2026-07-14 07:11 (1 prompts)
+
+**07:11** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+
+## Session 2026-07-14 07:15 (1 prompts)
+
+**07:15** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 79310 chars total]
+
+
+## Session 2026-07-14 07:16 (1 prompts)
+
+**07:16** — Analyze test coverage and identify gaps:
+> - Find untested functions and classes
+> - Identify edge cases not covered
+> - Suggest new test scenarios
+> - Check for missing error handling tests
+> - Identify integration test gaps
+> 
+> For each gap, provide a test skeleton.
+> 
+> ## Codebase Context
+> 
+> --- tests/smoke.spec.ts (truncated) ---
+> /**
+>  * DEPLOYMENT SMOKE SUITE — run after every deploy.
+>  *
+>  *   TEST_BASE_URL=https://fm-events-five.vercel.app \
+>  *   TEST_EMAIL=... TEST_PASSWORD=... npm run test:smoke
+>  *
+>  * Principles:
+>  *  - STRICTLY READ-ONLY. Dev and prod share ONE database — these tests never
+>  *    write, click destructive buttons, or submit forms.
+>  *  - A route "passes" when it renders without a Nuxt 500, without uncaught
+>  *    page errors, without bouncing to /login, and with real content in <main>.
+>  *  - Data-independent: works on any org (asserts structure, not seed rows).
+>  *  - Auth'd sweep skips gracefully when TEST_EMAIL/TEST_PASSWORD aren't set,
+>  *    so the public subset still gates a deploy with no secrets available.
+>  */
+> import { test, expect, Page } from '@playwright/test'
+> 
+> const BASE = process.env.TEST_BASE_URL ?? 'http://localhost:3002'
+> const EMAIL = process.env.TEST_EMAIL ?? ''
+> const PASSWORD = process.env.TEST_PASSWORD ?? ''
+> const HAS_CREDS = !!(EMAIL && PASSWORD)
+> 
+> // Every core screen. Keep this list in sync with the URL table in CLAUDE.md —
+> // a new page ships with a row here (same spirit as the dashboard-widget rule).
+> const AUTHED_ROUTES = [
+>   '/dashboard',
+>   '/me',
+>   '/onboarding',
+>   '/people',
+>   '/groups',
+>   '/groups/timetable',
+>   '/groups/reports',
+>   '/groups/retention',
+>   '/groups/fees',
+>   '/groups/waitlists',
+>   '/groups/settings',
+>   '/groups/allocator',
+>   '/groups/codes',
+>   '/groups/views',
+>   '/groups/rollover',
+>   '/groups/term-wizard',
+>   '/memberships',
+>   '/events',
+>   '/events/new-basic',
+>   '/events/reporting',
+>   '/bookables',
+>   '/bookings/new',
+>   '/attendance',
+>   '/resources',
+>   '/reports',
+>   '/reports/custom/new',
+>   '/finances',
+>   '/reporting',
+>   '/forms',
+>   '/organisations',
+>   '/settings',
+>   '/settings/terms',
+>   '/settings/memberships',
+>   '/settings/locations',
+>   '/settings/fields',
+>   '/settings/field-catalogue',
+>   '/settings/core-fields',
+>   '/settings/terminology',
+>   '/settings/modules',
+>   '/settings/calendars',
+>   '/settings/xero',
+>   '/settings/integrations',
+> ]
+> 
+> const PUBLIC_ROUTES = ['/login', '/book']
+> 
+> // Errors we tolerate (3rd-party noise, favicons, expected 4xx probes)
+> const IGNORABLE = [/favicon/i, /ResizeObserver loop/i, /sharedworker/i]
+> 
+> function watchErrors(page: Page) {
+>   const pageErrors: string[] = []
+>   const badResponses: string[] = []
+>   page.on('pageerror', e => pageErrors.push(String(e).slice(0, 200)))
+>   page.on('response', r => {
+>     // 5xx anywhere is a deploy problem; 4xx only from our own API/DB calls
+>     const url = r.url()
+>     if (IGNORABLE.some(rx => rx.test(url))) return
+>     if (r.status() >= 500) badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
+>     if (r.status() >= 400 && /supabase|\/api\//.test(url) &
+> … [truncated — 15541 chars total]
+
+
+## Session 2026-07-14 07:16 (1 prompts)
+
+**07:16** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 79310 chars total]
+
+
+## Session 2026-07-14 08:04 (5 prompts)
+
+**08:04** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+**08:07** — <task-notification>
+> <task-id>ac492a293dbd23262</task-id>
+> <tool-use-id>toolu_01FK2i5csNVqH6MJQw4M1FFV</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/1a4734f7-5810-4680-ba13-bec224ee621e/tasks/ac492a293dbd23262.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find N+1 query patterns" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## N+1 Query Findings — fm-events
+> 
+> **1. `pages/events/[id].vue:4408-4412` — `executeAddToSubGroup`**
+> ```js
+> for (const invId of attendanceSelected.value) {
+>   inviteeGroupMap.value[invId] = addToSubGroupTarget.value
+>   await db.from('invitees').update({ sub_group_id: addToSubGroupTarget.value }).eq('id', invId)
+> }
+> ```
+> Sequential awaited `UPDATE` per selected invitee. Since every row gets the same `sub_group_id`, this should be one `db.from('invitees').update({ sub_group_id: target }).in('id', attendanceSelected.value)`.
+> 
+> **2. `pages/events/[id].vue:4610-4622` — `onDropOnGroup`**
+> ```js
+> for (const id of ids) {
+>   ...
+>   await db.from('invitees').update({ sub_group_id: groupId }).eq('id', id)
+> }
+> ```
+> Same pattern as #1 (drag-drop of multiple invitees onto a sub-group) — one query per dropped invitee instead of a single `.in('id', ids)` update.
+> 
+> **3. `pages/events/[id].vue:4477-4480` — `markSelectedIn` (non-session branch)**
+> ```js
+> await Promise.all(
+>   attendanceSelected.value.map(invId =&gt; db.from('invitees').update({ attended: true }).eq('id', invId))
+> )
+> ```
+> Parallelized but still N separate round trips/statements for a bulk "mark attended" action; replace with `.update({ attended: true }).in('id', attendanceSelected.value)`.
+> 
+> **4. `pages/events/[id].vue:5254-5268` — `propagateMasterToLinked`**
+> ```js
+> for (const linked of linkedSessions) {
+>   const linkedId = linked._savedId ?? linked.id
+>   await db.from('fee_components').delete().eq('session_id', linkedId)
+>   if (namedFees.length &amp;&amp; ...) await db.from('fee_components').insert(...)
+> }
+> ```
+> Deletes+inserts fee components per linked session when a master session's fees change. Fix: `delete().in('session_id', linkedIds)` once, then a single batched `insert()` of all rows tagged with their `session_id`.
+> 
+> **5. `composables/useTermRollover.ts:245-327` (`cloneOne`), driven by the `while` loop at line 185-195**
+> Each call to `cloneOne` issues ~6-8 sequential awaited inserts/updates (group insert, lineage update, schedules insert, plans insert, term-fee insert, then a nested loop at line 296-306 doing an insert+insert per fee option) and it's invoked once per group being rolled over. Rolling over 50 groups triggers hundreds of round trips. Fix: batch inserts across all groups in a term (build full row arrays, `insert().select('id')` once for groups, once for schedules, etc., mapping via `lineage_id`/temp keys), keeping only true dependencies (e.g., parent_id remap
+> … [truncated — 4376 chars total]
+
+**08:07** — <task-notification>
+> <task-id>a4709116f8134c2d1</task-id>
+> <tool-use-id>toolu_014dsPK7ejZKczJnfkMKZEUU</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/1a4734f7-5810-4680-ba13-bec224ee621e/tasks/a4709116f8134c2d1.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find Vue reactivity/re-render issues" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Vue Reactivity / Re-render Findings
+> 
+> **1. Index-as-key on a mutable, input-bound list — `pages/groups/[id]/index.vue:1614-1648`**
+> ```js
+> &lt;tr v-for="(row, i) in draftSchedules" :key="i" ...&gt;
+>   &lt;input v-model="row.name" ... /&gt;&lt;input v-model="row.start_time" .../&gt;
+>   ...
+>   @click="draftSchedules.splice(i, 1)"
+> ```
+> Rows have a stable `id` (`row.id`, set on push at line 3157/DB id), but the key is the array index. Removing a middle row with `splice()` causes Vue to reuse DOM nodes for the wrong logical row, so `v-model` input values (name/day/time) can visually swap between rows on delete. Fix: `:key="row.id"`.
+> 
+> **2. Nested-loop computed re-run on every attendance change — `pages/events/[id].vue:4231-4249`**
+> ```js
+> const memberGroupAttendanceSections = computed(() =&gt; {
+>   for (const inv of filteredSortedAttendees.value) {
+>     const entry = memberGroupsForInvitees.value.find(m =&gt; m.personId === inv.person_id) // O(n) inside O(n)
+> ```
+> `.find()` inside a `for` loop over attendees is O(n·m); it reruns on every keystroke in the attendance search box (since it depends on `filteredSortedAttendees`). Fix: build a `Map` from `memberGroupsForInvitees` once and do O(1) lookups.
+> 
+> **3. Same pattern for sub-groups — `pages/events/[id].vue:4536-4543`**
+> ```js
+> const groupedInvitees = computed(() =&gt; {
+>   const groups = effectiveSubGroups.value.map(g =&gt; ({
+>     group: g, invitees: invitees.value.filter(inv =&gt; inviteeGroupMap.value[inv.id] === g.id),
+> ```
+> O(subGroups × invitees) scan of the full invitee list per sub-group. Fix: single pass building a `Map&lt;groupId, invitee[]&gt;`.
+> 
+> **4. Overly-broad deep watcher — `pages/events/[id].vue:5958-5972`**
+> ```js
+> watch(viewingSession, async (session, oldSession) =&gt; { ... }, { deep: true })
+> ```
+> Deep-watches the entire session object (incl. `sub_sessions`, `fees`, `discounts` arrays) just to trigger autosave; every nested mutation anywhere in the session forces a full deep diff. Fix: watch specific fields you actually persist, or use `watch(() =&gt; JSON.stringify(relevantFields))`/a shallow dirty flag set by mutators instead of `deep: true`.
+> 
+> **5. Uncached function calls inside `v-for`/template — `pages/dashboard.vue:1124,1159`**
+> ```html
+> &lt;tr v-for="r in chartTableRows(item.i)" :key="r.label"&gt;
+> &lt;li v-for="(b, bi) in activityNext(item.i)" :key="bi"&gt;
+> ```
+> `chartTableRows()` does `reduce` + `map` over rows on every call; both fun
+> … [truncated — 4415 chars total]
+
+**08:08** — <task-notification>
+> <task-id>af2b3c245fbf54e28</task-id>
+> <tool-use-id>toolu_01P92pLwvv34P66zx4bCESdu</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/1a4734f7-5810-4680-ba13-bec224ee621e/tasks/af2b3c245fbf54e28.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find memory leaks in Vue components" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Summary
+> 
+> I checked every `addEventListener`/`setInterval`/Observer/timer site across `pages/*.vue`, `components/*.vue`, `composables/*.ts`, `layouts/*.vue`, plus all the named suspects (TimetableGrid, RichTextEditor/TipTap, dashboard.vue + ProfileDashboard.vue's grid-layout-plus/chart.js, BookingScheduler.vue). The codebase is unusually disciplined — nearly every listener/timer/observer already has a matching `onUnmounted`/`onBeforeUnmount` cleanup (verified individually: dashboard.vue, onboarding.vue, bookables/[id].vue, groups/[id]/index.vue, term-wizard.vue, people/index.vue, events/index.vue, events/[id].vue, new-basic.vue, SubVenueScheduler.vue, TimetableGrid.vue, ChipMultiSelect.vue, BookingsList.vue, XeroAccountInput.vue, ProfileDashboard.vue, layouts/default.vue all clean). No `supabase.channel(...)` calls exist anywhere. `chart.js` is only used via PrimeVue's `&lt;Chart&gt;` wrapper (self-managed). `qrcode` is used statelessly (`toCanvas`, no persistent instance). `vue-advanced-cropper`'s `&lt;Cropper&gt;` is a declarative component, auto-torn-down by Vue. TipTap's editor is properly `.destroy()`ed in RichTextEditor.vue. I found only two real, verified gaps:
+> 
+> **1. components/ReviewWidget.vue:924-938 — pin-mode document listeners never removed on unmount**
+> ```js
+> function togglePinning() {
+>   pinning.value = !pinning.value
+>   ...
+>   if (pinning.value) {
+>     document.addEventListener('click', onPagePinClick, true)
+>     document.addEventListener('mousemove', onPagePinMove, true)
+>   } else {
+>     document.removeEventListener('click', onPagePinClick, true)
+>     document.removeEventListener('mousemove', onPagePinMove, true)
+>   }
+> }
+> ```
+> `onBeforeUnmount` (lines 855-859) only removes `keydown`/`resize`/`scroll` and disconnects `bodyObserver` — it does **not** call `removeEventListener` for `onPagePinClick`/`onPagePinMove`. `onPagePinClick` self-removes once a pin is actually placed (line 1016-1017), but if the user toggles pin mode on and the component unmounts before a click lands on the page (e.g. org switch, logout, or any state change that flips `layouts/default.vue:227`'s `v-if="orgReady &amp;&amp; user &amp;&amp; !gate.isDeveloper.value"`), a capture-phase `click` and `mousemove` listener stay bound to `document` forever. Since `ReviewWidget` is mounted globally in the layout across the whole SPA session, this is high-impact: it leaks a closure over the component instance and keeps in
+> … [truncated — 4362 chars total]
+
+**08:09** — <task-notification>
+> <task-id>a11f5328b6be31ecb</task-id>
+> <tool-use-id>toolu_01GXBhAmYjMiAkD2QgiUe8dZ</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/1a4734f7-5810-4680-ba13-bec224ee621e/tasks/a11f5328b6be31ecb.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find redundant computations" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Findings
+> 
+> **1. `pages/groups/[id]/index.vue` — same O(sessions×members) scan done 3 separate times**
+> `sessionTotal()` (line 2923) does `members.value.filter(m =&gt; attended(m.id, eventId)).length` for one session. It's called independently inside three separate places that all iterate `visibleSessions.value`: `totalAttendances` (2926), `attendanceStats` (2927-2928), and the CSV export builder (2998). Each is a distinct computed/function, so switching sessions/search re-triggers this O(sessions × members) work three times over.
+> ```js
+> const totalAttendances = computed(() =&gt; visibleSessions.value.reduce((sum, s) =&gt; sum + sessionTotal(s.eventId), 0))
+> const attendanceStats = computed(() =&gt; { const rows = visibleSessions.value.map(s =&gt; ({ n: sessionTotal(s.eventId), at: s.start_at })) ...
+> ```
+> Fix: compute one `sessionTotals = computed(() =&gt; Object.fromEntries(visibleSessions.value.map(s =&gt; [s.eventId, members.value.filter(...).length])))` and have all three read from it.
+> 
+> **2. `pages/events/[id].vue:4231-4249` — linear `.find()` per invitee, re-run every keystroke**
+> `memberGroupAttendanceSections` loops `filteredSortedAttendees.value` **twice**, and for every invitee does `memberGroupsForInvitees.value.find(m =&gt; m.personId === inv.person_id)` — an unindexed linear scan. Because it depends on `filteredSortedAttendees` (which depends on `attendanceSearch`, bound via plain `v-model` at line 1162 with no debounce), this O(invitees × memberGroups) work reruns on every keystroke in the attendance search box.
+> Fix: build `memberGroupsByPerson` as a `Map`/`Record` once (computed from `memberGroupsForInvitees`), and debounce `attendanceSearch` before it feeds `filteredSortedAttendees`.
+> 
+> **3. `components/FormDesigner.vue:3560-3561` — duplicate derivation called twice per section**
+> `evtSectionChildren(subject.key, field.id, inst)` is invoked twice in the template (once for `v-for`, once for the empty-state check), each call re-running `evtUnpinnedForRender → evtFieldsForRender → evtFieldVisible` (condition evaluation) over every field of the subject from scratch — for every section, every instance, every subject.
+> Fix: compute `evtSectionChildren` once per section into a local variable (`v-for` + a computed `Record&lt;sectionId, field[]&gt;`), or memoize with a computed keyed by `subjectKey#inst`.
+> 
+> **4. `components/FormDesigner.vue:1576-1615` — same filter re-run per registrant instead 
+> … [truncated — 4652 chars total]
+
+
+## Session 2026-07-14 08:04 (1 prompts)
+
+**08:04** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 79310 chars total]
+
+
+## Session 2026-07-14 08:33 (1 prompts)
+
+**08:33** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+
+## Session 2026-07-14 08:33 (1 prompts)
+
+**08:33** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 79310 chars total]
+
+
+## Session 2026-07-14 08:40 (1 prompts)
+
+**08:40** — Analyze test coverage and identify gaps:
+> - Find untested functions and classes
+> - Identify edge cases not covered
+> - Suggest new test scenarios
+> - Check for missing error handling tests
+> - Identify integration test gaps
+> 
+> For each gap, provide a test skeleton.
+> 
+> ## Codebase Context
+> 
+> --- tests/smoke.spec.ts (truncated) ---
+> /**
+>  * DEPLOYMENT SMOKE SUITE — run after every deploy.
+>  *
+>  *   TEST_BASE_URL=https://fm-events-five.vercel.app \
+>  *   TEST_EMAIL=... TEST_PASSWORD=... npm run test:smoke
+>  *
+>  * Principles:
+>  *  - STRICTLY READ-ONLY. Dev and prod share ONE database — these tests never
+>  *    write, click destructive buttons, or submit forms.
+>  *  - A route "passes" when it renders without a Nuxt 500, without uncaught
+>  *    page errors, without bouncing to /login, and with real content in <main>.
+>  *  - Data-independent: works on any org (asserts structure, not seed rows).
+>  *  - Auth'd sweep skips gracefully when TEST_EMAIL/TEST_PASSWORD aren't set,
+>  *    so the public subset still gates a deploy with no secrets available.
+>  */
+> import { test, expect, Page } from '@playwright/test'
+> 
+> const BASE = process.env.TEST_BASE_URL ?? 'http://localhost:3002'
+> const EMAIL = process.env.TEST_EMAIL ?? ''
+> const PASSWORD = process.env.TEST_PASSWORD ?? ''
+> const HAS_CREDS = !!(EMAIL && PASSWORD)
+> 
+> // Every core screen. Keep this list in sync with the URL table in CLAUDE.md —
+> // a new page ships with a row here (same spirit as the dashboard-widget rule).
+> const AUTHED_ROUTES = [
+>   '/dashboard',
+>   '/me',
+>   '/onboarding',
+>   '/people',
+>   '/groups',
+>   '/groups/timetable',
+>   '/groups/reports',
+>   '/groups/retention',
+>   '/groups/fees',
+>   '/groups/waitlists',
+>   '/groups/settings',
+>   '/groups/allocator',
+>   '/groups/codes',
+>   '/groups/views',
+>   '/groups/rollover',
+>   '/groups/term-wizard',
+>   '/memberships',
+>   '/events',
+>   '/events/new-basic',
+>   '/events/reporting',
+>   '/bookables',
+>   '/bookings/new',
+>   '/attendance',
+>   '/resources',
+>   '/reports',
+>   '/reports/custom/new',
+>   '/finances',
+>   '/reporting',
+>   '/forms',
+>   '/organisations',
+>   '/settings',
+>   '/settings/terms',
+>   '/settings/memberships',
+>   '/settings/locations',
+>   '/settings/fields',
+>   '/settings/field-catalogue',
+>   '/settings/core-fields',
+>   '/settings/terminology',
+>   '/settings/modules',
+>   '/settings/calendars',
+>   '/settings/xero',
+>   '/settings/integrations',
+> ]
+> 
+> const PUBLIC_ROUTES = ['/login', '/book']
+> 
+> // Errors we tolerate (3rd-party noise, favicons, expected 4xx probes)
+> const IGNORABLE = [/favicon/i, /ResizeObserver loop/i, /sharedworker/i]
+> 
+> function watchErrors(page: Page) {
+>   const pageErrors: string[] = []
+>   const badResponses: string[] = []
+>   page.on('pageerror', e => pageErrors.push(String(e).slice(0, 200)))
+>   page.on('response', r => {
+>     // 5xx anywhere is a deploy problem; 4xx only from our own API/DB calls
+>     const url = r.url()
+>     if (IGNORABLE.some(rx => rx.test(url))) return
+>     if (r.status() >= 500) badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
+>     if (r.status() >= 400 && /supabase|\/api\//.test(url) &
+> … [truncated — 15541 chars total]
+
+
+## Session 2026-07-14 08:40 (1 prompts)
+
+**08:40** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+
+## Session 2026-07-14 08:43 (1 prompts)
+
+**08:43** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 79310 chars total]
+
+
+## Session 2026-07-14 08:55 (1 prompts)
+
+**08:55** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 79310 chars total]
+
+
+## Session 2026-07-14 08:55 (1 prompts)
+
+**08:55** — Analyze test coverage and identify gaps:
+> - Find untested functions and classes
+> - Identify edge cases not covered
+> - Suggest new test scenarios
+> - Check for missing error handling tests
+> - Identify integration test gaps
+> 
+> For each gap, provide a test skeleton.
+> 
+> ## Codebase Context
+> 
+> --- tests/smoke.spec.ts (truncated) ---
+> /**
+>  * DEPLOYMENT SMOKE SUITE — run after every deploy.
+>  *
+>  *   TEST_BASE_URL=https://fm-events-five.vercel.app \
+>  *   TEST_EMAIL=... TEST_PASSWORD=... npm run test:smoke
+>  *
+>  * Principles:
+>  *  - STRICTLY READ-ONLY. Dev and prod share ONE database — these tests never
+>  *    write, click destructive buttons, or submit forms.
+>  *  - A route "passes" when it renders without a Nuxt 500, without uncaught
+>  *    page errors, without bouncing to /login, and with real content in <main>.
+>  *  - Data-independent: works on any org (asserts structure, not seed rows).
+>  *  - Auth'd sweep skips gracefully when TEST_EMAIL/TEST_PASSWORD aren't set,
+>  *    so the public subset still gates a deploy with no secrets available.
+>  */
+> import { test, expect, Page } from '@playwright/test'
+> 
+> const BASE = process.env.TEST_BASE_URL ?? 'http://localhost:3002'
+> const EMAIL = process.env.TEST_EMAIL ?? ''
+> const PASSWORD = process.env.TEST_PASSWORD ?? ''
+> const HAS_CREDS = !!(EMAIL && PASSWORD)
+> 
+> // Every core screen. Keep this list in sync with the URL table in CLAUDE.md —
+> // a new page ships with a row here (same spirit as the dashboard-widget rule).
+> const AUTHED_ROUTES = [
+>   '/dashboard',
+>   '/me',
+>   '/onboarding',
+>   '/people',
+>   '/groups',
+>   '/groups/timetable',
+>   '/groups/reports',
+>   '/groups/retention',
+>   '/groups/fees',
+>   '/groups/waitlists',
+>   '/groups/settings',
+>   '/groups/allocator',
+>   '/groups/codes',
+>   '/groups/views',
+>   '/groups/rollover',
+>   '/groups/term-wizard',
+>   '/memberships',
+>   '/events',
+>   '/events/new-basic',
+>   '/events/reporting',
+>   '/bookables',
+>   '/bookings/new',
+>   '/attendance',
+>   '/resources',
+>   '/reports',
+>   '/reports/custom/new',
+>   '/finances',
+>   '/reporting',
+>   '/forms',
+>   '/organisations',
+>   '/settings',
+>   '/settings/terms',
+>   '/settings/memberships',
+>   '/settings/locations',
+>   '/settings/fields',
+>   '/settings/field-catalogue',
+>   '/settings/core-fields',
+>   '/settings/terminology',
+>   '/settings/modules',
+>   '/settings/calendars',
+>   '/settings/xero',
+>   '/settings/integrations',
+> ]
+> 
+> const PUBLIC_ROUTES = ['/login', '/book']
+> 
+> // Errors we tolerate (3rd-party noise, favicons, expected 4xx probes)
+> const IGNORABLE = [/favicon/i, /ResizeObserver loop/i, /sharedworker/i]
+> 
+> function watchErrors(page: Page) {
+>   const pageErrors: string[] = []
+>   const badResponses: string[] = []
+>   page.on('pageerror', e => pageErrors.push(String(e).slice(0, 200)))
+>   page.on('response', r => {
+>     // 5xx anywhere is a deploy problem; 4xx only from our own API/DB calls
+>     const url = r.url()
+>     if (IGNORABLE.some(rx => rx.test(url))) return
+>     if (r.status() >= 500) badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
+>     if (r.status() >= 400 && /supabase|\/api\//.test(url) &
+> … [truncated — 15541 chars total]
+
+
+## Session 2026-07-14 08:56 (1 prompts)
+
+**08:56** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 79310 chars total]
+
+
+## Session 2026-07-14 08:57 (5 prompts)
+
+**08:57** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+**08:59** — <task-notification>
+> <task-id>a5fefff04a79cc3d2</task-id>
+> <tool-use-id>toolu_01H83CEan85kHRfuZ3noqF7n</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/da3b7951-61ea-4b82-83c2-c803429b1cf1/tasks/a5fefff04a79cc3d2.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find N+1 query patterns" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## N+1 Query Findings
+> 
+> **1. `pages/events/[id].vue:4478-4480` — bulk "mark attended" fires one UPDATE per selected invitee**
+> ```ts
+> await Promise.all(
+>   attendanceSelected.value.map(invId =&gt; db.from('invitees').update({ attended: true }).eq('id', invId))
+> )
+> ```
+> Selecting many invitees on the attendance tab and clicking "mark attended" issues one UPDATE per person (parallelized, but still N round trips against Supabase/Postgres). Fix: batch with `.in('id', attendanceSelected.value)` in a single `db.from('invitees').update({ attended: true }).in('id', ids)` call.
+> 
+> **2. `pages/events/[id].vue:4614-4622` — drag-drop group assignment updates one invitee at a time, sequentially**
+> ```ts
+> for (const id of ids) {
+>   ...
+>   await db.from('invitees').update({ sub_group_id: groupId }).eq('id', id)
+> }
+> ```
+> Dragging a multi-selected block of invitees onto a sub-group awaits one UPDATE per id inside a `for` loop (not even parallel — strictly sequential). Fix: single `.update({ sub_group_id: groupId }).in('id', ids)`.
+> 
+> **3. `components/ClassesBoard.vue:187-196` — `persistSectionOrder` fires one UPDATE per reordered class card**
+> ```ts
+> list.forEach((row, idx) =&gt; {
+>   ...
+>   if (Object.keys(patch).length) updates.push((db.from as any)('member_groups').update(patch).eq('id', row.id))
+> })
+> await Promise.all(updates)
+> ```
+> Reordering/moving classes between board sections issues one UPDATE per moved row. Fix: use a Postgres `upsert` with an array of `{id, sort_order, code_id}` rows in one call, or an RPC that does a bulk `CASE WHEN` update.
+> 
+> **4. `composables/useResources.ts:91-94` and `:132-135` — folder/resource reordering, one UPDATE per item**
+> ```ts
+> async function reorderFolders(ids: string[]) {
+>   await Promise.all(ids.map((id, i) =&gt;
+>     (db.from as any)('resource_folders').update({ sort_order: i }).eq('id', id)))
+> }
+> ```
+> Same pattern duplicated for `reorderResources`. Every drag-reorder of the resources tree fires one query per row. Fix: single `upsert([{id, sort_order}, ...])` call (or an RPC) instead of N `.update().eq('id', ...)` calls.
+> 
+> **5. `composables/useTermRollover.ts:362-421` (`generateTrainingEvents`) — per-schedule INSERT loop when rolling a term over multiple groups**
+> ```ts
+> for (const sched of (scheds ?? [])) {
+>   ...
+>   const { data: master } = await (db.from as any)('events').insert({...}).select('id').single()
+>   ...
+>   const { data: kids } = await (db.from as any)('events').insert(childRows).select('id')
+>   
+> … [truncated — 5293 chars total]
+
+**09:00** — <task-notification>
+> <task-id>a91b3e40c5d00b924</task-id>
+> <tool-use-id>toolu_01LVyH8V2dPggAX8vzKrfxFS</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/da3b7951-61ea-4b82-83c2-c803429b1cf1/tasks/a91b3e40c5d00b924.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find memory leaks" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>I read every file in scope for the 8 leak patterns in this codebase. Most candidate spots turned out to have correct cleanup already (`TimetableGrid.vue`, `BookingsList.vue`, `ReviewWidget.vue`, `ChipMultiSelect.vue`, `ProfileDashboard.vue`'s ResizeObserver, `RichTextEditor.vue`'s TipTap destroy, `FormDesigner.vue`'s SortableJS, all `addEventListener` sites, and no Supabase realtime `.channel()` usage exists anywhere in the app). Below are the real, verified findings.
+> 
+> ## Findings
+> 
+> **1. `components/PersonFormBuilder.vue:161-171` — uncleared `setTimeout` autosave, no unmount hook at all**
+> ```js
+> let saveTimer: any = null
+> function scheduleSave() {
+>   saving.value = true
+>   if (saveTimer) clearTimeout(saveTimer)
+>   saveTimer = setTimeout(async () =&gt; {
+>     await (db.from as any)('profile_forms').upsert(...)
+>     saving.value = false
+>   }, 500)
+> }
+> watch(layout, scheduleSave, { deep: true })
+> ```
+> The file has zero `onUnmounted`/`onBeforeUnmount` calls (`grep -c` = 0). If the user edits the layout and then closes the dialog/navigates within 500ms, the timer's closure (holding `layout`, `props.orgId`, `db`, `saving`) survives the unmount and fires an upsert against a destroyed component's state — a genuine leak-and-write-after-unmount bug, worse if the builder is opened/closed repeatedly (each cycle can leave one dangling timer+closure).
+> **Fix:**
+> ```js
+> onBeforeUnmount(() =&gt; { if (saveTimer) clearTimeout(saveTimer) })
+> ```
+> 
+> **2. `components/BookableAccessEditor.vue:210-214` — same pattern, uncleared debounce timer, no unmount hook**
+> ```js
+> let saveTimer: any = null
+> function autosave() {
+>   if (saveTimer) clearTimeout(saveTimer)
+>   saveTimer = setTimeout(() =&gt; doSave(), 250)
+> }
+> ```
+> `grep -c "onUnmounted|onBeforeUnmount"` = 0 for this file. `doSave()` closes over `form`, `props.bookableId`, `doors`, `zones`, etc. Rapid field edits followed by closing the panel leave a pending write that fires post-unmount.
+> **Fix:**
+> ```js
+> onBeforeUnmount(() =&gt; { if (saveTimer) clearTimeout(saveTimer) })
+> ```
+> 
+> ## Non-findings (verified clean, listed so they aren't re-flagged)
+> - `components/TimetableGrid.vue:147-149` — `setInterval`/`clearInterval` pair present in `onBeforeUnmount`.
+> - `components/BookingsList.vue:459-463` — same, clean.
+> - `components/ProfileDashboard.vue:79-90` — `ResizeObserver` + `resize` listener both torn down in `onBeforeUnmount`.
+> - `components/ChipMultiSelect.vue:70-78` — `ResizeObserver` disconnected in `onBefo
+> … [truncated — 5003 chars total]
+
+**09:00** — <task-notification>
+> <task-id>af128045b2f52827a</task-id>
+> <tool-use-id>toolu_01Mgwx18tNnfpRSdopaJTaSW</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/da3b7951-61ea-4b82-83c2-c803429b1cf1/tasks/af128045b2f52827a.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find caching opportunities" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Findings: Missing caching / redundant DB fetches
+> 
+> **1. `composables/useOrgHierarchy.ts` — `ancestors(orgId)` (lines 39-44): no caching at all**
+> ```js
+> async function ancestors(orgId: string): Promise&lt;OrgNode[]&gt; {
+>   const { data, error } = await (db.rpc as any)('org_ancestors', { p_org: orgId })
+>   ...
+> }
+> ```
+> This RPC walks the full NSO parent chain and is called fresh on **every** invocation — no `useState`, no per-org memo. It's the backbone call for `useTerminology.resolveTerminology`, `useOrgFieldPolicy.resolveFields`, and `resolvePersonTypes`. Since none of those callers cache either (see #2), a single page that calls `resolveFields()` twice (e.g. once for the page, once inside a child form component) triggers the ancestor RPC twice, and the same org's ancestor chain never changes within a session unless the org hierarchy itself is edited.
+> **Fix:** memoize per org in a shared `useState&lt;Record&lt;string, OrgNode[]&gt;&gt;('org-ancestors-cache', () =&gt; ({}))`, returning the cached array unless a `force` flag is passed (mirror `loadRoleDefs(force?)`), and invalidate it from wherever org hierarchy edits happen.
+> 
+> **2. `composables/useOrgFieldPolicy.ts` — `resolveFields`/`resolvePersonTypes`: zero memoization, 26+ call sites**
+> Both functions run `ancestors(orgId)` + a fresh `field_definitions`/`person_target_types` query every time, with no `useState` cache guard. Verified call sites include `usePersonFields.ts`, `PersonFormBuilder.vue`, `FormRenderer.vue`, `FormProfilesEditor.vue`, `pages/me.vue`, `pages/resources.vue`, `pages/settings/fields.vue`, `pages/settings/field-catalogue.vue`, `pages/organisations/[id].vue`, `pages/people/[id].vue`, `pages/people/index.vue`, `pages/groups/[id]/index.vue`, `pages/reports/custom/[id].vue`, `pages/events/new-basic.vue`, plus several `/proto/*` pages. Field definitions rarely change within a session, yet every profile visit, every form render, every custom-fields settings load re-runs the ancestor walk + the join query from scratch.
+> **Fix:** wrap in `useState('fm-field-defs-' /* or single map keyed by orgId */)` with a `loadedFor`/`force` guard exactly like `useOrgModules.loadModules(force)` and `useXeroAccounts.loadXeroAccounts(force)`. Invalidate (force) only from the field/person-type editor pages after a save.
+> 
+> **3. `composables/usePersonFields.ts` — `loadFieldCatalogue()` (line 28-34): compounds #2 on every profile view**
+> ```js
+> async functi
+> … [truncated — 9068 chars total]
+
+**09:01** — <task-notification>
+> <task-id>aba84160a4e222acc</task-id>
+> <tool-use-id>toolu_01TNY5qtBBMkneZ88SviWAKS</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/da3b7951-61ea-4b82-83c2-c803429b1cf1/tasks/aba84160a4e222acc.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find Vue reactivity inefficiencies" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Now I have all the evidence I need. Here is the consolidated findings report.
+> 
+> ## Reactivity / Performance Findings — fm-events
+> 
+> **1. `pages/events/[id].vue:5958-5972` — deep watch on the whole viewed session object**
+> ```js
+> watch(viewingSession, async (session, oldSession) =&gt; {
+>   if (session === oldSession) { if (session) triggerSessionAutoSave(session) }
+>   else { /* flush old session save */ }
+> }, { deep: true })
+> ```
+> `viewingSession` is a `ref` pointing into the `sessions` array (a session with tickets, per-day settings, etc.). `deep: true` makes Vue recursively walk and subscribe to every nested property of that session object on every run, and re-diff the whole subtree on every keystroke in any field bound to it (name, capacity, notes, per-day overrides). On an event with many sessions/fields this is a full-object traversal per keystroke just to detect "something changed." Fix: narrow the watch to only the fields that should trigger autosave (e.g. `watch(() =&gt; JSON.stringify(pick(viewingSession.value, [...fields])), ...)` is still O(n) but at least explicit), or better, use a dirty-flag pattern — mark `sessionDirty = true` in each field's `@input`/`@update:modelValue` handler and debounce a save off that, dropping `deep:true` entirely.
+> 
+> **2. `pages/events/[id].vue:4231-4248` — `memberGroupAttendanceSections` does an O(n·m) `.find` inside a loop**
+> ```js
+> const memberGroupAttendanceSections = computed(() =&gt; {
+>   const personGroupMap: ... = {}
+>   for (const inv of filteredSortedAttendees.value) {
+>     if (!inv.person_id) continue
+>     const entry = memberGroupsForInvitees.value.find(m =&gt; m.personId === inv.person_id)
+>     personGroupMap[inv.id] = entry?.group ?? null
+>   }
+>   ...
+> ```
+> For every invitee it does a linear `.find` over `memberGroupsForInvitees` — O(invitees × memberGroups). This recomputes on any change to `filteredSortedAttendees` (which itself recomputes on every keystroke in `attendanceSearch`). For events with hundreds of invitees, typing in the attendance search box re-runs this quadratic scan on every character. Fix: build a `Map&lt;personId, group&gt;` once (as a separate `computed`) and do O(1) lookups inside the loop.
+> 
+> **3. `pages/groups/[id]/index.vue:1105-1155` (template) + `:2916-2917` (definitions) — attendance matrix cells call unmemoized functions per cell**
+> ```js
+> const sessionTotal = (eventId: string | null) =&gt; eventId ? members.value.filter(m =&gt; att
+> … [truncated — 9261 chars total]
+
+
+## Session 2026-07-14 09:01 (1 prompts)
+
+**09:01** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
+
+
+## Session 2026-07-14 09:01 (1 prompts)
+
+**09:01** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 79310 chars total]
+
+
+## Session 2026-07-14 09:02 (1 prompts)
+
+**09:02** — Analyze test coverage and identify gaps:
+> - Find untested functions and classes
+> - Identify edge cases not covered
+> - Suggest new test scenarios
+> - Check for missing error handling tests
+> - Identify integration test gaps
+> 
+> For each gap, provide a test skeleton.
+> 
+> ## Codebase Context
+> 
+> --- tests/smoke.spec.ts (truncated) ---
+> /**
+>  * DEPLOYMENT SMOKE SUITE — run after every deploy.
+>  *
+>  *   TEST_BASE_URL=https://fm-events-five.vercel.app \
+>  *   TEST_EMAIL=... TEST_PASSWORD=... npm run test:smoke
+>  *
+>  * Principles:
+>  *  - STRICTLY READ-ONLY. Dev and prod share ONE database — these tests never
+>  *    write, click destructive buttons, or submit forms.
+>  *  - A route "passes" when it renders without a Nuxt 500, without uncaught
+>  *    page errors, without bouncing to /login, and with real content in <main>.
+>  *  - Data-independent: works on any org (asserts structure, not seed rows).
+>  *  - Auth'd sweep skips gracefully when TEST_EMAIL/TEST_PASSWORD aren't set,
+>  *    so the public subset still gates a deploy with no secrets available.
+>  */
+> import { test, expect, Page } from '@playwright/test'
+> 
+> const BASE = process.env.TEST_BASE_URL ?? 'http://localhost:3002'
+> const EMAIL = process.env.TEST_EMAIL ?? ''
+> const PASSWORD = process.env.TEST_PASSWORD ?? ''
+> const HAS_CREDS = !!(EMAIL && PASSWORD)
+> 
+> // Every core screen. Keep this list in sync with the URL table in CLAUDE.md —
+> // a new page ships with a row here (same spirit as the dashboard-widget rule).
+> const AUTHED_ROUTES = [
+>   '/dashboard',
+>   '/me',
+>   '/onboarding',
+>   '/people',
+>   '/groups',
+>   '/groups/timetable',
+>   '/groups/reports',
+>   '/groups/retention',
+>   '/groups/fees',
+>   '/groups/waitlists',
+>   '/groups/settings',
+>   '/groups/allocator',
+>   '/groups/codes',
+>   '/groups/views',
+>   '/groups/rollover',
+>   '/groups/term-wizard',
+>   '/memberships',
+>   '/events',
+>   '/events/new-basic',
+>   '/events/reporting',
+>   '/bookables',
+>   '/bookings/new',
+>   '/attendance',
+>   '/resources',
+>   '/reports',
+>   '/reports/custom/new',
+>   '/finances',
+>   '/reporting',
+>   '/forms',
+>   '/organisations',
+>   '/settings',
+>   '/settings/terms',
+>   '/settings/memberships',
+>   '/settings/locations',
+>   '/settings/fields',
+>   '/settings/field-catalogue',
+>   '/settings/core-fields',
+>   '/settings/terminology',
+>   '/settings/modules',
+>   '/settings/calendars',
+>   '/settings/xero',
+>   '/settings/integrations',
+> ]
+> 
+> const PUBLIC_ROUTES = ['/login', '/book']
+> 
+> // Errors we tolerate (3rd-party noise, favicons, expected 4xx probes)
+> const IGNORABLE = [/favicon/i, /ResizeObserver loop/i, /sharedworker/i]
+> 
+> function watchErrors(page: Page) {
+>   const pageErrors: string[] = []
+>   const badResponses: string[] = []
+>   page.on('pageerror', e => pageErrors.push(String(e).slice(0, 200)))
+>   page.on('response', r => {
+>     // 5xx anywhere is a deploy problem; 4xx only from our own API/DB calls
+>     const url = r.url()
+>     if (IGNORABLE.some(rx => rx.test(url))) return
+>     if (r.status() >= 500) badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
+>     if (r.status() >= 400 && /supabase|\/api\//.test(url) &
+> … [truncated — 15541 chars total]
+
+
+## Session 2026-07-14 09:05 (1 prompts)
+
+**09:05** — Analyze this codebase for security vulnerabilities:
+> - Check for hardcoded secrets (API keys, passwords)
+> - Identify SQL injection risks
+> - Find XSS vulnerabilities
+> - Check for insecure dependencies
+> - Identify authentication/authorization issues
+> 
+> Provide a JSON report with:
+> {
+>   "vulnerabilities": [{ "severity": "high|medium|low", "file": "...", "line": N, "description": "..." }],
+>   "riskScore": 0-100,
+>   "recommendations": ["..."]
+> }
+> 
+> ## Codebase Context
+> 
+> --- .claude/helpers/github-safe.js (truncated) ---
+> #!/usr/bin/env node
+> /**
+>  * Safe GitHub CLI Helper — v1.0.0
+>  *
+>  * Prevents injection issues when using `gh` commands with untrusted content
+>  * (PR bodies, issue bodies, comment bodies) by routing the body through a
+>  * temp file and using `--body-file` rather than interpolating into shell args.
+>  *
+>  * ADR-127 Phase 2 hardening:
+>  *   - GITHUB_SAFE_VERSION exported for smoke assertions.
+>  *   - Explicit 256KB body cap: rejects oversized bodies before any temp-file
+>  *     write, matching the GitHub API `body` field limit.
+>  *   - Strict error handling: all execSync calls inside try/catch; cleanup in
+>  *     finally; non-zero exit on any error.
+>  *   - GITHUB_SAFE_DRY_RUN=1 env-var skips the actual `gh` exec for testing.
+>  *
+>  * Usage:
+>  *   ./github-safe.js issue comment 123 "Message with \`backticks\`"
+>  *   ./github-safe.js pr create --title "Title" --body "Complex body"
+>  */
+> 
+> import { execSync, execFileSync } from 'child_process';
+> import { writeFileSync, unlinkSync } from 'fs';
+> import { tmpdir } from 'os';
+> import { join } from 'path';
+> import { randomBytes } from 'crypto';
+> 
+> // Version constant — asserted by smoke-github-safe-injection.mjs.
+> export const GITHUB_SAFE_VERSION = '1.0.0';
+> 
+> // Maximum body size allowed (bytes).  The GitHub API enforces 65536 chars for
+> // issue/PR bodies; the CLI is more lenient but the 256KB limit is a
+> // conservative safety cap that prevents accidental oversized writes.
+> const MAX_BODY_BYTES = 256 * 1024;
+> 
+> const args = process.argv.slice(2);
+> 
+> if (args.length < 2) {
+>   console.log(`
+> Safe GitHub CLI Helper v${GITHUB_SAFE_VERSION}
+> 
+> Usage:
+>   ./github-safe.js issue comment <number> <body>
+>   ./github-safe.js pr comment <number> <body>
+>   ./github-safe.js issue create --title <title> --body <body>
+>   ./github-safe.js pr create --title <title> --body <body>
+> 
+> This helper prevents injection issues with special characters:
+> - Backticks in code examples
+> - Command substitution $(...)
+> - Semicolons and other shell metacharacters
+> - Oversized bodies (> 256 KB rejected)
+> `);
+>   process.exit(1);
+> }
+> 
+> const [command, subcommand, ...restArgs] = args;
+> 
+> // Handle commands that need body content
+> if ((command === 'issue' || command === 'pr') &&
+>     (subcommand === 'comment' || subcommand === 'create')) {
+> 
+>   let bodyIndex = -1;
+>   let body = '';
+> 
+>   if (subcommand === 'comment' && restArgs.length >= 2) {
+>     // Simple format: github-safe.js issue comment 123 "body"
+>     body = restArgs[1];
+>     bodyIndex = 
+> … [truncated — 79310 chars total]
+
+
+## Session 2026-07-14 09:05 (1 prompts)
+
+**09:05** — Analyze test coverage and identify gaps:
+> - Find untested functions and classes
+> - Identify edge cases not covered
+> - Suggest new test scenarios
+> - Check for missing error handling tests
+> - Identify integration test gaps
+> 
+> For each gap, provide a test skeleton.
+> 
+> ## Codebase Context
+> 
+> --- tests/smoke.spec.ts (truncated) ---
+> /**
+>  * DEPLOYMENT SMOKE SUITE — run after every deploy.
+>  *
+>  *   TEST_BASE_URL=https://fm-events-five.vercel.app \
+>  *   TEST_EMAIL=... TEST_PASSWORD=... npm run test:smoke
+>  *
+>  * Principles:
+>  *  - STRICTLY READ-ONLY. Dev and prod share ONE database — these tests never
+>  *    write, click destructive buttons, or submit forms.
+>  *  - A route "passes" when it renders without a Nuxt 500, without uncaught
+>  *    page errors, without bouncing to /login, and with real content in <main>.
+>  *  - Data-independent: works on any org (asserts structure, not seed rows).
+>  *  - Auth'd sweep skips gracefully when TEST_EMAIL/TEST_PASSWORD aren't set,
+>  *    so the public subset still gates a deploy with no secrets available.
+>  */
+> import { test, expect, Page } from '@playwright/test'
+> 
+> const BASE = process.env.TEST_BASE_URL ?? 'http://localhost:3002'
+> const EMAIL = process.env.TEST_EMAIL ?? ''
+> const PASSWORD = process.env.TEST_PASSWORD ?? ''
+> const HAS_CREDS = !!(EMAIL && PASSWORD)
+> 
+> // Every core screen. Keep this list in sync with the URL table in CLAUDE.md —
+> // a new page ships with a row here (same spirit as the dashboard-widget rule).
+> const AUTHED_ROUTES = [
+>   '/dashboard',
+>   '/me',
+>   '/onboarding',
+>   '/people',
+>   '/groups',
+>   '/groups/timetable',
+>   '/groups/reports',
+>   '/groups/retention',
+>   '/groups/fees',
+>   '/groups/waitlists',
+>   '/groups/settings',
+>   '/groups/allocator',
+>   '/groups/codes',
+>   '/groups/views',
+>   '/groups/rollover',
+>   '/groups/term-wizard',
+>   '/memberships',
+>   '/events',
+>   '/events/new-basic',
+>   '/events/reporting',
+>   '/bookables',
+>   '/bookings/new',
+>   '/attendance',
+>   '/resources',
+>   '/reports',
+>   '/reports/custom/new',
+>   '/finances',
+>   '/reporting',
+>   '/forms',
+>   '/organisations',
+>   '/settings',
+>   '/settings/terms',
+>   '/settings/memberships',
+>   '/settings/locations',
+>   '/settings/fields',
+>   '/settings/field-catalogue',
+>   '/settings/core-fields',
+>   '/settings/terminology',
+>   '/settings/modules',
+>   '/settings/calendars',
+>   '/settings/xero',
+>   '/settings/integrations',
+> ]
+> 
+> const PUBLIC_ROUTES = ['/login', '/book']
+> 
+> // Errors we tolerate (3rd-party noise, favicons, expected 4xx probes)
+> const IGNORABLE = [/favicon/i, /ResizeObserver loop/i, /sharedworker/i]
+> 
+> function watchErrors(page: Page) {
+>   const pageErrors: string[] = []
+>   const badResponses: string[] = []
+>   page.on('pageerror', e => pageErrors.push(String(e).slice(0, 200)))
+>   page.on('response', r => {
+>     // 5xx anywhere is a deploy problem; 4xx only from our own API/DB calls
+>     const url = r.url()
+>     if (IGNORABLE.some(rx => rx.test(url))) return
+>     if (r.status() >= 500) badResponses.push(`${r.status()} ${url.slice(0, 120)}`)
+>     if (r.status() >= 400 && /supabase|\/api\//.test(url) &
+> … [truncated — 15541 chars total]
+
+
+## Session 2026-07-14 09:05 (1 prompts)
+
+**09:05** — Analyze this codebase for performance optimizations:
+> - Identify N+1 query patterns
+> - Find unnecessary re-renders in React
+> - Suggest caching opportunities
+> - Identify memory leaks
+> - Find redundant computations
+> 
+> Provide actionable suggestions with code examples.
+> 
+> ## Instructions
+> 
+> Analyze the codebase and provide your response following the format specified in the task.
 

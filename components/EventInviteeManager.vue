@@ -32,41 +32,46 @@
 
         <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <div v-if="groupsLoading" class="py-8 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-400" /></div>
-          <div v-else-if="filteredGroups.length === 0" class="py-6 text-center text-sm text-gray-400">No {{ t('group', true, true) }} found</div>
+          <div v-else-if="codeSections.length === 0" class="py-6 text-center text-sm text-gray-400">No {{ t('group', true, true) }} found</div>
           <div v-else>
-            <template v-for="group in filteredGroups" :key="group.id">
-              <div :class="['flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors', group.parent_id ? 'pl-8 bg-white' : 'bg-gray-50 hover:bg-gray-100']">
-                <button v-if="!group.parent_id && groupChildren(group.id).length" class="w-4 h-4 flex items-center justify-center text-gray-400 shrink-0" @click="toggleGroupExpand(group.id)">
-                  <i :class="`pi text-xs ${expandedGroups[group.id] ? 'pi-chevron-down' : 'pi-chevron-right'}`" />
+            <!-- One section per CODE (programme), nested by code hierarchy, with
+                 its classes underneath. "Add all" on a code adds every class in
+                 it, including its sub-codes. -->
+            <template v-for="section in codeSections" :key="section.id">
+              <div class="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors"
+                :style="{ paddingLeft: `${12 + section.depth * 16}px` }">
+                <button class="w-4 h-4 flex items-center justify-center text-gray-400 shrink-0"
+                  @click="toggleGroupExpand(section.id)">
+                  <i :class="`pi text-xs ${expandedGroups[section.id] === false ? 'pi-chevron-right' : 'pi-chevron-down'}`" />
                 </button>
-                <span v-else class="w-4 shrink-0" />
-                <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: group.color ?? '#94a3b8' }" />
-                <span class="flex-1 text-sm" :class="group.parent_id ? 'text-gray-700' : 'font-semibold text-gray-800'">{{ group.name }}</span>
-                <span class="text-xs text-gray-400 mr-2">{{ group._memberCount }} {{ t('member', true, true) }}</span>
+                <span v-if="section.color" class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: section.color }" />
+                <span class="flex-1 text-sm font-semibold text-gray-800">{{ section.name }}</span>
+                <span class="text-xs text-gray-400 mr-2">{{ groupsUnderCode(section.id).length }} {{ t('group', true, true) }}</span>
                 <Button
-                  :label="selectedInviteeGroups.includes(group.id) ? 'Added' : 'Add all'"
-                  :icon="addingGroupId === group.id ? 'pi pi-spin pi-spinner' : selectedInviteeGroups.includes(group.id) ? 'pi pi-check' : 'pi pi-plus'"
+                  :label="codeFullyAdded(section.id) ? 'Added' : 'Add all'"
+                  :icon="codeFullyAdded(section.id) ? 'pi pi-check' : 'pi pi-plus'"
                   size="small"
-                  :severity="selectedInviteeGroups.includes(group.id) ? 'success' : 'secondary'"
-                  :disabled="addingGroupId !== null"
+                  :severity="codeFullyAdded(section.id) ? 'success' : 'secondary'"
+                  :disabled="addingGroupId !== null || !groupsUnderCode(section.id).length"
                   outlined
-                  @click="toggleSelectorGroup(group.id)"
+                  @click="toggleWholeCode(section.id)"
                 />
               </div>
-              <template v-if="!group.parent_id && expandedGroups[group.id]">
-                <div v-for="child in groupChildren(group.id)" :key="child.id"
-                  class="flex items-center gap-2 px-3 py-2 border-b border-gray-100 last:border-0 pl-9 bg-white hover:bg-gray-50 transition-colors">
-                  <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: child.color ?? '#94a3b8' }" />
-                  <span class="flex-1 text-sm text-gray-700">{{ child.name }}</span>
-                  <span class="text-xs text-gray-400 mr-2">{{ child._memberCount }} {{ t('member', true, true) }}</span>
+
+              <template v-if="expandedGroups[section.id] !== false">
+                <div v-for="group in section.groups" :key="group.id"
+                  class="flex items-center gap-2 px-3 py-2 border-b border-gray-100 last:border-0 bg-white hover:bg-gray-50 transition-colors"
+                  :style="{ paddingLeft: `${32 + section.depth * 16}px` }">
+                  <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: group.color ?? '#94a3b8' }" />
+                  <span class="flex-1 text-sm text-gray-700">{{ group.name }}</span>
                   <Button
-                    :label="selectedInviteeGroups.includes(child.id) ? 'Added' : 'Add'"
-                    :icon="addingGroupId === child.id ? 'pi pi-spin pi-spinner' : selectedInviteeGroups.includes(child.id) ? 'pi pi-check' : 'pi pi-plus'"
+                    :label="selectedInviteeGroups.includes(group.id) ? 'Added' : 'Add'"
+                    :icon="addingGroupId === group.id ? 'pi pi-spin pi-spinner' : selectedInviteeGroups.includes(group.id) ? 'pi pi-check' : 'pi pi-plus'"
                     size="small"
-                    :severity="selectedInviteeGroups.includes(child.id) ? 'success' : 'secondary'"
+                    :severity="selectedInviteeGroups.includes(group.id) ? 'success' : 'secondary'"
                     :disabled="addingGroupId !== null"
                     outlined
-                    @click="toggleSelectorGroup(child.id)"
+                    @click="toggleSelectorGroup(group.id)"
                   />
                 </div>
               </template>
@@ -84,7 +89,7 @@
 
         <div class="bg-white border border-gray-200 rounded-xl overflow-hidden min-h-[60px]">
           <div v-if="personSearchLoading" class="py-8 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-400" /></div>
-          <div v-else-if="personSearch.length < 2" class="py-6 text-center text-sm text-gray-400">Type a name to search</div>
+          <div v-else-if="!personSearch.trim()" class="py-6 text-center text-sm text-gray-400">Type a name to search</div>
           <div v-else-if="personSearchResults.length === 0" class="py-6 text-center text-sm text-gray-400">No people found</div>
           <div v-else>
             <div v-for="person in personSearchResults" :key="person.id"
@@ -365,7 +370,9 @@ let personSearchTimer: ReturnType<typeof setTimeout> | null = null
 
 function onPersonSearchInput() {
   if (personSearchTimer) clearTimeout(personSearchTimer)
-  if (personSearch.value.length < 2) { personSearchResults.value = []; return }
+  // Search from the first character — a 2-char minimum silently swallowed
+  // single-letter searches and looked broken.
+  if (!personSearch.value.trim()) { personSearchResults.value = []; return }
   personSearchTimer = setTimeout(searchPersons, 250)
 }
 
@@ -411,28 +418,98 @@ const showAllInGroup = reactive<Record<string, boolean>>({})
 const expandedGroupSections = reactive<Record<string, boolean>>({})
 const GROUP_PREVIEW = 10
 
+// Classes hang off a CODE (programme), not off each other — member_groups.parent_id
+// was retired in migration 205/206, so the old parent/child nesting here was dead
+// and rendered a flat list. Group by code, and nest codes under their parents.
+const gc = useGroupCodes()
+const allCodes = ref<any[]>([])
+
 async function loadMemberGroups() {
   groupsLoading.value = true
-  const { data: groups } = await db.from('member_groups').select('id, name, color, parent_id, sort_order').eq('org_id', orgId.value).order('sort_order')
-  const { data: memberships } = await db.from('member_group_memberships').select('group_id')
+  const [codes, { data: groups }, { data: memberships }] = await Promise.all([
+    gc.loadCodes(),
+    (db.from as any)('member_groups')
+      .select('id, name, color, code_id, sort_order, kind')
+      .eq('org_id', orgId.value).order('sort_order'),
+    db.from('member_group_memberships').select('group_id'),
+  ])
+  allCodes.value = codes ?? []
   const countMap: Record<string, number> = {}
-  for (const m of memberships ?? []) {
-    countMap[m.group_id] = (countMap[m.group_id] ?? 0) + 1
-  }
-  allMemberGroups.value = (groups ?? []).map(g => ({ ...g, _memberCount: countMap[g.id] ?? 0 }))
+  for (const m of memberships ?? []) countMap[m.group_id] = (countMap[m.group_id] ?? 0) + 1
+  allMemberGroups.value = (groups ?? [])
+    .filter((g: any) => g.kind !== 'membership')   // memberships aren't classes
+    .map((g: any) => ({ ...g, _memberCount: countMap[g.id] ?? 0 }))
   groupsLoading.value = false
 }
 
-// Returns only top-level groups (no parent_id), filtered by search
-const filteredGroups = computed(() => {
-  const q = selectorSearch.value.toLowerCase()
-  return allMemberGroups.value
-    .filter(g => !g.parent_id)
-    .filter(g => !q || g.name.toLowerCase().includes(q) || groupChildren(g.id).some(c => c.name.toLowerCase().includes(q)))
+// Sections: one per code (in tree order, children indented), plus an
+// "Ungrouped" bucket for classes with no code. Codes with nothing in them —
+// after the search filter — are dropped.
+interface CodeSection { id: string; name: string; color: string | null; depth: number; groups: any[] }
+
+const codeSections = computed<CodeSection[]>(() => {
+  const q = selectorSearch.value.trim().toLowerCase()
+  const matches = (g: any) => !q || g.name.toLowerCase().includes(q)
+
+  const byCode: Record<string, any[]> = {}
+  for (const g of allMemberGroups.value) {
+    if (!matches(g)) continue
+    ;(byCode[g.code_id ?? '__none'] ??= []).push(g)
+  }
+
+  const byParent: Record<string, any[]> = {}
+  for (const c of [...allCodes.value].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))) {
+    (byParent[c.parent_id ?? '__root'] ??= []).push(c)
+  }
+
+  const out: CodeSection[] = []
+  const walk = (parent: string, depth: number) => {
+    for (const c of byParent[parent] ?? []) {
+      const groups = byCode[c.id] ?? []
+      // Keep a code that has matching classes, or descendants that do.
+      const before = out.length
+      const self: CodeSection = { id: c.id, name: c.name, color: c.color, depth, groups }
+      out.push(self)
+      walk(c.id, depth + 1)
+      if (!groups.length && out.length === before + 1) out.pop()   // empty branch
+    }
+  }
+  walk('__root', 0)
+
+  if (byCode.__none?.length) {
+    out.push({ id: '__none', name: 'Ungrouped', color: null, depth: 0, groups: byCode.__none })
+  }
+  return out
 })
 
-function groupChildren(parentId: string) {
-  return allMemberGroups.value.filter(g => g.parent_id === parentId)
+// Every class under a code (including its sub-codes) — what "Add all" adds.
+function groupsUnderCode(codeId: string): any[] {
+  if (codeId === '__none') {
+    return allMemberGroups.value.filter(g => !g.code_id)
+  }
+  const ids = new Set<string>([codeId])
+  let grew = true
+  while (grew) {
+    grew = false
+    for (const c of allCodes.value) {
+      if (c.parent_id && ids.has(c.parent_id) && !ids.has(c.id)) { ids.add(c.id); grew = true }
+    }
+  }
+  return allMemberGroups.value.filter(g => g.code_id && ids.has(g.code_id))
+}
+
+const codeFullyAdded = (codeId: string) => {
+  const gs = groupsUnderCode(codeId)
+  return gs.length > 0 && gs.every(g => selectedInviteeGroups.value.includes(g.id))
+}
+
+async function toggleWholeCode(codeId: string) {
+  const gs = groupsUnderCode(codeId)
+  const add = !codeFullyAdded(codeId)
+  for (const g of gs) {
+    const already = selectedInviteeGroups.value.includes(g.id)
+    if (add !== already) await toggleSelectorGroup(g.id)
+  }
 }
 
 function toggleGroupExpand(id: string) {

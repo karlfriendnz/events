@@ -167,91 +167,9 @@
             <p class="text-xs text-gray-400 mt-2">Check an activity to apply to every mode in it, or expand to pick specific modes. Leave empty to apply to everything.</p>
           </div>
 
-          <!-- Conditions -->
+          <!-- Conditions — the shared builder (also used by the events wizard). -->
           <div class="px-5 py-4 border-b border-gray-100">
-            <div class="flex items-center justify-between mb-3">
-              <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Criteria</p>
-              <span v-if="draft.conditions.length > 1"
-                class="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full">
-                All must be met
-              </span>
-            </div>
-
-            <div v-if="draft.conditions.length" class="rounded-lg border border-gray-200 overflow-x-auto mb-3">
-              <div class="grid min-w-[560px] bg-gray-50 border-b border-gray-200 px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide"
-                style="grid-template-columns: 230px 170px 1fr 32px">
-                <span class="pl-1">Criterion</span>
-                <span>Operator</span>
-                <span>Value</span>
-                <span />
-              </div>
-              <div v-for="(cond, i) in draft.conditions" :key="i"
-                class="grid min-w-[560px] items-center px-3 border-b border-gray-100 last:border-0 group hover:bg-gray-50/60 transition-colors"
-                style="grid-template-columns: 230px 170px 1fr 32px">
-                <div class="py-2 pr-2">
-                  <Select :modelValue="cond.key" :options="conditionTypeGroups"
-                    optionLabel="label" optionValue="key" optionGroupLabel="label" optionGroupChildren="items"
-                    placeholder="Choose…" class="w-full text-sm"
-                    :pt="{ root: { style: 'border:none; box-shadow:none; background:transparent; padding:0' } }"
-                    @update:modelValue="v => onConditionKeyChange(cond, v)" />
-                </div>
-                <div class="py-2 pr-2 border-l border-gray-100">
-                  <template v-if="cond.key && condValueType(cond.key) === 'boolean'">
-                    <div class="flex rounded-md border border-gray-200 overflow-hidden text-xs font-semibold bg-white">
-                      <button type="button" class="flex-1 py-1.5 border-r border-gray-200 transition-all"
-                        :class="cond.operator === 'is_true' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
-                        @click="cond.operator = 'is_true'">Yes</button>
-                      <button type="button" class="flex-1 py-1.5 transition-all"
-                        :class="cond.operator === 'is_false' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
-                        @click="cond.operator = 'is_false'">No</button>
-                    </div>
-                  </template>
-                  <Select v-else-if="cond.key" v-model="cond.operator" :options="condOperatorOptions(cond.key)"
-                    optionLabel="label" optionValue="value" class="w-full text-sm"
-                    :pt="{ root: { style: 'border:none; box-shadow:none; background:transparent; padding:0' } }" />
-                  <div v-else class="h-9" />
-                </div>
-                <div class="py-2 pr-2 pl-2 border-l border-gray-100">
-                  <template v-if="cond.key && condValueType(cond.key) !== 'boolean'">
-                    <InputNumber v-if="condValueType(cond.key) === 'number'"
-                      v-model="cond.value" :min="0" inputClass="h-9 text-sm w-full px-3" class="w-full"
-                      :pt="{ root: { class: 'w-full' } }" />
-                    <div v-else-if="condValueType(cond.key) === 'currency'" class="flex items-center gap-1.5">
-                      <span class="text-sm text-gray-400 shrink-0">$</span>
-                      <InputNumber v-model="cond.value" :min="0" :minFractionDigits="2" :maxFractionDigits="2"
-                        inputClass="h-9 text-sm w-full px-3" class="flex-1" :pt="{ root: { class: 'flex-1' } }" />
-                    </div>
-                    <DatePicker v-else-if="condValueType(cond.key) === 'datetime'"
-                      v-model="cond.value" showTime hourFormat="12" dateFormat="dd/mm/yy"
-                      inputClass="h-9 text-sm px-3 w-full" class="w-full" />
-                    <MultiSelect v-else-if="condValueType(cond.key) === 'days'"
-                      v-model="cond.value" :options="daysOfWeek" optionLabel="label" optionValue="value"
-                      placeholder="Pick days…" class="w-full text-sm" display="chip" />
-                    <MultiSelect v-else-if="condValueType(cond.key) === 'groups'"
-                      v-model="cond.value" :options="memberGroups" optionLabel="name" optionValue="id"
-                      placeholder="Pick groups…" class="w-full text-sm" display="chip" />
-                    <MultiSelect v-else-if="condValueType(cond.key) === 'enum'"
-                      v-model="cond.value" :options="conditionGenderOptions(cond.key)" optionLabel="label" optionValue="value"
-                      placeholder="Pick…" class="w-full text-sm" display="chip" />
-                    <InputText v-else-if="condValueType(cond.key) === 'string'"
-                      v-model="cond.value" placeholder="e.g. 2000" class="w-full text-sm h-9 px-3" />
-                  </template>
-                  <div v-else class="h-9" />
-                </div>
-                <div class="flex justify-center border-l border-gray-100">
-                  <button class="w-7 h-7 flex items-center justify-center rounded-md text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                    @click="draft.conditions.splice(i, 1)">
-                    <i class="pi pi-times text-xs" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <button type="button"
-              class="w-full flex items-center justify-center gap-2 text-sm text-gray-400 hover:text-primary border border-dashed border-gray-200 hover:border-primary/30 hover:bg-primary/[0.02] rounded-lg py-2.5 transition-all"
-              @click="addCondition">
-              <i class="pi pi-plus text-xs" /> Add criterion
-            </button>
+            <DiscountCriteriaEditor v-model="draft.conditions" :member-groups="memberGroups" />
           </div>
 
           <!-- Period & usage -->
