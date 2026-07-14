@@ -1,133 +1,58 @@
 <template>
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
 
-    <!-- LEFT: Group / Individual selector -->
+    <!-- LEFT: the reusable <PeopleSelector>. Everything about CHOOSING people
+         (search / filter-to-a-list / browse the class tree) lives there, so any
+         other screen that needs to pick people gets the same tool. This component
+         only knows what to DO with the choice: make them invitees. -->
     <div class="space-y-3">
-      <p class="text-sm font-semibold text-gray-800">Choose Invitees</p>
-
-      <!-- Mode tabs -->
-      <div class="flex p-1 bg-gray-100 rounded-xl gap-1">
-        <button type="button"
-          class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-          :class="selectorMode === 'groups' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'"
-          @click="selectorMode = 'groups'">{{ t('group', true) }}</button>
-        <button type="button"
-          class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-          :class="selectorMode === 'individuals' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'"
-          @click="selectorMode = 'individuals'">Individuals</button>
+      <!-- Both columns run title → controls → panels, at the same heights, so the
+           class tree and the first invitee group line up. -->
+      <div class="h-8 flex items-center">
+        <p class="text-sm font-semibold text-gray-800">Choose Invitees</p>
       </div>
-
-      <!-- GROUPS mode -->
-      <template v-if="selectorMode === 'groups'">
-        <div class="flex gap-2">
-          <IconField class="flex-1">
-            <InputIcon class="pi pi-search" />
-            <InputText v-model="selectorSearch" :placeholder="`Search ${t('group', true, true)}…`" size="small" class="w-full" />
-          </IconField>
-          <div class="relative">
-            <Button label="Filter" icon="pi pi-filter" size="small" severity="secondary" outlined @click="showDemoFilter = true" />
-            <span v-if="demoFilterCount > 0" class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">{{ demoFilterCount }}</span>
-          </div>
-        </div>
-
-        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div v-if="groupsLoading" class="py-8 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-400" /></div>
-          <div v-else-if="codeSections.length === 0" class="py-6 text-center text-sm text-gray-400">No {{ t('group', true, true) }} found</div>
-          <div v-else>
-            <!-- One section per CODE (programme), nested by code hierarchy, with
-                 its classes underneath. "Add all" on a code adds every class in
-                 it, including its sub-codes. -->
-            <template v-for="section in codeSections" :key="section.id">
-              <div class="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors"
-                :style="{ paddingLeft: `${12 + section.depth * 16}px` }">
-                <button class="w-4 h-4 flex items-center justify-center text-gray-400 shrink-0"
-                  @click="toggleGroupExpand(section.id)">
-                  <i :class="`pi text-xs ${expandedGroups[section.id] === false ? 'pi-chevron-right' : 'pi-chevron-down'}`" />
-                </button>
-                <span v-if="section.color" class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: section.color }" />
-                <span class="flex-1 text-sm font-semibold text-gray-800">{{ section.name }}</span>
-                <span class="text-xs text-gray-400 mr-2">{{ groupsUnderCode(section.id).length }} {{ t('group', true, true) }}</span>
-                <Button
-                  :label="codeFullyAdded(section.id) ? 'Added' : 'Add all'"
-                  :icon="codeFullyAdded(section.id) ? 'pi pi-check' : 'pi pi-plus'"
-                  size="small"
-                  :severity="codeFullyAdded(section.id) ? 'success' : 'secondary'"
-                  :disabled="addingGroupId !== null || !groupsUnderCode(section.id).length"
-                  outlined
-                  @click="toggleWholeCode(section.id)"
-                />
-              </div>
-
-              <template v-if="expandedGroups[section.id] !== false">
-                <div v-for="group in section.groups" :key="group.id"
-                  class="flex items-center gap-2 px-3 py-2 border-b border-gray-100 last:border-0 bg-white hover:bg-gray-50 transition-colors"
-                  :style="{ paddingLeft: `${32 + section.depth * 16}px` }">
-                  <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: group.color ?? '#94a3b8' }" />
-                  <span class="flex-1 text-sm text-gray-700">{{ group.name }}</span>
-                  <Button
-                    :label="selectedInviteeGroups.includes(group.id) ? 'Added' : 'Add'"
-                    :icon="addingGroupId === group.id ? 'pi pi-spin pi-spinner' : selectedInviteeGroups.includes(group.id) ? 'pi pi-check' : 'pi pi-plus'"
-                    size="small"
-                    :severity="selectedInviteeGroups.includes(group.id) ? 'success' : 'secondary'"
-                    :disabled="addingGroupId !== null"
-                    outlined
-                    @click="toggleSelectorGroup(group.id)"
-                  />
-                </div>
-              </template>
-            </template>
-          </div>
-        </div>
-      </template>
-
-      <!-- INDIVIDUALS mode -->
-      <template v-else>
-        <IconField>
-          <InputIcon class="pi pi-search" />
-          <InputText v-model="personSearch" placeholder="Search by name or email…" size="small" class="w-full" @input="onPersonSearchInput" />
-        </IconField>
-
-        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden min-h-[60px]">
-          <div v-if="personSearchLoading" class="py-8 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-400" /></div>
-          <div v-else-if="!personSearch.trim()" class="py-6 text-center text-sm text-gray-400">Type a name to search</div>
-          <div v-else-if="personSearchResults.length === 0" class="py-6 text-center text-sm text-gray-400">No people found</div>
-          <div v-else>
-            <div v-for="person in personSearchResults" :key="person.id"
-              class="flex items-center gap-2.5 px-3 py-2.5 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-              <div class="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <span class="text-[10px] font-bold text-primary">{{ person.first_name[0] }}{{ person.last_name[0] }}</span>
-              </div>
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-gray-800 truncate">{{ person.first_name }} {{ person.last_name }}</p>
-                <p v-if="person.email" class="text-xs text-gray-400 truncate">{{ person.email }}</p>
-              </div>
-              <Button
-                :label="isAlreadyInvited(person.id) ? 'Invited' : addingPersonId === person.id ? '' : 'Add'"
-                :icon="addingPersonId === person.id ? 'pi pi-spin pi-spinner' : isAlreadyInvited(person.id) ? 'pi pi-check' : 'pi pi-plus'"
-                size="small"
-                :severity="isAlreadyInvited(person.id) ? 'success' : 'secondary'"
-                :disabled="isAlreadyInvited(person.id) || addingPersonId !== null"
-                outlined
-                @click="addIndividual(person)"
-              />
-            </div>
-          </div>
-        </div>
-      </template>
+      <PeopleSelector
+        :invited-person-ids="invitees.map(i => i.person_id)"
+        :added-group-ids="selectedInviteeGroups"
+        :busy-person-id="addingPersonId"
+        :busy-group-id="addingGroupId"
+        added-label="Invited"
+        @add-person="addIndividual"
+        @add-people="addManyIndividuals"
+        @toggle-group="toggleSelectorGroup"
+        @toggle-code="toggleWholeCode"
+        @reveal-person="flashPerson" />
     </div>
 
-    <!-- RIGHT: Invitees grouped view -->
+    <!-- RIGHT: who's actually invited -->
     <div class="space-y-3">
-      <div class="flex items-center gap-3">
-        <div class="flex-1">
-          <h2 class="text-sm font-semibold text-gray-800">Invitees</h2>
-          <p class="text-xs text-gray-500 mt-0.5">{{ invitees.length }} people invited</p>
-        </div>
-        <IconField>
-          <InputIcon class="pi pi-search" />
-          <InputText v-model="inviteePillSearch" placeholder="Find person…" size="small" class="w-44" />
-        </IconField>
+      <div class="h-8 flex items-center gap-2">
+        <h2 class="text-sm font-semibold text-gray-800 flex-1">Invitees</h2>
+        <Button v-if="showInvite && invitees.length" label="Send invitation" icon="pi pi-send" size="small" outlined
+          @click="invitationOpen = true" />
       </div>
+
+      <!-- The count sits on the controls row, level with the left column's search
+           box, so both panels below start at the same y. Search rides the same
+           line as an ICON that slides open — it's a "find someone in this list"
+           affordance, not a primary control, so it shouldn't hold a box's worth
+           of space until it's wanted. -->
+      <div class="h-[34px] flex items-center gap-2">
+        <p class="text-sm font-medium text-gray-700 flex-1">{{ invitees.length }} people invited</p>
+        <Transition name="search-slide">
+          <InputText v-if="pillSearchOpen" ref="pillSearchEl" v-model="inviteePillSearch"
+            placeholder="Find person…" size="small" class="w-40"
+            @blur="!inviteePillSearch && (pillSearchOpen = false)" />
+        </Transition>
+        <button v-if="invitees.length" type="button"
+          class="w-7 h-7 rounded-lg flex items-center justify-center transition-colors shrink-0"
+          :class="pillSearchOpen ? 'text-primary bg-primary/10' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'"
+          @click="togglePillSearch">
+          <i class="pi pi-search text-xs" />
+        </button>
+      </div>
+
+      <EventInvitationDialog v-if="showInvite" v-model:visible="invitationOpen" :event-id="eventId" />
 
       <!-- Action bar (slides in when people are selected) -->
       <Transition name="slide-down">
@@ -170,8 +95,17 @@
             <div class="flex flex-wrap gap-2">
               <span v-for="inv in visibleGroupInvitees(groupId)" :key="inv.id"
                 class="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm transition-colors cursor-pointer select-none"
-                :class="bulkSelected.includes(inv.id) ? 'bg-primary text-white' : isPillHighlighted(inv) ? 'bg-amber-100 text-amber-900 ring-2 ring-amber-400' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                :class="bulkSelected.includes(inv.id) ? 'bg-primary text-white'
+                  : flashedPersonId === inv.person_id ? 'bg-emerald-100 text-emerald-900 ring-2 ring-emerald-400'
+                  : isPillHighlighted(inv) ? 'bg-amber-100 text-amber-900 ring-2 ring-amber-400'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
                 @click="toggleBulkSelect(inv.id)">
+                <!-- Their RSVP, if they've given one. No icon = hasn't replied yet. -->
+                <i v-if="rsvpState(inv)" v-tooltip.top="rsvpState(inv) === 'yes' ? 'Coming' : 'Not coming'"
+                  class="pi text-xs"
+                  :class="rsvpState(inv) === 'yes'
+                    ? (bulkSelected.includes(inv.id) ? 'pi-check-circle text-white' : 'pi-check-circle text-emerald-600')
+                    : (bulkSelected.includes(inv.id) ? 'pi-times-circle text-white/70' : 'pi-times-circle text-gray-400')" />
                 {{ inv.person?.first_name }} {{ inv.person?.last_name }}
                 <span v-if="inviteeRole(inv) !== 'attendee'" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2494D2]/15 text-[#2494D2] font-semibold">{{ eventRoleLabel(inviteeRole(inv)) }}</span>
                 <button class="transition-colors" :class="bulkSelected.includes(inv.id) ? 'text-white/60 hover:text-white' : 'text-gray-400 hover:text-red-500'" @click.stop="removeInvitee(inv.id)">
@@ -203,8 +137,17 @@
             <div class="flex flex-wrap gap-2">
               <span v-for="inv in showAllInGroup['__individual'] ? unassignedInvitees : unassignedInvitees.slice(0, GROUP_PREVIEW)" :key="inv.id"
                 class="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm transition-colors cursor-pointer select-none"
-                :class="bulkSelected.includes(inv.id) ? 'bg-primary text-white' : isPillHighlighted(inv) ? 'bg-amber-100 text-amber-900 ring-2 ring-amber-400' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+                :class="bulkSelected.includes(inv.id) ? 'bg-primary text-white'
+                  : flashedPersonId === inv.person_id ? 'bg-emerald-100 text-emerald-900 ring-2 ring-emerald-400'
+                  : isPillHighlighted(inv) ? 'bg-amber-100 text-amber-900 ring-2 ring-amber-400'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
                 @click="toggleBulkSelect(inv.id)">
+                <!-- Their RSVP, if they've given one. No icon = hasn't replied yet. -->
+                <i v-if="rsvpState(inv)" v-tooltip.top="rsvpState(inv) === 'yes' ? 'Coming' : 'Not coming'"
+                  class="pi text-xs"
+                  :class="rsvpState(inv) === 'yes'
+                    ? (bulkSelected.includes(inv.id) ? 'pi-check-circle text-white' : 'pi-check-circle text-emerald-600')
+                    : (bulkSelected.includes(inv.id) ? 'pi-times-circle text-white/70' : 'pi-times-circle text-gray-400')" />
                 {{ inv.person?.first_name }} {{ inv.person?.last_name }}
                 <span v-if="inviteeRole(inv) !== 'attendee'" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2494D2]/15 text-[#2494D2] font-semibold">{{ eventRoleLabel(inviteeRole(inv)) }}</span>
                 <button class="transition-colors" :class="bulkSelected.includes(inv.id) ? 'text-white/60 hover:text-white' : 'text-gray-400 hover:text-red-500'" @click.stop="removeInvitee(inv.id)">
@@ -225,102 +168,18 @@
 
   </div>
 
-  <!-- Demographics Filter Dialog -->
-  <Dialog v-model:visible="showDemoFilter" header="Filter by Demographics" modal :style="{ width: '95vw', maxWidth: '480px' }">
-    <div class="flex flex-col gap-5 py-2">
-
-      <!-- Gender -->
-      <div>
-        <p class="text-sm font-semibold text-gray-700 mb-2.5">Gender</p>
-        <div class="flex flex-wrap gap-2">
-          <button v-for="g in genderOptions" :key="g.value"
-            class="px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors"
-            :class="demoFilter.genders.includes(g.value)
-              ? 'bg-primary border-primary text-white'
-              : 'bg-white border-gray-300 text-gray-600 hover:border-primary hover:text-primary'"
-            @click="toggleDemoGender(g.value)">
-            {{ g.label }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Age range -->
-      <div>
-        <p class="text-sm font-semibold text-gray-700 mb-2.5">Age Range</p>
-        <div class="flex items-center gap-3">
-          <div class="flex-1">
-            <label class="text-xs text-gray-500 mb-1 block">Min age</label>
-            <InputNumber v-model="demoFilter.ageMin" :min="0" :max="120" placeholder="Any" class="w-full" size="small" />
-          </div>
-          <span class="text-gray-400 mt-4">—</span>
-          <div class="flex-1">
-            <label class="text-xs text-gray-500 mb-1 block">Max age</label>
-            <InputNumber v-model="demoFilter.ageMax" :min="0" :max="120" placeholder="Any" class="w-full" size="small" />
-          </div>
-        </div>
-        <div class="flex gap-2 mt-2 flex-wrap">
-          <button v-for="preset in agePresets" :key="preset.label"
-            class="px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors"
-            :class="demoFilter.ageMin === preset.min && demoFilter.ageMax === preset.max
-              ? 'bg-primary border-primary text-white'
-              : 'bg-white border-gray-200 text-gray-500 hover:border-gray-400'"
-            @click="demoFilter.ageMin = preset.min; demoFilter.ageMax = preset.max">
-            {{ preset.label }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Membership type -->
-      <div>
-        <p class="text-sm font-semibold text-gray-700 mb-2.5">Membership Status</p>
-        <div class="flex flex-wrap gap-2">
-          <button v-for="m in membershipOptions" :key="m.value"
-            class="px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors"
-            :class="demoFilter.membershipTypes.includes(m.value)
-              ? 'bg-primary border-primary text-white'
-              : 'bg-white border-gray-300 text-gray-600 hover:border-primary hover:text-primary'"
-            @click="toggleDemoMembership(m.value)">
-            {{ m.label }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Registration status -->
-      <div>
-        <p class="text-sm font-semibold text-gray-700 mb-2.5">Registration Status</p>
-        <div class="flex flex-wrap gap-2">
-          <button v-for="r in registrationOptions" :key="r.value"
-            class="px-3.5 py-1.5 rounded-full text-sm font-medium border transition-colors"
-            :class="demoFilter.registrationStatuses.includes(r.value)
-              ? 'bg-primary border-primary text-white'
-              : 'bg-white border-gray-300 text-gray-600 hover:border-primary hover:text-primary'"
-            @click="toggleDemoRegistration(r.value)">
-            {{ r.label }}
-          </button>
-        </div>
-      </div>
-
-      <!-- Active filter summary -->
-      <div v-if="demoFilterCount > 0" class="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-center justify-between">
-        <span class="text-sm text-blue-700 font-medium">{{ demoFilterCount }} filter{{ demoFilterCount > 1 ? 's' : '' }} active</span>
-        <button class="text-xs text-blue-600 hover:text-blue-800 underline" @click="clearDemoFilter">Clear all</button>
-      </div>
-
-    </div>
-    <template #footer>
-      <Button label="Cancel" severity="secondary" text @click="showDemoFilter = false" />
-      <Button label="Apply Filters" icon="pi pi-check" @click="showDemoFilter = false" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
-    </template>
-  </Dialog>
 </template>
 
 <script setup lang="ts">
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   eventId: string
-}>()
+  /** Show the "Send invitation" button. Off in the create wizard, where sending
+      belongs on the final step — you pick people first, decide to tell them last. */
+  showInvite?: boolean
+}>(), { showInvite: true })
 
 const db = useDb()
 const toast = useToast()
@@ -358,37 +217,6 @@ async function removeInvitee(inviteeId: string) {
   loadInvitees()
 }
 
-// ---- Selector mode ----
-const selectorMode = ref<'groups' | 'individuals'>('groups')
-
-// ---- Individual person search ----
-const personSearch = ref('')
-const personSearchResults = ref<any[]>([])
-const personSearchLoading = ref(false)
-const addingPersonId = ref<string | null>(null)
-let personSearchTimer: ReturnType<typeof setTimeout> | null = null
-
-function onPersonSearchInput() {
-  if (personSearchTimer) clearTimeout(personSearchTimer)
-  // Search from the first character — a 2-char minimum silently swallowed
-  // single-letter searches and looked broken.
-  if (!personSearch.value.trim()) { personSearchResults.value = []; return }
-  personSearchTimer = setTimeout(searchPersons, 250)
-}
-
-async function searchPersons() {
-  personSearchLoading.value = true
-  const q = personSearch.value.trim()
-  const { data } = await db.from('persons')
-    .select('id, first_name, last_name, email')
-    .eq('org_id', orgId.value)
-    .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`)
-    .order('last_name')
-    .limit(20)
-  personSearchResults.value = data ?? []
-  personSearchLoading.value = false
-}
-
 function isAlreadyInvited(personId: string) {
   return invitees.value.some(i => i.person_id === personId)
 }
@@ -406,114 +234,54 @@ async function addIndividual(person: any) {
   addingPersonId.value = null
 }
 
-// ---- Group selector ----
-const selectorSearch = ref('')
-const selectedInviteeGroups = ref<string[]>([])
-const groupsLoading = ref(false)
-const allMemberGroups = ref<any[]>([])
-const expandedGroups = reactive<Record<string, boolean>>({})
-const addingGroupId = ref<string | null>(null)
-const groupMembershipsMap = ref<Record<string, string[]>>({})
-const showAllInGroup = reactive<Record<string, boolean>>({})
-const expandedGroupSections = reactive<Record<string, boolean>>({})
-const GROUP_PREVIEW = 10
+// "Add all N" from the filter results — one insert, not N round-trips. Anyone
+// already invited is skipped rather than erroring on the unique constraint.
+async function addManyIndividuals(people: any[]) {
+  const fresh = people.filter(p => !isAlreadyInvited(p.id))
+  if (!fresh.length) return
+  const { error } = await (db.from as any)('invitees').upsert(
+    fresh.map(p => ({ event_id: props.eventId, person_id: p.id, status: 'INVITED', role: 'attendee', roles: ['attendee'] })),
+    { onConflict: 'event_id,person_id', ignoreDuplicates: true },
+  )
+  if (error) {
+    toast.add({ severity: 'error', summary: 'Error', detail: error.message, life: 4000 })
+    return
+  }
+  await loadInvitees()
+  // No toast — see addGroupInvitees: the new pills are the confirmation.
+}
 
-// Classes hang off a CODE (programme), not off each other — member_groups.parent_id
-// was retired in migration 205/206, so the old parent/child nesting here was dead
-// and rendered a flat list. Group by code, and nest codes under their parents.
-const gc = useGroupCodes()
-const allCodes = ref<any[]>([])
+// ---- Chosen classes ----
+// The class TREE (and its search/filter) lives in <PeopleSelector>. What stays
+// here is only what an EVENT does with the choice: which classes were added, and
+// the roster we exploded out of them. `allMemberGroups` is kept purely to render
+// each added group's name + colour on the right.
+const selectedInviteeGroups = ref<string[]>([])
+const allMemberGroups = ref<any[]>([])
+const addingGroupId = ref<string | null>(null)
+const addingPersonId = ref<string | null>(null)
+const groupMembershipsMap = ref<Record<string, string[]>>({})
+
+// Right-pane display state: which added-group sections are open, and how many
+// people each shows before "Show all".
+const expandedGroupSections = reactive<Record<string, boolean>>({})
+const showAllInGroup = reactive<Record<string, boolean>>({})
+const GROUP_PREVIEW = 12
 
 async function loadMemberGroups() {
-  groupsLoading.value = true
-  const [codes, { data: groups }, { data: memberships }] = await Promise.all([
-    gc.loadCodes(),
-    (db.from as any)('member_groups')
-      .select('id, name, color, code_id, sort_order, kind')
-      .eq('org_id', orgId.value).order('sort_order'),
-    db.from('member_group_memberships').select('group_id'),
-  ])
-  allCodes.value = codes ?? []
-  const countMap: Record<string, number> = {}
-  for (const m of memberships ?? []) countMap[m.group_id] = (countMap[m.group_id] ?? 0) + 1
-  allMemberGroups.value = (groups ?? [])
-    .filter((g: any) => g.kind !== 'membership')   // memberships aren't classes
-    .map((g: any) => ({ ...g, _memberCount: countMap[g.id] ?? 0 }))
-  groupsLoading.value = false
+  const { data } = await (db.from as any)('member_groups')
+    .select('id, name, color').eq('org_id', orgId.value)
+  allMemberGroups.value = data ?? []
 }
 
-// Sections: one per code (in tree order, children indented), plus an
-// "Ungrouped" bucket for classes with no code. Codes with nothing in them —
-// after the search filter — are dropped.
-interface CodeSection { id: string; name: string; color: string | null; depth: number; groups: any[] }
-
-const codeSections = computed<CodeSection[]>(() => {
-  const q = selectorSearch.value.trim().toLowerCase()
-  const matches = (g: any) => !q || g.name.toLowerCase().includes(q)
-
-  const byCode: Record<string, any[]> = {}
-  for (const g of allMemberGroups.value) {
-    if (!matches(g)) continue
-    ;(byCode[g.code_id ?? '__none'] ??= []).push(g)
+// The selector hands back the ids; adding/removing invitees is our job.
+async function toggleWholeCode(groupIds: string[], adding: boolean, who: 'all' | 'members' | 'staff' = 'all') {
+  for (const id of groupIds) {
+    const already = selectedInviteeGroups.value.includes(id)
+    // A narrowed add (members/staff only) always runs — the class may already be
+    // added "as members" and you're now pulling its coaches in too.
+    if (who !== 'all' || adding !== already) await toggleSelectorGroup(id, who)
   }
-
-  const byParent: Record<string, any[]> = {}
-  for (const c of [...allCodes.value].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))) {
-    (byParent[c.parent_id ?? '__root'] ??= []).push(c)
-  }
-
-  const out: CodeSection[] = []
-  const walk = (parent: string, depth: number) => {
-    for (const c of byParent[parent] ?? []) {
-      const groups = byCode[c.id] ?? []
-      // Keep a code that has matching classes, or descendants that do.
-      const before = out.length
-      const self: CodeSection = { id: c.id, name: c.name, color: c.color, depth, groups }
-      out.push(self)
-      walk(c.id, depth + 1)
-      if (!groups.length && out.length === before + 1) out.pop()   // empty branch
-    }
-  }
-  walk('__root', 0)
-
-  if (byCode.__none?.length) {
-    out.push({ id: '__none', name: 'Ungrouped', color: null, depth: 0, groups: byCode.__none })
-  }
-  return out
-})
-
-// Every class under a code (including its sub-codes) — what "Add all" adds.
-function groupsUnderCode(codeId: string): any[] {
-  if (codeId === '__none') {
-    return allMemberGroups.value.filter(g => !g.code_id)
-  }
-  const ids = new Set<string>([codeId])
-  let grew = true
-  while (grew) {
-    grew = false
-    for (const c of allCodes.value) {
-      if (c.parent_id && ids.has(c.parent_id) && !ids.has(c.id)) { ids.add(c.id); grew = true }
-    }
-  }
-  return allMemberGroups.value.filter(g => g.code_id && ids.has(g.code_id))
-}
-
-const codeFullyAdded = (codeId: string) => {
-  const gs = groupsUnderCode(codeId)
-  return gs.length > 0 && gs.every(g => selectedInviteeGroups.value.includes(g.id))
-}
-
-async function toggleWholeCode(codeId: string) {
-  const gs = groupsUnderCode(codeId)
-  const add = !codeFullyAdded(codeId)
-  for (const g of gs) {
-    const already = selectedInviteeGroups.value.includes(g.id)
-    if (add !== already) await toggleSelectorGroup(g.id)
-  }
-}
-
-function toggleGroupExpand(id: string) {
-  expandedGroups[id] = !expandedGroups[id]
 }
 
 function groupInvitees(groupId: string) {
@@ -531,27 +299,29 @@ const unassignedInvitees = computed(() => {
   return invitees.value.filter(i => !assigned.has(i.person_id))
 })
 
-async function toggleSelectorGroup(value: string) {
-  const idx = selectedInviteeGroups.value.indexOf(value)
-  if (idx >= 0) {
-    selectedInviteeGroups.value.splice(idx, 1)
-  } else {
-    await addGroupInvitees(value)
-  }
+async function toggleSelectorGroup(value: string, who: 'all' | 'members' | 'staff' = 'all') {
+  await addGroupInvitees(value, who)
 }
 
-async function addGroupInvitees(groupId: string) {
+async function addGroupInvitees(groupId: string, who: 'all' | 'members' | 'staff' = 'all') {
   addingGroupId.value = groupId
 
   const children = allMemberGroups.value.filter(g => g.parent_id === groupId)
   // If this group has children, pull memberships from children; otherwise use the group itself
   const groupIds = children.length > 0 ? children.map(g => g.id) : [groupId]
 
-  const { data: memberships } = await (db.from as any)('member_group_memberships').select('person_id, roles, role').in('group_id', groupIds)
-  const personIds = [...new Set((memberships ?? []).map((m: any) => m.person_id))] as string[]
+  const { data: allMemberships } = await (db.from as any)('member_group_memberships').select('person_id, roles, role').in('group_id', groupIds)
+  // The split Add button's facet: everyone, just the members, or just the staff
+  // (a coach is a membership whose role is a staff role — useScopedRoles knows).
+  const memberships = (allMemberships ?? []).filter((m: any) => {
+    if (who === 'all') return true
+    const staff = scoped.isStaff('group', scoped.normalizeRoles('group', m.roles, m.role))
+    return who === 'staff' ? staff : !staff
+  })
+  const personIds = [...new Set(memberships.map((m: any) => m.person_id))] as string[]
   // Best group role per person → their event role (coach in group → coach at event).
   const eventRoleByPerson: Record<string, string> = {}
-  for (const m of (memberships ?? []) as any[]) {
+  for (const m of memberships as any[]) {
     const evRole = groupToEventRole(scoped.normalizeRoles('group', m.roles, m.role))
     // keep the strongest role if a person is in multiple child groups
     const rank = (r: string) => (r === 'manager' ? 2 : r === 'coach' ? 1 : 0)
@@ -577,14 +347,17 @@ async function addGroupInvitees(groupId: string) {
       return
     }
     await loadInvitees()
-    toast.add({ severity: 'success', summary: `${toInsert.length} invitee${toInsert.length > 1 ? 's' : ''} added`, life: 3000 })
-  } else {
-    toast.add({ severity: 'info', summary: 'Already invited', detail: `All ${t('member', true, true)} in this ${t('group', false, true)} are already invited.`, life: 3000 })
+    // No toast: the people appearing on the right IS the feedback. (Bulk-adding
+    // overlapping classes is normal — a toast per add would just be noise.)
   }
 
-  groupMembershipsMap.value[groupId] = personIds
+  // UNION, don't overwrite: "Add ▸ Staff only" then "Add ▸ Members only" on the
+  // same class must end up with both, and the class must appear in the list once.
+  groupMembershipsMap.value[groupId] = [
+    ...new Set([...(groupMembershipsMap.value[groupId] ?? []), ...personIds]),
+  ]
   expandedGroupSections[groupId] = true
-  selectedInviteeGroups.value.push(groupId)
+  if (!selectedInviteeGroups.value.includes(groupId)) selectedInviteeGroups.value.push(groupId)
   addingGroupId.value = null
 }
 
@@ -598,7 +371,7 @@ async function removeGroup(groupId: string) {
   const idx = selectedInviteeGroups.value.indexOf(groupId)
   if (idx >= 0) selectedInviteeGroups.value.splice(idx, 1)
   delete groupMembershipsMap.value[groupId]
-  toast.add({ severity: 'success', summary: `${t('group', false)} removed`, life: 3000 })
+  // No toast — the section vanishing IS the confirmation (same rule as adding).
 }
 
 // ---- Bulk selection ----
@@ -624,8 +397,30 @@ async function bulkDelete() {
   bulkDeleting.value = false
 }
 
+// ---- "They're already in" flash ----
+// Straight from the legacy mailer: re-adding someone already invited doesn't
+// error and doesn't silently do nothing — their pill flashes green and fades
+// back, so bulk-adding overlapping classes feels safe rather than noisy.
+const flashedPersonId = ref<string | null>(null)
+let flashTimer: ReturnType<typeof setTimeout> | null = null
+
+function flashPerson(personId: string) {
+  if (flashTimer) clearTimeout(flashTimer)
+  flashedPersonId.value = personId
+  flashTimer = setTimeout(() => (flashedPersonId.value = null), 900)
+}
+
 // ---- Invitee pill search (highlight only) ----
+// Collapsed to an icon by default; the box slides out when you want it.
 const inviteePillSearch = ref('')
+const pillSearchOpen = ref(false)
+const pillSearchEl = ref<any>(null)
+
+function togglePillSearch() {
+  pillSearchOpen.value = !pillSearchOpen.value
+  if (pillSearchOpen.value) nextTick(() => (pillSearchEl.value?.$el ?? pillSearchEl.value)?.focus?.())
+  else inviteePillSearch.value = ''   // closing clears, or a hidden query would keep filtering
+}
 function isPillHighlighted(inv: any): boolean {
   const q = inviteePillSearch.value.trim().toLowerCase()
   if (!q) return false
@@ -633,77 +428,51 @@ function isPillHighlighted(inv: any): boolean {
   return name.includes(q)
 }
 
+// ---- Invitation email ----
+const invitationOpen = ref(false)
+
+// ---- RSVP ----
+// "Are you coming?" is answered on /rsvp/:event/:person, which writes the
+// invitee's status. Here we only SHOW the answer (on the pill) and hand out the
+// links: a personal link per invitee, since the answer is recorded against them.
+// Until the invitation email exists, copying the links out is how they're sent.
+function rsvpState(inv: any): 'yes' | 'no' | null {
+  if (inv.status === 'CONFIRMED') return 'yes'
+  if (inv.status === 'DECLINED') return 'no'
+  return null   // invited, hasn't replied
+}
+function rsvpLink(inv: any) {
+  return `${window.location.origin}/rsvp/${props.eventId}/${inv.person_id ?? inv.person?.id}`
+}
+function copyRsvpLinks() {
+  const chosen = invitees.value.filter(i => bulkSelected.value.includes(i.id))
+  const rows = (chosen.length ? chosen : invitees.value)
+    .map(i => `${i.person?.first_name ?? ''} ${i.person?.last_name ?? ''}`.trim() + `\t${rsvpLink(i)}`)
+  if (!rows.length) return
+  navigator.clipboard?.writeText(rows.join('\n'))
+  toast.add({
+    severity: 'success',
+    summary: `Copied ${rows.length} RSVP link${rows.length === 1 ? '' : 's'}`,
+    detail: chosen.length ? 'For the people you selected.' : 'For everyone invited.',
+    life: 3000,
+  })
+}
+
 // ---- Invitee action menu ----
 const inviteeActionMenu = ref()
 const inviteeActionMenuItems = [
   { label: 'Send Message', icon: 'pi pi-comment', command: () => { /* TODO: emit or handle */ } },
   { label: 'Send Email', icon: 'pi pi-envelope', command: () => { /* TODO: emit or handle */ } },
+  { label: 'Copy RSVP links', icon: 'pi pi-link', command: () => copyRsvpLinks() },
   { separator: true },
   { label: 'Delete Selected', icon: 'pi pi-trash', command: () => bulkDelete() },
 ]
 
-// ---- Demographics filter ----
-const showDemoFilter = ref(false)
-const demoFilter = reactive({
-  genders: [] as string[],
-  ageMin: null as number | null,
-  ageMax: null as number | null,
-  membershipTypes: [] as string[],
-  registrationStatuses: [] as string[],
-})
-
-const genderOptions = [
-  { label: 'Male', value: 'MALE' },
-  { label: 'Female', value: 'FEMALE' },
-  { label: 'Non-binary', value: 'NON_BINARY' },
-  { label: 'Unspecified', value: 'UNSPECIFIED' },
-]
-const membershipOptions = [
-  { label: 'Active', value: 'ACTIVE' },
-  { label: 'Non-Active', value: 'NON_ACTIVE' },
-  { label: 'Previous', value: 'PREVIOUS' },
-  { label: 'Junior', value: 'JUNIOR' },
-  { label: 'Social', value: 'SOCIAL' },
-]
-const registrationOptions = [
-  { label: 'Registered', value: 'registered' },
-  { label: 'Unregistered', value: 'unregistered' },
-  { label: 'Pending', value: 'pending' },
-  { label: 'Expired', value: 'expired' },
-]
-const agePresets = [
-  { label: 'Under 18', min: 0, max: 17 },
-  { label: '18–25', min: 18, max: 25 },
-  { label: '26–40', min: 26, max: 40 },
-  { label: '40+', min: 40, max: 120 },
-]
-
-const demoFilterCount = computed(() =>
-  demoFilter.genders.length +
-  demoFilter.membershipTypes.length +
-  demoFilter.registrationStatuses.length +
-  (demoFilter.ageMin !== null || demoFilter.ageMax !== null ? 1 : 0)
-)
-
-function toggleDemoGender(v: string) {
-  const i = demoFilter.genders.indexOf(v)
-  i >= 0 ? demoFilter.genders.splice(i, 1) : demoFilter.genders.push(v)
-}
-function toggleDemoMembership(v: string) {
-  const i = demoFilter.membershipTypes.indexOf(v)
-  i >= 0 ? demoFilter.membershipTypes.splice(i, 1) : demoFilter.membershipTypes.push(v)
-}
-function toggleDemoRegistration(v: string) {
-  const i = demoFilter.registrationStatuses.indexOf(v)
-  i >= 0 ? demoFilter.registrationStatuses.splice(i, 1) : demoFilter.registrationStatuses.push(v)
-}
-function clearDemoFilter() {
-  demoFilter.genders = []
-  demoFilter.ageMin = null
-  demoFilter.ageMax = null
-  demoFilter.membershipTypes = []
-  demoFilter.registrationStatuses = []
-}
+// NOTE: the old "Filter by Demographics" dialog lived here and was a LIE — its
+// criteria (gender / age / membership / registration status) were never applied
+// to anything; they only lit up a count badge. The real one now lives in
+// <PeopleSelector>, where it queries persons and hands back the actual list of
+// matching people to add.
 
 onMounted(() => {
   scoped.loadRoleDefs()
@@ -711,3 +480,20 @@ onMounted(() => {
   loadInvitees()
 })
 </script>
+
+<style scoped>
+/* The invitee search slides out of the icon rather than appearing from nowhere.
+   (The neighbouring slide-down Transition has never had CSS — it's inert.) */
+.search-slide-enter-active,
+.search-slide-leave-active {
+  transition: width 0.18s ease, opacity 0.18s ease;
+  overflow: hidden;
+}
+.search-slide-enter-from,
+.search-slide-leave-to {
+  width: 0;
+  opacity: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+</style>
