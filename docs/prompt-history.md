@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-322 sessions · 1588 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+322 sessions · 1589 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -23152,7 +23152,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:51** — on the events drop down please change the "new category" > "New calendar"
 
 
-## Session 2026-07-13 21:11 (83 prompts)
+## Session 2026-07-13 21:11 (84 prompts)
 
 **21:11** — Hye
 
@@ -23357,6 +23357,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **10:15** — in the filter drop dow rename calenadr to categoty
 
 **10:16** — [Image #25] please make this just have a devider not a box
+
+**19:47** — can the advacned first step please be the same as the basic first step in the modal
 
 
 ## Session 2026-07-13 21:33 (1 prompts)

@@ -55,84 +55,111 @@
     <div class="flex-1 overflow-y-auto bg-[#F5F8FA]">
       <div class="max-w-[1140px] mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6">
 
-        <!-- Step 0: Event Info -->
+        <!-- Step 0: Event Info — the SAME card as the basic wizard's first step
+             (same order, same 120px label column, same date editor, same
+             governing-body disciplines). Two builders asking for the same five
+             things in two different shapes was just a thing to get wrong twice. -->
         <template v-if="currentStep === 0">
-          <div>
-            <h2 class="text-lg font-bold text-gray-900 mb-1">Event Information</h2>
-            <p class="text-sm text-gray-500">Give your event a name and describe what it's about.</p>
+          <div class="mb-1">
+            <h2 class="text-sm font-semibold text-gray-800">Event info</h2>
+            <p class="text-xs text-gray-500 mt-0.5">Name the event, set when it runs, and how people find it.</p>
           </div>
-          <div class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-            <div class="px-5 py-4">
-              <label class="block text-sm font-medium text-gray-700 mb-1.5">Event Title <span class="text-red-400">*</span></label>
-              <InputText v-model="form.title" placeholder="e.g. Club Championships 2025" class="w-full" autofocus />
+          <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <!-- Title -->
+            <div class="px-5 py-4 border-b border-gray-100">
+              <div class="grid grid-cols-1 sm:grid-cols-[120px_1fr] items-center gap-1.5 sm:gap-4">
+                <label class="text-sm font-semibold text-gray-800">Event Title <span class="text-red-400">*</span></label>
+                <InputText v-model="form.title" placeholder="Enter the name of your event" class="w-full" autofocus />
+              </div>
             </div>
-            <div class="px-5 py-4">
-              <label class="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
-              <RichTextEditor v-model="form.description" placeholder="Describe your event — schedule, what to bring, who it's for…" />
+            <!-- Date -->
+            <div class="px-5 py-4 border-b border-gray-100">
+              <DateTimeEditor
+                v-model:startDate="form.start_date"
+                v-model:endDate="form.end_date"
+                v-model:startTime="form.start_time"
+                v-model:endTime="form.end_time"
+                v-model:isAllDay="form.is_all_day"
+                v-model:repeat="form.repeat"
+                v-model:exdates="form.exdates"
+                :minStartDate="twoWeeksAgo"
+                :minEndDate="form.start_date ?? twoWeeksAgo"
+                label="Date"
+                required
+                label-width="w-[120px]"
+                label-class="text-gray-800 font-semibold"
+                row-padding="px-0 py-2"
+              />
+              <!-- Why you can't proceed — a disabled Next with no reason is a dead end. -->
+              <div v-if="dateInvalidReason && (form.title.trim() || form.start_date)" class="py-1 sm:pl-[136px]">
+                <span class="inline-flex items-center gap-2 rounded-md bg-red-50 border border-red-100 px-2.5 py-1.5">
+                  <i class="pi pi-exclamation-circle text-red-500 text-xs" />
+                  <span class="text-xs font-medium text-red-600">{{ dateInvalidReason }}</span>
+                </span>
+              </div>
             </div>
-            <div class="px-5 py-4 space-y-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
-                <div class="flex items-center gap-2">
-                  <MultiSelect v-model="form.category_ids" :options="categories" option-label="name" option-value="id"
-                    placeholder="Choose categories" class="flex-1" display="chip">
-                    <template #chip="{ value }">
-                      <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                        :style="{ background: categories.find(c => c.id === value)?.color ?? '#1E2157' }">
-                        {{ categories.find(c => c.id === value)?.name }}
-                      </div>
+            <!-- Description -->
+            <div class="px-5 py-4 border-b border-gray-100">
+              <div class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-1.5 sm:gap-4">
+                <label class="text-sm font-semibold text-gray-800 pt-1">Description</label>
+                <RichTextEditor v-model="form.description" placeholder="Describe your event here…" />
+              </div>
+            </div>
+            <!-- Category + Discipline. Disciplines come from the governing body
+                 (club's sport → its NSO chain), NOT a local list — <DisciplineLinker>
+                 resolves + persists event_disciplines itself, so it needs the draft row. -->
+            <div class="px-5 py-4 border-b border-gray-100">
+              <div class="grid grid-cols-1 sm:grid-cols-[120px_1fr] items-start gap-1.5 sm:gap-4">
+                <span class="hidden sm:block" />
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div class="min-w-0">
+                    <label class="block text-sm font-semibold text-gray-800 mb-1.5">Category</label>
+                    <div class="flex items-center gap-2 min-w-0">
+                      <MultiSelect v-model="form.category_ids" :options="categories" option-label="name" option-value="id"
+                        placeholder="Choose categories" class="flex-1 min-w-0" display="chip" :max-selected-labels="3">
+                        <template #chip="{ value }">
+                          <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                            :style="{ background: categories.find(c => c.id === value)?.color ?? '#1E2157' }">
+                            {{ categories.find(c => c.id === value)?.name }}
+                          </div>
+                        </template>
+                      </MultiSelect>
+                      <Button icon="pi pi-plus" size="small" severity="secondary" outlined v-tooltip.top="'New category'" @click="showNewCategoryDialog = true" />
+                    </div>
+                  </div>
+                  <div class="min-w-0">
+                    <label class="block text-sm font-semibold text-gray-800 mb-1.5">Discipline</label>
+                    <DisciplineLinker v-if="draftEventId" entity-type="event" :entity-id="draftEventId" />
+                    <p v-else class="text-sm text-gray-400 flex items-center gap-2">
+                      <i class="pi pi-spin pi-spinner text-xs" /> Preparing…
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- Banner -->
+            <div class="px-5 py-4">
+              <div class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-1.5 sm:gap-4">
+                <label class="text-sm font-semibold text-gray-800 pt-1">Banner</label>
+                <div>
+                  <div v-if="!form.banner_url"
+                    class="border-2 border-dashed border-gray-300 rounded-xl px-4 py-5 flex flex-col items-center gap-2 hover:border-primary transition-colors cursor-pointer"
+                    @click="bannerInput?.click()">
+                    <i class="pi pi-image text-2xl text-gray-400" />
+                    <Button label="Upload banner image" severity="secondary" outlined size="small" icon="pi pi-upload" />
+                    <p class="text-xs text-gray-500">For best results upload an image that is 1200 × 350</p>
+                  </div>
+                  <div v-else class="relative rounded-xl overflow-hidden">
+                    <img :src="form.banner_url" class="w-full h-32 object-cover" />
+                    <div v-if="uploadingBanner" class="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <i class="pi pi-spin pi-spinner text-white text-xl" />
+                    </div>
+                    <template v-else>
+                      <Button icon="pi pi-upload" severity="secondary" rounded size="small" class="absolute top-2 right-11" @click="bannerInput?.click()" />
+                      <Button icon="pi pi-times" severity="danger" rounded size="small" class="absolute top-2 right-2" @click="form.banner_url = ''" />
                     </template>
-                  </MultiSelect>
-                  <Button icon="pi pi-plus" size="small" severity="secondary" outlined v-tooltip.top="'New category'" @click="showNewCategoryDialog = true" />
-                </div>
-              </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1.5">Discipline</label>
-                <Select v-model="form.discipline" :options="disciplines" option-label="label" option-value="value"
-                  placeholder="Choose discipline" show-clear class="w-full" />
-              </div>
-            </div>
-            <div class="px-5 py-4">
-              <label class="block text-sm font-medium text-gray-700 mb-1.5">Banner Image</label>
-              <p class="text-xs text-gray-400 mb-3">1200 × 350 recommended</p>
-              <div v-if="!form.banner_url"
-                class="border-2 border-dashed border-gray-200 rounded-xl p-8 flex flex-col items-center gap-3 hover:border-primary transition-colors cursor-pointer"
-                @click="bannerInput?.click()">
-                <i class="pi pi-image text-3xl text-gray-300" />
-                <Button label="Upload banner" severity="secondary" outlined size="small" icon="pi pi-upload" />
-              </div>
-              <div v-else class="relative rounded-xl overflow-hidden">
-                <img :src="form.banner_url" class="w-full h-36 object-cover" />
-                <div v-if="uploadingBanner" class="absolute inset-0 bg-black/40 flex items-center justify-center">
-                  <i class="pi pi-spin pi-spinner text-white text-xl" />
-                </div>
-                <Button v-else icon="pi pi-times" severity="danger" rounded size="small" class="absolute top-2 right-2" @click="form.banner_url = ''" />
-              </div>
-              <input ref="bannerInput" type="file" accept="image/*" class="hidden" @change="handleBannerUpload" />
-            </div>
-          </div>
-
-          <!-- Event Dates -->
-          <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mt-2 mb-3">Event Dates</h3>
-          <div class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-            <div class="px-5 py-4 flex items-center gap-3">
-              <ToggleSwitch v-model="form.is_all_day" />
-              <span class="text-sm text-gray-700">All day event</span>
-            </div>
-            <div class="px-4 sm:px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
-              <div class="flex flex-col gap-1.5 w-full sm:w-auto">
-                <label class="text-sm font-medium text-gray-700">Start</label>
-                <div class="flex items-center gap-2 w-full">
-                  <DatePicker v-model="form.start_date" dateFormat="dd/mm/yy" placeholder="Start date" :minDate="twoWeeksAgo" fluid class="flex-1 min-w-0 sm:flex-none sm:w-40" :manualInput="false" />
-                  <DatePicker v-if="!form.is_all_day" v-model="form.start_time" timeOnly hourFormat="12" placeholder="Start time" fluid class="flex-1 min-w-0 sm:flex-none sm:w-36" />
-                </div>
-              </div>
-              <span class="text-gray-300 text-lg pt-5 hidden sm:inline">→</span>
-              <div class="flex flex-col gap-1.5 w-full sm:w-auto">
-                <label class="text-sm font-medium text-gray-700">End</label>
-                <div class="flex items-center gap-2 w-full">
-                  <DatePicker v-model="form.end_date" dateFormat="dd/mm/yy" placeholder="End date" :minDate="form.start_date ?? twoWeeksAgo" fluid class="flex-1 min-w-0 sm:flex-none sm:w-40" :manualInput="false" />
-                  <DatePicker v-if="!form.is_all_day" v-model="form.end_time" timeOnly hourFormat="12" placeholder="End time" fluid class="flex-1 min-w-0 sm:flex-none sm:w-36" />
+                  </div>
+                  <input ref="bannerInput" type="file" accept="image/*" class="hidden" @change="handleBannerUpload" />
                 </div>
               </div>
             </div>
@@ -388,7 +415,7 @@
           label="Next"
           icon="pi pi-chevron-right"
           icon-pos="right"
-          :disabled="currentStep === 0 && !form.title.trim()"
+          :disabled="currentStep === 0 && !step1Complete"
           style="background:var(--brand-primary); border-color:var(--brand-primary)"
           @click="currentStep++; scrollTop()"
         />
@@ -459,6 +486,33 @@ const steps = [
   { label: 'Fees' },
 ]
 
+// The draft row exists from the moment the builder opens, exactly as in the basic
+// wizard: <DisciplineLinker> writes event_disciplines against a real event id, so
+// there has to be one to write against. saveEvent() then UPDATES this row rather
+// than inserting a second one.
+const draftEventId = ref<string | null>(null)
+
+async function ensureDraft() {
+  if (draftEventId.value) return
+  const { data } = await (db.from as any)('events').insert({
+    org_id: orgId.value,
+    style: 'ADVANCED',
+    created_via: 'advanced',
+    status: 'DRAFT',
+    title: (route.query.name as string)?.trim() || 'Untitled event',
+  }).select('id').single()
+  draftEventId.value = data?.id ?? null
+}
+
+// Same rule as the basic wizard: a date you can't act on isn't a date.
+const dateInvalidReason = computed(() => {
+  if (!form.start_date) return 'Pick a start date for the event.'
+  if (form.end_date && form.start_date && form.end_date < form.start_date) return 'The end date is before the start date.'
+  if (!form.is_all_day && (!form.start_time || !form.end_time)) return 'Set a start and end time, or mark it as an all-day event.'
+  return ''
+})
+const step1Complete = computed(() => !!form.title.trim() && !dateInvalidReason.value)
+
 function scrollTop() {
   nextTick(() => document.querySelector('.overflow-y-auto')?.scrollTo(0, 0))
 }
@@ -478,7 +532,6 @@ const form = reactive({
   title: (route.query.name as string) ?? '',
   description: '',
   category_ids: [] as string[],
-  discipline: null as string | null,
   banner_url: '',
   // Date
   is_all_day: false,
@@ -522,17 +575,6 @@ const visibilityOptions = [
   { key: 'show_attendee_count', label: 'Show attendee count',   desc: 'Display total registration numbers' },
   { key: 'allow_interest',      label: 'Allow interest',        desc: 'Members can express interest before registration opens' },
   { key: 'hold_spot_enabled',   label: 'Hold-spot registration',desc: 'Members can hold a spot pending confirmation' },
-]
-
-const disciplines = [
-  { label: 'Swimming', value: 'swimming' },
-  { label: 'Athletics', value: 'athletics' },
-  { label: 'Football', value: 'football' },
-  { label: 'Basketball', value: 'basketball' },
-  { label: 'Tennis', value: 'tennis' },
-  { label: 'Volleyball', value: 'volleyball' },
-  { label: 'Gymnastics', value: 'gymnastics' },
-  { label: 'Other', value: 'other' },
 ]
 
 const totalFees = computed(() => form.fees.reduce((sum, f) => sum + (f.amount ?? 0), 0))
@@ -646,7 +688,7 @@ async function saveEvent() {
   if (!form.title.trim()) return
   saving.value = true
   try {
-    const { data, error } = await db.from('events').insert({
+    const payload = {
       org_id: orgId.value,
       style: 'ADVANCED',
       created_via: 'advanced',
@@ -680,8 +722,15 @@ async function saveEvent() {
       show_attendee_count: form.show_attendee_count,
       allow_interest: form.allow_interest,
       hold_spot_enabled: form.hold_spot_enabled,
-    }).select('id').single()
+    }
+
+    // The draft already exists (it has to, for the discipline picker) — update it.
+    // Inserting here would leave an empty orphan event behind every time.
+    const { data, error } = draftEventId.value
+      ? await (db.from as any)('events').update(payload).eq('id', draftEventId.value).select('id').single()
+      : await (db.from as any)('events').insert(payload).select('id').single()
     if (error) throw error
+    draftEventId.value = data.id
 
     const days = sessionDays.value
     if (days.length && namedTemplates.value.length) {
@@ -769,6 +818,7 @@ async function saveDraft() {
 
 // ── Mount ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
+  ensureDraft()
   ;(db.from as any)('organisations').select('currency').eq('id', orgId.value).single()
     .then(({ data }: any) => { orgCurrency.value = data?.currency || 'NZD' })
   const [{ data: catData }, { data: bookableData }] = await Promise.all([
