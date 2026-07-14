@@ -80,6 +80,33 @@ export default defineEventHandler(async (event) => {
   const CORE_LABELS = new Set(['First Name', 'Last Name', 'Email', 'Email Address', 'Phone', 'Phone Number', 'Date of Birth', 'Gender'])
   const GENDER_MAP: Record<string, string> = { Male: 'MALE', Female: 'FEMALE', 'Non-binary': 'NON_BINARY' }
 
+  // ── Who owns each answer: the PERSON or just this EVENT? ──
+  // Every field in the designer carries `connected_to`:
+  //   'profile' → the answer belongs to the person (dietary needs, medical) — it
+  //               persists onto persons.custom_fields and pre-fills next time.
+  //   'event'   → the answer belongs to THIS registration only ("which bus",
+  //               "t-shirt size for this camp") and must never touch the profile.
+  // Legacy/unset ('none' — the designer's old default) falls back to the previous
+  // behaviour, but only for labels that map to a REAL field definition: a known
+  // org/NSO field is by definition profile data. A bespoke question nobody defined
+  // stays on the registration instead of littering the person with label-keyed junk.
+  const fieldConn: Record<string, string> = {}
+  if (effectiveFormId) {
+    const { data: fr } = await supabase.from('registration_forms').select('config').eq('id', effectiveFormId).maybeSingle()
+    const cfg = (fr?.config ?? {}) as any
+    for (const fields of Object.values(cfg.groupFields ?? {}) as any[]) {
+      for (const f of (fields ?? [])) if (f?.label) fieldConn[f.label] = f.connected_to ?? 'none'
+    }
+    // Legacy flat-shaped forms (config.fieldMeta) carry the same flag.
+    for (const f of (cfg.fieldMeta ?? []) as any[]) if (f?.label) fieldConn[f.label] = f.connected_to ?? 'none'
+  }
+  function goesToProfile(label: string) {
+    const conn = fieldConn[label]
+    if (conn === 'profile') return true
+    if (conn === 'event') return false
+    return !!labelToDefId[label]   // unset → only if it's a defined org/NSO field
+  }
+
   // ── Find-or-create a person per person-kind instance, merging field answers ──
   async function upsertPerson(inst: Instance): Promise<string | null> {
     const first = (inst.first_name || '').trim()
@@ -90,10 +117,13 @@ export default defineEventHandler(async (event) => {
     const raw = inst.fields ?? {}
     const dob = raw['Date of Birth'] || null
     const gender = GENDER_MAP[raw['Gender']] ?? (raw['Gender'] ? 'UNSPECIFIED' : null)
-    // Translate field answers → definition-id-keyed custom_fields (skip core fields).
+    // Translate PROFILE-connected answers → definition-id-keyed custom_fields.
+    // Event-connected answers are deliberately dropped here — they live on the
+    // registration (form_answers / form_submissions.answers), not on the person.
     const customFields: Record<string, any> = {}
     for (const [label, val] of Object.entries(raw)) {
       if (CORE_LABELS.has(label)) continue
+      if (!goesToProfile(label)) continue
       customFields[labelToDefId[label] ?? label] = val
     }
 

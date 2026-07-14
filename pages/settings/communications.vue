@@ -5,9 +5,54 @@
   "Communication preferences" field pulls this list (core + own).
 -->
 <script setup lang="ts">
+import { EVENT_TOKENS, DEFAULT_INVITATION } from '~/composables/useEventTokens'
+
 const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
+
+// ── The club's default event invitation (email_templates, migration 259) ──
+// One row per org, keyed 'event_invitation'. Every event seeds its wording from
+// this; reminders/confirmations will be further keys in the same table.
+const invite = reactive({ ...DEFAULT_INVITATION })
+const inviteBodyEl = ref<any>(null)
+const savingInvite = ref(false)
+
+async function loadInvite() {
+  const { data } = await (db.from as any)('email_templates')
+    .select('subject, body').eq('org_id', orgId.value).eq('key', 'event_invitation').maybeSingle()
+  if (data) { invite.subject = data.subject; invite.body = data.body }
+}
+
+function insertInviteToken(token: string) {
+  const el = inviteBodyEl.value?.$el ?? inviteBodyEl.value
+  const start = el?.selectionStart ?? invite.body.length
+  const end = el?.selectionEnd ?? invite.body.length
+  invite.body = invite.body.slice(0, start) + token + invite.body.slice(end)
+  nextTick(() => {
+    el?.focus?.()
+    el?.setSelectionRange?.(start + token.length, start + token.length)
+  })
+}
+
+function resetInvite() {
+  invite.subject = DEFAULT_INVITATION.subject
+  invite.body = DEFAULT_INVITATION.body
+}
+
+async function saveInvite() {
+  savingInvite.value = true
+  const { error } = await (db.from as any)('email_templates').upsert({
+    org_id: orgId.value, key: 'event_invitation',
+    subject: invite.subject, body: invite.body, updated_at: new Date().toISOString(),
+  }, { onConflict: 'org_id,key' })
+  savingInvite.value = false
+  toast.add(error
+    ? { severity: 'error', summary: 'Could not save', detail: error.message, life: 4000 }
+    : { severity: 'success', summary: 'Default invitation saved', life: 3000 })
+}
+
+watch(orgId, v => { if (v) loadInvite() }, { immediate: true })
 
 interface Topic {
   key: string
@@ -135,6 +180,50 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         </div>
       </div>
       <div v-else class="card p-8 text-center text-gray-400 text-sm">Select a topic, or create one.</div>
+    </div>
+
+    <!-- ── The club's default invitation ──
+         Written once here; every event starts from it and can tweak its own
+         wording before sending. Deliberately basic (subject + message + merge
+         fields) — the club's real mailer is the FriendlyManager one, and this is
+         the starting point, not a replacement for it. -->
+    <div class="card p-5 mt-5">
+      <div class="mb-3">
+        <h2 class="text-sm font-semibold text-gray-800">Default event invitation</h2>
+        <p class="text-xs text-gray-500 mt-0.5">
+          The wording every event's invitation email starts from. Each event can change its own before sending.
+          Your logo and colours are added automatically.
+        </p>
+      </div>
+
+      <div class="space-y-3">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-6">
+          <label class="text-sm text-gray-500 w-full sm:w-28 shrink-0">Subject</label>
+          <InputText v-model="invite.subject" class="w-full" />
+        </div>
+        <div class="flex flex-col sm:flex-row gap-1 sm:gap-6">
+          <label class="text-sm text-gray-500 w-full sm:w-28 shrink-0 sm:pt-2">Message</label>
+          <div class="flex-1 min-w-0">
+            <Textarea ref="inviteBodyEl" v-model="invite.body" rows="6" class="w-full" />
+            <div class="flex flex-wrap items-center gap-1.5 mt-2">
+              <span class="text-xs text-gray-400 mr-1">Add:</span>
+              <button v-for="tk in EVENT_TOKENS" :key="tk.value" type="button" v-tooltip.top="tk.hint"
+                class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                @click="insertInviteToken(tk.value)">
+                {{ tk.label }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between mt-4">
+        <button class="text-xs text-gray-500 hover:text-primary hover:underline" @click="resetInvite">
+          Reset to the standard wording
+        </button>
+        <Button label="Save default" :loading="savingInvite"
+          style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveInvite" />
+      </div>
     </div>
   </div>
 </template>

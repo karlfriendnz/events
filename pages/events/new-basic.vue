@@ -106,12 +106,12 @@
     <!-- ── Scrollable content ── -->
     <div class="flex-1 min-w-0 overflow-y-auto bg-[#F5F8FA]">
       <div class="mx-auto px-4 sm:px-6 py-5 sm:py-6"
-        :class="stepped ? 'max-w-[1140px]' : 'max-w-[900px] space-y-8'">
+        :class="stepped ? 'max-w-[1540px]' : 'max-w-[900px] space-y-8'">
 
         <!-- ─ Event Info ─ -->
         <div :class="isStep('info') ? 'px-1' : 'hidden'">
           <div class="mb-3">
-            <h2 class="text-sm font-semibold text-gray-800">Event info</h2>
+            <h2 class="section-title">Event info</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Event info') }}</p>
           </div>
           <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -120,7 +120,7 @@
               <!-- Label sits LEFT of the field, in the stepped view too (it only
                    stacks on a genuinely narrow screen). -->
               <div class="grid grid-cols-1 sm:grid-cols-[120px_1fr] items-center gap-1.5 sm:gap-4">
-                <label class="text-sm font-semibold text-gray-800">Event Title <span class="text-red-400">*</span></label>
+                <label class="field-label">Event Title <span class="text-red-400">*</span></label>
                 <InputText v-model="form.title" placeholder="Enter the name of your event" class="w-full" autofocus />
               </div>
             </div>
@@ -158,7 +158,7 @@
             <!-- Description -->
             <div class="px-5 py-4 border-b border-gray-100">
               <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
-                <label class="text-sm font-semibold text-gray-800 pt-1">Description</label>
+                <label class="field-label pt-1">Description</label>
                 <RichTextEditor v-model="form.description" placeholder="Describe your event here…" />
               </div>
             </div>
@@ -174,7 +174,7 @@
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <!-- Category -->
                   <div class="min-w-0">
-                  <label class="block text-sm font-semibold text-gray-800 mb-1.5">Category</label>
+                  <label class="field-label block mb-1.5">Category</label>
                   <div class="flex items-center gap-2 min-w-0">
                     <MultiSelect
                       v-model="form.category_ids"
@@ -197,7 +197,7 @@
                   </div>
                   <!-- Discipline -->
                   <div class="min-w-0">
-                    <label class="block text-sm font-semibold text-gray-800 mb-1.5">Discipline</label>
+                    <label class="field-label block mb-1.5">Discipline</label>
                     <DisciplineLinker v-if="draftEventId" entity-type="event" :entity-id="draftEventId" />
                     <p v-else class="text-sm text-gray-400 flex items-center gap-2">
                       <i class="pi pi-spin pi-spinner text-xs" /> Preparing…
@@ -209,7 +209,7 @@
             <!-- Banner -->
             <div class="px-5 py-4">
               <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
-                <label class="text-sm font-semibold text-gray-800 pt-1">Banner</label>
+                <label class="field-label pt-1">Banner</label>
                 <div>
                   <div v-if="!form.banner_url"
                     class="border-2 border-dashed border-gray-300 rounded-xl px-4 py-5 flex flex-col items-center gap-2 hover:border-primary transition-colors cursor-pointer"
@@ -238,7 +238,7 @@
         <!-- ─ Location ─ -->
         <div :class="isStep('location') ? 'px-1' : 'hidden'">
           <div class="mb-3">
-            <h2 class="text-sm font-semibold text-gray-800">Location</h2>
+            <h2 class="section-title">Location</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Location') }}</p>
           </div>
           <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
@@ -259,7 +259,7 @@
         <!-- ─ Fees ─ -->
         <div :class="isStep('fees') ? 'px-1' : 'hidden'">
           <div class="mb-3">
-            <h2 class="text-sm font-semibold text-gray-800">Fees</h2>
+            <h2 class="section-title">Fees</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Fees') }}</p>
           </div>
           <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
@@ -369,58 +369,63 @@
         <!-- ─ Invitees ─ -->
         <div :class="isStep('invitees') ? 'px-1' : 'hidden'">
           <div class="mb-3">
-            <h2 class="text-sm font-semibold text-gray-800">Invitees</h2>
-            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Invitees') }}</p>
+            <h2 class="section-title">Who it's for</h2>
+            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc("Who it's for") }}</p>
           </div>
-          <!-- Who's this for? Not mutually exclusive — a club event can also be
-               open to the public. Each choice switches on what it needs:
-               club → the invitee list; public → a public registration form. -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-            <button type="button"
-              class="text-left border-2 rounded-xl p-4 flex flex-col items-start transition-colors"
-              :class="inviteClub ? 'border-primary bg-[#F0F4FF]' : 'border-gray-200 bg-white hover:border-gray-300'"
-              @click="inviteClub = !inviteClub">
-              <div class="flex items-center justify-between w-full mb-2">
-                <div class="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <i class="pi pi-users text-primary" />
-                </div>
-                <i v-if="inviteClub" class="pi pi-check-circle text-primary" />
-              </div>
-              <h3 class="text-sm font-semibold text-gray-900">Invite people from my club</h3>
-              <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                Pick classes or individual people. They'll get an invitation and show on the attendee list.
-              </p>
-            </button>
+          <!-- One step, four questions, in the order you'd actually ask them:
+               can the public register? → what do they fill in? → when is sign-up
+               open? → and who from the club are we inviting? -->
 
-            <button type="button"
-              class="text-left border-2 rounded-xl p-4 flex flex-col items-start transition-colors"
-              :class="invitePublic ? 'border-primary bg-[#F0F4FF]' : 'border-gray-200 bg-white hover:border-gray-300'"
-              @click="setInvitePublic(!invitePublic)">
-              <div class="flex items-center justify-between w-full mb-2">
-                <div class="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center">
-                  <i class="pi pi-globe text-emerald-700" />
-                </div>
-                <i v-if="invitePublic" class="pi pi-check-circle text-primary" />
-              </div>
-              <h3 class="text-sm font-semibold text-gray-900">Open it up to the public</h3>
-              <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                Anyone with the link can sign up themselves — no club membership needed.
-              </p>
-            </button>
-          </div>
-
-          <!-- Sign-up: it's about HOW people register, so it sits with the
-               audience rather than with the event's dates. -->
+          <!-- 1. Public registrations -->
           <div class="bg-white rounded-xl border border-gray-200 p-5 mb-4">
-            <div class="flex items-center gap-3">
-              <ToggleSwitch v-model="signupRequired" @update:model-value="onSignupRequired" />
-              <div>
-                <p class="text-sm font-medium text-gray-800">Attendees need to sign up to this event.</p>
-                <p class="text-xs text-gray-500 mt-0.5">Set a window for when sign-ups open and close, or leave it blank to allow them any time.</p>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+              <div class="flex-1">
+                <p class="text-sm font-medium text-gray-800">Public registrations</p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  Can anyone with the link sign up, or is this for your club only?
+                </p>
               </div>
+              <!-- Same control as Registration form style below — one visual
+                   language for "pick one of two" on this step. -->
+              <SelectButton :model-value="invitePublic" :options="publicOptions"
+                option-label="label" option-value="value" :allow-empty="false" class="shrink-0"
+                @update:model-value="setInvitePublic" />
             </div>
+          </div>
+
+          <!-- 2. Registration form style. RSVP = no form at all (the answer is the
+               invitee's status); Custom form = the designer on the next step.
+               The public can't RSVP — a stranger has no profile to look up — so
+               saying yes above forces Custom form. -->
+          <div class="bg-white rounded-xl border border-gray-200 p-5 mb-4">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+              <div class="flex-1">
+                <p class="text-sm font-medium text-gray-800">Registration form style</p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  {{ attendeeAction === 'form'
+                    ? 'Ask them whatever you need — one form, for everyone.'
+                    : 'They just reply yes or no. Nothing to fill in.' }}
+                </p>
+              </div>
+              <SelectButton :model-value="attendeeAction" :options="attendeeActionOptions"
+                option-label="label" option-value="value" option-disabled="disabled"
+                :allow-empty="false" class="shrink-0"
+                @update:model-value="setAttendeeAction" />
+            </div>
+            <p v-if="invitePublic" class="text-xs text-gray-500 mt-3 flex items-start gap-1.5">
+              <i class="pi pi-info-circle text-gray-300 text-xs mt-0.5" />
+              The public don't have a profile you can look up, so they have to fill in a form — yes/no on its own
+              wouldn't tell you who they are.
+            </p>
+          </div>
+
+          <!-- 3. Sign-up window. No toggle: there is ALWAYS a window, and the sane
+               one is "from now until the event starts" — so that's what it's
+               seeded with (see seedSignupWindow). The user just adjusts it. -->
+          <div class="bg-white rounded-xl border border-gray-200 p-5 mb-4">
+            <p class="text-sm font-medium text-gray-800">When can people sign up?</p>
+            <p class="text-xs text-gray-500 mt-0.5">Open from now until the event starts. Change it if you want a different window.</p>
             <DateTimeEditor
-              v-if="signupRequired"
               class="mt-3 pt-3 border-t border-gray-100"
               v-model:startDate="regOpenDate"
               v-model:startTime="regOpenTime"
@@ -435,40 +440,57 @@
               row-padding="px-0 py-2" />
           </div>
 
-          <!-- Club invitees -->
-          <template v-if="inviteClub">
-            <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
-              <i class="pi pi-spin pi-spinner text-xl text-gray-300 block mb-2" />
-              Setting up invitees…
-            </div>
-            <EventInviteeManager v-else :event-id="draftEventId" />
-          </template>
-
-          <!-- Public -->
-          <div v-if="invitePublic" class="bg-white rounded-xl border border-gray-200 p-5 mt-3">
-            <div class="flex items-start gap-3">
-              <i class="pi pi-globe text-emerald-600 mt-0.5" />
-              <div>
-                <p class="text-sm font-medium text-gray-800">A public registration form will be created</p>
-                <p class="text-xs text-gray-500 mt-0.5">
-                  People sign up themselves through it — no login needed. You can add your own questions to the form on
-                  the Settings step, and you'll get a shareable link once the event is saved.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <p v-if="!inviteClub && !invitePublic" class="text-center text-sm text-gray-400 py-6">
-            Choose at least one — how will people know about this event?
-          </p>
         </div>
 
-        <!-- ─ Visibility ─ -->
-        <div :class="isStep('visibility') ? 'px-1' : 'hidden'">
-          <div class="mb-3">
-            <h2 class="text-sm font-semibold text-gray-800">Visibility</h2>
-            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Visibility') }}</p>
+        <!-- ─ Choose invitees ─
+             Its own step: picking the people is a job in itself (classes,
+             individuals, a searchable roster) and deserves the whole page.
+             No heading here — <EventInviteeManager> brings its own. -->
+        <div :class="isStep('people') ? 'px-1' : 'hidden'">
+          <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
+            <i class="pi pi-spin pi-spinner text-xl text-gray-300 block mb-2" />
+            Setting up invitees…
           </div>
+          <EventInviteeManager v-else :event-id="draftEventId" :show-invite="false" />
+        </div>
+
+        <!-- ─ Registration form ─
+             Only exists when the event actually collects one — the "what do they
+             need to do?" choice on the Invitees step is what turns it on (either
+             they picked "fill in a form", or the event was opened to the public,
+             which forces one). An RSVP-only event never sees this step. -->
+        <div v-if="form.use_registration_form" :class="isStep('form') ? 'px-1' : 'hidden'">
+          <div class="mb-3">
+            <h2 class="section-title">Registration form</h2>
+            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Registration form') }}</p>
+          </div>
+          <!-- ONE form, ONE builder. This is the same <FormDesigner> the advanced
+               event uses — it opens with its own "Basic / start from scratch /
+               preset" chooser (so the wizard doesn't need to duplicate it), owns
+               who-registers, the fields and the profile-vs-event connection of
+               each one, and autosaves straight to registration_forms.config +
+               events.form_id. Both audiences fill THIS form: a member simply gets
+               it pre-filled from their profile, the public gets it blank. -->
+          <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
+            <i class="pi pi-spin pi-spinner text-xl text-gray-300 block mb-2" />
+            Setting up the form…
+          </div>
+          <div v-else class="bg-white rounded-xl border border-gray-200 overflow-hidden" style="min-height:560px">
+            <FormDesigner :event-id="draftEventId" />
+          </div>
+        </div>
+
+        <!-- ─ Settings ─ -->
+        <div :class="isStep('settings') ? 'px-1' : 'hidden'">
+          <div class="mb-3">
+            <h2 class="section-title">Settings</h2>
+            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Settings') }}</p>
+          </div>
+          <!-- Visibility used to be its own step. It's the same KIND of question as
+               everything else here — how the event behaves once it exists — so it
+               lives with the other finishing touches instead of costing a click. -->
+          <div class="mb-4">
+            <h3 class="text-sm font-semibold text-gray-800 mb-3">Visibility</h3>
           <div class="bg-white rounded-xl border border-gray-200 p-5">
             <!-- Honesty notice: these choices are saved but not yet enforced. -->
             <div class="flex items-start gap-2 mb-4 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
@@ -512,82 +534,8 @@
               </div>
             </div>
           </div>
-        </div>
-
-        <!-- ─ Registration form ─
-             Toggle that lets the event owner choose whether to collect
-             extra registration info via a custom form. When ON we render
-             the same <FormBuilder> the advanced event uses; on save we
-             persist the form to registration_forms / form_fields and
-             link it via events.form_id. -->
-        <!-- Its own step, and only when the event is open to the public — the
-             audience choice on the Invitees step is what turns it on. -->
-        <div v-if="form.use_registration_form" :class="isStep('form') ? 'px-1' : 'hidden'">
-          <div class="mb-3">
-            <h2 class="text-sm font-semibold text-gray-800">Registration form</h2>
-            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Registration form') }}</p>
-          </div>
-          <!-- Same choice the events forms tab opens with: take the standard
-               form, or build your own. Custom hands over to <FormBuilder>, which
-               already owns who-registers, the presets and the fields. -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button type="button"
-              class="text-left border-2 rounded-xl p-4 flex flex-col items-start transition-colors"
-              :class="regFormType === 'basic' ? 'border-primary bg-[#F0F4FF]' : 'border-gray-200 bg-white hover:border-gray-300'"
-              @click="regFormType = 'basic'">
-              <div class="flex items-center justify-between w-full mb-2">
-                <div class="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <i class="pi pi-bolt text-primary" />
-                </div>
-                <i v-if="regFormType === 'basic'" class="pi pi-check-circle text-primary" />
-              </div>
-              <h3 class="text-sm font-semibold text-gray-900">Basic</h3>
-              <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                Just the essentials — name, email and phone. Nothing to set up.
-              </p>
-            </button>
-
-            <button type="button"
-              class="text-left border-2 rounded-xl p-4 flex flex-col items-start transition-colors"
-              :class="regFormType === 'custom' ? 'border-primary bg-[#F0F4FF]' : 'border-gray-200 bg-white hover:border-gray-300'"
-              @click="regFormType = 'custom'">
-              <div class="flex items-center justify-between w-full mb-2">
-                <div class="w-9 h-9 rounded-lg bg-violet-100 flex items-center justify-center">
-                  <i class="pi pi-sliders-h text-violet-700" />
-                </div>
-                <i v-if="regFormType === 'custom'" class="pi pi-check-circle text-primary" />
-              </div>
-              <h3 class="text-sm font-semibold text-gray-900">Custom</h3>
-              <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                Choose who registers (individual, family, team…) and ask your own questions.
-              </p>
-            </button>
           </div>
 
-          <!-- Basic: nothing to configure, so say what they'll get. -->
-          <div v-if="regFormType === 'basic'" class="mt-3 bg-white rounded-xl border border-gray-200 p-5">
-            <p class="text-sm font-medium text-gray-800 mb-2">People will be asked for:</p>
-            <ul class="text-sm text-gray-600 space-y-1">
-              <li class="flex items-center gap-2"><i class="pi pi-check text-emerald-500 text-xs" /> First and last name</li>
-              <li class="flex items-center gap-2"><i class="pi pi-check text-emerald-500 text-xs" /> Email address</li>
-              <li class="flex items-center gap-2"><i class="pi pi-check text-emerald-500 text-xs" /> Phone number</li>
-            </ul>
-          </div>
-
-          <!-- Custom: the builder owns everything from here. -->
-          <div v-else-if="regFormType === 'custom'" class="mt-3 bg-white rounded-xl border border-gray-200 overflow-hidden" style="min-height:560px">
-            <FormBuilder v-model="form.registration_form"
-              :context="{ title: form.title || 'Registration', description: form.description }"
-              :allow-multiple-persons="false" />
-          </div>
-        </div>
-
-        <!-- ─ Settings ─ -->
-        <div :class="isStep('settings') ? 'px-1' : 'hidden'">
-          <div class="mb-3">
-            <h2 class="text-sm font-semibold text-gray-800">Settings</h2>
-            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Settings') }}</p>
-          </div>
           <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-6">
 
             <!-- Terms & Conditions -->
@@ -638,8 +586,31 @@
               </div>
               <Button icon="pi pi-plus" label="Add Coordinator" size="small" severity="secondary" outlined @click="showAddAdminDialog = true" />
             </div>
+
+            <!-- ── Tell them ──
+                 Sending belongs at the END: you pick the people on an earlier
+                 step, then decide to tell them once everything else is settled.
+                 The email adapts to the event (RSVP buttons vs a Register link)
+                 and can be sent later from the event's own Invitees tab. -->
+            <div v-if="draftEventId" class="pt-6 border-t border-gray-100">
+              <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div class="flex-1">
+                  <p class="text-sm font-medium text-gray-800">Invitation email</p>
+                  <p class="text-xs text-gray-500 mt-0.5">
+                    {{ attendeeAction === 'form'
+                      ? 'Email your invitees a link to the registration form.'
+                      : 'Email your invitees — they reply yes or no in one click.' }}
+                    You can also send it later from the event.
+                  </p>
+                </div>
+                <Button label="Send invitation" icon="pi pi-send" outlined class="shrink-0 w-full sm:w-auto justify-center"
+                  @click="invitationOpen = true" />
+              </div>
+            </div>
           </div>
         </div>
+
+        <EventInvitationDialog v-if="draftEventId" v-model:visible="invitationOpen" :event-id="draftEventId" />
 
         <!-- Desktop bottom spacer -->
         <div v-if="!isMobile" class="h-4" />
@@ -708,9 +679,14 @@
             </div>
           </div>
 
-          <div v-if="signupRequired" class="flex gap-2.5">
-            <i class="pi pi-user-plus text-xs mt-1 shrink-0 text-primary" />
-            <p class="text-sm text-gray-800">Sign-up required</p>
+          <!-- What attendees have to do. ("Sign-up required" used to live here —
+               now that every event has a sign-up window it told the user nothing.) -->
+          <div class="flex gap-2.5">
+            <i class="pi text-xs mt-1 shrink-0 text-primary"
+              :class="attendeeAction === 'form' ? 'pi-file-edit' : 'pi-check-circle'" />
+            <p class="text-sm text-gray-800">
+              {{ attendeeAction === 'form' ? 'Fills in a form' : 'Replies yes or no' }}
+            </p>
           </div>
 
           <div v-if="form.is_public" class="flex gap-2.5">
@@ -880,23 +856,54 @@ const setFees = (paid: boolean) => {
 // Once they've reached the Fees step, the summary rail can show Free/Charged.
 watch(mobileStep, () => { if (isStep('fees')) feesTouched.value = true })
 
-// ── Registration form: basic or custom? ────────────────────────────────────
-// The same first choice the events forms tab opens with. "Custom" hands over to
-// <FormBuilder>, which already owns who-registers (its own preset picker,
-// terminology-aware) and the fields — we don't re-implement any of that here.
-const regFormType = ref<'basic' | 'custom'>('basic')
+// The invitation email is sent from the LAST step: you pick the people on the
+// Choose-invitees step, then decide to tell them once everything else is settled.
+const invitationOpen = ref(false)
 
-// ── Who is this event for? ─────────────────────────────────────────────────
-// Not exclusive: a club event can also be open to the public. "Public" is just
-// the front end of two existing settings — is_public + the registration form —
-// so the user picks an audience rather than hunting toggles on later steps.
-const inviteClub = ref(true)
+// ── Can the public register? ───────────────────────────────────────────────
+// A Yes/No question, not an audience card: inviting people from your club is
+// ALWAYS available (that's the Choose-invitees step), so the only real question
+// is whether STRANGERS can sign up too. Front end of the existing is_public setting.
 const invitePublic = ref(false)
+// Say what each choice MEANS rather than yes/no — inviting your own club happens
+// either way (that's the picker below); the question is whether strangers can too.
+const publicOptions = [
+  { label: 'Public and club', value: true },
+  { label: 'Club only', value: false },
+]
+
+// ── And what do they have to DO? ───────────────────────────────────────────
+// Two ends of one dial, NOT two mechanisms:
+//   'rsvp' → "are you coming, yes or no". The answer is the invitee's own status
+//            (CONFIRMED/DECLINED, written by /rsvp/:event/:person). No form row
+//            exists at all — a form is the opt-in layer, not the baseline.
+//   'form' → yes/no isn't enough and you need to ask things. ONE form serves both
+//            audiences: members get it pre-filled from their profile, the public
+//            get it blank.
+// The public can't RSVP — a stranger has no profile to look up, so "yes" alone
+// wouldn't tell you who turned up. Opening the event to them forces the form on.
+const attendeeAction = ref<'rsvp' | 'form'>('rsvp')
+
+// RSVP is disabled (not hidden) while the event is public, so the choice stays
+// visible and the reason can be explained rather than the option just vanishing.
+const attendeeActionOptions = computed(() => [
+  { label: 'RSVP only', value: 'rsvp', disabled: invitePublic.value },
+  { label: 'Custom form', value: 'form', disabled: false },
+])
+
+function setAttendeeAction(a: 'rsvp' | 'form') {
+  if (!a) return                                   // SelectButton can emit null
+  if (a === 'rsvp' && invitePublic.value) return   // not offerable — see above
+  attendeeAction.value = a
+  form.use_registration_form = a === 'form'
+}
 
 function setInvitePublic(v: boolean) {
+  if (v === null || v === undefined) return        // SelectButton can emit null
   invitePublic.value = v
   form.is_public = v
-  form.use_registration_form = v
+  if (v) attendeeAction.value = 'form'             // strangers must identify themselves
+  form.use_registration_form = v || attendeeAction.value === 'form'
 }
 
 // Step 1 needs a name AND a valid date before you can move on (or save). A date
@@ -1074,30 +1081,39 @@ function withTime(base: Date | null, t: Date | null): Date | null {
   out.setHours(t.getHours(), t.getMinutes(), 0, 0)
   return out
 }
-// Does this event require sign-up? Gates the sign-up window. Turning it off
-// clears any window already picked so a stale one can't be saved.
-const signupRequired = ref(false)
-function onSignupRequired(v: boolean) {
-  if (!v) {
-    form.reg_open_at = null
-    form.reg_close_at = null
-  }
+// The sign-up window is always present — there's no "do they need to sign up?"
+// toggle, because the honest default (open now, closes when the event starts)
+// is what nearly every event wants. We SEED it rather than force it: once the
+// user has touched either end, we stop moving it under them.
+const signupTouched = ref(false)
+function seedSignupWindow() {
+  if (signupTouched.value) return
+  if (!form.reg_open_at) form.reg_open_at = new Date()          // from now…
+  if (form.start_date) form.reg_close_at = eventStartsAt()      // …until it starts
+}
+// The event's start as one Date (the wizard keeps date + time apart).
+function eventStartsAt(): Date | null {
+  if (!form.start_date) return null
+  const d = new Date(form.start_date as Date)
+  const t = form.is_all_day ? null : (form.start_time as Date | null)
+  if (t) { d.setHours(t.getHours(), t.getMinutes(), 0, 0) } else { d.setHours(0, 0, 0, 0) }
+  return d
 }
 const regOpenDate = computed({
   get: () => form.reg_open_at,
-  set: (v: Date | null) => { form.reg_open_at = withDate(form.reg_open_at, v) },
+  set: (v: Date | null) => { signupTouched.value = true; form.reg_open_at = withDate(form.reg_open_at, v) },
 })
 const regOpenTime = computed({
   get: () => form.reg_open_at,
-  set: (v: Date | null) => { form.reg_open_at = withTime(form.reg_open_at, v) },
+  set: (v: Date | null) => { signupTouched.value = true; form.reg_open_at = withTime(form.reg_open_at, v) },
 })
 const regCloseDate = computed({
   get: () => form.reg_close_at,
-  set: (v: Date | null) => { form.reg_close_at = withDate(form.reg_close_at, v) },
+  set: (v: Date | null) => { signupTouched.value = true; form.reg_close_at = withDate(form.reg_close_at, v) },
 })
 const regCloseTime = computed({
   get: () => form.reg_close_at,
-  set: (v: Date | null) => { form.reg_close_at = withTime(form.reg_close_at, v) },
+  set: (v: Date | null) => { signupTouched.value = true; form.reg_close_at = withTime(form.reg_close_at, v) },
 })
 
 const formDateDisplay = computed(() => {
@@ -1166,25 +1182,37 @@ const form = reactive({
   banner_url: '',
   custom_terms: [] as string[],
   admins: [] as { name: string; registrations: boolean; changes: boolean; notes: boolean }[],
-  // Registration form (gated by toggle). Mirrors the shape the
-  // FormBuilder + /forms/[id].vue use, so save logic is portable.
+  // Does this event collect a form at all? (RSVP-only events don't.) The form
+  // itself is NOT drafted here — <FormDesigner> owns it and autosaves against the
+  // draft event, exactly as it does on the advanced event.
   use_registration_form: false,
-  registration_form: emptyRegistrationForm() as any,
 })
 
+// Re-seed while the user is still choosing WHEN the event runs — moving the
+// event's start should carry the sign-up deadline with it.
+// MUST stay below `form`: a watch getter runs immediately at setup, so declaring
+// it up with seedSignupWindow() reads `form` before initialisation → TDZ 500.
+// immediate: a fresh wizard has no start date yet, but sign-ups still open NOW —
+// without it the window renders empty until the user happens to touch the date.
+watch(() => [form.start_date, form.start_time, form.is_all_day], () => seedSignupWindow(), { immediate: true })
+
 // The wizard's steps. Keyed, not index-based, because the step list is DYNAMIC —
-// the registration-form step only exists once the event is open to the public.
+// the registration-form step only exists when the event actually collects a form
+// (they chose "fill in a form", or opened it to the public, which forces one).
 // `desc` tells the user what the step is for and is the single source of truth
 // for the step count (Date isn't listed: it lives inside Event info now).
 const ALL_STEPS: { key: string; label: string; desc: string; when?: () => boolean }[] = [
   { key: 'info',       label: 'Event info',        desc: 'Name the event, set when it runs, and how people find it.' },
   { key: 'location',   label: 'Location',          desc: 'Where is it happening? Pick a venue, an address, or make it online.' },
   { key: 'fees',       label: 'Fees',              desc: 'Add any charges for attending. Leave empty if the event is free.' },
-  { key: 'invitees',   label: 'Invitees',          desc: 'Choose who this event is for, and whether they need to sign up.' },
-  { key: 'visibility', label: 'Visibility',        desc: 'Decide who can see this event and whether the public can find it.' },
-  { key: 'form',       label: 'Registration form', desc: 'Build the form the public fills in to sign up.',
+  // Two steps: the SETTINGS (can the public register? what do they fill in? when
+  // is sign-up open?) then the PEOPLE — picking invitees is a job in itself and
+  // gets the whole page. Club invitees are always available, so it never hides.
+  { key: 'invitees',   label: 'Who it\'s for',     desc: 'Choose who this event is for, and what they need to do to take part.' },
+  { key: 'people',     label: 'Choose invitees',   desc: 'Pick the classes and people to invite.' },
+  { key: 'form',       label: 'Registration form', desc: 'Build the form people fill in to sign up.',
     when: () => form.use_registration_form },
-  { key: 'settings',   label: 'Settings',          desc: 'Terms, admins, and the finishing touches.' },
+  { key: 'settings',   label: 'Settings',          desc: 'Visibility, terms, admins, and the finishing touches.' },
 ]
 const mobileSteps = computed(() => ALL_STEPS.filter(s => !s.when || s.when()))
 
@@ -1200,34 +1228,10 @@ watch(mobileSteps, steps => {
   if (mobileStep.value > steps.length - 1) mobileStep.value = Math.max(0, steps.length - 1)
 })
 
-// Mirrors emptyForm() / coreFields() from /pages/forms/[id].vue so
-// the basic event ships with the same default registration template
-// as the standalone form builder.
-function freshFieldKey() { return crypto.randomUUID() }
-function defaultRegistrationFields() {
-  return [
-    { _key: freshFieldKey(), field_type: 'text',     label: 'First Name',       is_required: true,  placeholder: 'John',                     has_placeholder: true,  helper_text: '', has_helper_text: false, col_span: 1, _optionsText: '', core: 'first_name' },
-    { _key: freshFieldKey(), field_type: 'text',     label: 'Last Name',        is_required: true,  placeholder: 'Smith',                    has_placeholder: true,  helper_text: '', has_helper_text: false, col_span: 1, _optionsText: '', core: 'last_name'  },
-    { _key: freshFieldKey(), field_type: 'text',     label: 'Email Address',    is_required: true,  placeholder: 'you@example.com',          has_placeholder: true,  helper_text: '', has_helper_text: false, col_span: 2, _optionsText: '', core: 'email'      },
-    { _key: freshFieldKey(), field_type: 'text',     label: 'Phone Number',     is_required: false, placeholder: '+64…',                     has_placeholder: true,  helper_text: '', has_helper_text: false, col_span: 2, _optionsText: '', core: 'phone'      },
-    { _key: freshFieldKey(), field_type: 'number',   label: 'People Attending', is_required: false, placeholder: '1',                        has_placeholder: true,  helper_text: 'How many people are attending?', has_helper_text: true, col_span: 1, _optionsText: '', core: 'attendees' },
-    { _key: freshFieldKey(), field_type: 'textarea', label: 'Notes',            is_required: false, placeholder: 'Any special requirements…', has_placeholder: true, helper_text: '', has_helper_text: false, col_span: 2, _optionsText: '', core: 'notes'     },
-  ]
-}
-function emptyRegistrationForm() {
-  return {
-    name: '',
-    description: '',
-    fields: defaultRegistrationFields(),
-    terms: [] as any[],
-    settings: {
-      submitLabel: 'Submit',
-      confirmMessage: '',
-      formHeading: 'Fill in the form to register',
-    },
-    sectionSaved: { settings: false, fields: false, terms: false } as Record<string, boolean>,
-  }
-}
+// NOTE: the wizard's own default-field template + empty-form factory lived here.
+// Both are gone: <FormDesigner> owns the form (including its "Basic" starter
+// shape), so the wizard no longer carries a parallel definition of what a
+// registration form is.
 
 const totalFees = computed(() =>
   form.fees.reduce((sum, f) => sum + (f.amount ?? 0), 0)
@@ -1380,74 +1384,18 @@ function buildDateTime(date: Date | null, time: Date | null): string | null {
   return d.toISOString()
 }
 
-// Persists the registration-form draft to registration_forms +
-// form_fields and returns the form id. Mirrors /forms/[id].vue's save
-// logic so a form created here is editable from /forms/:id afterward.
-async function saveRegistrationForm(eventTitle: string): Promise<string | null> {
-  const draft = form.registration_form
-  const formName = draft.name?.trim() || `${eventTitle.trim() || 'Event'} registration`
-  const config: any = {
-    description: draft.description || null,
-    terms: (draft.terms ?? []).map(({ _key, ...rest }: any) => rest),
-    settings: { ...draft.settings },
-    sectionSaved: { ...draft.sectionSaved },
-  }
-  const { data, error } = await (db.from as any)('registration_forms').insert({
-    org_id: orgId.value,
-    name: formName,
-    config,
-  }).select('id').single()
-  if (error) throw error
-  const formId = data.id
-
-  if (draft.fields.length) {
-    const typeToDb: Record<string, string> = {
-      text: 'SHORT_TEXT', textarea: 'LONG_TEXT', select: 'SINGLE_SELECT',
-      checkbox: 'TOGGLE', number: 'NUMBER', date: 'DATE', file: 'FILE',
-    }
-    const rows = draft.fields.map((f: any, idx: number) => ({
-      form_id: formId,
-      field_type: typeToDb[f.field_type] ?? 'SHORT_TEXT',
-      label: f.label || 'Untitled',
-      placeholder: f.has_placeholder ? (f.placeholder || null) : null,
-      help_text: f.has_helper_text ? (f.helper_text || null) : null,
-      is_required: !!f.is_required,
-      sort_order: idx,
-      page_number: 1,
-      options: f.field_type === 'select'
-        ? JSON.stringify((f._optionsText || '').split('\n').map((s: string) => s.trim()).filter(Boolean))
-        : null,
-    }))
-    await (db.from as any)('form_fields').insert(rows)
-  }
-  // Per-field metadata (col_span, core, has_helper_text, etc.) lives in
-  // registration_forms.config so it round-trips back through the builder.
-  const fieldMeta = draft.fields.reduce((acc: any, f: any) => {
-    acc[f.label] = {
-      col_span: f.col_span,
-      core: f.core,
-      has_helper_text: f.has_helper_text,
-      has_visibility_conditions: f.has_visibility_conditions,
-      visibility_conditions: f.visibility_conditions,
-      has_financial_increase: f.has_financial_increase,
-      financial_rules: f.financial_rules,
-    }
-    return acc
-  }, {})
-  await (db.from as any)('registration_forms').update({
-    config: { ...config, fieldMeta },
-  }).eq('id', formId)
-  return formId
-}
+// NOTE: the wizard used to hand-roll its own form save here (a flat form_fields
+// insert), which meant an event created in the wizard and an event created in the
+// advanced builder wrote TWO DIFFERENT SHAPES to the same events.form_id — and
+// every form feature had to be built twice. The wizard now mounts the same
+// <FormDesigner> the advanced event uses, and the designer owns the whole
+// lifecycle (create the registration_forms row, stamp events.form_id, autosave
+// its config jsonb). There is one form schema in the app again.
 
 async function saveEvent() {
   if (!form.title.trim()) return
   saving.value = true
   try {
-    let registrationFormId: string | null = null
-    if (form.use_registration_form) {
-      registrationFormId = await saveRegistrationForm(form.title)
-    }
     const payload: any = {
       title: form.title.trim(),
       description: form.description.trim() || null,
@@ -1472,7 +1420,11 @@ async function saveEvent() {
       hold_spot_enabled: form.hold_spot_enabled,
       reg_open_at: form.reg_open_at ?? null,
       reg_close_at: form.reg_close_at ?? null,
-      form_id: registrationFormId,
+      // The form is owned by <FormDesigner>, which stamps events.form_id on the
+      // draft row the moment it creates the form — so don't write it here or we'd
+      // clobber it with a stale value. We only ever CLEAR it: the event stopped
+      // collecting a form (they picked RSVP-only after building one).
+      ...(form.use_registration_form ? {} : { form_id: null }),
       status: 'DRAFT',
     }
 
@@ -1684,7 +1636,17 @@ async function resumeDraft(): Promise<boolean> {
   form.has_capacity = evt.capacity_max != null
   if (evt.reg_open_at) form.reg_open_at = new Date(evt.reg_open_at)
   if (evt.reg_close_at) form.reg_close_at = new Date(evt.reg_close_at)
-  signupRequired.value = !!(evt.reg_open_at || evt.reg_close_at)
+  // A saved window is a deliberate one — don't let the seeder move it.
+  signupTouched.value = !!(evt.reg_open_at || evt.reg_close_at)
+
+  // Restore the Invitees-step choices, or resuming a draft would silently drop
+  // them: a public event would come back private, and an event whose form is
+  // already built would lose the form step entirely (the step is gated on
+  // use_registration_form). A linked form_id IS the evidence they chose "form".
+  form.is_public = !!evt.is_public
+  invitePublic.value = !!evt.is_public
+  form.use_registration_form = !!evt.form_id || !!evt.is_public
+  attendeeAction.value = form.use_registration_form ? 'form' : 'rsvp'
 
   // Land them back on the step they'd reached.
   const step = Number(stored.step ?? 0)
