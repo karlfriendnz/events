@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-322 sessions · 1586 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+322 sessions · 1587 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -23152,7 +23152,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:51** — on the events drop down please change the "new category" > "New calendar"
 
 
-## Session 2026-07-13 21:11 (81 prompts)
+## Session 2026-07-13 21:11 (82 prompts)
 
 **21:11** — Hye
 
@@ -23353,6 +23353,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > … [truncated — 23776 chars total]
 
 **10:07** — on the export we need an embeed option to show the calendar on a websit
+
+**10:15** — in the filter drop dow rename calenadr to categoty
 
 
 ## Session 2026-07-13 21:33 (1 prompts)

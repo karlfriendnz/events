@@ -149,7 +149,7 @@
             </MultiSelect>
 
             <MultiSelect v-else-if="f.key === 'category'" v-model="f.value" :options="allCategories"
-              option-label="name" option-value="id" placeholder="Any calendar" display="chip" filter class="w-full">
+              option-label="name" option-value="id" placeholder="Any category" display="chip" filter class="w-full">
               <template #option="{ option }">
                 <div class="flex items-center gap-2">
                   <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: option.color ?? '#94a3b8' }" />
@@ -230,7 +230,7 @@
                   <i class="pi pi-info-circle text-amber-500 text-xs mt-0.5" />
                   <p class="text-xs text-amber-700">
                     The embed only ever shows <strong>published</strong> {{ t('event', true, true) }} — drafts and
-                    cancellations stay private, whatever your Status filter says here. Your venue, calendar and
+                    cancellations stay private, whatever your Status filter says here. Your venue, category and
                     event-type filters do carry through. Visitors clicking an
                     {{ t('event', false, true) }} land on its public registration page (when it has one).
                   </p>
@@ -800,7 +800,7 @@ const calTab = ref('display')
 
 const FILTER_DEFS = [
   { key: 'venue', label: 'Venue', icon: 'pi-map-marker', empty: () => [] as string[] },
-  { key: 'category', label: 'Calendar', icon: 'pi-tag', empty: () => [] as string[] },
+  { key: 'category', label: 'Category', icon: 'pi-tag', empty: () => [] as string[] },
   { key: 'status', label: 'Status', icon: 'pi-flag', empty: () => [] as string[] },
   { key: 'type', label: 'Event type', icon: 'pi-sitemap', empty: () => [] as string[] },
   { key: 'dates', label: 'Date range', icon: 'pi-calendar', empty: () => null as any },
