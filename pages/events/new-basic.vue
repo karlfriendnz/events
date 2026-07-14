@@ -24,26 +24,9 @@
 
     <!-- ── Stepped header (step nav + progress bar) — same brand bar as the
          desktop header and every dialog. ── -->
-    <div v-if="stepped" class="shrink-0">
+    <div v-if="stepped" class="shrink-0 bg-white border-b border-gray-200">
       <div class="modal-header-bar flex items-center gap-3 !py-2.5">
-        <button v-if="stepped"
-          class="w-9 h-9 flex items-center justify-center rounded-lg text-white/75 hover:text-white hover:bg-white/15 transition-colors"
-          @click="mobileBack">
-          <i class="pi pi-chevron-left text-sm" />
-        </button>
-        <div v-if="stepped" class="flex-1 text-center">
-          <p class="text-[11px] text-white/60 font-medium uppercase tracking-wide">Step {{ mobileStep + 1 }} of {{ mobileSteps.length }}</p>
-          <p class="modal-header-title leading-tight">{{ mobileSteps[mobileStep]?.label }}</p>
-        </div>
-        <!-- Full (one-page) mode: no steps, so save lives up here. -->
-        <template v-else>
-          <span class="modal-header-title flex-1">{{ form.title.trim() || 'Event' }}</span>
-          <Button label="Save Event" icon="pi pi-check" size="small" :loading="saving"
-            :disabled="!step1Complete"
-            v-tooltip.bottom="step1Complete ? undefined : (dateInvalidReason || 'Give the event a name.')"
-            style="background:#fff; border-color:#fff; color:var(--brand-primary)"
-            @click="saveEvent" />
-        </template>
+        <span class="modal-header-title flex-1">{{ form.title.trim() || 'Create Event' }}</span>
         <!-- Bin the event outright — closing only leaves the draft behind. -->
         <button
           class="w-9 h-9 flex items-center justify-center rounded-lg text-white/75 hover:text-white hover:bg-red-500/60 transition-colors"
@@ -59,6 +42,33 @@
           @click="navigateTo('/events')">
           <i class="pi pi-times text-sm" />
         </button>
+      </div>
+
+      <!-- Every step on show, not "step 2 of 6": the point of a wizard header is
+           knowing what's coming and how far in you are. Visited steps are
+           clickable; the numbered-circle treatment matches the advanced builder. -->
+      <div class="flex items-center px-4 md:px-6 py-3 gap-0 overflow-x-auto no-scrollbar">
+        <template v-for="(s, idx) in mobileSteps" :key="s.key">
+          <div class="flex items-center gap-2 shrink-0"
+            :class="idx < mobileStep ? 'cursor-pointer' : ''"
+            @click="idx < mobileStep && (mobileStep = idx)">
+            <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all"
+              :class="idx < mobileStep
+                ? 'bg-primary text-white'
+                : idx === mobileStep
+                  ? 'bg-primary text-white ring-4 ring-primary/20'
+                  : 'bg-gray-100 text-gray-400'">
+              <i v-if="idx < mobileStep" class="pi pi-check text-[10px]" />
+              <span v-else>{{ idx + 1 }}</span>
+            </div>
+            <span class="text-xs font-medium whitespace-nowrap hidden sm:inline"
+              :class="idx <= mobileStep ? 'text-gray-800' : 'text-gray-400'">
+              {{ s.label }}
+            </span>
+          </div>
+          <div v-if="idx < mobileSteps.length - 1" class="flex-1 min-w-[16px] h-px mx-2 shrink-0"
+            :class="idx < mobileStep ? 'bg-primary' : 'bg-gray-200'" />
+        </template>
       </div>
     </div>
 
