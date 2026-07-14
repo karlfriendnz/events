@@ -135,13 +135,13 @@ function addPersonToClass(c: FinderClass) { finder.close(); navigateTo(`/groups/
             </div>
             <div>
               <label class="text-xs font-medium text-gray-500 block mb-1">Programme</label>
-              <MultiSelect v-model="params.codeIds" :options="codeOptions" optionLabel="label" optionValue="value" display="chip"
-                placeholder="Any programme" :maxSelectedLabels="2" class="w-full" :showToggleAll="false" filter />
+              <ChipMultiSelect v-model="params.codeIds" :options="codeOptions" optionLabel="label" optionValue="value" 
+        placeholder="Any programme" :maxSelectedLabels="2" class="w-full" :showToggleAll="false" filter />
             </div>
             <div v-if="disciplineOptions.length">
               <label class="text-xs font-medium text-gray-500 block mb-1">Discipline</label>
-              <MultiSelect v-model="params.disciplineIds" :options="disciplineOptions" optionLabel="label" optionValue="value" display="chip"
-                placeholder="Any discipline" :maxSelectedLabels="2" class="w-full" :showToggleAll="false" filter />
+              <ChipMultiSelect v-model="params.disciplineIds" :options="disciplineOptions" optionLabel="label" optionValue="value" 
+        placeholder="Any discipline" :maxSelectedLabels="2" class="w-full" :showToggleAll="false" filter />
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>

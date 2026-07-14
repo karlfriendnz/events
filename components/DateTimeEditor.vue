@@ -5,7 +5,7 @@
          Below lg the four pickers can't breathe side by side, so each half
          (start / end) stacks and the arrow is dropped. -->
     <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4" :class="rowPadding">
-      <span class="text-sm shrink-0" :class="[labelWidth, labelClass]">
+      <span class="field-label shrink-0" :class="[labelWidth, labelClass]">
         {{ label }}<span v-if="required && label" class="text-red-400 ml-0.5">*</span>
       </span>
       <div class="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3 flex-1 w-full min-w-0">
@@ -40,7 +40,7 @@
     </div>
     <!-- Outside event dates (session-only affordance) -->
     <div v-if="showOutsideEventDates" class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4" :class="rowPadding">
-      <span class="text-sm text-gray-500 shrink-0" :class="labelWidth">Outside</span>
+      <span class="field-label shrink-0" :class="labelWidth">Outside</span>
       <div class="flex items-center gap-2 w-full">
         <ToggleSwitch :model-value="outsideEventDates" @update:model-value="emit('update:outsideEventDates', $event)" />
         <span class="text-xs text-gray-400">Allow a date outside the event's range</span>
@@ -48,7 +48,7 @@
     </div>
     <!-- Repeat (dropdown + exclusions calendar) -->
     <div v-if="showRepeat" class="flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-4" :class="rowPadding">
-      <span class="text-sm text-gray-500 shrink-0 sm:pt-2" :class="labelWidth">Repeat</span>
+      <span class="field-label shrink-0 sm:pt-2" :class="labelWidth">Repeat</span>
       <RepeatField
         :model-value="repeat"
         :exdates="exdates"
@@ -106,7 +106,7 @@ const props = withDefaults(defineProps<{
   outsideEventDates: false,
   rowPadding: 'px-5 py-3',
   labelWidth: 'w-12',
-  labelClass: 'text-gray-500',
+  labelClass: '',   // .field-label owns the colour now
 })
 
 const emit = defineEmits<{
@@ -174,3 +174,9 @@ function syncEndTime(start: Date | null, end: Date | null, endDate: Date | null 
 }
 
 </script>
+
+<!-- NOTE: this used to shrink .p-datepicker-input to 13px so a dd/mm/yyyy value
+     stopped clipping. That made date inputs SMALLER than the text inputs beside
+     them — a third size in a row that already had two. The real fix was to make
+     every form control one size (14px) app-wide; see the form-control type rule
+     in assets/css/main.css. -->

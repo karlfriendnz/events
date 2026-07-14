@@ -140,7 +140,7 @@ async function save() {
               <div v-for="f in s.fields" :key="f.key">
                 <label class="text-sm font-medium text-gray-600">{{ f.label }}<span v-if="reqMark(f.key)" class="text-rose-500"> *</span></label>
                 <div class="mt-1">
-                  <MultiSelect v-if="f.key === 'role'" v-model="person.person_types" :options="typeOptions" optionLabel="label" optionValue="value" display="chip" placeholder="Roles" class="w-full" />
+                  <ChipMultiSelect v-if="f.key === 'role'" v-model="person.person_types" :options="typeOptions" optionLabel="label" optionValue="value" placeholder="Roles" class="w-full" />
                   <DatePicker v-else-if="f.key === 'dob'" v-model="dobDate" dateFormat="yy-mm-dd" showIcon class="w-full" />
                   <Select v-else-if="f.key === 'gender'" v-model="person.gender" :options="GENDERS" optionLabel="label" optionValue="value" placeholder="Select" class="w-full" />
                   <ToggleSwitch v-else-if="f.key === 'comms'" v-model="receivesComms" />

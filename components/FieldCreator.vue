@@ -41,7 +41,7 @@ function add() {
   <div class="px-4 pt-4 pb-3">
     <div v-if="(personTypes || []).length" class="mb-3">
       <label class="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Capturing data about</label>
-      <MultiSelect v-model="f.targets" :options="personTypes" option-label="label" option-value="key" display="chip" placeholder="Pick one or more types" class="w-full" />
+      <ChipMultiSelect v-model="f.targets" :options="personTypes" option-label="label" option-value="key" placeholder="Pick one or more types" class="w-full" />
     </div>
     <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Custom field</p>
     <input v-model="f.label" type="text" placeholder="Field label e.g. Preferred Name"

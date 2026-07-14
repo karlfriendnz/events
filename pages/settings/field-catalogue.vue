@@ -155,7 +155,7 @@ function typeCount(f: any) { return personTypes.value.filter(t => applies(f, t.k
         <div class="flex flex-col gap-1.5"><label class="text-sm font-medium">Field name</label><InputText v-model="draft.label" placeholder="e.g. Medical notes" autofocus /></div>
         <div class="flex flex-col gap-1.5"><label class="text-sm font-medium">Type</label><Select v-model="draft.field_type" :options="FIELD_TYPES" optionLabel="label" optionValue="value" class="w-full" /></div>
         <div v-if="draft.field_type === 'select'" class="flex flex-col gap-1.5"><label class="text-sm font-medium">Options <span class="text-gray-400 font-normal">— one per line</span></label><Textarea v-model="draft.options" rows="4" placeholder="Beginner&#10;Intermediate&#10;Advanced" /></div>
-        <div class="flex flex-col gap-1.5"><label class="text-sm font-medium">Applies to</label><MultiSelect v-model="draft.targets" :options="personTypes" optionLabel="label" optionValue="key" display="chip" placeholder="Which person types?" class="w-full" /></div>
+        <div class="flex flex-col gap-1.5"><label class="text-sm font-medium">Applies to</label><ChipMultiSelect v-model="draft.targets" :options="personTypes" optionLabel="label" optionValue="key" placeholder="Which person types?" class="w-full" /></div>
       </div>
       <template #footer>
         <Button label="Cancel" severity="secondary" text @click="addOpen = false" />

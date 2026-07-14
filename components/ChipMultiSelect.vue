@@ -14,11 +14,18 @@ const props = withDefaults(defineProps<{
   optionGroupLabel?: string
   optionGroupChildren?: string
   filter?: boolean
+  disabled?: boolean
+  /** Field on an option that marks it unpickable (PrimeVue's optionDisabled). */
+  optionDisabled?: string
+  /** The header select-all. On by default — it's a system-wide affordance. */
+  showToggleAll?: boolean
 }>(), {
   optionLabel: 'label',
   optionValue: 'key',
   placeholder: 'Select…',
   filter: false,
+  disabled: false,
+  showToggleAll: true,
 })
 
 // Chips resolve against the FLAT option list — with grouped options the labels
@@ -31,10 +38,13 @@ const flatOptions = computed<any[]>(() => {
 const emit = defineEmits<{ (e: 'update:modelValue', v: any[]): void }>()
 
 const selectedOpts = computed(() =>
-  (props.modelValue ?? []).map(v => flatOptions.value.find(o => o[props.optionValue!] === v) ?? { [props.optionValue!]: v, [props.optionLabel!]: v })
+  (props.modelValue ?? []).map(v => flatOptions.value.find(o => keyOf(o) === v) ?? v)
 )
-const labelOf = (o: any) => o[props.optionLabel!]
-const keyOf = (o: any) => o[props.optionValue!]
+// Options may be plain strings/numbers (no optionLabel/optionValue given) — a
+// raw MultiSelect handles that, so this must too or the chips render blank.
+const isPrimitive = (o: any) => o === null || typeof o !== 'object'
+const labelOf = (o: any) => (isPrimitive(o) ? String(o) : o[props.optionLabel!])
+const keyOf = (o: any) => (isPrimitive(o) ? o : o[props.optionValue!])
 
 function remove(o: any) {
   emit('update:modelValue', (props.modelValue ?? []).filter(v => v !== keyOf(o)))
@@ -84,11 +94,15 @@ onBeforeUnmount(() => { ro?.disconnect(); ro = null })
     @update:modelValue="emit('update:modelValue', $event)"
     :options="options" :optionLabel="optionLabel" :optionValue="optionValue"
     :optionGroupLabel="optionGroupLabel" :optionGroupChildren="optionGroupChildren"
-    :filter="filter"
-    :placeholder="placeholder" :showToggleAll="false" class="w-full">
+    :filter="filter" :disabled="disabled" :optionDisabled="optionDisabled"
+    :placeholder="placeholder" :showToggleAll="showToggleAll" class="w-full">
     <!-- Let hosts own the group header (e.g. click a code to select all its classes). -->
     <template v-if="$slots.optiongroup" #optiongroup="sp">
       <slot name="optiongroup" v-bind="sp" />
+    </template>
+    <!-- …and the option row (e.g. a discipline indented under its parent). -->
+    <template v-if="$slots.option" #option="sp">
+      <slot name="option" v-bind="sp" />
     </template>
     <template #value="sp">
       <span v-if="!sp.value || sp.value.length === 0" class="text-sm text-gray-400">{{ placeholder }}</span>

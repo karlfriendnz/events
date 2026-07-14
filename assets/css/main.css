@@ -77,6 +77,93 @@ body {
 .p-multiselect-chip-icon { font-size: 0.75rem; width: 0.75rem; height: 0.75rem; color: #94a3b8; }
 .p-multiselect-chip-icon:hover { color: #475569; }
 
+/* ── SYSTEM RULE: form controls are ONE size (apply everywhere) ──
+   A field's VALUE is body text — text-sm (14px) — per the type scale, and that
+   holds whatever kind of control it is. PrimeVue defaults an InputText and a
+   Select to 16px while a MultiSelect renders 14px, so a single form row could
+   show three different sizes (and a per-instance patch on the date inputs had
+   added a fourth at 13px). Size lives HERE, once, not on each control: every
+   text-ish control below reads at 14px, which is also what `size="small"` gives,
+   so mixing sized and unsized controls in a row no longer shows a seam.
+   Do NOT hand-size an input per-instance. */
+.p-inputtext,
+.p-textarea,
+.p-password-input,
+.p-inputnumber-input,
+.p-datepicker-input,
+.p-select-label,
+.p-multiselect-label,
+.p-autocomplete-input,
+.p-chips-input {
+  font-size: 0.875rem;      /* text-sm — the app's field-value size */
+}
+/* The dropdown PANELS have to match the field they drop out of, or the value
+   changes size the moment you pick it. */
+.p-select-option,
+.p-multiselect-option,
+.p-autocomplete-option {
+  font-size: 0.875rem;
+}
+/* Buttons are UI text, the same size as everything else in a form row. PrimeVue
+   ships them at 16px, so a button beside a 14px input showed a seam. */
+.p-button,
+.p-button-label,
+.p-togglebutton-label,
+.p-selectbutton .p-togglebutton {
+  font-size: 0.875rem;
+}
+
+/* ── SYSTEM RULE: form typography — SIZE says "what kind of text", WEIGHT says
+   "what role" (apply everywhere) ──
+   The wizard had field labels at three different weights (400 / 500 / 600) at
+   the same 14px, with the 600 ones indistinguishable from the section TITLE
+   above them — so a label read as a heading. One ladder, three classes:
+
+     .section-title  14px / 600  — the heading of a card or step
+     .field-label    14px / 500  — the name of a field (never 600: it is not a title)
+     .field-help     12px / 400  — helper text, meta, hints under a field
+
+   Field VALUES stay 14px / 400 (the control rule above). Do NOT hand-pick a
+   font-size or weight for these three roles — use the class. */
+.section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1f2937;           /* gray-800 */
+}
+.field-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;           /* gray-700 — a shade lighter than a title */
+}
+.field-help {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #6b7280;           /* gray-500 */
+}
+
+/* ── SYSTEM RULE: MultiSelect "Select all" label (apply everywhere) ──
+   PrimeVue puts a BARE checkbox in the MultiSelect panel header — nothing tells
+   the user it means "tick everything". Label it once, here, so every MultiSelect
+   in the app reads the same. The checkbox root is position:relative + a fixed
+   20px box, so the label rides alongside it as an absolutely-positioned ::after
+   and the margin-right reserves the room (a plain flex child would collapse the
+   box, which is sized off its parent). Clicks fall through to the checkbox. */
+.p-multiselect-header > .p-checkbox {
+  margin-right: 4.25rem;      /* room for the label before the filter input */
+}
+.p-multiselect-header > .p-checkbox::after {
+  content: 'Select all';
+  position: absolute;
+  left: calc(100% + 0.5rem);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.75rem;         /* text-xs — the app's label size */
+  line-height: 1rem;
+  color: #64748b;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 
 /* ── SYSTEM RULE: modal (Dialog) chrome ──
    Every PrimeVue <Dialog> in the app wears the same shell: a SOLID brand
@@ -110,7 +197,9 @@ body {
 .p-dialog .p-dialog-title,
 .modal-header-bar .modal-header-title {
   color: #fff;
-  font-size: 0.9375rem;
+  font-size: 1rem;          /* 16px — a modal's title is the biggest thing in it.
+                               (Was 0.9375rem/15px: a size used nowhere else in
+                               the app, so it sat between the ladder's rungs.) */
   font-weight: 600;
   letter-spacing: 0.01em;
 }

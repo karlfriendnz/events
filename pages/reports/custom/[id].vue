@@ -145,7 +145,7 @@ function exportCsv() {
               <InputNumber v-model="f.value.max" placeholder="max" class="w-full" @update:modelValue="v => f.value = { ...f.value, max: v }" />
             </div>
             <InputNumber v-else-if="fieldDef(f.field)?.type === 'number'" v-model="f.value" class="flex-1 w-full" />
-            <MultiSelect v-else-if="f.op === 'includes'" v-model="f.value" :options="(fieldDef(f.field)?.options ?? [])" display="chip" class="flex-1 w-full" placeholder="Choose…" />
+            <ChipMultiSelect v-else-if="f.op === 'includes'" v-model="f.value" :options="(fieldDef(f.field)?.options ?? [])" class="flex-1 w-full" placeholder="Choose…" />
             <Select v-else-if="fieldDef(f.field)?.type === 'select'" v-model="f.value" :options="(fieldDef(f.field)?.options ?? [])" editable class="flex-1 w-full" placeholder="Value" />
             <InputText v-else v-model="f.value" class="flex-1 w-full" placeholder="Value" />
           </template>
@@ -155,7 +155,7 @@ function exportCsv() {
           <button type="button" class="text-sm text-primary hover:underline" @click="addFilter"><i class="pi pi-plus text-[10px] mr-1" />Add filter</button>
           <div class="flex items-center gap-2">
             <span class="text-xs text-gray-400">Columns:</span>
-            <MultiSelect v-model="columns" :options="columnOptions" optionLabel="label" optionValue="value" display="chip" class="w-64" placeholder="Columns" :maxSelectedLabels="3" />
+            <ChipMultiSelect v-model="columns" :options="columnOptions" optionLabel="label" optionValue="value" class="w-64" placeholder="Columns" :maxSelectedLabels="3" />
           </div>
         </div>
         <div class="pt-2 border-t border-gray-100">

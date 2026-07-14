@@ -115,8 +115,8 @@ function openGroup(s: TimetableSession) { navigateTo(`/groups/${s.groupId}`) }
     <div class="card p-3 sm:p-4 space-y-3">
       <div class="flex flex-wrap items-center gap-2 sm:gap-3">
         <Select v-model="termId" :options="termOptions" optionLabel="label" optionValue="value" class="w-full sm:w-44" />
-        <MultiSelect v-model="codeIds" :options="codeOptions" optionLabel="label" optionValue="value" display="chip"
-          :placeholder="`All ${t('code', true, true)}`" :maxSelectedLabels="2" class="w-full sm:w-52" :showToggleAll="false" filter />
+        <ChipMultiSelect v-model="codeIds" :options="codeOptions" optionLabel="label" optionValue="value" 
+     :placeholder="`All ${t('code', true, true)}`" :maxSelectedLabels="2" class="w-full sm:w-52" :showToggleAll="false" filter />
         <MultiSelect v-if="lensAll && clubLocations.length > 1" v-model="locFilter" :options="locFilterOptions"
           optionLabel="label" optionValue="value" display="chip" :placeholder="'All locations'" class="w-full sm:w-52" />
         <Select v-model="venue" :options="venueOptions" optionLabel="label" optionValue="value" class="w-full sm:w-40" filter />
