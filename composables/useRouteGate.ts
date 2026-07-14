@@ -67,7 +67,7 @@ export const ROUTE_RESOURCES: RouteResource[] = [
 export const UNGATED_PREFIXES = ['/dashboard', '/help', '/account', '/admin', '/switch-role', '/onboarding']
 
 // Public / guest-accessible (embed layout) — mirrors auth.global.ts's allow-list.
-export const PUBLIC_PREFIXES = ['/book', '/booking', '/r/', '/login']
+export const PUBLIC_PREFIXES = ['/book', '/booking', '/r/', '/embed', '/login']
 
 export function isUngatedPath(path: string): boolean {
   return UNGATED_PREFIXES.some(p => path === p || path.startsWith(p + '/'))

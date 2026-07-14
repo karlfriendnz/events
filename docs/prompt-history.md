@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-322 sessions · 1584 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+322 sessions · 1586 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -23152,7 +23152,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:51** — on the events drop down please change the "new category" > "New calendar"
 
 
-## Session 2026-07-13 21:11 (79 prompts)
+## Session 2026-07-13 21:11 (81 prompts)
 
 **21:11** — Hye
 
@@ -23317,6 +23317,42 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **09:46** — [Image #22] remove this category drop down
 
 **09:50** — If i set a discipline and then change my mind i need to eb able to cancel it - also can oyu please make the disicpline a hirarchy drop drop ie. Sport > disiplines etc
+
+**09:54** — This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+> 
+> Summary:
+> 1. **Primary Request and Intent:**
+> 
+>    The overarching goal: **finalise events, bookings and venue management** in the FriendlyManager `fm-events` Nuxt 3 prototype. The session began with an audit, then pivoted into a long, highly iterative UX/build pass on the **events creation wizard** (`pages/events/new-basic.vue`), plus fixes to the events calendar and the in-app review tool.
+> 
+>    Explicit sub-intents, in order:
+>    - Review current state of events/bookings/venues before deciding what to do.
+>    - Fix the in-app review widget so comments can be pinned on modals.
+>    - Put the todo list *inside the application* (as review-widget comments), crossing items off as they're done.
+>    - Rework the New Event flow: modal wizard, "sexy" solid-colour modal headers, Basic/Custom routes, session-split question, custom SVG icons.
+>    - Rework wizard step 1 (name → date → description → categorisation → banner), validation, sign-up window.
+>    - Make disciplines come from the national body, not a hardcoded list.
+>    - Fees step (step 3), using the shared fee component; add discounts.
+>    - **STANDING RULE from user:** *"whenever we/you and i desing or build somethign it should check to see what we have done and you should ask me - hey we have this - shoudl i use it or should we crate somehting"* — check for existing implementations and ASK before building anything new.
+>    - Invitees: club-vs-public audience choice; class list as hierarchy.
+>    - Registration form as its own step with a Basic/Custom first choice.
+>    - Draft tracking: remember the step, reopen wizard drafts in the wizard; `created_via` routing (wizard/custom/advanced/multi).
+>    - Custom → Single = one-page form (NOT a modal, no blue bar, no right rail, centred); Custom → Split = advanced event.
+>    - Calendar fixes: list view, "+N more", search, venue hierarchy.
+>    - Delete an event from the modal.
+>    - **Most recent:** DisciplineLinker — be able to cancel/clear a chosen discipline, and make it a hierarchy dropdown (Sport > disciplines).
+> 
+> 2. **Key Technical Concepts:**
+>    - Nuxt 3 (`ssr: false`), Vue 3 `<script setup>`, PrimeVue v4, Tailwind, Supabase
+>    - `useDb()` / `useOrg()` / app-level `.eq('org_id')` scoping (no RLS anywhere)
+>    - Vue `<Teleport>` — stacking contexts, `:disabled` crashes under Suspense, dynamic `to` as the workaround
+>    - PrimeVue `pt` passthrough (`pcInputText`) — inner `<input>` keeps its own width; `w-full` on the wrapper is not enough (this bug appeared **twice**: RepeatField, discount Amount)
+>    - Group codes (`group_codes`, `member_groups.code_id`); `member_groups.parent_id` **retired** in migration 205/206
+>    - `useBookingDiscounts()` rule engine — `conditions: {key, operator, value}[]`, `qualifies()`, `bestMatch()`, 12 condition keys
+>    - `PROFILE_PRESETS` / `resolvePreset()` in `composables/useFormProfilePresets.t
+> … [truncated — 23776 chars total]
+
+**10:07** — on the export we need an embeed option to show the calendar on a websit
 
 
 ## Session 2026-07-13 21:33 (1 prompts)

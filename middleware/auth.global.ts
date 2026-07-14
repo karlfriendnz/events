@@ -12,9 +12,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
     }
   }
 
-  // Public, guest-accessible routes: the booker (/book) and the public
-  // registration form (/r/:context/:id). Everything else requires a login.
-  const isPublic = to.path.startsWith('/book') || to.path.startsWith('/r/') || to.path === '/set-password' || to.path === '/clubs'
+  // Public, guest-accessible routes: the booker (/book), the public registration
+  // form (/r/:context/:id) and the website calendar embed (/embed/*, which a club
+  // iframes into its own site). Everything else requires a login.
+  const isPublic = to.path.startsWith('/book') || to.path.startsWith('/r/') || to.path.startsWith('/embed')
+    || to.path === '/set-password' || to.path === '/clubs'
   if (!user.value && to.path !== '/login' && !isPublic) {
     return navigateTo('/login')
   }

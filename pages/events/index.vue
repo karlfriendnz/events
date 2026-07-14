@@ -181,28 +181,63 @@
           <p v-if="!addableFilters.length" class="text-xs text-gray-400">Every filter is already in use.</p>
         </div>
 
-        <!-- ── Export ────────────────────────────────────────────── -->
-        <div v-else class="flex flex-col gap-4">
-          <p class="text-sm text-gray-600">
-            Exports exactly what's on the calendar now — your filters and search apply.
+        <!-- ── Export — an accordion, one panel per way of getting the data out ── -->
+        <div v-else class="flex flex-col gap-2">
+          <p class="text-sm text-gray-600 mb-1">
+            Everything here follows the calendar as you've filtered it —
             <span class="font-semibold text-gray-800">{{ exportRows.length }}</span>
-            {{ exportRows.length === 1 ? t('event', false, true) : t('event', true, true) }} ready.
+            {{ exportRows.length === 1 ? t('event', false, true) : t('event', true, true) }} showing.
           </p>
 
-          <div class="flex flex-col gap-2">
-            <label class="text-sm font-semibold text-gray-700">Format</label>
-            <SelectButton v-model="exportFormat" :options="EXPORT_FORMATS"
-              option-label="label" option-value="value" size="small" />
-            <p class="text-xs text-gray-500">
-              {{ exportFormat === 'csv'
-                ? 'A spreadsheet — one row per event, with dates, venue, status and category.'
-                : 'A calendar file you can import into Google Calendar, Outlook or Apple Calendar.' }}
-            </p>
-          </div>
+          <div v-for="fmt in EXPORT_FORMATS" :key="fmt.value" class="border border-gray-200 rounded-lg overflow-hidden">
+            <button type="button" class="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors"
+              @click="exportFormat = exportFormat === fmt.value ? '' : fmt.value">
+              <i :class="`pi ${fmt.icon} text-xs text-gray-400`" />
+              <span class="text-sm font-semibold text-gray-700 flex-1">{{ fmt.label }}</span>
+              <i class="pi text-[10px] text-gray-400" :class="exportFormat === fmt.value ? 'pi-chevron-up' : 'pi-chevron-down'" />
+            </button>
 
-          <Button :label="`Download ${exportFormat.toUpperCase()}`" icon="pi pi-download"
-            :disabled="!exportRows.length" @click="runExport"
-            style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+            <div v-if="exportFormat === fmt.value" class="px-3 pb-3 pt-1 border-t border-gray-100 flex flex-col gap-3">
+              <p class="text-xs text-gray-500">{{ fmt.hint }}</p>
+
+              <!-- File download (CSV / iCal) -->
+              <Button v-if="fmt.value !== 'embed'" :label="`Download ${fmt.value.toUpperCase()}`" icon="pi pi-download"
+                size="small" :disabled="!exportRows.length" @click="runExport"
+                style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+
+              <!-- Website embed -->
+              <template v-else>
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-xs font-semibold text-gray-700">Opening view</label>
+                  <SelectButton v-model="embedView" :options="EMBED_VIEWS"
+                    option-label="label" option-value="value" size="small" />
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                  <div class="flex items-center justify-between">
+                    <label class="text-xs font-semibold text-gray-700">Paste this into your website</label>
+                    <Button :label="embedCopied ? 'Copied' : 'Copy'" :icon="embedCopied ? 'pi pi-check' : 'pi pi-copy'"
+                      size="small" severity="secondary" outlined @click="copyEmbed" />
+                  </div>
+                  <Textarea :model-value="embedSnippet" readonly rows="5" class="w-full text-xs font-mono"
+                    @focus="selectAll" />
+                  <a :href="embedUrl" target="_blank" class="text-xs text-primary hover:underline">
+                    Preview the embed <i class="pi pi-external-link text-[10px]" />
+                  </a>
+                </div>
+
+                <div class="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                  <i class="pi pi-info-circle text-amber-500 text-xs mt-0.5" />
+                  <p class="text-xs text-amber-700">
+                    The embed only ever shows <strong>published</strong> {{ t('event', true, true) }} — drafts and
+                    cancellations stay private, whatever your Status filter says here. Your venue, calendar and
+                    event-type filters do carry through. Visitors clicking an
+                    {{ t('event', false, true) }} land on its public registration page (when it has one).
+                  </p>
+                </div>
+              </template>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -810,10 +845,47 @@ function filterValue(key: string) {
 // What you see is what you get: the export walks the SAME list the calendar is
 // rendering, so filters and the search box carry through with no extra plumbing.
 const EXPORT_FORMATS = [
-  { label: 'Spreadsheet (CSV)', value: 'csv' },
-  { label: 'Calendar (iCal)', value: 'ics' },
+  { label: 'Website embed', value: 'embed', icon: 'pi-code', hint: 'A live calendar for your own website — it keeps updating as you add events.' },
+  { label: 'Spreadsheet (CSV)', value: 'csv', icon: 'pi-file-excel', hint: 'A spreadsheet — one row per event, with dates, venue, status and category.' },
+  { label: 'Calendar (iCal)', value: 'ics', icon: 'pi-calendar', hint: 'A calendar file you can import into Google Calendar, Outlook or Apple Calendar.' },
 ]
-const exportFormat = ref<'csv' | 'ics'>('csv')
+// '' = every panel collapsed. The accordion opens one at a time.
+const exportFormat = ref<'csv' | 'ics' | 'embed' | ''>('embed')
+const selectAll = (e: any) => e.target?.select?.()
+
+// ── Website embed ─────────────────────────────────────────────────────────
+// The snippet points at the PUBLIC /embed/calendar page and carries the filters
+// the user built, so what they've narrowed to here is what their website shows.
+// Status is deliberately NOT passed: the embed publishes published events only.
+const EMBED_VIEWS = [
+  { label: 'Month', value: 'month' },
+  { label: 'Week', value: 'week' },
+  { label: 'List', value: 'list' },
+]
+const embedView = ref('month')
+const embedCopied = ref(false)
+
+const embedUrl = computed(() => {
+  const origin = typeof window === 'undefined' ? '' : window.location.origin
+  const params = new URLSearchParams({ org: orgId.value ?? '', view: embedView.value })
+  const venues = filterValue('venue')
+  const calendars = filterValue('category')
+  const types = filterValue('type')
+  if (venues?.length) params.set('venues', venues.join(','))
+  if (calendars?.length) params.set('calendars', calendars.join(','))
+  if (types?.length) params.set('types', types.join(','))
+  return `${origin}/embed/calendar?${params.toString()}`
+})
+
+const embedSnippet = computed(() =>
+  `<iframe src="${embedUrl.value}"\n  title="Events calendar"\n  width="100%" height="700"\n  style="border:0"\n  loading="lazy"></iframe>`,
+)
+
+async function copyEmbed() {
+  await navigator.clipboard.writeText(embedSnippet.value)
+  embedCopied.value = true
+  setTimeout(() => { embedCopied.value = false }, 2000)
+}
 
 const exportRows = computed(() =>
   (calendarEvents.value as any[])
