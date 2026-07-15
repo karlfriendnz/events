@@ -50,6 +50,16 @@
           </div>
         </div>
 
+        <!-- Location — one place for the whole programme; every session inherits it -->
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div class="px-5 py-3 border-b border-gray-100 bg-gray-50">
+            <h2 class="text-sm font-semibold text-gray-700">Location</h2>
+          </div>
+          <div class="px-5 py-4">
+            <LocationEditor v-model="form.locations" />
+          </div>
+        </div>
+
         <!-- Dates -->
         <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div class="px-5 py-3 border-b border-gray-100 bg-gray-50">
@@ -84,6 +94,20 @@
                 Exclude public holidays
               </label>
             </div>
+            <!-- Exclude specific dates within the range -->
+            <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-start gap-1.5 sm:gap-4">
+              <label class="text-sm font-medium text-gray-700 sm:pt-2">Exclude dates</label>
+              <div class="min-w-0">
+                <DatePicker v-model="form.excludeDates" selectionMode="multiple" :manual-input="false"
+                  dateFormat="dd/mm/yy" showIcon fluid
+                  :minDate="form.startDate ?? undefined" :maxDate="form.endDate ?? undefined"
+                  :disabled="!form.startDate || !form.endDate"
+                  placeholder="Pick days to skip" class="w-full sm:max-w-md" />
+                <p v-if="form.excludeDates.length" class="text-xs text-gray-500 mt-1.5">
+                  Skipping {{ form.excludeDates.length }} day{{ form.excludeDates.length !== 1 ? 's' : '' }} — they won't get sessions.
+                </p>
+              </div>
+            </div>
             <!-- Day count preview -->
             <div v-if="sessionDays.length > 0" class="grid grid-cols-[160px_1fr] items-center gap-4">
               <div />
@@ -107,14 +131,6 @@
               end-label="Closes"
               label-width="w-[160px]"
               row-padding="px-0 py-2" />
-            <!-- Public calendar -->
-            <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1.5 sm:gap-4">
-              <label class="text-sm font-medium text-gray-700">Visibility</label>
-              <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-                <Checkbox v-model="form.isPublic" :binary="true" />
-                Show on public calendar
-              </label>
-            </div>
           </div>
         </div>
 
@@ -142,6 +158,8 @@
 <script setup lang="ts">
 const { orgId } = useOrg()
 import { ref, reactive, computed } from 'vue'
+
+import type { LocationEntry } from '~/composables/useLocation'
 
 const db = useDb()
 const route = useRoute()
@@ -172,10 +190,17 @@ const form = reactive({
   endDate: parseDateParam(route.query.endDate as string ?? null),
   includeWeekends: true,
   excludePublicHolidays: false,
+  excludeDates: [] as Date[],
   regOpen: null as Date | null,
   regClose: null as Date | null,
-  isPublic: true,
+  locations: [{ type: 'ADDRESS', venue_name: '', address: '', meeting_link: '', bookable_ids: [] as string[] }] as LocationEntry[],
 })
+
+// Local Y-M-D so an excluded date matches the loop day regardless of timezone.
+function ymd(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const excludedYmd = computed(() => new Set(form.excludeDates.map(ymd)))
 
 // <DateTimeEditor> models date + time separately; the sign-up window is stored
 // as two single date-times. Split on read, merge on write (same as the wizard).
@@ -226,7 +251,8 @@ const sessionDays = computed(() => {
     const iso = cur.toISOString().slice(0, 10)
     const isWeekend = dow === 0 || dow === 6
     const isHoliday = form.excludePublicHolidays && NZ_PUBLIC_HOLIDAYS_2025_2026.includes(iso)
-    if (!isHoliday && (form.includeWeekends || !isWeekend)) days.push(new Date(cur))
+    const isExcluded = excludedYmd.value.has(ymd(cur))
+    if (!isExcluded && !isHoliday && (form.includeWeekends || !isWeekend)) days.push(new Date(cur))
     cur.setDate(cur.getDate() + 1)
   }
   return days
@@ -254,6 +280,17 @@ function buildDatetime(day: Date, timePicker: Date | null, fallbackHour = 0): st
   return d.toISOString()
 }
 
+// One location for the whole programme → the flat session location columns
+// (sessions have no locations jsonb; the event keeps the full array).
+function locationCols() {
+  const l = form.locations[0]
+  return {
+    location_type: (l?.type ?? 'ADDRESS') as 'ADDRESS' | 'ONLINE' | 'BOOKABLE',
+    address: l?.type === 'ADDRESS' ? (l.address || null) : null,
+    meeting_link: l?.type === 'ONLINE' ? (l.meeting_link || null) : null,
+  }
+}
+
 async function createEvent() {
   if (!canCreate.value) return
   saving.value = true
@@ -267,8 +304,10 @@ async function createEvent() {
       status: 'DRAFT',
       start_at: combineDT(form.startDate, null)!.toISOString(),
       end_at: combineDT(form.endDate, null)!.toISOString(),
-      is_public: form.isPublic,
+      is_public: true,
       is_programme: route.query.programme === '1',
+      locations: form.locations,
+      ...locationCols(),
     }).select('id').single()
 
     if (evtErr || !evt?.id) throw evtErr ?? new Error('Failed to create event')
@@ -289,7 +328,8 @@ async function createEvent() {
         end_at: buildDatetime(days[0], tpl.endTime, 17),
         capacity_max: tpl.limit ?? null,
         is_required: false,
-        is_public: form.isPublic,
+        is_public: true,
+        ...locationCols(),
         display_on_form: true,
         is_master: true,
         master_id: null,
@@ -307,7 +347,8 @@ async function createEvent() {
           end_at: buildDatetime(day, tpl.endTime, 17),
           capacity_max: tpl.limit ?? null,
           is_required: false,
-          is_public: form.isPublic,
+          is_public: true,
+          ...locationCols(),
           display_on_form: true,
           is_master: false,
           master_id: master.id,
