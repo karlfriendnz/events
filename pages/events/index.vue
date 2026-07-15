@@ -608,7 +608,12 @@ const route = useRoute()
 // event with is_programme=true; on /programme we scope to those + lock the view
 // to List, on /events we exclude them. Everything else is identical.
 const isProgramme = computed(() => route.path === '/programme')
-useBreadcrumbs(() => isProgramme.value ? [{ label: 'Programme' }] : [])
+// Drive the top-bar breadcrumbs directly: 'Programme' on /programme, empty on
+// /events (so the pageTitles map shows 'Events'). useBreadcrumbs() with no arg
+// just hands back the shared state ref.
+const breadcrumbsState = useBreadcrumbs()
+watchEffect(() => { breadcrumbsState.value = isProgramme.value ? [{ label: 'Programme' }] : [] })
+onUnmounted(() => { breadcrumbsState.value = [] })
 
 
 const events = ref<any[]>([])

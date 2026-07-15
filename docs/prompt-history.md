@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1627 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1628 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (21 prompts)
+## Session 2026-07-14 22:10 (22 prompts)
 
 **22:10** — yay we are back
 
@@ -28847,4 +28847,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **22:00** — Why is this so hard it should basically be a event category - there is nothing special except that when you click on create evnt it opens up a diffenret view
 
 **22:03** — multisessoin builder
+
+**22:05** — 500
+> crumbs.map is not a function
 
