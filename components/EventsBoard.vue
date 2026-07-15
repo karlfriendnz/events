@@ -41,7 +41,7 @@
           @click="openCalSettings"
         />
         <Button
-          :label="isNarrow ? undefined : `New ${t('event', false)}`"
+          :label="isNarrow ? undefined : newButtonText"
           icon="pi pi-plus"
           size="small"
           class="shrink-0"
@@ -88,6 +88,14 @@
                 @click="deleteCalendar">Delete</button>
             </div>
             <InputText v-model="newCalendarName" placeholder="Calendar name" class="w-full" />
+          </div>
+
+          <div class="border-t border-gray-100" />
+
+          <div class="flex flex-col gap-2">
+            <label class="text-sm font-semibold text-gray-700">"New" button text</label>
+            <InputText v-model="calSettings.newButtonLabel" :placeholder="`New ${t('event', false)}`" class="w-full" />
+            <p class="text-xs text-gray-500">What the create button says — e.g. "New Holiday programme".</p>
           </div>
 
           <div class="border-t border-gray-100" />
@@ -839,7 +847,11 @@ const calSettings = reactive({
   weekStart: 1,
   showWeekends: true,
   filters: [] as CalFilter[],
+  newButtonLabel: '',   // overrides the "New event" button text (e.g. "New Holiday programme")
 })
+
+// The "New …" button text: the club's custom label, else the default.
+const newButtonText = computed(() => calSettings.newButtonLabel?.trim() || `New ${t('event', false)}`)
 
 const CAL_TABS = [
   { key: 'display', label: 'Display', icon: 'pi-sliders-h' },
@@ -1072,15 +1084,21 @@ async function loadCalendars() {
 }
 
 const CAL_PREFS_KEY = 'fm_cal_prefs_v1'
+// /programme gets its OWN prefs bucket so its view/filters/button-label don't
+// bleed into /events (both would otherwise be the 'all' calendar).
+function currentCalId() {
+  return isProgramme.value ? 'programme' : ((route.query.calendar as string) ?? 'all')
+}
 
 function saveCalPrefs() {
-  const calId = (route.query.calendar as string) ?? 'all'
+  const calId = currentCalId()
   const all = JSON.parse(localStorage.getItem(CAL_PREFS_KEY) ?? '{}')
   all[calId] = {
     colorBy: calSettings.colorBy,
     defaultView: calSettings.defaultView,
     weekStart: calSettings.weekStart,
     showWeekends: calSettings.showWeekends,
+    newButtonLabel: calSettings.newButtonLabel,
     // Dates round-trip through JSON as ISO strings; restore revives them.
     filters: calSettings.filters.map(f => ({ ...f, value: f.value })),
   }
@@ -1097,6 +1115,7 @@ function restoreCalPrefs(calId: string | undefined) {
   calSettings.defaultView = saved.defaultView ?? 'dayGridMonth'
   calSettings.weekStart = saved.weekStart ?? 1
   calSettings.showWeekends = saved.showWeekends ?? true
+  calSettings.newButtonLabel = saved.newButtonLabel ?? ''
 
   // Drop stale IDs (a venue/calendar deleted since the pref was saved) and revive
   // the date range, which JSON flattened to ISO strings.
@@ -1112,7 +1131,7 @@ function restoreCalPrefs(calId: string | undefined) {
 }
 
 function applyActiveCalendarFilter() {
-  const calId = route.query.calendar as string | undefined
+  const calId = isProgramme.value ? 'programme' : (route.query.calendar as string | undefined)
   const hadSaved = restoreCalPrefs(calId)
   if (hadSaved) return
 
@@ -1133,8 +1152,9 @@ function resetCalSettings() {
   calSettings.weekStart = 1
   calSettings.showWeekends = true
   calSettings.filters = []
+  calSettings.newButtonLabel = ''
   // Clear saved prefs for this calendar so defaults are used next time
-  const calId = (route.query.calendar as string) ?? 'all'
+  const calId = currentCalId()
   const all = JSON.parse(localStorage.getItem(CAL_PREFS_KEY) ?? '{}')
   delete all[calId]
   localStorage.setItem(CAL_PREFS_KEY, JSON.stringify(all))

@@ -91,7 +91,7 @@
                   <span class="text-[11px] text-gray-500 mr-1">Skipped:</span>
                   <span v-for="key in sortedExdates" :key="key"
                     class="inline-flex items-center gap-1 text-[11px] bg-gray-100 text-gray-600 rounded-full pl-2 pr-1 py-0.5">
-                    {{ key }}
+                    {{ formatSkipDate(key) }}
                     <button type="button" class="hover:text-red-500" @click="form.exdates = form.exdates.filter(k => k !== key)"><i class="pi pi-times text-[9px]" /></button>
                   </span>
                   <button type="button" class="text-[11px] text-gray-400 hover:text-gray-700 ml-1" @click="form.exdates = []">Clear all</button>
@@ -209,6 +209,16 @@ const excludedYmd = computed(() => new Set(form.exdates))
 const dailyRule = 'FREQ=DAILY'
 const skipDatesOpen = ref(false)
 const sortedExdates = computed(() => [...form.exdates].sort())
+// A skipped-date chip reads "24th Jul 2026" (ordinal day + short month + year).
+function ordinalDay(n: number) {
+  const v = n % 100
+  const suffix = v >= 11 && v <= 13 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th')
+  return `${n}${suffix}`
+}
+function formatSkipDate(key: string) {
+  const [y, m, d] = key.split('-').map(Number)
+  return `${ordinalDay(d)} ${new Date(y, m - 1, d).toLocaleDateString('en-AU', { month: 'short' })} ${y}`
+}
 
 // <DateTimeEditor> models date + time separately; the sign-up window is stored
 // as two single date-times. Split on read, merge on write (same as the wizard).
