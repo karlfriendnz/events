@@ -784,6 +784,8 @@ const savingCategory = ref(false)
 // beside its field. It was previously conflated with "stepped", which is what
 // made reopening a draft dump you into the wrong layout.
 const stepped = computed(() => route.query.mode !== 'full')
+// Created from /programme (the events board carries programme=1) → tag the row.
+const isProgramme = route.query.programme === '1'
 const narrow = ref(false)
 // Kept as an alias so the field-layout branches below keep reading naturally.
 const isMobile = narrow
@@ -1379,7 +1381,7 @@ async function saveEvent() {
       if (error) throw error
       evtId = draftEventId.value
     } else {
-      const { data, error } = await db.from('events').insert({ ...payload, org_id: orgId.value, style: 'BASIC', created_via: 'wizard' }).select('id').single()
+      const { data, error } = await db.from('events').insert({ ...payload, org_id: orgId.value, style: 'BASIC', created_via: 'wizard', is_programme: isProgramme }).select('id').single()
       if (error) throw error
       evtId = data.id
     }
@@ -1475,6 +1477,7 @@ onMounted(async () => {
     style: 'BASIC',
     status: 'DRAFT',
     created_via: 'wizard',      // reopening a wizard draft returns to the wizard
+    is_programme: isProgramme,  // created from /programme → it's a programme
   }).select('id').single()
   if (data) {
     draftEventId.value = data.id

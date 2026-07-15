@@ -226,6 +226,7 @@ async function createEvent() {
       start_at: form.startDate!.toISOString(),
       end_at: form.endDate!.toISOString(),
       is_public: form.isPublic,
+      is_programme: route.query.programme === '1',
     }).select('id').single()
 
     if (evtErr || !evt?.id) throw evtErr ?? new Error('Failed to create event')

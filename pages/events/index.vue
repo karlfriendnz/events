@@ -7,8 +7,10 @@
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-5">
       <div class="flex items-center gap-2 sm:gap-3 min-w-0">
-        <!-- View selector is desktop-only; mobile is forced to the agenda list view -->
+        <!-- View selector is desktop-only; mobile is forced to the agenda list
+             view. /programme is List-only, so it's hidden there entirely. -->
         <Select
+          v-if="!isProgramme"
           :model-value="calSettings.defaultView"
           :options="calViews"
           option-label="label"
@@ -96,7 +98,7 @@
               option-label="label" option-value="value" size="small" />
           </div>
 
-          <div class="flex flex-col gap-2">
+          <div v-if="!isProgramme" class="flex flex-col gap-2">
             <label class="text-sm font-semibold text-gray-700">Default view</label>
             <SelectButton
               v-model="calSettings.defaultView"
@@ -587,6 +589,9 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
 
+// /programme renders THIS page (same events board, scoped to is_programme).
+definePageMeta({ alias: ['/programme'] })
+
 // Auto-imported composables must be called BELOW the import block: Vite rewrites
 // imports in place rather than hoisting them, so a call above them resolves to
 // an undefined binding ("useOrg is not defined") at runtime.
@@ -598,6 +603,12 @@ const db = useDb()
 const toast = useToast()
 const confirm = useConfirm()
 const route = useRoute()
+
+// This same board serves /programme (aliased below). A "programme" is just an
+// event with is_programme=true; on /programme we scope to those + lock the view
+// to List, on /events we exclude them. Everything else is identical.
+const isProgramme = computed(() => route.path === '/programme')
+useBreadcrumbs(() => isProgramme.value ? [{ label: 'Programme' }] : [])
 
 
 const events = ref<any[]>([])
@@ -700,6 +711,7 @@ async function startAdvanced() {
       status: 'DRAFT',
       style: 'ADVANCED',
       created_via: 'advanced',
+      is_programme: isProgramme.value,
     }
     if (clickedDate.value) payload.start_at = clickedDate.value
     if (clickedEndDate.value) payload.end_at = clickedEndDate.value
@@ -742,6 +754,7 @@ async function createCustomEvent() {
       status: 'DRAFT',
       style: 'BASIC',
       created_via: 'custom',    // opens in the full event page, not the wizard
+      is_programme: isProgramme.value,
     }
     if (clickedDate.value) payload.start_at = clickedDate.value
     if (clickedEndDate.value) payload.end_at = clickedEndDate.value
@@ -775,6 +788,7 @@ function createBasicEvent() {
   if (clickedEndDate.value) params.set('endDate', clickedEndDate.value)
   if (newEventName.value.trim()) params.set('name', newEventName.value.trim())
   if (useWizard.value) params.set('wizard', '1')
+  if (isProgramme.value) params.set('programme', '1')
   const q = params.size ? `?${params}` : ''
   navigateTo(`/events/new-basic${q}`)
 }
@@ -785,6 +799,7 @@ function createMultiSessionEvent() {
   if (clickedDate.value) params.set('date', clickedDate.value)
   if (clickedEndDate.value) params.set('endDate', clickedEndDate.value)
   if (newEventName.value.trim()) params.set('name', newEventName.value.trim())
+  if (isProgramme.value) params.set('programme', '1')
   const q = params.size ? `?${params}` : ''
   navigateTo(`/events/new-multi${q}`)
 }
@@ -795,6 +810,7 @@ function createAdvancedEvent() {
   if (clickedDate.value) params.set('date', clickedDate.value)
   if (clickedEndDate.value) params.set('endDate', clickedEndDate.value)
   if (newEventName.value.trim()) params.set('name', newEventName.value.trim())
+  if (isProgramme.value) params.set('programme', '1')
   const q = params.size ? `?${params}` : ''
   navigateTo(useWizard.value ? `/events/new-advanced${q}` : `/events/new${q}`)
 }
@@ -1708,10 +1724,11 @@ async function load() {
     db.from('events')
       .select('*, category:categories!category_id(id, name, color, icon)')
       .eq('org_id', orgId.value)
+      .eq('is_programme', isProgramme.value)   // /programme = programmes only; /events excludes them
       .neq('status', 'ARCHIVED')
       .order('start_at', { ascending: true, nullsFirst: false }),
     db.from('sessions')
-      .select('*, event:events!event_id(id, title, status, org_id, category_id)')
+      .select('*, event:events!event_id(id, title, status, org_id, category_id, is_programme)')
       .eq('show_as_separate_event', true)
       .is('parent_session_id', null)
       .not('start_at', 'is', null),
@@ -1721,7 +1738,7 @@ async function load() {
   events.value = data ?? []
   separateSessions.value = (sessionData ?? []).filter((s: any) => {
     const ev = s.event
-    return ev && ev.status !== 'ARCHIVED' && ev.org_id === orgId.value
+    return ev && ev.status !== 'ARCHIVED' && ev.org_id === orgId.value && !!ev.is_programme === isProgramme.value
   })
   loading.value = false
 }
@@ -1829,7 +1846,15 @@ async function installDemoData() {
 }
 
 // Set initial calendar title
+// /events ↔ /programme are the same component (aliased), so switching between
+// them doesn't remount — reload + relock the view when the mode flips.
+watch(isProgramme, (prog) => {
+  if (prog) calSettings.defaultView = 'listWeek'
+  load()
+})
+
 onMounted(async () => {
+  if (isProgramme.value) calSettings.defaultView = 'listWeek'
   await Promise.all([load(), loadCalendars()])
   calendarTitle.value = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
 
