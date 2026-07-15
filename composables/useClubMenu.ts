@@ -43,13 +43,13 @@ export const CLUB_MENU: ClubMenuItem[] = [
     { label: 'Items', icon: 'pi-box', href: '/bookables/items' },
     { label: 'Activities', icon: 'pi-flag', href: '/bookables?tab=activities' },
   ] },
+  { label: 'Programme',   icon: 'pi-flag',          href: '/programme',               chevron: true, module: 'programme', resource: 'programmes' },
   { label: 'Attendance',  icon: 'pi-check-square',  href: '/attendance',              chevron: true, module: 'attendance', resource: 'attendance' },
   { label: 'Reports',     icon: 'pi-chart-bar',     href: '/reports',                 chevron: false },
   { label: 'Mailer',      icon: 'pi-envelope',      href: '/settings/communications', chevron: true, module: 'communications', resource: 'communications' },
   { label: 'Resources',   icon: 'pi-video',         href: '/resources',               chevron: false, module: 'resources', resource: 'resources' },
   { label: 'Assets',      icon: 'pi-shopping-cart', href: '/assets',                  chevron: true, module: 'assets', resource: 'uniforms' },
   { label: 'Mobile App',  icon: 'pi-mobile',        href: '/mobile-app',              chevron: true, module: 'mobile_app' },
-  { label: 'Programme',   icon: 'pi-flag',          href: '/programme',               chevron: true, module: 'programme', resource: 'programmes' },
   { label: 'GNZ',         icon: 'pi-user',          href: '/gnz',                     chevron: true, module: 'gnz' },
 ]
 

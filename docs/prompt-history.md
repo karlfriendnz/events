@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1620 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1621 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (14 prompts)
+## Session 2026-07-14 22:10 (15 prompts)
 
 **22:10** — yay we are back
 
@@ -28833,4 +28833,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **06:57** — [Image #2] this should be amount then type
 
 **20:06** — deploy live
+
+**20:13** — please make the advanced event go to this screen not the modal - http://localhost:3002/events/fe101795-1543-4b59-ba85-b59785b0ec46
 

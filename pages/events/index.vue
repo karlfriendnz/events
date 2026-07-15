@@ -685,16 +685,34 @@ function startCustom() {
   showEventNameModal.value = false
   chooseSingleSession()
 }
-// Straight into the full advanced builder — it already covers sessions, so it
-// skips the "split into sessions?" question the other two routes ask.
-function startAdvanced() {
-  if (!newEventName.value.trim()) return
+// Advanced = the full event editor page (/events/:id), not the modal builder.
+// Create the draft row here (same shape new-advanced's ensureDraft used) and
+// land the user on it. openEvent() routes created_via:'advanced' back here too.
+const creatingAdvanced = ref(false)
+async function startAdvanced() {
+  if (!newEventName.value.trim() || creatingAdvanced.value) return
+  creatingAdvanced.value = true
   showEventNameModal.value = false
-  const params = new URLSearchParams()
-  if (clickedDate.value) params.set('date', clickedDate.value)
-  if (clickedEndDate.value) params.set('endDate', clickedEndDate.value)
-  params.set('name', newEventName.value.trim())
-  navigateTo(`/events/new-advanced?${params}`)
+  try {
+    const payload: any = {
+      org_id: orgId.value,
+      title: newEventName.value.trim(),
+      status: 'DRAFT',
+      style: 'ADVANCED',
+      created_via: 'advanced',
+    }
+    if (clickedDate.value) payload.start_at = clickedDate.value
+    if (clickedEndDate.value) payload.end_at = clickedEndDate.value
+    const { data, error } = await (db.from as any)('events').insert(payload).select('id').single()
+    if (error || !data) {
+      toast.add({ severity: 'error', summary: 'Could not create the event', detail: error?.message, life: 4000 })
+      showEventNameModal.value = true
+      return
+    }
+    navigateTo(`/events/${data.id}`)
+  } finally {
+    creatingAdvanced.value = false
+  }
 }
 function backToNewEvent() {
   showSessionCountModal.value = false

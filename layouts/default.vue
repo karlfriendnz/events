@@ -692,13 +692,13 @@ const clubMenu = [
   { label: 'Memberships', icon: 'pi-id-card',       href: '/memberships',             chevron: true, module: 'finances', resource: 'fees' },
   { label: 'Events',      icon: 'pi-calendar',      href: '/events',                  chevron: true, events: true, module: 'events', resource: 'events' },
   { label: 'Bookings',    icon: 'pi-bookmark',      href: '/bookables?tab=bookings',  chevron: true, bookings: true, module: 'bookings', resource: 'bookings' },
+  { label: 'Programme',   icon: 'pi-flag',          href: '/programme',               chevron: true, module: 'programme', resource: 'programmes' },
   { label: 'Attendance',  icon: 'pi-check-square',  href: '/attendance',              chevron: true, module: 'attendance', resource: 'attendance' },
   { label: 'Reports',     icon: 'pi-chart-bar',     href: '/reports',                 chevron: false },
   { label: 'Mailer',      icon: 'pi-envelope',      href: '/settings/communications', chevron: true, module: 'communications', resource: 'communications' },
   { label: 'Resources',   icon: 'pi-video',         href: '/resources',               chevron: false, module: 'resources', resource: 'resources' },
   { label: 'Assets',      icon: 'pi-shopping-cart', href: '/assets',                  chevron: true, module: 'assets', resource: 'uniforms' },
   { label: 'Mobile App',  icon: 'pi-mobile',        href: '/mobile-app',              chevron: true, module: 'mobile_app' },
-  { label: 'Programme',   icon: 'pi-flag',          href: '/programme',               chevron: true, module: 'programme', resource: 'programmes' },
   { label: 'GNZ',         icon: 'pi-user',          href: '/gnz',                     chevron: true, module: 'gnz' },
 ]
 // Club setup (Settings → Club setup, organisations.enabled_modules): hide the
