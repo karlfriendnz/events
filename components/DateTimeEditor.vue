@@ -15,7 +15,7 @@
             :min-date="minStartDate"
             :max-date="maxDate ?? undefined"
             @update:model-value="onStartDate" />
-          <DatePicker :model-value="startTime" time-only show-icon hour-format="12" :placeholder="`${startLabel} time`" fluid class="flex-1 min-w-0"
+          <DatePicker v-if="showTime" :model-value="startTime" time-only show-icon hour-format="12" :placeholder="`${startLabel} time`" fluid class="flex-1 min-w-0"
             :disabled="isAllDay"
             @update:model-value="onStartTime" />
         </div>
@@ -26,7 +26,7 @@
             :min-date="minEndDate ?? startDate ?? undefined"
             :max-date="maxDate ?? undefined"
             @update:model-value="onEndDate" />
-          <DatePicker :model-value="endTime" time-only show-icon hour-format="12" :placeholder="`${endLabel} time`" fluid class="flex-1 min-w-0"
+          <DatePicker v-if="showTime" :model-value="endTime" time-only show-icon hour-format="12" :placeholder="`${endLabel} time`" fluid class="flex-1 min-w-0"
             :disabled="isAllDay"
             @update:model-value="onEndTime" />
         </div>
@@ -80,6 +80,8 @@ const props = withDefaults(defineProps<{
   // window, which has no all-day or recurrence concept).
   showAllDay?: boolean
   showRepeat?: boolean
+  // Hide the time pickers for a date-only range (keeps the date → date arrow).
+  showTime?: boolean
   label?: string
   required?: boolean
   startLabel?: string
@@ -98,6 +100,7 @@ const props = withDefaults(defineProps<{
   repeat: 'NONE',
   showAllDay: true,
   showRepeat: true,
+  showTime: true,
   label: 'Date',
   required: false,
   startLabel: 'Start',

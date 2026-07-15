@@ -60,9 +60,10 @@
             <DateTimeEditor
               v-model:startDate="form.startDate"
               v-model:endDate="form.endDate"
-              v-model:startTime="form.startTime"
-              v-model:endTime="form.endTime"
-              v-model:isAllDay="form.isAllDay"
+              :start-time="null"
+              :end-time="null"
+              :show-time="false"
+              :show-all-day="false"
               :show-repeat="false"
               label="Programme dates"
               required
@@ -169,9 +170,6 @@ const form = reactive({
   ageMax: null as number | null,
   startDate: parseDateParam(route.query.date as string ?? null),
   endDate: parseDateParam(route.query.endDate as string ?? null),
-  startTime: null as Date | null,
-  endTime: null as Date | null,
-  isAllDay: false,
   includeWeekends: true,
   excludePublicHolidays: false,
   regOpen: null as Date | null,
@@ -267,8 +265,8 @@ async function createEvent() {
       style: 'ADVANCED',
       created_via: 'multi',
       status: 'DRAFT',
-      start_at: combineDT(form.startDate, form.isAllDay ? null : form.startTime)!.toISOString(),
-      end_at: combineDT(form.endDate, form.isAllDay ? null : form.endTime)!.toISOString(),
+      start_at: combineDT(form.startDate, null)!.toISOString(),
+      end_at: combineDT(form.endDate, null)!.toISOString(),
       is_public: form.isPublic,
       is_programme: route.query.programme === '1',
     }).select('id').single()
