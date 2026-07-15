@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1609 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1611 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,11 +28804,15 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (3 prompts)
+## Session 2026-07-14 22:10 (5 prompts)
 
 **22:10** — yay we are back
 
 **22:12** — Could not find the 'has_capacity' column of 'events' in the schema cache
 
 **22:15** — deploy live
+
+**22:34** — please wipe all evnets from north harbour gymnastics
+
+**03:49** — looks like the saving of person is broken - i.e i think the email is not senduing
 

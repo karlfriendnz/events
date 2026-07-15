@@ -85,7 +85,7 @@ export default defineEventHandler(async (event) => {
  * sending domain.
  */
 async function dispatch(msg: { to: string[]; subject: string; text: string; link: string | null; baseUrl: string }) {
-  const key = process.env.RESEND_KEY
+  const key = process.env.RESEND_KEY || process.env.RESEND_API_KEY
   if (!key) {
     // eslint-disable-next-line no-console
     console.log('[email:stub] (set RESEND_KEY to actually send)\n', JSON.stringify({ to: msg.to, subject: msg.subject, text: msg.text }, null, 2))

@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
   const first = person.first_name || 'there'
 
   // Send via Resend (branded). Falls back to a stub log when RESEND_KEY isn't set.
-  const rkey = process.env.RESEND_KEY
+  const rkey = process.env.RESEND_KEY || process.env.RESEND_API_KEY
   let emailStatus: 'sent' | 'stub' | 'error' = 'stub'
   const subject = `Set up your ${clubName} login`
   const text = `Hi ${first},\n\nYou've been given access to ${clubName} on FriendlyManager. Click the button below to set your password and sign in.\n\nIf you belong to more than one club, this single login connects to all of them.`

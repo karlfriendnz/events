@@ -137,7 +137,7 @@ function textFor(kind: Event, c: Ctx): string {
 }
 
 async function dispatch(msg: { to: string[]; subject: string; text: string; orgName: string }) {
-  const key = process.env.RESEND_KEY
+  const key = process.env.RESEND_KEY || process.env.RESEND_API_KEY
   if (!key) {
     // eslint-disable-next-line no-console
     console.log('[email:stub:customer] (set RESEND_KEY to actually send)\n', JSON.stringify({ to: msg.to, subject: msg.subject, text: msg.text }, null, 2))

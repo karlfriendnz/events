@@ -131,7 +131,10 @@ export function renderBrandedEmail(opts: BrandedEmailOptions) {
  * never try to post real mail.
  */
 export async function sendEmail(msg: EmailMessage): Promise<{ provider: 'resend' | 'stub'; id?: string }> {
-  const key = process.env.RESEND_KEY
+  // Prod configures this as RESEND_API_KEY (the conventional Resend name);
+  // local/.env historically used RESEND_KEY. Accept either so a name mismatch
+  // never silently drops every email into the stub branch again.
+  const key = process.env.RESEND_KEY || process.env.RESEND_API_KEY
   const from = msg.from || process.env.RESEND_FROM || 'FriendlyManager <onboarding@resend.dev>'
 
   if (!key) {
