@@ -19,15 +19,6 @@
     <div class="flex-1 overflow-y-auto bg-[#F5F8FA]">
       <div class="max-w-[1140px] mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6">
 
-        <!-- Banner -->
-        <div class="bg-green-50 border border-green-200 rounded-xl px-5 py-4 flex items-start gap-3">
-          <i class="pi pi-clone text-green-600 text-lg mt-0.5 shrink-0" />
-          <div>
-            <p class="text-sm font-semibold text-green-800">Multi-Session Event</p>
-            <p class="text-xs text-green-700 mt-0.5">Ideal for holiday programmes. Define your session templates below and we'll generate individual sessions for every day in the programme — all under one event with shared registration.</p>
-          </div>
-        </div>
-
         <!-- Event Details -->
         <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div class="px-5 py-3 border-b border-gray-100 bg-gray-50">
