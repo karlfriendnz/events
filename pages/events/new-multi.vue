@@ -56,22 +56,32 @@
             <h2 class="text-sm font-semibold text-gray-700">Dates</h2>
           </div>
           <div class="px-5 py-4 space-y-4">
-            <!-- Programme date range -->
+            <!-- Programme date range — same layout as the event wizard's date rows -->
+            <DateTimeEditor
+              v-model:startDate="form.startDate"
+              v-model:endDate="form.endDate"
+              v-model:startTime="form.startTime"
+              v-model:endTime="form.endTime"
+              v-model:isAllDay="form.isAllDay"
+              :show-repeat="false"
+              label="Programme dates"
+              required
+              label-width="w-[160px]"
+              row-padding="px-0 py-2" />
+            <!-- Weekends / public holidays: their own rows below the dates -->
             <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1.5 sm:gap-4">
-              <label class="text-sm font-medium text-gray-700">Programme Dates <span class="text-red-400">*</span></label>
-              <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
-                <DatePicker v-model="form.startDate" placeholder="Start date" dateFormat="dd/mm/yy" fluid class="flex-1 min-w-0 sm:flex-none sm:w-40" />
-                <span class="text-sm text-gray-400">to</span>
-                <DatePicker v-model="form.endDate" placeholder="End date" dateFormat="dd/mm/yy" fluid class="flex-1 min-w-0 sm:flex-none sm:w-40" :minDate="form.startDate ?? undefined" />
-                <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none ml-1">
-                  <Checkbox v-model="form.includeWeekends" :binary="true" />
-                  Include weekends
-                </label>
-                <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none ml-1">
-                  <Checkbox v-model="form.excludePublicHolidays" :binary="true" />
-                  Exclude public holidays
-                </label>
-              </div>
+              <label class="text-sm font-medium text-gray-700">Weekends</label>
+              <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                <Checkbox v-model="form.includeWeekends" :binary="true" />
+                Include weekends
+              </label>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1.5 sm:gap-4">
+              <label class="text-sm font-medium text-gray-700">Public holidays</label>
+              <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                <Checkbox v-model="form.excludePublicHolidays" :binary="true" />
+                Exclude public holidays
+              </label>
             </div>
             <!-- Day count preview -->
             <div v-if="sessionDays.length > 0" class="grid grid-cols-[160px_1fr] items-center gap-4">
@@ -83,15 +93,19 @@
                 <span v-if="form.excludePublicHolidays" class="text-green-600"> (excl. public holidays)</span>
               </p>
             </div>
-            <!-- Signup open / close -->
-            <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1.5 sm:gap-4">
-              <label class="text-sm font-medium text-gray-700">Signup Dates</label>
-              <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                <DatePicker v-model="form.regOpen" placeholder="Opens" dateFormat="dd/mm/yy" showTime hourFormat="12" fluid class="w-full sm:w-48" />
-                <span class="text-sm text-gray-400 hidden sm:inline">to</span>
-                <DatePicker v-model="form.regClose" placeholder="Closes" dateFormat="dd/mm/yy" showTime hourFormat="12" fluid class="w-full sm:w-48" />
-              </div>
-            </div>
+            <!-- Signup open / close — same layout as the wizard's sign-up window -->
+            <DateTimeEditor
+              v-model:startDate="regOpenDate"
+              v-model:startTime="regOpenTime"
+              v-model:endDate="regCloseDate"
+              v-model:endTime="regCloseTime"
+              :show-all-day="false"
+              :show-repeat="false"
+              label="Signup dates"
+              start-label="Opens"
+              end-label="Closes"
+              label-width="w-[160px]"
+              row-padding="px-0 py-2" />
             <!-- Public calendar -->
             <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1.5 sm:gap-4">
               <label class="text-sm font-medium text-gray-700">Visibility</label>
@@ -155,12 +169,42 @@ const form = reactive({
   ageMax: null as number | null,
   startDate: parseDateParam(route.query.date as string ?? null),
   endDate: parseDateParam(route.query.endDate as string ?? null),
+  startTime: null as Date | null,
+  endTime: null as Date | null,
+  isAllDay: false,
   includeWeekends: true,
   excludePublicHolidays: false,
   regOpen: null as Date | null,
   regClose: null as Date | null,
   isPublic: true,
 })
+
+// <DateTimeEditor> models date + time separately; the sign-up window is stored
+// as two single date-times. Split on read, merge on write (same as the wizard).
+function withDate(base: Date | null, d: Date | null): Date | null {
+  if (!d) return null
+  const out = base ? new Date(base) : new Date(d)
+  out.setFullYear(d.getFullYear(), d.getMonth(), d.getDate())
+  if (!base) out.setHours(0, 0, 0, 0)
+  return out
+}
+function withTime(base: Date | null, t: Date | null): Date | null {
+  if (!t) return null
+  const out = base ? new Date(base) : new Date()
+  out.setHours(t.getHours(), t.getMinutes(), 0, 0)
+  return out
+}
+function combineDT(date: Date | null, time: Date | null): Date | null {
+  if (!date) return null
+  const out = new Date(date)
+  if (time) out.setHours(time.getHours(), time.getMinutes(), 0, 0)
+  else out.setHours(0, 0, 0, 0)
+  return out
+}
+const regOpenDate = computed({ get: () => form.regOpen, set: (v: Date | null) => { form.regOpen = withDate(form.regOpen, v) } })
+const regOpenTime = computed({ get: () => form.regOpen, set: (v: Date | null) => { form.regOpen = withTime(form.regOpen, v) } })
+const regCloseDate = computed({ get: () => form.regClose, set: (v: Date | null) => { form.regClose = withDate(form.regClose, v) } })
+const regCloseTime = computed({ get: () => form.regClose, set: (v: Date | null) => { form.regClose = withTime(form.regClose, v) } })
 
 function makeTime(h: number, m = 0) {
   const d = new Date(); d.setHours(h, m, 0, 0); return d
@@ -223,8 +267,8 @@ async function createEvent() {
       style: 'ADVANCED',
       created_via: 'multi',
       status: 'DRAFT',
-      start_at: form.startDate!.toISOString(),
-      end_at: form.endDate!.toISOString(),
+      start_at: combineDT(form.startDate, form.isAllDay ? null : form.startTime)!.toISOString(),
+      end_at: combineDT(form.endDate, form.isAllDay ? null : form.endTime)!.toISOString(),
       is_public: form.isPublic,
       is_programme: route.query.programme === '1',
     }).select('id').single()
