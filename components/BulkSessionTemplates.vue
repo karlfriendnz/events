@@ -10,7 +10,7 @@
       </span>
     </div>
 
-    <div class="overflow-x-auto">
+    <div v-if="layout !== 'panels'" class="overflow-x-auto">
     <div class="min-w-[600px] md:min-w-0">
     <!-- Column headers -->
     <div class="grid gap-2 py-2.5 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wide"
@@ -73,6 +73,64 @@
 
     </div>
     </div>
+
+    <!-- ── Roomy stacked panels (one per session, lots of breathing room) ── -->
+    <div v-else class="p-4 sm:p-5 space-y-3">
+      <div v-for="(tpl, idx) in templates" :key="idx"
+        class="rounded-xl border border-gray-200 bg-white px-4 sm:px-5 py-4 transition-opacity"
+        :class="dragIdx === idx ? 'opacity-40' : dragOverIdx === idx ? 'ring-2 ring-primary' : ''"
+        draggable="true"
+        @dragstart="dragIdx = idx"
+        @dragover.prevent="dragOverIdx = idx"
+        @drop.prevent="onDrop(idx)"
+        @dragend="dragIdx = null; dragOverIdx = null">
+
+        <!-- Name + time range -->
+        <div class="flex items-center gap-3">
+          <i class="pi pi-bars text-xs text-gray-300 cursor-grab shrink-0" />
+          <InputText v-model="tpl.name"
+            :placeholder="idx === 0 ? 'e.g. Morning' : idx === 1 ? 'e.g. Afternoon' : 'Session name'"
+            class="flex-1 min-w-0 h-9 text-sm font-medium" />
+          <div class="flex items-center gap-2 shrink-0">
+            <DatePicker v-model="tpl.startTime" timeOnly hourFormat="12" placeholder="9:00 AM" class="w-28" inputClass="h-9 text-sm px-2"
+              @update:model-value="v => onStartTimeChange(idx, v)" />
+            <span class="text-gray-300 text-sm">→</span>
+            <DatePicker v-model="tpl.endTime" timeOnly hourFormat="12" placeholder="12:00 PM" class="w-28" inputClass="h-9 text-sm px-2"
+              @update:model-value="v => onEndTimeChange(idx, v)" />
+          </div>
+          <button
+            class="flex items-center justify-center w-7 h-7 rounded-lg shrink-0 transition-colors"
+            :class="templates.length > 1 ? 'text-gray-300 hover:text-red-400 hover:bg-red-50' : 'text-gray-200 cursor-not-allowed'"
+            :disabled="templates.length <= 1"
+            @click="() => { if (templates.length > 1) templates.splice(idx, 1) }">
+            <i class="pi pi-times text-sm" />
+          </button>
+        </div>
+
+        <!-- Cost · Capacity · Location -->
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 mt-3 pt-3 border-t border-gray-100 pl-0 sm:pl-6">
+          <div class="flex items-center gap-2">
+            <label class="text-xs font-medium text-gray-400 w-14 shrink-0">Cost</label>
+            <div class="relative flex items-center">
+              <span class="absolute left-3 text-gray-400 text-sm pointer-events-none">$</span>
+              <InputNumber v-model="tpl.cost" :min="0" :minFractionDigits="2" :maxFractionDigits="2" placeholder="0.00" class="w-28" inputClass="pl-6 pr-2 h-9 text-sm text-right w-full" />
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-xs font-medium text-gray-400 shrink-0">Capacity</label>
+            <InputNumber v-model="tpl.limit" :min="1" placeholder="∞" inputClass="h-9 text-sm text-right w-full px-2" style="width:72px" />
+          </div>
+          <button v-if="showLocation" type="button"
+            class="h-9 text-sm text-left px-2.5 rounded-lg border border-gray-200 bg-white hover:border-gray-300 inline-flex items-center gap-2 flex-1 min-w-0 sm:max-w-xs"
+            @click="locDialogIdx = idx">
+            <i class="pi pi-map-marker text-xs shrink-0" :class="locSummary(tpl) ? 'text-primary' : 'text-gray-300'" />
+            <span class="flex-1 truncate" :class="locSummary(tpl) ? 'text-gray-700' : 'text-gray-400'">{{ locSummary(tpl) || 'Choose location…' }}</span>
+            <i class="pi pi-pencil text-[10px] text-gray-400 shrink-0" />
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="px-5 py-3.5 flex justify-end border-t border-gray-100">
       <Button label="Add Session Type" icon="pi pi-plus" size="small" severity="secondary" outlined @click="addTemplate" />
     </div>
@@ -114,6 +172,8 @@ const props = defineProps<{
   // per row → dialog). Off by default so the advanced builder / [id] Sessions
   // tab keep their existing bookable-venue column.
   showLocation?: boolean
+  // 'table' (default, compact grid) or 'panels' (roomy full-width stacked cards).
+  layout?: 'table' | 'panels'
 }>()
 
 function emptyLocation(): LocationEntry {

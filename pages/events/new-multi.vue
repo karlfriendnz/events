@@ -172,6 +172,7 @@
           :modelValue="templates"
           :daysCount="sessionDays.length"
           show-location
+          layout="panels"
           @update:modelValue="v => { templates.splice(0, templates.length, ...v) }" />
     </div>
 
