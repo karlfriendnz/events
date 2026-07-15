@@ -1319,7 +1319,8 @@ if (import.meta.client) {
   onBeforeUnmount(() => window.removeEventListener('resize', updateNarrow))
 }
 const bookingsCalView = computed<'day' | 'week' | 'month' | 'list'>(() =>
-  VIEW_MAP[calSettings.defaultView] ?? 'month',
+  // /programme is List-only, whatever the saved calendar prefs say.
+  isProgramme.value ? 'list' : (VIEW_MAP[calSettings.defaultView] ?? 'month'),
 )
 // Mobile shows a purpose-built upcoming-events list instead of the calendar grid.
 const mobileEventsList = computed(() => {
