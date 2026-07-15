@@ -669,17 +669,21 @@ function submitEventName() {
 //   custom + several  → the multi-session form
 const creationMode = ref<'wizard' | 'custom'>('wizard')
 
+// For now every event is assumed to be a single session — the "Is this event
+// split into sessions?" modal is skipped and both routes go straight down the
+// single-session path. (The modal + chooseMultiSession stay in place to restore
+// later: point these back at showSessionCountModal.value = true.)
 function startWizard() {
   if (!newEventName.value.trim()) return
   creationMode.value = 'wizard'
   showEventNameModal.value = false
-  showSessionCountModal.value = true
+  chooseSingleSession()
 }
 function startCustom() {
   if (!newEventName.value.trim()) return
   creationMode.value = 'custom'
   showEventNameModal.value = false
-  showSessionCountModal.value = true
+  chooseSingleSession()
 }
 // Straight into the full advanced builder — it already covers sessions, so it
 // skips the "split into sessions?" question the other two routes ask.
