@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1615 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1617 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (9 prompts)
+## Session 2026-07-14 22:10 (11 prompts)
 
 **22:10** — yay we are back
 
@@ -28823,4 +28823,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **05:24** — on the fees step in the modal when i click on the "Add discount" it should show me the same modal for the advanced event discounts
 
 **06:02** — continue
+
+**06:25** — looks good
+
+**06:26** — can we please hide the start from scratch
 

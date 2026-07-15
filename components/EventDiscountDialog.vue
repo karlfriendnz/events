@@ -111,7 +111,8 @@ function save() {
           <p class="text-xs text-gray-500 leading-relaxed">{{ tpl.description }}</p>
         </button>
       </div>
-      <button class="w-full text-left rounded-xl border border-dashed border-gray-300 hover:border-gray-400 px-4 py-3 flex items-center gap-3 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+      <!-- "Start from scratch" — temporarily hidden per request; flip v-if to restore. -->
+      <button v-if="false" class="w-full text-left rounded-xl border border-dashed border-gray-300 hover:border-gray-400 px-4 py-3 flex items-center gap-3 text-sm text-gray-500 hover:text-gray-700 transition-colors"
         @click="openBlank">
         <i class="pi pi-plus-circle text-gray-400" />
         Start from scratch
