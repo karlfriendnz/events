@@ -74,8 +74,8 @@
     </div>
     </div>
 
-    <!-- ── Labeled cards, two to a row (title above every field) ── -->
-    <div v-else class="p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <!-- ── Labeled cards, one session per row (title above every field) ── -->
+    <div v-else class="p-4 sm:p-5 space-y-4">
       <div v-for="(tpl, idx) in templates" :key="idx"
         class="rounded-xl border border-gray-200 bg-white px-4 sm:px-5 py-4 transition-opacity"
         :class="dragIdx === idx ? 'opacity-40' : dragOverIdx === idx ? 'ring-2 ring-primary' : ''"
