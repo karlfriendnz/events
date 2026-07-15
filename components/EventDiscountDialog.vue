@@ -156,15 +156,8 @@ function save() {
         <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
           <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Discount amount</p>
           <div class="rounded-lg border border-gray-200 overflow-hidden bg-white">
-            <div class="grid" style="grid-template-columns: auto 120px 1fr">
-              <!-- Type toggle -->
-              <div class="flex border-r border-gray-200">
-                <button v-for="ty in DISCOUNT_TYPES" :key="ty.value" type="button"
-                  class="px-5 py-2.5 text-sm font-semibold transition-all border-r border-gray-200 last:border-r-0"
-                  :class="draft.modifier_type === ty.value ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
-                  @click="draft.modifier_type = ty.value as any">{{ ty.label }}</button>
-              </div>
-              <!-- Value -->
+            <div class="grid" style="grid-template-columns: 120px auto 1fr">
+              <!-- Value (amount first) -->
               <div class="relative flex items-center border-r border-gray-200">
                 <span v-if="draft.modifier_type === 'FLAT'" class="absolute left-3 text-gray-400 text-sm pointer-events-none">{{ currencySymbol }}</span>
                 <InputNumber v-model="draft.modifier_value" placeholder="0" :min="0"
@@ -173,6 +166,13 @@ function save() {
                   inputClass="h-10 text-sm font-semibold text-center w-full border-0 shadow-none rounded-none"
                   :class="draft.modifier_type === 'FLAT' ? 'pl-5' : ''"
                   :pt="{ root: { class: 'w-full' }, input: { style: 'border:none; box-shadow:none; border-radius:0' } }" />
+              </div>
+              <!-- Type toggle -->
+              <div class="flex border-r border-gray-200">
+                <button v-for="ty in DISCOUNT_TYPES" :key="ty.value" type="button"
+                  class="px-5 py-2.5 text-sm font-semibold transition-all border-r border-gray-200 last:border-r-0"
+                  :class="draft.modifier_type === ty.value ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
+                  @click="draft.modifier_type = ty.value as any">{{ ty.label }}</button>
               </div>
               <!-- Applied to -->
               <div class="flex items-center px-3 gap-2">

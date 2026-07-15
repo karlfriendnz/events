@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1618 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1619 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (12 prompts)
+## Session 2026-07-14 22:10 (13 prompts)
 
 **22:10** — yay we are back
 
@@ -28829,4 +28829,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **06:26** — can we please hide the start from scratch
 
 **06:33** — please make it so that the conditions in this drop down refect the the 4  options [Image #1] hide the other ones for now
+
+**06:57** — [Image #2] this should be amount then type
 
