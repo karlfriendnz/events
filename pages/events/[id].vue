@@ -229,7 +229,7 @@
             <h2 class="text-sm font-semibold text-gray-900">{{ t('event', false) }} Discounts</h2>
             <p class="text-xs text-gray-500 mt-0.5">Create rules that automatically apply savings at checkout.</p>
           </div>
-          <Button icon="pi pi-plus" label="Add Discount" size="small" class="w-full sm:w-auto justify-center shrink-0" @click="showDiscountTemplatePicker = true; editingDiscountIdx = null" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+          <Button icon="pi pi-plus" label="Add Discount" size="small" class="w-full sm:w-auto justify-center shrink-0" @click="openDiscountFlow()" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
         </div>
 
         <!-- Discount cards (mobile) -->
@@ -2047,260 +2047,7 @@
   </Dialog>
 
   <!-- Discount Template Picker -->
-  <Dialog v-model:visible="showDiscountTemplatePicker" header="Add Discount" modal :style="{ width: '95vw', maxWidth: '560px' }">
-    <div class="py-1 space-y-4">
-      <p class="text-sm text-gray-500">Start from a template or build your own from scratch.</p>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <button v-for="tpl in discountTemplates" :key="tpl.label"
-          class="text-left rounded-xl border border-gray-200 hover:border-primary hover:bg-primary/5 transition-all px-4 py-3.5 group"
-          @click="openDiscountWithTemplate(tpl.preset)">
-          <div class="flex items-center gap-2.5 mb-1.5">
-            <div class="w-7 h-7 rounded-lg bg-primary/10 group-hover:bg-primary/15 flex items-center justify-center shrink-0 transition-colors">
-              <i class="pi text-primary text-sm" :class="tpl.icon" />
-            </div>
-            <span class="text-sm font-semibold text-gray-800">{{ tpl.label }}</span>
-          </div>
-          <p class="text-xs text-gray-500 leading-relaxed">{{ tpl.description }}</p>
-        </button>
-      </div>
-      <button class="w-full text-left rounded-xl border border-dashed border-gray-300 hover:border-gray-400 px-4 py-3 flex items-center gap-3 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-        @click="openBlankDiscount">
-        <i class="pi pi-plus-circle text-gray-400" />
-        Start from scratch
-      </button>
-    </div>
-  </Dialog>
-
-  <!-- Discount Rule Dialog -->
-  <Dialog v-model:visible="showDiscountDialog" modal :style="{ width: '95vw', maxWidth: '860px', padding: '0' }" :pt="{ header: { class: 'hidden' }, content: { class: 'p-0' }, footer: { class: 'hidden' } }" @hide="resetDiscountDraft">
-    <div class="flex flex-col" style="max-height:88vh">
-
-      <!-- Custom header -->
-      <div class="flex items-center justify-between px-6 py-3.5 border-b border-gray-100 shrink-0">
-        <div class="flex items-center gap-2.5">
-          <div class="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
-            <i class="pi pi-tag text-white" style="font-size:11px" />
-          </div>
-          <h2 class="text-sm font-semibold text-gray-800">{{ editingDiscountIdx !== null ? 'Edit Discount Rule' : 'New Discount Rule' }}</h2>
-        </div>
-        <button class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all"
-          @click="showDiscountDialog = false; resetDiscountDraft()">
-          <i class="pi pi-times text-xs" />
-        </button>
-      </div>
-
-      <!-- Scrollable body -->
-      <div class="flex-1 overflow-y-auto">
-
-        <!-- Names row -->
-        <div class="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4 border-b border-gray-100">
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Name <span class="text-red-400 normal-case font-normal tracking-normal">*</span></label>
-            <InputText v-model="discountDraft.name" placeholder="e.g. Family Deal" class="w-full text-sm h-9" autofocus />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Form label</label>
-            <InputText v-model="discountDraft.form_text" placeholder="What registrants see on the form" class="w-full text-sm h-9" />
-          </div>
-        </div>
-
-        <!-- Amount section -->
-        <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
-          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Discount amount</p>
-          <div class="rounded-lg border border-gray-200 overflow-hidden bg-white">
-            <div class="grid" style="grid-template-columns: auto 120px 1fr">
-              <!-- Type toggle -->
-              <div class="flex border-r border-gray-200">
-                <button v-for="t in discountTypes" :key="t.value" type="button"
-                  class="px-5 py-2.5 text-sm font-semibold transition-all border-r border-gray-200 last:border-r-0"
-                  :class="discountDraft.modifier_type === t.value ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
-                  @click="discountDraft.modifier_type = t.value">{{ t.label }}</button>
-              </div>
-              <!-- Value -->
-              <div class="relative flex items-center border-r border-gray-200">
-                <span v-if="discountDraft.modifier_type === 'FLAT'" class="absolute left-3 text-gray-400 text-sm pointer-events-none">$</span>
-                <InputNumber v-model="discountDraft.modifier_value" placeholder="0" :min="0"
-                  :max="discountDraft.modifier_type === 'PERCENT' ? 100 : undefined"
-                  :suffix="discountDraft.modifier_type === 'PERCENT' ? '%' : ''"
-                  inputClass="h-10 text-sm font-semibold text-center w-full border-0 shadow-none rounded-none"
-                  :class="discountDraft.modifier_type === 'FLAT' ? 'pl-5' : ''"
-                  :pt="{ root: { class: 'w-full' }, input: { style: 'border:none; box-shadow:none; border-radius:0' } }" />
-              </div>
-              <!-- Applied to -->
-              <div class="flex items-center px-3 gap-2">
-                <span class="text-xs text-gray-400 shrink-0 font-medium">applied to</span>
-                <Select v-model="discountDraft.apply_to" :options="applyToOptions" option-label="label" option-value="value"
-                  class="flex-1 text-sm"
-                  :pt="{ root: { style: 'border:none; box-shadow:none; background:transparent' } }" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Conditions section -->
-        <div class="px-5 py-4 border-b border-gray-100">
-          <div class="flex items-center justify-between mb-3">
-            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Conditions</p>
-            <span v-if="discountDraft.conditions.length > 1"
-              class="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full">
-              All must be met
-            </span>
-          </div>
-
-          <div v-if="discountDraft.conditions.length" class="rounded-lg border border-gray-200 overflow-hidden mb-3">
-            <!-- Column headers -->
-            <div class="grid bg-gray-50 border-b border-gray-200 px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide"
-              style="grid-template-columns: 300px 190px 200px 32px">
-              <span class="pl-1">Condition</span>
-              <span>Operator</span>
-              <span>Value</span>
-              <span />
-            </div>
-
-            <div v-for="(cond, i) in discountDraft.conditions" :key="i"
-              class="grid items-center px-3 border-b border-gray-100 last:border-0 group hover:bg-gray-50/60 transition-colors"
-              style="grid-template-columns: 300px 190px 200px 32px">
-
-              <!-- Condition selector -->
-              <div class="py-2 pr-2">
-                <Select
-                  :modelValue="cond.key"
-                  :options="conditionTypeOptions"
-                  optionLabel="label"
-                  optionValue="key"
-                  placeholder="Choose condition…"
-                  class="w-full text-sm"
-                  :pt="{ root: { style: 'border: none; box-shadow: none; background: transparent; padding: 0' } }"
-                  @update:modelValue="v => onConditionKeyChange(cond, v)" />
-              </div>
-
-              <!-- Operator -->
-              <div class="py-2 pr-2 border-l border-gray-100">
-                <template v-if="cond.key && getValueType(cond.key) === 'boolean'">
-                  <div class="flex rounded-md border border-gray-200 overflow-hidden text-xs font-semibold bg-white">
-                    <button type="button" class="flex-1 py-1.5 border-r border-gray-200 transition-all"
-                      :class="cond.operator === 'is_true' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
-                      @click="cond.operator = 'is_true'">Yes</button>
-                    <button type="button" class="flex-1 py-1.5 transition-all"
-                      :class="cond.operator === 'is_false' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
-                      @click="cond.operator = 'is_false'">No</button>
-                  </div>
-                </template>
-                <Select v-else-if="cond.key" v-model="cond.operator" :options="getOperatorOptions(cond.key)"
-                  optionLabel="label" optionValue="value" class="w-full text-sm"
-                  :pt="{ root: { style: 'border: none; box-shadow: none; background: transparent; padding: 0' } }" />
-                <div v-else class="h-9" />
-              </div>
-
-              <!-- Value -->
-              <div class="py-2 pr-2 pl-2 border-l border-gray-100">
-                <template v-if="cond.key && getValueType(cond.key) !== 'boolean'">
-                  <!-- number: full width -->
-                  <InputNumber v-if="getValueType(cond.key) === 'number'"
-                    v-model="cond.value" :min="0" inputClass="h-9 text-sm w-full px-3" class="w-full"
-                    :pt="{ root: { class: 'w-full' } }" />
-
-                  <!-- currency -->
-                  <div v-else-if="getValueType(cond.key) === 'currency'" class="flex items-center gap-1.5">
-                    <span class="text-sm text-gray-400 shrink-0">$</span>
-                    <InputNumber v-model="cond.value" :min="0" :minFractionDigits="2" :maxFractionDigits="2"
-                      inputClass="h-9 text-sm w-full px-3" class="flex-1" :pt="{ root: { class: 'flex-1' } }" />
-                  </div>
-
-                  <!-- range -->
-                  <div v-else-if="getValueType(cond.key) === 'range'" class="flex items-center gap-1.5">
-                    <InputNumber :modelValue="cond.value?.min"
-                      @update:modelValue="v => { if (!cond.value) cond.value = {}; cond.value.min = v }"
-                      :min="0" placeholder="Min" inputClass="h-9 text-sm text-center w-full px-2" class="flex-1" />
-                    <span class="text-gray-300 text-sm shrink-0">–</span>
-                    <InputNumber :modelValue="cond.value?.max"
-                      @update:modelValue="v => { if (!cond.value) cond.value = {}; cond.value.max = v }"
-                      :min="0" placeholder="Max" inputClass="h-9 text-sm text-center w-full px-2" class="flex-1" />
-                  </div>
-
-                  <!-- datetime: full width -->
-                  <DatePicker v-else-if="getValueType(cond.key) === 'datetime'"
-                    v-model="cond.value" showTime hourFormat="12" dateFormat="dd/mm/yy"
-                    inputClass="h-9 text-sm px-3 w-full" class="w-full" />
-
-                  <!-- string -->
-                  <InputText v-else-if="getValueType(cond.key) === 'string'"
-                    v-model="cond.value" placeholder="e.g. SAVE20" class="w-full font-mono text-sm h-9 px-3" />
-
-                  <!-- enum -->
-                  <Select v-else-if="getValueType(cond.key) === 'enum'"
-                    v-model="cond.value" :options="getConditionOptions(cond.key)" class="w-full text-sm"
-                    :pt="{ root: { style: 'border: none; box-shadow: none; background: transparent; padding: 0' } }" />
-
-                  <!-- array -->
-                  <MultiSelect v-else-if="getValueType(cond.key) === 'array'"
-                    v-model="cond.value" :options="getConditionOptions(cond.key)"
-                    placeholder="Select…" class="w-full text-sm" />
-                </template>
-                <div v-else class="h-9" />
-              </div>
-
-              <!-- Delete -->
-              <div class="flex justify-center border-l border-gray-100">
-                <button class="w-7 h-7 flex items-center justify-center rounded-md text-gray-300 hover:text-red-400 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
-                  @click="discountDraft.conditions.splice(i, 1)">
-                  <i class="pi pi-times text-xs" />
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <button type="button"
-            class="w-full flex items-center justify-center gap-2 text-sm text-gray-400 hover:text-primary border border-dashed border-gray-200 hover:border-primary/30 hover:bg-primary/[0.02] rounded-lg py-2.5 transition-all"
-            @click="addDiscountCondition">
-            <i class="pi pi-plus text-xs" /> Add condition
-          </button>
-        </div>
-
-        <!-- Valid window -->
-        <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
-          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Validity window</p>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Active from</label>
-              <Select v-model="discountDraft.valid_from_type"
-                :options="[{label:'Immediately (once saved)', value:'now'},{label:'Specific date…', value:'custom'}]"
-                option-label="label" option-value="value" class="w-full text-sm" />
-              <DatePicker v-if="discountDraft.valid_from_type === 'custom'" v-model="discountDraft.valid_from"
-                show-icon date-format="dd/mm/yy" class="w-full" />
-            </div>
-            <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Expires</label>
-              <Select v-model="discountDraft.expires_type"
-                :options="[{label:'When event starts', value:'event'},{label:'Specific date…', value:'custom'}]"
-                option-label="label" option-value="value" class="w-full text-sm" />
-              <DatePicker v-if="discountDraft.expires_type === 'custom'" v-model="discountDraft.expires_at"
-                show-icon date-format="dd/mm/yy" class="w-full" />
-            </div>
-          </div>
-        </div>
-
-        <!-- Settings toggles -->
-        <div class="px-5 py-3.5 flex items-center justify-between">
-          <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-            <ToggleSwitch v-model="discountDraft.is_active" />
-            Enabled
-          </label>
-          <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-            <ToggleSwitch v-model="discountDraft.save_as_template" />
-            Save as template
-          </label>
-        </div>
-      </div>
-
-      <!-- Footer buttons -->
-      <div class="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-gray-100 shrink-0">
-        <Button label="Cancel" severity="secondary" outlined size="small" @click="showDiscountDialog = false; resetDiscountDraft()" />
-        <Button :label="editingDiscountIdx !== null ? 'Save Changes' : 'Add Discount'" size="small" :disabled="!discountDraft.name" @click="saveDiscountDraft" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
-      </div>
-
-    </div>
-  </Dialog>
+  <EventDiscountDialog v-model:visible="showDiscountFlow" :edit="discountEditDraft" @save="onDiscountSave" />
 
   <!-- Ticket Type Dialog -->
   <Dialog v-model:visible="showTicketDialog" :header="editingTicket?.id ? 'Edit Ticket Type' : 'New Ticket Type'" modal :style="{ width: '95vw', maxWidth: '520px' }" @hide="ticketDraft = null">
@@ -2966,6 +2713,7 @@ const allTabs = [
 const basicTabs = ['overview', 'invitees', 'attendance', 'communication', 'notes', 'settings']
 
 import type { LocationEntry } from '~/composables/useLocation'
+import { makeDiscountDraft, type DiscountDraft } from '~/composables/useEventDiscounts'
 function defaultLocation(): LocationEntry { return { type: 'ADDRESS', venue_name: '', address: '', meeting_link: '', bookable_ids: [] } }
 
 const twoWeeksAgo = new Date()
@@ -3673,236 +3421,48 @@ async function loadDiscounts() {
   const { data } = await db.from('discounts').select('*').eq('event_id', id).order('created_at')
   if (data) eventDiscounts.value = data
 }
-const showDiscountDialog = ref(false)
+const showDiscountFlow = ref(false)
 const editingDiscountIdx = ref<number | null>(null)
+const discountEditDraft = ref<DiscountDraft | null>(null)
+// Condition-chip labels for the list rows come from the shared model.
+const { conditionLabel } = useEventDiscounts()
 
-const discountTypes = [
-  { label: '% Off', value: 'PERCENT' },
-  { label: '$ Off', value: 'FLAT' },
-]
-const applyToOptions = [
-  { label: 'Per Person', value: 'per_person' },
-  { label: 'Per Session', value: 'per_session' },
-  { label: 'Cheapest Item', value: 'cheapest_item' },
-  { label: 'Most Expensive', value: 'most_expensive_item' },
-  { label: 'Order Total', value: 'registration_total' },
-]
-// Config-driven condition system — each entry maps to {key, operator, value} stored in JSONB
-const CONDITION_DEFS: Record<string, { label: string; group: string; operators: string[]; valueType: string; options?: string[] }> = {
-  participant_age_min:                      { label: 'Participant min age',              group: 'Participant',   operators: ['>=', '>'],            valueType: 'number' },
-  participant_age_max:                      { label: 'Participant max age',              group: 'Participant',   operators: ['<=', '<'],            valueType: 'number' },
-  participant_age_between:                  { label: 'Participant age range',            group: 'Participant',   operators: ['between'],            valueType: 'range'  },
-  participant_member_status:                { label: 'Membership status',                group: 'Participant',   operators: ['is', 'is_not'],       valueType: 'enum',   options: ['active_member', 'member', 'non_member', 'inactive_member'] },
-  participant_membership_type:              { label: 'Membership type',                  group: 'Participant',   operators: ['in', 'not_in'],       valueType: 'array',  options: ['junior', 'senior', 'family', 'social', 'associate'] },
-  participant_category:                     { label: 'Participant category',             group: 'Participant',   operators: ['in', 'not_in'],       valueType: 'array',  options: ['junior', 'masters', 'open', 'recreational'] },
-  registration_group_size_min:              { label: 'Group size (people)',              group: 'Registration',  operators: ['>=', '>', '='],       valueType: 'number' },
-  registration_total_value_min:             { label: 'Cart total ($)',                   group: 'Registration',  operators: ['>=', '>'],            valueType: 'currency'},
-  booked_day_count_min:                     { label: 'Days booked',                      group: 'Registration',  operators: ['>=', '>'],            valueType: 'number' },
-  booked_session_count_min:                 { label: 'Sessions booked',                  group: 'Registration',  operators: ['>=', '>'],            valueType: 'number' },
-  ticket_quantity_min:                      { label: 'Ticket quantity',                  group: 'Registration',  operators: ['>=', '>', '='],       valueType: 'number' },
-  registration_date_before:                 { label: 'Register before',                  group: 'Registration',  operators: ['<=', '<'],            valueType: 'datetime'},
-  registration_within_first_n_registrations:{ label: 'Within first N registrations',    group: 'Registration',  operators: ['<='],                 valueType: 'number' },
-  promo_code:                               { label: 'Promo code',                       group: 'Registration',  operators: ['equals'],             valueType: 'string' },
-  event_category:                           { label: 'Event category',                   group: 'Event/Session', operators: ['in', 'not_in'],       valueType: 'array',  options: ['holiday_programme', 'tournament', 'workshop', 'class', 'camp'] },
-  session_category:                         { label: 'Session category',                 group: 'Event/Session', operators: ['in', 'not_in'],       valueType: 'array',  options: ['morning', 'afternoon', 'full_day', 'skills', 'fitness'] },
-  ticket_type:                              { label: 'Ticket type',                      group: 'Event/Session', operators: ['in', 'not_in'],       valueType: 'array',  options: ['adult', 'child', 'family_pass', 'concession'] },
-  day_index:                                { label: 'Event day number',                 group: 'Event/Session', operators: ['in', 'not_in'],       valueType: 'array'  },
-  usage_limit_per_discount:                 { label: 'Total uses cap',                   group: 'Limits',        operators: ['<=', '<'],            valueType: 'number' },
-  usage_limit_per_participant:              { label: 'Per-person uses cap',              group: 'Limits',        operators: ['<=', '<'],            valueType: 'number' },
-  combinable_with_other_discounts:          { label: 'Combinable with other discounts',  group: 'Limits',        operators: ['is_true', 'is_false'], valueType: 'boolean'},
-  // Cross-event eligibility — "if this person is already registered
-  // for one of these events, give them the discount". Powers the
-  // 'book this AND that → save' loyalty pattern. Stored as an array
-  // of event ids in cond.value; evaluated at registration time
-  // against the registrations table.
-  registered_for_event:                     { label: 'Already registered for',           group: 'Cross-event',   operators: ['in', 'in_all'],       valueType: 'event_array' },
-}
-
-const OPERATOR_LABELS: Record<string, string> = {
-  '>=': '≥ at least', '>': '> more than', '<=': '≤ at most', '<': '< less than',
-  '=': '= exactly', 'is': 'is', 'is_not': 'is not',
-  'in': 'is one of', 'not_in': 'is not one of',
-  'is_true': 'yes', 'is_false': 'no',
-  'between': 'between', 'equals': 'equals',
-}
-
-const conditionTypeGroups = computed(() => {
-  const groups: Record<string, any[]> = {}
-  for (const [key, def] of Object.entries(CONDITION_DEFS)) {
-    if (!groups[def.group]) groups[def.group] = []
-    groups[def.group].push({ key, label: def.label })
-  }
-  return Object.entries(groups).map(([label, items]) => ({ label, items }))
-})
-
-const conditionTypeOptions = computed(() =>
-  Object.entries(CONDITION_DEFS).map(([key, def]) => ({ key, label: def.label }))
-)
-
-function getConditionDef(key: string) { return CONDITION_DEFS[key] }
-function getOperatorOptions(key: string) {
-  return (CONDITION_DEFS[key]?.operators ?? []).map(op => ({ value: op, label: OPERATOR_LABELS[op] ?? op }))
-}
-function getValueType(key: string) { return CONDITION_DEFS[key]?.valueType ?? 'number' }
-function getConditionOptions(key: string) { return CONDITION_DEFS[key]?.options ?? [] }
-
-function onConditionKeyChange(cond: any, newKey: string) {
-  cond.key = newKey
-  const def = CONDITION_DEFS[newKey]
-  if (!def) return
-  cond.operator = def.operators[0]
-  if (def.valueType === 'number' || def.valueType === 'currency') cond.value = null
-  else if (def.valueType === 'range')    cond.value = { min: null, max: null }
-  else if (def.valueType === 'boolean')  cond.value = true
-  else if (def.valueType === 'enum')     cond.value = null
-  else if (def.valueType === 'array')    cond.value = []
-  else if (def.valueType === 'string')   cond.value = ''
-  else if (def.valueType === 'datetime') cond.value = null
-}
-
-function conditionLabel(c: any): string {
-  if (!c?.key) return '?'
-  const def = CONDITION_DEFS[c.key]
-  if (!def) return c.key
-  const opLabel = OPERATOR_LABELS[c.operator] ?? c.operator ?? ''
-  let valLabel = ''
-  if (def.valueType === 'boolean') valLabel = ''
-  else if (def.valueType === 'range') valLabel = `${c.value?.min ?? '?'}–${c.value?.max ?? '?'}`
-  else if (def.valueType === 'array') valLabel = Array.isArray(c.value) ? c.value.join(', ') : ''
-  else if (def.valueType === 'datetime') valLabel = c.value ? new Date(c.value).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '?'
-  else valLabel = String(c.value ?? '?')
-  return [def.label, opLabel, valLabel].filter(Boolean).join(' ')
-}
-
-function discountFormSummary(disc: any): string {
-  const conds = (disc.conditions ?? []) as any[]
-  const parts = conds.filter(c => c.key).map(c => conditionLabel(c))
-  if (!parts.length) return ''
-  const applyLabel: Record<string, string> = {
-    cheapest_item: 'cheapest item', most_expensive_item: 'most expensive item',
-    per_person: 'per person', per_session: 'per session', registration_total: 'off total',
-  }
-  const apply = applyLabel[disc.apply_to ?? 'per_person'] ?? ''
-  return parts.join(' + ') + (apply ? ` — ${apply}` : '')
-}
-
-const discountTemplates = [
-  {
-    label: 'Weekly package',
-    description: 'Book 5+ sessions, 20% off per session',
-    icon: 'pi-calendar-clock',
-    preset: { name: 'Weekly Package', form_text: '20% off when you book a full week', modifier_value: 20, modifier_type: 'PERCENT', apply_to: 'per_session',
-      conditions: [{ key: 'booked_session_count_min', operator: '>=', value: 5 }] },
-  },
-  {
-    label: 'Sibling discount',
-    description: 'Register 2+ people, cheapest gets 10% off',
-    icon: 'pi-users',
-    preset: { name: 'Sibling Discount', form_text: '10% off for additional registrants', modifier_value: 10, modifier_type: 'PERCENT', apply_to: 'cheapest_item',
-      conditions: [{ key: 'registration_group_size_min', operator: '>=', value: 2 }] },
-  },
-  {
-    label: 'Family deal',
-    description: 'Register 3+ people, cheapest gets 25% off',
-    icon: 'pi-heart',
-    preset: { name: 'Family Deal', form_text: '25% off the cheapest registration', modifier_value: 25, modifier_type: 'PERCENT', apply_to: 'cheapest_item',
-      conditions: [{ key: 'registration_group_size_min', operator: '>=', value: 3 }] },
-  },
-  {
-    label: 'Early bird',
-    description: 'Register before a cut-off date, % off total',
-    icon: 'pi-stopwatch',
-    preset: { name: 'Early Bird', form_text: 'Early bird discount', modifier_value: 10, modifier_type: 'PERCENT', apply_to: 'registration_total',
-      conditions: [{ key: 'registration_date_before', operator: '<=', value: null }] },
-  },
-  {
-    label: 'Promo code',
-    description: 'Registrant enters a code at checkout',
-    icon: 'pi-ticket',
-    preset: { name: 'Promo Code', form_text: 'Promo code discount', modifier_value: 15, modifier_type: 'PERCENT', apply_to: 'registration_total',
-      conditions: [{ key: 'promo_code', operator: 'equals', value: '' }] },
-  },
-  {
-    label: 'Age-based',
-    description: 'Auto-applies for a specific age range',
-    icon: 'pi-user',
-    preset: { name: 'Age Discount', form_text: 'Age-based discount', modifier_value: 10, modifier_type: 'PERCENT', apply_to: 'per_person',
-      conditions: [{ key: 'participant_age_between', operator: 'between', value: { min: null, max: null } }] },
-  },
-  {
-    label: 'Member discount',
-    description: 'Only applies to active members',
-    icon: 'pi-id-card',
-    preset: { name: 'Member Discount', form_text: 'Member discount', modifier_value: 10, modifier_type: 'PERCENT', apply_to: 'per_person',
-      conditions: [{ key: 'participant_member_status', operator: 'is', value: 'active_member' }] },
-  },
-  {
-    label: 'First 50 registrations',
-    description: 'Discount for the first 50 people to register',
-    icon: 'pi-bolt',
-    preset: { name: 'First 50', form_text: 'Early registration bonus', modifier_value: 15, modifier_type: 'PERCENT', apply_to: 'registration_total',
-      conditions: [{ key: 'registration_within_first_n_registrations', operator: '<=', value: 50 }] },
-  },
-]
-
-const showDiscountTemplatePicker = ref(false)
-
-const makeDiscountDraft = () => ({
-  name: '', form_text: '', is_active: true,
-  modifier_value: null as number | null, modifier_type: 'PERCENT', apply_to: 'per_person',
-  conditions: [] as any[], condition_to_add: null as string | null,
-  valid_from_type: 'now', valid_from: null as Date | null,
-  expires_type: 'event', expires_at: null as Date | null, save_as_template: false,
-})
-const discountDraft = reactive(makeDiscountDraft())
-
-function resetDiscountDraft() {
-  Object.assign(discountDraft, makeDiscountDraft())
+function openDiscountFlow() {
   editingDiscountIdx.value = null
+  discountEditDraft.value = null
+  showDiscountFlow.value = true
 }
 
-function openDiscountWithTemplate(preset: any) {
-  resetDiscountDraft()
-  Object.assign(discountDraft, {
-    name: preset.name, form_text: preset.form_text,
-    modifier_value: preset.modifier_value, modifier_type: preset.modifier_type,
-    apply_to: preset.apply_to,
-    conditions: JSON.parse(JSON.stringify(preset.conditions)),
-  })
-  showDiscountTemplatePicker.value = false
-  showDiscountDialog.value = true
-}
-
-function openBlankDiscount() {
-  resetDiscountDraft()
-  showDiscountTemplatePicker.value = false
-  showDiscountDialog.value = true
-}
-
-function addDiscountCondition() {
-  discountDraft.conditions.push({ key: null, operator: null, value: null })
+function rowToDiscountDraft(d: any): DiscountDraft {
+  return {
+    ...makeDiscountDraft(),
+    name: d.name ?? '', form_text: d.form_text ?? '', is_active: d.is_active ?? true,
+    modifier_value: d.modifier_value ?? null, modifier_type: d.modifier_type ?? 'PERCENT',
+    apply_to: d.apply_to ?? 'per_person',
+    conditions: JSON.parse(JSON.stringify(d.conditions ?? [])),
+    expires_type: d.expires_at ? 'custom' : 'event',
+    expires_at: d.expires_at ? new Date(d.expires_at) : null,
+  }
 }
 
 function editDiscount(idx: number) {
-  const d = eventDiscounts.value[idx]
-  Object.assign(discountDraft, { ...d, conditions: JSON.parse(JSON.stringify(d.conditions ?? [])), condition_to_add: null })
   editingDiscountIdx.value = idx
-  showDiscountDialog.value = true
+  discountEditDraft.value = rowToDiscountDraft(eventDiscounts.value[idx])
+  showDiscountFlow.value = true
 }
 
-async function saveDiscountDraft() {
-  if (!discountDraft.name) return
+async function onDiscountSave(draft: DiscountDraft) {
   const payload = {
     event_id: id,
     type: 'CODE' as const,
-    name: discountDraft.name,
-    form_text: discountDraft.form_text,
-    is_active: discountDraft.is_active,
-    modifier_value: discountDraft.modifier_value ?? 0,
-    modifier_type: discountDraft.modifier_type,
-    apply_to: discountDraft.apply_to,
-    conditions: JSON.parse(JSON.stringify(discountDraft.conditions)),
-    expires_at: discountDraft.expires_at ?? null,
+    name: draft.name,
+    form_text: draft.form_text,
+    is_active: draft.is_active,
+    modifier_value: draft.modifier_value ?? 0,
+    modifier_type: draft.modifier_type,
+    apply_to: draft.apply_to,
+    conditions: JSON.parse(JSON.stringify(draft.conditions)),
+    expires_at: draft.expires_type === 'custom' ? draft.expires_at : null,
   }
   const existing = editingDiscountIdx.value !== null ? eventDiscounts.value[editingDiscountIdx.value] : null
   if (existing?.id) {
@@ -3911,8 +3471,8 @@ async function saveDiscountDraft() {
     await db.from('discounts').insert(payload)
   }
   await loadDiscounts()
-  showDiscountDialog.value = false
-  resetDiscountDraft()
+  editingDiscountIdx.value = null
+  discountEditDraft.value = null
 }
 
 async function deleteDiscount(idx: number) {

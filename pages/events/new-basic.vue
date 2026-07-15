@@ -279,91 +279,46 @@
             <FeeLineItemsTable v-if="form.is_paid" v-model="form.fees" />
           </div>
 
-          <!-- Discounts — the SAME rule shape the booking discount engine
-               evaluates (useBookingDiscounts), built with the SAME criteria
-               editor as <BookingDiscountsList>. Not a second discount model. -->
+          <!-- Discounts — the SAME <EventDiscountDialog> + condition model as
+               the advanced event editor (useEventDiscounts). One discount
+               system, not a wizard-only variant. -->
           <div v-if="form.is_paid" class="bg-white rounded-xl border border-gray-200 p-5 space-y-4 mt-4">
             <div class="flex items-start justify-between gap-4">
               <div>
                 <p class="text-sm font-medium text-gray-700">Discounts</p>
                 <p class="text-xs text-gray-500 mt-0.5">Early bird, members only, siblings, promo codes — set who qualifies.</p>
               </div>
-              <Button label="Add discount" icon="pi pi-plus" size="small" severity="secondary" outlined @click="addDiscount" />
+              <Button label="Add discount" icon="pi pi-plus" size="small" severity="secondary" outlined @click="openDiscount" />
             </div>
 
             <div v-if="!form.discounts.length" class="text-center py-4 text-sm text-gray-400">
               No discounts. Everyone pays the full {{ money(totalFees) }}.
             </div>
 
-            <div v-else class="space-y-4">
-              <div v-for="(d, idx) in form.discounts" :key="d.id" class="border border-gray-200 rounded-xl overflow-hidden">
-                <div class="flex items-center gap-3 px-4 py-3 border-b border-gray-100 bg-gray-50">
-                  <InputText v-model="d.name" placeholder="Discount name — e.g. Early bird" size="small" class="flex-1" />
-                  <Button icon="pi pi-trash" text severity="danger" size="small" @click="form.discounts.splice(idx, 1)" />
+            <div v-else class="space-y-2">
+              <div v-for="(d, idx) in form.discounts" :key="d.id"
+                class="border border-gray-200 rounded-xl px-4 py-3 flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-sm font-semibold text-gray-800">{{ d.name || 'Untitled discount' }}</span>
+                    <span class="shrink-0 font-semibold text-primary text-sm">{{ discountAmountLabel(d) }}</span>
+                  </div>
+                  <div class="flex flex-wrap gap-1 mt-1.5">
+                    <span v-for="(c, ci) in d.conditions.filter(x => x.key)" :key="ci"
+                      class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-primary/8 text-primary">{{ conditionLabel(c) }}</span>
+                    <span v-if="!d.conditions.filter(x => x.key).length" class="text-xs text-gray-400 italic">Always applied</span>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1.5">{{ discountSummary(d) }}</p>
                 </div>
-
-                <div class="px-4 py-4 space-y-4">
-                  <!-- Amount first (it's the thing you're setting), then the
-                       unit it's in. The amount only needs room for a number. -->
-                  <div class="grid grid-cols-1 sm:grid-cols-[110px_140px_1fr] gap-3">
-                    <div class="min-w-0">
-                      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Amount</label>
-                      <!-- w-full on the INPUT too: PrimeVue's input keeps its own
-                           default width and overflows a narrow cell, covering the
-                           control next to it. -->
-                      <!-- Numbers only, no % suffix — the "Take off" toggle beside
-                           it already says whether it's a % or an amount. Decimals
-                           allowed for the odd $12.50; a % is capped at 100. -->
-                      <InputNumber v-model="d.modifier_value" :min="0"
-                        :max="d.modifier_type === 'PERCENT' ? 100 : undefined"
-                        :minFractionDigits="0" :maxFractionDigits="2"
-                        :useGrouping="false"
-                        size="small" class="w-full"
-                        :pt="{ root: { class: 'w-full' }, pcInputText: { root: { class: 'w-full', inputmode: 'decimal' } } }"
-                        @blur="clampDiscount(d)" />
-                    </div>
-                    <div class="min-w-0">
-                      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Take off</label>
-                      <div class="flex rounded-md border border-gray-200 overflow-hidden text-sm font-semibold bg-white">
-                        <button type="button" class="flex-1 py-2 border-r border-gray-200 transition-all"
-                          :class="d.modifier_type === 'PERCENT' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
-                          @click="d.modifier_type = 'PERCENT'; clampDiscount(d)">%</button>
-                        <button type="button" class="flex-1 py-2 transition-all"
-                          :class="d.modifier_type === 'FLAT' ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
-                          @click="d.modifier_type = 'FLAT'">{{ currencySymbol }}</button>
-                      </div>
-                    </div>
-                    <div class="min-w-0">
-                      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Promo code <span class="text-gray-400 font-normal normal-case">(optional)</span></label>
-                      <InputText v-model="d.form_text" placeholder="e.g. EARLY20" size="small" class="w-full" />
-                    </div>
-                  </div>
-
-                  <!-- The shared criteria builder — same vocabulary the engine evaluates. -->
-                  <DiscountCriteriaEditor v-model="d.conditions" :contexts="['Person']" :member-groups="discountMemberGroups" />
-
-                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                    <div>
-                      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Valid from</label>
-                      <DatePicker v-model="d.valid_from" show-icon date-format="dd/mm/yy" placeholder="Always" show-button-bar size="small" class="w-full" />
-                    </div>
-                    <div>
-                      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Valid until</label>
-                      <DatePicker v-model="d.valid_until" show-icon date-format="dd/mm/yy" placeholder="No end" show-button-bar size="small" class="w-full" />
-                    </div>
-                    <div>
-                      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Max uses</label>
-                      <InputNumber v-model="d.max_uses" :min="1" placeholder="Unlimited" size="small" class="w-full"
-                        :pt="{ root: { class: 'w-full' }, pcInputText: { root: { class: 'w-full' } } }" />
-                    </div>
-                  </div>
-
-                  <p class="text-xs text-gray-500">{{ discountSummary(d) }}</p>
+                <div class="flex items-center gap-1 shrink-0">
+                  <Button icon="pi pi-pencil" text size="small" severity="secondary" @click="editDiscount(idx)" />
+                  <Button icon="pi pi-trash" text size="small" severity="danger" @click="form.discounts.splice(idx, 1)" />
                 </div>
               </div>
             </div>
-
           </div>
+
+          <EventDiscountDialog v-model:visible="discountFlowOpen" :edit="discountEditDraft" :currency-symbol="currencySymbol" @save="onDiscountSave" />
         </div>
 
         <!-- ─ Invitees ─ -->
@@ -1177,7 +1132,7 @@ const form = reactive({
   is_paid: false,
   // Shared FeeLineItem shape (id / name / xero_code / amount) so <FeeLineItemsTable> can drive it.
   fees: [] as FeeLineItem[],
-  discounts: [] as DraftDiscount[],
+  discounts: [] as WizardDiscount[],
   // Settings
   banner_url: '',
   custom_terms: [] as string[],
@@ -1238,44 +1193,40 @@ const totalFees = computed(() =>
 )
 
 // ── Discounts ──────────────────────────────────────────────────────────────
-// Same rule shape useBookingDiscounts() evaluates, and the same criteria editor
-// <BookingDiscountsList> uses. One discount model, not a wizard-only variant.
-import type { DiscountCondition } from '~/composables/useBookingDiscounts'
+// The SAME modal + condition model as the advanced event editor
+// (<EventDiscountDialog> + useEventDiscounts). One discount system, not a
+// wizard-only variant; rows persist to `discounts` at saveEvent().
+import type { DiscountDraft } from '~/composables/useEventDiscounts'
+type WizardDiscount = DiscountDraft & { id: string }
 
-interface DraftDiscount {
-  id: string
-  name: string
-  form_text: string
-  modifier_type: 'PERCENT' | 'FLAT'
-  modifier_value: number | null
-  conditions: DiscountCondition[]
-  valid_from: Date | null
-  valid_until: Date | null
-  max_uses: number | null
-}
-
-const discountMemberGroups = ref<{ id: string; name: string }[]>([])
-// Feeds the "Member group" criterion in <DiscountCriteriaEditor>.
-onMounted(async () => {
-  const { data } = await (db.from as any)('member_groups')
-    .select('id, name').eq('org_id', orgId.value).order('name')
-  discountMemberGroups.value = data ?? []
-})
+const { conditionLabel } = useEventDiscounts()
+const discountFlowOpen = ref(false)
+const discountEditIdx = ref<number | null>(null)
+const discountEditDraft = ref<DiscountDraft | null>(null)
 
 const toIsoDate = (d: Date) => new Date(d).toISOString().slice(0, 10)
 
-function addDiscount() {
-  form.discounts.push({
-    id: crypto.randomUUID(),
-    name: '',
-    form_text: '',
-    modifier_type: 'PERCENT',
-    modifier_value: 10,
-    conditions: [],
-    valid_from: null,
-    valid_until: null,
-    max_uses: null,
-  })
+function openDiscount() {
+  discountEditIdx.value = null
+  discountEditDraft.value = null
+  discountFlowOpen.value = true
+}
+
+function editDiscount(idx: number) {
+  discountEditIdx.value = idx
+  discountEditDraft.value = JSON.parse(JSON.stringify(form.discounts[idx]))
+  discountFlowOpen.value = true
+}
+
+function onDiscountSave(draft: DiscountDraft) {
+  if (discountEditIdx.value !== null) {
+    const keepId = form.discounts[discountEditIdx.value].id
+    form.discounts.splice(discountEditIdx.value, 1, { id: keepId, ...draft })
+  } else {
+    form.discounts.push({ id: crypto.randomUUID(), ...draft })
+  }
+  discountEditIdx.value = null
+  discountEditDraft.value = null
 }
 
 const currencySymbol = computed(() => {
@@ -1284,24 +1235,18 @@ const currencySymbol = computed(() => {
   return parts.find(p => p.type === 'currency')?.value ?? '$'
 })
 
-// PrimeVue's :max isn't enforced while typing — 3433% was reachable. Clamp on blur,
-// and again whenever the unit flips from $ to %.
-function clampDiscount(d: DraftDiscount) {
-  if (d.modifier_value == null) return
-  if (d.modifier_value < 0) d.modifier_value = 0
-  if (d.modifier_type === 'PERCENT' && d.modifier_value > 100) d.modifier_value = 100
+function discountAmountLabel(d: WizardDiscount) {
+  const v = d.modifier_value ?? 0
+  return d.modifier_type === 'PERCENT' ? `${v}% off` : `${money(v)} off`
 }
 
-function discountSummary(d: DraftDiscount) {
+function discountSummary(d: WizardDiscount) {
   const v = d.modifier_value ?? 0
   if (!v) return 'Set an amount to see what this takes off.'
   const off = d.modifier_type === 'PERCENT' ? (totalFees.value * v) / 100 : Math.min(v, totalFees.value)
-  const label = d.modifier_type === 'PERCENT' ? `${v}% off` : `${money(v)} off`
-  const code = d.form_text?.trim() ? ` with code ${d.form_text.trim().toUpperCase()}` : ''
-  const who = d.conditions.filter(c => c.key).length
-    ? ` for anyone matching ${d.conditions.filter(c => c.key).length} criteria`
-    : ' for everyone'
-  return `${label}${code}${who} — they'd pay ${money(Math.max(0, totalFees.value - off))} instead of ${money(totalFees.value)}.`
+  const conds = d.conditions.filter(c => c.key).length
+  const who = conds ? ` for anyone matching ${conds} ${conds === 1 ? 'condition' : 'conditions'}` : ' for everyone'
+  return `They'd pay ${money(Math.max(0, totalFees.value - off))} instead of ${money(totalFees.value)}${who}.`
 }
 
 // ── Live summary rail ──────────────────────────────────────────────────────
@@ -1448,7 +1393,7 @@ async function saveEvent() {
       }))
       if (feeRows.length) await db.from('fee_components').insert(feeRows)
 
-      // Discounts — same shape the event editor's Discounts tab writes.
+      // Discounts — same shape (and modal) the advanced event editor writes.
       const discountRows = form.discounts
         .filter(d => d.name.trim())
         .map(d => ({
@@ -1456,15 +1401,12 @@ async function saveEvent() {
           type: 'CODE' as const,
           name: d.name.trim(),
           form_text: d.form_text?.trim() || null,
-          is_active: true,
+          is_active: d.is_active,
           modifier_value: d.modifier_value ?? 0,
           modifier_type: d.modifier_type,
-          apply_to: 'BOOKING',
-          // The engine's condition vocabulary — evaluated by qualifies().
+          apply_to: d.apply_to,
           conditions: JSON.parse(JSON.stringify(d.conditions.filter(c => c.key))),
-          valid_from: d.valid_from ? toIsoDate(d.valid_from) : null,
-          valid_until: d.valid_until ? toIsoDate(d.valid_until) : null,
-          max_uses: d.max_uses ?? null,
+          expires_at: d.expires_type === 'custom' && d.expires_at ? toIsoDate(d.expires_at) : null,
         }))
       if (discountRows.length) await db.from('discounts').insert(discountRows)
     }
