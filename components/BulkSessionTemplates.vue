@@ -22,6 +22,7 @@
       <span>End</span>
       <span>Limit</span>
       <span v-if="bookableTree?.length">Location</span>
+      <span v-if="showLocation">Location</span>
       <span />
     </div>
 
@@ -54,6 +55,13 @@
         class="w-full h-9 text-sm"
         @node-select="(n: any) => tpl.bookableId = n.key"
         @node-unselect="() => tpl.bookableId = null" />
+      <!-- Per-session location — same button+dialog as the group session-times editor -->
+      <button v-if="showLocation" type="button"
+        class="h-9 text-sm text-left px-2.5 rounded-lg border border-gray-200 bg-white hover:border-gray-300 inline-flex items-center justify-between gap-2 w-full"
+        @click="locDialogIdx = idx">
+        <span :class="locSummary(tpl) ? 'text-gray-700 truncate' : 'text-gray-400'">{{ locSummary(tpl) || 'Choose location…' }}</span>
+        <i class="pi pi-pencil text-[10px] text-gray-400 shrink-0" />
+      </button>
       <button
         class="flex items-center justify-center w-7 h-7 rounded-lg transition-colors"
         :class="templates.length > 1 ? 'text-gray-300 hover:text-red-400 hover:bg-red-50' : 'text-gray-200 cursor-not-allowed'"
@@ -68,11 +76,25 @@
     <div class="px-5 py-3.5 flex justify-end border-t border-gray-100">
       <Button label="Add Session Type" icon="pi pi-plus" size="small" severity="secondary" outlined @click="addTemplate" />
     </div>
+
+    <!-- Session location picker — the shared <LocationEditor> in a dialog -->
+    <Dialog :visible="locDialogIdx !== null" @update:visible="v => { if (!v) locDialogIdx = null }"
+      modal header="Session location" :style="{ width: '95vw', maxWidth: '640px' }">
+      <LocationEditor v-if="locDialogIdx !== null"
+        :model-value="templates[locDialogIdx].location ?? []" :multi="false"
+        @update:model-value="(v: LocationEntry[]) => { templates[locDialogIdx!].location = v }" />
+      <template #footer>
+        <Button label="Done" size="small" @click="locDialogIdx = null" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+      </template>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { reactive, computed, ref } from 'vue'
+
+import type { LocationEntry } from '~/composables/useLocation'
+// locationSummary is a module-level export auto-imported by Nuxt (no useLocation()).
 
 export interface BulkTemplate {
   name: string
@@ -81,13 +103,27 @@ export interface BulkTemplate {
   endTime: Date | null
   limit: number | null
   bookableId?: string | null
+  location?: LocationEntry[]
 }
 
 const props = defineProps<{
   modelValue: BulkTemplate[]
   bookableTree?: any[]
   daysCount?: number
+  // Opt-in: a full Address/Venue/Online location per session template (a button
+  // per row → dialog). Off by default so the advanced builder / [id] Sessions
+  // tab keep their existing bookable-venue column.
+  showLocation?: boolean
 }>()
+
+function emptyLocation(): LocationEntry {
+  return { type: 'ADDRESS', venue_name: '', address: '', meeting_link: '', bookable_ids: [] }
+}
+function locSummary(tpl: BulkTemplate) {
+  return tpl.location?.length ? locationSummary(tpl.location) : ''
+}
+
+const locDialogIdx = ref<number | null>(null)
 
 const emit = defineEmits<{
   'update:modelValue': [BulkTemplate[]]
@@ -102,11 +138,12 @@ const totalSessions = computed(() => (props.daysCount ?? 0) * templates.value.fi
 
 const hasLocation = computed(() => (props.bookableTree?.length ?? 0) > 0)
 
-const colStyle = computed(() =>
-  hasLocation.value
-    ? 'grid-template-columns: 28px 1fr 80px 95px 95px 55px 200px 28px'
-    : 'grid-template-columns: 28px 1fr 80px 95px 95px 55px 28px'
-)
+const colStyle = computed(() => {
+  const mid = '28px 1fr 80px 95px 95px 55px'
+  const venue = hasLocation.value ? ' 200px' : ''
+  const loc = props.showLocation ? ' 180px' : ''
+  return `grid-template-columns: ${mid}${venue}${loc} 28px`
+})
 
 const dragIdx = ref<number | null>(null)
 const dragOverIdx = ref<number | null>(null)
@@ -173,6 +210,7 @@ function addTemplate() {
     endTime,
     limit: null,
     bookableId: null,
+    location: [emptyLocation()],
   }
   emit('update:modelValue', [...templates.value, newTpl])
 }

@@ -50,16 +50,6 @@
           </div>
         </div>
 
-        <!-- Location — one place for the whole programme; every session inherits it -->
-        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div class="px-5 py-3 border-b border-gray-100 bg-gray-50">
-            <h2 class="text-sm font-semibold text-gray-700">Location</h2>
-          </div>
-          <div class="px-5 py-4">
-            <LocationEditor v-model="form.locations" />
-          </div>
-        </div>
-
         <!-- Dates -->
         <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div class="px-5 py-3 border-b border-gray-100 bg-gray-50">
@@ -94,18 +84,27 @@
                 Exclude public holidays
               </label>
             </div>
-            <!-- Exclude specific dates within the range -->
+            <!-- Skip specific dates — same design as the event wizard (RecurrenceExclusions) -->
             <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-start gap-1.5 sm:gap-4">
-              <label class="text-sm font-medium text-gray-700 sm:pt-2">Exclude dates</label>
-              <div class="min-w-0">
-                <DatePicker v-model="form.excludeDates" selectionMode="multiple" :manual-input="false"
-                  dateFormat="dd/mm/yy" showIcon fluid
-                  :minDate="form.startDate ?? undefined" :maxDate="form.endDate ?? undefined"
+              <label class="text-sm font-medium text-gray-700 sm:pt-2">Skip dates</label>
+              <div class="min-w-0 space-y-2">
+                <button type="button"
+                  class="inline-flex items-center gap-2 h-9 px-3 rounded-lg border text-sm transition-colors disabled:opacity-50"
+                  :class="form.exdates.length ? 'border-primary/40 bg-primary/5 text-primary' : 'border-gray-300 text-gray-600 hover:border-gray-400'"
                   :disabled="!form.startDate || !form.endDate"
-                  placeholder="Pick days to skip" class="w-full sm:max-w-md" />
-                <p v-if="form.excludeDates.length" class="text-xs text-gray-500 mt-1.5">
-                  Skipping {{ form.excludeDates.length }} day{{ form.excludeDates.length !== 1 ? 's' : '' }} — they won't get sessions.
-                </p>
+                  @click="skipDatesOpen = true">
+                  <i class="pi pi-calendar-times text-xs" />
+                  {{ form.exdates.length ? `${form.exdates.length} skipped` : 'Skip dates' }}
+                </button>
+                <div v-if="form.exdates.length" class="flex flex-wrap items-center gap-1">
+                  <span class="text-[11px] text-gray-500 mr-1">Skipped:</span>
+                  <span v-for="key in sortedExdates" :key="key"
+                    class="inline-flex items-center gap-1 text-[11px] bg-gray-100 text-gray-600 rounded-full pl-2 pr-1 py-0.5">
+                    {{ key }}
+                    <button type="button" class="hover:text-red-500" @click="form.exdates = form.exdates.filter(k => k !== key)"><i class="pi pi-times text-[9px]" /></button>
+                  </span>
+                  <button type="button" class="text-[11px] text-gray-400 hover:text-gray-700 ml-1" @click="form.exdates = []">Clear all</button>
+                </div>
               </div>
             </div>
             <!-- Day count preview -->
@@ -134,11 +133,25 @@
           </div>
         </div>
 
-        <!-- Session Templates -->
+        <!-- Session Templates — each carries its own location (per daily session) -->
         <BulkSessionTemplates
           :modelValue="templates"
           :daysCount="sessionDays.length"
+          show-location
           @update:modelValue="v => { templates.splice(0, templates.length, ...v) }" />
+
+        <!-- Skip-dates calendar — the same component the event wizard uses -->
+        <Dialog v-model:visible="skipDatesOpen" modal header="Skip dates" :style="{ width: '95vw', maxWidth: '480px' }" :pt="{ content: { class: 'p-4' } }">
+          <RecurrenceExclusions
+            :model-value="form.exdates"
+            :rrule="dailyRule"
+            :base-date="form.startDate"
+            :range-end="form.endDate"
+            @update:model-value="(v: string[]) => form.exdates = v" />
+          <template #footer>
+            <Button label="Done" size="small" @click="skipDatesOpen = false" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+          </template>
+        </Dialog>
 
         <!-- Preview summary -->
         <div v-if="canCreate" class="bg-primary/5 border border-primary/20 rounded-xl px-5 py-4">
@@ -190,17 +203,21 @@ const form = reactive({
   endDate: parseDateParam(route.query.endDate as string ?? null),
   includeWeekends: true,
   excludePublicHolidays: false,
-  excludeDates: [] as Date[],
+  exdates: [] as string[],           // YYYY-MM-DD, same model as the wizard's Skip-dates
   regOpen: null as Date | null,
   regClose: null as Date | null,
-  locations: [{ type: 'ADDRESS', venue_name: '', address: '', meeting_link: '', bookable_ids: [] as string[] }] as LocationEntry[],
 })
 
-// Local Y-M-D so an excluded date matches the loop day regardless of timezone.
+// Local Y-M-D so a skipped date matches the loop day regardless of timezone.
 function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
-const excludedYmd = computed(() => new Set(form.excludeDates.map(ymd)))
+const excludedYmd = computed(() => new Set(form.exdates))
+// A daily rule across the range so <RecurrenceExclusions> treats every programme
+// day as a skippable occurrence (the calendar the event wizard uses).
+const dailyRule = 'FREQ=DAILY'
+const skipDatesOpen = ref(false)
+const sortedExdates = computed(() => [...form.exdates].sort())
 
 // <DateTimeEditor> models date + time separately; the sign-up window is stored
 // as two single date-times. Split on read, merge on write (same as the wizard).
@@ -232,10 +249,13 @@ const regCloseTime = computed({ get: () => form.regClose, set: (v: Date | null) 
 function makeTime(h: number, m = 0) {
   const d = new Date(); d.setHours(h, m, 0, 0); return d
 }
+function emptyLoc(): LocationEntry {
+  return { type: 'ADDRESS', venue_name: '', address: '', meeting_link: '', bookable_ids: [] }
+}
 
 const templates = reactive([
-  { name: 'Morning',   cost: null as number | null, startTime: makeTime(9),  endTime: makeTime(12), limit: null as number | null },
-  { name: 'Afternoon', cost: null as number | null, startTime: makeTime(13), endTime: makeTime(17), limit: null as number | null },
+  { name: 'Morning',   cost: null as number | null, startTime: makeTime(9),  endTime: makeTime(12), limit: null as number | null, location: [emptyLoc()] as LocationEntry[] },
+  { name: 'Afternoon', cost: null as number | null, startTime: makeTime(13), endTime: makeTime(17), limit: null as number | null, location: [emptyLoc()] as LocationEntry[] },
 ])
 
 // Compute all days in the programme range
@@ -280,10 +300,9 @@ function buildDatetime(day: Date, timePicker: Date | null, fallbackHour = 0): st
   return d.toISOString()
 }
 
-// One location for the whole programme → the flat session location columns
-// (sessions have no locations jsonb; the event keeps the full array).
-function locationCols() {
-  const l = form.locations[0]
+// A session's location (a single LocationEntry) → the flat session location
+// columns. Sessions have no locations jsonb, so we store the flat trio.
+function locationCols(l?: LocationEntry) {
   return {
     location_type: (l?.type ?? 'ADDRESS') as 'ADDRESS' | 'ONLINE' | 'BOOKABLE',
     address: l?.type === 'ADDRESS' ? (l.address || null) : null,
@@ -306,8 +325,9 @@ async function createEvent() {
       end_at: combineDT(form.endDate, null)!.toISOString(),
       is_public: true,
       is_programme: route.query.programme === '1',
-      locations: form.locations,
-      ...locationCols(),
+      // Event-level location = the first session's location (each session carries its own).
+      locations: namedTemplates.value[0]?.location ?? [emptyLoc()],
+      ...locationCols(namedTemplates.value[0]?.location?.[0]),
     }).select('id').single()
 
     if (evtErr || !evt?.id) throw evtErr ?? new Error('Failed to create event')
@@ -329,7 +349,7 @@ async function createEvent() {
         capacity_max: tpl.limit ?? null,
         is_required: false,
         is_public: true,
-        ...locationCols(),
+        ...locationCols(tpl.location?.[0]),
         display_on_form: true,
         is_master: true,
         master_id: null,
@@ -348,7 +368,7 @@ async function createEvent() {
           capacity_max: tpl.limit ?? null,
           is_required: false,
           is_public: true,
-          ...locationCols(),
+          ...locationCols(tpl.location?.[0]),
           display_on_form: true,
           is_master: false,
           master_id: master.id,
