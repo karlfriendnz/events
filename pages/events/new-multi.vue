@@ -1,23 +1,62 @@
 <template>
-  <div class="flex flex-col h-[calc(100vh-3.5rem-4rem)] md:h-[calc(100vh-3.5rem)]">
-    <!-- Header -->
-    <div class="bg-white border-b border-gray-200 px-4 sm:px-6 py-3.5 flex items-center justify-between shrink-0">
-      <div class="flex items-center gap-3">
-        <NuxtLink to="/events" class="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1">
-          <i class="pi pi-chevron-left text-xs" /> Events
-        </NuxtLink>
-        <span class="text-gray-300">/</span>
-        <span class="text-sm font-medium text-gray-800">New Multi-Session Event</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <Button label="Cancel" severity="secondary" outlined size="small" @click="navigateTo('/events')" />
-        <Button label="Create Event" icon="pi pi-check" size="small" :loading="saving" :disabled="!canCreate" @click="createEvent" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
-      </div>
-    </div>
+  <WizardShell
+    v-model="step"
+    :steps="WIZARD_STEPS"
+    :title="wizardTitle"
+    :can-next="canNext"
+    :saving="saving"
+    finish-label="Create programme"
+    @finish="createEvent"
+    @close="navigateTo('/events')">
 
-    <!-- Content -->
-    <div class="flex-1 overflow-y-auto bg-[#F5F8FA]">
-      <div class="max-w-[1140px] mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6">
+    <!-- ── Live summary rail ── -->
+    <template #summary>
+      <div class="p-5 space-y-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Programme</p>
+          <p class="text-lg font-semibold mt-1" :class="form.title.trim() ? 'text-gray-900' : 'text-gray-400'">
+            {{ form.title.trim() || 'Untitled programme' }}
+          </p>
+        </div>
+
+        <div class="border-t border-gray-100 pt-3 space-y-3">
+          <div class="flex items-start gap-2">
+            <i class="pi pi-calendar text-xs mt-1 shrink-0" :class="form.startDate ? 'text-primary' : 'text-gray-300'" />
+            <div class="min-w-0">
+              <p class="text-sm" :class="form.startDate ? 'text-gray-800' : 'text-gray-400'">{{ summaryWhen }}</p>
+              <p v-if="form.exdates.length" class="text-xs text-red-500 mt-0.5">{{ form.exdates.length }} date{{ form.exdates.length !== 1 ? 's' : '' }} skipped</p>
+            </div>
+          </div>
+          <div class="flex items-start gap-2">
+            <i class="pi pi-clock text-xs mt-1 shrink-0" :class="sessionDays.length ? 'text-primary' : 'text-gray-300'" />
+            <p class="text-sm" :class="sessionDays.length ? 'text-gray-800' : 'text-gray-400'">
+              {{ sessionDays.length ? `${sessionDays.length} day${sessionDays.length !== 1 ? 's' : ''} in the programme` : 'No days yet' }}
+            </p>
+          </div>
+          <div class="flex items-start gap-2">
+            <i class="pi pi-user-plus text-xs mt-1 shrink-0" :class="form.regOpen ? 'text-primary' : 'text-gray-300'" />
+            <p class="text-sm" :class="form.regOpen ? 'text-gray-800' : 'text-gray-400'">{{ summarySignup }}</p>
+          </div>
+        </div>
+
+        <div class="border-t border-gray-100 pt-3">
+          <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Sessions per day</p>
+          <div v-if="namedTemplates.length" class="space-y-1.5">
+            <div v-for="t in namedTemplates" :key="t.name" class="flex items-center justify-between gap-2 text-sm">
+              <span class="text-gray-800 truncate">{{ t.name }}</span>
+              <span class="text-xs text-gray-400 shrink-0">{{ fmtTimeShort(t.startTime) }}–{{ fmtTimeShort(t.endTime) }}</span>
+            </div>
+            <div class="flex items-center justify-between gap-2 text-xs font-semibold text-gray-800 mt-1 pt-2 border-t border-gray-100">
+              <span>Total sessions</span><span>{{ totalSessions }}</span>
+            </div>
+          </div>
+          <p v-else class="text-sm text-gray-400">No session templates yet</p>
+        </div>
+      </div>
+    </template>
+
+    <!-- ── Step 1 · Event details ── -->
+    <div v-show="step === 0" class="space-y-6">
 
         <!-- Event Details -->
         <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -123,6 +162,10 @@
               row-padding="px-0 py-2" />
           </div>
         </div>
+    </div>
+
+    <!-- ── Step 2 · Session details ── -->
+    <div v-show="step === 1" class="space-y-6">
 
         <!-- Session Templates — each carries its own location (per daily session) -->
         <BulkSessionTemplates
@@ -130,33 +173,21 @@
           :daysCount="sessionDays.length"
           show-location
           @update:modelValue="v => { templates.splice(0, templates.length, ...v) }" />
-
-        <!-- Skip-dates calendar — the same component the event wizard uses -->
-        <Dialog v-model:visible="skipDatesOpen" modal header="Skip dates" :style="{ width: '95vw', maxWidth: '480px' }" :pt="{ content: { class: 'p-4' } }">
-          <RecurrenceExclusions
-            :model-value="form.exdates"
-            :rrule="dailyRule"
-            :base-date="form.startDate"
-            :range-end="form.endDate"
-            @update:model-value="(v: string[]) => form.exdates = v" />
-          <template #footer>
-            <Button label="Done" size="small" @click="skipDatesOpen = false" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
-          </template>
-        </Dialog>
-
-        <!-- Preview summary -->
-        <div v-if="canCreate" class="bg-primary/5 border border-primary/20 rounded-xl px-5 py-4">
-          <p class="text-sm font-semibold text-primary mb-2">Ready to create</p>
-          <ul class="text-sm text-gray-600 space-y-1">
-            <li><i class="pi pi-calendar text-primary mr-2 text-xs" /><strong>{{ form.title }}</strong></li>
-            <li><i class="pi pi-clock text-primary mr-2 text-xs" />{{ sessionDays.length }} days · {{ templates.filter(t => t.name.trim()).length }} session template{{ templates.filter(t => t.name.trim()).length !== 1 ? 's' : '' }} per day</li>
-            <li><i class="pi pi-list text-primary mr-2 text-xs" /><strong>{{ totalSessions }}</strong> sessions will be created automatically</li>
-          </ul>
-        </div>
-
-      </div>
     </div>
-  </div>
+
+    <!-- Skip-dates calendar (opened from the Programme dates on step 1; teleports) -->
+    <Dialog v-model:visible="skipDatesOpen" modal header="Skip dates" :style="{ width: '95vw', maxWidth: '480px' }" :pt="{ content: { class: 'p-4' } }">
+      <RecurrenceExclusions
+        :model-value="form.exdates"
+        :rrule="dailyRule"
+        :base-date="form.startDate"
+        :range-end="form.endDate"
+        @update:model-value="(v: string[]) => form.exdates = v" />
+      <template #footer>
+        <Button label="Done" size="small" @click="skipDatesOpen = false" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+      </template>
+    </Dialog>
+  </WizardShell>
 </template>
 
 <script setup lang="ts">
@@ -290,6 +321,33 @@ const canCreate = computed(() =>
   sessionDays.value.length > 0 &&
   namedTemplates.value.length > 0
 )
+
+// ── Wizard chrome (shared <WizardShell>) — Event details → Session details ──
+const step = ref(0)
+const WIZARD_STEPS = [
+  { key: 'details', label: 'Event details' },
+  { key: 'sessions', label: 'Session details' },
+]
+const wizardTitle = computed(() => form.title.trim() || 'New programme')
+// Step 1 needs a name + a valid programme range to advance; the final step's
+// Create is gated on canCreate (also needs generated days + a named template).
+const canNext = computed(() => step.value === 0
+  ? (!!form.title.trim() && !!form.startDate && !!form.endDate)
+  : canCreate.value)
+
+// ── Live summary rail (right side of the wizard) ──
+const fmtDay = (d: Date | null, withYear = false) =>
+  d ? d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', ...(withYear ? { year: 'numeric' } : {}) }) : '—'
+const fmtTimeShort = (d: Date | null) =>
+  d ? d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) : ''
+const summaryWhen = computed(() => {
+  if (!form.startDate) return 'Set the programme dates'
+  return `${fmtDay(form.startDate)} – ${fmtDay(form.endDate, true)}`
+})
+const summarySignup = computed(() => {
+  if (!form.regOpen && !form.regClose) return 'Sign-up window not set'
+  return `Sign-ups ${fmtDay(form.regOpen)} → ${fmtDay(form.regClose)}`
+})
 
 function buildDatetime(day: Date, timePicker: Date | null, fallbackHour = 0): string {
   const d = new Date(day)

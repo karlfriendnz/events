@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1629 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1630 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (23 prompts)
+## Session 2026-07-14 22:10 (24 prompts)
 
 **22:10** — yay we are back
 
@@ -28852,4 +28852,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > crumbs.map is not a function
 
 **22:21** — why is the left menu item not working
+
+**23:17** — ok lets make the programmes a wizard, first step is the deailts of the event, the next one is the session deatils, use the same layout as the other wizards
 
