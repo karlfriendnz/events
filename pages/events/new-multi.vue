@@ -95,6 +95,8 @@
               :show-time="false"
               :show-all-day="false"
               :show-repeat="false"
+              :min-start-date="today"
+              :min-end-date="form.startDate ?? today"
               label="Programme dates"
               required
               label-width="w-[160px]"
@@ -202,6 +204,9 @@ const route = useRoute()
 const toast = useToast()
 
 const saving = ref(false)
+
+// An event can't be in the past — the programme can't start before today.
+const today = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d })()
 
 // Parse optional date from calendar click
 function parseDateParam(p: string | null) {
