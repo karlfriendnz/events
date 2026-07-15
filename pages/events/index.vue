@@ -662,6 +662,15 @@ const calendarRef = ref()
 function openEventTypeModal(date?: string, endDate?: string) {
   clickedDate.value = date ?? null
   clickedEndDate.value = endDate ?? null
+  // A programme IS a multi-session event — creating one goes straight to the
+  // multi-session builder, skipping the "how do you want to build it?" modal.
+  if (isProgramme.value) {
+    const params = new URLSearchParams({ programme: '1' })
+    if (date) params.set('date', date)
+    if (endDate) params.set('endDate', endDate)
+    navigateTo(`/events/new-multi?${params}`)
+    return
+  }
   newEventName.value = ''
   showEventNameModal.value = true
 }
