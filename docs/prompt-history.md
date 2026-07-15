@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1621 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1624 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (15 prompts)
+## Session 2026-07-14 22:10 (18 prompts)
 
 **22:10** — yay we are back
 
@@ -28818,7 +28818,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 
 **03:56** — use kbmedia.nz as the domain
 
-**03:59** — re_ZZCFmh75_EqGyq6XaStaFCBSMTdQhQ64a
+**03:59** — [REDACTED]
 
 **05:24** — on the fees step in the modal when i click on the "Add discount" it should show me the same modal for the advanced event discounts
 
@@ -28835,4 +28835,10 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **20:06** — deploy live
 
 **20:13** — please make the advanced event go to this screen not the modal - http://localhost:3002/events/fe101795-1543-4b59-ba85-b59785b0ec46
+
+**20:17** — ok so programme, is an a version of events and uses all the same stuff but its a "set" category so when you land ont the programme page it shoud be the same as /events but it should only have the "list" as the view
+
+**20:26** — ok nvm
+
+**20:26** — why is programme not working now?
 

@@ -11,6 +11,17 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const DIR = path.join(os.homedir(), '.claude', 'projects', REPO.replace(/[/.]/g, '-'))
 const OUT = process.argv[2] || path.join(REPO, 'docs', 'prompt-history.md')
 
+// Scrub secrets (API keys, tokens) so a key pasted into a chat never lands in the log.
+function redactSecrets(text) {
+  return text
+    .replace(/re_[A-Za-z0-9_]{20,}/g, '[REDACTED]')        // Resend
+    .replace(/sk-[A-Za-z0-9]{20,}/g, '[REDACTED]')          // OpenAI-style
+    .replace(/sk_[A-Za-z0-9]{20,}/g, '[REDACTED]')          // Stripe-style
+    .replace(/xox[bpas]-[A-Za-z0-9-]{10,}/g, '[REDACTED]')  // Slack
+    .replace(/AKIA[0-9A-Z]{16}/g, '[REDACTED]')             // AWS access key id
+    .replace(/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g, '[REDACTED]') // JWT / service key
+}
+
 const files = fs.readdirSync(DIR).filter(f => f.endsWith('.jsonl'))
 const sessions = []
 
@@ -41,6 +52,8 @@ for (const f of files) {
     if (text.startsWith('[Request interrupted')) continue
     // strip inline base64 payloads + cap very long pasted content
     text = text.replace(/data:[a-z/+.-]+;base64,[A-Za-z0-9+/=]+/g, '[base64 data removed]')
+    // scrub any secrets before the text is serialized into the log
+    text = redactSecrets(text)
     const CAP = 3000
     if (text.length > CAP) text = text.slice(0, CAP) + `\n… [truncated — ${text.length} chars total]`
     if (!firstTs && j.timestamp) firstTs = j.timestamp
