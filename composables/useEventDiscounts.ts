@@ -107,8 +107,21 @@ export function makeDiscountDraft(): DiscountDraft {
   }
 }
 
+// Only these conditions are offered in the picker for now — they line up with
+// the 4 templates (Member Discount / Early Bird / Age range / First in, first
+// served). The rest stay in CONDITION_DEFS so existing rules still render and
+// the set is a one-line change to expand.
+export const ACTIVE_CONDITION_KEYS = [
+  'participant_member_status',              // Membership status
+  'participant_age_between',                // Participant age range
+  'registration_date_before',              // Register before
+  'registration_within_first_n_registrations', // Within first N registrations
+]
+
 export function useEventDiscounts() {
-  const conditionTypeOptions = Object.entries(CONDITION_DEFS).map(([key, def]) => ({ key, label: def.label }))
+  const conditionTypeOptions = ACTIVE_CONDITION_KEYS
+    .filter(key => CONDITION_DEFS[key])
+    .map(key => ({ key, label: CONDITION_DEFS[key].label }))
 
   const getOperatorOptions = (key: string) =>
     (CONDITION_DEFS[key]?.operators ?? []).map(op => ({ value: op, label: OPERATOR_LABELS[op] ?? op }))
