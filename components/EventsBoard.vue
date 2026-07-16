@@ -599,7 +599,7 @@
             <div class="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center mb-2">
               <i class="pi pi-sun text-emerald-700" />
             </div>
-            <h3 class="text-sm font-semibold text-gray-900">Holiday programme</h3>
+            <h3 class="text-sm font-semibold text-gray-900">Programme</h3>
             <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Runs across many days — book sessions per day.</p>
           </button>
         </div>
