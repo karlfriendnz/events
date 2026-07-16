@@ -131,7 +131,9 @@ async function load() {
   loading.value = false
 }
 
-function startEdit(d: Disc) { editingId.value = d.id; form.name = d.name; form.sport = d.sport ?? ''; form.code = d.code ?? ''; form.parent_id = d.parent_id; form.applies_to = [...(d.applies_to ?? [])] }
+const editorOpen = ref(false)
+function openNew(parentId: string | null = null) { resetForm(); form.parent_id = parentId; editorOpen.value = true }
+function startEdit(d: Disc) { editingId.value = d.id; form.name = d.name; form.sport = d.sport ?? ''; form.code = d.code ?? ''; form.parent_id = d.parent_id; form.applies_to = [...(d.applies_to ?? [])]; editorOpen.value = true }
 function resetForm() { editingId.value = null; form.name = ''; form.sport = ''; form.code = ''; form.parent_id = null; form.applies_to = [] }
 
 async function save() {
@@ -143,7 +145,7 @@ async function save() {
     const sibCount = disciplines.value.filter(x => parentKey(x) === (form.parent_id && disciplines.value.some(y => y.id === form.parent_id) ? form.parent_id : null)).length
     await (db.from as any)('disciplines').insert({ ...payload, sort_order: sibCount })
   }
-  resetForm(); await load()
+  resetForm(); editorOpen.value = false; await load()
   toast.add({ severity: 'success', summary: 'Discipline saved', life: 2000 })
 }
 async function remove(d: Disc) { await (db.from as any)('disciplines').delete().eq('id', d.id); if (editingId.value === d.id) resetForm(); await load() }
@@ -156,9 +158,13 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
     <div class="flex flex-col md:flex-row gap-4 md:gap-6 flex-1 min-h-0">
       <SettingsNav />
       <div class="flex-1 min-w-0 space-y-5">
-    <div>
-      <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Disciplines</h1>
-      <p class="text-sm text-gray-500">Canonical categories your member clubs map their groups & events to. Build a hierarchy (e.g. Seniors › Premiers › B Grade).</p>
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Disciplines</h1>
+        <p class="text-sm text-gray-500">Canonical categories your member clubs map their groups & events to. Build a hierarchy (e.g. Seniors › Premiers › B Grade).</p>
+      </div>
+      <Button v-if="isGoverning" label="New discipline" icon="pi pi-plus" class="shrink-0"
+        style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="openNew()" />
     </div>
 
     <div v-if="!loading && !isGoverning" class="card p-6 text-sm text-gray-500">
@@ -167,46 +173,48 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
     </div>
 
     <template v-else>
-      <!-- Add / edit -->
-      <div class="card p-5">
-        <h2 class="text-sm font-semibold text-gray-700 mb-3">{{ editingId ? 'Edit discipline' : 'New discipline' }}</h2>
-        <div class="grid grid-cols-1 md:grid-cols-[1.3fr_1fr_0.7fr_1.2fr] gap-3 items-end">
+      <!-- Add / edit — right-hand slide-out -->
+      <Drawer v-model:visible="editorOpen" position="right" :header="editingId ? 'Edit discipline' : 'New discipline'"
+        :style="{ width: '95vw', maxWidth: '440px' }">
+        <div class="space-y-4">
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-medium text-gray-600">Name</label>
-            <InputText v-model="form.name" placeholder="e.g. Premiers" />
+            <InputText v-model="form.name" placeholder="e.g. Premiers" class="w-full" @keyup.enter="save" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-medium text-gray-600">Sport</label>
-            <InputText v-model="form.sport" placeholder="e.g. Cricket" />
+            <InputText v-model="form.sport" placeholder="e.g. Cricket" class="w-full" />
           </div>
           <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-gray-600">Code</label>
-            <InputText v-model="form.code" placeholder="opt." />
+            <label class="text-xs font-medium text-gray-600">Code <span class="text-gray-400 font-normal">— optional</span></label>
+            <InputText v-model="form.code" placeholder="opt." class="w-full" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-medium text-gray-600">Parent discipline</label>
             <Select v-model="form.parent_id" :options="parentOptions" option-label="name" option-value="id"
               placeholder="None (top level)" show-clear filter class="w-full" />
           </div>
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end mt-3">
           <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-gray-600">Applies to <span class="text-gray-400 font-normal">— which parts of the system this discipline can be linked to</span></label>
+            <label class="text-xs font-medium text-gray-600">Applies to</label>
+            <p class="text-xs text-gray-400 -mt-1">Which parts of the system this discipline can be linked to. Leave empty to apply everywhere.</p>
             <ChipMultiSelect v-model="form.applies_to" :options="DISCIPLINE_PARTS" option-label="label" option-value="value"
               placeholder="Everywhere (all parts)" show-toggle-all class="w-full" />
           </div>
-          <div class="flex items-center gap-2">
-            <Button :label="editingId ? 'Save' : 'Add'" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="save" />
-            <Button v-if="editingId" label="Cancel" severity="secondary" text @click="resetForm" />
-          </div>
         </div>
-      </div>
+        <template #footer>
+          <div class="flex items-center justify-end gap-2">
+            <Button label="Cancel" severity="secondary" text @click="editorOpen = false" />
+            <Button :label="editingId ? 'Save changes' : 'Add discipline'" :disabled="!form.name.trim()"
+              style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="save" />
+          </div>
+        </template>
+      </Drawer>
 
       <!-- Hierarchy -->
       <div class="card p-0 overflow-hidden">
         <div class="px-5 py-2.5 border-b border-gray-100 text-sm font-semibold text-gray-700">Discipline hierarchy</div>
         <div v-if="loading" class="p-5 text-sm text-gray-400">Loading…</div>
-        <div v-else-if="!disciplines.length" class="p-5 text-sm text-gray-400">No disciplines yet — add one above.</div>
+        <div v-else-if="!disciplines.length" class="p-5 text-sm text-gray-400">No disciplines yet — click <span class="font-medium text-gray-600">New discipline</span> to add one.</div>
         <div v-else class="overflow-x-auto">
         <table class="w-full text-sm">
           <tbody>
@@ -232,6 +240,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
                 <span v-else class="text-xs text-gray-400">Everywhere</span>
               </td>
               <td class="px-5 py-2.5 text-right whitespace-nowrap">
+                <button class="text-xs text-gray-500 hover:text-gray-800 hover:underline mr-3" @click="openNew(d.id)">Add child</button>
                 <button class="text-xs text-primary hover:underline mr-3" @click="startEdit(d)">Edit</button>
                 <button class="text-xs text-red-600 hover:underline" @click="remove(d)">Delete</button>
               </td>
