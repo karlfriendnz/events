@@ -110,7 +110,7 @@
             <label class="text-sm font-semibold text-gray-700">Default view</label>
             <SelectButton
               v-model="calSettings.defaultView"
-              :options="[{ label: 'Month', value: 'dayGridMonth' }, { label: 'Week', value: 'timeGridWeek' }, { label: 'Day', value: 'timeGridDay' }, { label: 'List', value: 'listWeek' }]"
+              :options="[{ label: 'Month', value: 'dayGridMonth' }, { label: 'Week', value: 'timeGridWeek' }, { label: 'Day', value: 'timeGridDay' }, { label: 'List', value: 'listWeek' }, { label: 'Table', value: 'table' }]"
               option-label="label" option-value="value" size="small" />
           </div>
 
@@ -328,7 +328,7 @@
     </div>
 
     <!-- Calendar view (desktop) -->
-    <div class="hidden md:flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden flex-1" style="min-height:0">
+    <div v-if="!isTableView" class="hidden md:flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden flex-1" style="min-height:0">
       <BookingsCalendar
         :cal-date="calDate"
         :cal-view="bookingsCalView"
@@ -339,6 +339,42 @@
         @booking-leave="hideTooltip"
         @slot-click="onCalendarSlotClick"
       />
+    </div>
+
+    <!-- Table view (desktop) — a spreadsheet of exactly what the calendar shows -->
+    <div v-else class="hidden md:flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden flex-1" style="min-height:0">
+      <div class="overflow-y-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="sticky top-0 bg-gray-50 border-b border-gray-200 text-left z-10">
+              <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">{{ t('event', false) }}</th>
+              <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
+              <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Time</th>
+              <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Venue</th>
+              <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Category</th>
+              <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr v-for="e in exportRows" :key="e.id" class="hover:bg-gray-50 cursor-pointer" @click="openEvent(e)">
+              <td class="px-4 py-2.5 font-medium text-gray-800">
+                <span class="inline-flex items-center gap-2 min-w-0">
+                  <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: categoriesById[e.category_id]?.color ?? '#94a3b8' }" />
+                  <span class="truncate">{{ e.title || 'Untitled' }}</span>
+                </span>
+              </td>
+              <td class="px-4 py-2.5 text-gray-600 whitespace-nowrap">{{ tableDate(e) }}</td>
+              <td class="px-4 py-2.5 text-gray-600 whitespace-nowrap">{{ tableTime(e) }}</td>
+              <td class="px-4 py-2.5 text-gray-600 truncate max-w-[220px]">{{ venueNamesFor(e) || '—' }}</td>
+              <td class="px-4 py-2.5 text-gray-600">{{ categoriesById[e.category_id]?.name ?? '—' }}</td>
+              <td class="px-4 py-2.5"><span class="text-[11px] px-2 py-0.5 rounded-full font-medium" :class="statusClass(e.status)">{{ (e.status || 'DRAFT').toLowerCase() }}</span></td>
+            </tr>
+            <tr v-if="!exportRows.length">
+              <td colspan="6" class="px-4 py-16 text-center text-sm text-gray-400">No {{ t('event', true, true) }} to show.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Event hover tooltip -->
@@ -1317,7 +1353,22 @@ const calViews = [
   { label: 'Week',  value: 'timeGridWeek' },
   { label: 'Month', value: 'dayGridMonth' },
   { label: 'List',  value: 'listWeek' },
+  { label: 'Table', value: 'table' },
 ]
+
+// Table view = a spreadsheet-style list of exactly what the calendar is showing.
+const isTableView = computed(() => calSettings.defaultView === 'table')
+const tableDate = (e: any) => e.start_at
+  ? new Date(e.start_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+  : 'No date'
+const tableTime = (e: any) => e.is_all_day ? 'All day'
+  : (e.start_at ? new Date(e.start_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) : '—')
+function statusClass(s?: string) {
+  if (s === 'PUBLISHED') return 'bg-green-100 text-green-700'
+  if (s === 'CANCELLED') return 'bg-red-100 text-red-600'
+  if (s === 'ARCHIVED') return 'bg-gray-100 text-gray-400'
+  return 'bg-amber-100 text-amber-700'   // DRAFT / default
+}
 
 // Map FullCalendar view names → BookingsCalendar's view set
 const VIEW_MAP: Record<string, 'day' | 'week' | 'month' | 'list'> = {
