@@ -536,6 +536,24 @@ const priceList = computed<{ label: string; fee: number | null }[]>(() => {
   }
   return out
 })
+
+// One summary row per week for the landing (dates · day count · from-price).
+const fmtDayMon = (d: Date) => d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
+const weekSummary = computed(() => {
+  const rows = sessionDateTable.value.rows
+  if (!rows.length) return [] as { weekSeq: number; range: string; days: number; from: number | null; perDay: number | null }[]
+  const byWeek = new Map<number, any[]>()
+  for (const r of rows) { if (!byWeek.has(r.weekSeq)) byWeek.set(r.weekSeq, []); byWeek.get(r.weekSeq)!.push(r) }
+  return [...byWeek.entries()].map(([weekSeq, wrows]) => {
+    const first = wrows[0].date, last = wrows[wrows.length - 1].date
+    const cells = wrows.flatMap((r: any) => r.cells).filter((c: any) => c)
+    const fees = cells.map((c: any) => Number(c.fee) || 0).filter((f: number) => f > 0)
+    // "from" = cheapest single session; per-day = a full day's total (all sessions that day)
+    const from = fees.length ? Math.min(...fees) : null
+    const perDay = wrows[0] ? (wrows[0].cells.filter((c: any) => c).reduce((s: number, c: any) => s + (Number(c.fee) || 0), 0) || null) : null
+    return { weekSeq, range: `${fmtDayMon(first)} – ${fmtDayMon(last)}`, days: wrows.length, from, perDay }
+  })
+})
 const identifiedName = ref('')          // non-empty → "Registering as …" banner
 const labelToDefId = ref<Record<string, string>>({})
 
@@ -613,28 +631,15 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
     <div v-if="!authResolved">
       <h2 class="text-lg font-bold text-gray-900 mb-3">{{ formHeading }}</h2>
 
-      <!-- Read-only data table of what's on offer -->
-      <div v-if="isDateTable && sessionDateTable.rows.length" class="rounded-xl border border-gray-200 overflow-x-auto">
-        <div class="min-w-[520px]">
-          <div class="grid border-b border-gray-200 bg-gray-50" :style="`grid-template-columns: repeat(${sessionDateTable.columns.length + 2}, minmax(0,1fr))`">
-            <div class="px-3 py-2 text-xs font-semibold text-gray-500">Date</div>
-            <div v-for="col in sessionDateTable.columns" :key="col.key" class="px-3 py-2 border-l border-gray-200">
-              <p class="text-xs font-semibold text-gray-800">{{ col.title || col.startTime }}<span v-if="col.fee" class="ml-1 font-normal text-primary">{{ money(col.fee) }}</span></p>
-              <p v-if="col.startTime" class="text-[11px] text-gray-400 mt-0.5">{{ col.startTime }}</p>
-            </div>
-            <div class="px-3 py-2 border-l border-gray-200"><p class="text-xs font-semibold text-gray-800">Full day</p></div>
+      <!-- What's on offer, one summary row per week -->
+      <div v-if="weekSummary.length" class="rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
+        <div class="px-4 py-2 bg-gray-50 text-[11px] font-bold uppercase tracking-wide text-gray-500">The programme</div>
+        <div v-for="w in weekSummary" :key="w.weekSeq" class="flex items-center justify-between gap-3 px-4 py-3">
+          <div class="min-w-0">
+            <p class="text-sm font-semibold text-gray-800">Week {{ w.weekSeq }}</p>
+            <p class="text-xs text-gray-500">{{ w.range }} · {{ w.days }} day{{ w.days !== 1 ? 's' : '' }}<span v-if="w.perDay"> · full day {{ money(w.perDay) }}</span></p>
           </div>
-          <template v-for="(row, ri) in sessionDateTable.rows" :key="ri">
-            <div v-if="ri === 0 || row.newWeek" class="px-3 py-1.5 bg-gray-100 border-y border-gray-200 text-xs font-semibold text-gray-600">Week {{ row.weekSeq }}</div>
-            <div class="grid border-b border-gray-100 last:border-b-0" :style="`grid-template-columns: repeat(${sessionDateTable.columns.length + 2}, minmax(0,1fr))`">
-              <div class="px-3 py-2 text-sm font-medium text-gray-800">{{ row.weekday }}, {{ row.dayMonth }}</div>
-              <div v-for="(cell, ci) in row.cells" :key="ci" class="border-l border-gray-100 px-3 py-2 text-center">
-                <i v-if="cell" class="pi pi-check text-gray-300 text-xs" />
-                <span v-else class="text-gray-200">—</span>
-              </div>
-              <div class="border-l border-gray-100 px-3 py-2 text-center text-xs text-primary font-medium tabular-nums">{{ dtRowFee(row) ? money(dtRowFee(row)!) : '' }}</div>
-            </div>
-          </template>
+          <span v-if="w.from != null" class="text-sm font-semibold text-primary whitespace-nowrap">from {{ money(w.from) }}</span>
         </div>
       </div>
 
