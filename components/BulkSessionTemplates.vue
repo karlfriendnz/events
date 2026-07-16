@@ -85,42 +85,31 @@
         @drop.prevent="onDrop(idx)"
         @dragend="dragIdx = null; dragOverIdx = null">
 
-        <!-- header: drag + session name + remove -->
-        <div class="flex items-center gap-3 mb-3">
-          <i class="pi pi-bars text-xs text-gray-300 cursor-grab shrink-0" />
-          <InputText v-model="tpl.name"
-            :placeholder="idx === 0 ? 'e.g. Morning' : idx === 1 ? 'e.g. Afternoon' : 'Session name'"
-            class="flex-1 min-w-0 h-9 text-sm font-semibold" />
-          <button
-            class="flex items-center justify-center w-7 h-7 rounded-lg shrink-0 transition-colors"
-            :class="templates.length > 1 ? 'text-gray-300 hover:text-red-400 hover:bg-red-50' : 'text-gray-200 cursor-not-allowed'"
-            :disabled="templates.length <= 1"
-            @click="() => { if (templates.length > 1) templates.splice(idx, 1) }">
-            <i class="pi pi-times text-sm" />
-          </button>
-        </div>
+      <div class="flex items-start gap-3">
+        <i class="pi pi-bars text-xs text-gray-300 cursor-grab shrink-0 mt-2.5" />
 
-        <div class="space-y-3 sm:pl-6">
-          <!-- Times + capacity on one row, labels to the left of each -->
-          <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <div class="flex items-center gap-2">
-              <label class="text-xs font-semibold text-gray-500 shrink-0">Start</label>
-              <DatePicker v-model="tpl.startTime" timeOnly hourFormat="12" placeholder="9:00 AM" class="w-28" inputClass="h-9 text-sm px-2"
-                @update:model-value="v => onStartTimeChange(idx, v)" />
-            </div>
-            <div class="flex items-center gap-2">
-              <label class="text-xs font-semibold text-gray-500 shrink-0">End</label>
-              <DatePicker v-model="tpl.endTime" timeOnly hourFormat="12" placeholder="12:00 PM" class="w-28" inputClass="h-9 text-sm px-2"
-                @update:model-value="v => onEndTimeChange(idx, v)" />
-            </div>
-            <div class="flex items-center gap-2">
-              <label class="text-xs font-semibold text-gray-500 shrink-0">Capacity</label>
-              <InputNumber v-model="tpl.limit" :min="1" placeholder="No limit" class="w-24" inputClass="h-9 text-sm text-right w-full px-2" />
-            </div>
+        <!-- Every field is a labeled row on one aligned left column -->
+        <div class="flex-1 min-w-0 space-y-2.5">
+          <div class="flex items-center gap-3">
+            <label class="text-xs font-semibold text-gray-500 w-16 shrink-0">Name</label>
+            <InputText v-model="tpl.name"
+              :placeholder="idx === 0 ? 'e.g. Morning' : idx === 1 ? 'e.g. Afternoon' : 'Session name'"
+              class="flex-1 min-w-0 h-9 text-sm" />
+          </div>
+
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <label class="text-xs font-semibold text-gray-500 w-16 shrink-0">Time</label>
+            <DatePicker v-model="tpl.startTime" timeOnly hourFormat="12" placeholder="9:00 AM" class="w-28" inputClass="h-9 text-sm px-2"
+              @update:model-value="v => onStartTimeChange(idx, v)" />
+            <span class="text-gray-300 text-sm">→</span>
+            <DatePicker v-model="tpl.endTime" timeOnly hourFormat="12" placeholder="12:00 PM" class="w-28" inputClass="h-9 text-sm px-2"
+              @update:model-value="v => onEndTimeChange(idx, v)" />
+            <label class="text-xs font-semibold text-gray-500 shrink-0 ml-3">Capacity</label>
+            <InputNumber v-model="tpl.limit" :min="1" placeholder="∞" class="w-24" inputClass="h-9 text-sm text-center w-full px-2" />
           </div>
 
           <div v-if="!showFees" class="flex items-center gap-3">
-            <label class="text-xs font-semibold text-gray-500 w-20 shrink-0">Cost</label>
+            <label class="text-xs font-semibold text-gray-500 w-16 shrink-0">Cost</label>
             <div class="relative flex items-center w-40">
               <span class="absolute left-3 text-gray-400 text-sm pointer-events-none z-10">$</span>
               <InputNumber v-model="tpl.cost" :min="0" :minFractionDigits="2" :maxFractionDigits="2" placeholder="0.00" class="w-full" inputClass="pl-6 pr-2 h-9 text-sm text-right w-full" />
@@ -128,7 +117,7 @@
           </div>
 
           <div v-if="showLocation" class="flex items-center gap-3">
-            <label class="text-xs font-semibold text-gray-500 w-20 shrink-0">Location</label>
+            <label class="text-xs font-semibold text-gray-500 w-16 shrink-0">Location</label>
             <button type="button"
               class="flex-1 min-w-0 h-9 text-sm text-left px-2.5 rounded-lg border border-gray-200 bg-white hover:border-gray-300 inline-flex items-center gap-2"
               @click="locDialogIdx = idx">
@@ -140,18 +129,27 @@
 
           <!-- Fee — a fee can have multiple line items (the shared editor) -->
           <div v-if="showFees" class="flex items-start gap-3">
-            <label class="text-xs font-semibold text-gray-500 w-20 shrink-0 pt-2">Fee</label>
+            <label class="text-xs font-semibold text-gray-500 w-16 shrink-0 pt-2">Fee</label>
             <div class="flex-1 min-w-0">
               <FeeLineItemsTable :model-value="tpl.fees ?? []"
                 @update:model-value="(v: FeeLineItem[]) => tpl.fees = v" />
             </div>
           </div>
         </div>
+
+        <button
+          class="flex items-center justify-center w-7 h-7 rounded-lg shrink-0 mt-1 transition-colors"
+          :class="templates.length > 1 ? 'text-gray-300 hover:text-red-400 hover:bg-red-50' : 'text-gray-200 cursor-not-allowed'"
+          :disabled="templates.length <= 1"
+          @click="() => { if (templates.length > 1) templates.splice(idx, 1) }">
+          <i class="pi pi-times text-sm" />
+        </button>
+      </div>
       </div>
     </div>
 
     <div class="px-5 py-3.5 flex justify-end border-t border-gray-100">
-      <Button label="Add Session Type" icon="pi pi-plus" size="small" severity="secondary" outlined @click="addTemplate" />
+      <Button label="Add session" icon="pi pi-plus" size="small" severity="secondary" outlined @click="addTemplate" />
     </div>
 
     <!-- Session location picker — the shared <LocationEditor> in a dialog -->
@@ -159,7 +157,8 @@
       modal header="Session location" :style="{ width: '95vw', maxWidth: '640px' }">
       <LocationEditor v-if="locDialogIdx !== null"
         :model-value="templates[locDialogIdx].location ?? []" :multi="false"
-        @update:model-value="(v: LocationEntry[]) => { templates[locDialogIdx!].location = v }" />
+        @update:model-value="(v: LocationEntry[]) => { templates[locDialogIdx!].location = v }"
+        @update:summary="(s: string) => { if (locDialogIdx !== null) templates[locDialogIdx].locationLabel = s }" />
       <template #footer>
         <Button label="Done" size="small" @click="locDialogIdx = null" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
       </template>
@@ -182,6 +181,9 @@ export interface BulkTemplate {
   limit: number | null
   bookableId?: string | null
   location?: LocationEntry[]
+  // Resolved location text (venue names etc.) captured from <LocationEditor>'s
+  // @update:summary, since the pure locationSummary() can't resolve venue ids.
+  locationLabel?: string
   fees?: FeeLineItem[]
 }
 
@@ -204,7 +206,11 @@ function emptyLocation(): LocationEntry {
   return { type: 'ADDRESS', venue_name: '', address: '', meeting_link: '', bookable_ids: [] }
 }
 function locSummary(tpl: BulkTemplate) {
-  return tpl.location?.length ? locationSummary(tpl.location) : ''
+  // Prefer the editor's resolved text (has real venue names); fall back to the
+  // pure summary for address/online set before the dialog was ever opened.
+  if (tpl.locationLabel && tpl.locationLabel !== 'No location') return tpl.locationLabel
+  const m = tpl.location?.length ? locationSummary(tpl.location) : ''
+  return (m && m !== 'No location' && m !== 'Venue') ? m : ''
 }
 
 const locDialogIdx = ref<number | null>(null)
