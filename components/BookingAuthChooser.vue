@@ -47,59 +47,48 @@
            guest/app/OTP/password buttons. Built-in member picker covers
            the common staff case; this slot is for anything bespoke. -->
       <slot name="extra-options" />
+      <!-- Social sign-in (Supabase OAuth — providers configured in Supabase Auth) -->
       <div class="space-y-2">
-        <button v-if="!hideGuest" type="button"
-          class="w-full flex items-center gap-3 px-3 py-3 rounded-lg border-2 border-gray-100 hover:border-gray-200 bg-white text-left transition-colors"
-          @click="emit('select-guest')">
-          <div class="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-            <i class="pi pi-user-edit text-gray-600 text-sm" />
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-semibold text-gray-900">{{ guestLabel }}</p>
-            <p class="text-xs text-gray-500">{{ guestDescription }}</p>
-          </div>
-          <i class="pi pi-chevron-right text-gray-300 text-xs" />
+        <button type="button" @click="signInWithProvider('google')"
+          class="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-colors">
+          <i class="pi pi-google text-[#EA4335]" /> Continue with Google
         </button>
-
-        <button v-if="appDeepLink" type="button"
-          class="w-full flex items-center gap-3 px-3 py-3 rounded-lg border-2 border-gray-100 hover:border-gray-200 bg-white text-left transition-colors"
-          @click="step = 'app'">
-          <div class="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-            <i class="pi pi-mobile text-gray-600 text-sm" />
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-semibold text-gray-900">Open in mobile app</p>
-            <p class="text-xs text-gray-500">Sign in instantly with the FriendlyManager app.</p>
-          </div>
-          <i class="pi pi-chevron-right text-gray-300 text-xs" />
-        </button>
-
-        <button type="button"
-          class="w-full flex items-center gap-3 px-3 py-3 rounded-lg border-2 border-gray-100 hover:border-gray-200 bg-white text-left transition-colors"
-          @click="step = 'otp-email'">
-          <div class="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-            <i class="pi pi-envelope text-gray-600 text-sm" />
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-semibold text-gray-900">Email me a one-time code</p>
-            <p class="text-xs text-gray-500">No password needed.</p>
-          </div>
-          <i class="pi pi-chevron-right text-gray-300 text-xs" />
-        </button>
-
-        <button type="button"
-          class="w-full flex items-center gap-3 px-3 py-3 rounded-lg border-2 border-gray-100 hover:border-gray-200 bg-white text-left transition-colors"
-          @click="step = 'password'">
-          <div class="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
-            <i class="pi pi-key text-gray-600 text-sm" />
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-semibold text-gray-900">Sign in with password</p>
-            <p class="text-xs text-gray-500">For existing FriendlyManager accounts.</p>
-          </div>
-          <i class="pi pi-chevron-right text-gray-300 text-xs" />
+        <button type="button" @click="signInWithProvider('facebook')"
+          class="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-colors">
+          <i class="pi pi-facebook text-[#1877F2]" /> Continue with Facebook
         </button>
       </div>
+
+      <div class="flex items-center gap-3">
+        <div class="flex-1 h-px bg-gray-100" />
+        <span class="text-[11px] text-gray-400 uppercase tracking-wide">or sign in</span>
+        <div class="flex-1 h-px bg-gray-100" />
+      </div>
+
+      <!-- Email + password login -->
+      <div class="space-y-2">
+        <input v-model="pwEmail" type="email" placeholder="Email" autocomplete="email"
+          class="w-full h-10 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
+        <input v-model="pwPassword" type="password" placeholder="Password" autocomplete="current-password"
+          class="w-full h-10 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]"
+          @keyup.enter="signInWithPasswordFn" />
+        <p v-if="pwError" class="text-xs text-red-500">{{ pwError }}</p>
+        <p v-if="ssoError" class="text-xs text-red-500">{{ ssoError }}</p>
+        <Button :loading="pwSubmitting" label="Sign in" icon="pi pi-sign-in" class="w-full"
+          @click="signInWithPasswordFn" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+        <button type="button" class="w-full text-center text-xs font-semibold text-primary hover:underline py-1"
+          @click="step = 'otp-email'">Email me a one-time code instead</button>
+      </div>
+
+      <!-- Guest + (optional) mobile app -->
+      <button v-if="!hideGuest" type="button"
+        class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border border-dashed border-gray-300 hover:border-gray-400 text-sm font-semibold text-gray-600 transition-colors"
+        @click="emit('select-guest')">
+        <i class="pi pi-user-edit text-gray-500" /> {{ guestLabel }}
+      </button>
+      <button v-if="appDeepLink" type="button"
+        class="w-full text-center text-xs font-semibold text-gray-500 hover:text-gray-700 py-1"
+        @click="step = 'app'"><i class="pi pi-mobile text-[10px] mr-1" /> Open in mobile app</button>
     </template>
 
     <!-- ── OTP — email entry ── -->
@@ -340,6 +329,14 @@ async function verifyOtp() {
 }
 
 // ── Password state ───────────────────────────────────────────────────────
+const ssoError = ref('')
+async function signInWithProvider(provider: 'google' | 'facebook') {
+  ssoError.value = ''
+  const redirectTo = import.meta.client ? window.location.href : undefined
+  const { error } = await (supabase.auth as any).signInWithOAuth({ provider, options: { redirectTo } })
+  if (error) ssoError.value = error.message
+}
+
 const pwEmail = ref('')
 const pwPassword = ref('')
 const pwSubmitting = ref(false)
