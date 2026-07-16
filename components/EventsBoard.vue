@@ -561,7 +561,7 @@
             @keydown.enter="startWizard" />
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <button type="button"
             class="text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
             :disabled="!newEventName.trim()"
@@ -591,6 +591,16 @@
             </div>
             <h3 class="text-sm font-semibold text-gray-900">Advanced {{ t('event', false, true) }}</h3>
             <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Sessions, fees, forms, discounts and automation.</p>
+          </button>
+          <button type="button"
+            class="text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
+            :disabled="!newEventName.trim()"
+            @click="startHolidayProgramme">
+            <div class="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center mb-2">
+              <i class="pi pi-sun text-emerald-700" />
+            </div>
+            <h3 class="text-sm font-semibold text-gray-900">Holiday programme</h3>
+            <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Runs across many days — book sessions per day.</p>
           </button>
         </div>
       </div>
@@ -871,6 +881,17 @@ async function startAdvanced() {
     creatingAdvanced.value = false
   }
 }
+// Holiday programme = a multi-session event → straight to the multi-session
+// builder (reachable from any events board, incl. a pinned "Holiday Programme"
+// calendar, now that Programme is no longer a hardcoded menu item).
+function startHolidayProgramme() {
+  if (!newEventName.value.trim()) return
+  showEventNameModal.value = false
+  const params = new URLSearchParams({ programme: '1', name: newEventName.value.trim() })
+  if (activeCalendarStampCategory.value) params.set('category', activeCalendarStampCategory.value)
+  navigateTo(`/events/new-multi?${params}`)
+}
+
 function backToNewEvent() {
   showSessionCountModal.value = false
   showEventNameModal.value = true

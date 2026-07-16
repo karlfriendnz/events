@@ -2775,8 +2775,8 @@ const tabs = computed(() => {
   if (event.value?.style === 'BASIC') {
     return allTabs.filter(t => basicTabs.includes(t.key))
   }
-  // Programmes: the read-only Dates view replaces the raw Sessions editor.
-  return allTabs.filter(t => (t.key !== 'tickets' || hasTickets.value) && (t.key !== 'dates' || isProg) && (t.key !== 'sessions' || !isProg))
+  // Sessions tab hidden for now everywhere (programmes get the Dates view instead).
+  return allTabs.filter(t => (t.key !== 'tickets' || hasTickets.value) && (t.key !== 'dates' || isProg) && t.key !== 'sessions')
 })
 
 const primaryTabKeys = ['overview', 'sessions', 'dates', 'invitees', 'attendance', 'notes']
