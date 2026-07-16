@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1649 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1650 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (43 prompts)
+## Session 2026-07-14 22:10 (44 prompts)
 
 **22:10** — yay we are back
 
@@ -28920,4 +28920,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > … [truncated — 19458 chars total]
 
 **01:43** — ok so we hanvt quite got the holiday pogramme flow quite right, the first programme page is good, but when you click in to it it should hten shwo you a list of dates for just taht programme with the columns we hd from teh onld system
+
+**01:48** — ok so i click on the programme and i see the list view - i should see the new uniqure view
 
