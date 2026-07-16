@@ -690,10 +690,15 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
                 </div>
                 <!-- Rows (a header row per week) -->
                 <template v-for="(row, ri) in sessionDateTable.rows" :key="ri">
-                  <div v-if="ri === 0 || row.newWeek" class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 border-y border-gray-200">
-                    <input type="checkbox" class="w-4 h-4 accent-primary" :checked="dtWeekFull(s.key, inst, row.weekSeq)" @change="dtToggleWeek(s.key, inst, row.weekSeq)" />
-                    <span class="text-xs font-semibold text-gray-600">Week {{ row.weekSeq }}</span>
-                    <span class="text-[11px] text-gray-400">— select the whole week</span>
+                  <div v-if="ri === 0 || row.newWeek" class="grid bg-gray-100 border-y border-gray-200"
+                    :style="`grid-template-columns: repeat(${sessionDateTable.columns.length + 2}, minmax(0,1fr))`">
+                    <div class="px-3 py-1.5 flex items-center gap-2" :style="`grid-column: 1 / ${sessionDateTable.columns.length + 2}`">
+                      <span class="text-xs font-semibold text-gray-600">Week {{ row.weekSeq }}</span>
+                      <span class="text-[11px] text-gray-400">— select the whole week</span>
+                    </div>
+                    <div class="border-l border-gray-200 px-3 py-1.5 flex items-center">
+                      <input type="checkbox" class="w-4 h-4 accent-primary" :checked="dtWeekFull(s.key, inst, row.weekSeq)" @change="dtToggleWeek(s.key, inst, row.weekSeq)" />
+                    </div>
                   </div>
                   <div class="grid border-b border-gray-100 last:border-b-0"
                     :style="`grid-template-columns: repeat(${sessionDateTable.columns.length + 2}, minmax(0,1fr))`">

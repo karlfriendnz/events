@@ -3739,16 +3739,20 @@ defineExpose({ reload })
                           </div>
                           <!-- Data rows (a header row per week, with a whole-week checkbox) -->
                           <template v-for="(row, ri) in formSessionDateTable.rows" :key="ri">
-                          <div v-if="ri === 0 || row.newWeek"
-                            class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 border-y border-gray-200">
-                            <button type="button"
-                              class="w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors"
-                              :class="isWeekFullySelected(evtGIdx(subject.key, inst), row.weekSeq) ? 'bg-primary border-primary' : 'border-gray-300 hover:border-primary/50'"
-                              @click="toggleAllWeekSessions(evtGIdx(subject.key, inst), row.weekSeq)">
-                              <i v-if="isWeekFullySelected(evtGIdx(subject.key, inst), row.weekSeq)" class="pi pi-check text-white text-[8px]" />
-                            </button>
-                            <span class="text-xs font-semibold text-gray-600">Week {{ row.weekSeq }}</span>
-                            <span class="text-[11px] text-gray-400">— select the whole week</span>
+                          <div v-if="ri === 0 || row.newWeek" class="grid bg-gray-100 border-y border-gray-200"
+                            :style="`grid-template-columns: repeat(${formSessionDateTable.columns.length + 2}, 1fr)`">
+                            <div class="px-3 py-1.5 flex items-center gap-2" :style="`grid-column: 1 / ${formSessionDateTable.columns.length + 2}`">
+                              <span class="text-xs font-semibold text-gray-600">Week {{ row.weekSeq }}</span>
+                              <span class="text-[11px] text-gray-400">— select the whole week</span>
+                            </div>
+                            <div class="border-l border-gray-200 px-3 py-1.5 flex items-center">
+                              <button type="button"
+                                class="w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors"
+                                :class="isWeekFullySelected(evtGIdx(subject.key, inst), row.weekSeq) ? 'bg-primary border-primary' : 'border-gray-300 hover:border-primary/50'"
+                                @click="toggleAllWeekSessions(evtGIdx(subject.key, inst), row.weekSeq)">
+                                <i v-if="isWeekFullySelected(evtGIdx(subject.key, inst), row.weekSeq)" class="pi pi-check text-white text-[8px]" />
+                              </button>
+                            </div>
                           </div>
                           <div class="grid border-b border-gray-100 last:border-b-0"
                             :style="`grid-template-columns: repeat(${formSessionDateTable.columns.length + 2}, 1fr)`">
