@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1681 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1684 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (75 prompts)
+## Session 2026-07-14 22:10 (78 prompts)
 
 **22:10** — yay we are back
 
@@ -28989,4 +28989,10 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **09:55** — the first screen people should see is the info about the event the session prices etc and then when they are ready to click on "register" it then it shows a modal whith the optns top register/login
 
 **10:16** — the register popup should have login on the ledt and the check out as guest on teh right
+
+**10:22** — hmm ok what about this - the person is asked to enter thier email address and the it does a look up to see - do they have an account, if they do they can login using thier aaccess password, google or fb or one time code. or if they dont have an account it takes them to the form to register
+
+**10:26** — keep it dumb
+
+**10:26** — put the sso unde the login
 
