@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1689 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1695 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (83 prompts)
+## Session 2026-07-14 22:10 (89 prompts)
 
 **22:10** — yay we are back
 
@@ -29005,4 +29005,16 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **20:28** — add one more setting called border, button colour. also the mobile version of the table of data is not good we need that to be fully mobile repsonsive so lables on the left deatils on right.
 
 **20:44** — Can we do somehting where the form has auto height
+
+**20:57** — can you tell me other things i can clean up
+
+**21:02** — yes please
+
+**21:58** — [Image #13]
+
+**21:59** — please do this
+
+**22:01** — ok where did we get ti
+
+**22:02** — ok lets get discounts working
 

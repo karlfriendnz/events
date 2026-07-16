@@ -326,6 +326,46 @@ const grandTotal = computed(() => {
   for (const s of choosers.value) for (let i = 1; i <= count(s.key); i++) t += instanceTotal(s.key, i)
   return t
 })
+
+// ── Discounts: evaluate the event's discount rules against the live selection ──
+const totalInstances = computed(() => choosers.value.reduce((n, s) => n + count(s.key), 0))
+function instanceAge(key: string, inst: number): number | null {
+  const dob = getVal(key, inst, 'Date of Birth')
+  if (!dob) return null
+  const d = new Date(dob as any); if (isNaN(d.getTime())) return null
+  const ref = props.event?.start_at ? new Date(props.event.start_at) : new Date()
+  let age = ref.getFullYear() - d.getFullYear()
+  const m = ref.getMonth() - d.getMonth()
+  if (m < 0 || (m === 0 && ref.getDate() < d.getDate())) age--
+  return age
+}
+function instanceDiscountCtx(key: string, inst: number): DiscountCtx {
+  const positiveAmounts = orderLines(key, inst).map(l => l.amount).filter(a => a > 0)
+  const selected = visibleSessions.value.filter((s: any) => s.required || sessionSelected(key, inst, s.id))
+  const dayKeys = new Set(selected.filter((s: any) => s.start_at).map((s: any) => new Date(s.start_at).toDateString()))
+  const rows = sessionDateTable.value.rows
+  const fullDay = rows.some(r => dtRowFull(key, inst, r))
+  const weekSeqs = [...new Set(rows.map(r => r.weekSeq))]
+  const fullWeek = weekSeqs.some(ws => dtWeekFull(key, inst, ws))
+  return {
+    personCount: totalInstances.value,
+    personTotal: instanceTotal(key, inst),
+    positiveAmounts,
+    selectedSessionCount: selected.length,
+    dayCount: dayKeys.size,
+    fullDay, fullWeek,
+    age: instanceAge(key, inst),
+  }
+}
+const oneDiscountOnly = computed(() => !!props.config?.discountSettings?.one_discount_only)
+const discountLines = computed(() => {
+  if (!(props.discounts ?? []).length) return [] as { formText: string; amount: number }[]
+  const perPerson: { name: string; formText: string; amount: number }[][] = []
+  for (const s of choosers.value) for (let i = 1; i <= count(s.key); i++) perPerson.push(applicableDiscounts(props.discounts ?? [], instanceDiscountCtx(s.key, i)))
+  return aggregateDiscountLines(perPerson, oneDiscountOnly.value)
+})
+const totalDiscount = computed(() => discountLines.value.reduce((s, d) => s + d.amount, 0))
+const netTotal = computed(() => Math.max(0, grandTotal.value - totalDiscount.value))
 // Full itemized summary across every subject + instance, for the Summary step.
 const fullOrderLines = computed(() => {
   const out: { heading: boolean; label: string; amount: number }[] = []
@@ -500,7 +540,7 @@ function buildPayload() {
     subjects: subjectsOut,
     payment: { method: selectedPayment.value || null },
     termsAccepted: termsList.value.length ? termsAccepted.value : null,
-    totals: { total: grandTotal.value, currency: cur.value },
+    totals: { total: netTotal.value, discount: totalDiscount.value, currency: cur.value },
     submitter: primary
       ? { name: [primary.first_name, primary.last_name].filter(Boolean).join(' '), email: primary.email, phone: primary.phone }
       : null,
@@ -948,8 +988,13 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
           </div>
         </template>
         <p v-if="!fullOrderLines.length" class="text-gray-400">Nothing selected yet.</p>
+        <!-- Discounts applied -->
+        <div v-for="(d, di) in discountLines" :key="'disc' + di" class="flex justify-between text-emerald-700 py-0.5">
+          <span class="truncate pr-2 inline-flex items-center gap-1"><i class="pi pi-tag text-[10px]" />{{ d.formText }}</span>
+          <span class="tabular-nums whitespace-nowrap">−{{ money(d.amount) }}</span>
+        </div>
         <div class="flex justify-between text-base font-bold text-gray-900 pt-2 mt-1 border-t border-gray-200">
-          <span>Total</span><span>{{ money(grandTotal) }}</span>
+          <span>Total</span><span>{{ money(netTotal) }}</span>
         </div>
       </div>
 
