@@ -341,6 +341,44 @@
       />
     </div>
 
+    <!-- Programme list (desktop) — a purpose-built table for programmes -->
+    <div v-else-if="isProgramme" class="hidden md:flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden flex-1" style="min-height:0">
+      <div class="overflow-y-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="sticky top-0 bg-gray-50 border-b border-gray-200 text-left z-10">
+              <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Programme</th>
+              <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Runs</th>
+              <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Days</th>
+              <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Sessions</th>
+              <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide text-center">Registrations</th>
+              <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Fee</th>
+              <th class="px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr v-for="e in exportRows" :key="e.id" class="hover:bg-gray-50 cursor-pointer" @click="openEvent(e)">
+              <td class="px-4 py-2.5 font-medium text-gray-800">
+                <span class="inline-flex items-center gap-2 min-w-0">
+                  <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: categoriesById[e.category_id]?.color ?? '#6D28D9' }" />
+                  <span class="truncate">{{ e.title || 'Untitled programme' }}</span>
+                </span>
+              </td>
+              <td class="px-4 py-2.5 text-gray-600 whitespace-nowrap">{{ progRuns(e) }}</td>
+              <td class="px-4 py-2.5 text-center text-gray-600">{{ progStat(e.id).days || '—' }}</td>
+              <td class="px-4 py-2.5 text-center text-gray-600">{{ progStat(e.id).types || '—' }}</td>
+              <td class="px-4 py-2.5 text-center text-gray-600">{{ progStat(e.id).registrations }}</td>
+              <td class="px-4 py-2.5 text-gray-600 whitespace-nowrap">{{ progFee(e.id) }}</td>
+              <td class="px-4 py-2.5"><span class="text-[11px] px-2 py-0.5 rounded-full font-medium" :class="statusClass(e.status)">{{ (e.status || 'DRAFT').toLowerCase() }}</span></td>
+            </tr>
+            <tr v-if="!exportRows.length">
+              <td colspan="7" class="px-4 py-16 text-center text-sm text-gray-400">No programmes yet — click "New" to create one.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Table view (desktop) — a spreadsheet of exactly what the calendar shows -->
     <div v-else class="hidden md:flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden flex-1" style="min-height:0">
       <div class="overflow-y-auto">
@@ -1826,7 +1864,53 @@ async function load() {
     return ev && ev.status !== 'ARCHIVED' && ev.org_id === orgId.value && !!ev.is_programme === isProgramme.value
   })
   loading.value = false
+  if (isProgramme.value) loadProgrammeStats(events.value.map((e: any) => e.id))
 }
+
+// Per-programme aggregates for the programme list table: session/type/day counts,
+// capacity, registrations, and the cheapest ("from") fee.
+interface ProgStat { sessions: number; types: number; days: number; capacity: number; registrations: number; fromFee: number | null }
+const programmeStats = ref<Record<string, ProgStat>>({})
+function progStat(id: string): ProgStat {
+  return programmeStats.value[id] ?? { sessions: 0, types: 0, days: 0, capacity: 0, registrations: 0, fromFee: null }
+}
+async function loadProgrammeStats(eventIds: string[]) {
+  programmeStats.value = {}
+  if (!eventIds.length) return
+  const [{ data: sess }, { data: regs }] = await Promise.all([
+    (db.from as any)('sessions').select('id, event_id, capacity_max, start_at, is_master').in('event_id', eventIds),
+    (db.from as any)('registrations').select('event_id').in('event_id', eventIds),
+  ])
+  const sessToEvent: Record<string, string> = {}
+  const acc: Record<string, { sessions: number; types: number; days: Set<string>; capacity: number; registrations: number; fromFee: number | null }> = {}
+  for (const id of eventIds) acc[id] = { sessions: 0, types: 0, days: new Set(), capacity: 0, registrations: 0, fromFee: null }
+  for (const s of (sess ?? [])) {
+    sessToEvent[s.id] = s.event_id
+    const a = acc[s.event_id]; if (!a) continue
+    a.sessions++
+    if (s.is_master) a.types++
+    if (s.start_at) a.days.add(new Date(s.start_at).toISOString().slice(0, 10))
+    a.capacity += s.capacity_max ?? 0
+  }
+  for (const r of (regs ?? [])) { if (acc[r.event_id]) acc[r.event_id].registrations++ }
+  const sessionIds = Object.keys(sessToEvent)
+  if (sessionIds.length) {
+    const { data: fees } = await (db.from as any)('fee_components').select('session_id, amount').in('session_id', sessionIds)
+    for (const f of (fees ?? [])) {
+      const a = acc[sessToEvent[f.session_id]]; if (!a) continue
+      const amt = f.amount ?? 0
+      if (amt > 0 && (a.fromFee === null || amt < a.fromFee)) a.fromFee = amt
+    }
+  }
+  const out: Record<string, ProgStat> = {}
+  for (const id of eventIds) out[id] = { ...acc[id], days: acc[id].days.size }
+  programmeStats.value = out
+}
+
+const progRuns = (e: any) => e.start_at
+  ? `${new Date(e.start_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} – ${e.end_at ? new Date(e.end_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '…'}`
+  : 'No dates'
+const progFee = (id: string) => { const f = progStat(id).fromFee; return f != null ? `From $${f.toFixed(2)}` : 'Free' }
 
 
 function openMenu(event: Event, row: any) {
