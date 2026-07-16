@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1697 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1699 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (91 prompts)
+## Session 2026-07-14 22:10 (93 prompts)
 
 **22:10** — yay we are back
 
@@ -29021,4 +29021,34 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **22:13** — I just tried to creaat a hp and it tool a long time to load
 
 **22:20** — ok I wnat to fix the discount modal a bit can you please make the Appllied to a new row and a a new row for the discount type
+
+**22:27** — This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+> 
+> Summary:
+> 1. Primary Request and Intent:
+>    The user (Karl, karl@getfrello.com) drove a rapid, iterative session on the fm-events sports-club platform. Major requests in order:
+>    - Finish/rework the `/programme/:id` view — the user rejected the dates×sessions matrix in favor of the legacy-FM "list of dates grouped by week" then removed the Roll-taker column.
+>    - Fold the dates view INTO the advanced event editor as a tab (not a separate page).
+>    - Broad "we're building stuff that doesn't make sense" reflection → introduce "event type" concept; scope to Holiday Programme (HP) + Basic Event only.
+>    - Calendars: pin to left menu, auto-categorize events created within a calendar (auto-stamp when one category, pick when several), remove hardcoded Programme menu item, add "Programme" create card to New-event modal, PrimeIcons picker for calendar nav icon.
+>    - Default Full-day/Full-week discounts on the HP wizard; a "Set price" discount type; "Limit to one discount per registration" toggle ON by default on ALL wizards; hide Automation tab; hide Sessions tab.
+>    - Age restriction (display + validate) captured in HP wizard, basic wizard, advanced editor.
+>    - Pass event context (sessions/fees/discounts/age) to the form builder; per-session config persistence.
+>    - Make the form builder session layout a date-table with week grouping, a "Full day" column, and a "whole week" select in the LAST column.
+>    - Session prices must flow to the form; the public registration was "not quite working" (flat list, $0 subtotal).
+>    - "What you create should be what is produced" — WYSIWYG: builder Preview renders the real FormRenderer; use the same shared sub-component/logic for the order summary.
+>    - Summary & payment as a step on all forms.
+>    - Redesign the register/login modal (Google/Facebook SSO, email/password, guest, one-time code); put login left, guest right; SSO below login; then hide SSO; then a "keep it dumb" login+register-side-by-side (rejected email-lookup on security grounds).
+>    - Info-first landing: event info + week-summary table + discounts, then a Register button that opens auth in a modal; single column (not two).
+>    - "Add to website" under the event ⋯ menu: iframe embed → then just the link → with options (background colour, show header, show discounts, border, button colour, content fixed at 1200px, Register-opens-system-login-page toggle) → auto-height iframe.
+>    - Get discounts actually working (evaluate + apply at checkout).
+>    - HP wizard defaults: weekends OFF, public holidays excluded ON.
+>    - Clean up disk space (Mac was 99% full); restart the dev server.
+>    - CURRENT: fix the discount modal so "Applied to" is a new row and Discount type is a new row.
+> 
+> 2. Key Technical Concepts:
+>    - Nuxt 3 (ssr:false SPA), Vue 3 Composition API `<script setup>`, PrimeVue v4, Supabase via `useDb()` (`
+> … [truncated — 20756 chars total]
+
+**22:27** — [Image #14] the modal looks a bit unfinished
 
