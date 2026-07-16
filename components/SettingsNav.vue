@@ -5,10 +5,23 @@
 -->
 <script setup lang="ts">
 const route = useRoute()
-const tabs = [
+const db = useDb()
+const { orgId } = useOrg()
+
+// Disciplines are a governing-body (NSO/Regional/Association) concept — show that
+// menu item only for non-club orgs.
+const isGoverning = ref(false)
+watch(orgId, async () => {
+  if (!orgId.value) { isGoverning.value = false; return }
+  const { data } = await (db.from as any)('organisations').select('org_level').eq('id', orgId.value).single()
+  isGoverning.value = !!data?.org_level && data.org_level !== 'CLUB'
+}, { immediate: true })
+
+const tabs = computed(() => [
   { label: 'General', icon: 'pi-cog', to: '/settings', tab: 'general' },
   { label: 'People & Entities', icon: 'pi-id-card', to: '/settings/fields' },
   { label: 'Fields', icon: 'pi-list', to: '/settings/field-catalogue' },
+  ...(isGoverning.value ? [{ label: 'Disciplines', icon: 'pi-tags', to: '/disciplines' }] : []),
   { label: 'Registration forms', icon: 'pi-file-edit', to: '/forms' },
   { label: 'Integrations', icon: 'pi-link', to: '/settings/integrations' },
   { label: 'Club setup', icon: 'pi-sliders-v', to: '/settings/modules' },
@@ -20,7 +33,7 @@ const tabs = [
   { divider: true },
   { label: 'Events', icon: 'pi-megaphone', to: '/settings', tab: 'events' },
   { label: 'Bookings', icon: 'pi-calendar', to: '/settings', tab: 'bookings' },
-]
+])
 function linkTo(t: any) {
   return t.tab ? { path: t.to, query: t.tab === 'general' ? {} : { tab: t.tab } } : t.to
 }

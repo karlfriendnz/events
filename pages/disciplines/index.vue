@@ -144,9 +144,12 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
 </script>
 
 <template>
-  <div class="p-3 sm:p-6 max-w-4xl mx-auto space-y-5">
+  <div class="p-3 sm:p-6 min-h-full flex flex-col">
+    <div class="flex flex-col md:flex-row gap-4 md:gap-6 flex-1 min-h-0">
+      <SettingsNav />
+      <div class="flex-1 min-w-0 space-y-5">
     <div>
-      <h1 class="text-xl font-semibold text-gray-900">Disciplines</h1>
+      <h1 class="text-lg sm:text-2xl font-semibold text-gray-900">Disciplines</h1>
       <p class="text-sm text-gray-500">Canonical categories your member clubs map their groups & events to. Build a hierarchy (e.g. Seniors › Premiers › B Grade).</p>
     </div>
 
@@ -217,5 +220,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
         </div>
       </div>
     </template>
+      </div>
+    </div>
   </div>
 </template>
