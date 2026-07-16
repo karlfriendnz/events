@@ -71,20 +71,22 @@
           <Button :loading="pwSubmitting" label="Sign in" class="w-full !py-2.5"
             @click="signInWithPasswordFn" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
 
-          <div class="flex items-center gap-3">
-            <div class="flex-1 h-px bg-gray-200" /><span class="text-xs font-semibold text-gray-400">OR</span><div class="flex-1 h-px bg-gray-200" />
-          </div>
-
-          <div class="space-y-2">
-            <button type="button" @click="signInWithProvider('google')"
-              class="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-colors">
-              <i class="pi pi-google text-[#EA4335]" /> Continue with Google
-            </button>
-            <button type="button" @click="signInWithProvider('facebook')"
-              class="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-colors">
-              <i class="pi pi-facebook text-[#1877F2]" /> Continue with Facebook
-            </button>
-          </div>
+          <!-- SSO hidden for now — flip showSso to bring Google/Facebook back -->
+          <template v-if="showSso">
+            <div class="flex items-center gap-3">
+              <div class="flex-1 h-px bg-gray-200" /><span class="text-xs font-semibold text-gray-400">OR</span><div class="flex-1 h-px bg-gray-200" />
+            </div>
+            <div class="space-y-2">
+              <button type="button" @click="signInWithProvider('google')"
+                class="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-colors">
+                <i class="pi pi-google text-[#EA4335]" /> Continue with Google
+              </button>
+              <button type="button" @click="signInWithProvider('facebook')"
+                class="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-colors">
+                <i class="pi pi-facebook text-[#1877F2]" /> Continue with Facebook
+              </button>
+            </div>
+          </template>
 
           <button type="button"
             class="w-full flex items-center justify-center gap-2 text-xs font-semibold text-gray-500 hover:text-gray-700 py-1"
@@ -346,6 +348,7 @@ async function verifyOtp() {
 }
 
 // ── Password state ───────────────────────────────────────────────────────
+const showSso = false          // Google/Facebook hidden for now (needs Supabase OAuth providers)
 const ssoError = ref('')
 async function signInWithProvider(provider: 'google' | 'facebook') {
   ssoError.value = ''
