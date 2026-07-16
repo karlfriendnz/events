@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1643 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1644 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (37 prompts)
+## Session 2026-07-14 22:10 (38 prompts)
 
 **22:10** — yay we are back
 
@@ -28880,4 +28880,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:41** — can you please make the deafult text for the fee name be the name of the sesison
 
 **00:48** — in the wizard we need the form builder like ther other wizards
+
+**01:01** — please make the programme page - have the table view not list
 

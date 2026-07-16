@@ -1357,7 +1357,8 @@ const calViews = [
 ]
 
 // Table view = a spreadsheet-style list of exactly what the calendar is showing.
-const isTableView = computed(() => calSettings.defaultView === 'table')
+// /programme is Table-only.
+const isTableView = computed(() => isProgramme.value || calSettings.defaultView === 'table')
 const tableDate = (e: any) => e.start_at
   ? new Date(e.start_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
   : 'No date'
@@ -1933,12 +1934,12 @@ async function installDemoData() {
 // /events ↔ /programme are the same component (aliased), so switching between
 // them doesn't remount — reload + relock the view when the mode flips.
 watch(isProgramme, (prog) => {
-  if (prog) calSettings.defaultView = 'listWeek'
+  if (prog) calSettings.defaultView = 'table'
   load()
 })
 
 onMounted(async () => {
-  if (isProgramme.value) calSettings.defaultView = 'listWeek'
+  if (isProgramme.value) calSettings.defaultView = 'table'
   await Promise.all([load(), loadCalendars()])
   calendarTitle.value = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
 
