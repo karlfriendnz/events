@@ -8,7 +8,9 @@ const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
 
-interface Disc { id: string; org_id: string; name: string; sport: string | null; code: string | null; parent_id: string | null; sort_order?: number; applies_to?: string[] | null; depth?: number }
+// NB `disciplines.sport` still exists in the DB but is no longer captured here:
+// a discipline's sport is implied by the governing body that owns it.
+interface Disc { id: string; org_id: string; name: string; code: string | null; parent_id: string | null; sort_order?: number; applies_to?: string[] | null; depth?: number }
 
 // The parts of the system a discipline can be tied to. Empty = applies everywhere.
 const DISCIPLINE_PARTS = [
@@ -23,7 +25,7 @@ const isGoverning = computed(() => !!org.value && isGoverningBody(org.value.org_
 const disciplines = ref<Disc[]>([])
 const loading = ref(true)
 
-const form = reactive<{ name: string; sport: string; code: string; parent_id: string | null; applies_to: string[] }>({ name: '', sport: '', code: '', parent_id: null, applies_to: [] })
+const form = reactive<{ name: string; code: string; parent_id: string | null; applies_to: string[] }>({ name: '', code: '', parent_id: null, applies_to: [] })
 const editingId = ref<string | null>(null)
 
 // Effective parent key (treats orphaned parent_id as top-level).
@@ -124,7 +126,7 @@ async function load() {
   loading.value = true
   const [{ data: o }, { data: discs }] = await Promise.all([
     (db.from as any)('organisations').select('name, org_level').eq('id', orgId.value).single(),
-    (db.from as any)('disciplines').select('id, org_id, name, sport, code, parent_id, sort_order, applies_to').eq('org_id', orgId.value).order('sort_order').order('name'),
+    (db.from as any)('disciplines').select('id, org_id, name, code, parent_id, sort_order, applies_to').eq('org_id', orgId.value).order('sort_order').order('name'),
   ])
   org.value = o ?? null
   disciplines.value = discs ?? []
@@ -133,12 +135,12 @@ async function load() {
 
 const editorOpen = ref(false)
 function openNew(parentId: string | null = null) { resetForm(); form.parent_id = parentId; editorOpen.value = true }
-function startEdit(d: Disc) { editingId.value = d.id; form.name = d.name; form.sport = d.sport ?? ''; form.code = d.code ?? ''; form.parent_id = d.parent_id; form.applies_to = [...(d.applies_to ?? [])]; editorOpen.value = true }
-function resetForm() { editingId.value = null; form.name = ''; form.sport = ''; form.code = ''; form.parent_id = null; form.applies_to = [] }
+function startEdit(d: Disc) { editingId.value = d.id; form.name = d.name; form.code = d.code ?? ''; form.parent_id = d.parent_id; form.applies_to = [...(d.applies_to ?? [])]; editorOpen.value = true }
+function resetForm() { editingId.value = null; form.name = ''; form.code = ''; form.parent_id = null; form.applies_to = [] }
 
 async function save() {
   if (!form.name.trim()) { toast.add({ severity: 'warn', summary: 'Name is required', life: 2500 }); return }
-  const payload: any = { org_id: orgId.value, name: form.name.trim(), sport: form.sport.trim() || null, code: form.code.trim() || null, parent_id: form.parent_id, applies_to: form.applies_to.length ? form.applies_to : null }
+  const payload: any = { org_id: orgId.value, name: form.name.trim(), code: form.code.trim() || null, parent_id: form.parent_id, applies_to: form.applies_to.length ? form.applies_to : null }
   if (editingId.value) await (db.from as any)('disciplines').update(payload).eq('id', editingId.value)
   else {
     // New rows go to the end of their sibling group.
@@ -180,10 +182,6 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-medium text-gray-600">Name</label>
             <InputText v-model="form.name" placeholder="e.g. Premiers" class="w-full" @keyup.enter="save" />
-          </div>
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-gray-600">Sport</label>
-            <InputText v-model="form.sport" placeholder="e.g. Cricket" class="w-full" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-medium text-gray-600">Code <span class="text-gray-400 font-normal">— optional</span></label>
@@ -231,7 +229,6 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
                   <span class="font-medium text-gray-800">{{ d.name }}</span>
                 </span>
               </td>
-              <td class="px-3 py-2.5 text-gray-500">{{ d.sport || '—' }}</td>
               <td class="px-3 py-2.5 text-gray-400 text-xs">{{ d.code || '' }}</td>
               <td class="px-3 py-2.5">
                 <div v-if="d.applies_to && d.applies_to.length" class="flex flex-wrap gap-1">

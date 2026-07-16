@@ -221,13 +221,13 @@ async function load() {
   if (!orgId.value) return
   loading.value = true
   await scoped.loadRoleDefs()
-  const [loadedCodes, loadedTerms, loadedSets, { data: gs }, { data: mems }, { data: discs }, { data: feeOpts }, { data: evs }, wlCounts] = await Promise.all([
+  const [loadedCodes, loadedTerms, loadedSets, { data: gs }, { data: mems }, { data: orgSports }, { data: feeOpts }, { data: evs }, wlCounts] = await Promise.all([
     gc.loadCodes(),
     tm.loadTerms(),
     tm.loadTermSets(),
     (db.from as any)('member_groups').select('id, name, code_id, term_id, capacity, color, gender_restriction, age_range, waitlist_id, form_id, location_id, kind, sort_order').eq('org_id', orgId.value),
     (db.from as any)('member_group_memberships').select('group_id, role, roles, person:persons!inner(first_name, last_name)'),
-    (db.from as any)('member_group_disciplines').select('group_id, discipline:disciplines(sport, name)'),
+    (db.from as any)('org_sports').select('id, sport, display_name').eq('org_id', orgId.value),
     (db.from as any)('group_fee_options').select('id, group_id, name, fee_type, period_unit, period_count, instalment_count, session_count, prorata, items:group_fee_option_items(amount)').eq('org_id', orgId.value),
     (db.from as any)('events').select('member_group_id').eq('org_id', orgId.value).not('member_group_id', 'is', null),
     wl.entryCounts(),
@@ -237,8 +237,17 @@ async function load() {
   termSets.value = loadedSets ?? []
   const memByGroup: Record<string, any[]> = {}
   for (const m of mems ?? []) (memByGroup[m.group_id] ??= []).push(m)
-  const sportByGroup: Record<string, string> = {}
-  for (const d of discs ?? []) if (!sportByGroup[d.group_id]) sportByGroup[d.group_id] = d.discipline?.sport || d.discipline?.name || ''
+  // Sport: the class's programme chain (group_codes.sport_id → org_sports, mig 238),
+  // shown under the club's own label for it. This is the same fact the access
+  // grants gate on below — a real FK, not the free text that used to be read off
+  // whichever discipline the class happened to be linked to first.
+  const codesById: Record<string, any> = Object.fromEntries(loadedCodes.map((c: any) => [c.id, c]))
+  const sportLabelById: Record<string, string> = {}
+  for (const s of orgSports ?? []) sportLabelById[s.id] = (s.display_name || s.sport || '').trim()
+  const sportOf = (g: any): string | null => {
+    const sportId = gc.effectiveSportId({ code_id: g.code_id ?? null }, codesById)
+    return sportId ? (sportLabelById[sportId] || null) : null
+  }
   // Term fee: group's fee options → single = its price label, multiple = "varies", none = ✗.
   const feesByGroup: Record<string, any[]> = {}
   for (const o of feeOpts ?? []) (feesByGroup[o.group_id] ??= []).push(o)
@@ -258,7 +267,7 @@ async function load() {
     return {
       id: g.id, name: g.name, code_id: g.code_id ?? null, term_id: g.term_id ?? null, capacity: g.capacity ?? null, color: g.color ?? null,
       headName: head ? `${head.first_name ?? ''} ${head.last_name ?? ''}`.trim() || null : null,
-      gymnasts, waitlist: g.waitlist_id ? (wlCounts[g.waitlist_id] ?? 0) : null, sport: sportByGroup[g.id] || null,
+      gymnasts, waitlist: g.waitlist_id ? (wlCounts[g.waitlist_id] ?? 0) : null, sport: sportOf(g),
       gender: g.gender_restriction ?? null,
       ageRange: g.age_range ?? null,
       feeCount: opts.length,

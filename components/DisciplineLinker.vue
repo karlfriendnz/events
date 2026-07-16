@@ -4,8 +4,8 @@
 
   ONE field. Every discipline the club can reach (across all of its connected
   sports, org_sports migration 148) is listed in a single MultiSelect, grouped
-  under a sport heading. The sport is IMPLIED by what you pick — there is no
-  separate sport picker to narrow the list first.
+  under the GOVERNING BODY that owns it. The sport is IMPLIED by what you pick —
+  there is no separate sport picker to narrow the list first.
 
   A club can operate standalone (a sport with no governing body) — then there are
   simply no disciplines to link, and we say so.
@@ -22,7 +22,7 @@ const { orgId } = useOrg()
 const joinTable = props.entityType === 'group' ? 'member_group_disciplines' : 'event_disciplines'
 const fk = props.entityType === 'group' ? 'group_id' : 'event_id'
 
-interface Disc { id: string; name: string; sport: string | null; parent_id: string | null; sort_order: number; nso: string }
+interface Disc { id: string; name: string; parent_id: string | null; sort_order: number; nso: string }
 const orgSports = ref<{ sport: string; nso_org_id: string | null }[]>([])
 const allDisciplines = ref<Disc[]>([])          // every discipline reachable across the club's connected sports
 const selected = ref<string[]>([])              // linked discipline ids
@@ -51,7 +51,7 @@ async function load() {
   const govIds = (ancRes?.data ?? []).map((a: any) => a.id)
   if (govIds.length) {
     const { data: discs } = await (db.from as any)('disciplines')
-      .select('id, name, sport, parent_id, sort_order, applies_to, organisations(name)').in('org_id', govIds).order('sport').order('sort_order').order('name')
+      .select('id, name, parent_id, sort_order, applies_to, organisations(name)').in('org_id', govIds).order('sort_order').order('name')
     // A discipline shows here only when it's scoped to this context (event/group)
     // or scoped to nothing at all (applies everywhere). Its ANCESTORS are always
     // kept so a shown child never dangles without its parent in the tree.
@@ -65,7 +65,7 @@ async function load() {
       while (p && byId.has(p) && !keep.has(p)) { keep.add(p); p = (byId.get(p) as any).parent_id }
     }
     allDisciplines.value = rows.filter((d: any) => keep.has(d.id))
-      .map((d: any) => ({ id: d.id, name: d.name, sport: d.sport, parent_id: d.parent_id ?? null, sort_order: d.sort_order ?? 0, nso: d.organisations?.name ?? '' }))
+      .map((d: any) => ({ id: d.id, name: d.name, parent_id: d.parent_id ?? null, sort_order: d.sort_order ?? 0, nso: d.organisations?.name ?? '' }))
   } else {
     allDisciplines.value = []
   }
@@ -96,18 +96,21 @@ watch(allDisciplines, discs => {
   }
 }, { immediate: true })
 
-// One group per sport (heading), its disciplines depth-ordered so a child sits
-// under its parent (Seniors › Premiers › B Grade).
+// One group per GOVERNING BODY (heading), its disciplines depth-ordered so a
+// child sits under its parent (Seniors › Premiers › B Grade). The body is the
+// heading rather than `disciplines.sport` because a body already implies its
+// sport — the string was hand-typed onto every row and had to match exactly to
+// group correctly, while the owning org is true by construction.
 const disciplineGroups = computed(() => {
-  const bySport: Record<string, Disc[]> = {}
-  for (const d of allDisciplines.value) (bySport[d.sport || 'Disciplines'] ??= []).push(d)
+  const byBody: Record<string, Disc[]> = {}
+  for (const d of allDisciplines.value) (byBody[d.nso || 'Disciplines'] ??= []).push(d)
 
-  return Object.entries(bySport).map(([sport, discs]) => {
+  return Object.entries(byBody).map(([body, discs]) => {
     const ids = new Set(discs.map(d => d.id))
     const byParent: Record<string, Disc[]> = {}
     for (const d of discs) {
-      // A discipline whose parent isn't in this sport is treated as a root, so it
-      // can never silently vanish from the list.
+      // A discipline whose parent isn't in this body's set is treated as a root,
+      // so it can never silently vanish from the list.
       const parent = d.parent_id && ids.has(d.parent_id) ? d.parent_id : '__root'
       ;(byParent[parent] ??= []).push(d)
     }
@@ -119,7 +122,7 @@ const disciplineGroups = computed(() => {
       }
     }
     walk('__root', 0)
-    return { label: sport, items }
+    return { label: body, items }
   }).filter(g => g.items.length)
 })
 
