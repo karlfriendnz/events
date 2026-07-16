@@ -153,35 +153,37 @@ function save() {
         </div>
 
         <!-- Amount section -->
-        <div class="px-5 py-4 border-b border-gray-100 bg-gray-50">
-          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Discount amount</p>
-          <div class="rounded-lg border border-gray-200 overflow-hidden bg-white">
-            <div class="grid" style="grid-template-columns: 120px auto 1fr">
-              <!-- Value (amount first) -->
-              <div class="relative flex items-center border-r border-gray-200">
-                <span v-if="draft.modifier_type === 'FLAT' || draft.modifier_type === 'REPLACE'" class="absolute left-3 text-gray-400 text-sm pointer-events-none">{{ currencySymbol }}</span>
-                <InputNumber v-model="draft.modifier_value" placeholder="0" :min="0"
-                  :max="draft.modifier_type === 'PERCENT' ? 100 : undefined"
-                  :suffix="draft.modifier_type === 'PERCENT' ? '%' : ''"
-                  inputClass="h-10 text-sm font-semibold text-center w-full border-0 shadow-none rounded-none"
-                  :class="draft.modifier_type === 'FLAT' || draft.modifier_type === 'REPLACE' ? 'pl-5' : ''"
-                  :pt="{ root: { class: 'w-full' }, input: { style: 'border:none; box-shadow:none; border-radius:0' } }" />
-              </div>
-              <!-- Type toggle -->
-              <div class="flex border-r border-gray-200">
-                <button v-for="ty in DISCOUNT_TYPES" :key="ty.value" type="button"
-                  class="px-5 py-2.5 text-sm font-semibold transition-all border-r border-gray-200 last:border-r-0"
-                  :class="draft.modifier_type === ty.value ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
-                  @click="draft.modifier_type = ty.value as any">{{ ty.label }}</button>
-              </div>
-              <!-- Applied to -->
-              <div class="flex items-center px-3 gap-2">
-                <span class="text-xs text-gray-400 shrink-0 font-medium">applied to</span>
-                <Select v-model="draft.apply_to" :options="APPLY_TO_OPTIONS" option-label="label" option-value="value"
-                  class="flex-1 text-sm"
-                  :pt="{ root: { style: 'border:none; box-shadow:none; background:transparent' } }" />
-              </div>
+        <div class="px-5 py-4 border-b border-gray-100 bg-gray-50 space-y-3">
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Discount</p>
+
+          <!-- Discount type -->
+          <div class="flex items-center justify-between gap-3">
+            <label class="text-sm font-medium text-gray-700 shrink-0">Discount type</label>
+            <div class="inline-flex rounded-lg border border-gray-200 overflow-hidden bg-white">
+              <button v-for="ty in DISCOUNT_TYPES" :key="ty.value" type="button"
+                class="px-4 py-2 text-sm font-semibold transition-all border-r border-gray-200 last:border-r-0"
+                :class="draft.modifier_type === ty.value ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
+                @click="draft.modifier_type = ty.value as any">{{ ty.label }}</button>
             </div>
+          </div>
+
+          <!-- Amount -->
+          <div class="flex items-center justify-between gap-3">
+            <label class="text-sm font-medium text-gray-700 shrink-0">Amount</label>
+            <div class="relative w-40">
+              <span v-if="draft.modifier_type === 'FLAT' || draft.modifier_type === 'REPLACE'" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none z-10">{{ currencySymbol }}</span>
+              <InputNumber v-model="draft.modifier_value" placeholder="0" :min="0"
+                :max="draft.modifier_type === 'PERCENT' ? 100 : undefined"
+                :suffix="draft.modifier_type === 'PERCENT' ? '%' : ''"
+                class="w-full"
+                :input-class="draft.modifier_type === 'FLAT' || draft.modifier_type === 'REPLACE' ? 'h-10 text-sm w-full !pl-6' : 'h-10 text-sm w-full'" />
+            </div>
+          </div>
+
+          <!-- Applied to -->
+          <div class="flex items-center justify-between gap-3">
+            <label class="text-sm font-medium text-gray-700 shrink-0">Applied to</label>
+            <Select v-model="draft.apply_to" :options="APPLY_TO_OPTIONS" option-label="label" option-value="value" class="w-56 text-sm" />
           </div>
         </div>
 
