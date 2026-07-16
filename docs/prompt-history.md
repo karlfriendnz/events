@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1667 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1668 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (61 prompts)
+## Session 2026-07-14 22:10 (62 prompts)
 
 **22:10** — yay we are back
 
@@ -28961,4 +28961,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **04:59** — the form footer buttons and row should not show [Image #7] when in the modals
 
 **05:07** — i have clicekd on basic and nothign happneig
+
+**05:12** — pleases just make the registartion form tab not have the right summary if its in a modal
 
