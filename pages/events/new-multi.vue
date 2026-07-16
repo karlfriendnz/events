@@ -5,7 +5,7 @@
     :title="wizardTitle"
     :can-next="canNext"
     :saving="saving"
-    :hide-summary="step === 3 && formBuilding"
+    :full-bleed="fullBleedForm"
     finish-label="Create programme"
     @finish="createEvent"
     @close="navigateTo('/events')">
@@ -233,11 +233,11 @@
          DEFINITE height or it collapses to nothing. The WizardShell wraps steps in a
          padded max-width scroll block, so give this step a real height + cancel that
          padding so the designer fills the body edge-to-edge. -->
-    <div v-show="step === 3" class="flex flex-col h-[72vh] min-h-[460px] -mx-3 sm:-mx-6 -my-4 sm:-my-8">
+    <div v-show="step === 3" :class="fullBleedForm ? 'flex-1 min-h-0 flex flex-col' : 'flex flex-col h-[72vh] min-h-[460px] -mx-3 sm:-mx-6 -my-4 sm:-my-8'">
       <div v-if="!draftEventId" class="flex-1 flex items-center justify-center text-sm text-gray-400">
         Preparing the form…
       </div>
-      <FormDesigner v-else :event-id="draftEventId" :org-id="orgId" :discount-settings="discountSettings" @building="formBuilding = $event" class="flex flex-col flex-1 min-h-0" />
+      <FormDesigner v-else :event-id="draftEventId" :org-id="orgId" :discount-settings="discountSettings" embedded @building="formBuilding = $event" class="flex flex-col flex-1 min-h-0" />
     </div>
 
     <!-- ── Step 5 · Summary ── -->
@@ -482,9 +482,10 @@ const { conditionLabel } = useEventDiscounts()
 // Best-discount-only policy — ON by default; persisted into the form config by
 // <FormDesigner> (shared reactive), same as the advanced editor.
 const discountSettings = reactive({ one_discount_only: true })
-// True once the form step is past its chooser — the wizard hides the summary rail
-// then so the builder gets the full width.
+// True once the form step is past its chooser — the wizard goes full-bleed then
+// (no summary rail, no padded max-width) so the builder gets the whole body.
 const formBuilding = ref(false)
+const fullBleedForm = computed(() => step.value === 3 && formBuilding.value)
 const discountFlowOpen = ref(false)
 const discountEditIdx = ref<number | null>(null)
 const discountEditDraft = ref<DiscountDraft | null>(null)

@@ -7,7 +7,7 @@
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
 
-const props = withDefaults(defineProps<{ eventId: string | null; groupId?: string | null; formId?: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean }>(), { groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false })
+const props = withDefaults(defineProps<{ eventId: string | null; groupId?: string | null; formId?: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean; embedded?: boolean }>(), { groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false, embedded: false })
 
 const emit = defineEmits<{ (e: 'building', v: boolean): void }>()
 const db = useDb()
@@ -4070,8 +4070,8 @@ defineExpose({ reload })
 
         </div>
 
-        <!-- Sticky bottom nav -->
-        <div v-if="evtFormGroupModes[selectedFormGroupId] && evtFormGroupModes[selectedFormGroupId] !== 'skip'" class="flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-white shrink-0">
+        <!-- Sticky bottom nav — hidden when embedded (the wizard owns Back/Next). -->
+        <div v-if="!embedded && evtFormGroupModes[selectedFormGroupId] && evtFormGroupModes[selectedFormGroupId] !== 'skip'" class="flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-white shrink-0">
           <button type="button" class="px-5 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">Back</button>
           <button type="button" class="px-5 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-[#161a45] transition-colors">Next: Configure Discounts</button>
         </div>

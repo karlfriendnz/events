@@ -444,7 +444,7 @@
           <!-- flex column + definite height so FormDesigner's absolute two-panel
                layout resolves (otherwise it collapses to nothing). -->
           <div v-else class="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col" style="height:70vh; min-height:560px">
-            <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" class="flex-1 min-h-0" />
+            <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" embedded class="flex-1 min-h-0" />
           </div>
         </div>
 
