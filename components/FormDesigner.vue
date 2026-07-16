@@ -21,7 +21,7 @@ const ticketTypes = computed(() => props.ticketTypes)     // payment preview tic
 const hasTickets = computed(() => props.hasTickets)
 const id = props.eventId
 const event = ref<any>(null)
-const evtDiscountSettings = props.discountSettings ?? reactive({ one_discount_only: false })
+const evtDiscountSettings = props.discountSettings ?? reactive({ one_discount_only: true })
 
 // ── moved form-builder script (from events/[id].vue 5308–7361) ──
 // No default form is seeded — an event starts with NO forms (chooser/empty state),

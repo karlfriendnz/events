@@ -2710,7 +2710,7 @@ const allTabs = [
   { key: 'forms',          label: 'Forms',          icon: 'pi-file-edit' },
   { key: 'invitees',       label: 'Invitees',       icon: 'pi-users' },
   { key: 'communication',  label: 'Communication',  icon: 'pi-envelope' },
-  { key: 'automation',     label: 'Automation',     icon: 'pi-bolt' },
+  // Automation tab hidden for now (content block + handlers remain, unlisted).
   { key: 'attendance',     label: 'Attendance',     icon: 'pi-check-square' },
   { key: 'reporting',      label: 'Reporting',      icon: 'pi-chart-bar' },
   { key: 'notes',          label: 'Notes & Tasks',  icon: 'pi-clipboard' },
@@ -3428,7 +3428,7 @@ async function checkInOrder(registrationId: string) {
 
 // ---- Discounts tab ----
 const eventDiscounts = ref<any[]>([])
-const evtDiscountSettings = reactive({ one_discount_only: false })
+const evtDiscountSettings = reactive({ one_discount_only: true })
 
 async function loadDiscounts() {
   const { data } = await db.from('discounts').select('*').eq('event_id', id).order('created_at')

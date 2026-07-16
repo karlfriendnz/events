@@ -216,6 +216,15 @@
           </div>
         </div>
       </div>
+
+      <!-- One-discount-only setting (same as the advanced editor) -->
+      <div class="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-5 py-3.5">
+        <div>
+          <p class="text-sm font-medium text-gray-700">Limit to one discount per registration</p>
+          <p class="text-xs text-gray-400 mt-0.5">When multiple rules match, only the best discount is applied.</p>
+        </div>
+        <ToggleSwitch v-model="discountSettings.one_discount_only" />
+      </div>
     </div>
 
     <!-- ── Step 4 · Registration form (the shared <FormDesigner>) ── -->
@@ -223,7 +232,7 @@
       <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
         Preparing the form…
       </div>
-      <FormDesigner v-else :event-id="draftEventId" :org-id="orgId" class="flex flex-col flex-1 min-h-0" />
+      <FormDesigner v-else :event-id="draftEventId" :org-id="orgId" :discount-settings="discountSettings" class="flex flex-col flex-1 min-h-0" />
     </div>
 
     <!-- ── Step 5 · Summary ── -->
@@ -465,6 +474,9 @@ const canNext = computed(() => {
 type WizardDiscount = DiscountDraft & { id: string }
 const toIsoDate = (d: Date) => new Date(d).toISOString().slice(0, 10)
 const { conditionLabel } = useEventDiscounts()
+// Best-discount-only policy — ON by default; persisted into the form config by
+// <FormDesigner> (shared reactive), same as the advanced editor.
+const discountSettings = reactive({ one_discount_only: true })
 const discountFlowOpen = ref(false)
 const discountEditIdx = ref<number | null>(null)
 const discountEditDraft = ref<DiscountDraft | null>(null)

@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1659 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1660 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (53 prompts)
+## Session 2026-07-14 22:10 (54 prompts)
 
 **22:10** — yay we are back
 
@@ -28940,4 +28940,11 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **03:02** — ok so not for the holiday programme wizard I wnat to add some default discounts, (Full day discount - all session with in a day have been booked) and Also (Full week - all session with in a week have been booked)
 
 **03:09** — Sign up date should not allow you to choose start prior to today
+
+**03:19** — ooo this needs to be on all wizards that have discounts please - Limit to one discount per registration
+> 
+> When multiple rules match, only the best discount is applied.
+> 
+> 
+>  [Image #5] and should be on by default
 
