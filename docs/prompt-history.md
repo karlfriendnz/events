@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1645 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1646 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (39 prompts)
+## Session 2026-07-14 22:10 (40 prompts)
 
 **22:10** — yay we are back
 
@@ -28884,4 +28884,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **01:01** — please make the programme page - have the table view not list
 
 **01:04** — in the fee component i should only be able to enter numbers in the amount box
+
+**01:17** — Why when i click on a programme doens it show evntes in teh control bar ?
 

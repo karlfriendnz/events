@@ -5043,7 +5043,9 @@ async function loadEvent() {
     subGroups.value = Array.isArray(data.sub_groups) ? data.sub_groups : []
   }
   loading.value = false
-  breadcrumbs.value = [{ label: 'Events', to: '/events' }, { label: event.value?.title ?? 'Event' }]
+  breadcrumbs.value = event.value?.is_programme
+    ? [{ label: 'Programme', to: '/programme' }, { label: event.value?.title ?? 'Programme' }]
+    : [{ label: 'Events', to: '/events' }, { label: event.value?.title ?? 'Event' }]
 }
 
 async function loadInvitees() {
