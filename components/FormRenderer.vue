@@ -41,6 +41,8 @@ const props = defineProps<{
   event?: any                   // drives the designed header chrome (banner/info/description)
   preview?: boolean             // builder preview: skip the auth chooser + don't really submit
   discounts?: any[]             // active discounts, shown on the landing to encourage registration
+  hideHeader?: boolean          // embed: hide the banner/info/description header
+  registerUrl?: string          // embed: "Register" sends the visitor here (top window) instead of the modal
 }>()
 const emit = defineEmits<{ (e: 'submit', payload: any): void }>()
 
@@ -514,6 +516,12 @@ const db = useDb()
 const { resolveFields } = useOrgFieldPolicy()
 const authResolved = ref(!!props.preview)  // false → show the landing; true → show the form (preview skips it)
 const authModalOpen = ref(false)           // "Register" opens the auth chooser in a modal
+// Register: normally opens the modal; in an embed with registerUrl, break out of the
+// iframe and send the visitor to the club's login/registration page.
+function onRegisterClick() {
+  if (props.registerUrl && import.meta.client) { (window.top || window).location.href = props.registerUrl; return }
+  authModalOpen.value = true
+}
 function onGuestFromModal() { authModalOpen.value = false; onGuest() }
 function onSignedInFromModal(p: any) { authModalOpen.value = false; onSignedIn(p) }
 
@@ -631,10 +639,12 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
 
 <template>
   <div class="form-renderer" :style="bgStyle">
-    <!-- ── Designed header chrome (banner / info / description) ── -->
-    <FormPreviewBanner v-if="showBanner" :design="design" :event="event || {}" />
-    <FormPreviewInfoIcons v-if="hasInfoIcons" :design="design" :event="displayEvent" live :cost="costLabel" />
-    <FormPreviewDescription v-if="hasDescription" :design="design" :event="event" readonly />
+    <!-- ── Designed header chrome (banner / info / description) — hidden in embed when asked ── -->
+    <template v-if="!hideHeader">
+      <FormPreviewBanner v-if="showBanner" :design="design" :event="event || {}" />
+      <FormPreviewInfoIcons v-if="hasInfoIcons" :design="design" :event="displayEvent" live :cost="costLabel" />
+      <FormPreviewDescription v-if="hasDescription" :design="design" :event="event" readonly />
+    </template>
 
     <div class="px-4 sm:px-6 py-6">
     <!-- LANDING: details + sessions (data table) → "Register" opens the auth modal -->
@@ -688,7 +698,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
       </div>
 
       <Button label="Register" icon="pi pi-arrow-right" icon-pos="right" class="w-full mt-5"
-        @click="authModalOpen = true" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+        @click="onRegisterClick" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
     </div>
 
     <template v-else>

@@ -47,6 +47,11 @@ const formEvent = ref<any>(null)   // drives <FormRenderer>'s designed banner/in
 const theme = ref<{ canvas: string; primary: string; on_primary: string }>({ canvas: '#F5F8FA', primary: '#1E2157', on_primary: '#FFFFFF' })
 const themeVars = computed(() => ({ '--brand-primary': theme.value.primary }))
 
+// Embed options (query params from the "Add to website" snippet).
+const embedBg = computed(() => (route.query.bg as string) || theme.value.canvas)
+const embedHideHeader = computed(() => route.query.header === '0')
+const embedLoginUrl = computed(() => (route.query.login as string) || '')
+
 async function loadOrg(id: string) {
   const { data: org } = await (db.from as any)('organisations')
     .select('id, name, logo_url, booker_theme, currency').eq('id', id).maybeSingle()
@@ -355,8 +360,8 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="min-h-screen w-full" :style="{ ...themeVars, background: theme.canvas }">
-    <div class="max-w-[1000px] mx-auto px-4 py-8">
+  <div class="min-h-screen w-full" :style="{ ...themeVars, background: embedBg }">
+    <div class="mx-auto px-4 py-8 w-full max-w-[1200px]">
       <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
         <div v-if="loading" class="py-16 text-center text-gray-400">
           <i class="pi pi-spin pi-spinner text-2xl" />
@@ -409,6 +414,8 @@ onMounted(load)
           :sessions="sessions"
           :fee-line-items="feeLineItems"
           :discounts="discounts"
+          :hide-header="embedHideHeader"
+          :register-url="embedLoginUrl"
           :fee-options="feeOptions"
           :group-options="groupChoices"
           :currency="currency"

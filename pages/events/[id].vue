@@ -42,17 +42,36 @@
     </div>
 
     <!-- Add to website (embed) -->
-    <Dialog v-model:visible="embedOpen" modal header="Add to your website" :style="{ width: '95vw', maxWidth: '620px' }">
-      <div class="space-y-3">
+    <Dialog v-model:visible="embedOpen" modal header="Add to your website" :style="{ width: '95vw', maxWidth: '640px' }">
+      <div class="space-y-4">
         <p class="text-sm text-gray-500">Paste this snippet into your website to embed the registration page for this {{ t('event', false, true) }}. It stays in sync — updates here show on your site automatically.</p>
-        <div class="flex items-center justify-end">
-          <Button :label="embedCopied ? 'Copied' : 'Copy'" :icon="embedCopied ? 'pi pi-check' : 'pi pi-copy'" size="small" severity="secondary" outlined @click="copyEmbed" />
+
+        <!-- Options -->
+        <div class="rounded-xl border border-gray-200 divide-y divide-gray-100">
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <div><p class="text-sm font-medium text-gray-700">Background colour</p><p class="text-xs text-gray-400">Behind the form</p></div>
+            <div class="flex items-center gap-2">
+              <input type="color" :value="embedBg" @input="e => embedBg = (e.target as HTMLInputElement).value" class="w-9 h-8 rounded border border-gray-200 cursor-pointer p-0.5" />
+              <InputText v-model="embedBg" class="w-24 !text-xs font-mono" />
+            </div>
+          </div>
+          <div class="flex items-center justify-between gap-3 px-4 py-3">
+            <div><p class="text-sm font-medium text-gray-700">Show header</p><p class="text-xs text-gray-400">Event banner + details at the top</p></div>
+            <ToggleSwitch v-model="embedShowHeader" />
+          </div>
+          <div class="px-4 py-3">
+            <div class="flex items-center justify-between gap-3">
+              <div><p class="text-sm font-medium text-gray-700">Register goes to your login page</p><p class="text-xs text-gray-400">Instead of registering inside the frame, send visitors to this URL</p></div>
+            </div>
+            <InputText v-model="embedLoginUrl" placeholder="https://yourclub.com/login" class="w-full mt-2 !text-sm" />
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <a :href="embedUrl" target="_blank" class="inline-flex items-center gap-1 text-xs text-primary hover:underline">Preview the page <i class="pi pi-external-link text-[10px]" /></a>
+          <Button :label="embedCopied ? 'Copied' : 'Copy snippet'" :icon="embedCopied ? 'pi pi-check' : 'pi pi-copy'" size="small" severity="secondary" outlined @click="copyEmbed" />
         </div>
         <Textarea :model-value="embedSnippet" readonly rows="4" class="w-full text-xs font-mono" @focus="(e:any) => e.target.select()" />
-        <a :href="embedUrl" target="_blank" class="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-          Preview the page <i class="pi pi-external-link text-[10px]" />
-        </a>
-        <p class="text-[11px] text-gray-400 border-t border-gray-100 pt-2">Registrants sign up on the embedded page exactly as they would on the public link.</p>
       </div>
     </Dialog>
 
@@ -3258,9 +3277,20 @@ const moreMenuItems = computed(() => [
 // ---- Add to website (embed) ----
 const embedOpen = ref(false)
 const embedCopied = ref(false)
-const embedUrl = computed(() => `${import.meta.client ? window.location.origin : ''}/r/event/${route.params.id}`)
+const embedBg = ref('#F5F8FA')       // page background behind the form
+const embedShowHeader = ref(true)    // show the event banner/details header
+const embedLoginUrl = ref('')        // Register → send the visitor to this URL (club login page)
+const embedUrl = computed(() => {
+  const base = `${import.meta.client ? window.location.origin : ''}/r/event/${route.params.id}`
+  const p = new URLSearchParams()
+  if (embedBg.value) p.set('bg', embedBg.value)
+  if (!embedShowHeader.value) p.set('header', '0')
+  if (embedLoginUrl.value.trim()) p.set('login', embedLoginUrl.value.trim())
+  const q = p.toString()
+  return q ? `${base}?${q}` : base
+})
 const embedSnippet = computed(() =>
-  `<iframe src="${embedUrl.value}" width="100%" height="900" frameborder="0" style="border:0;max-width:1000px" title="${(event.value?.title || 'Event registration').replace(/"/g, '&quot;')}"></iframe>`)
+  `<iframe src="${embedUrl.value}" width="100%" height="1000" frameborder="0" style="border:0;width:100%" title="${(event.value?.title || 'Event registration').replace(/"/g, '&quot;')}"></iframe>`)
 async function copyEmbed() {
   try { await navigator.clipboard.writeText(embedSnippet.value); embedCopied.value = true; setTimeout(() => embedCopied.value = false, 1500) } catch { /* ignore */ }
 }
