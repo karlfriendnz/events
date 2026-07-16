@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1650 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1654 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (44 prompts)
+## Session 2026-07-14 22:10 (48 prompts)
 
 **22:10** — yay we are back
 
@@ -28922,4 +28922,12 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **01:43** — ok so we hanvt quite got the holiday pogramme flow quite right, the first programme page is good, but when you click in to it it should hten shwo you a list of dates for just taht programme with the columns we hd from teh onld system
 
 **01:48** — ok so i click on the programme and i see the list view - i should see the new uniqure view
+
+**02:04** — I wonder if we can make this more dynamic becuase differnet clubs / orgs are going to want to do different things for example a surf club wants to create a competitiion - maybe we need a setting called "event type" and that then controls the views ?
+
+**02:06** — Let's name the first 3-4 event types first
+
+**02:08** — so here are the things we can do (Compeition, Holiday Programme, Recurrring event, mult session evetnt, training, drop in class, Trial,) whats in scope right now is (HP, Basic Evnet)
+
+**02:11** — i think this view - http://localhost:3002/programme/8108271f-13e2-4e48-9563-a343db79a3f6 should be insde the advanced event view
 

@@ -357,7 +357,7 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
-            <tr v-for="e in exportRows" :key="e.id" class="hover:bg-gray-50 cursor-pointer" @click="navigateTo(`/programme/${e.id}`)">
+            <tr v-for="e in exportRows" :key="e.id" class="hover:bg-gray-50 cursor-pointer" @click="navigateTo(`/events/${e.id}?tab=dates`)">
               <td class="px-4 py-2.5 font-medium text-gray-800">
                 <span class="inline-flex items-center gap-2 min-w-0">
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: categoriesById[e.category_id]?.color ?? '#6D28D9' }" />

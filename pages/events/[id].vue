@@ -205,6 +205,11 @@
         </div>
       </div>
 
+      <!-- DATES TAB (programme availability) -->
+      <div v-else-if="activeTab === 'dates'" class="max-w-[1140px] mx-auto px-3 sm:px-6 py-4 sm:py-6 overflow-y-auto flex-1 w-full">
+        <ProgrammeDatesView :event-id="id" />
+      </div>
+
       <!-- INVITEES TAB -->
       <div v-else-if="activeTab === 'invitees'" class="px-3 sm:px-6 py-4 sm:py-6 overflow-y-auto flex-1">
         <div v-if="canManageEvent" class="flex justify-end gap-2 mb-3">
@@ -2699,6 +2704,7 @@ const id = route.params.id as string
 const allTabs = [
   { key: 'overview',       label: 'Overview',       icon: 'pi-info-circle' },
   { key: 'sessions',       label: 'Sessions',       icon: 'pi-calendar-clock' },
+  { key: 'dates',          label: 'Dates',          icon: 'pi-calendar' },
   { key: 'discounts',      label: 'Discounts',      icon: 'pi-tag' },
   { key: 'tickets',        label: 'Tickets',        icon: 'pi-ticket' },
   { key: 'forms',          label: 'Forms',          icon: 'pi-file-edit' },
@@ -2764,13 +2770,15 @@ const eventDateDisplay = computed(() => {
 
 
 const tabs = computed(() => {
+  // The Dates (availability) view only makes sense for programmes (multi-date events).
+  const isProg = !!event.value?.is_programme
   if (event.value?.style === 'BASIC') {
     return allTabs.filter(t => basicTabs.includes(t.key))
   }
-  return allTabs.filter(t => t.key !== 'tickets' || hasTickets.value)
+  return allTabs.filter(t => (t.key !== 'tickets' || hasTickets.value) && (t.key !== 'dates' || isProg))
 })
 
-const primaryTabKeys = ['overview', 'sessions', 'invitees', 'attendance', 'notes']
+const primaryTabKeys = ['overview', 'sessions', 'dates', 'invitees', 'attendance', 'notes']
 const moreGroupDefs = [
   { label: 'Set up',  keys: ['forms', 'tickets', 'discounts'] },
   { label: 'Comms',   keys: ['communication', 'automation'] },
