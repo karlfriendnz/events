@@ -631,25 +631,27 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
     <div v-if="!authResolved">
       <h2 class="text-lg font-bold text-gray-900 mb-3">{{ formHeading }}</h2>
 
-      <!-- What's on offer, as a table — one row per week -->
+      <!-- What's on offer, as a table — one row per week, a column per session type -->
       <div v-if="weekSummary.length" class="rounded-xl border border-gray-200 overflow-x-auto">
-        <table class="w-full text-sm border-collapse min-w-[440px]">
+        <table class="w-full text-sm border-collapse min-w-[520px]">
           <thead>
             <tr class="bg-gray-50 border-b border-gray-200 text-left text-[11px] font-bold uppercase tracking-wide text-gray-500">
               <th class="px-4 py-2.5">Week</th>
               <th class="px-4 py-2.5">Dates</th>
-              <th class="px-4 py-2.5 text-center">Days</th>
+              <th class="px-3 py-2.5 text-center">Days</th>
+              <th v-for="col in sessionDateTable.columns" :key="col.key" class="px-3 py-2.5 text-right">
+                {{ col.title || col.startTime }}<span v-if="col.startTime && col.title" class="block font-normal normal-case text-gray-400">{{ col.startTime }}</span>
+              </th>
               <th class="px-4 py-2.5 text-right">Full day</th>
-              <th class="px-4 py-2.5 text-right">From</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
             <tr v-for="w in weekSummary" :key="w.weekSeq">
               <td class="px-4 py-2.5 font-semibold text-gray-800 whitespace-nowrap">Week {{ w.weekSeq }}</td>
               <td class="px-4 py-2.5 text-gray-600 whitespace-nowrap">{{ w.range }}</td>
-              <td class="px-4 py-2.5 text-center text-gray-600 tabular-nums">{{ w.days }}</td>
-              <td class="px-4 py-2.5 text-right text-gray-700 tabular-nums">{{ w.perDay ? money(w.perDay) : '—' }}</td>
-              <td class="px-4 py-2.5 text-right font-semibold text-primary tabular-nums whitespace-nowrap">{{ w.from != null ? money(w.from) : '—' }}</td>
+              <td class="px-3 py-2.5 text-center text-gray-600 tabular-nums">{{ w.days }}</td>
+              <td v-for="col in sessionDateTable.columns" :key="col.key" class="px-3 py-2.5 text-right text-gray-700 tabular-nums whitespace-nowrap">{{ col.fee != null ? money(col.fee) : '—' }}</td>
+              <td class="px-4 py-2.5 text-right font-semibold text-primary tabular-nums whitespace-nowrap">{{ w.perDay ? money(w.perDay) : '—' }}</td>
             </tr>
           </tbody>
         </table>
