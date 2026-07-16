@@ -953,7 +953,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
     </div>
 
     <!-- Register / sign-in modal (opened by the "Register" button on the landing) -->
-    <Dialog v-model:visible="authModalOpen" modal :dismissable-mask="true" header="Register or sign in" :style="{ width: '95vw', maxWidth: '430px' }">
+    <Dialog v-model:visible="authModalOpen" modal :dismissable-mask="true" header="Register or sign in" :style="{ width: '95vw', maxWidth: '720px' }">
       <BookingAuthChooser
         :staff="staff" :org-id="context.orgId" :can-go-back="false" subject-mode="register"
         title="How would you like to register?"

@@ -47,61 +47,62 @@
            guest/app/OTP/password buttons. Built-in member picker covers
            the common staff case; this slot is for anything bespoke. -->
       <slot name="extra-options" />
-      <!-- Social sign-in (Supabase OAuth — providers configured in Supabase Auth) -->
-      <div class="space-y-2">
-        <button type="button" @click="signInWithProvider('google')"
-          class="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-colors">
-          <i class="pi pi-google text-[#EA4335]" /> Continue with Google
-        </button>
-        <button type="button" @click="signInWithProvider('facebook')"
-          class="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-colors">
-          <i class="pi pi-facebook text-[#1877F2]" /> Continue with Facebook
-        </button>
-      </div>
-
-      <div class="flex items-center gap-3">
-        <div class="flex-1 h-px bg-gray-200" />
-        <span class="text-xs font-semibold text-gray-400">OR</span>
-        <div class="flex-1 h-px bg-gray-200" />
-      </div>
-
-      <!-- Email + password login -->
-      <div class="space-y-3">
-        <div>
-          <label class="text-sm font-medium text-gray-700 mb-1 block">Email address</label>
-          <input v-model="pwEmail" type="email" placeholder="you@example.com" autocomplete="email"
-            class="w-full h-11 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
-        </div>
-        <div>
-          <label class="text-sm font-medium text-gray-700 mb-1 block">Password</label>
-          <input v-model="pwPassword" type="password" placeholder="••••••••" autocomplete="current-password"
-            class="w-full h-11 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]"
-            @keyup.enter="signInWithPasswordFn" />
-          <div class="flex justify-end mt-1">
-            <button type="button" class="text-xs font-semibold text-primary hover:underline" @click="step = 'otp-email'">Forgot password?</button>
+      <!-- Two columns: LOGIN on the left, GUEST on the right (stacks on mobile) -->
+      <div class="grid md:grid-cols-2 gap-6">
+        <!-- LEFT: sign in -->
+        <div class="space-y-3">
+          <p class="text-[11px] font-bold uppercase tracking-wide text-gray-400">Sign in</p>
+          <div class="space-y-2">
+            <button type="button" @click="signInWithProvider('google')"
+              class="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-colors">
+              <i class="pi pi-google text-[#EA4335]" /> Continue with Google
+            </button>
+            <button type="button" @click="signInWithProvider('facebook')"
+              class="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-colors">
+              <i class="pi pi-facebook text-[#1877F2]" /> Continue with Facebook
+            </button>
           </div>
+
+          <div class="flex items-center gap-3">
+            <div class="flex-1 h-px bg-gray-200" /><span class="text-xs font-semibold text-gray-400">OR</span><div class="flex-1 h-px bg-gray-200" />
+          </div>
+
+          <div>
+            <label class="text-sm font-medium text-gray-700 mb-1 block">Email address</label>
+            <input v-model="pwEmail" type="email" placeholder="you@example.com" autocomplete="email"
+              class="w-full h-11 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
+          </div>
+          <div>
+            <label class="text-sm font-medium text-gray-700 mb-1 block">Password</label>
+            <input v-model="pwPassword" type="password" placeholder="••••••••" autocomplete="current-password"
+              class="w-full h-11 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]"
+              @keyup.enter="signInWithPasswordFn" />
+            <div class="flex justify-end mt-1">
+              <button type="button" class="text-xs font-semibold text-primary hover:underline" @click="step = 'otp-email'">Forgot password?</button>
+            </div>
+          </div>
+          <p v-if="pwError" class="text-xs text-red-500">{{ pwError }}</p>
+          <p v-if="ssoError" class="text-xs text-red-500">{{ ssoError }}</p>
+          <Button :loading="pwSubmitting" label="Sign in" class="w-full !py-2.5"
+            @click="signInWithPasswordFn" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+
+          <button type="button"
+            class="w-full flex items-center justify-center gap-2 text-xs font-semibold text-gray-500 hover:text-gray-700 py-1"
+            @click="step = 'otp-email'">
+            <i class="pi pi-envelope text-[11px]" /> Email me a one-time code instead
+          </button>
         </div>
-        <p v-if="pwError" class="text-xs text-red-500">{{ pwError }}</p>
-        <p v-if="ssoError" class="text-xs text-red-500">{{ ssoError }}</p>
-        <Button :loading="pwSubmitting" label="Sign in" class="w-full !py-2.5"
-          @click="signInWithPasswordFn" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+
+        <!-- RIGHT: continue as guest -->
+        <div v-if="!hideGuest" class="md:border-l md:border-gray-100 md:pl-6 pt-5 md:pt-0 border-t border-gray-100 md:border-t-0 flex flex-col justify-center items-center text-center">
+          <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+            <i class="pi pi-user-edit text-gray-500 text-lg" />
+          </div>
+          <p class="text-sm font-bold text-gray-800">No account needed</p>
+          <p class="text-xs text-gray-500 mt-1 mb-4">{{ guestDescription }}</p>
+          <Button :label="guestLabel" severity="secondary" outlined class="w-full" @click="emit('select-guest')" />
+        </div>
       </div>
-
-      <div class="flex items-center gap-3">
-        <div class="flex-1 h-px bg-gray-200" />
-        <span class="text-xs font-semibold text-gray-400">OR</span>
-        <div class="flex-1 h-px bg-gray-200" />
-      </div>
-
-      <button type="button"
-        class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-colors"
-        @click="step = 'otp-email'">
-        <i class="pi pi-envelope text-gray-500" /> Email me a one-time code
-      </button>
-
-      <button v-if="!hideGuest" type="button"
-        class="w-full text-center text-sm text-gray-500 hover:text-gray-700 py-1"
-        @click="emit('select-guest')">Or {{ guestLabel.toLowerCase() }} →</button>
       <button v-if="appDeepLink" type="button"
         class="w-full text-center text-xs font-semibold text-gray-500 hover:text-gray-700 py-1"
         @click="step = 'app'"><i class="pi pi-mobile text-[10px] mr-1" /> Open in mobile app</button>
