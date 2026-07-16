@@ -709,7 +709,8 @@ const clubMenu = [
   { label: 'Memberships', icon: 'pi-id-card',       href: '/memberships',             chevron: true, module: 'finances', resource: 'fees' },
   { label: 'Events',      icon: 'pi-calendar',      href: '/events',                  chevron: true, events: true, module: 'events', resource: 'events' },
   { label: 'Bookings',    icon: 'pi-bookmark',      href: '/bookables?tab=bookings',  chevron: true, bookings: true, module: 'bookings', resource: 'bookings' },
-  { label: 'Programme',   icon: 'pi-flag',          href: '/programme',               chevron: true, module: 'programme', resource: 'programmes' },
+  // Programme is no longer a hardcoded menu item — a club surfaces it as a pinned
+  // calendar (e.g. "Holiday Programme") via the events calendar settings instead.
   { label: 'Attendance',  icon: 'pi-check-square',  href: '/attendance',              chevron: true, module: 'attendance', resource: 'attendance' },
   { label: 'Reports',     icon: 'pi-chart-bar',     href: '/reports',                 chevron: false },
   { label: 'Mailer',      icon: 'pi-envelope',      href: '/settings/communications', chevron: true, module: 'communications', resource: 'communications' },

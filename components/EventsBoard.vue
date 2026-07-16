@@ -120,14 +120,7 @@
               <div v-if="newCalendarPin" class="flex items-end gap-3 mt-1">
                 <div class="flex flex-col gap-1.5 flex-1 min-w-0">
                   <label class="text-xs font-medium text-gray-600">Menu icon</label>
-                  <div class="flex items-center gap-2">
-                    <span class="w-8 h-8 rounded-md border border-gray-200 flex items-center justify-center shrink-0"
-                      :style="{ color: newCalendarColor || 'var(--brand-primary)' }">
-                      <i :class="`pi ${newCalendarIcon.trim() || 'pi-calendar'}`" />
-                    </span>
-                    <InputText v-model="newCalendarIcon" placeholder="pi-calendar" class="flex-1 min-w-0" />
-                  </div>
-                  <p class="text-xs text-gray-400">A PrimeIcon name — see primefaces.org/primeicons.</p>
+                  <PrimeIconPicker v-model="newCalendarIcon" :accent="newCalendarColor || undefined" />
                 </div>
                 <div class="flex flex-col gap-1.5">
                   <label class="text-xs font-medium text-gray-600">Colour</label>
