@@ -41,6 +41,21 @@
       </div>
     </div>
 
+    <!-- Add to website (embed) -->
+    <Dialog v-model:visible="embedOpen" modal header="Add to your website" :style="{ width: '95vw', maxWidth: '620px' }">
+      <div class="space-y-3">
+        <p class="text-sm text-gray-500">Paste this snippet into your website to embed the registration page for this {{ t('event', false, true) }}. It stays in sync — updates here show on your site automatically.</p>
+        <div class="flex items-center justify-end">
+          <Button :label="embedCopied ? 'Copied' : 'Copy'" :icon="embedCopied ? 'pi pi-check' : 'pi pi-copy'" size="small" severity="secondary" outlined @click="copyEmbed" />
+        </div>
+        <Textarea :model-value="embedSnippet" readonly rows="4" class="w-full text-xs font-mono" @focus="(e:any) => e.target.select()" />
+        <a :href="embedUrl" target="_blank" class="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+          Preview the page <i class="pi pi-external-link text-[10px]" />
+        </a>
+        <p class="text-[11px] text-gray-400 border-t border-gray-100 pt-2">Registrants sign up on the embedded page exactly as they would on the public link.</p>
+      </div>
+    </Dialog>
+
     <!-- Content -->
     <div class="flex-1 flex flex-col min-h-0 bg-[#F5F8FA]">
 
@@ -3234,10 +3249,21 @@ const allCategories = ref<any[]>([])
 const moreMenu = ref()
 const moreMenuItems = computed(() => [
   { label: 'Duplicate', icon: 'pi pi-copy', command: () => {} },
+  { label: 'Add to website', icon: 'pi pi-code', command: () => { embedOpen.value = true } },
   ...(event.value?.status === 'PUBLISHED' ? [{ separator: true }, { label: 'Unpublish', icon: 'pi pi-eye-slash', command: unpublishEvent }] : []),
   { separator: true },
   { label: 'Archive', icon: 'pi pi-trash', class: 'text-red-500', command: archiveEvent },
 ])
+
+// ---- Add to website (embed) ----
+const embedOpen = ref(false)
+const embedCopied = ref(false)
+const embedUrl = computed(() => `${import.meta.client ? window.location.origin : ''}/r/event/${route.params.id}`)
+const embedSnippet = computed(() =>
+  `<iframe src="${embedUrl.value}" width="100%" height="900" frameborder="0" style="border:0;max-width:1000px" title="${(event.value?.title || 'Event registration').replace(/"/g, '&quot;')}"></iframe>`)
+async function copyEmbed() {
+  try { await navigator.clipboard.writeText(embedSnippet.value); embedCopied.value = true; setTimeout(() => embedCopied.value = false, 1500) } catch { /* ignore */ }
+}
 
 // ---- Edit form ----
 const editForm = ref<any>({

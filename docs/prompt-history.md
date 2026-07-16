@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1685 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1686 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (79 prompts)
+## Session 2026-07-14 22:10 (80 prompts)
 
 **22:10** — yay we are back
 
@@ -28997,4 +28997,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **10:26** — put the sso unde the login
 
 **20:12** — hey
+
+**20:14** — On an indovidual event page we need an option to add it to a website. please put this under the elipsis on the controil bar.
 
