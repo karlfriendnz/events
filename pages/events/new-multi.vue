@@ -216,8 +216,16 @@
       </div>
     </div>
 
-    <!-- ── Step 4 · Summary ── -->
-    <div v-show="step === 3" class="space-y-6">
+    <!-- ── Step 4 · Registration form (the shared <FormDesigner>) ── -->
+    <div v-show="step === 3" class="flex flex-col min-h-0">
+      <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
+        Preparing the form…
+      </div>
+      <FormDesigner v-else :event-id="draftEventId" :org-id="orgId" class="flex flex-col flex-1 min-h-0" />
+    </div>
+
+    <!-- ── Step 5 · Summary ── -->
+    <div v-show="step === 4" class="space-y-6">
       <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div class="px-5 py-3 border-b border-gray-100 bg-gray-50">
           <h2 class="text-sm font-semibold text-gray-700">Review your programme</h2>
@@ -292,6 +300,22 @@ const saving = ref(false)
 
 // An event can't be in the past — the programme can't start before today.
 const today = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d })()
+
+// A draft event is created on open so the shared <FormDesigner> (same builder as
+// the other wizards) has an id to bind to; createEvent UPDATES it at the end.
+const draftEventId = ref<string | null>(null)
+async function ensureDraft() {
+  if (draftEventId.value) return
+  const { data } = await (db.from as any)('events').insert({
+    org_id: orgId.value,
+    style: 'ADVANCED',
+    created_via: 'multi',
+    status: 'DRAFT',
+    is_programme: route.query.programme === '1',
+    title: (route.query.name as string)?.trim() || 'Untitled programme',
+  }).select('id').single()
+  draftEventId.value = data?.id ?? null
+}
 
 // Parse optional date from calendar click
 function parseDateParam(p: string | null) {
@@ -420,13 +444,15 @@ const WIZARD_STEPS = [
   { key: 'details', label: 'Event details' },
   { key: 'sessions', label: 'Session details' },
   { key: 'discounts', label: 'Discounts' },
+  { key: 'form', label: 'Registration form' },
   { key: 'summary', label: 'Summary' },
 ]
 const wizardTitle = computed(() => form.title.trim() || 'New programme')
 const canNext = computed(() => {
   if (step.value === 0) return !!form.title.trim() && !!form.startDate && !!form.endDate
   if (step.value === 1) return namedTemplates.value.length > 0 && sessionDays.value.length > 0
-  if (step.value === 2) return true               // discounts are optional
+  if (step.value === 2) return true               // discounts optional
+  if (step.value === 3) return true               // registration form optional
   return canCreate.value                          // summary → Create
 })
 
@@ -446,6 +472,7 @@ const currencySymbol = computed(() => {
   return parts.find(p => p.type === 'currency')?.value ?? '$'
 })
 onMounted(async () => {
+  await ensureDraft()
   const { data } = await (db.from as any)('organisations').select('currency').eq('id', orgId.value).maybeSingle()
   if (data?.currency) orgCurrency.value = data.currency
 })
@@ -523,13 +550,13 @@ async function createEvent() {
   if (!canCreate.value) return
   saving.value = true
   try {
-    // 1. Create the event
-    const { data: evt, error: evtErr } = await db.from('events').insert({
+    // 1. Finalise the event — UPDATE the draft made on open (never write form_id
+    //    here; <FormDesigner> owns it). Fall back to an insert if there's no draft.
+    await ensureDraft()
+    const payload = {
       org_id: orgId.value,
       title: form.title.trim(),
-      style: 'ADVANCED',
-      created_via: 'multi',
-      status: 'DRAFT',
+      status: 'DRAFT' as const,
       start_at: combineDT(form.startDate, null)!.toISOString(),
       end_at: combineDT(form.endDate, null)!.toISOString(),
       is_public: true,
@@ -537,9 +564,18 @@ async function createEvent() {
       // Event-level location = the first session's location (each session carries its own).
       locations: namedTemplates.value[0]?.location ?? [emptyLoc()],
       ...locationCols(namedTemplates.value[0]?.location?.[0]),
-    }).select('id').single()
-
-    if (evtErr || !evt?.id) throw evtErr ?? new Error('Failed to create event')
+    }
+    let evtId: string
+    if (draftEventId.value) {
+      const { error } = await db.from('events').update(payload).eq('id', draftEventId.value)
+      if (error) throw error
+      evtId = draftEventId.value
+    } else {
+      const { data: evt, error: evtErr } = await db.from('events')
+        .insert({ ...payload, style: 'ADVANCED', created_via: 'multi' }).select('id').single()
+      if (evtErr || !evt?.id) throw evtErr ?? new Error('Failed to create event')
+      evtId = evt.id
+    }
 
     // 2. For each template, insert the first day as the master session, then
     //    bulk-insert the remaining days linked to that master.
@@ -565,7 +601,7 @@ async function createEvent() {
 
       // Insert day-1 as master
       const { data: master, error: masterErr } = await db.from('sessions').insert({
-        event_id: evt.id,
+        event_id: evtId,
         title: tpl.name.trim(),
         start_at: buildDatetime(days[0], tpl.startTime, 9),
         end_at: buildDatetime(days[0], tpl.endTime, 17),
@@ -585,7 +621,7 @@ async function createEvent() {
       // Bulk-insert remaining days linked to master
       if (days.length > 1) {
         const linked = days.slice(1).map(day => ({
-          event_id: evt.id,
+          event_id: evtId,
           title: tpl.name.trim(),
           start_at: buildDatetime(day, tpl.startTime, 9),
           end_at: buildDatetime(day, tpl.endTime, 17),
@@ -610,7 +646,7 @@ async function createEvent() {
     const discountRows = form.discounts
       .filter(d => d.name.trim())
       .map(d => ({
-        event_id: evt.id,
+        event_id: evtId,
         type: 'CODE' as const,
         name: d.name.trim(),
         form_text: d.form_text?.trim() || null,
@@ -624,7 +660,7 @@ async function createEvent() {
     if (discountRows.length) await db.from('discounts').insert(discountRows)
 
     toast.add({ severity: 'success', summary: 'Event created', detail: `${days.length * namedTemplates.value.length} sessions generated`, life: 4000 })
-    await navigateTo(`/events/${evt.id}`)
+    await navigateTo(`/events/${evtId}`)
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Error', detail: e?.message ?? 'Something went wrong', life: 5000 })
   } finally {
