@@ -74,11 +74,11 @@
     </div>
     </div>
 
-    <!-- ── Labeled cards, one session per row (title above every field) ── -->
-    <div v-else class="p-4 sm:p-5 space-y-4">
+    <!-- ── Divider-separated sessions (one per row, title above every field) ── -->
+    <div v-else class="divide-y divide-gray-100">
       <div v-for="(tpl, idx) in templates" :key="idx"
-        class="rounded-xl border border-gray-200 bg-white px-4 sm:px-5 py-4 transition-opacity"
-        :class="dragIdx === idx ? 'opacity-40' : dragOverIdx === idx ? 'ring-2 ring-primary' : ''"
+        class="px-5 py-4 sm:py-5 transition-colors"
+        :class="dragIdx === idx ? 'opacity-40' : dragOverIdx === idx ? 'bg-primary/5' : ''"
         draggable="true"
         @dragstart="dragIdx = idx"
         @dragover.prevent="dragOverIdx = idx"
