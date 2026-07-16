@@ -579,11 +579,16 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
 
 <template>
   <div class="form-renderer" :style="bgStyle">
-    <!-- ── Designed header chrome (banner / info / description), as on the builder preview ── -->
-    <FormPreviewBanner v-if="showBanner" :design="design" :event="event || {}" />
-    <FormPreviewInfoIcons v-if="hasInfoIcons" :design="design" :event="displayEvent" live :cost="costLabel" />
-    <FormPreviewDescription v-if="hasDescription" :design="design" :event="event" readonly />
+    <!-- Two columns: event INFORMATION on the left, the FORM on the right (stacks on mobile). -->
+    <div class="lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] items-start">
+    <!-- ── LEFT: designed header chrome (banner / info / description) ── -->
+    <aside class="lg:border-r border-gray-100 lg:sticky lg:top-0 lg:self-start">
+      <FormPreviewBanner v-if="showBanner" :design="design" :event="event || {}" />
+      <FormPreviewInfoIcons v-if="hasInfoIcons" :design="design" :event="displayEvent" live :cost="costLabel" />
+      <FormPreviewDescription v-if="hasDescription" :design="design" :event="event" readonly />
+    </aside>
 
+    <!-- ── RIGHT: the form ── -->
     <div class="px-4 sm:px-6 py-6">
     <!-- Identify step: continue as guest, sign in, or (staff) pick a member -->
     <BookingAuthChooser v-if="!authResolved"
@@ -857,6 +862,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
       </button>
     </div>
     </template>
+    </div>
     </div>
   </div>
 </template>
