@@ -29,6 +29,7 @@ const orgId = ref('')
 const contextName = ref('')
 const sessions = ref<any[]>([])
 const feeLineItems = ref<{ name: string; amount: number }[]>([])
+const discounts = ref<any[]>([])
 const feeOptions = ref<{ id: string; name: string; label: string; total: number; description?: string | null }[]>([])
 // Group capacity: when the class is full we warn up-front, offer the equivalent
 // groups with space (siblings on the same waitlist), and the submit lands on the
@@ -160,6 +161,10 @@ async function load() {
         required: !!s.is_required, display: s.display_on_form !== false,
         fee: feeBySession[s.id] || 0,
       }))
+      // Active discounts — shown on the landing to encourage registration.
+      const { data: discRows } = await (db.from as any)('discounts')
+        .select('name, form_text, modifier_type, modifier_value, is_active').eq('event_id', contextId.value).eq('is_active', true)
+      discounts.value = discRows ?? []
     } else if (contextType.value === 'group') {
       const { data: g } = await (db.from as any)('member_groups')
         .select('id, org_id, name, form_id, image_url, capacity, waitlist_id')
@@ -403,6 +408,7 @@ onMounted(load)
           :event="formEvent || { title: contextName, banner_url: bannerUrl }"
           :sessions="sessions"
           :fee-line-items="feeLineItems"
+          :discounts="discounts"
           :fee-options="feeOptions"
           :group-options="groupChoices"
           :currency="currency"

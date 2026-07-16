@@ -40,6 +40,7 @@ const props = defineProps<{
   staff?: boolean               // staff-side: enables the "pick a member" control
   event?: any                   // drives the designed header chrome (banner/info/description)
   preview?: boolean             // builder preview: skip the auth chooser + don't really submit
+  discounts?: any[]             // active discounts, shown on the landing to encourage registration
 }>()
 const emit = defineEmits<{ (e: 'submit', payload: any): void }>()
 
@@ -537,6 +538,15 @@ const priceList = computed<{ label: string; fee: number | null }[]>(() => {
   return out
 })
 
+// Active discounts for the landing "save when you book" nudge.
+const activeDiscounts = computed(() => props.discounts ?? [])
+function discountLabel(d: any): string {
+  const v = Number(d.modifier_value) || 0
+  if (d.modifier_type === 'PERCENT') return `${v}% off`
+  if (d.modifier_type === 'REPLACE') return money(v)
+  return `${money(v)} off`
+}
+
 // One summary row per week for the landing (dates · day count · from-price).
 const fmtDayMon = (d: Date) => d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
 const weekSummary = computed(() => {
@@ -664,6 +674,17 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
           <span class="text-gray-700">{{ p.label }}</span>
           <span class="font-semibold text-gray-800 tabular-nums">{{ p.fee != null ? money(p.fee) : '—' }}</span>
         </div>
+      </div>
+
+      <!-- Discounts — nudge to register -->
+      <div v-if="activeDiscounts.length" class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+        <p class="text-sm font-bold text-emerald-800 flex items-center gap-1.5"><i class="pi pi-tag" /> Save when you register</p>
+        <ul class="mt-2 space-y-1.5">
+          <li v-for="(d, di) in activeDiscounts" :key="di" class="flex items-center justify-between gap-3 text-sm text-emerald-800">
+            <span class="min-w-0 truncate">{{ d.form_text || d.name }}</span>
+            <span class="font-bold whitespace-nowrap">{{ discountLabel(d) }}</span>
+          </li>
+        </ul>
       </div>
 
       <Button label="Register" icon="pi pi-arrow-right" icon-pos="right" class="w-full mt-5"
