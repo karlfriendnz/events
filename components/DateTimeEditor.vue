@@ -22,7 +22,7 @@
         <span class="text-sm text-gray-300 shrink-0 hidden lg:inline">→</span>
         <!-- End -->
         <div class="flex items-center gap-2 flex-1 min-w-0">
-          <DatePicker :model-value="endDate" :manual-input="false" show-icon date-format="dd/mm/yy" :placeholder="`${endLabel} date`" fluid class="flex-1 min-w-0"
+          <DatePicker ref="endDateRef" :model-value="endDate" :manual-input="false" show-icon date-format="dd/mm/yy" :placeholder="`${endLabel} date`" fluid class="flex-1 min-w-0"
             :min-date="minEndDate ?? startDate ?? undefined"
             :max-date="maxDate ?? undefined"
             @update:model-value="onEndDate" />
@@ -138,12 +138,18 @@ function sameDay(a: Date | null, b: Date | null) {
 }
 function plusHour(d: Date) { return new Date(d.getTime() + HOUR) }
 
+const endDateRef = ref()
 function onStartDate(v: Date | null) {
   emit('update:startDate', v)
   // End date before the new start → drop it rather than keep an invalid range.
   if (v && props.endDate && v > props.endDate) emit('update:endDate', null)
   emit('change')
   syncEndTime(props.startTime, props.endTime)
+  // Guide the user to the next box: once a start is picked and no end is set,
+  // open the end-date picker (focusing its input pops the panel).
+  if (v && !props.endDate) {
+    nextTick(() => (endDateRef.value?.$el?.querySelector('input') as HTMLInputElement | undefined)?.focus())
+  }
 }
 function onEndDate(v: Date | null) {
   emit('update:endDate', v)
