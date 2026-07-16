@@ -192,6 +192,25 @@ function rowFullDayFee(row: any): number | null {
   return fees.reduce((a: number, b: number) => a + b, 0)
 }
 
+// "Whole week" — one week header = every session across that week's days.
+function weekDaySessions(weekSeq: number) {
+  return formSessionDateTable.value.rows
+    .filter(r => r.weekSeq === weekSeq)
+    .flatMap(r => r.cells)
+    .filter((s: any): s is any => !!s && !s.required)
+}
+function isWeekFullySelected(personIdx: number, weekSeq: number): boolean {
+  const ws = weekDaySessions(weekSeq)
+  return ws.length > 0 && ws.every((s: any) => evtPreviewSessionSelections.value[personIdx]?.[s.id ?? s._savedId])
+}
+function toggleAllWeekSessions(personIdx: number, weekSeq: number) {
+  const ws = weekDaySessions(weekSeq)
+  const allSelected = isWeekFullySelected(personIdx, weekSeq)
+  const personMap = { ...(evtPreviewSessionSelections.value[personIdx] ?? {}) }
+  for (const s of ws) personMap[s.id ?? s._savedId] = !allSelected
+  evtPreviewSessionSelections.value = { ...evtPreviewSessionSelections.value, [personIdx]: personMap }
+}
+
 const evtPreviewPayment = ref<string | null>(null)
 const evtPreviewPlanFreq = ref<string>('')
 const evtPreviewTermsAgreed = ref<Set<string>>(new Set())
@@ -208,6 +227,14 @@ function sessionFeeAmount(s: any): number | null {
   if (grp) return (grp.fees ?? []).reduce((sum: number, f: any) => sum + (f.amount ?? 0), 0)
   return null
 }
+
+function isoWeekOf(d: Date) {
+  const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7))
+  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1))
+  return Math.ceil((((tmp.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+}
+const fmtDayShort = (d: Date) => d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })
 
 const formSessionDateTable = computed(() => {
   const visible = sessions.value.filter((s: any) =>
@@ -240,24 +267,24 @@ const formSessionDateTable = computed(() => {
     }
   })
 
-  const isoWeek = (d: Date) => {
-    const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
-    tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7))
-    const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1))
-    return Math.ceil((((tmp.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
-  }
-
-  const rows = dateKeys.map((dk, i) => {
+  let weekSeq = 0
+  let prevWeek: number | null = null
+  const rows = dateKeys.map((dk) => {
     const date = new Date(dk)
     const weekday = date.toLocaleDateString('en-AU', { weekday: 'long' })
     const dayMonth = date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
-    const week = isoWeek(date)
-    const prevWeek = i > 0 ? isoWeek(new Date(dateKeys[i - 1])) : week
+    const week = isoWeekOf(date)
+    const newWeek = prevWeek !== null && week !== prevWeek
+    if (prevWeek === null || newWeek) weekSeq++
+    prevWeek = week
     return {
       label: `${weekday} ${dayMonth}`,
       weekday,
       dayMonth,
-      newWeek: i > 0 && week !== prevWeek,
+      date,
+      week,
+      weekSeq,          // 1-based sequential week number (readable "Week 1/2/…")
+      newWeek,
       cells: uniqueTimeKeys.map(tk => {
         const s = visible.find((s: any) =>
           timeKeyOf(s) === tk &&
@@ -1626,6 +1653,59 @@ function evtSectionChildren(subjectKey: string, sectionId: string, inst: number)
   return evtUnpinnedForRender(subjectKey, inst).filter((f: any) => f.parent_section === sectionId)
 }
 
+// Session lines for the order summary. The date-table layout collapses a fully-
+// selected day into one "Full day" line and a fully-selected week into one
+// "Whole week" line; other layouts list one line per session.
+function sessionOrderRows(i: number, visibleSessions: any[]): OrderRow[] {
+  const isSel = (s: any) => s.required || evtPreviewSessionSelections.value[i]?.[s.id ?? s._savedId]
+  const feeOf = (s: any) => sessionFeeAmount(s) ?? 0
+  const label = (s: any) => {
+    const title = s.title || 'Session'
+    if (!s.start_at) return title
+    const d = new Date(s.start_at)
+    return `${title} · ${fmtDayShort(d)} ${d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true })}`
+  }
+  if (currentEvtFormDesign.value.sessionsLayout !== 'date-table') {
+    return visibleSessions.filter(isSel).map(s => ({ label: label(s), amount: feeOf(s) }))
+  }
+  const dated = visibleSessions.filter(s => s.start_at)
+  const undated = visibleSessions.filter(s => !s.start_at)
+  const days = new Map<string, { date: Date; all: any[]; sel: any[] }>()
+  for (const s of dated) {
+    const dk = new Date(s.start_at).toDateString()
+    if (!days.has(dk)) days.set(dk, { date: new Date(s.start_at), all: [], sel: [] })
+    const g = days.get(dk)!; g.all.push(s); if (isSel(s)) g.sel.push(s)
+  }
+  const dayFull = (g: any) => g.all.length > 0 && g.sel.length === g.all.length
+  const dayTotal = (g: any) => g.all.reduce((sum: number, s: any) => sum + feeOf(s), 0)
+  const weeks = new Map<number, string[]>()
+  for (const [dk, g] of days) {
+    const wk = isoWeekOf(g.date)
+    if (!weeks.has(wk)) weeks.set(wk, [])
+    weeks.get(wk)!.push(dk)
+  }
+  const weekKeys = [...weeks.keys()].sort((a, b) =>
+    Math.min(...weeks.get(a)!.map(dk => days.get(dk)!.date.getTime())) -
+    Math.min(...weeks.get(b)!.map(dk => days.get(dk)!.date.getTime())))
+  const rows: OrderRow[] = []
+  for (const wk of weekKeys) {
+    const dks = weeks.get(wk)!.sort((a, b) => days.get(a)!.date.getTime() - days.get(b)!.date.getTime())
+    if (dks.every(dk => dayFull(days.get(dk)!))) {
+      const total = dks.reduce((sum, dk) => sum + dayTotal(days.get(dk)!), 0)
+      rows.push({ label: `Whole week · ${fmtDayShort(days.get(dks[0])!.date)} – ${fmtDayShort(days.get(dks[dks.length - 1])!.date)}`, amount: total })
+      continue
+    }
+    for (const dk of dks) {
+      const g = days.get(dk)!
+      if (!g.sel.length) continue
+      if (dayFull(g)) rows.push({ label: `Full day · ${fmtDayShort(g.date)}`, amount: dayTotal(g) })
+      else for (const s of g.sel) rows.push({ label: label(s), amount: feeOf(s) })
+    }
+  }
+  for (const s of undated) if (isSel(s)) rows.push({ label: label(s), amount: feeOf(s) })
+  return rows
+}
+
 const evtOrderRows = computed<OrderRow[][]>(() => {
   const result: OrderRow[][] = []
   for (let i = 0; i < evtAccordionPersonCount.value; i++) {
@@ -1648,20 +1728,7 @@ const evtOrderRows = computed<OrderRow[][]>(() => {
       sessionVisibleOnForm(s) &&
       getSessionMode(s.id ?? s._savedId) !== 'hidden'
     )
-    for (const s of visibleSessions) {
-      const sid = s.id ?? s._savedId
-      if (s.required || evtPreviewSessionSelections.value[i]?.[sid]) {
-        const fee = sessionFeeAmount(s) ?? 0
-        const title = s.title || 'Session'
-        let dateStr = ''
-        if (s.start_at) {
-          const d = new Date(s.start_at)
-          dateStr = d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })
-          dateStr += ' ' + d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true })
-        }
-        rows.push({ label: dateStr ? `${title} · ${dateStr}` : title, amount: fee })
-      }
-    }
+    rows.push(...sessionOrderRows(i, visibleSessions))
     result.push(rows)
   }
   return result
@@ -3691,10 +3758,20 @@ defineExpose({ reload })
                               <p class="text-[11px] text-gray-400 mt-0.5">All sessions</p>
                             </div>
                           </div>
-                          <!-- Data rows -->
-                          <div v-for="(row, ri) in formSessionDateTable.rows" :key="ri"
-                            class="grid border-b border-gray-100 last:border-b-0"
-                            :class="row.newWeek ? 'border-t-2 border-t-gray-300' : ''"
+                          <!-- Data rows (a header row per week, with a whole-week checkbox) -->
+                          <template v-for="(row, ri) in formSessionDateTable.rows" :key="ri">
+                          <div v-if="ri === 0 || row.newWeek"
+                            class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 border-y border-gray-200">
+                            <button type="button"
+                              class="w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors"
+                              :class="isWeekFullySelected(evtGIdx(subject.key, inst), row.weekSeq) ? 'bg-primary border-primary' : 'border-gray-300 hover:border-primary/50'"
+                              @click="toggleAllWeekSessions(evtGIdx(subject.key, inst), row.weekSeq)">
+                              <i v-if="isWeekFullySelected(evtGIdx(subject.key, inst), row.weekSeq)" class="pi pi-check text-white text-[8px]" />
+                            </button>
+                            <span class="text-xs font-semibold text-gray-600">Week {{ row.weekSeq }}</span>
+                            <span class="text-[11px] text-gray-400">— select the whole week</span>
+                          </div>
+                          <div class="grid border-b border-gray-100 last:border-b-0"
                             :style="`grid-template-columns: repeat(${formSessionDateTable.columns.length + 2}, 1fr)`">
                             <div class="px-3 py-2.5 flex items-center">
                               <p class="text-sm font-medium text-gray-800">{{ row.weekday }}, {{ row.dayMonth }}</p>
@@ -3724,6 +3801,7 @@ defineExpose({ reload })
                               <span v-if="rowFullDayFee(row) !== null" class="text-xs text-primary font-medium">${{ rowFullDayFee(row)!.toFixed(2) }}</span>
                             </div>
                           </div>
+                          </template>
                         </div>
                       </template>
 
