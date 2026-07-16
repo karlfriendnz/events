@@ -3292,7 +3292,7 @@ defineExpose({ reload })
             :style="`background: linear-gradient(to top, rgba(235,239,250,${currentEvtFormDesign.backgroundOverlay}) 0%, transparent 100%)`" />
 
           <!-- Scrollable content wrapper -->
-          <div class="absolute inset-0 overflow-y-auto z-10">
+          <div class="absolute inset-0 overflow-y-auto z-10 px-2.5">
 
 
           <!-- Choose a registration type — the first step (also shown when no forms exist) -->
