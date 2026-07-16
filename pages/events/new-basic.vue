@@ -441,8 +441,10 @@
             <i class="pi pi-spin pi-spinner text-xl text-gray-300 block mb-2" />
             Setting up the form…
           </div>
-          <div v-else class="bg-white rounded-xl border border-gray-200 overflow-hidden" style="min-height:560px">
-            <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" />
+          <!-- flex column + definite height so FormDesigner's absolute two-panel
+               layout resolves (otherwise it collapses to nothing). -->
+          <div v-else class="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col" style="height:70vh; min-height:560px">
+            <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" class="flex-1 min-h-0" />
           </div>
         </div>
 

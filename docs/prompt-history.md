@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1662 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1664 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (56 prompts)
+## Session 2026-07-14 22:10 (58 prompts)
 
 **22:10** — yay we are back
 
@@ -28951,4 +28951,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **03:25** — ok so i can't get to the holiday programme now ?
 
 **03:31** — ok can you please make it 2 rows
+
+**03:49** — perfect
+
+**03:54** — ok we need to work on the form inside teh wizard
 

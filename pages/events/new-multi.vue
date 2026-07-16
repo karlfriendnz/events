@@ -228,8 +228,12 @@
     </div>
 
     <!-- ── Step 4 · Registration form (the shared <FormDesigner>) ── -->
-    <div v-show="step === 3" class="flex flex-col min-h-0">
-      <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
+    <!-- FormDesigner uses an absolutely-positioned two-panel layout, so it needs a
+         DEFINITE height or it collapses to nothing. The WizardShell wraps steps in a
+         padded max-width scroll block, so give this step a real height + cancel that
+         padding so the designer fills the body edge-to-edge. -->
+    <div v-show="step === 3" class="flex flex-col h-[72vh] min-h-[460px] -mx-3 sm:-mx-6 -my-4 sm:-my-8">
+      <div v-if="!draftEventId" class="flex-1 flex items-center justify-center text-sm text-gray-400">
         Preparing the form…
       </div>
       <FormDesigner v-else :event-id="draftEventId" :org-id="orgId" :discount-settings="discountSettings" class="flex flex-col flex-1 min-h-0" />
