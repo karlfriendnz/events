@@ -631,16 +631,28 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
     <div v-if="!authResolved">
       <h2 class="text-lg font-bold text-gray-900 mb-3">{{ formHeading }}</h2>
 
-      <!-- What's on offer, one summary row per week -->
-      <div v-if="weekSummary.length" class="rounded-xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
-        <div class="px-4 py-2 bg-gray-50 text-[11px] font-bold uppercase tracking-wide text-gray-500">The programme</div>
-        <div v-for="w in weekSummary" :key="w.weekSeq" class="flex items-center justify-between gap-3 px-4 py-3">
-          <div class="min-w-0">
-            <p class="text-sm font-semibold text-gray-800">Week {{ w.weekSeq }}</p>
-            <p class="text-xs text-gray-500">{{ w.range }} · {{ w.days }} day{{ w.days !== 1 ? 's' : '' }}<span v-if="w.perDay"> · full day {{ money(w.perDay) }}</span></p>
-          </div>
-          <span v-if="w.from != null" class="text-sm font-semibold text-primary whitespace-nowrap">from {{ money(w.from) }}</span>
-        </div>
+      <!-- What's on offer, as a table — one row per week -->
+      <div v-if="weekSummary.length" class="rounded-xl border border-gray-200 overflow-x-auto">
+        <table class="w-full text-sm border-collapse min-w-[440px]">
+          <thead>
+            <tr class="bg-gray-50 border-b border-gray-200 text-left text-[11px] font-bold uppercase tracking-wide text-gray-500">
+              <th class="px-4 py-2.5">Week</th>
+              <th class="px-4 py-2.5">Dates</th>
+              <th class="px-4 py-2.5 text-center">Days</th>
+              <th class="px-4 py-2.5 text-right">Full day</th>
+              <th class="px-4 py-2.5 text-right">From</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr v-for="w in weekSummary" :key="w.weekSeq">
+              <td class="px-4 py-2.5 font-semibold text-gray-800 whitespace-nowrap">Week {{ w.weekSeq }}</td>
+              <td class="px-4 py-2.5 text-gray-600 whitespace-nowrap">{{ w.range }}</td>
+              <td class="px-4 py-2.5 text-center text-gray-600 tabular-nums">{{ w.days }}</td>
+              <td class="px-4 py-2.5 text-right text-gray-700 tabular-nums">{{ w.perDay ? money(w.perDay) : '—' }}</td>
+              <td class="px-4 py-2.5 text-right font-semibold text-primary tabular-nums whitespace-nowrap">{{ w.from != null ? money(w.from) : '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <!-- Fallback: simple price list -->
