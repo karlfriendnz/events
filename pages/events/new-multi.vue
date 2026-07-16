@@ -458,6 +458,11 @@ const totalSessions = computed(() => sessionDays.value.length * namedTemplates.v
 const wizardSessions = computed(() => {
   const out: any[] = []
   namedTemplates.value.forEach((tpl, ti) => {
+    // The template's fee line items → the shape the builder's session-fee logic reads.
+    const feeItems = (tpl.fees ?? []).filter(f => (f.amount ?? 0) > 0 || (f.name ?? '').trim())
+    const feesConfig = feeItems.length
+      ? { is_charged: true, all_charged_equally: true, base_fees: feeItems.map(f => ({ name: f.name || tpl.name, xero_code: f.xero_code ?? '', amount: f.amount ?? 0 })), groups: [] }
+      : { is_charged: false, all_charged_equally: true, base_fees: [], groups: [] }
     sessionDays.value.forEach((day, di) => {
       out.push({
         id: `prev:${ti}:${di}`,
@@ -465,6 +470,7 @@ const wizardSessions = computed(() => {
         start_at: combineDT(day, tpl.startTime)?.toISOString() ?? null,
         end_at: combineDT(day, tpl.endTime)?.toISOString() ?? null,
         capacity_max: tpl.limit ?? null,
+        _feesConfig: feesConfig,
       })
     })
   })
