@@ -45,12 +45,14 @@ const bannerUrl = ref<string | null>(null)
 const formEvent = ref<any>(null)   // drives <FormRenderer>'s designed banner/info/description
 
 const theme = ref<{ canvas: string; primary: string; on_primary: string }>({ canvas: '#F5F8FA', primary: '#1E2157', on_primary: '#FFFFFF' })
-const themeVars = computed(() => ({ '--brand-primary': theme.value.primary }))
-
 // Embed options (query params from the "Add to website" snippet).
 const embedBg = computed(() => (route.query.bg as string) || theme.value.canvas)
 const embedHideHeader = computed(() => route.query.header === '0')
-const embedLoginUrl = computed(() => (route.query.login as string) || '')
+const embedBorder = computed(() => route.query.border !== '0')
+const embedBtnColor = computed(() => (route.query.btn as string) || theme.value.primary)
+const embedHideDiscounts = computed(() => route.query.discounts === '0')
+const embedLoginToSystem = computed(() => route.query.login === '1')
+const themeVars = computed(() => ({ '--brand-primary': embedBtnColor.value }))
 
 async function loadOrg(id: string) {
   const { data: org } = await (db.from as any)('organisations')
@@ -362,7 +364,7 @@ onMounted(load)
 <template>
   <div class="min-h-screen w-full" :style="{ ...themeVars, background: embedBg }">
     <div class="mx-auto px-4 py-8 w-full max-w-[1200px]">
-      <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+      <div class="bg-white rounded-2xl overflow-hidden" :class="embedBorder ? 'border border-gray-200' : ''">
         <div v-if="loading" class="py-16 text-center text-gray-400">
           <i class="pi pi-spin pi-spinner text-2xl" />
         </div>
@@ -413,9 +415,9 @@ onMounted(load)
           :event="formEvent || { title: contextName, banner_url: bannerUrl }"
           :sessions="sessions"
           :fee-line-items="feeLineItems"
-          :discounts="discounts"
+          :discounts="embedHideDiscounts ? [] : discounts"
           :hide-header="embedHideHeader"
-          :register-url="embedLoginUrl"
+          :register-to-login="embedLoginToSystem"
           :fee-options="feeOptions"
           :group-options="groupChoices"
           :currency="currency"

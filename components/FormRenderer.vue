@@ -42,7 +42,7 @@ const props = defineProps<{
   preview?: boolean             // builder preview: skip the auth chooser + don't really submit
   discounts?: any[]             // active discounts, shown on the landing to encourage registration
   hideHeader?: boolean          // embed: hide the banner/info/description header
-  registerUrl?: string          // embed: "Register" sends the visitor here (top window) instead of the modal
+  registerToLogin?: boolean     // embed: "Register" sends the visitor to the system login, then back here
 }>()
 const emit = defineEmits<{ (e: 'submit', payload: any): void }>()
 
@@ -516,10 +516,16 @@ const db = useDb()
 const { resolveFields } = useOrgFieldPolicy()
 const authResolved = ref(!!props.preview)  // false → show the landing; true → show the form (preview skips it)
 const authModalOpen = ref(false)           // "Register" opens the auth chooser in a modal
-// Register: normally opens the modal; in an embed with registerUrl, break out of the
-// iframe and send the visitor to the club's login/registration page.
+// Register: normally opens the modal; in an embed with registerToLogin, break out of
+// the iframe to the system login page, which returns to this registration (?authed=1)
+// so it opens inside the signed-in user's profile.
 function onRegisterClick() {
-  if (props.registerUrl && import.meta.client) { (window.top || window).location.href = props.registerUrl; return }
+  if (props.registerToLogin && import.meta.client) {
+    const origin = window.location.origin
+    const back = `/r/${props.context.type}/${props.context.id}?authed=1`
+    ;(window.top || window).location.href = `${origin}/login?redirect=${encodeURIComponent(back)}`
+    return
+  }
   authModalOpen.value = true
 }
 function onGuestFromModal() { authModalOpen.value = false; onGuest() }
@@ -622,14 +628,22 @@ async function onSignedIn(payload: { email: string; firstName: string; lastName:
 }
 function changeIdentity() { authResolved.value = false; identifiedName.value = '' }
 
+const rendererRoute = useRoute()
+const rendererUser = useSupabaseUser()
 onMounted(async () => {
-  if (!props.context?.orgId) return
-  try {
-    const defs = await resolveFields(props.context.orgId)
-    const m: Record<string, string> = {}
-    for (const d of defs) m[d.label] = d.id
-    labelToDefId.value = m
-  } catch { /* field engine optional */ }
+  if (props.context?.orgId) {
+    try {
+      const defs = await resolveFields(props.context.orgId)
+      const m: Record<string, string> = {}
+      for (const d of defs) m[d.label] = d.id
+      labelToDefId.value = m
+    } catch { /* field engine optional */ }
+  }
+  // Returning from the system login (?authed=1) with a session → open the form
+  // straight in the signed-in user's profile (skip the landing + auth modal).
+  if (rendererRoute.query.authed === '1' && rendererUser.value?.email) {
+    await onSignedIn({ email: rendererUser.value.email, firstName: '', lastName: '', phone: null })
+  }
 })
 
 function onNext() { if (step.value < steps.value.length - 1) step.value++ }
@@ -651,8 +665,19 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
     <div v-if="!authResolved">
       <h2 class="text-lg font-bold text-gray-900 mb-3">{{ formHeading }}</h2>
 
-      <!-- What's on offer, as a table — one row per week, a column per session type -->
-      <div v-if="weekSummary.length" class="rounded-xl border border-gray-200 overflow-x-auto">
+      <!-- What's on offer, as a table (desktop) / stacked cards (mobile) -->
+      <div v-if="weekSummary.length" class="sm:hidden space-y-2">
+        <div v-for="w in weekSummary" :key="w.weekSeq" class="rounded-xl border border-gray-200 p-3">
+          <p class="text-sm font-bold text-gray-800 mb-2">Week {{ w.weekSeq }}</p>
+          <div class="text-sm divide-y divide-gray-100">
+            <div class="flex justify-between gap-3 py-1"><span class="text-gray-500">Dates</span><span class="text-gray-800 text-right">{{ w.range }}</span></div>
+            <div class="flex justify-between gap-3 py-1"><span class="text-gray-500">Days</span><span class="text-gray-800">{{ w.days }}</span></div>
+            <div v-for="col in sessionDateTable.columns" :key="col.key" class="flex justify-between gap-3 py-1"><span class="text-gray-500">{{ col.title || col.startTime }}</span><span class="text-gray-800 tabular-nums">{{ col.fee != null ? money(col.fee) : '—' }}</span></div>
+            <div class="flex justify-between gap-3 py-1"><span class="text-gray-500">Full day</span><span class="font-semibold text-primary tabular-nums">{{ w.perDay ? money(w.perDay) : '—' }}</span></div>
+          </div>
+        </div>
+      </div>
+      <div v-if="weekSummary.length" class="hidden sm:block rounded-xl border border-gray-200 overflow-x-auto">
         <table class="w-full text-sm border-collapse min-w-[520px]">
           <thead>
             <tr class="bg-gray-50 border-b border-gray-200 text-left text-[11px] font-bold uppercase tracking-wide text-gray-500">

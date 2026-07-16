@@ -133,6 +133,10 @@ async function handleLogin() {
 // active org is set here; the portal/permission middleware then decides admin
 // vs member experience for that club.
 async function landAfterAuth(u: any) {
+  // A ?redirect=/… (e.g. returning to an embedded event registration) wins — but
+  // only same-origin paths, never an external URL (open-redirect guard).
+  const redirect = useRoute().query.redirect as string | undefined
+  if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) { await navigateTo(redirect); return }
   if ((u as any)?.app_metadata?.role === 'super_admin') { await navigateTo('/admin'); return }
   const { loadMyClubs } = useMyClubs()
   let list: any[] = []
