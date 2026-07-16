@@ -41,6 +41,18 @@ const evtDisplayEvent = computed(() => {
   if (!e || e.criteria || !evtAgeCriteria.value) return e
   return { ...e, criteria: evtAgeCriteria.value }
 })
+// Does the form collect a Date of Birth anywhere? (age validation needs it.)
+const evtHasDobField = computed(() => {
+  const scan = (v: any): boolean => {
+    if (Array.isArray(v)) return v.some(scan)
+    if (v && typeof v === 'object') {
+      if (typeof v.label === 'string' && /date of birth|^dob$/i.test(v.label.trim())) return true
+      return Object.values(v).some(scan)
+    }
+    return false
+  }
+  return scan(evtFormGroupFields)
+})
 const evtDiscountSettings = props.discountSettings ?? reactive({ one_discount_only: true })
 
 // ── moved form-builder script (from events/[id].vue 5308–7361) ──
@@ -3312,6 +3324,14 @@ defineExpose({ reload })
 
           <!-- Scrollable content wrapper -->
           <div class="absolute inset-0 overflow-y-auto z-10 px-2.5">
+
+          <!-- Age limit set but the form collects no DOB → it can't be enforced. -->
+          <div v-if="evtAgeCriteria && !evtHasDobField && evtFormGroups.length && !evtPublicPreview"
+            class="mx-auto max-w-[1000px] mt-4 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+            <i class="pi pi-exclamation-triangle mt-0.5 shrink-0" />
+            <span>This event has an age limit ({{ evtAgeCriteria }}). Add a <strong>Date of Birth</strong> field so it can be enforced when people register.</span>
+          </div>
+
 
 
           <!-- Choose a registration type — the first step (also shown when no forms exist) -->

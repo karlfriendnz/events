@@ -206,6 +206,18 @@
                 </div>
               </div>
             </div>
+            <!-- Age limit -->
+            <div class="px-5 py-4">
+              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] items-center gap-4'">
+                <label class="field-label">Age limit</label>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <InputNumber v-model="form.ageMin" :min="0" :max="120" placeholder="Min" class="w-24" inputClass="w-24" />
+                  <span class="text-sm text-gray-400">to</span>
+                  <InputNumber v-model="form.ageMax" :min="0" :max="120" placeholder="Max" class="w-24" inputClass="w-24" />
+                  <span class="text-xs text-gray-400">years — optional; validated at signup</span>
+                </div>
+              </div>
+            </div>
             <!-- Banner -->
             <div class="px-5 py-4">
               <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
@@ -444,7 +456,7 @@
           <!-- flex column + definite height so FormDesigner's absolute two-panel
                layout resolves (otherwise it collapses to nothing). -->
           <div v-else class="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col" style="height:70vh; min-height:560px">
-            <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" embedded class="flex-1 min-h-0" />
+            <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax" embedded class="flex-1 min-h-0" />
           </div>
         </div>
 
@@ -1121,6 +1133,8 @@ const form = reactive({
   description: '',
   // Seeded from a named calendar's sole category (?category=…) when creating there.
   category_ids: (route.query.category ? [route.query.category as string] : []) as string[],
+  ageMin: null as number | null,
+  ageMax: null as number | null,
   // Dates
   is_all_day: false,
   start_date: parseDateParam(route.query.date as string ?? null),
@@ -1366,6 +1380,8 @@ async function saveEvent() {
       description: form.description.trim() || null,
       category_id: form.category_ids[0] ?? null,
       secondary_category_id: form.category_ids[1] ?? null,
+      age_min: form.ageMin ?? null,
+      age_max: form.ageMax ?? null,
       is_all_day: form.is_all_day,
       start_at: buildDateTime(form.start_date, form.is_all_day ? null : form.start_time),
       end_at: buildDateTime(form.end_date, form.is_all_day ? null : form.end_time),
@@ -1588,6 +1604,8 @@ async function resumeDraft(): Promise<boolean> {
   form.banner_url = evt.banner_url ?? ''
   // Restore the category, or saveEvent would write it back to null on resume.
   form.category_ids = [evt.category_id, evt.secondary_category_id].filter(Boolean) as string[]
+  form.ageMin = evt.age_min ?? null
+  form.ageMax = evt.age_max ?? null
   if (evt.start_at) {
     form.start_date = new Date(evt.start_at)
     form.start_time = new Date(evt.start_at)

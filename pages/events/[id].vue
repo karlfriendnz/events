@@ -224,7 +224,7 @@
       </div>
 
       <!-- FORMS TAB -->
-      <FormDesigner v-else-if="activeTab === 'forms'" :event-id="id" :sessions="sessions" :org-id="orgId" :discounts="eventDiscounts" :discount-settings="evtDiscountSettings" :fee-line-items="feeLineItems" :ticket-types="ticketTypes" :has-tickets="hasTickets" class="flex flex-col flex-1 min-h-0" />
+      <FormDesigner v-else-if="activeTab === 'forms'" :event-id="id" :sessions="sessions" :org-id="orgId" :discounts="eventDiscounts" :discount-settings="evtDiscountSettings" :fee-line-items="feeLineItems" :ticket-types="ticketTypes" :has-tickets="hasTickets" :age-min="editForm.age_min" :age-max="editForm.age_max" class="flex flex-col flex-1 min-h-0" />
       <div v-else-if="activeTab === 'discounts'" class="overflow-y-auto flex-1 w-full">
         <div class="mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4" style="max-width:1140px">
 
@@ -923,6 +923,15 @@
           <div class="flex items-center gap-3 pt-3 border-t border-gray-100">
             <ToggleSwitch v-model="editForm.has_waitlist" />
             <span class="text-sm text-gray-600">{{ editForm.has_waitlist ? 'Waitlist enabled' : 'No waitlist' }}</span>
+          </div>
+          <div class="pt-3 border-t border-gray-100">
+            <p class="text-sm font-medium text-gray-700 mb-1.5">Age limit</p>
+            <div class="flex items-center gap-2 flex-wrap">
+              <InputNumber v-model="editForm.age_min" :min="0" :max="120" placeholder="Min" class="w-24" inputClass="w-24" />
+              <span class="text-sm text-gray-400">to</span>
+              <InputNumber v-model="editForm.age_max" :min="0" :max="120" placeholder="Max" class="w-24" inputClass="w-24" />
+              <span class="text-xs text-gray-400">years — optional; validated against Date of Birth at signup</span>
+            </div>
           </div>
         </div>
 
@@ -3253,6 +3262,8 @@ const editForm = ref<any>({
   has_waitlist: false,
   has_capacity: false,
   capacity_max: null as number | null,
+  age_min: null as number | null,
+  age_max: null as number | null,
   custom_terms: [] as string[],
   allow_guests: false,
   phased_registration: false,
@@ -5037,6 +5048,8 @@ async function loadEvent() {
       has_waitlist: data.has_waitlist ?? false,
       has_capacity: !!data.capacity_max,
       capacity_max: data.capacity_max,
+      age_min: data.age_min ?? null,
+      age_max: data.age_max ?? null,
       custom_terms: (() => { try { const p = JSON.parse(data.tc_content ?? '[]'); return Array.isArray(p) ? p : [] } catch { return data.tc_content ? [data.tc_content] : [] } })(),
       allow_guests: data.allow_guests ?? false,
       phased_registration: data.phased_registration ?? false,
@@ -5401,6 +5414,8 @@ async function saveEdit() {
     reg_open_at: editForm.value.reg_open_at ?? null,
     reg_close_at: editForm.value.reg_close_at ?? null,
     capacity_max: editForm.value.has_capacity ? (editForm.value.capacity_max ?? null) : null,
+    age_min: editForm.value.age_min ?? null,
+    age_max: editForm.value.age_max ?? null,
     tc_content: editForm.value.custom_terms.filter((t: string) => t.trim()).length
       ? JSON.stringify(editForm.value.custom_terms.filter((t: string) => t.trim()))
       : null,

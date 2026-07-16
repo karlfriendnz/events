@@ -472,6 +472,32 @@ const wizardSessions = computed(() => {
 })
 const wizardFeeLineItems = computed(() => namedTemplates.value.flatMap(tpl => tpl.fees ?? []))
 
+// After the real sessions exist, rewrite the form config's session-id keys
+// (config.sessions + config.subjectSessions) from synthetic preview ids to real ones.
+async function remapFormSessionIds(evtId: string, map: Record<string, string>) {
+  if (!Object.keys(map).length) return
+  const { data: ev } = await (db.from as any)('events').select('form_id').eq('id', evtId).maybeSingle()
+  const formId = ev?.form_id
+  if (!formId) return
+  const { data: fr } = await (db.from as any)('registration_forms').select('config').eq('id', formId).maybeSingle()
+  const cfg = fr?.config
+  if (!cfg || typeof cfg !== 'object') return
+  const remapInner = (obj: any) => {
+    if (!obj || typeof obj !== 'object') return
+    for (const k of Object.keys(obj)) {
+      const inner = obj[k]
+      if (inner && typeof inner === 'object') {
+        const next: any = {}
+        for (const sid of Object.keys(inner)) next[map[sid] ?? sid] = inner[sid]
+        obj[k] = next
+      }
+    }
+  }
+  remapInner(cfg.sessions)                                  // { groupId: { sessionId: mode } }
+  if (cfg.subjectSessions) for (const gid of Object.keys(cfg.subjectSessions)) remapInner(cfg.subjectSessions[gid])
+  await (db.from as any)('registration_forms').update({ config: cfg }).eq('id', formId)
+}
+
 const canCreate = computed(() =>
   form.title.trim() !== '' &&
   form.startDate !== null &&
@@ -646,7 +672,12 @@ async function createEvent() {
           sort_order: i,
         }))
 
-    for (const tpl of namedTemplates.value) {
+    // Maps the builder's synthetic preview session ids (prev:${ti}:${di}) to the
+    // real rows, so any per-session form config the user set survives (remapped below).
+    const synthToReal: Record<string, string> = {}
+
+    for (let ti = 0; ti < namedTemplates.value.length; ti++) {
+      const tpl = namedTemplates.value[ti]
       if (days.length === 0) continue
 
       // Insert day-1 as master
@@ -667,6 +698,7 @@ async function createEvent() {
 
       if (masterErr || !master?.id) throw masterErr ?? new Error('Failed to create master session')
       feeRows.push(...feeItemsFor(tpl, master.id))
+      synthToReal[`prev:${ti}:0`] = master.id
 
       // Bulk-insert remaining days linked to master
       if (days.length > 1) {
@@ -686,11 +718,18 @@ async function createEvent() {
         }))
         const { data: linkedRows, error: linkedErr } = await db.from('sessions').insert(linked).select('id')
         if (linkedErr) throw linkedErr
-        for (const s of (linkedRows ?? [])) feeRows.push(...feeItemsFor(tpl, s.id))
+        ;(linkedRows ?? []).forEach((s: any, k: number) => {
+          feeRows.push(...feeItemsFor(tpl, s.id))
+          synthToReal[`prev:${ti}:${k + 1}`] = s.id   // day index k+1 (day 0 = master)
+        })
       }
     }
 
     if (feeRows.length) await db.from('fee_components').insert(feeRows)
+
+    // Remap the form's synthetic preview session ids → the real ids, so any
+    // per-session choices the user set in the builder point at the real sessions.
+    await remapFormSessionIds(evtId, synthToReal)
 
     // 3. Discounts — same shape + modal as the event wizard/advanced editor.
     const discountRows = form.discounts
