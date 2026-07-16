@@ -229,6 +229,8 @@ const props = defineProps<{
   baseline?: Record<string, Partial<FeeLineItem>>
   // Placeholder for the fee-name field (e.g. the session name it belongs to).
   namePlaceholder?: string
+  // Pre-fills a NEW fee row's name (actual value) — e.g. the session name.
+  defaultName?: string
 }>()
 
 const emit = defineEmits<{
@@ -317,7 +319,7 @@ function insertToken(token: string) {
 function addFee() {
   emit('update:modelValue', [
     ...props.modelValue,
-    { id: crypto.randomUUID(), name: '', xero_code: '', amount: null },
+    { id: crypto.randomUUID(), name: props.defaultName ?? '', xero_code: '', amount: null },
   ])
 }
 

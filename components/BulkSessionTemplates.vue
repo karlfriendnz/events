@@ -133,6 +133,7 @@
             <div class="flex-1 min-w-0">
               <FeeLineItemsTable :model-value="tpl.fees ?? []"
                 :name-placeholder="tpl.name.trim() || 'Fee name'"
+                :default-name="tpl.name.trim()"
                 @update:model-value="(v: FeeLineItem[]) => tpl.fees = v" />
             </div>
           </div>
