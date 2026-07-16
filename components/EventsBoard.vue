@@ -561,7 +561,7 @@
             @keydown.enter="startWizard" />
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button type="button"
             class="text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
             :disabled="!newEventName.trim()"
