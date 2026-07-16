@@ -290,7 +290,7 @@ import { ref, reactive, computed } from 'vue'
 
 import type { LocationEntry } from '~/composables/useLocation'
 import type { FeeLineItem } from '~/composables/useFeeGroups'
-import type { DiscountDraft } from '~/composables/useEventDiscounts'
+import { makeDiscountDraft, defaultProgrammeDiscounts, type DiscountDraft } from '~/composables/useEventDiscounts'
 
 const db = useDb()
 const route = useRoute()
@@ -343,7 +343,9 @@ const form = reactive({
   exdates: [] as string[],           // YYYY-MM-DD, same model as the wizard's Skip-dates
   regOpen: null as Date | null,
   regClose: null as Date | null,
-  discounts: [] as WizardDiscount[],
+  // Holiday-programme default discounts (Full day / Full week) — pre-seeded so the
+  // club just adjusts the amount or removes them.
+  discounts: defaultProgrammeDiscounts().map(d => ({ ...makeDiscountDraft(), ...d, id: crypto.randomUUID() })) as WizardDiscount[],
 })
 
 // Local Y-M-D so a skipped date matches the loop day regardless of timezone.
@@ -646,7 +648,7 @@ async function createEvent() {
 
     // 3. Discounts — same shape + modal as the event wizard/advanced editor.
     const discountRows = form.discounts
-      .filter(d => d.name.trim())
+      .filter(d => d.name.trim() && (d.modifier_value ?? 0) > 0)
       .map(d => ({
         event_id: evtId,
         type: 'CODE' as const,

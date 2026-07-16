@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1657 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1658 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (51 prompts)
+## Session 2026-07-14 22:10 (52 prompts)
 
 **22:10** — yay we are back
 
@@ -28936,4 +28936,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:28** — ok lets do it
 
 **02:50** — so i should not be able to type in teh menu icon name lol this should be a icon sleect box
+
+**03:02** — ok so not for the holiday programme wizard I wnat to add some default discounts, (Full day discount - all session with in a day have been booked) and Also (Full week - all session with in a week have been booked)
 

@@ -57,6 +57,10 @@ export const CONDITION_DEFS: Record<string, { label: string; group: string; oper
   registration_total_value_min:             { label: 'Cart total ($)',                   group: 'Registration',  operators: ['>=', '>'],            valueType: 'currency'},
   booked_day_count_min:                     { label: 'Days booked',                      group: 'Registration',  operators: ['>=', '>'],            valueType: 'number' },
   booked_session_count_min:                 { label: 'Sessions booked',                  group: 'Registration',  operators: ['>=', '>'],            valueType: 'number' },
+  // Completeness conditions for multi-session programmes — every session that
+  // exists on a given day (resp. in a given week) has been booked.
+  booked_full_day:                          { label: 'Whole day booked',                 group: 'Registration',  operators: ['is_true'],            valueType: 'boolean' },
+  booked_full_week:                         { label: 'Whole week booked',                group: 'Registration',  operators: ['is_true'],            valueType: 'boolean' },
   ticket_quantity_min:                      { label: 'Ticket quantity',                  group: 'Registration',  operators: ['>=', '>', '='],       valueType: 'number' },
   registration_date_before:                 { label: 'Register before',                  group: 'Registration',  operators: ['<=', '<'],            valueType: 'datetime'},
   registration_within_first_n_registrations:{ label: 'Within first N registrations',    group: 'Registration',  operators: ['<='],                 valueType: 'number' },
@@ -97,6 +101,19 @@ export const DISCOUNT_TEMPLATES = [
       conditions: [{ key: 'registration_within_first_n_registrations', operator: '<=', value: 50 }] } },
 ]
 
+// Default discounts pre-seeded into the Holiday Programme (multi-session) wizard.
+// A club sees them on the Discounts step and adjusts the amount or removes them.
+// NB: the "whole day/week booked" conditions are CAPTURED here; enforcing them at
+// registration time is a later phase (like the other event-discount conditions).
+export function defaultProgrammeDiscounts(): Array<Partial<DiscountDraft> & { name: string }> {
+  return [
+    { name: 'Full day discount', form_text: 'Book the whole day and save', modifier_value: 10, modifier_type: 'PERCENT', apply_to: 'registration_total',
+      conditions: [{ key: 'booked_full_day', operator: 'is_true', value: true }] },
+    { name: 'Full week discount', form_text: 'Book the whole week and save', modifier_value: 15, modifier_type: 'PERCENT', apply_to: 'registration_total',
+      conditions: [{ key: 'booked_full_week', operator: 'is_true', value: true }] },
+  ]
+}
+
 export function makeDiscountDraft(): DiscountDraft {
   return {
     name: '', form_text: '', is_active: true,
@@ -116,6 +133,8 @@ export const ACTIVE_CONDITION_KEYS = [
   'participant_age_between',                // Participant age range
   'registration_date_before',              // Register before
   'registration_within_first_n_registrations', // Within first N registrations
+  'booked_full_day',                        // Whole day booked (programmes)
+  'booked_full_week',                       // Whole week booked (programmes)
 ]
 
 export function useEventDiscounts() {
