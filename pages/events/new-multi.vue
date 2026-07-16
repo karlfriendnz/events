@@ -157,6 +157,8 @@
               v-model:endTime="regCloseTime"
               :show-all-day="false"
               :show-repeat="false"
+              :min-start-date="today"
+              :min-end-date="regOpenDate ?? today"
               label="Signup dates"
               start-label="Opens"
               end-label="Closes"
