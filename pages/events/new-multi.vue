@@ -281,7 +281,7 @@ const { orgId } = useOrg()
 import { ref, reactive, computed } from 'vue'
 
 import type { LocationEntry } from '~/composables/useLocation'
-import type { FeeLineItem, SessionFeesConfig } from '~/composables/useFeeGroups'
+import type { FeeLineItem } from '~/composables/useFeeGroups'
 import type { DiscountDraft } from '~/composables/useEventDiscounts'
 
 const db = useDb()
@@ -381,14 +381,6 @@ const templates = reactive([
   { name: 'Morning',   cost: null as number | null, startTime: makeTime(9),  endTime: makeTime(12), limit: null as number | null, location: [emptyLoc()] as LocationEntry[], fees: [] as FeeLineItem[] },
   { name: 'Afternoon', cost: null as number | null, startTime: makeTime(13), endTime: makeTime(17), limit: null as number | null, location: [emptyLoc()] as LocationEntry[], fees: [] as FeeLineItem[] },
 ])
-
-// A session's fee (multiple line items) → the SessionFeesConfig shape the rest
-// of the app reads from sessions.fees. No priced rows = a free session.
-function sessionFees(fees?: FeeLineItem[]): SessionFeesConfig | null {
-  const items = (fees ?? []).filter(f => (f.amount ?? 0) > 0 || (f.name ?? '').trim())
-  if (!items.length) return null
-  return { is_charged: true, all_charged_equally: true, base_fees: items, groups: [] }
-}
 
 // Compute all days in the programme range
 const sessionDays = computed(() => {
@@ -553,6 +545,19 @@ async function createEvent() {
     //    bulk-insert the remaining days linked to that master.
     const days = sessionDays.value
     let sortOrder = 0
+    // Fees live in their OWN table (fee_components), keyed to each session — never
+    // a column on sessions/events. A session's fee = its template's line items.
+    const feeRows: any[] = []
+    const feeItemsFor = (tpl: any, sessionId: string) =>
+      (tpl.fees ?? [])
+        .filter((f: FeeLineItem) => (f.name ?? '').trim() || (f.amount ?? 0) > 0)
+        .map((f: FeeLineItem, i: number) => ({
+          session_id: sessionId,
+          name: (f.name || 'Fee').trim(),
+          amount: f.amount ?? 0,
+          xero_code: f.xero_code || null,
+          sort_order: i,
+        }))
 
     for (const tpl of namedTemplates.value) {
       if (days.length === 0) continue
@@ -564,7 +569,6 @@ async function createEvent() {
         start_at: buildDatetime(days[0], tpl.startTime, 9),
         end_at: buildDatetime(days[0], tpl.endTime, 17),
         capacity_max: tpl.limit ?? null,
-        fees: sessionFees(tpl.fees),
         is_required: false,
         is_public: true,
         ...locationCols(tpl.location?.[0]),
@@ -575,6 +579,7 @@ async function createEvent() {
       }).select('id').single()
 
       if (masterErr || !master?.id) throw masterErr ?? new Error('Failed to create master session')
+      feeRows.push(...feeItemsFor(tpl, master.id))
 
       // Bulk-insert remaining days linked to master
       if (days.length > 1) {
@@ -584,7 +589,6 @@ async function createEvent() {
           start_at: buildDatetime(day, tpl.startTime, 9),
           end_at: buildDatetime(day, tpl.endTime, 17),
           capacity_max: tpl.limit ?? null,
-          fees: sessionFees(tpl.fees),
           is_required: false,
           is_public: true,
           ...locationCols(tpl.location?.[0]),
@@ -593,10 +597,13 @@ async function createEvent() {
           master_id: master.id,
           sort_order: sortOrder++,
         }))
-        const { error: linkedErr } = await db.from('sessions').insert(linked)
+        const { data: linkedRows, error: linkedErr } = await db.from('sessions').insert(linked).select('id')
         if (linkedErr) throw linkedErr
+        for (const s of (linkedRows ?? [])) feeRows.push(...feeItemsFor(tpl, s.id))
       }
     }
+
+    if (feeRows.length) await db.from('fee_components').insert(feeRows)
 
     // 3. Discounts — same shape + modal as the event wizard/advanced editor.
     const discountRows = form.discounts
