@@ -88,6 +88,14 @@
           </div>
           <a :href="embedUrl" target="_blank" class="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-2">Preview <i class="pi pi-external-link text-[10px]" /></a>
         </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-sm font-medium text-gray-700">Embed code <span class="text-xs font-normal text-gray-400">(auto-resizes to fit)</span></label>
+            <Button :label="embedCodeCopied ? 'Copied' : 'Copy'" :icon="embedCodeCopied ? 'pi pi-check' : 'pi pi-copy'" size="small" severity="secondary" text @click="copyEmbedCode" />
+          </div>
+          <Textarea :model-value="embedCode" readonly rows="3" class="w-full text-xs font-mono" @focus="(e:any) => e.target.select()" />
+        </div>
       </div>
     </Dialog>
 
@@ -3311,10 +3319,19 @@ const embedUrl = computed(() => {
   const q = p.toString()
   return q ? `${base}?${q}` : base
 })
-const embedSnippet = computed(() =>
-  `<iframe src="${embedUrl.value}" width="100%" height="1000" frameborder="0" style="border:0;width:100%" title="${(event.value?.title || 'Event registration').replace(/"/g, '&quot;')}"></iframe>`)
+// Auto-resizing iframe: the /r page posts its height, this listener applies it.
+const embedCode = computed(() => {
+  const eid = String(route.params.id)
+  const id = `fm-${eid}`
+  const title = (event.value?.title || 'Event registration').replace(/"/g, '&quot;')
+  return `<iframe id="${id}" src="${embedUrl.value}" width="100%" scrolling="no" style="border:0;width:100%" title="${title}"></iframe>\n<script>window.addEventListener("message",function(e){var d=e.data||{};if(d.type==="fm-embed-height"&&d.id==="${eid}"){var f=document.getElementById("${id}");if(f)f.style.height=d.height+"px";}});<\/script>`
+})
+const embedCodeCopied = ref(false)
 async function copyEmbed() {
   try { await navigator.clipboard.writeText(embedUrl.value); embedCopied.value = true; setTimeout(() => embedCopied.value = false, 1500) } catch { /* ignore */ }
+}
+async function copyEmbedCode() {
+  try { await navigator.clipboard.writeText(embedCode.value); embedCodeCopied.value = true; setTimeout(() => embedCodeCopied.value = false, 1500) } catch { /* ignore */ }
 }
 
 // ---- Edit form ----

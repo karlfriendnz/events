@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1688 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1689 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (82 prompts)
+## Session 2026-07-14 22:10 (83 prompts)
 
 **22:10** — yay we are back
 
@@ -29003,4 +29003,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **20:19** — in the add to website box please add some properties that the user can contorl. Background color, header show or not - set width to 1200px of content not iframe. when you click on register it should take the user to the club login page.
 
 **20:28** — add one more setting called border, button colour. also the mobile version of the table of data is not good we need that to be fully mobile repsonsive so lables on the left deatils on right.
+
+**20:44** — Can we do somehting where the form has auto height
 

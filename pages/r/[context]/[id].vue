@@ -358,12 +358,32 @@ async function onSubmit(payload: any) {
   }
 }
 
-onMounted(load)
+// Embedded (inside an iframe on someone's site): report our content height to the
+// parent so the iframe can auto-size, and drop the full-screen min-height so there's
+// no empty space below the form.
+const isEmbedded = ref(false)
+let _heightRO: ResizeObserver | null = null
+function postEmbedHeight() {
+  if (!import.meta.client || window.self === window.top) return
+  const h = Math.ceil(document.documentElement.scrollHeight)
+  window.parent.postMessage({ type: 'fm-embed-height', id: contextId.value, height: h }, '*')
+}
+onMounted(async () => {
+  if (import.meta.client) isEmbedded.value = window.self !== window.top
+  await load()
+  if (isEmbedded.value && import.meta.client) {
+    postEmbedHeight()
+    _heightRO = new ResizeObserver(() => postEmbedHeight())
+    _heightRO.observe(document.body)
+    window.addEventListener('load', postEmbedHeight)
+  }
+})
+onBeforeUnmount(() => _heightRO?.disconnect())
 </script>
 
 <template>
-  <div class="min-h-screen w-full" :style="{ ...themeVars, background: embedBg }">
-    <div class="mx-auto px-4 py-8 w-full max-w-[1200px]">
+  <div class="w-full" :class="isEmbedded ? '' : 'min-h-screen'" :style="{ ...themeVars, background: embedBg }">
+    <div class="mx-auto w-full max-w-[1200px]" :class="isEmbedded ? 'px-2 py-2' : 'px-4 py-8'">
       <div class="bg-white rounded-2xl overflow-hidden" :class="embedBorder ? 'border border-gray-200' : ''">
         <div v-if="loading" class="py-16 text-center text-gray-400">
           <i class="pi pi-spin pi-spinner text-2xl" />
