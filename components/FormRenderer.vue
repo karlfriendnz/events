@@ -323,6 +323,21 @@ const grandTotal = computed(() => {
   for (const s of choosers.value) for (let i = 1; i <= count(s.key); i++) t += instanceTotal(s.key, i)
   return t
 })
+// Full itemized summary across every subject + instance, for the Summary step.
+const fullOrderLines = computed(() => {
+  const out: { heading: boolean; label: string; amount: number }[] = []
+  for (const s of choosers.value) {
+    for (let i = 1; i <= count(s.key); i++) {
+      const lines = orderLines(s.key, i)
+      if (!lines.length) continue
+      const id = instanceIdentity(s.key, i)
+      const nm = [id.first_name, id.last_name].filter(Boolean).join(' ').trim()
+      out.push({ heading: true, label: nm || `${s.label}${count(s.key) > 1 ? ' ' + i : ''}`, amount: 0 })
+      for (const ln of lines) out.push({ heading: false, label: ln.label, amount: ln.amount })
+    }
+  }
+  return out
+})
 const hasFees = computed(() => baseFee.value > 0 || visibleSessions.value.length > 0 || feeOptions.value.length > 0
   || groupOptions.value.some(g => g.feeOptions.length > 0))
 const cur = computed(() => props.currency || 'NZD')
@@ -599,7 +614,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
           :class="i === step ? 'text-primary' : 'text-gray-400'" @click="step = i">
           <span class="w-5 h-5 rounded-full flex items-center justify-center text-[11px]"
             :class="i === step ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500'">{{ i + 1 }}</span>
-          {{ st.kind === 'terms' ? 'Terms' : st.subject.label }}
+          {{ st.kind === 'terms' ? 'Summary &amp; payment' : st.subject.label }}
         </button>
         <span v-if="i < steps.length - 1" class="text-gray-300">›</span>
       </template>
@@ -789,10 +804,18 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
       </section>
     </template>
 
-    <!-- Terms + payment + total (single-page: always; wizard: terms step) -->
+    <!-- Summary + payment + terms (single-page: always at the end; wizard: its own step) -->
     <section v-if="!isWizard || isTermsStep(step)" class="mb-6">
-      <div v-if="hasFees" class="bg-gray-50 rounded-xl px-4 py-3 mb-4">
-        <div class="flex justify-between text-base font-bold text-gray-900">
+      <div v-if="hasFees" class="bg-gray-50 rounded-xl px-4 py-3 mb-4 text-sm">
+        <p class="text-sm font-semibold text-gray-700 mb-2">Summary</p>
+        <template v-for="(ln, li) in fullOrderLines" :key="li">
+          <p v-if="ln.heading" class="text-xs font-bold uppercase tracking-wide text-gray-400 mt-2 first:mt-0">{{ ln.label }}</p>
+          <div v-else class="flex justify-between text-gray-600 py-0.5">
+            <span class="truncate pr-2">{{ ln.label }}</span><span class="tabular-nums whitespace-nowrap">{{ money(ln.amount) }}</span>
+          </div>
+        </template>
+        <p v-if="!fullOrderLines.length" class="text-gray-400">Nothing selected yet.</p>
+        <div class="flex justify-between text-base font-bold text-gray-900 pt-2 mt-1 border-t border-gray-200">
           <span>Total</span><span>{{ money(grandTotal) }}</span>
         </div>
       </div>
