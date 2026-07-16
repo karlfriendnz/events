@@ -17,9 +17,10 @@ const props = withDefaults(defineProps<{
   canNext?: boolean
   saving?: boolean
   finishLabel?: string
-  /** Hide the summary rail for the current step (e.g. a form builder step). */
-  hideSummary?: boolean
-}>(), { canNext: true, saving: false, finishLabel: 'Create', hideSummary: false })
+  /** Full-bleed body for the current step: fill the modal body (small even inset,
+   *  no max-width, no summary rail) so an embedded builder looks native. */
+  fullBleed?: boolean
+}>(), { canNext: true, saving: false, finishLabel: 'Create', fullBleed: false })
 
 const emit = defineEmits<{
   (e: 'update:modelValue', v: number): void
@@ -75,12 +76,17 @@ function onNext() {
 
         <!-- Body: step content on the left, live summary rail on the right -->
         <div class="flex-1 flex min-h-0">
-          <div class="flex-1 min-w-0 overflow-y-auto bg-[#F5F8FA]">
-            <div class="max-w-[1140px] w-full mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6">
+          <!-- ONE wrapper, class-toggled (never v-if/v-else — that remounts the slot
+               and would reset an embedded builder). Full-bleed = fill body with a
+               small inset; otherwise padded + max-width + scrolling. -->
+          <div class="flex-1 min-w-0 bg-[#F5F8FA] flex flex-col" :class="fullBleed ? 'overflow-hidden' : 'overflow-y-auto'">
+            <div :class="fullBleed
+              ? 'flex-1 min-h-0 flex flex-col p-3 sm:p-4'
+              : 'max-w-[1140px] w-full mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6'">
               <slot />
             </div>
           </div>
-          <aside v-if="$slots.summary && !hideSummary" class="hidden lg:flex w-80 shrink-0 flex-col border-l border-gray-200 bg-white overflow-y-auto">
+          <aside v-if="$slots.summary && !fullBleed" class="hidden lg:flex w-80 shrink-0 flex-col border-l border-gray-200 bg-white overflow-y-auto">
             <slot name="summary" />
           </aside>
         </div>

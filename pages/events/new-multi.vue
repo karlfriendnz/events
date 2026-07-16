@@ -5,7 +5,7 @@
     :title="wizardTitle"
     :can-next="canNext"
     :saving="saving"
-    :hide-summary="step === 3"
+    :full-bleed="step === 3"
     finish-label="Create programme"
     @finish="createEvent"
     @close="navigateTo('/events')">
@@ -233,7 +233,7 @@
          DEFINITE height or it collapses to nothing. The WizardShell wraps steps in a
          padded max-width scroll block, so give this step a real height + cancel that
          padding so the designer fills the body edge-to-edge. -->
-    <div v-show="step === 3" class="flex flex-col h-[72vh] min-h-[460px] -mx-3 sm:-mx-6 -my-4 sm:-my-8">
+    <div v-show="step === 3" class="flex-1 min-h-0 flex flex-col rounded-xl border border-gray-200 overflow-hidden bg-white">
       <div v-if="!draftEventId" class="flex-1 flex items-center justify-center text-sm text-gray-400">
         Preparing the form…
       </div>
