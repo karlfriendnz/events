@@ -60,32 +60,48 @@
       </div>
 
       <div class="flex items-center gap-3">
-        <div class="flex-1 h-px bg-gray-100" />
-        <span class="text-[11px] text-gray-400 uppercase tracking-wide">or sign in</span>
-        <div class="flex-1 h-px bg-gray-100" />
+        <div class="flex-1 h-px bg-gray-200" />
+        <span class="text-xs font-semibold text-gray-400">OR</span>
+        <div class="flex-1 h-px bg-gray-200" />
       </div>
 
       <!-- Email + password login -->
-      <div class="space-y-2">
-        <input v-model="pwEmail" type="email" placeholder="Email" autocomplete="email"
-          class="w-full h-10 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
-        <input v-model="pwPassword" type="password" placeholder="Password" autocomplete="current-password"
-          class="w-full h-10 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]"
-          @keyup.enter="signInWithPasswordFn" />
+      <div class="space-y-3">
+        <div>
+          <label class="text-sm font-medium text-gray-700 mb-1 block">Email address</label>
+          <input v-model="pwEmail" type="email" placeholder="you@example.com" autocomplete="email"
+            class="w-full h-11 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
+        </div>
+        <div>
+          <label class="text-sm font-medium text-gray-700 mb-1 block">Password</label>
+          <input v-model="pwPassword" type="password" placeholder="••••••••" autocomplete="current-password"
+            class="w-full h-11 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]"
+            @keyup.enter="signInWithPasswordFn" />
+          <div class="flex justify-end mt-1">
+            <button type="button" class="text-xs font-semibold text-primary hover:underline" @click="step = 'otp-email'">Forgot password?</button>
+          </div>
+        </div>
         <p v-if="pwError" class="text-xs text-red-500">{{ pwError }}</p>
         <p v-if="ssoError" class="text-xs text-red-500">{{ ssoError }}</p>
-        <Button :loading="pwSubmitting" label="Sign in" icon="pi pi-sign-in" class="w-full"
+        <Button :loading="pwSubmitting" label="Sign in" class="w-full !py-2.5"
           @click="signInWithPasswordFn" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
-        <button type="button" class="w-full text-center text-xs font-semibold text-primary hover:underline py-1"
-          @click="step = 'otp-email'">Email me a one-time code instead</button>
       </div>
 
-      <!-- Guest + (optional) mobile app -->
-      <button v-if="!hideGuest" type="button"
-        class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border border-dashed border-gray-300 hover:border-gray-400 text-sm font-semibold text-gray-600 transition-colors"
-        @click="emit('select-guest')">
-        <i class="pi pi-user-edit text-gray-500" /> {{ guestLabel }}
+      <div class="flex items-center gap-3">
+        <div class="flex-1 h-px bg-gray-200" />
+        <span class="text-xs font-semibold text-gray-400">OR</span>
+        <div class="flex-1 h-px bg-gray-200" />
+      </div>
+
+      <button type="button"
+        class="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-semibold text-gray-700 transition-colors"
+        @click="step = 'otp-email'">
+        <i class="pi pi-envelope text-gray-500" /> Email me a one-time code
       </button>
+
+      <button v-if="!hideGuest" type="button"
+        class="w-full text-center text-sm text-gray-500 hover:text-gray-700 py-1"
+        @click="emit('select-guest')">Or {{ guestLabel.toLowerCase() }} →</button>
       <button v-if="appDeepLink" type="button"
         class="w-full text-center text-xs font-semibold text-gray-500 hover:text-gray-700 py-1"
         @click="step = 'app'"><i class="pi pi-mobile text-[10px] mr-1" /> Open in mobile app</button>

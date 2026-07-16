@@ -511,7 +511,31 @@ function buildPayload() {
 // pre-fill every field they've already populated, not just their name.
 const db = useDb()
 const { resolveFields } = useOrgFieldPolicy()
-const authResolved = ref(!!props.preview)  // false → show the chooser; true → show the form (preview skips it)
+const authResolved = ref(!!props.preview)  // false → show the landing; true → show the form (preview skips it)
+const authModalOpen = ref(false)           // "Register" opens the auth chooser in a modal
+function onGuestFromModal() { authModalOpen.value = false; onGuest() }
+function onSignedInFromModal(p: any) { authModalOpen.value = false; onSignedIn(p) }
+
+// Session prices shown on the landing (before registering).
+const priceList = computed<{ label: string; fee: number | null }[]>(() => {
+  const out: { label: string; fee: number | null }[] = []
+  for (const f of (props.feeLineItems ?? [])) out.push({ label: f.name || 'Registration', fee: Number(f.amount) || 0 })
+  if (isDateTable.value && sessionDateTable.value.columns.length) {
+    const cols = sessionDateTable.value.columns.map(c => ({ label: c.title || c.startTime || 'Session', fee: c.fee }))
+    for (const c of cols) out.push(c)
+    const fullDay = cols.reduce((s, c) => s + (c.fee || 0), 0)
+    if (cols.length > 1 && fullDay > 0) out.push({ label: 'Full day', fee: fullDay })
+  } else {
+    const seen = new Set<string>()
+    for (const s of visibleSessions.value) {
+      const label = s.title || 'Session'
+      if (seen.has(label)) continue
+      seen.add(label)
+      out.push({ label, fee: Number(s.fee) || 0 })
+    }
+  }
+  return out
+})
 const identifiedName = ref('')          // non-empty → "Registering as …" banner
 const labelToDefId = ref<Record<string, string>>({})
 
@@ -579,29 +603,53 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
 
 <template>
   <div class="form-renderer" :style="bgStyle">
-    <!-- Two columns: event INFORMATION on the left, the FORM on the right (stacks on mobile). -->
-    <div class="lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] items-start">
-    <!-- ── LEFT: designed header chrome (banner / info / description) ── -->
-    <aside class="lg:border-r border-gray-100 lg:sticky lg:top-0 lg:self-start">
-      <FormPreviewBanner v-if="showBanner" :design="design" :event="event || {}" />
-      <FormPreviewInfoIcons v-if="hasInfoIcons" :design="design" :event="displayEvent" live :cost="costLabel" />
-      <FormPreviewDescription v-if="hasDescription" :design="design" :event="event" readonly />
-    </aside>
+    <!-- ── Designed header chrome (banner / info / description) ── -->
+    <FormPreviewBanner v-if="showBanner" :design="design" :event="event || {}" />
+    <FormPreviewInfoIcons v-if="hasInfoIcons" :design="design" :event="displayEvent" live :cost="costLabel" />
+    <FormPreviewDescription v-if="hasDescription" :design="design" :event="event" readonly />
 
-    <!-- ── RIGHT: the form ── -->
     <div class="px-4 sm:px-6 py-6">
-    <!-- Identify step: continue as guest, sign in, or (staff) pick a member -->
-    <BookingAuthChooser v-if="!authResolved"
-      :staff="staff"
-      :org-id="context.orgId"
-      :can-go-back="false"
-      subject-mode="register"
-      title="How would you like to register?"
-      subtitle="Sign in to auto-fill your details, or continue as a guest."
-      guest-label="Continue as guest"
-      guest-description="Fill in the form yourself."
-      @select-guest="onGuest"
-      @signed-in="onSignedIn" />
+    <!-- LANDING: details + sessions (data table) → "Register" opens the auth modal -->
+    <div v-if="!authResolved">
+      <h2 class="text-lg font-bold text-gray-900 mb-3">{{ formHeading }}</h2>
+
+      <!-- Read-only data table of what's on offer -->
+      <div v-if="isDateTable && sessionDateTable.rows.length" class="rounded-xl border border-gray-200 overflow-x-auto">
+        <div class="min-w-[520px]">
+          <div class="grid border-b border-gray-200 bg-gray-50" :style="`grid-template-columns: repeat(${sessionDateTable.columns.length + 2}, minmax(0,1fr))`">
+            <div class="px-3 py-2 text-xs font-semibold text-gray-500">Date</div>
+            <div v-for="col in sessionDateTable.columns" :key="col.key" class="px-3 py-2 border-l border-gray-200">
+              <p class="text-xs font-semibold text-gray-800">{{ col.title || col.startTime }}<span v-if="col.fee" class="ml-1 font-normal text-primary">{{ money(col.fee) }}</span></p>
+              <p v-if="col.startTime" class="text-[11px] text-gray-400 mt-0.5">{{ col.startTime }}</p>
+            </div>
+            <div class="px-3 py-2 border-l border-gray-200"><p class="text-xs font-semibold text-gray-800">Full day</p></div>
+          </div>
+          <template v-for="(row, ri) in sessionDateTable.rows" :key="ri">
+            <div v-if="ri === 0 || row.newWeek" class="px-3 py-1.5 bg-gray-100 border-y border-gray-200 text-xs font-semibold text-gray-600">Week {{ row.weekSeq }}</div>
+            <div class="grid border-b border-gray-100 last:border-b-0" :style="`grid-template-columns: repeat(${sessionDateTable.columns.length + 2}, minmax(0,1fr))`">
+              <div class="px-3 py-2 text-sm font-medium text-gray-800">{{ row.weekday }}, {{ row.dayMonth }}</div>
+              <div v-for="(cell, ci) in row.cells" :key="ci" class="border-l border-gray-100 px-3 py-2 text-center">
+                <i v-if="cell" class="pi pi-check text-gray-300 text-xs" />
+                <span v-else class="text-gray-200">—</span>
+              </div>
+              <div class="border-l border-gray-100 px-3 py-2 text-center text-xs text-primary font-medium tabular-nums">{{ dtRowFee(row) ? money(dtRowFee(row)!) : '' }}</div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Fallback: simple price list -->
+      <div v-else-if="priceList.length" class="rounded-xl border border-gray-200 overflow-hidden">
+        <div class="px-4 py-2 bg-gray-50 text-[11px] font-bold uppercase tracking-wide text-gray-500">Sessions &amp; pricing</div>
+        <div v-for="p in priceList" :key="p.label" class="flex items-center justify-between px-4 py-2 text-sm border-t border-gray-100 first:border-t-0">
+          <span class="text-gray-700">{{ p.label }}</span>
+          <span class="font-semibold text-gray-800 tabular-nums">{{ p.fee != null ? money(p.fee) : '—' }}</span>
+        </div>
+      </div>
+
+      <Button label="Register" icon="pi pi-arrow-right" icon-pos="right" class="w-full mt-5"
+        @click="authModalOpen = true" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+    </div>
 
     <template v-else>
     <!-- Identified-registrant banner -->
@@ -863,6 +911,15 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
     </div>
     </template>
     </div>
-    </div>
+
+    <!-- Register / sign-in modal (opened by the "Register" button on the landing) -->
+    <Dialog v-model:visible="authModalOpen" modal :dismissable-mask="true" header="Register or sign in" :style="{ width: '95vw', maxWidth: '430px' }">
+      <BookingAuthChooser
+        :staff="staff" :org-id="context.orgId" :can-go-back="false" subject-mode="register"
+        title="How would you like to register?"
+        subtitle="Sign in to auto-fill your details, or continue as a guest."
+        guest-label="Continue as guest" guest-description="Fill in the form yourself."
+        @select-guest="onGuestFromModal" @signed-in="onSignedInFromModal" />
+    </Dialog>
   </div>
 </template>

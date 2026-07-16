@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1679 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1680 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (73 prompts)
+## Session 2026-07-14 22:10 (74 prompts)
 
 **22:10** — yay we are back
 
@@ -28985,4 +28985,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **09:36** — [Image #10] can you please put the "all week" option in the last colium
 
 **09:45** — [Image #11] I want to modify this design so it shows the login form, sso with google, facebook. a button to check out as guest, and email one time code
+
+**09:55** — the first screen people should see is the info about the event the session prices etc and then when they are ready to click on "register" it then it shows a modal whith the optns top register/login
 

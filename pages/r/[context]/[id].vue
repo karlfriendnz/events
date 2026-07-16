@@ -352,12 +352,6 @@ onMounted(load)
 <template>
   <div class="min-h-screen w-full" :style="{ ...themeVars, background: theme.canvas }">
     <div class="max-w-[1000px] mx-auto px-4 py-8">
-      <!-- Header -->
-      <div class="flex items-center gap-3 mb-5">
-        <img v-if="orgLogo" :src="orgLogo" :alt="orgName" class="h-9 w-auto" />
-        <span v-else class="text-base font-bold" :style="{ color: theme.primary }">{{ orgName }}</span>
-      </div>
-
       <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
         <div v-if="loading" class="py-16 text-center text-gray-400">
           <i class="pi pi-spin pi-spinner text-2xl" />
