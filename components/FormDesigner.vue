@@ -7,7 +7,7 @@
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
 
-const props = withDefaults(defineProps<{ eventId: string | null; groupId?: string | null; formId?: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean; embedded?: boolean }>(), { groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false, embedded: false })
+const props = withDefaults(defineProps<{ eventId: string | null; groupId?: string | null; formId?: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean; embedded?: boolean; ageMin?: number | null; ageMax?: number | null }>(), { groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false, embedded: false, ageMin: null, ageMax: null })
 
 const emit = defineEmits<{ (e: 'building', v: boolean): void }>()
 const db = useDb()
@@ -22,6 +22,25 @@ const ticketTypes = computed(() => props.ticketTypes)     // payment preview tic
 const hasTickets = computed(() => props.hasTickets)
 const id = props.eventId
 const event = ref<any>(null)
+
+// Age restriction → the header "Invitee Restrictions" line. Prefer the props (the
+// wizard passes its in-progress age before the event row is updated), fall back to
+// the loaded event's persisted age.
+const evtAgeCriteria = computed(() => {
+  const lo = props.ageMin ?? event.value?.age_min ?? null
+  const hi = props.ageMax ?? event.value?.age_max ?? null
+  if (lo != null && hi != null) return `Ages ${lo}–${hi}`
+  if (lo != null) return `Ages ${lo}+`
+  if (hi != null) return `Up to age ${hi}`
+  return ''
+})
+// Event object for the preview header, with age folded into `criteria` when the
+// event has no explicit criteria of its own.
+const evtDisplayEvent = computed(() => {
+  const e = event.value
+  if (!e || e.criteria || !evtAgeCriteria.value) return e
+  return { ...e, criteria: evtAgeCriteria.value }
+})
 const evtDiscountSettings = props.discountSettings ?? reactive({ one_discount_only: true })
 
 // ── moved form-builder script (from events/[id].vue 5308–7361) ──
@@ -3373,7 +3392,7 @@ defineExpose({ reload })
             <FormPreviewBanner :design="currentEvtFormDesign" :event="event" />
             <!-- Full event details (icons + description): always, except in mobile Steps where they're only the first (details) step -->
             <template v-if="!evtMobileSteps || evtOnDetailsStep">
-              <FormPreviewInfoIcons :design="currentEvtFormDesign" :event="event" :mobile="evtPreviewDevice === 'mobile'" />
+              <FormPreviewInfoIcons :design="currentEvtFormDesign" :event="evtDisplayEvent" :mobile="evtPreviewDevice === 'mobile'" />
               <FormPreviewDescription :design="currentEvtFormDesign" :event="event" :readonly="evtPublicPreview" />
             </template>
 

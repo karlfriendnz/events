@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1669 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1670 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (63 prompts)
+## Session 2026-07-14 22:10 (64 prompts)
 
 **22:10** — yay we are back
 
@@ -28965,4 +28965,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **05:12** — pleases just make the registartion form tab not have the right summary if its in a modal
 
 **05:17** — [Image #9] can we at least make it so the form buidler is full width has a little padding left and right but makeit look as though its native in the modal
+
+**05:38** — ok this is looking good but we need to send pramaters to the form so for example if the form is in the holiday programme then it should know things like show the session view, and it should have other thins like age restritions, fees, etc discounts all the should be able to be passed to the from builder
 

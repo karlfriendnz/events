@@ -64,6 +64,20 @@ const hasInfoIcons = computed(() => {
   const ic = design.value?.icons || {}
   return !!props.event && (ic.date || ic.time || ic.cost || ic.location || ic.criteria)
 })
+// Age restriction → the header "Invitee Restrictions" line + submit validation.
+const ageCriteria = computed(() => {
+  const lo = props.event?.age_min ?? null
+  const hi = props.event?.age_max ?? null
+  if (lo != null && hi != null) return `Ages ${lo}–${hi}`
+  if (lo != null) return `Ages ${lo}+`
+  if (hi != null) return `Up to age ${hi}`
+  return ''
+})
+const displayEvent = computed(() => {
+  const e = props.event
+  if (!e || e.criteria || !ageCriteria.value) return e
+  return { ...e, criteria: ageCriteria.value }
+})
 const hasDescription = computed(() => {
   const d = design.value?.description
   return (d === 'event' && !!props.event?.description) || (d === 'custom' && !!design.value?.customDescription)
@@ -285,6 +299,27 @@ function validate(): boolean {
       }
     }
   }
+  // Age restriction: each registrant with a Date of Birth must fall in the event's
+  // allowed range (aged at the event's start date, else today).
+  const amin = props.event?.age_min ?? null
+  const amax = props.event?.age_max ?? null
+  if (amin != null || amax != null) {
+    const refDate = props.event?.start_at ? new Date(props.event.start_at) : new Date()
+    for (const s of subjects.value) {
+      for (let inst = 1; inst <= count(s.key); inst++) {
+        const dobRaw = getVal(s.key, inst, 'Date of Birth')
+        if (!dobRaw) continue
+        const dob = new Date(dobRaw as any)
+        if (isNaN(dob.getTime())) continue
+        let age = refDate.getFullYear() - dob.getFullYear()
+        const mo = refDate.getMonth() - dob.getMonth()
+        if (mo < 0 || (mo === 0 && refDate.getDate() < dob.getDate())) age--
+        const who = `${s.label}${count(s.key) > 1 ? ' ' + inst : ''}`
+        if (amin != null && age < amin) { error.value = `${who} must be at least ${amin} year${amin === 1 ? '' : 's'} old for this event.`; return false }
+        if (amax != null && age > amax) { error.value = `${who} must be ${amax} or younger for this event.`; return false }
+      }
+    }
+  }
   if (feeOptions.value.length > 1) {
     for (const s of choosers.value) {
       for (let inst = 1; inst <= count(s.key); inst++) {
@@ -450,7 +485,7 @@ function onSubmit() { if (validate()) emit('submit', buildPayload()) }
   <div class="form-renderer" :style="bgStyle">
     <!-- ── Designed header chrome (banner / info / description), as on the builder preview ── -->
     <FormPreviewBanner v-if="showBanner" :design="design" :event="event || {}" />
-    <FormPreviewInfoIcons v-if="hasInfoIcons" :design="design" :event="event" live :cost="costLabel" />
+    <FormPreviewInfoIcons v-if="hasInfoIcons" :design="design" :event="displayEvent" live :cost="costLabel" />
     <FormPreviewDescription v-if="hasDescription" :design="design" :event="event" readonly />
 
     <div class="px-4 sm:px-6 py-6">

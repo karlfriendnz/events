@@ -132,7 +132,7 @@ async function load() {
 
     if (contextType.value === 'event') {
       const { data: ev } = await (db.from as any)('events')
-        .select('id, org_id, title, form_id, status, banner_url, start_at, description, location_type, address')
+        .select('id, org_id, title, form_id, status, banner_url, start_at, description, location_type, address, age_min, age_max')
         .eq('id', contextId.value).maybeSingle()
       if (!ev) { loadError.value = 'This event could not be found.'; return }
       if (ev.status === 'CANCELLED' || ev.status === 'ARCHIVED') { loadError.value = 'Registrations are closed for this event.'; return }
@@ -140,6 +140,7 @@ async function load() {
       formEvent.value = {
         title: ev.title, banner_url: ev.banner_url, start_at: ev.start_at, description: ev.description,
         location: ev.location_type === 'ONLINE' ? 'Online' : (ev.address || null),
+        age_min: ev.age_min ?? null, age_max: ev.age_max ?? null,
       }
       formId = ev.form_id
       await loadOrg(ev.org_id)

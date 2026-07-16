@@ -237,7 +237,10 @@
       <div v-if="!draftEventId" class="flex-1 flex items-center justify-center text-sm text-gray-400">
         Preparing the form…
       </div>
-      <FormDesigner v-else :event-id="draftEventId" :org-id="orgId" :discount-settings="discountSettings" embedded class="flex flex-col flex-1 min-h-0" />
+      <FormDesigner v-else :event-id="draftEventId" :org-id="orgId"
+        :sessions="wizardSessions" :fee-line-items="wizardFeeLineItems" :discounts="form.discounts"
+        :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax"
+        embedded class="flex flex-col flex-1 min-h-0" />
     </div>
 
     <!-- ── Step 5 · Summary ── -->
@@ -448,6 +451,27 @@ const namedTemplates = computed(() => templates.filter(t => t.name.trim()))
 
 const totalSessions = computed(() => sessionDays.value.length * namedTemplates.value.length)
 
+// ── Context fed to the embedded <FormDesigner> so the builder reflects the
+//    programme being defined (session view / fees / discounts). Sessions are
+//    SYNTHETIC previews (deterministic ids) — per-session persistence against the
+//    real rows created at Finish is a follow-up (Karl: preview-only for now). ──
+const wizardSessions = computed(() => {
+  const out: any[] = []
+  namedTemplates.value.forEach((tpl, ti) => {
+    sessionDays.value.forEach((day, di) => {
+      out.push({
+        id: `prev:${ti}:${di}`,
+        title: tpl.name,
+        start_at: combineDT(day, tpl.startTime)?.toISOString() ?? null,
+        end_at: combineDT(day, tpl.endTime)?.toISOString() ?? null,
+        capacity_max: tpl.limit ?? null,
+      })
+    })
+  })
+  return out
+})
+const wizardFeeLineItems = computed(() => namedTemplates.value.flatMap(tpl => tpl.fees ?? []))
+
 const canCreate = computed(() =>
   form.title.trim() !== '' &&
   form.startDate !== null &&
@@ -583,6 +607,8 @@ async function createEvent() {
       end_at: combineDT(form.endDate, null)!.toISOString(),
       is_public: true,
       is_programme: route.query.programme === '1',
+      age_min: form.ageMin ?? null,
+      age_max: form.ageMax ?? null,
       // Auto-tagged from a named calendar's sole category (?category=…) when created there.
       ...(route.query.category ? { category_id: route.query.category as string } : {}),
       // Event-level location = the first session's location (each session carries its own).
