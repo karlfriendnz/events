@@ -21,7 +21,7 @@ export interface DiscountDraft {
   form_text: string
   is_active: boolean
   modifier_value: number | null
-  modifier_type: 'PERCENT' | 'FLAT'
+  modifier_type: 'PERCENT' | 'FLAT' | 'REPLACE'
   apply_to: string
   conditions: DiscountCondition[]
   condition_to_add: string | null
@@ -35,6 +35,7 @@ export interface DiscountDraft {
 export const DISCOUNT_TYPES = [
   { label: '% Off', value: 'PERCENT' },
   { label: '$ Off', value: 'FLAT' },
+  { label: 'Set price', value: 'REPLACE' },   // override the price to a fixed amount
 ]
 
 export const APPLY_TO_OPTIONS = [

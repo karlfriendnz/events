@@ -252,7 +252,7 @@
                 <p class="font-medium text-gray-800">{{ disc.name || '—' }}</p>
                 <p v-if="disc.form_text" class="text-xs text-gray-400 mt-0.5">{{ disc.form_text }}</p>
               </div>
-              <span class="shrink-0 font-semibold text-primary whitespace-nowrap">{{ disc.modifier_type === 'PERCENT' ? `${disc.modifier_value}% off` : `$${disc.modifier_value} off` }}</span>
+              <span class="shrink-0 font-semibold text-primary whitespace-nowrap">{{ disc.modifier_type === 'PERCENT' ? `${disc.modifier_value}% off` : disc.modifier_type === 'REPLACE' ? `$${disc.modifier_value}` : `$${disc.modifier_value} off` }}</span>
             </div>
             <div class="flex flex-wrap gap-1 mt-2">
               <span v-for="(c, ci) in disc.conditions" :key="ci"
@@ -305,7 +305,7 @@
                   <p v-if="disc.form_text" class="text-xs text-gray-400 mt-0.5">{{ disc.form_text }}</p>
                 </td>
                 <td class="px-4 py-3 whitespace-nowrap font-semibold text-primary">
-                  {{ disc.modifier_type === 'PERCENT' ? `${disc.modifier_value}% off` : `$${disc.modifier_value} off` }}
+                  {{ disc.modifier_type === 'PERCENT' ? `${disc.modifier_value}% off` : disc.modifier_type === 'REPLACE' ? `$${disc.modifier_value}` : `$${disc.modifier_value} off` }}
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex flex-wrap gap-1">
@@ -360,7 +360,7 @@
                   <div v-for="disc in eventDiscounts.filter(d => d.is_active)" :key="disc.name"
                     class="flex justify-between px-4 py-2.5 bg-green-50 border-b border-green-100 text-green-700 last:border-b-0">
                     <span class="flex items-center gap-1.5"><i class="pi pi-tag text-xs" />{{ disc.form_text || disc.name }}</span>
-                    <span class="font-semibold">−{{ disc.modifier_type === 'PERCENT' ? `${disc.modifier_value}%` : `$${disc.modifier_value}` }}</span>
+                    <span class="font-semibold">{{ disc.modifier_type === 'REPLACE' ? `= $${disc.modifier_value}` : `−${disc.modifier_type === 'PERCENT' ? `${disc.modifier_value}%` : `$${disc.modifier_value}`}` }}</span>
                   </div>
                   <div class="flex justify-between px-4 py-2.5 bg-gray-50 font-semibold text-gray-800 border-t border-gray-100">
                     <span>Total</span><span class="text-gray-500 font-normal text-xs self-center">calculated at checkout</span>

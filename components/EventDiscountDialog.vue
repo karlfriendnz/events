@@ -159,12 +159,12 @@ function save() {
             <div class="grid" style="grid-template-columns: 120px auto 1fr">
               <!-- Value (amount first) -->
               <div class="relative flex items-center border-r border-gray-200">
-                <span v-if="draft.modifier_type === 'FLAT'" class="absolute left-3 text-gray-400 text-sm pointer-events-none">{{ currencySymbol }}</span>
+                <span v-if="draft.modifier_type === 'FLAT' || draft.modifier_type === 'REPLACE'" class="absolute left-3 text-gray-400 text-sm pointer-events-none">{{ currencySymbol }}</span>
                 <InputNumber v-model="draft.modifier_value" placeholder="0" :min="0"
                   :max="draft.modifier_type === 'PERCENT' ? 100 : undefined"
                   :suffix="draft.modifier_type === 'PERCENT' ? '%' : ''"
                   inputClass="h-10 text-sm font-semibold text-center w-full border-0 shadow-none rounded-none"
-                  :class="draft.modifier_type === 'FLAT' ? 'pl-5' : ''"
+                  :class="draft.modifier_type === 'FLAT' || draft.modifier_type === 'REPLACE' ? 'pl-5' : ''"
                   :pt="{ root: { class: 'w-full' }, input: { style: 'border:none; box-shadow:none; border-radius:0' } }" />
               </div>
               <!-- Type toggle -->

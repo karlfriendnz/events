@@ -1242,6 +1242,7 @@ const currencySymbol = computed(() => {
 
 function discountAmountLabel(d: WizardDiscount) {
   const v = d.modifier_value ?? 0
+  if (d.modifier_type === 'REPLACE') return `${money(v)}`
   return d.modifier_type === 'PERCENT' ? `${v}% off` : `${money(v)} off`
 }
 
