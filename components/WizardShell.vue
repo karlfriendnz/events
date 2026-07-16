@@ -17,7 +17,9 @@ const props = withDefaults(defineProps<{
   canNext?: boolean
   saving?: boolean
   finishLabel?: string
-}>(), { canNext: true, saving: false, finishLabel: 'Create' })
+  /** Hide the summary rail (e.g. give a full-width form builder the whole body). */
+  hideSummary?: boolean
+}>(), { canNext: true, saving: false, finishLabel: 'Create', hideSummary: false })
 
 const emit = defineEmits<{
   (e: 'update:modelValue', v: number): void
@@ -78,7 +80,7 @@ function onNext() {
               <slot />
             </div>
           </div>
-          <aside v-if="$slots.summary" class="hidden lg:flex w-80 shrink-0 flex-col border-l border-gray-200 bg-white overflow-y-auto">
+          <aside v-if="$slots.summary && !hideSummary" class="hidden lg:flex w-80 shrink-0 flex-col border-l border-gray-200 bg-white overflow-y-auto">
             <slot name="summary" />
           </aside>
         </div>

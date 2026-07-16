@@ -5,6 +5,7 @@
     :title="wizardTitle"
     :can-next="canNext"
     :saving="saving"
+    :hide-summary="step === 3 && formBuilding"
     finish-label="Create programme"
     @finish="createEvent"
     @close="navigateTo('/events')">
@@ -236,7 +237,7 @@
       <div v-if="!draftEventId" class="flex-1 flex items-center justify-center text-sm text-gray-400">
         Preparing the form…
       </div>
-      <FormDesigner v-else :event-id="draftEventId" :org-id="orgId" :discount-settings="discountSettings" class="flex flex-col flex-1 min-h-0" />
+      <FormDesigner v-else :event-id="draftEventId" :org-id="orgId" :discount-settings="discountSettings" @building="formBuilding = $event" class="flex flex-col flex-1 min-h-0" />
     </div>
 
     <!-- ── Step 5 · Summary ── -->
@@ -481,6 +482,9 @@ const { conditionLabel } = useEventDiscounts()
 // Best-discount-only policy — ON by default; persisted into the form config by
 // <FormDesigner> (shared reactive), same as the advanced editor.
 const discountSettings = reactive({ one_discount_only: true })
+// True once the form step is past its chooser — the wizard hides the summary rail
+// then so the builder gets the full width.
+const formBuilding = ref(false)
 const discountFlowOpen = ref(false)
 const discountEditIdx = ref<number | null>(null)
 const discountEditDraft = ref<DiscountDraft | null>(null)

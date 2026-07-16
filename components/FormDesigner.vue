@@ -9,6 +9,7 @@ import { useToast } from 'primevue/usetoast'
 
 const props = withDefaults(defineProps<{ eventId: string | null; groupId?: string | null; formId?: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean }>(), { groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false })
 
+const emit = defineEmits<{ (e: 'building', v: boolean): void }>()
 const db = useDb()
 const toast = useToast()
 const { orgId } = useOrg()
@@ -1846,6 +1847,12 @@ async function handleEvtFormImageUpload(field: 'headerImage' | 'backgroundImage'
     input.value = ''  // allow re-uploading the same file
   }
 }
+
+// True once past the "Choose a registration type" chooser (a form group with a
+// mode exists) — the inverse of the chooser's own show-condition. Hosts use it to
+// give the builder full width (e.g. the wizard hides its summary rail).
+const evtIsBuilding = computed(() => evtFormGroupsList.value.length > 0 && !!evtFormGroupModes[selectedFormGroupId.value])
+watch(evtIsBuilding, v => emit('building', v), { immediate: true })
 
 const evtFormGroups = computed(() =>
   evtFormGroupsList.value.map(({ id, name }) => {
