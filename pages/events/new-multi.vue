@@ -357,8 +357,8 @@ const form = reactive({
   ageMax: null as number | null,
   startDate: parseDateParam(route.query.date as string ?? null),
   endDate: parseDateParam(route.query.endDate as string ?? null),
-  includeWeekends: true,
-  excludePublicHolidays: false,
+  includeWeekends: false,
+  excludePublicHolidays: true,
   exdates: [] as string[],           // YYYY-MM-DD, same model as the wizard's Skip-dates
   regOpen: null as Date | null,
   regClose: null as Date | null,
