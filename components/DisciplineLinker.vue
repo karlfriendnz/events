@@ -51,8 +51,21 @@ async function load() {
   const govIds = (ancRes?.data ?? []).map((a: any) => a.id)
   if (govIds.length) {
     const { data: discs } = await (db.from as any)('disciplines')
-      .select('id, name, sport, parent_id, sort_order, organisations(name)').in('org_id', govIds).order('sport').order('sort_order').order('name')
-    allDisciplines.value = (discs ?? []).map((d: any) => ({ id: d.id, name: d.name, sport: d.sport, parent_id: d.parent_id ?? null, sort_order: d.sort_order ?? 0, nso: d.organisations?.name ?? '' }))
+      .select('id, name, sport, parent_id, sort_order, applies_to, organisations(name)').in('org_id', govIds).order('sport').order('sort_order').order('name')
+    // A discipline shows here only when it's scoped to this context (event/group)
+    // or scoped to nothing at all (applies everywhere). Its ANCESTORS are always
+    // kept so a shown child never dangles without its parent in the tree.
+    const rows = (discs ?? [])
+    const inContext = (d: any) => !d.applies_to || !d.applies_to.length || d.applies_to.includes(props.entityType)
+    const keep = new Set<string>()
+    for (const d of rows) if (inContext(d)) keep.add(d.id)
+    const byId = new Map(rows.map((d: any) => [d.id, d]))
+    for (const d of rows) if (keep.has(d.id)) {
+      let p = d.parent_id
+      while (p && byId.has(p) && !keep.has(p)) { keep.add(p); p = (byId.get(p) as any).parent_id }
+    }
+    allDisciplines.value = rows.filter((d: any) => keep.has(d.id))
+      .map((d: any) => ({ id: d.id, name: d.name, sport: d.sport, parent_id: d.parent_id ?? null, sort_order: d.sort_order ?? 0, nso: d.organisations?.name ?? '' }))
   } else {
     allDisciplines.value = []
   }

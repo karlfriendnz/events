@@ -8,14 +8,22 @@ const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
 
-interface Disc { id: string; org_id: string; name: string; sport: string | null; code: string | null; parent_id: string | null; sort_order?: number; depth?: number }
+interface Disc { id: string; org_id: string; name: string; sport: string | null; code: string | null; parent_id: string | null; sort_order?: number; applies_to?: string[] | null; depth?: number }
+
+// The parts of the system a discipline can be tied to. Empty = applies everywhere.
+const DISCIPLINE_PARTS = [
+  { label: 'Events', value: 'event' },
+  { label: 'Groups', value: 'group' },
+  { label: 'Competitions', value: 'competition' },
+]
+const partLabel = (v: string) => DISCIPLINE_PARTS.find(p => p.value === v)?.label ?? v
 
 const org = ref<{ name: string; org_level: string } | null>(null)
 const isGoverning = computed(() => !!org.value && isGoverningBody(org.value.org_level))
 const disciplines = ref<Disc[]>([])
 const loading = ref(true)
 
-const form = reactive<{ name: string; sport: string; code: string; parent_id: string | null }>({ name: '', sport: '', code: '', parent_id: null })
+const form = reactive<{ name: string; sport: string; code: string; parent_id: string | null; applies_to: string[] }>({ name: '', sport: '', code: '', parent_id: null, applies_to: [] })
 const editingId = ref<string | null>(null)
 
 // Effective parent key (treats orphaned parent_id as top-level).
@@ -116,19 +124,19 @@ async function load() {
   loading.value = true
   const [{ data: o }, { data: discs }] = await Promise.all([
     (db.from as any)('organisations').select('name, org_level').eq('id', orgId.value).single(),
-    (db.from as any)('disciplines').select('id, org_id, name, sport, code, parent_id, sort_order').eq('org_id', orgId.value).order('sort_order').order('name'),
+    (db.from as any)('disciplines').select('id, org_id, name, sport, code, parent_id, sort_order, applies_to').eq('org_id', orgId.value).order('sort_order').order('name'),
   ])
   org.value = o ?? null
   disciplines.value = discs ?? []
   loading.value = false
 }
 
-function startEdit(d: Disc) { editingId.value = d.id; form.name = d.name; form.sport = d.sport ?? ''; form.code = d.code ?? ''; form.parent_id = d.parent_id }
-function resetForm() { editingId.value = null; form.name = ''; form.sport = ''; form.code = ''; form.parent_id = null }
+function startEdit(d: Disc) { editingId.value = d.id; form.name = d.name; form.sport = d.sport ?? ''; form.code = d.code ?? ''; form.parent_id = d.parent_id; form.applies_to = [...(d.applies_to ?? [])] }
+function resetForm() { editingId.value = null; form.name = ''; form.sport = ''; form.code = ''; form.parent_id = null; form.applies_to = [] }
 
 async function save() {
   if (!form.name.trim()) { toast.add({ severity: 'warn', summary: 'Name is required', life: 2500 }); return }
-  const payload: any = { org_id: orgId.value, name: form.name.trim(), sport: form.sport.trim() || null, code: form.code.trim() || null, parent_id: form.parent_id }
+  const payload: any = { org_id: orgId.value, name: form.name.trim(), sport: form.sport.trim() || null, code: form.code.trim() || null, parent_id: form.parent_id, applies_to: form.applies_to.length ? form.applies_to : null }
   if (editingId.value) await (db.from as any)('disciplines').update(payload).eq('id', editingId.value)
   else {
     // New rows go to the end of their sibling group.
@@ -162,7 +170,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
       <!-- Add / edit -->
       <div class="card p-5">
         <h2 class="text-sm font-semibold text-gray-700 mb-3">{{ editingId ? 'Edit discipline' : 'New discipline' }}</h2>
-        <div class="grid grid-cols-1 md:grid-cols-[1.3fr_1fr_0.7fr_1.2fr_auto] gap-3 items-end">
+        <div class="grid grid-cols-1 md:grid-cols-[1.3fr_1fr_0.7fr_1.2fr] gap-3 items-end">
           <div class="flex flex-col gap-1.5">
             <label class="text-xs font-medium text-gray-600">Name</label>
             <InputText v-model="form.name" placeholder="e.g. Premiers" />
@@ -179,6 +187,13 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
             <label class="text-xs font-medium text-gray-600">Parent discipline</label>
             <Select v-model="form.parent_id" :options="parentOptions" option-label="name" option-value="id"
               placeholder="None (top level)" show-clear filter class="w-full" />
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end mt-3">
+          <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-gray-600">Applies to <span class="text-gray-400 font-normal">— which parts of the system this discipline can be linked to</span></label>
+            <ChipMultiSelect v-model="form.applies_to" :options="DISCIPLINE_PARTS" option-label="label" option-value="value"
+              placeholder="Everywhere (all parts)" show-toggle-all class="w-full" />
           </div>
           <div class="flex items-center gap-2">
             <Button :label="editingId ? 'Save' : 'Add'" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="save" />
@@ -210,6 +225,12 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
               </td>
               <td class="px-3 py-2.5 text-gray-500">{{ d.sport || '—' }}</td>
               <td class="px-3 py-2.5 text-gray-400 text-xs">{{ d.code || '' }}</td>
+              <td class="px-3 py-2.5">
+                <div v-if="d.applies_to && d.applies_to.length" class="flex flex-wrap gap-1">
+                  <span v-for="p in d.applies_to" :key="p" class="text-[11px] font-medium text-gray-600 bg-gray-100 rounded px-1.5 py-0.5">{{ partLabel(p) }}</span>
+                </div>
+                <span v-else class="text-xs text-gray-400">Everywhere</span>
+              </td>
               <td class="px-5 py-2.5 text-right whitespace-nowrap">
                 <button class="text-xs text-primary hover:underline mr-3" @click="startEdit(d)">Edit</button>
                 <button class="text-xs text-red-600 hover:underline" @click="remove(d)">Delete</button>
