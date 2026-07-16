@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1647 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1648 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (41 prompts)
+## Session 2026-07-14 22:10 (42 prompts)
 
 **22:10** — yay we are back
 
@@ -28888,4 +28888,34 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **01:17** — Why when i click on a programme doens it show evntes in teh control bar ?
 
 **01:31** — yes please go and build it
+
+**01:40** — This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+> 
+> Summary:
+> 1. Primary Request and Intent:
+>    The user (Karl, karl@getfrello.com) drove a rapid, iterative session on the fm-events sports-club platform. Requests in order:
+>    - Fix "Could not find the 'has_capacity' column of 'events'" error.
+>    - "deploy live" (multiple times) — ship all in-flight work to prod.
+>    - "wipe all events from north harbour gymnastics" (done twice: 27 events, then 24 events).
+>    - Fix person-save/email-not-sending (turned out to be a RESEND env var name mismatch).
+>    - "use kbmedia.nz as the domain" for Resend sending.
+>    - Make wizard "Add discount" open the same modal as advanced event discounts; curate to 4 templates (Member Discount, Early Bird, Age range, First in first served); limit condition dropdown to those 4; hide "Start from scratch"; amount-then-type ordering.
+>    - Hide the "second modal" (split-into-sessions) and always assume one session.
+>    - "make the advanced event go to this screen not the modal" (→ /events/:id).
+>    - "Move Programme below bookings on the left menu."
+>    - Make /programme a version of /events scoped to a "set" category — user chose "a new flag on events" (`is_programme`), List-only view, then later Table view.
+>    - New on /programme → straight to multi-session builder.
+>    - Configurable "New" button text in calendar settings (e.g. "New Holiday programme").
+>    - Rebuild the multi-session (programme) builder as a 2→5 step modal wizard "like the other wizards": Event details → Session details → Discounts → Registration form → Summary.
+>    - Session date fields use the shared `<DateTimeEditor>`; programme dates date-only (no time, keep arrow); skip dates reuse the wizard's `<RecurrenceExclusions>` design; per-session location reuse the group session-times `<LocationEditor>` button+dialog; per-session fee via shared `<FeeLineItemsTable>`; remove Visibility.
+>    - **STANDING GLOBAL RULE (verbatim):** "please check with your existing code base and ask me questions if you think there is something we can reuse we want the same functionality to be reused through out the system so people don't need to relearn things. - please set as a global rule - we want to create reusable components all over the place."
+>    - **STANDING RULE (implicit, saved):** Never blanket-kill dev servers — Karl runs his own `npm run dev` on :3002 ("the server died").
+>    - Session card layout tuning (dividers not boxes, one card per row, labels on left, name as labeled Name row, Start/End/Capacity one row).
+>    - Fee amount box numbers-only.
+>    - Fee name defaults to session name as actual value.
+>    - No past event dates anywhere.
+>    - Add a Table view to events; make /programme default to Table view.
+>    - Fix programme breadcrumb + left-nav highlight (Programme not Events) on /events/:id.
+>    - Build a **unique programme table** (learning from legacy `old/application/pages/pro
+> … [truncated — 19458 chars total]
 
