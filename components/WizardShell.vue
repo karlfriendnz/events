@@ -76,13 +76,13 @@ function onNext() {
 
         <!-- Body: step content on the left, live summary rail on the right -->
         <div class="flex-1 flex min-h-0">
+          <!-- ONE wrapper, class-toggled (never v-if/v-else — that remounts the slot
+               and would reset an embedded builder mid-flow). Full-bleed = bare +
+               full-width; otherwise padded + max-width + scrolling. -->
           <div class="flex-1 min-w-0 bg-[#F5F8FA] flex flex-col" :class="fullBleed ? 'overflow-hidden' : 'overflow-y-auto'">
-            <!-- Full-bleed: bare, full-width, fills the body (the step manages its own scroll). -->
-            <div v-if="fullBleed" class="flex-1 min-h-0 flex flex-col">
-              <slot />
-            </div>
-            <!-- Normal: padded, max-width, scrolling. -->
-            <div v-else class="max-w-[1140px] w-full mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6">
+            <div :class="fullBleed
+              ? 'flex-1 min-h-0 flex flex-col'
+              : 'max-w-[1140px] w-full mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6'">
               <slot />
             </div>
           </div>
