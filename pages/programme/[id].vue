@@ -28,7 +28,6 @@
             <tr class="bg-gray-50 border-b border-gray-200 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
               <th class="px-4 py-2.5">Session</th>
               <th v-if="hasVenues" class="px-4 py-2.5 hidden md:table-cell">Venue</th>
-              <th class="px-4 py-2.5 hidden sm:table-cell">Roll taker</th>
               <th class="px-4 py-2.5 whitespace-nowrap">Booked / Limit</th>
               <th class="px-4 py-2.5 w-[28%] hidden sm:table-cell"></th>
             </tr>
@@ -45,7 +44,6 @@
                   </NuxtLink>
                 </td>
                 <td v-if="hasVenues" class="px-4 py-3 hidden md:table-cell text-gray-500">{{ venueLabel(row.s) }}</td>
-                <td class="px-4 py-3 hidden sm:table-cell text-gray-400">{{ '—' }}</td>
                 <td class="px-4 py-3 whitespace-nowrap tabular-nums" :class="cellClass(row)">
                   <span class="font-medium">{{ row.booked }}</span> / {{ row.cap === null ? '∞' : row.cap }}
                 </td>
@@ -57,7 +55,7 @@
               </tr>
               <!-- weekly total -->
               <tr class="bg-gray-50/70 border-b border-gray-200 text-gray-500 italic">
-                <td class="px-4 py-2 text-right" :colspan="hasVenues ? 3 : 2">Week total</td>
+                <td class="px-4 py-2 text-right" :colspan="hasVenues ? 2 : 1">Week total</td>
                 <td class="px-4 py-2 whitespace-nowrap tabular-nums">
                   <span class="font-medium text-gray-700">{{ wk.booked }}</span> / {{ wk.capacity || '∞' }}
                 </td>
