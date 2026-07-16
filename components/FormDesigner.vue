@@ -41,6 +41,19 @@ const evtDisplayEvent = computed(() => {
   if (!e || e.criteria || !evtAgeCriteria.value) return e
   return { ...e, criteria: evtAgeCriteria.value }
 })
+// ── WYSIWYG preview: the "Preview" mode renders the REAL <FormRenderer> off the
+//    live config, so what you build is exactly what registrants get. ──
+const previewConfig = computed(() => buildEvtFormConfig())
+const previewSessions = computed(() => sessions.value.map((s: any) => ({
+  id: s.id ?? s._savedId,
+  title: s.title,
+  start_at: s.start_at,
+  fee: sessionFeeAmount(s) ?? 0,
+  required: !!(s.required || s.is_required),
+  display: s.display_on_form !== false,
+})))
+const previewContext = computed(() => ({ type: props.groupId ? 'group' : 'event', id: (props.eventId ?? props.groupId) as any, orgId: orgId.value }))
+
 // Does the form collect a Date of Birth anywhere? (age validation needs it.)
 const evtHasDobField = computed(() => {
   const scan = (v: any): boolean => {
@@ -1657,53 +1670,12 @@ function evtSectionChildren(subjectKey: string, sectionId: string, inst: number)
 // selected day into one "Full day" line and a fully-selected week into one
 // "Whole week" line; other layouts list one line per session.
 function sessionOrderRows(i: number, visibleSessions: any[]): OrderRow[] {
-  const isSel = (s: any) => s.required || evtPreviewSessionSelections.value[i]?.[s.id ?? s._savedId]
-  const feeOf = (s: any) => sessionFeeAmount(s) ?? 0
-  const label = (s: any) => {
-    const title = s.title || 'Session'
-    if (!s.start_at) return title
-    const d = new Date(s.start_at)
-    return `${title} · ${fmtDayShort(d)} ${d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true })}`
-  }
-  if (currentEvtFormDesign.value.sessionsLayout !== 'date-table') {
-    return visibleSessions.filter(isSel).map(s => ({ label: label(s), amount: feeOf(s) }))
-  }
-  const dated = visibleSessions.filter(s => s.start_at)
-  const undated = visibleSessions.filter(s => !s.start_at)
-  const days = new Map<string, { date: Date; all: any[]; sel: any[] }>()
-  for (const s of dated) {
-    const dk = new Date(s.start_at).toDateString()
-    if (!days.has(dk)) days.set(dk, { date: new Date(s.start_at), all: [], sel: [] })
-    const g = days.get(dk)!; g.all.push(s); if (isSel(s)) g.sel.push(s)
-  }
-  const dayFull = (g: any) => g.all.length > 0 && g.sel.length === g.all.length
-  const dayTotal = (g: any) => g.all.reduce((sum: number, s: any) => sum + feeOf(s), 0)
-  const weeks = new Map<number, string[]>()
-  for (const [dk, g] of days) {
-    const wk = isoWeekOf(g.date)
-    if (!weeks.has(wk)) weeks.set(wk, [])
-    weeks.get(wk)!.push(dk)
-  }
-  const weekKeys = [...weeks.keys()].sort((a, b) =>
-    Math.min(...weeks.get(a)!.map(dk => days.get(dk)!.date.getTime())) -
-    Math.min(...weeks.get(b)!.map(dk => days.get(dk)!.date.getTime())))
-  const rows: OrderRow[] = []
-  for (const wk of weekKeys) {
-    const dks = weeks.get(wk)!.sort((a, b) => days.get(a)!.date.getTime() - days.get(b)!.date.getTime())
-    if (dks.every(dk => dayFull(days.get(dk)!))) {
-      const total = dks.reduce((sum, dk) => sum + dayTotal(days.get(dk)!), 0)
-      rows.push({ label: `Whole week · ${fmtDayShort(days.get(dks[0])!.date)} – ${fmtDayShort(days.get(dks[dks.length - 1])!.date)}`, amount: total })
-      continue
-    }
-    for (const dk of dks) {
-      const g = days.get(dk)!
-      if (!g.sel.length) continue
-      if (dayFull(g)) rows.push({ label: `Full day · ${fmtDayShort(g.date)}`, amount: dayTotal(g) })
-      else for (const s of g.sel) rows.push({ label: label(s), amount: feeOf(s) })
-    }
-  }
-  for (const s of undated) if (isSel(s)) rows.push({ label: label(s), amount: feeOf(s) })
-  return rows
+  return collapseSessionRows({
+    sessions: visibleSessions,
+    isSelected: (s: any) => s.required || evtPreviewSessionSelections.value[i]?.[s.id ?? s._savedId],
+    feeOf: (s: any) => sessionFeeAmount(s) ?? 0,
+    dateTable: currentEvtFormDesign.value.sessionsLayout === 'date-table',
+  })
 }
 
 const evtOrderRows = computed<OrderRow[][]>(() => {
@@ -3501,6 +3473,13 @@ defineExpose({ reload })
           </div>
 
           <!-- Rich form preview (simple + scratch) -->
+          <!-- Public preview: the ACTUAL live form component (WYSIWYG). -->
+          <div v-else-if="evtPublicPreview" class="relative z-10 mx-auto my-6 w-full"
+            :class="evtPreviewDevice === 'mobile' ? 'max-w-[390px]' : 'max-w-[1000px]'">
+            <FormRenderer preview :config="previewConfig" :context="previewContext" :event="evtDisplayEvent"
+              :sessions="previewSessions" :fee-line-items="feeLineItems" />
+          </div>
+
           <div v-else class="relative z-10 mx-auto my-6 bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"
             :class="evtPreviewDevice === 'mobile' ? 'max-w-[390px]' : 'max-w-[1000px]'">
 

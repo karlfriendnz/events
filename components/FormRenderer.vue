@@ -39,6 +39,7 @@ const props = defineProps<{
   submitting?: boolean
   staff?: boolean               // staff-side: enables the "pick a member" control
   event?: any                   // drives the designed header chrome (banner/info/description)
+  preview?: boolean             // builder preview: skip the auth chooser + don't really submit
 }>()
 const emit = defineEmits<{ (e: 'submit', payload: any): void }>()
 
@@ -298,6 +299,25 @@ function instanceTotal(key: string, inst: number) {
   }
   return total
 }
+// Itemized order lines for a subject instance (shared collapse logic with the builder).
+function orderLines(key: string, inst: number): { label: string; amount: number }[] {
+  const rows: { label: string; amount: number }[] = []
+  for (const f of (props.feeLineItems ?? [])) rows.push({ label: f.name || 'Registration Fee', amount: Number(f.amount) || 0 })
+  rows.push(...collapseSessionRows({
+    sessions: visibleSessions.value,
+    isSelected: (s: any) => s.required || sessionSelected(key, inst, s.id),
+    feeOf: (s: any) => Number(s.fee) || 0,
+    dateTable: isDateTable.value,
+  }))
+  const optId = feeOptionSelected(key, inst)
+  if (optId) { const o = feeOptions.value.find(x => x.id === optId); if (o) rows.push({ label: o.name || o.label, amount: Number(o.total) || 0 }) }
+  for (const g of groupOptions.value) {
+    if (!groupSelected(key, inst, g.id)) continue
+    if (g.feeOptions.length > 1) { const gid = groupFeeSelected(key, inst, g.id); const o = g.feeOptions.find(x => x.id === gid); rows.push({ label: `${g.name}${o ? ' · ' + o.name : ''}`, amount: Number(o?.total) || 0 }) }
+    else rows.push({ label: g.name, amount: Number(g.feeOptions[0]?.total) || 0 })
+  }
+  return rows
+}
 const grandTotal = computed(() => {
   let t = 0
   for (const s of choosers.value) for (let i = 1; i <= count(s.key); i++) t += instanceTotal(s.key, i)
@@ -476,7 +496,7 @@ function buildPayload() {
 // pre-fill every field they've already populated, not just their name.
 const db = useDb()
 const { resolveFields } = useOrgFieldPolicy()
-const authResolved = ref(false)         // false → show the chooser; true → show the form
+const authResolved = ref(!!props.preview)  // false → show the chooser; true → show the form (preview skips it)
 const identifiedName = ref('')          // non-empty → "Registering as …" banner
 const labelToDefId = ref<Record<string, string>>({})
 
@@ -539,7 +559,7 @@ onMounted(async () => {
 
 function onNext() { if (step.value < steps.value.length - 1) step.value++ }
 function onBack() { if (step.value > 0) step.value-- }
-function onSubmit() { if (validate()) emit('submit', buildPayload()) }
+function onSubmit() { if (props.preview) return; if (validate()) emit('submit', buildPayload()) }
 </script>
 
 <template>
@@ -744,9 +764,13 @@ function onSubmit() { if (validate()) emit('submit', buildPayload()) }
             </label>
           </div>
 
-          <!-- Per-instance order summary -->
-          <div v-if="isChooser(s.key) && hasFees" class="mt-3 bg-gray-50 rounded-lg px-3 py-2 text-sm">
-            <div class="flex justify-between font-semibold text-gray-800">
+          <!-- Per-instance order summary (itemized, collapses full-day/whole-week) -->
+          <div v-if="isChooser(s.key) && hasFees" class="mt-3 bg-gray-50 rounded-lg px-3 py-2 text-sm space-y-1">
+            <div v-for="(ln, li) in orderLines(s.key, inst)" :key="li" class="flex justify-between text-gray-600">
+              <span class="truncate pr-2">{{ ln.label }}</span>
+              <span class="whitespace-nowrap tabular-nums">{{ money(ln.amount) }}</span>
+            </div>
+            <div class="flex justify-between font-semibold text-gray-800 pt-1 border-t border-gray-200">
               <span>Subtotal</span><span>{{ money(instanceTotal(s.key, inst)) }}</span>
             </div>
           </div>

@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1675 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1676 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (69 prompts)
+## Session 2026-07-14 22:10 (70 prompts)
 
 **22:10** — yay we are back
 
@@ -28977,4 +28977,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **08:50** — can you please have a header row per week - and ability to chooose the whole week and then teh financial summary should update to say one line - same for full day options if th person chooses all the session in one day it should update teh summary
 
 **09:04** — it looks like the public version of the event registraiton not quite working - http://localhost:3002/r/event/257107bf-8ad8-4898-abf0-76aa13dfb346
+
+**09:16** — the subtotal is not working very well - i.e list of all the options should match the form cration
 
