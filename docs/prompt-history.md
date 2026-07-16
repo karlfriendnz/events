@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1634 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1635 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (28 prompts)
+## Session 2026-07-14 22:10 (29 prompts)
 
 **22:10** — yay we are back
 
@@ -28862,4 +28862,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **23:36** — to busy
 
 **23:36** — lets jst go with roomy stacked panels
+
+**23:53** — ok we are getting somewhere good work, can we please add the fee compoentn in to each card i.e a fee can have multiple rows on a fee.
 

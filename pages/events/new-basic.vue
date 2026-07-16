@@ -137,8 +137,8 @@
                 v-model:isAllDay="form.is_all_day"
                 v-model:repeat="form.repeat"
                 v-model:exdates="form.exdates"
-                :minStartDate="twoWeeksAgo"
-                :minEndDate="form.start_date ?? twoWeeksAgo"
+                :minStartDate="today"
+                :minEndDate="form.start_date ?? today"
                 label="Date"
                 required
                 label-width="w-[120px]"
@@ -1016,9 +1016,9 @@ function parseDateParam(str: string | null): Date | null {
   return isNaN(d.getTime()) ? null : d
 }
 
-const twoWeeksAgo = new Date()
-twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
-twoWeeksAgo.setHours(0, 0, 0, 0)
+// An event can't start in the past — the earliest selectable date is today.
+const today = new Date()
+today.setHours(0, 0, 0, 0)
 
 const dateOpen = ref(true)
 

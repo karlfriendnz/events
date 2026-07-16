@@ -120,27 +120,33 @@
 
           <div class="grid grid-cols-2 gap-3">
             <div>
+              <label class="block text-xs font-semibold text-gray-500 mb-1.5">Capacity</label>
+              <InputNumber v-model="tpl.limit" :min="1" placeholder="No limit" class="w-full" inputClass="h-9 text-sm text-right w-full px-2" />
+            </div>
+            <div v-if="!showFees">
               <label class="block text-xs font-semibold text-gray-500 mb-1.5">Cost</label>
               <div class="relative flex items-center">
                 <span class="absolute left-3 text-gray-400 text-sm pointer-events-none z-10">$</span>
                 <InputNumber v-model="tpl.cost" :min="0" :minFractionDigits="2" :maxFractionDigits="2" placeholder="0.00" class="w-full" inputClass="pl-6 pr-2 h-9 text-sm text-right w-full" />
               </div>
             </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-500 mb-1.5">Capacity</label>
-              <InputNumber v-model="tpl.limit" :min="1" placeholder="No limit" class="w-full" inputClass="h-9 text-sm text-right w-full px-2" />
+            <div v-if="showLocation">
+              <label class="block text-xs font-semibold text-gray-500 mb-1.5">Location</label>
+              <button type="button"
+                class="w-full h-9 text-sm text-left px-2.5 rounded-lg border border-gray-200 bg-white hover:border-gray-300 inline-flex items-center gap-2"
+                @click="locDialogIdx = idx">
+                <i class="pi pi-map-marker text-xs shrink-0" :class="locSummary(tpl) ? 'text-primary' : 'text-gray-300'" />
+                <span class="flex-1 truncate" :class="locSummary(tpl) ? 'text-gray-700' : 'text-gray-400'">{{ locSummary(tpl) || 'Choose location…' }}</span>
+                <i class="pi pi-pencil text-[10px] text-gray-400 shrink-0" />
+              </button>
             </div>
           </div>
 
-          <div v-if="showLocation">
-            <label class="block text-xs font-semibold text-gray-500 mb-1.5">Location</label>
-            <button type="button"
-              class="w-full h-9 text-sm text-left px-2.5 rounded-lg border border-gray-200 bg-white hover:border-gray-300 inline-flex items-center gap-2"
-              @click="locDialogIdx = idx">
-              <i class="pi pi-map-marker text-xs shrink-0" :class="locSummary(tpl) ? 'text-primary' : 'text-gray-300'" />
-              <span class="flex-1 truncate" :class="locSummary(tpl) ? 'text-gray-700' : 'text-gray-400'">{{ locSummary(tpl) || 'Choose location…' }}</span>
-              <i class="pi pi-pencil text-[10px] text-gray-400 shrink-0" />
-            </button>
+          <!-- Fee — a fee can have multiple line items (the shared editor) -->
+          <div v-if="showFees">
+            <label class="block text-xs font-semibold text-gray-500 mb-1.5">Fee</label>
+            <FeeLineItemsTable :model-value="tpl.fees ?? []"
+              @update:model-value="(v: FeeLineItem[]) => tpl.fees = v" />
           </div>
         </div>
       </div>
@@ -167,6 +173,7 @@
 import { reactive, computed, ref } from 'vue'
 
 import type { LocationEntry } from '~/composables/useLocation'
+import type { FeeLineItem } from '~/composables/useFeeGroups'
 // locationSummary is a module-level export auto-imported by Nuxt (no useLocation()).
 
 export interface BulkTemplate {
@@ -177,6 +184,7 @@ export interface BulkTemplate {
   limit: number | null
   bookableId?: string | null
   location?: LocationEntry[]
+  fees?: FeeLineItem[]
 }
 
 const props = defineProps<{
@@ -189,6 +197,9 @@ const props = defineProps<{
   showLocation?: boolean
   // 'table' (default, compact grid) or 'panels' (roomy full-width stacked cards).
   layout?: 'table' | 'panels'
+  // Opt-in: a full fee editor per session (multiple line items) instead of a
+  // single Cost field. Panels layout only.
+  showFees?: boolean
 }>()
 
 function emptyLocation(): LocationEntry {
@@ -286,6 +297,7 @@ function addTemplate() {
     limit: null,
     bookableId: null,
     location: [emptyLocation()],
+    fees: [],
   }
   emit('update:modelValue', [...templates.value, newTpl])
 }

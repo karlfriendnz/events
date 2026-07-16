@@ -30,8 +30,8 @@
             :startTime="startTime" :endTime="endTime"
             :isAllDay="isAllDay" :repeat="repeat"
             :exdates="exdates"
-            :minStartDate="twoWeeksAgo"
-            :minEndDate="startDate ?? twoWeeksAgo"
+            :minStartDate="today"
+            :minEndDate="startDate ?? today"
             rowPadding="px-4 sm:px-6 py-4"
             labelWidth="w-full sm:w-28"
             @update:startDate="$emit('update:startDate', $event)"
@@ -243,9 +243,9 @@ function buildDateTimeISO(date: Date | null | undefined, time: Date | null | und
 const locationStartAt = computed(() => buildDateTimeISO(props.startDate, props.startTime))
 const locationEndAt = computed(() => buildDateTimeISO(props.endDate ?? props.startDate, props.endTime))
 
-const twoWeeksAgo = new Date()
-twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
-twoWeeksAgo.setHours(0, 0, 0, 0)
+// An event can't start in the past — the earliest selectable date is today.
+const today = new Date()
+today.setHours(0, 0, 0, 0)
 
 const dateDisplay = computed(() => {
   if (!props.startDate) return ''

@@ -174,6 +174,7 @@
           :modelValue="templates"
           :daysCount="sessionDays.length"
           show-location
+          show-fees
           layout="panels"
           @update:modelValue="v => { templates.splice(0, templates.length, ...v) }" />
     </div>
@@ -198,6 +199,7 @@ const { orgId } = useOrg()
 import { ref, reactive, computed } from 'vue'
 
 import type { LocationEntry } from '~/composables/useLocation'
+import type { FeeLineItem, SessionFeesConfig } from '~/composables/useFeeGroups'
 
 const db = useDb()
 const route = useRoute()
@@ -292,9 +294,17 @@ function emptyLoc(): LocationEntry {
 }
 
 const templates = reactive([
-  { name: 'Morning',   cost: null as number | null, startTime: makeTime(9),  endTime: makeTime(12), limit: null as number | null, location: [emptyLoc()] as LocationEntry[] },
-  { name: 'Afternoon', cost: null as number | null, startTime: makeTime(13), endTime: makeTime(17), limit: null as number | null, location: [emptyLoc()] as LocationEntry[] },
+  { name: 'Morning',   cost: null as number | null, startTime: makeTime(9),  endTime: makeTime(12), limit: null as number | null, location: [emptyLoc()] as LocationEntry[], fees: [] as FeeLineItem[] },
+  { name: 'Afternoon', cost: null as number | null, startTime: makeTime(13), endTime: makeTime(17), limit: null as number | null, location: [emptyLoc()] as LocationEntry[], fees: [] as FeeLineItem[] },
 ])
+
+// A session's fee (multiple line items) → the SessionFeesConfig shape the rest
+// of the app reads from sessions.fees. No priced rows = a free session.
+function sessionFees(fees?: FeeLineItem[]): SessionFeesConfig | null {
+  const items = (fees ?? []).filter(f => (f.amount ?? 0) > 0 || (f.name ?? '').trim())
+  if (!items.length) return null
+  return { is_charged: true, all_charged_equally: true, base_fees: items, groups: [] }
+}
 
 // Compute all days in the programme range
 const sessionDays = computed(() => {
@@ -412,6 +422,7 @@ async function createEvent() {
         start_at: buildDatetime(days[0], tpl.startTime, 9),
         end_at: buildDatetime(days[0], tpl.endTime, 17),
         capacity_max: tpl.limit ?? null,
+        fees: sessionFees(tpl.fees),
         is_required: false,
         is_public: true,
         ...locationCols(tpl.location?.[0]),
@@ -431,6 +442,7 @@ async function createEvent() {
           start_at: buildDatetime(day, tpl.startTime, 9),
           end_at: buildDatetime(day, tpl.endTime, 17),
           capacity_max: tpl.limit ?? null,
+          fees: sessionFees(tpl.fees),
           is_required: false,
           is_public: true,
           ...locationCols(tpl.location?.[0]),
