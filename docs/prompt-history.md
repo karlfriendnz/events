@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1654 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1656 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (48 prompts)
+## Session 2026-07-14 22:10 (50 prompts)
 
 **22:10** — yay we are back
 
@@ -28930,4 +28930,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:08** — so here are the things we can do (Compeition, Holiday Programme, Recurrring event, mult session evetnt, training, drop in class, Trial,) whats in scope right now is (HP, Basic Evnet)
 
 **02:11** — i think this view - http://localhost:3002/programme/8108271f-13e2-4e48-9563-a343db79a3f6 should be insde the advanced event view
+
+**02:21** — i think if a calendar has multiple categories then the user should choose what they wnat - and for the event type - do we need that ?
+
+**02:28** — ok lets do it
 

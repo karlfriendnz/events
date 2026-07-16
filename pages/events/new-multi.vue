@@ -561,6 +561,8 @@ async function createEvent() {
       end_at: combineDT(form.endDate, null)!.toISOString(),
       is_public: true,
       is_programme: route.query.programme === '1',
+      // Auto-tagged from a named calendar's sole category (?category=…) when created there.
+      ...(route.query.category ? { category_id: route.query.category as string } : {}),
       // Event-level location = the first session's location (each session carries its own).
       locations: namedTemplates.value[0]?.location ?? [emptyLoc()],
       ...locationCols(namedTemplates.value[0]?.location?.[0]),

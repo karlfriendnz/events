@@ -88,6 +88,55 @@
                 @click="deleteCalendar">Delete</button>
             </div>
             <InputText v-model="newCalendarName" placeholder="Calendar name" class="w-full" />
+
+            <!-- Calendar-specific config (only when defining a NAMED calendar) -->
+            <template v-if="newCalendarName.trim() || editingCalendarId">
+              <div class="flex flex-col gap-1.5 mt-2">
+                <label class="text-xs font-medium text-gray-600">Categories in this calendar</label>
+                <ChipMultiSelect v-model="newCalendarCategoryIds" :options="allCategories"
+                  option-label="name" option-value="id" placeholder="Any category" filter class="w-full">
+                  <template #option="{ option }">
+                    <div class="flex items-center gap-2">
+                      <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: option.color ?? '#94a3b8' }" />
+                      <span>{{ option.name }}</span>
+                    </div>
+                  </template>
+                </ChipMultiSelect>
+                <p class="text-xs text-gray-500">
+                  The calendar shows these categories. New {{ t('event', true, true) }} created here are tagged with the category
+                  <template v-if="newCalendarCategoryIds.length === 1">automatically</template>
+                  <template v-else-if="newCalendarCategoryIds.length > 1">(you'll pick which one)</template>.
+                </p>
+              </div>
+
+              <div class="flex items-center justify-between mt-2">
+                <div>
+                  <p class="text-sm font-semibold text-gray-700">Pin to left menu</p>
+                  <p class="text-xs text-gray-500">Show this calendar as its own item in the main menu.</p>
+                </div>
+                <ToggleSwitch v-model="newCalendarPin" />
+              </div>
+
+              <div v-if="newCalendarPin" class="flex items-end gap-3 mt-1">
+                <div class="flex flex-col gap-1.5 flex-1 min-w-0">
+                  <label class="text-xs font-medium text-gray-600">Menu icon</label>
+                  <div class="flex items-center gap-2">
+                    <span class="w-8 h-8 rounded-md border border-gray-200 flex items-center justify-center shrink-0"
+                      :style="{ color: newCalendarColor || 'var(--brand-primary)' }">
+                      <i :class="`pi ${newCalendarIcon.trim() || 'pi-calendar'}`" />
+                    </span>
+                    <InputText v-model="newCalendarIcon" placeholder="pi-calendar" class="flex-1 min-w-0" />
+                  </div>
+                  <p class="text-xs text-gray-400">A PrimeIcon name — see primefaces.org/primeicons.</p>
+                </div>
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-xs font-medium text-gray-600">Colour</label>
+                  <input type="color" :value="newCalendarColor || '#1E2157'"
+                    @input="newCalendarColor = ($event.target as HTMLInputElement).value"
+                    class="w-10 h-9 rounded-md border border-gray-200 cursor-pointer p-0.5" />
+                </div>
+              </div>
+            </template>
           </div>
 
           <div class="border-t border-gray-100" />
@@ -744,6 +793,13 @@ async function createWithAi() {
 const viewMode = ref('calendar')
 const calendarRef = ref()
 
+// When creating within a named calendar that maps to exactly ONE category, new
+// events are auto-tagged with it. (Multiple categories → the user picks in the wizard.)
+const activeCalendarStampCategory = computed(() => {
+  const cats = activeCalendar.value?.categoryIds ?? []
+  return cats.length === 1 ? cats[0] : null
+})
+
 function openEventTypeModal(date?: string, endDate?: string) {
   clickedDate.value = date ?? null
   clickedEndDate.value = endDate ?? null
@@ -753,6 +809,7 @@ function openEventTypeModal(date?: string, endDate?: string) {
     const params = new URLSearchParams({ programme: '1' })
     if (date) params.set('date', date)
     if (endDate) params.set('endDate', endDate)
+    if (activeCalendarStampCategory.value) params.set('category', activeCalendarStampCategory.value)
     navigateTo(`/events/new-multi?${params}`)
     return
   }
@@ -807,6 +864,7 @@ async function startAdvanced() {
       created_via: 'advanced',
       is_programme: isProgramme.value,
     }
+    if (activeCalendarStampCategory.value) payload.category_id = activeCalendarStampCategory.value
     if (clickedDate.value) payload.start_at = clickedDate.value
     if (clickedEndDate.value) payload.end_at = clickedEndDate.value
     const { data, error } = await (db.from as any)('events').insert(payload).select('id').single()
@@ -850,6 +908,7 @@ async function createCustomEvent() {
       created_via: 'custom',    // opens in the full event page, not the wizard
       is_programme: isProgramme.value,
     }
+    if (activeCalendarStampCategory.value) payload.category_id = activeCalendarStampCategory.value
     if (clickedDate.value) payload.start_at = clickedDate.value
     if (clickedEndDate.value) payload.end_at = clickedEndDate.value
     const { data, error } = await (db.from as any)('events').insert(payload).select('id').single()
@@ -883,6 +942,7 @@ function createBasicEvent() {
   if (newEventName.value.trim()) params.set('name', newEventName.value.trim())
   if (useWizard.value) params.set('wizard', '1')
   if (isProgramme.value) params.set('programme', '1')
+  if (activeCalendarStampCategory.value) params.set('category', activeCalendarStampCategory.value)
   const q = params.size ? `?${params}` : ''
   navigateTo(`/events/new-basic${q}`)
 }
@@ -894,6 +954,7 @@ function createMultiSessionEvent() {
   if (clickedEndDate.value) params.set('endDate', clickedEndDate.value)
   if (newEventName.value.trim()) params.set('name', newEventName.value.trim())
   if (isProgramme.value) params.set('programme', '1')
+  if (activeCalendarStampCategory.value) params.set('category', activeCalendarStampCategory.value)
   const q = params.size ? `?${params}` : ''
   navigateTo(`/events/new-multi${q}`)
 }
@@ -905,6 +966,7 @@ function createAdvancedEvent() {
   if (clickedEndDate.value) params.set('endDate', clickedEndDate.value)
   if (newEventName.value.trim()) params.set('name', newEventName.value.trim())
   if (isProgramme.value) params.set('programme', '1')
+  if (activeCalendarStampCategory.value) params.set('category', activeCalendarStampCategory.value)
   const q = params.size ? `?${params}` : ''
   navigateTo(useWizard.value ? `/events/new-advanced${q}` : `/events/new${q}`)
 }
@@ -1132,7 +1194,7 @@ const activeCalendar = computed(() => {
 async function loadCalendars() {
   const [{ data: cals }, { data: cats }, { data: books }] = await Promise.all([
     (db.from as any)('calendars')
-      .select('id, name, sort_order, calendar_categories(category_id)')
+      .select('id, name, sort_order, pin_to_nav, icon, color, settings, calendar_categories(category_id)')
       .eq('org_id', orgId.value)
       .order('sort_order'),
     db.from('categories')
@@ -1164,10 +1226,8 @@ function currentCalId() {
   return isProgramme.value ? 'programme' : ((route.query.calendar as string) ?? 'all')
 }
 
-function saveCalPrefs() {
-  const calId = currentCalId()
-  const all = JSON.parse(localStorage.getItem(CAL_PREFS_KEY) ?? '{}')
-  all[calId] = {
+function calSettingsSnapshot() {
+  return {
     colorBy: calSettings.colorBy,
     defaultView: calSettings.defaultView,
     weekStart: calSettings.weekStart,
@@ -1176,23 +1236,31 @@ function saveCalPrefs() {
     // Dates round-trip through JSON as ISO strings; restore revives them.
     filters: calSettings.filters.map(f => ({ ...f, value: f.value })),
   }
-  localStorage.setItem(CAL_PREFS_KEY, JSON.stringify(all))
 }
 
-function restoreCalPrefs(calId: string | undefined) {
-  const key = calId ?? 'all'
+function saveCalPrefs() {
+  const calId = currentCalId()
+  const snap = calSettingsSnapshot()
   const all = JSON.parse(localStorage.getItem(CAL_PREFS_KEY) ?? '{}')
-  const saved = all[key]
-  if (!saved) return false
+  all[calId] = snap
+  localStorage.setItem(CAL_PREFS_KEY, JSON.stringify(all))
+  // A NAMED (real) calendar persists its settings to the row so every user + device
+  // sees the same setup — the localStorage write above is just a fast local cache.
+  const real = namedCalendars.value.find(c => c.id === calId)
+  if (real) {
+    ;(db.from as any)('calendars').update({ settings: snap }).eq('id', calId).then(() => { real.settings = snap })
+  }
+}
 
+// Apply a saved settings object (from the DB row or localStorage) to calSettings.
+function applyCalSettingsObject(saved: any) {
   calSettings.colorBy = saved.colorBy ?? 'category'
   calSettings.defaultView = saved.defaultView ?? 'dayGridMonth'
   calSettings.weekStart = saved.weekStart ?? 1
   calSettings.showWeekends = saved.showWeekends ?? true
   calSettings.newButtonLabel = saved.newButtonLabel ?? ''
-
-  // Drop stale IDs (a venue/calendar deleted since the pref was saved) and revive
-  // the date range, which JSON flattened to ISO strings.
+  // Drop stale IDs (a venue/category deleted since) and revive the date range,
+  // which JSON flattened to ISO strings.
   calSettings.filters = (saved.filters ?? [])
     .filter((f: CalFilter) => filterDef(f.key))
     .map((f: CalFilter) => {
@@ -1201,19 +1269,28 @@ function restoreCalPrefs(calId: string | undefined) {
       if (f.key === 'dates') return { ...f, value: Array.isArray(f.value) ? f.value.map((d: any) => (d ? new Date(d) : null)) : null }
       return f
     })
+}
+
+function restoreCalPrefs(calId: string | undefined) {
+  const key = calId ?? 'all'
+  const all = JSON.parse(localStorage.getItem(CAL_PREFS_KEY) ?? '{}')
+  const saved = all[key]
+  if (!saved) return false
+  applyCalSettingsObject(saved)
   return true
 }
 
 function applyActiveCalendarFilter() {
   const calId = isProgramme.value ? 'programme' : (route.query.calendar as string | undefined)
-  const hadSaved = restoreCalPrefs(calId)
-  if (hadSaved) return
-
-  // First visit to a NAMED calendar — start filtered to the calendars it covers.
+  const real = calId ? namedCalendars.value.find(c => c.id === calId) : null
+  // 1. A named calendar's own saved settings win (shared across users/devices).
+  if (real?.settings) { applyCalSettingsObject(real.settings); return }
+  // 2. Otherwise fall back to this browser's localStorage prefs.
+  if (restoreCalPrefs(calId)) return
+  // 3. First visit to a NAMED calendar — start filtered to the categories it covers.
   calSettings.filters = []
-  const cal = calId ? namedCalendars.value.find(c => c.id === calId) : null
-  if (cal?.categoryIds?.length) {
-    calSettings.filters = [{ id: 'category-seed', key: 'category', value: [...cal.categoryIds] }]
+  if (real?.categoryIds?.length) {
+    calSettings.filters = [{ id: 'category-seed', key: 'category', value: [...real.categoryIds] }]
   }
 }
 
@@ -1247,8 +1324,15 @@ async function applyCalSettings() {
 // New calendar creation / editing (inside cal settings dialog)
 const newCalendarName = ref('')
 const newCalendarCategoryIds = ref<string[]>([])
+const newCalendarPin = ref(false)
+const newCalendarIcon = ref('')
+const newCalendarColor = ref('')
 const creatingCalendar = ref(false)
 const editingCalendarId = ref<string | null>(null)
+
+// Bumped after any calendar is created/edited/deleted so the left-nav (which
+// loads its own pinned calendars in the layout) reloads them live.
+const navCalVersion = useState('nav-cal-version', () => 0)
 
 function openCalSettings() {
   const calId = route.query.calendar as string | undefined
@@ -1257,11 +1341,17 @@ function openCalSettings() {
     if (cal) {
       newCalendarName.value = cal.name
       newCalendarCategoryIds.value = [...(cal.categoryIds ?? [])]
+      newCalendarPin.value = !!cal.pin_to_nav
+      newCalendarIcon.value = cal.icon ?? ''
+      newCalendarColor.value = cal.color ?? ''
       editingCalendarId.value = cal.id
     }
   } else {
     newCalendarName.value = ''
     newCalendarCategoryIds.value = []
+    newCalendarPin.value = false
+    newCalendarIcon.value = ''
+    newCalendarColor.value = ''
     editingCalendarId.value = null
   }
   calTab.value = 'display'
@@ -1271,6 +1361,9 @@ function openCalSettings() {
 function selectCalendarForEdit(cal: any) {
   newCalendarName.value = cal.name
   newCalendarCategoryIds.value = [...(cal.categoryIds ?? [])]
+  newCalendarPin.value = !!cal.pin_to_nav
+  newCalendarIcon.value = cal.icon ?? ''
+  newCalendarColor.value = cal.color ?? ''
   editingCalendarId.value = cal.id
 }
 
@@ -1279,8 +1372,13 @@ async function createNewCalendar() {
   creatingCalendar.value = true
   const name = newCalendarName.value.trim()
 
+  const navCols = {
+    pin_to_nav: newCalendarPin.value,
+    icon: newCalendarIcon.value.trim() || null,
+    color: newCalendarColor.value.trim() || null,
+  }
   if (editingCalendarId.value) {
-    const { error } = await (db.from as any)('calendars').update({ name }).eq('id', editingCalendarId.value)
+    const { error } = await (db.from as any)('calendars').update({ name, ...navCols }).eq('id', editingCalendarId.value)
     if (error) {
       creatingCalendar.value = false
       toast.add({ severity: 'error', summary: 'Failed to update calendar', detail: error.message, life: 3000 })
@@ -1297,6 +1395,7 @@ async function createNewCalendar() {
     const { data, error } = await (db.from as any)('calendars').insert({
       org_id: orgId.value,
       name,
+      ...navCols,
     }).select('id').single()
     if (error) {
       creatingCalendar.value = false
@@ -1314,8 +1413,12 @@ async function createNewCalendar() {
   creatingCalendar.value = false
   newCalendarName.value = ''
   newCalendarCategoryIds.value = []
+  newCalendarPin.value = false
+  newCalendarIcon.value = ''
+  newCalendarColor.value = ''
   editingCalendarId.value = null
   await loadCalendars()
+  navCalVersion.value++
 }
 
 function deleteCalendar() {
@@ -1337,9 +1440,13 @@ function deleteCalendar() {
       showCalSettings.value = false
       newCalendarName.value = ''
       newCalendarCategoryIds.value = []
+      newCalendarPin.value = false
+      newCalendarIcon.value = ''
+      newCalendarColor.value = ''
       editingCalendarId.value = null
       await navigateTo('/events')
       await loadCalendars()
+      navCalVersion.value++
     },
   })
 }

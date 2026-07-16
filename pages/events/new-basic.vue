@@ -1106,7 +1106,8 @@ const formDateDisplay = computed(() => {
 const form = reactive({
   title: (route.query.name as string) ?? '',
   description: '',
-  category_ids: [] as string[],
+  // Seeded from a named calendar's sole category (?category=…) when creating there.
+  category_ids: (route.query.category ? [route.query.category as string] : []) as string[],
   // Dates
   is_all_day: false,
   start_date: parseDateParam(route.query.date as string ?? null),
@@ -1568,6 +1569,8 @@ async function resumeDraft(): Promise<boolean> {
   form.title = evt.title === '(draft)' ? '' : (evt.title ?? '')
   form.description = evt.description ?? ''
   form.banner_url = evt.banner_url ?? ''
+  // Restore the category, or saveEvent would write it back to null on resume.
+  form.category_ids = [evt.category_id, evt.secondary_category_id].filter(Boolean) as string[]
   if (evt.start_at) {
     form.start_date = new Date(evt.start_at)
     form.start_time = new Date(evt.start_at)

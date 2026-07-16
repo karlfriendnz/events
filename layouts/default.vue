@@ -138,6 +138,18 @@
         </NuxtLink>
       </template>
 
+      <!-- Pinned calendars — event calendars a club has promoted to the main menu -->
+      <template v-if="eventsModuleOn">
+        <NuxtLink v-for="cal in pinnedCalendars" :key="cal.id" :to="`/events?calendar=${cal.id}`"
+          class="group relative flex items-center rounded-xl transition-colors"
+          :class="[railBtnClass, isCalActive(cal.id) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white']">
+          <i :class="['pi', cal.icon || 'pi-calendar', 'text-lg']"
+            :style="!isCalActive(cal.id) && cal.color ? { color: cal.color } : undefined" />
+          <span v-if="railExpanded" class="flex-1 text-sm whitespace-nowrap text-left">{{ cal.name }}</span>
+          <span v-else class="pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow">{{ cal.name }}</span>
+        </NuxtLink>
+      </template>
+
     </aside>
 
     <!-- Right panel: top bar + page content. Pushes left when the review
@@ -582,18 +594,23 @@ function onBookablesLeave() {
 }
 
 // ---- Calendars ----
-const calendars = ref<{ id: string; name: string; color: string | null }[]>([])
+const calendars = ref<{ id: string; name: string; color: string | null; pin_to_nav: boolean; icon: string | null }[]>([])
+// Calendars a club has chosen to promote to the main left menu (their own item).
+const pinnedCalendars = computed(() => calendars.value.filter(c => c.pin_to_nav))
 
 async function loadCalendars() {
   if (!orgId.value) { calendars.value = []; return }
   // Scope to the active org — otherwise the menu pools every org's calendars.
-  const { data } = await (db.from as any)('calendars').select('id, name').eq('org_id', orgId.value).order('sort_order')
-  calendars.value = (data ?? []).map((c: any) => ({ id: c.id, name: c.name, color: null }))
+  const { data } = await (db.from as any)('calendars').select('id, name, pin_to_nav, icon, color').eq('org_id', orgId.value).order('sort_order')
+  calendars.value = (data ?? []).map((c: any) => ({ id: c.id, name: c.name, color: c.color ?? null, pin_to_nav: !!c.pin_to_nav, icon: c.icon ?? null }))
 }
 
 onMounted(() => { loadMenuBookables() })
-// Reload calendars whenever the active org changes (incl. super-admin switch).
+// Reload calendars whenever the active org changes (incl. super-admin switch)
+// or whenever a calendar is created/edited/deleted on the events board.
 watch(orgId, loadCalendars, { immediate: true })
+const navCalVersion = useState('nav-cal-version', () => 0)
+watch(navCalVersion, loadCalendars)
 watch(() => route.path, loadMenuBookables)
 
 // Reload when a new calendar is created via the settings modal
@@ -846,4 +863,10 @@ function isActive(href: string) {
   if (navSectionOverride.value) return href === navSectionOverride.value
   return route.path === href || route.path.startsWith(href + '/')
 }
+
+// A pinned calendar is "active" when the events board is scoped to it.
+function isCalActive(calId: string) {
+  return !navSectionOverride.value && route.path === '/events' && route.query.calendar === calId
+}
+const eventsModuleOn = computed(() => orgModules.isEnabled('events'))
 </script>
