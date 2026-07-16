@@ -21,12 +21,7 @@
               :value="amountDisplay[fee.id] ?? (fee.amount != null ? fee.amount.toFixed(2) : '')"
               type="text" inputmode="decimal" placeholder="0.00"
               class="flex-1 min-w-0 text-right text-sm text-gray-800 placeholder-gray-400 outline-none bg-transparent"
-              @input="(e) => {
-                const raw = (e.target as HTMLInputElement).value
-                amountDisplay[fee.id] = raw
-                const v = parseFloat(raw)
-                if (!isNaN(v)) setField(fee, 'amount', Math.round(v * 100) / 100)
-              }"
+              @input="onAmountInput(fee, $event)"
               @blur="(e) => {
                 const v = parseFloat((e.target as HTMLInputElement).value)
                 const val = isNaN(v) ? null : Math.round(v * 100) / 100
@@ -127,12 +122,7 @@
                 inputmode="decimal"
                 placeholder="0.00"
                 class="flex-1 min-w-0 text-right text-sm text-gray-800 placeholder-gray-400 bg-transparent border-0 outline-none"
-                @input="(e) => {
-                  const raw = (e.target as HTMLInputElement).value
-                  amountDisplay[fee.id] = raw
-                  const v = parseFloat(raw)
-                  if (!isNaN(v)) setField(fee, 'amount', Math.round(v * 100) / 100)
-                }"
+                @input="onAmountInput(fee, $event)"
                 @blur="(e) => {
                   const v = parseFloat((e.target as HTMLInputElement).value)
                   const val = isNaN(v) ? null : Math.round(v * 100) / 100
@@ -339,6 +329,19 @@ function restoreFee(fee: FeeLineItem) {
 
 function setField(fee: FeeLineItem, field: keyof FeeLineItem, value: any) {
   emit('update:modelValue', props.modelValue.map(f => f.id === fee.id ? { ...f, [field]: value } : f))
+}
+
+// Amount box accepts digits + a single decimal point only — strip anything else
+// as it's typed/pasted (inputmode is only a keyboard hint).
+function onAmountInput(fee: FeeLineItem, e: Event) {
+  const el = e.target as HTMLInputElement
+  let raw = el.value.replace(/[^0-9.]/g, '')
+  const dot = raw.indexOf('.')
+  if (dot !== -1) raw = raw.slice(0, dot + 1) + raw.slice(dot + 1).replace(/\./g, '')
+  if (el.value !== raw) el.value = raw
+  amountDisplay[fee.id] = raw
+  const v = parseFloat(raw)
+  setField(fee, 'amount', isNaN(v) ? null : Math.round(v * 100) / 100)
 }
 
 // ── Changed-from-baseline highlight + hover "Was … / Reset" popover ──
