@@ -184,6 +184,67 @@ function toggleSession(key: string, inst: number, sid: string, on: boolean) {
   if (!sessionSel[key][inst - 1]) sessionSel[key][inst - 1] = {}
   sessionSel[key][inst - 1][sid] = on
 }
+
+// ── Date-table layout (programmes): dates × session-type grid ──────────────────
+function isoWeekOf(d: Date) {
+  const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - (tmp.getUTCDay() || 7))
+  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1))
+  return Math.ceil((((tmp.getTime() - yearStart.getTime()) / 86400000) + 1) / 7)
+}
+const isDateTable = computed(() => design.value?.sessionsLayout === 'date-table')
+const sessionDateTable = computed(() => {
+  const visible = visibleSessions.value.filter((s: any) => s.start_at)
+  const fmtTime = (d: string) => new Date(d).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true })
+  const timeKeyOf = (s: any) => fmtTime(s.start_at)
+  const uniqueTimeKeys = [...new Set(visible.map(timeKeyOf))]
+  const dateKeys = [...new Set(visible.map((s: any) => new Date(s.start_at).toDateString()))]
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+  const columns = uniqueTimeKeys.map(tk => {
+    const inCol = visible.filter((s: any) => timeKeyOf(s) === tk)
+    const titles = [...new Set(inCol.map((s: any) => s.title || 'Session'))]
+    const fees = [...new Set(inCol.map((s: any) => Number(s.fee) || 0))]
+    return { key: tk, title: titles.length === 1 ? titles[0] : null, startTime: inCol[0] ? fmtTime(inCol[0].start_at) : null, fee: fees.length === 1 ? fees[0] : null }
+  })
+  let weekSeq = 0, prevWeek: number | null = null
+  const rows = dateKeys.map(dk => {
+    const date = new Date(dk)
+    const week = isoWeekOf(date)
+    const newWeek = prevWeek !== null && week !== prevWeek
+    if (prevWeek === null || newWeek) weekSeq++
+    prevWeek = week
+    return {
+      weekday: date.toLocaleDateString('en-AU', { weekday: 'long' }),
+      dayMonth: date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }),
+      date, week, weekSeq, newWeek,
+      cells: uniqueTimeKeys.map(tk => visible.find((s: any) => timeKeyOf(s) === tk && new Date(s.start_at).toDateString() === dk) ?? null),
+    }
+  })
+  return { columns, rows }
+})
+function dtSelSet(key: string, inst: number): Record<string, boolean> { return sessionSel[key]?.[inst - 1] ?? {} }
+function dtSel(key: string, inst: number, s: any) { return !!(s?.required || dtSelSet(key, inst)[s?.id]) }
+function dtSetMany(key: string, inst: number, list: any[], on: boolean) { for (const s of list) toggleSession(key, inst, s.id, on) }
+function dtRowSessions(row: any) { return (row?.cells ?? []).filter((s: any) => s && !s.required) }
+function dtRowFull(key: string, inst: number, row: any) { const r = dtRowSessions(row); return r.length > 0 && r.every((s: any) => dtSelSet(key, inst)[s.id]) }
+function dtToggleRow(key: string, inst: number, row: any) { dtSetMany(key, inst, dtRowSessions(row), !dtRowFull(key, inst, row)) }
+function dtColSessions(ci: number) { return sessionDateTable.value.rows.map(r => r.cells[ci]).filter((s: any) => s && !s.required) }
+function dtColFull(key: string, inst: number, ci: number) { const c = dtColSessions(ci); return c.length > 0 && c.every((s: any) => dtSelSet(key, inst)[s.id]) }
+function dtToggleCol(key: string, inst: number, ci: number) { dtSetMany(key, inst, dtColSessions(ci), !dtColFull(key, inst, ci)) }
+function dtWeekSessions(weekSeq: number) { return sessionDateTable.value.rows.filter(r => r.weekSeq === weekSeq).flatMap(r => r.cells).filter((s: any) => s && !s.required) }
+function dtWeekFull(key: string, inst: number, weekSeq: number) { const w = dtWeekSessions(weekSeq); return w.length > 0 && w.every((s: any) => dtSelSet(key, inst)[s.id]) }
+function dtToggleWeek(key: string, inst: number, weekSeq: number) { dtSetMany(key, inst, dtWeekSessions(weekSeq), !dtWeekFull(key, inst, weekSeq)) }
+function dtRowFee(row: any): number | null {
+  const cells = (row?.cells ?? []).filter((s: any) => !!s)
+  if (!cells.length) return null
+  return cells.reduce((sum: number, s: any) => sum + (Number(s.fee) || 0), 0)
+}
+// Flat-list label — include the date so multi-day sessions aren't all "Morning".
+function sessListLabel(s: any) {
+  if (!s.start_at) return s.title || 'Session'
+  const d = new Date(s.start_at)
+  return `${s.title || 'Session'} · ${d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })}`
+}
 const baseFee = computed(() => (props.feeLineItems ?? []).reduce((s, f) => s + (Number(f.amount) || 0), 0))
 
 // Fee options — a pick-one "How would you like to pay?" per chooser instance.
@@ -570,16 +631,63 @@ function onSubmit() { if (validate()) emit('submit', buildPayload()) }
           <!-- Sessions (chooser subjects only) -->
           <div v-if="isChooser(s.key) && visibleSessions.length" class="mt-4 border-t border-gray-100 pt-3">
             <p class="text-sm font-semibold text-gray-700 mb-2">Choose sessions</p>
-            <label v-for="sess in visibleSessions" :key="sess.id"
-              class="flex items-center justify-between gap-3 py-1.5 text-sm cursor-pointer">
-              <span class="flex items-center gap-2">
-                <input type="checkbox" class="w-4 h-4 accent-primary"
-                  :checked="sess.required || sessionSelected(s.key, inst, sess.id)" :disabled="sess.required"
-                  @change="toggleSession(s.key, inst, sess.id, ($event.target as any).checked)" />
-                <span class="text-gray-700">{{ sess.title || 'Session' }}</span>
-              </span>
-              <span v-if="Number(sess.fee)" class="text-gray-500">{{ money(Number(sess.fee)) }}</span>
-            </label>
+
+            <!-- Programme date table: dates (rows) × session types (columns) + Full day / whole week -->
+            <div v-if="isDateTable && sessionDateTable.rows.length" class="rounded-xl border border-gray-200 overflow-x-auto">
+              <div class="min-w-[520px]">
+                <!-- Header -->
+                <div class="grid border-b border-gray-200 bg-gray-50"
+                  :style="`grid-template-columns: repeat(${sessionDateTable.columns.length + 2}, minmax(0,1fr))`">
+                  <div class="px-3 py-2 text-xs font-semibold text-gray-500">Date</div>
+                  <div v-for="(col, ci) in sessionDateTable.columns" :key="col.key" class="px-3 py-2 border-l border-gray-200">
+                    <div class="flex items-start gap-2">
+                      <input type="checkbox" class="w-4 h-4 accent-primary mt-0.5" :checked="dtColFull(s.key, inst, ci)" @change="dtToggleCol(s.key, inst, ci)" />
+                      <div>
+                        <p class="text-xs font-semibold text-gray-800">{{ col.title || col.startTime }}<span v-if="col.fee" class="ml-1.5 font-normal text-primary">{{ money(col.fee) }}</span></p>
+                        <p v-if="col.startTime" class="text-[11px] text-gray-400 mt-0.5">{{ col.startTime }}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="px-3 py-2 border-l border-gray-200">
+                    <p class="text-xs font-semibold text-gray-800">Full day</p>
+                    <p class="text-[11px] text-gray-400 mt-0.5">All sessions</p>
+                  </div>
+                </div>
+                <!-- Rows (a header row per week) -->
+                <template v-for="(row, ri) in sessionDateTable.rows" :key="ri">
+                  <div v-if="ri === 0 || row.newWeek" class="flex items-center gap-2 px-3 py-1.5 bg-gray-100 border-y border-gray-200">
+                    <input type="checkbox" class="w-4 h-4 accent-primary" :checked="dtWeekFull(s.key, inst, row.weekSeq)" @change="dtToggleWeek(s.key, inst, row.weekSeq)" />
+                    <span class="text-xs font-semibold text-gray-600">Week {{ row.weekSeq }}</span>
+                    <span class="text-[11px] text-gray-400">— select the whole week</span>
+                  </div>
+                  <div class="grid border-b border-gray-100 last:border-b-0"
+                    :style="`grid-template-columns: repeat(${sessionDateTable.columns.length + 2}, minmax(0,1fr))`">
+                    <div class="px-3 py-2.5 flex items-center"><p class="text-sm font-medium text-gray-800">{{ row.weekday }}, {{ row.dayMonth }}</p></div>
+                    <div v-for="(cell, ci) in row.cells" :key="ci" class="border-l border-gray-100 px-3 py-2 flex items-center">
+                      <input v-if="cell" type="checkbox" class="w-4 h-4 accent-primary" :checked="dtSel(s.key, inst, cell)" :disabled="cell.required" @change="toggleSession(s.key, inst, cell.id, ($event.target as any).checked)" />
+                    </div>
+                    <div class="border-l border-gray-100 px-3 py-2 flex items-center gap-2">
+                      <input type="checkbox" class="w-4 h-4 accent-primary" :checked="dtRowFull(s.key, inst, row)" @change="dtToggleRow(s.key, inst, row)" />
+                      <span v-if="dtRowFee(row)" class="text-[11px] text-primary font-medium">{{ money(dtRowFee(row)!) }}</span>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- Flat list (default) -->
+            <template v-else>
+              <label v-for="sess in visibleSessions" :key="sess.id"
+                class="flex items-center justify-between gap-3 py-1.5 text-sm cursor-pointer">
+                <span class="flex items-center gap-2">
+                  <input type="checkbox" class="w-4 h-4 accent-primary"
+                    :checked="sess.required || sessionSelected(s.key, inst, sess.id)" :disabled="sess.required"
+                    @change="toggleSession(s.key, inst, sess.id, ($event.target as any).checked)" />
+                  <span class="text-gray-700">{{ sessListLabel(sess) }}</span>
+                </span>
+                <span v-if="Number(sess.fee)" class="text-gray-500">{{ money(Number(sess.fee)) }}</span>
+              </label>
+            </template>
           </div>
 
           <!-- Class choices (form connected to groups) — pick class(es) to join -->

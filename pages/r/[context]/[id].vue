@@ -144,11 +144,14 @@ async function load() {
       }
       formId = ev.form_id
       await loadOrg(ev.org_id)
-      // Base (event-level) fee components + per-session fees + sessions.
-      const [{ data: feeRows }, { data: sess }] = await Promise.all([
-        (db.from as any)('fee_components').select('name, amount, session_id, event_id').eq('event_id', contextId.value),
-        (db.from as any)('sessions').select('id, title, start_at, is_required, display_on_form').eq('event_id', contextId.value).order('sort_order'),
-      ])
+      // Sessions first, then fees. Per-session fee_components are keyed by
+      // session_id (NOT event_id — the wizard doesn't stamp event_id on them), so
+      // fetch by event_id OR session_id, otherwise session prices come back $0.
+      const { data: sess } = await (db.from as any)('sessions')
+        .select('id, title, start_at, is_required, display_on_form').eq('event_id', contextId.value).order('sort_order')
+      const sessionIds = (sess ?? []).map((s: any) => s.id)
+      const orFilter = `event_id.eq.${contextId.value}${sessionIds.length ? `,session_id.in.(${sessionIds.join(',')})` : ''}`
+      const { data: feeRows } = await (db.from as any)('fee_components').select('name, amount, session_id, event_id').or(orFilter)
       feeLineItems.value = (feeRows ?? []).filter((f: any) => !f.session_id).map((f: any) => ({ name: f.name, amount: Number(f.amount) || 0 }))
       const feeBySession: Record<string, number> = {}
       for (const f of (feeRows ?? [])) if (f.session_id) feeBySession[f.session_id] = (feeBySession[f.session_id] || 0) + (Number(f.amount) || 0)
