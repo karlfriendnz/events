@@ -171,6 +171,27 @@ function toggleAllColumnSessions(personIdx: number, colIdx: number) {
   }
   evtPreviewSessionSelections.value = { ...evtPreviewSessionSelections.value, [personIdx]: personMap }
 }
+// "Full day" column — one row = one date; selecting it books every session that day.
+function rowDaySessions(row: any) {
+  return (row?.cells ?? []).filter((s: any): s is any => !!s && !s.required)
+}
+function isRowFullySelected(personIdx: number, row: any): boolean {
+  const rs = rowDaySessions(row)
+  return rs.length > 0 && rs.every((s: any) => evtPreviewSessionSelections.value[personIdx]?.[s.id ?? s._savedId])
+}
+function toggleAllRowSessions(personIdx: number, row: any) {
+  const rs = rowDaySessions(row)
+  const allSelected = isRowFullySelected(personIdx, row)
+  const personMap = { ...(evtPreviewSessionSelections.value[personIdx] ?? {}) }
+  for (const s of rs) personMap[s.id ?? s._savedId] = !allSelected
+  evtPreviewSessionSelections.value = { ...evtPreviewSessionSelections.value, [personIdx]: personMap }
+}
+function rowFullDayFee(row: any): number | null {
+  const fees = (row?.cells ?? []).filter((s: any) => !!s).map((s: any) => sessionFeeAmount(s))
+  if (!fees.length || fees.some((f: any) => f == null)) return null
+  return fees.reduce((a: number, b: number) => a + b, 0)
+}
+
 const evtPreviewPayment = ref<string | null>(null)
 const evtPreviewPlanFreq = ref<string>('')
 const evtPreviewTermsAgreed = ref<Set<string>>(new Set())
@@ -1860,6 +1881,14 @@ const evtFormGroupDesigns = reactive<Record<string, any>>({
 })
 const currentEvtFormDesign = computed(() => evtFormGroupDesigns[selectedFormGroupId.value] ?? evtFormGroupDesigns['general'])
 
+// A new form's design — a programme defaults its session view to the date × session
+// data table (best for multi-day programmes); everything else stays a list.
+function newGroupDesign() {
+  const base: any = { ...evtFormGroupDesigns['general'] }
+  if (event.value?.is_programme) base.sessionsLayout = 'date-table'
+  return base
+}
+
 async function handleEvtFormImageUpload(field: 'headerImage' | 'backgroundImage', e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
@@ -1920,7 +1949,7 @@ function confirmAddEvtFormGroup() {
   evtFormGroupsList.value.push({ id: newId, name, person_type: 'all', audience: newFormAudience.value })
   evtFormGroupModes[newId] = ''
   evtFormGroupSessions[newId] = {}
-  evtFormGroupDesigns[newId] = { ...evtFormGroupDesigns['general'] }
+  evtFormGroupDesigns[newId] = newGroupDesign()
   showAddFormDialog.value = false
   selectEvtFormGroup(newId)
 }
@@ -1933,7 +1962,7 @@ function addEvtFormGroupViaChooser() {
   evtFormGroupsList.value.push({ id: newId, name: `Form ${evtFormGroupsList.value.length + 1}`, person_type: 'all', audience: 'all' })
   evtFormGroupModes[newId] = ''
   evtFormGroupSessions[newId] = {}
-  evtFormGroupDesigns[newId] = { ...evtFormGroupDesigns['general'] }
+  evtFormGroupDesigns[newId] = newGroupDesign()
   evtChooserStep.value = 'type'
   selectEvtFormGroup(newId)
 }
@@ -2046,7 +2075,7 @@ async function loadEvtFormConfig() {
     evtFormGroupsList.value = c.groups
     c.groups.forEach((g: any) => {
       if (!(g.id in evtFormGroupModes)) evtFormGroupModes[g.id] = ''
-      if (!(g.id in evtFormGroupDesigns)) evtFormGroupDesigns[g.id] = { ...evtFormGroupDesigns['general'] }
+      if (!(g.id in evtFormGroupDesigns)) evtFormGroupDesigns[g.id] = newGroupDesign()
     })
     if (!c.groups.length) { selectedFormGroupId.value = ''; evtFormShowSections.value = false }
     else if (!c.groups.some((g: any) => g.id === selectedFormGroupId.value)) selectedFormGroupId.value = c.groups[0].id
@@ -2134,7 +2163,7 @@ function ensureEvtFormGroupSelected(): string {
     evtFormGroupsList.value.push({ id, name: 'Registration Form', person_type: 'all', audience: 'all' })
     evtFormGroupModes[id] = ''
     evtFormGroupSessions[id] = {}
-    evtFormGroupDesigns[id] = { ...evtFormGroupDesigns['general'] }
+    evtFormGroupDesigns[id] = newGroupDesign()
     selectedFormGroupId.value = id
   }
   return id
@@ -3634,7 +3663,7 @@ defineExpose({ reload })
                         <div class="rounded-xl border border-gray-200 overflow-hidden bg-white">
                           <!-- Header row -->
                           <div class="grid border-b border-gray-200 bg-gray-50"
-                            :style="`grid-template-columns: repeat(${formSessionDateTable.columns.length + 1}, 1fr)`">
+                            :style="`grid-template-columns: repeat(${formSessionDateTable.columns.length + 2}, 1fr)`">
                             <div class="px-3 py-2 text-xs font-semibold text-gray-500">Date</div>
                             <div v-for="(col, ci) in formSessionDateTable.columns" :key="col.key"
                               class="px-3 py-2 border-l border-gray-200">
@@ -3656,12 +3685,17 @@ defineExpose({ reload })
                                 </div>
                               </div>
                             </div>
+                            <!-- Full day column header -->
+                            <div class="px-3 py-2 border-l border-gray-200">
+                              <p class="text-xs font-semibold text-gray-800">Full day</p>
+                              <p class="text-[11px] text-gray-400 mt-0.5">All sessions</p>
+                            </div>
                           </div>
                           <!-- Data rows -->
                           <div v-for="(row, ri) in formSessionDateTable.rows" :key="ri"
                             class="grid border-b border-gray-100 last:border-b-0"
                             :class="row.newWeek ? 'border-t-2 border-t-gray-300' : ''"
-                            :style="`grid-template-columns: repeat(${formSessionDateTable.columns.length + 1}, 1fr)`">
+                            :style="`grid-template-columns: repeat(${formSessionDateTable.columns.length + 2}, 1fr)`">
                             <div class="px-3 py-2.5 flex items-center">
                               <p class="text-sm font-medium text-gray-800">{{ row.weekday }}, {{ row.dayMonth }}</p>
                             </div>
@@ -3678,6 +3712,16 @@ defineExpose({ reload })
                                 </button>
                                 <span v-if="!formSessionDateTable.columns[ci]?.title" class="text-xs text-gray-600 truncate">{{ s.title || 'Session' }}</span>
                               </template>
+                            </div>
+                            <!-- Full day cell -->
+                            <div class="border-l border-gray-100 px-3 py-2 flex items-center gap-2">
+                              <button type="button"
+                                class="w-4 h-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors"
+                                :class="isRowFullySelected(evtGIdx(subject.key, inst), row) ? 'bg-primary border-primary' : 'border-gray-300 hover:border-primary/50'"
+                                @click="toggleAllRowSessions(evtGIdx(subject.key, inst), row)">
+                                <i v-if="isRowFullySelected(evtGIdx(subject.key, inst), row)" class="pi pi-check text-white text-[8px]" />
+                              </button>
+                              <span v-if="rowFullDayFee(row) !== null" class="text-xs text-primary font-medium">${{ rowFullDayFee(row)!.toFixed(2) }}</span>
                             </div>
                           </div>
                         </div>
