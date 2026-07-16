@@ -179,6 +179,88 @@
           @update:modelValue="v => { templates.splice(0, templates.length, ...v) }" />
     </div>
 
+    <!-- ── Step 3 · Discounts (the shared <EventDiscountDialog> system) ── -->
+    <div v-show="step === 2" class="space-y-6">
+      <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-sm font-medium text-gray-700">Discounts</p>
+            <p class="text-xs text-gray-500 mt-0.5">Early bird, members only, siblings, promo codes — set who qualifies. Optional.</p>
+          </div>
+          <Button label="Add discount" icon="pi pi-plus" size="small" severity="secondary" outlined @click="openDiscount" />
+        </div>
+        <div v-if="!form.discounts.length" class="text-center py-6 text-sm text-gray-400">
+          No discounts — everyone pays the full session fee.
+        </div>
+        <div v-else class="space-y-2">
+          <div v-for="(d, idx) in form.discounts" :key="d.id"
+            class="border border-gray-200 rounded-xl px-4 py-3 flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-sm font-semibold text-gray-800">{{ d.name || 'Untitled discount' }}</span>
+                <span class="shrink-0 font-semibold text-primary text-sm">{{ discountAmountLabel(d) }}</span>
+              </div>
+              <div class="flex flex-wrap gap-1 mt-1.5">
+                <span v-for="(c, ci) in d.conditions.filter(x => x.key)" :key="ci"
+                  class="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium bg-primary/8 text-primary">{{ conditionLabel(c) }}</span>
+                <span v-if="!d.conditions.filter(x => x.key).length" class="text-xs text-gray-400 italic">Always applied</span>
+              </div>
+              <p class="text-xs text-gray-500 mt-1.5">{{ discountSummary(d) }}</p>
+            </div>
+            <div class="flex items-center gap-1 shrink-0">
+              <Button icon="pi pi-pencil" text size="small" severity="secondary" @click="editDiscount(idx)" />
+              <Button icon="pi pi-trash" text size="small" severity="danger" @click="form.discounts.splice(idx, 1)" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Step 4 · Summary ── -->
+    <div v-show="step === 3" class="space-y-6">
+      <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="px-5 py-3 border-b border-gray-100 bg-gray-50">
+          <h2 class="text-sm font-semibold text-gray-700">Review your programme</h2>
+        </div>
+        <div class="p-5 space-y-5">
+          <div>
+            <p class="text-lg font-semibold text-gray-900">{{ form.title.trim() || 'Untitled programme' }}</p>
+            <p class="text-sm text-gray-500 mt-0.5">
+              {{ summaryWhen }} · {{ sessionDays.length }} day{{ sessionDays.length !== 1 ? 's' : '' }}<span v-if="form.exdates.length"> ({{ form.exdates.length }} skipped)</span>
+            </p>
+            <p class="text-sm text-gray-500">{{ summarySignup }}</p>
+          </div>
+
+          <div class="border-t border-gray-100 pt-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Sessions per day</p>
+            <div class="space-y-1.5">
+              <div v-for="t in namedTemplates" :key="t.name" class="flex items-center justify-between gap-3 text-sm">
+                <span class="text-gray-800 truncate">{{ t.name }}</span>
+                <span class="text-gray-500 shrink-0">{{ fmtTimeShort(t.startTime) }}–{{ fmtTimeShort(t.endTime) }} · {{ feeLabel(t.fees) }}</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between gap-3 text-sm font-semibold text-gray-800 mt-2 pt-2 border-t border-gray-100">
+              <span>Total sessions to create</span><span>{{ totalSessions }}</span>
+            </div>
+          </div>
+
+          <div class="border-t border-gray-100 pt-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Discounts</p>
+            <div v-if="form.discounts.length" class="space-y-1.5">
+              <div v-for="d in form.discounts" :key="d.id" class="flex items-center justify-between gap-3 text-sm">
+                <span class="text-gray-800 truncate">{{ d.name || 'Untitled discount' }}</span>
+                <span class="text-primary font-medium shrink-0">{{ discountAmountLabel(d) }}</span>
+              </div>
+            </div>
+            <p v-else class="text-sm text-gray-400">No discounts</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shared event-discount modal (template picker → rule editor) -->
+    <EventDiscountDialog v-model:visible="discountFlowOpen" :edit="discountEditDraft" :currency-symbol="currencySymbol" @save="onDiscountSave" />
+
     <!-- Skip-dates calendar (opened from the Programme dates on step 1; teleports) -->
     <Dialog v-model:visible="skipDatesOpen" modal header="Skip dates" :style="{ width: '95vw', maxWidth: '480px' }" :pt="{ content: { class: 'p-4' } }">
       <RecurrenceExclusions
@@ -200,6 +282,7 @@ import { ref, reactive, computed } from 'vue'
 
 import type { LocationEntry } from '~/composables/useLocation'
 import type { FeeLineItem, SessionFeesConfig } from '~/composables/useFeeGroups'
+import type { DiscountDraft } from '~/composables/useEventDiscounts'
 
 const db = useDb()
 const route = useRoute()
@@ -236,6 +319,7 @@ const form = reactive({
   exdates: [] as string[],           // YYYY-MM-DD, same model as the wizard's Skip-dates
   regOpen: null as Date | null,
   regClose: null as Date | null,
+  discounts: [] as WizardDiscount[],
 })
 
 // Local Y-M-D so a skipped date matches the loop day regardless of timezone.
@@ -338,18 +422,76 @@ const canCreate = computed(() =>
   namedTemplates.value.length > 0
 )
 
-// ── Wizard chrome (shared <WizardShell>) — Event details → Session details ──
+// ── Wizard chrome (shared <WizardShell>) ──
 const step = ref(0)
 const WIZARD_STEPS = [
   { key: 'details', label: 'Event details' },
   { key: 'sessions', label: 'Session details' },
+  { key: 'discounts', label: 'Discounts' },
+  { key: 'summary', label: 'Summary' },
 ]
 const wizardTitle = computed(() => form.title.trim() || 'New programme')
-// Step 1 needs a name + a valid programme range to advance; the final step's
-// Create is gated on canCreate (also needs generated days + a named template).
-const canNext = computed(() => step.value === 0
-  ? (!!form.title.trim() && !!form.startDate && !!form.endDate)
-  : canCreate.value)
+const canNext = computed(() => {
+  if (step.value === 0) return !!form.title.trim() && !!form.startDate && !!form.endDate
+  if (step.value === 1) return namedTemplates.value.length > 0 && sessionDays.value.length > 0
+  if (step.value === 2) return true               // discounts are optional
+  return canCreate.value                          // summary → Create
+})
+
+// ── Discounts — the SAME shared <EventDiscountDialog> + useEventDiscounts as
+//    the event wizard / advanced editor. Rows persist to `discounts` at create. ──
+type WizardDiscount = DiscountDraft & { id: string }
+const toIsoDate = (d: Date) => new Date(d).toISOString().slice(0, 10)
+const { conditionLabel } = useEventDiscounts()
+const discountFlowOpen = ref(false)
+const discountEditIdx = ref<number | null>(null)
+const discountEditDraft = ref<DiscountDraft | null>(null)
+
+const orgCurrency = ref('NZD')
+const money = (n: number) => new Intl.NumberFormat('en-NZ', { style: 'currency', currency: orgCurrency.value || 'NZD' }).format(n)
+const currencySymbol = computed(() => {
+  const parts = new Intl.NumberFormat('en-NZ', { style: 'currency', currency: orgCurrency.value || 'NZD' }).formatToParts(0)
+  return parts.find(p => p.type === 'currency')?.value ?? '$'
+})
+onMounted(async () => {
+  const { data } = await (db.from as any)('organisations').select('currency').eq('id', orgId.value).maybeSingle()
+  if (data?.currency) orgCurrency.value = data.currency
+})
+
+function openDiscount() {
+  discountEditIdx.value = null
+  discountEditDraft.value = null
+  discountFlowOpen.value = true
+}
+function editDiscount(idx: number) {
+  discountEditIdx.value = idx
+  discountEditDraft.value = JSON.parse(JSON.stringify(form.discounts[idx]))
+  discountFlowOpen.value = true
+}
+function onDiscountSave(draft: DiscountDraft) {
+  if (discountEditIdx.value !== null) {
+    const keepId = form.discounts[discountEditIdx.value].id
+    form.discounts.splice(discountEditIdx.value, 1, { id: keepId, ...draft })
+  } else {
+    form.discounts.push({ id: crypto.randomUUID(), ...draft })
+  }
+  discountEditIdx.value = null
+  discountEditDraft.value = null
+}
+function discountAmountLabel(d: WizardDiscount) {
+  const v = d.modifier_value ?? 0
+  return d.modifier_type === 'PERCENT' ? `${v}% off` : `${money(v)} off`
+}
+function discountSummary(d: WizardDiscount) {
+  const conds = d.conditions.filter(c => c.key).length
+  return conds
+    ? `Applies to anyone matching ${conds} ${conds === 1 ? 'condition' : 'conditions'}.`
+    : 'Applies to everyone.'
+}
+function feeLabel(fees?: FeeLineItem[]) {
+  const total = (fees ?? []).reduce((s, f) => s + (f.amount ?? 0), 0)
+  return total > 0 ? money(total) : 'Free'
+}
 
 // ── Live summary rail (right side of the wizard) ──
 const fmtDay = (d: Date | null, withYear = false) =>
@@ -455,6 +597,23 @@ async function createEvent() {
         if (linkedErr) throw linkedErr
       }
     }
+
+    // 3. Discounts — same shape + modal as the event wizard/advanced editor.
+    const discountRows = form.discounts
+      .filter(d => d.name.trim())
+      .map(d => ({
+        event_id: evt.id,
+        type: 'CODE' as const,
+        name: d.name.trim(),
+        form_text: d.form_text?.trim() || null,
+        is_active: d.is_active,
+        modifier_value: d.modifier_value ?? 0,
+        modifier_type: d.modifier_type,
+        apply_to: d.apply_to,
+        conditions: JSON.parse(JSON.stringify(d.conditions.filter(c => c.key))),
+        expires_at: d.expires_type === 'custom' && d.expires_at ? toIsoDate(d.expires_at) : null,
+      }))
+    if (discountRows.length) await db.from('discounts').insert(discountRows)
 
     toast.add({ severity: 'success', summary: 'Event created', detail: `${days.length * namedTemplates.value.length} sessions generated`, life: 4000 })
     await navigateTo(`/events/${evt.id}`)
