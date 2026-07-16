@@ -85,11 +85,14 @@
         @drop.prevent="onDrop(idx)"
         @dragend="dragIdx = null; dragOverIdx = null">
 
-        <!-- drag + remove -->
-        <div class="flex items-center justify-between mb-3">
-          <i class="pi pi-bars text-xs text-gray-300 cursor-grab" />
+        <!-- header: drag + session name + remove -->
+        <div class="flex items-center gap-3 mb-3">
+          <i class="pi pi-bars text-xs text-gray-300 cursor-grab shrink-0" />
+          <InputText v-model="tpl.name"
+            :placeholder="idx === 0 ? 'e.g. Morning' : idx === 1 ? 'e.g. Afternoon' : 'Session name'"
+            class="flex-1 min-w-0 h-9 text-sm font-semibold" />
           <button
-            class="flex items-center justify-center w-7 h-7 rounded-lg transition-colors"
+            class="flex items-center justify-center w-7 h-7 rounded-lg shrink-0 transition-colors"
             :class="templates.length > 1 ? 'text-gray-300 hover:text-red-400 hover:bg-red-50' : 'text-gray-200 cursor-not-allowed'"
             :disabled="templates.length <= 1"
             @click="() => { if (templates.length > 1) templates.splice(idx, 1) }">
@@ -97,56 +100,51 @@
           </button>
         </div>
 
-        <div class="space-y-3">
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1.5">Session name</label>
-            <InputText v-model="tpl.name"
-              :placeholder="idx === 0 ? 'e.g. Morning' : idx === 1 ? 'e.g. Afternoon' : 'Session name'"
-              class="w-full h-9 text-sm" />
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-semibold text-gray-500 mb-1.5">Start</label>
-              <DatePicker v-model="tpl.startTime" timeOnly hourFormat="12" placeholder="9:00 AM" class="w-full" inputClass="h-9 text-sm px-2"
+        <div class="space-y-3 sm:pl-6">
+          <!-- Times + capacity on one row, labels to the left of each -->
+          <div class="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <div class="flex items-center gap-2">
+              <label class="text-xs font-semibold text-gray-500 shrink-0">Start</label>
+              <DatePicker v-model="tpl.startTime" timeOnly hourFormat="12" placeholder="9:00 AM" class="w-28" inputClass="h-9 text-sm px-2"
                 @update:model-value="v => onStartTimeChange(idx, v)" />
             </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-500 mb-1.5">End</label>
-              <DatePicker v-model="tpl.endTime" timeOnly hourFormat="12" placeholder="12:00 PM" class="w-full" inputClass="h-9 text-sm px-2"
+            <div class="flex items-center gap-2">
+              <label class="text-xs font-semibold text-gray-500 shrink-0">End</label>
+              <DatePicker v-model="tpl.endTime" timeOnly hourFormat="12" placeholder="12:00 PM" class="w-28" inputClass="h-9 text-sm px-2"
                 @update:model-value="v => onEndTimeChange(idx, v)" />
+            </div>
+            <div class="flex items-center gap-2">
+              <label class="text-xs font-semibold text-gray-500 shrink-0">Capacity</label>
+              <InputNumber v-model="tpl.limit" :min="1" placeholder="No limit" class="w-24" inputClass="h-9 text-sm text-right w-full px-2" />
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-semibold text-gray-500 mb-1.5">Capacity</label>
-              <InputNumber v-model="tpl.limit" :min="1" placeholder="No limit" class="w-full" inputClass="h-9 text-sm text-right w-full px-2" />
+          <div v-if="!showFees" class="flex items-center gap-3">
+            <label class="text-xs font-semibold text-gray-500 w-20 shrink-0">Cost</label>
+            <div class="relative flex items-center w-40">
+              <span class="absolute left-3 text-gray-400 text-sm pointer-events-none z-10">$</span>
+              <InputNumber v-model="tpl.cost" :min="0" :minFractionDigits="2" :maxFractionDigits="2" placeholder="0.00" class="w-full" inputClass="pl-6 pr-2 h-9 text-sm text-right w-full" />
             </div>
-            <div v-if="!showFees">
-              <label class="block text-xs font-semibold text-gray-500 mb-1.5">Cost</label>
-              <div class="relative flex items-center">
-                <span class="absolute left-3 text-gray-400 text-sm pointer-events-none z-10">$</span>
-                <InputNumber v-model="tpl.cost" :min="0" :minFractionDigits="2" :maxFractionDigits="2" placeholder="0.00" class="w-full" inputClass="pl-6 pr-2 h-9 text-sm text-right w-full" />
-              </div>
-            </div>
-            <div v-if="showLocation">
-              <label class="block text-xs font-semibold text-gray-500 mb-1.5">Location</label>
-              <button type="button"
-                class="w-full h-9 text-sm text-left px-2.5 rounded-lg border border-gray-200 bg-white hover:border-gray-300 inline-flex items-center gap-2"
-                @click="locDialogIdx = idx">
-                <i class="pi pi-map-marker text-xs shrink-0" :class="locSummary(tpl) ? 'text-primary' : 'text-gray-300'" />
-                <span class="flex-1 truncate" :class="locSummary(tpl) ? 'text-gray-700' : 'text-gray-400'">{{ locSummary(tpl) || 'Choose location…' }}</span>
-                <i class="pi pi-pencil text-[10px] text-gray-400 shrink-0" />
-              </button>
-            </div>
+          </div>
+
+          <div v-if="showLocation" class="flex items-center gap-3">
+            <label class="text-xs font-semibold text-gray-500 w-20 shrink-0">Location</label>
+            <button type="button"
+              class="flex-1 min-w-0 h-9 text-sm text-left px-2.5 rounded-lg border border-gray-200 bg-white hover:border-gray-300 inline-flex items-center gap-2"
+              @click="locDialogIdx = idx">
+              <i class="pi pi-map-marker text-xs shrink-0" :class="locSummary(tpl) ? 'text-primary' : 'text-gray-300'" />
+              <span class="flex-1 truncate" :class="locSummary(tpl) ? 'text-gray-700' : 'text-gray-400'">{{ locSummary(tpl) || 'Choose location…' }}</span>
+              <i class="pi pi-pencil text-[10px] text-gray-400 shrink-0" />
+            </button>
           </div>
 
           <!-- Fee — a fee can have multiple line items (the shared editor) -->
-          <div v-if="showFees">
-            <label class="block text-xs font-semibold text-gray-500 mb-1.5">Fee</label>
-            <FeeLineItemsTable :model-value="tpl.fees ?? []"
-              @update:model-value="(v: FeeLineItem[]) => tpl.fees = v" />
+          <div v-if="showFees" class="flex items-start gap-3">
+            <label class="text-xs font-semibold text-gray-500 w-20 shrink-0 pt-2">Fee</label>
+            <div class="flex-1 min-w-0">
+              <FeeLineItemsTable :model-value="tpl.fees ?? []"
+                @update:model-value="(v: FeeLineItem[]) => tpl.fees = v" />
+            </div>
           </div>
         </div>
       </div>
