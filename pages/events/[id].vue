@@ -3173,6 +3173,10 @@ async function updateVenueBookingTimes() {
 }
 
 const breadcrumbs = useBreadcrumbs()
+// Force the left-nav highlight (a programme's editor lives under /events/:id but
+// belongs to the Programme item). Cleared on unmount so it never lingers.
+const navSectionOverride = useState<string | null>('nav-section-override', () => null)
+onBeforeUnmount(() => { navSectionOverride.value = null })
 
 // ---- Core event ----
 const event = ref<any>(null)
@@ -5046,6 +5050,8 @@ async function loadEvent() {
   breadcrumbs.value = event.value?.is_programme
     ? [{ label: 'Programme', to: '/programme' }, { label: event.value?.title ?? 'Programme' }]
     : [{ label: 'Events', to: '/events' }, { label: event.value?.title ?? 'Event' }]
+  // Highlight the Programme nav item for a programme (else the URL default applies).
+  navSectionOverride.value = event.value?.is_programme ? '/programme' : null
 }
 
 async function loadInvitees() {

@@ -839,7 +839,11 @@ useHead({
   titleTemplate: '%s',
 })
 
+// A page can force which nav item is highlighted (e.g. a programme's editor lives
+// under /events/:id but belongs to the Programme item). null = URL-based default.
+const navSectionOverride = useState<string | null>('nav-section-override', () => null)
 function isActive(href: string) {
+  if (navSectionOverride.value) return href === navSectionOverride.value
   return route.path === href || route.path.startsWith(href + '/')
 }
 </script>
