@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-325 sessions · 1639 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+325 sessions · 1642 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -28804,7 +28804,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:49** — please apply
 
 
-## Session 2026-07-14 22:10 (33 prompts)
+## Session 2026-07-14 22:10 (36 prompts)
 
 **22:10** — yay we are back
 
@@ -28872,4 +28872,10 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:25** — YES! love it, ok now lets add a new tab called discounts - use the current discouts system and then add a summary tab as well
 
 **00:32** — Could not find the 'fees' column of 'sessions' in the schema cache
+
+**00:38** — the server dies
+
+**00:39** — local server is not running
+
+**00:41** — can you please make the deafult text for the fee name be the name of the sesison
 

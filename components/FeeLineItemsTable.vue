@@ -5,7 +5,7 @@
     <div class="md:hidden divide-y divide-gray-100">
       <div v-for="fee in modelValue" :key="fee.id" class="p-3 space-y-2">
         <textarea
-          :value="fee.name" rows="1" placeholder="Fee name"
+          :value="fee.name" rows="1" :placeholder="namePlaceholder || 'Fee name'"
           class="w-full px-3 py-2 text-sm text-gray-800 placeholder-gray-400 border border-gray-200 rounded-lg outline-none focus:border-primary resize-none leading-5"
           @input="(e) => { setField(fee, 'name', (e.target as HTMLTextAreaElement).value); autoGrow(e.target as HTMLTextAreaElement) }"
           @keydown.enter.exact.prevent
@@ -90,7 +90,7 @@
                 :ref="el => nameInputs[fee.id] = el as HTMLTextAreaElement"
                 :value="fee.name"
                 rows="1"
-                placeholder="Enter fee name"
+                :placeholder="namePlaceholder || 'Enter fee name'"
                 class="w-full min-h-10 px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 bg-transparent border-0 outline-none focus:bg-blue-50/40 transition-colors resize-none leading-5 overflow-hidden"
                 @input="(e) => { setField(fee, 'name', (e.target as HTMLTextAreaElement).value); autoGrow(e.target as HTMLTextAreaElement) }"
                 @keydown.enter.exact.prevent
@@ -227,6 +227,8 @@ const props = defineProps<{
   // shows the previous value with a one-click Reset. Used by the term wizard
   // to mark fees changed from what the class carried over.
   baseline?: Record<string, Partial<FeeLineItem>>
+  // Placeholder for the fee-name field (e.g. the session name it belongs to).
+  namePlaceholder?: string
 }>()
 
 const emit = defineEmits<{

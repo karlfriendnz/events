@@ -132,6 +132,7 @@
             <label class="text-xs font-semibold text-gray-500 w-16 shrink-0 pt-2">Fee</label>
             <div class="flex-1 min-w-0">
               <FeeLineItemsTable :model-value="tpl.fees ?? []"
+                :name-placeholder="tpl.name.trim() || 'Fee name'"
                 @update:model-value="(v: FeeLineItem[]) => tpl.fees = v" />
             </div>
           </div>

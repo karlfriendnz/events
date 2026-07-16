@@ -553,7 +553,8 @@ async function createEvent() {
         .filter((f: FeeLineItem) => (f.name ?? '').trim() || (f.amount ?? 0) > 0)
         .map((f: FeeLineItem, i: number) => ({
           session_id: sessionId,
-          name: (f.name || 'Fee').trim(),
+          // Blank fee name defaults to the session name (e.g. "Morning").
+          name: (f.name || '').trim() || tpl.name.trim() || 'Fee',
           amount: f.amount ?? 0,
           xero_code: f.xero_code || null,
           sort_order: i,
