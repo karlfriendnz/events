@@ -66,10 +66,21 @@ export default defineEventHandler(async (event) => {
   // be stored on the person keyed by field-definition id — that's how the member
   // profile's Custom fields tab reads them. Answers for fields with no definition
   // (bespoke event-only questions) stay keyed by label.
+  // The chain MUST match useOrgFieldPolicy.resolveFields (parent_id chain + every
+  // connected sport's chain). If it didn't, a body reachable only by sport would
+  // render its field on the form and then have the answer stored by LABEL — which
+  // discipline_requirements (keyed by field_definition_id) can never see.
   const labelToDefId: Record<string, string> = {}
   try {
-    const { data: anc } = await supabase.rpc('org_ancestors', { p_org: orgId })
-    const chain = [orgId, ...((anc as any[]) ?? []).map((a: any) => a.id)]
+    const [anc, sportAnc] = await Promise.all([
+      supabase.rpc('org_ancestors', { p_org: orgId }),
+      supabase.rpc('org_sport_ancestors', { p_org: orgId, p_sport: null }),
+    ])
+    const govIds = [...new Set([
+      ...(((anc.data as any[]) ?? []).map((a: any) => a.id)),
+      ...(((sportAnc.data as any[]) ?? []).map((a: any) => a.id)),
+    ])]
+    const chain = [orgId, ...govIds]
     const { data: defs } = await supabase.from('field_definitions').select('id, label, org_id').in('org_id', chain)
     // Own-org definitions win over inherited ones on a label clash.
     for (const d of (defs ?? []).filter((d: any) => d.org_id !== orgId)) labelToDefId[d.label] = d.id

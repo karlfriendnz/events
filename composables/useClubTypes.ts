@@ -128,16 +128,9 @@ export function useClubTypes() {
     }
   }
 
-  /** Governing-body org ids above this org — parent_id chain + every sport affiliation's chain. */
+  /** Governing-body orgs above this org — parent_id chain + every sport affiliation's chain. */
   async function governingOrgs(orgId: string): Promise<{ id: string; name: string }[]> {
-    const [anc, sportAnc] = await Promise.all([
-      (db.rpc as any)('org_ancestors', { p_org: orgId }),
-      (db.rpc as any)('org_sport_ancestors', { p_org: orgId, p_sport: null }),
-    ])
-    const map = new Map<string, string>()
-    for (const a of (anc.data ?? [])) map.set(a.id, a.name)
-    for (const a of (sportAnc.data ?? [])) map.set(a.id, a.name)
-    return [...map].map(([id, name]) => ({ id, name }))
+    return (await useOrgHierarchy().governingOrgs(orgId)).map(o => ({ id: o.id, name: o.name }))
   }
 
   /** Club types inherited from the governing chain (deduped, with the body they came from). */

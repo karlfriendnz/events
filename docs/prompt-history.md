@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-327 sessions · 1725 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+328 sessions · 1733 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -29068,7 +29068,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **23:07** — A NSO has the ability to create a Person Type, They want to know how many of that person type is in all thier clubs. The person type has certian feilds that are connected to it ie ethnicity, but then a club could be connected to two nso and there for 1 person could be both person types, and both nso's could collect differnet ethnicites
 
 
-## Session 2026-07-16 23:18 (20 prompts)
+## Session 2026-07-16 23:18 (22 prompts)
 
 **23:18** — ok what we were talking baout
 
@@ -29141,4 +29141,123 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **01:59** — this should be on the hover on the icon and his row should be red
 
 **02:03** — can we please remove - Set on GRADE A
+
+**02:20** — deploy live
+
+**04:32** — <task-notification>
+> <task-id>bursjgkq5</task-id>
+> <tool-use-id>toolu_01KC8NDHj8Cu1tUqs4unt2uH</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/ba6b4c01-70eb-4f47-8b7b-365d5d99ff43/tasks/bursjgkq5.output</output-file>
+> <status>killed</status>
+> <summary>Background command "Poll the deployment until it resolves" was stopped</summary>
+> </task-notification>
+
+
+## Session 2026-07-17 06:04 (6 prompts)
+
+**06:04** — a club needs to be able to connect a person type to a NSO person type i.e a national body creates Player, the club also has player but its connected to the player for nso to know the required feilds for a player at club level - does that make sence'?
+
+**06:07** — <task-notification>
+> <task-id>ab137c0808371d60c</task-id>
+> <tool-use-id>toolu_01HeG6LDzyXED3LehmYSRr8Q</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/c18f2b9e-bc10-46c2-baff-a72f656eb1d2/tasks/ab137c0808371d60c.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Trace NSO field inheritance" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>I have everything. Here are the precise facts.
+> 
+> ## Headline
+> 
+> **A club person type does not "connect" to an NSO person type at all — there is no link, no FK, no key reconciliation.** `person_target_types` rows are flat, org-owned, and independent. The only inheritance that actually spans orgs is **field** inheritance (`resolveFields`), and it binds to types by **lower-cased string key equality**, never by id.
+> 
+> There is a second, dormant path — `resolvePersonTypes` **does** walk the ancestor chain — but the authoring surface (`pages/settings/fields.vue`) deliberately does not use it. That split is the crux of your question, and it has a live bug in it (below).
+> 
+> ---
+> 
+> ## 1. `composables/useOrgFieldPolicy.ts` (89 lines total)
+> 
+> **`resolveFields(orgId)` — ancestor-resolved (lines 29-50).** Ancestors → id list → single `.in()`:
+> 
+> ```ts
+> // :30-34
+> const anc = await ancestors(orgId)
+> const ids = [orgId, ...anc.map(a =&gt; a.id)]
+> const { data } = await (db.from as any)('field_definitions')
+>   .select('id, org_id, label, ..., target, targets, rules, organisations(name, org_level)')
+>   .in('org_id', ids)
+> ```
+> `inherited` is computed client-side, purely by org ownership — there is no `inherited` column:
+> ```ts
+> inherited: f.org_id !== orgId,   // :46
+> ownerName: f.organisations?.name ?? '',    // :47
+> ownerLevel: f.organisations?.org_level ?? '',  // :48
+> ```
+> 
+> **`resolvePersonTypes(orgId)` — ALSO ancestor-resolved (lines 53-67).** Same `[orgId, ...anc]` shape, same derived `inherited: t.org_id !== orgId` (`:64`). Note it selects `min_count, max_count` but **not** `permissions`, `menu_items`, `landing_path`, or `profile_dashboard`.
+> 
+> **`loadOrgTypes(orgId)` — own-only, no ancestors (lines 71-78).** `.eq('org_id', orgId)`, and it hardcodes `inherited: false, ownerName: ''` (`:76`). The doc comment states the intent outright (`:69-70`): *"A club's OWN person/entity types only (no inheritance) — the single source the /proto/* prototype uses, so there's no duplicate/two-concept confusion."*
+> 
+> **`fieldAppliesTo(f, key)` — the entire matching mechanism (lines 82-86):**
+> ```ts
+> function fieldAppliesTo(f: any, key: string): boolean {
+>   const lc = (s: string) =&gt; (s || '').toLowerCase()
+>   const list = (Array.isArray(f.targets) &amp;&amp; f.targets.length ? f.targets : [f.target || 'member']).map(lc)
+>   return list.includes(lc(key))
+> }
+> ```
+> Case-insensitive string containment. `targets[]` wins when non-empty; legacy `target` is the 
+> … [truncated — 17085 chars total]
+
+**06:16** — a club can have multiple actviites (NSO's)  connected to it for example (tennis, badminton, squash, pickleball) could all be conencted to one club and one person could easily play all 4 things if nto more so some howe we need to handle this
+
+**06:20** — so on the profile would we check to see if they are part of that class and then show the feilds required/optional for that tha nso?
+
+**06:20** — <task-notification>
+> <task-id>a5415ecc7ca57a161</task-id>
+> <tool-use-id>toolu_01L8LGrQED6q1UfzLC66sP1T</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/c18f2b9e-bc10-46c2-baff-a72f656eb1d2/tasks/a5415ecc7ca57a161.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Verify sport participation derivation" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Headline
+> 
+> **No — nothing answers "which sports / which NSOs does person X participate in."** The sport dimension and the person dimension exist but are never joined for that purpose. Details, with the CLAUDE.md corrections flagged.
+> 
+> ---
+> 
+> ## 1. `org_sports` — full current columns
+> 
+> Base table, `/Users/karl/fm-events/supabase/migrations/148_org_sports.sql:30-40`:
+> 
+> ```sql
+> create table if not exists org_sports (
+>   id          uuid primary key default gen_random_uuid(),
+>   org_id      uuid not null references organisations(id) on delete cascade,   -- the club
+>   sport       text not null,                                                  -- the sport (e.g. "Cricket") — matches disciplines.sport
+>   nso_org_id  uuid references organisations(id) on delete set null,           -- governing body for this sport (NULL = not yet connected)
+>   is_primary  boolean not null default false,                                 -- primary sport — source of inherited terminology + branding
+>   sort_order  int not null default 0,
+>   created_at  timestamptz not null default now(),
+>   constraint org_sports_no_self check (nso_org_id is null or nso_org_id &lt;&gt; org_id),
+>   unique (org_id, sport)
+> );
+> ```
+> 
+> Added later:
+> - `display_name text` — `149_affiliation_names.sql:16-17`. Club's local label override; NULL = use canonical `sport`. Migration 149 also adds `organisations.default_sport_name` (the NSO's declared default sport name, seeded when a club connects).
+> - `terminology jsonb` — `233_sport_terminology.sql:7`.
+> 
+> **Full list: `id, org_id, sport, nso_org_id, is_primary, sort_order, created_at, display_name, terminology`.**
+> 
+> **How a club connects a sport to an NSO:** one `org_sports` row per (club, sport), with `nso_org_id` pointing at the governing organisation. The full chain above that NSO comes from walking `organisations.parent_id`.
+> 
+> **`nso_org_id` is nullable** — `148:34` explicitly comments `NULL = not yet connected`, i.e. a standalone sport with no governing body. `DisciplineLinker.vue:32` depends on this (`connectedSports = orgSports.filter(s =&gt; s.nso_org_id)`).
+> 
+> **`sport` vs `display_name` vs `is_primary`:**
+> - `sport` = canonical key, `not null`, the text that matches `disciplines.sport` (`OrgSportsEditor.vue:21`).
+> - `display_name` = local vanity label only ("Cricky"), nullable.
+> - `is_primary` = terminology/branding source, mirrors `parent_id`. Enforced at most one per club by a partial unique index (`148:4
+> … [truncated — 22037 chars total]
+
+**06:22** — ok lets build that and then we can see how it works
 

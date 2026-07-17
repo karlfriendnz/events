@@ -23,12 +23,19 @@ export interface FieldDef {
 
 export function useOrgFieldPolicy() {
   const db = useDb()
-  const { ancestors } = useOrgHierarchy()
+  const { ancestors, governingOrgs } = useOrgHierarchy()
 
-  /** Own + inherited (ancestor) field definitions for an org. */
+  /**
+   * Own + inherited field definitions for an org.
+   *
+   * Inherits from EVERY governing body — the parent_id chain and each connected
+   * sport's chain. A club affiliated to four bodies (tennis/badminton/squash/
+   * pickleball) has only one parent_id, so walking parents alone would surface
+   * the primary sport's fields and silently hide the other three.
+   */
   async function resolveFields(orgId: string): Promise<FieldDef[]> {
-    const anc = await ancestors(orgId)
-    const ids = [orgId, ...anc.map(a => a.id)]
+    const gov = await governingOrgs(orgId)
+    const ids = [orgId, ...gov.map(a => a.id)]
     const { data } = await (db.from as any)('field_definitions')
       .select('id, org_id, label, field_type, is_required, options, help_text, key, meta, sort_order, target, targets, rules, organisations(name, org_level)')
       .in('org_id', ids)

@@ -9,6 +9,8 @@ export interface OrgNode {
   org_level: 'CLUB' | 'REGIONAL' | 'ASSOCIATION' | 'NATIONAL' | 'RST'
   parent_id: string | null
   depth?: number
+  /** Which sport affiliation reached this body (org_sport_ancestors only). */
+  via_sport?: string | null
 }
 
 export const ORG_LEVELS = ['CLUB', 'REGIONAL', 'ASSOCIATION', 'NATIONAL'] as const
@@ -46,6 +48,33 @@ export function useOrgHierarchy() {
     return (data ?? []) as OrgNode[]
   }
 
+  /**
+   * Every governing body above an org: the parent_id chain PLUS each connected
+   * sport's chain. Excludes self.
+   *
+   * A club has ONE parent_id — its PRIMARY sport's body (org_sports mirrors it
+   * there). Every other affiliation of a multi-sport club is reachable only via
+   * org_sport_ancestors. So anything resolving what an org inherits (fields,
+   * types, club types) MUST union both, or a tennis/badminton/squash club
+   * silently inherits from tennis alone and the rest is invisible — no error.
+   */
+  async function governingOrgs(orgId: string): Promise<OrgNode[]> {
+    const [anc, sportAnc] = await Promise.all([
+      (db.rpc as any)('org_ancestors', { p_org: orgId }),
+      (db.rpc as any)('org_sport_ancestors', { p_org: orgId, p_sport: null }),
+    ])
+    if (anc.error) console.error('[useOrgHierarchy] governingOrgs parent chain', anc.error)
+    if (sportAnc.error) console.error('[useOrgHierarchy] governingOrgs sport chains', sportAnc.error)
+    // Parent chain first so it wins the dedupe: a body reachable both ways is an
+    // ancestor proper, and org_sport_ancestors' `distinct on (id)` would pin it to
+    // one arbitrary via_sport anyway.
+    const byId = new Map<string, OrgNode>()
+    for (const o of [...(anc.data ?? []), ...(sportAnc.data ?? [])] as OrgNode[]) {
+      if (!byId.has(o.id)) byId.set(o.id, o)
+    }
+    return [...byId.values()]
+  }
+
   /** Descendants (direct children first, increasing downward). Excludes self. */
   async function descendants(orgId: string): Promise<OrgNode[]> {
     const { data, error } = await (db.rpc as any)('org_descendants', { p_org: orgId })
@@ -77,5 +106,5 @@ export function useOrgHierarchy() {
     return [orgId, ...desc.map(d => d.id)]
   }
 
-  return { ancestors, descendants, buildChain, descendantScope }
+  return { ancestors, governingOrgs, descendants, buildChain, descendantScope }
 }
