@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-328 sessions · 1733 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+328 sessions · 1740 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -29153,7 +29153,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > </task-notification>
 
 
-## Session 2026-07-17 06:04 (6 prompts)
+## Session 2026-07-17 06:04 (13 prompts)
 
 **06:04** — a club needs to be able to connect a person type to a NSO person type i.e a national body creates Player, the club also has player but its connected to the player for nso to know the required feilds for a player at club level - does that make sence'?
 
@@ -29260,4 +29260,238 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > … [truncated — 22037 chars total]
 
 **06:22** — ok lets build that and then we can see how it works
+
+**06:44** — gah we are sooo close i think its just not conencting well
+
+**06:50** — Its functional i just wnat it to be easier
+
+**06:51** — I wonder if there is an easier way to do this ?
+
+**06:54** — <task-notification>
+> <task-id>adffbaa20e7b8674d</task-id>
+> <tool-use-id>toolu_01UcVfSZTeTrhgeG9QZBG6Vr</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/c18f2b9e-bc10-46c2-baff-a72f656eb1d2/tasks/adffbaa20e7b8674d.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Explore requirement authoring UI" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Investigation complete. The headline finding inverts the premise of your question.
+> 
+> ## The key answer: there is no `applies_to` picker in the wizard at all
+> 
+> The requirement-level `applies_to` (person types) is **never authored**. `DisciplineWizard.vue` hardcodes it to `[]` on every save:
+> 
+> `components/DisciplineWizard.vue:248-253`
+> ```js
+> await dr.saveRequirements(id, form.reqs.filter(r =&gt; r.field_key).map(r =&gt; ({
+>   field_key: r.field_key,
+>   field_source: (fieldOf(r.field_key)?.source ?? 'core') as 'core' | 'custom',
+>   purpose: derivePurpose(r), operator: r.operator, value: r.value ?? null, exempt: r.exempt,
+>   message: r.message.trim() || null, applies_to: [] as string[],
+> })))
+> ```
+> 
+> The draft type has no slot for it — `DisciplineWizard.vue:68`:
+> ```ts
+> interface DraftReq { key: string; field_key: string; operator: ReqOperator; value: any; exempt: boolean; message: string }
+> ```
+> 
+> Neither `DisciplineWizard.vue` nor `DisciplineReqRow.vue` contains `person_target_types`, `resolvePersonTypes`, `loadOrgTypes`, or `useOrgFieldPolicy`. `git log -S "resolvePersonTypes" -- components/DisciplineWizard.vue` returns empty — **a person-type picker has never existed in any component**.
+> 
+> ### The `applies_to` name collision (this is what tripped up the question)
+> 
+> Two distinct columns share the name:
+> 
+> | | Column | Meaning | Authored where |
+> |---|---|---|---|
+> | 1 | `disciplines.applies_to` (mig 265) | surface parts: `event`/`group`/`competition` | Wizard step 3, `ChipMultiSelect` of `DISCIPLINE_PARTS` |
+> | 2 | `discipline_requirements.applies_to` (mig 266:71) | `person_target_types.key[]` | **nowhere — hardcoded `[]`** |
+> 
+> The wizard's `form.applies_to` (`:69-70`, `:82`, `:238`, `:356`, `:393`) is **#1 only**. Options come from the `parts` prop, supplied by `pages/disciplines/index.vue:18-22` as a hardcoded constant, passed at `:210`. So the control you were looking for (a MultiSelect of person types) doesn't exist; the ChipMultiSelect you may have seen is the Events/Groups/Competitions one.
+> 
+> ## 1–3. Authoring surface and flow
+> 
+> **Wizard opening** — `pages/disciplines/index.vue:172-177` (`wizardOpen`/`wizardEditing`/`wizardParent`; `openNew()`, `startEdit(d)`, `openNew(d.id)` for a child). Props at `:208-211`. Save runs through `useDisciplineRequirements().saveRequirements`, which is delete-then-insert scoped to the discipline (`useDisciplineRequirements.ts:574-580`).
+> 
+> **Requirement round-trip is lossy.** `onM
+> … [truncated — 8323 chars total]
+
+**06:54** — <task-notification>
+> <task-id>ac71f6ffb31b83f64</task-id>
+> <tool-use-id>toolu_01NubuTwR1wvkuZdg7RwLF6A</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/c18f2b9e-bc10-46c2-baff-a72f656eb1d2/tasks/ac71f6ffb31b83f64.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Explore profile field rendering" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>I have the complete picture. Here are the precise facts.
+> 
+> ## 1. Profile tab — which custom fields render
+> 
+> **The gate is exactly what you guessed.** `pages/people/[id].vue:645-646`:
+> 
+> ```js
+> const ptypes: string[] = (p?.person_types?.length ? p.person_types : (p?.person_type ? [p.person_type] : ['member']))
+> customFields.value = (fields ?? []).filter((f: any) =&gt; ptypes.some(t =&gt; fieldAppliesTo(f, t)))
+> ```
+> 
+> `fields` comes from `resolveFields(orgId)` (line 637), which already includes NSO-inherited defs. The predicate is `composables/useOrgFieldPolicy.ts:89-93`:
+> 
+> ```js
+> function fieldAppliesTo(f: any, key: string): boolean {
+>   const lc = (s: string) =&gt; (s || '').toLowerCase()
+>   const list = (Array.isArray(f.targets) &amp;&amp; f.targets.length ? f.targets : [f.target || 'member']).map(lc)
+>   return list.includes(lc(key))
+> }
+> ```
+> 
+> **Values** — read at `[id].vue:667-675` from `p.custom_fields ?? {}` keyed by `f.id` (field_definitions UUID), with date→`Date` and checkbox→bool hydration. Written at `[id].vue:760-765, 779`.
+> 
+> **Two load-bearing facts about `save()`** (`[id].vue:755-782`):
+> - It builds `custom` **from scratch**, looping `customFields.value` only, then writes `custom_fields: custom` as a **whole-object overwrite**. Any stored key not in `customFields.value` at save time is **silently deleted**. (This is already a latent data-loss bug when someone's `person_types` change: their old role's custom values get wiped on the next save.)
+> - Consequence for your plan: **any field you render outside `customFields` will not persist** — its value is dropped on save. This is the single biggest constraint.
+> 
+> ## 2. The designed-layout path — NOT authoritative
+> 
+> `profile_forms` config is loaded at `[id].vue:678-681`, scoped to the **primary type only** (`ptypes[0] || 'member'`). Template branches at `[id].vue:75` (`v-if="profileItems"`) vs `:146` (fallback list).
+> 
+> **The layout does not re-filter by `fieldAppliesTo`** — it renders whatever the config lists, by `def_id`. But it isn't authoritative either, because of the spillover block at `[id].vue:495-500`:
+> 
+> ```js
+> const layoutDefIds = computed(() =&gt; {
+>   const s = new Set&lt;string&gt;()
+>   for (const i of (profileItems.value || [])) if (i.def_id) s.add(i.def_id)
+>   return s
+> })
+> const extraRoleFields = computed(() =&gt; customFields.value.filter((f: any) =&gt; !layoutDefIds.value.has(f.id)))
+> ```
+> 
+> Rendered as the "Other role details" card (`[id].vue:127
+> … [truncated — 10818 chars total]
+
+**06:55** — <task-notification>
+> <task-id>ab0478532c52c901c</task-id>
+> <tool-use-id>toolu_012j5snbvWfJYa2SyXqzv5qw</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/c18f2b9e-bc10-46c2-baff-a72f656eb1d2/tasks/ab0478532c52c901c.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Explore participant vs staff derivation" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>I have everything I need.
+> 
+> ## Verdict: No — not reliably derivable from `member_group_memberships` alone today
+> 
+> The derivation works for seeded demo data but rests on assumptions that break for real clubs. Critically, **two of your premises are wrong**, and I found a latent bug.
+> 
+> ---
+> 
+> ### 1. `useScopedRoles.ts` — how `isStaff` decides
+> 
+> `/Users/karl/fm-events/composables/useScopedRoles.ts:186`
+> ```ts
+> function isStaff(type: ScopedResourceType, roleKeys: string[]): boolean {
+>   return roleKeys.some(k =&gt; roleDef(type, k)?.group === 'staff')
+> }
+> ```
+> It's a pure lookup against `roleDefs` via `roleDef` (`:146`, lowercases the key) → `rolesFor` (`:116`) → the `roleDefs` `useState` (`:111`).
+> 
+> **Plain member with `role = null`, `roles = null`:** `normalizeRoles('group', null, null)` (`:164`) returns `[]` — `arr` is `[]`, no legacy → `keys` stays empty. Then `isStaff('group', [])` → `[].some(...)` → **`false`**. So *non-staff is the default for absent data*, not a positive assertion. "Participant" and "no data at all" are the same value.
+> 
+> Note the JSDoc at `:163` says "defaults to the base member role" — **it does not**. No `'member'` key is ever added. Stale comment.
+> 
+> `roleRuns` (`:64`) and the derived `group` field:
+> ```ts
+> export function roleRuns(type, capabilities) {
+>   const m = manageTierKeys(type)
+>   return (capabilities ?? []).some(c =&gt; m.has(c))
+> }
+> ```
+> `manageTierKeys('group')` = `{manage_members, manage_schedule, edit_details, manage}`.
+> 
+> ### 🐛 `assistant_coach` flips staff → member once an org customises
+> 
+> `SCOPED_ROLES` (`:86`) hard-codes:
+> ```ts
+> { key: 'assistant_coach', label: 'Assistant Coach', group: 'staff', capabilities: ['view', 'communicate', 'take_attendance'] },
+> ```
+> None of those are manage-tier. But `loadRoleDefs` (`:134`) **re-derives** `group`, discarding the stored value:
+> ```ts
+> group: roleRuns(r.resource_type, caps) ? 'staff' : 'member',
+> // comment at :131 — "role_group is derived from capabilities; trust caps over a stale stored value."
+> ```
+> So an Assistant Coach is `staff` from the code registry and `member` from the DB registry. Same role, two answers, depending on whether the org has rows.
+> 
+> ### 2. What's actually in `roles[]`
+> 
+> `183_scoped_roles.sql:8-12` — `roles text[]`, backfilled from `role`, `default '{}'`. **Nullable — the default only applies to omitted inserts, and no `not null` was added.**
+> 
+> Seeds confirm your read:
+> - `192_seed_nhg_...sql:66` — members: `'{}'
+> … [truncated — 10302 chars total]
+
+**07:00** — <task-notification>
+> <task-id>af38567358d4bd052</task-id>
+> <tool-use-id>toolu_01LN3boW7FbCMEHDoWUvE9Za</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/c18f2b9e-bc10-46c2-baff-a72f656eb1d2/tasks/af38567358d4bd052.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Check zero-org lockout risk" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## GO — with one caveat and one pre-flight action
+> 
+> A super-admin can log in and reach `/admin` with a completely empty `organisations` table. No redirect loop, no blank page, no throw. The create-org path has no dependency on any pre-existing row.
+> 
+> ---
+> 
+> ### 1. `middleware/auth.global.ts` — safe, never touches orgs
+> 
+> Never queries `organisations`/`org_members`/`persons`. Public allow-list is inline at line 20 (not the `PUBLIC_PREFIXES` const):
+> 
+> ```ts
+> const isPublic = to.path.startsWith('/book') || to.path.startsWith('/r/') || to.path.startsWith('/rsvp')
+>   || to.path.startsWith('/embed')
+>   || to.path === '/set-password' || to.path === '/clubs'
+> if (!user.value &amp;&amp; to.path !== '/login' &amp;&amp; !isPublic) {
+>   return navigateTo('/login')
+> }
+> if (user.value &amp;&amp; to.path === '/login') {
+>   return navigateTo('/events')     // ← line 27, see §9
+> }
+> ```
+> 
+> Also relevant: `nuxt.config.ts:68` sets `redirect: false`, so `@nuxtjs/supabase`'s own redirect layer is **off**. `auth.global.ts` is the only auth gate. Good — no second, hidden guard.
+> 
+> ### 2. `middleware/org.global.ts` — explicit super bypass, tolerates zero orgs
+> 
+> `/Users/karl/fm-events/middleware/org.global.ts:15-30`:
+> 
+> ```ts
+> const isSuper = ((user.value as any)?.app_metadata?.role) === 'super_admin'
+> if (isSuper) {
+>   const saved = readActiveOrg()
+>   if (saved) {
+>     orgId.value = saved
+>     rememberResolvedOrg(saved)
+>   } else {
+>     const { data } = await (db.from as any)('organisations')
+>       .select('id').order('org_level', { ascending: false }).order('name').limit(1)
+>     orgId.value = data?.[0]?.id ?? null      // ← [] → null, no throw
+>     if (orgId.value) rememberResolvedOrg(orgId.value)
+>   }
+>   orgReady.value = true                       // ← set true even with orgId null
+>   return
+> }
+> ```
+> 
+> Zero orgs → `data = []` → `orgId = null`, `orgReady = true`. **It never redirects — there is no `navigateTo` in this file at all.** The non-super path (line 43) also just lands on `null`; it can't loop either.
+> 
+> ### 3. `middleware/onboarding.global.ts` — triple-exempt for this scenario
+> 
+> `/Users/karl/fm-events/middleware/onboarding.global.ts:9-19`:
+> 
+> ```ts
+> if (to.path === '/onboarding') return
+> if (isPublicPath(to.path)) return
+> if (to.path.startsWith('/admin')) return          // ← /admin exempt
+> ...
+> if (((user.value as any)?.app_metadata?.role) === 'super_admin') return   // ← super exempt
+> const { orgId } = useOrg()
+> if (!orgId.value) return                     
+> … [truncated — 11827 chars total]
 
