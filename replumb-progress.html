@@ -48,7 +48,7 @@
   <header>
     <h1>Re-plumb progress</h1>
     <p>Moving the app off its current database wiring onto a clean, swappable layer, so the backend team can plug their MySQL backend in later — while your testable version keeps working the whole time.</p>
-    <div class="updated">Last updated: 18 Jul 2026 · branch <code>replumb/mysql-foundation</code> · worktree <code>/Users/karl/fm-replumb</code> · DB <code>fm-new</code> :3400<br>✅ 7 domains seam-built (parallel subagents): People · Types &amp; Fields · Disciplines · Groups · Events · Bookings · Memberships</div>
+    <div class="updated">Last updated: 18 Jul 2026 · branch <code>replumb/mysql-foundation</code> · worktree <code>/Users/karl/fm-replumb</code> · DB <code>fm-new</code> :3400<br>✅ 11 domains seam-built (parallel subagents, batches 1–3): People · Types &amp; Fields · Disciplines · Groups · Events · Bookings · Memberships · Affiliations/Locations · Forms · Circles/Entities · Resources</div>
   </header>
 
   <div class="bars">
@@ -95,10 +95,10 @@
     <table><tbody>
       <tr><td class="url">(api) organisations list</td><td class="task">List of organisations — full seam</td><td><span class="badge b-ok">✅</span></td></tr>
       <tr><td class="url">(api) org tree</td><td class="task">Ancestors / descendants — full seam</td><td><span class="badge b-ok">✅</span></td></tr>
-      <tr><td class="url">/organisations · /:id</td><td class="task">Entity records directory + record</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/managers</td><td class="task">Cross-club managers &amp; club report</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/organisations · /:id</td><td class="task">Entity records directory + record</td><td><span class="badge b-ready">◐ seam built</span></td></tr>
+      <tr><td class="url">/managers</td><td class="task">Cross-club managers &amp; club report</td><td><span class="badge b-ready">◐ seam built</span></td></tr>
       <tr><td class="url">/disciplines</td><td class="task">Governing disciplines &amp; requirements</td><td><span class="badge b-ready">◐ seam built</span></td></tr>
-      <tr><td class="url">/settings/affiliations</td><td class="task">Clubs register + approvals</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/settings/affiliations</td><td class="task">Clubs register + approvals</td><td><span class="badge b-ready">◐ seam built</span></td></tr>
     </tbody></table>
   </details>
 
@@ -107,7 +107,7 @@
     <table><tbody>
       <tr><td class="url">/people</td><td class="task">People directory</td><td><span class="badge b-ready">◐ seam built</span></td></tr>
       <tr><td class="url">/people/:id</td><td class="task">Person profile</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/account/profiles</td><td class="task">My contacts &amp; circles</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/account/profiles</td><td class="task">My contacts &amp; circles</td><td><span class="badge b-ready">◐ seam built</span></td></tr>
     </tbody></table>
   </details>
 
@@ -156,7 +156,7 @@
   <details>
     <summary>Registration &amp; Forms (incl. public)<span class="count">0 / 6</span></summary>
     <table><tbody>
-      <tr><td class="url">/forms · /new · /:id</td><td class="task">Form list, wizard, editor</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/forms · /new · /:id</td><td class="task">Form list, wizard, editor</td><td><span class="badge b-ready">◐ seam built</span></td></tr>
       <tr><td class="url">/r/:context/:id</td><td class="task">Public registration page</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">/rsvp/:event/:person</td><td class="task">Public RSVP</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">/registration · /embed/calendar</td><td class="task">Registration mgmt &amp; embed</td><td><span class="badge b-todo">⬜</span></td></tr>
@@ -168,7 +168,7 @@
     <table><tbody>
       <tr><td class="url">/dashboard</td><td class="task">Club dashboard (widgets)</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">/finances · /reporting</td><td class="task">Financial &amp; general reporting</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/resources · /library</td><td class="task">Resources library</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/resources · /library</td><td class="task">Resources library</td><td><span class="badge b-ready">◐ seam built</span></td></tr>
     </tbody></table>
   </details>
 
@@ -178,7 +178,7 @@
       <tr><td class="url">/settings · /fields · /core-fields</td><td class="task">Org settings, types &amp; fields</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">/settings/terminology · /modules</td><td class="task">Terminology &amp; module setup</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">/settings/roles · /permissions</td><td class="task">Roles &amp; permissions</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/settings/locations</td><td class="task">Sports &amp; locations</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/settings/locations</td><td class="task">Sports &amp; locations</td><td><span class="badge b-ready">◐ seam built</span></td></tr>
       <tr><td class="url">/settings/xero · /integrations</td><td class="task">Xero &amp; integrations</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">/settings/… (dashboards, calendars, comms)</td><td class="task">Remaining settings pages</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">/onboarding</td><td class="task">New-club guided setup</td><td><span class="badge b-todo">⬜</span></td></tr>
