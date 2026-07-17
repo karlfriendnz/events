@@ -21,48 +21,86 @@ export interface FieldDef {
   ownerLevel: string
 }
 
-/** A club type → the governing-body types it answers to (migration 272). */
+/** A type → the type it answers to, one hop up (migration 272). May be a club's
+ *  link to a body's published type, OR a body's own link to the body above it —
+ *  the chain is walked transitively, so both live in one set. */
 export interface PersonTypeLink {
   id: string
   type_id: string
   source_type_id: string
-  /** The body's key — what its fields actually target. */
+  /** The source's key — what its fields actually target. */
   source_key: string
   source_label: string
-  /** The body that owns source_type_id. */
+  /** The org that owns source_type_id. */
   source_org_id: string
   source_org_name: string
 }
 
 /**
  * Expand a club's person-type keys to every key their fields could be targeted by:
- * the club's own keys PLUS the keys of the governing-body types they're linked to.
+ * the club's own keys PLUS the keys of the types they're linked to, FOLLOWED
+ * THROUGH.
  *
  * PURE, and the whole point of migration 272. Every consumer already maps over a
  * LIST of person-type keys (fieldAppliesTo, requirementApplies, the profile's
  * customFields filter), so widening the list is all that's needed — the club can
  * call them "Footballer" and still receive fields targeting Football's 'player'.
  *
- * `links` MUST already be narrowed to the types being expanded (see linksForTypes)
- * — pass every link the club has and a body's fields leak onto a type that never
- * answered to it. Case-insensitive + deduped, matching fieldAppliesTo's own
- * comparison.
+ * TRANSITIVE, because the hierarchy is: a Regional body has its own people, AND
+ * publishes standards to its clubs, AND is itself under a National. So the real
+ * shape is three deep —
+ *
+ *     club "Member" → Auckland's "Player" → Football NZ's "Player"
+ *
+ * — and stopping at one hop meant Football NZ's fields reached the club only by
+ * COINCIDENCE, if both bodies happened to spell the key the same. Auckland saying
+ * "Player" while Football NZ says "Athlete" and the fields vanish silently: the
+ * exact bug 272 exists to kill, one level up. Cycle-safe (nothing in the schema
+ * stops A→B→A).
+ *
+ * `links` may be the whole world — the walk starts from `startTypeIds` and only
+ * follows links out of types it has reached, so a body's fields can never leak
+ * onto a type that never answered to it.
  */
-export function expandTypeKeys(ownKeys: string[], links: PersonTypeLink[]): string[] {
+export function expandTypeKeys(
+  ownKeys: string[],
+  links: PersonTypeLink[],
+  startTypeIds: string[] = [],
+): string[] {
   const out = new Map<string, string>()   // lowercased → first-seen original casing
   const add = (k: string) => { const lc = (k || '').toLowerCase(); if (lc && !out.has(lc)) out.set(lc, k) }
   for (const k of ownKeys ?? []) add(k)
-  for (const l of links ?? []) add(l.source_key)
+
+  // Index links by the type they hang off, so the walk is O(links) not O(n²).
+  const byType = new Map<string, PersonTypeLink[]>()
+  for (const l of links ?? []) {
+    if (!byType.has(l.type_id)) byType.set(l.type_id, [])
+    byType.get(l.type_id)!.push(l)
+  }
+  const seen = new Set<string>(startTypeIds ?? [])
+  const queue = [...(startTypeIds ?? [])]
+  let guard = 0
+  while (queue.length && guard++ < 200) {
+    const id = queue.shift()!
+    for (const l of byType.get(id) ?? []) {
+      add(l.source_key)
+      if (!seen.has(l.source_type_id)) { seen.add(l.source_type_id); queue.push(l.source_type_id) }
+    }
+  }
   return [...out.values()]
 }
 
-/** The links belonging to a set of the club's types. Narrow BEFORE expandTypeKeys. */
+/** The links belonging to a set of types (one hop). */
 export function linksForTypes(links: PersonTypeLink[], typeIds: string[]): PersonTypeLink[] {
   const ids = new Set(typeIds ?? [])
   return (links ?? []).filter(l => ids.has(l.type_id))
 }
 
-/** A person's own type keys → the full chain, given the club's types + links. */
+/**
+ * A person's own type keys → the full chain, given the club's types + links.
+ * `links` should be everything loadTypeLinks returned (club's + the bodies' own),
+ * so the walk can follow Auckland's Player up to Football NZ's.
+ */
 export function chainForPersonTypes(
   personTypeKeys: string[],
   clubTypes: { id: string; key: string }[],
@@ -71,7 +109,7 @@ export function chainForPersonTypes(
   const lc = (s: string) => (s || '').toLowerCase()
   const held = new Set((personTypeKeys ?? []).map(lc))
   const ids = (clubTypes ?? []).filter(t => held.has(lc(t.key))).map(t => t.id)
-  return expandTypeKeys(personTypeKeys ?? [], linksForTypes(links, ids))
+  return expandTypeKeys(personTypeKeys ?? [], links ?? [], ids)
 }
 
 export function useOrgFieldPolicy() {
@@ -79,19 +117,28 @@ export function useOrgFieldPolicy() {
   const { ancestors, governingOrgs } = useOrgHierarchy()
 
   /**
-   * Every person-type link this club has, hydrated with the body's key/label/org.
+   * Every person-type link in this org's world: its OWN links, PLUS the links its
+   * governing bodies made upward. Hydrated with the source's key/label/org.
+   *
+   * The bodies' links are what make resolution transitive. A Regional publishes
+   * "Player" to its clubs AND links that Player up to the National's — so
+   * `club Member → Auckland Player → Football NZ Player` only resolves if
+   * Auckland's own link is in the set. Loading just `.eq('org_id', orgId)` stops
+   * at one hop and the National's fields reach the club by coincidence of
+   * spelling or not at all.
    *
    * `source_key` is the payload that matters — a field targets a KEY string, so
-   * that's what resolution needs. Links whose body is no longer in the club's
-   * governing chain are DROPPED: disconnecting a sport must stop its fields, and
-   * a stale link would otherwise keep a body's fields flowing forever.
+   * that's what resolution needs. Links whose source org is outside this org's
+   * governing chain are DROPPED: disconnecting a sport (or having an affiliation
+   * revoked) must stop its fields, and a stale link would otherwise keep a body's
+   * fields flowing forever.
    */
   async function loadTypeLinks(orgId: string): Promise<PersonTypeLink[]> {
     const gov = await governingOrgs(orgId)
-    const reachable = new Set(gov.map(g => g.id))
+    const reachable = new Set([orgId, ...gov.map(g => g.id)])
     const { data } = await (db.from as any)('person_type_links')
-      .select('id, type_id, source_type_id, source:person_target_types!person_type_links_source_type_id_fkey(key, label, org_id, organisations(name))')
-      .eq('org_id', orgId)
+      .select('id, org_id, type_id, source_type_id, source:person_target_types!person_type_links_source_type_id_fkey(key, label, org_id, organisations(name))')
+      .in('org_id', [...reachable])
     return (data ?? [])
       .filter((l: any) => l.source?.org_id && reachable.has(l.source.org_id))
       .map((l: any) => ({
@@ -107,9 +154,12 @@ export function useOrgFieldPolicy() {
   }
 
   /**
-   * The person types a club may link to: every type owned by a body in its
-   * governing chain. This is the ONLY list the linker should offer — a link to an
-   * unreachable body is ignored at resolution, so offering one would be a lie.
+   * The person types an org may link to: the types its governing bodies have
+   * PUBLISHED (mig 275). Only published ones — a body's own Admin/Club-manager
+   * types are its internal staff, and offering a club "link your Member to
+   * Football's Admin" is nonsense. This is the ONLY list the linker should offer:
+   * a link to an unreachable body is ignored at resolution, so offering one would
+   * be a lie.
    */
   async function loadLinkableTypes(orgId: string) {
     const gov = await governingOrgs(orgId)
@@ -117,6 +167,7 @@ export function useOrgFieldPolicy() {
     const { data } = await (db.from as any)('person_target_types')
       .select('id, org_id, key, label, kind, organisations(name)')
       .in('org_id', gov.map(g => g.id))
+      .eq('is_published', true)
       .order('sort_order')
     return (data ?? []).map((t: any) => ({
       ...t, kind: t.kind ?? 'person', ownerName: t.organisations?.name ?? '',
@@ -186,10 +237,10 @@ export function useOrgFieldPolicy() {
    *  the /proto/* prototype uses, so there's no duplicate/two-concept confusion. */
   async function loadOrgTypes(orgId: string) {
     const { data } = await (db.from as any)('person_target_types')
-      .select('id, org_id, key, label, kind, is_access, permissions, member_slots, sort_order, landing_path, profile_dashboard, menu_items')
+      .select('id, org_id, key, label, kind, is_access, is_published, permissions, member_slots, sort_order, landing_path, profile_dashboard, menu_items')
       .eq('org_id', orgId).order('sort_order')
     return (data ?? []).map((t: any) => ({
-      ...t, kind: t.kind ?? 'person', is_access: !!t.is_access, inherited: false, ownerName: '',
+      ...t, kind: t.kind ?? 'person', is_access: !!t.is_access, is_published: !!t.is_published, inherited: false, ownerName: '',
     }))
   }
 

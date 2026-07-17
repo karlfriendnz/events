@@ -111,7 +111,8 @@ async function load() {
   // would never be offered Football's field, which targets 'player'.
   const [clubTypes, links] = await Promise.all([loadOrgTypes(props.orgId), loadTypeLinks(props.orgId)])
   const myType = (clubTypes ?? []).find((t: any) => (t.key || '').toLowerCase() === (target.value || '').toLowerCase())
-  const chain = expandTypeKeys([target.value], myType ? linksForTypes(links ?? [], [myType.id]) : [])
+  // Walk from THIS type through its links, transitively (club → Regional → National).
+  const chain = expandTypeKeys([target.value], links ?? [], myType ? [myType.id] : [])
   libDefs.value = all.filter((f: any) => chain.some(k => fieldAppliesTo(f, k)))
   const cfg = pf?.config?.fields
   layout.value = Array.isArray(cfg) ? cfg.map((f: any) => ({ ...f, _key: f._key || crypto.randomUUID() })) : []

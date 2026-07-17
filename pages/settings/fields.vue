@@ -69,9 +69,39 @@ const newLabel = ref('')
 // key = the chain; a field applies if it targets any of them.
 const typeLinks = ref<PersonTypeLink[]>([])
 const linkableTypes = ref<any[]>([])
+// Only a governing body publishes standards — a club has nobody beneath it.
+const isGoverningOrg = ref(false)
 const linksForSelected = computed(() => selected.value ? typeLinks.value.filter(l => l.type_id === selected.value!.id) : [])
+// Transitive: follow this type's links THROUGH (club Member → Auckland Player →
+// Football NZ Player), so a two-deep hierarchy doesn't lose the top body's fields.
 const selectedKeyChain = computed(() =>
-  selected.value ? expandTypeKeys([selected.value.key], linksForSelected.value) : [])
+  selected.value ? expandTypeKeys([selected.value.key], typeLinks.value, [selected.value.id]) : [])
+
+// ── Our people vs what we publish (mig 275) ──
+// A type at a CLUB is operational: layout, permissions, landing page, dashboard,
+// menu — real humans who log in. A PUBLISHED type at a governing body is a
+// STANDARD: what must be recorded about a Player. Nobody at Football IS a Player,
+// so offering Football a menu and a dashboard to configure for one was nonsense.
+// Not an org-level split — a body has its OWN people (admins, club managers) too.
+const isPublished = computed(() => !!selected.value?.is_published)
+/** A published standard is fields only — a layout it owns would never inherit
+ *  (profile_forms is per-org), so offering one is a promise we can't keep. */
+const PUBLISHED_TABS = ['fields'] as const
+const visibleEditorTabs = computed<string[]>(() => {
+  if (isPublished.value) return [...PUBLISHED_TABS]
+  return kind.value === 'person'
+    ? ['layout', 'fields', 'access', 'dashboard', 'profile', 'menu']
+    : ['layout', 'fields', 'access']
+})
+async function setPublished(t: any, v: boolean) {
+  t.is_published = v
+  const { error } = await (db.from as any)('person_target_types').update({ is_published: v }).eq('id', t.id)
+  if (error) { t.is_published = !v; toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
+  // A standard has no layout/permissions/menu of its own — don't strand the user
+  // on a tab that just vanished.
+  if (v && !(PUBLISHED_TABS as readonly string[]).includes(tab.value)) tab.value = 'fields'
+  typeLinks.value = await loadTypeLinks(orgId.value!)   // un-publishing kills links; reflect it
+}
 const applicableFields = computed(() =>
   selected.value ? fields.value.filter(f => selectedKeyChain.value.some(k => fieldAppliesTo(f, k))) : [])
 const fieldTargetOptions = computed(() =>
@@ -185,6 +215,8 @@ async function load() {
   fields.value = flds
   typeLinks.value = links
   linkableTypes.value = linkable ?? []
+  const { data: o } = await (db.from as any)('organisations').select('org_level').eq('id', id).maybeSingle()
+  isGoverningOrg.value = isGoverningBody(o?.org_level)
   loading.value = false
 }
 
@@ -416,8 +448,11 @@ watch(orgId, load, { immediate: true })
           <span class="text-gray-300">/</span>
           <span class="text-sm font-semibold text-gray-800 inline-flex items-center gap-1.5">{{ selected.label }}<i v-if="selected.is_access" v-tooltip.top="'Grants access'" class="pi pi-shield text-[10px] text-emerald-400" /></span>
         </div>
+        <!-- A PUBLISHED standard is only "what must be recorded about a Player" —
+             it has no layout, no permissions, no menu, no dashboard, because
+             nobody here IS one. Our own people get the full toolkit. (mig 275) -->
         <div class="flex gap-1 border-b border-gray-200">
-          <button v-for="tb in (kind === 'person' ? ['layout','fields','access','dashboard','profile','menu'] : ['layout','fields','access'])" :key="tb"
+          <button v-for="tb in visibleEditorTabs" :key="tb"
             class="px-3 py-2 text-sm font-medium border-b-2 -mb-px capitalize transition-colors whitespace-nowrap"
             :class="tab === tb ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
             @click="tab = tb as any">{{ tb === 'access' ? accessTabLabel : tb === 'profile' ? 'Profile dashboard' : tb === 'layout' ? 'Form' : tb === 'menu' ? 'Menu items' : tb }}</button>
@@ -508,9 +543,32 @@ watch(orgId, load, { immediate: true })
 
           <!-- FIELDS -->
           <div v-show="tab === 'fields'" class="space-y-3">
+            <!-- Publish (mig 275) — governing bodies only. Turns this type from
+                 "our own people" into a STANDARD the orgs beneath us link to:
+                 fields and rules, no layout/permissions/menu, because nobody here
+                 IS one. A club has nobody beneath it, so it never sees this. -->
+            <div v-if="isGoverningOrg && kind === 'person'" class="card p-0 overflow-hidden">
+              <div class="px-4 py-3 flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-sm font-semibold text-gray-800">Publish to our clubs</p>
+                  <p class="field-help">
+                    <template v-if="isPublished">
+                      A standard. Clubs connect their own type to this and inherit its fields — they can call them anything.
+                      This isn’t a kind of person <span class="font-medium">here</span>, so it has no layout, permissions or menu.
+                    </template>
+                    <template v-else>
+                      Our own people — they log in here and get the full setup. Turn this on to make it a standard our clubs follow instead.
+                    </template>
+                  </p>
+                </div>
+                <ToggleSwitch :model-value="isPublished" class="shrink-0 mt-0.5"
+                  @update:model-value="v => setPublished(selected, v)" />
+              </div>
+            </div>
+
             <!-- Connected to (mig 272) — the club names this type whatever it likes;
                  the LINK is what makes a governing body's fields apply, not the spelling. -->
-            <div v-if="linkableTypes.length" class="card p-0 overflow-hidden">
+            <div v-if="linkableTypes.length && !isPublished" class="card p-0 overflow-hidden">
               <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
                 <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   <i class="pi pi-link text-[10px] mr-1" />Connected to
