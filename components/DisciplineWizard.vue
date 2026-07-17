@@ -41,7 +41,12 @@ const props = defineProps<{
   orgName: string
   parts: { label: string; value: string }[]
 }>()
-const emit = defineEmits<{ (e: 'close'): void; (e: 'saved'): void }>()
+const emit = defineEmits<{
+  (e: 'close'): void
+  (e: 'saved'): void
+  /** A field invented mid-wizard — the page owns the catalogue, so it adds it. */
+  (e: 'field-created', f: PersonFieldDef): void
+}>()
 
 const db = useDb()
 const { orgId } = useOrg()
@@ -118,6 +123,36 @@ function setRange(r: DraftReq, i: 0 | 1, v: any) {
 }
 function addReq(purpose: ReqPurpose, field_key = '') { form.reqs.push(newDraft(purpose, field_key)) }
 const removeReq = (r: DraftReq) => { form.reqs = form.reqs.filter(x => x.key !== r.key) }
+
+// ── Create a field without leaving ──────────────────────────────────────────
+// "School" won't exist the first time someone writes a rule about it, and being
+// told to go to Settings, make it, come back and start the wizard again is how a
+// good idea gets abandoned. <FieldCreator> already emits a field rather than
+// saving one, so the wizard just decides where it lands.
+const creatingFor = ref<DraftReq | null>(null)
+const creatingField = ref(false)
+function openCreateField(r: DraftReq) { creatingFor.value = r; creatingField.value = true }
+
+async function onFieldCreated(p: { label: string; type: string; placeholder: string; required: boolean; options: string[]; targets: string[] }) {
+  const { data, error } = await (db.from as any)('field_definitions').insert({
+    org_id: orgId.value, label: p.label, field_type: p.type,
+    // is_required stays FALSE from here: the DISCIPLINE decides who needs this, and
+    // true would quietly make it mandatory on every form for the type.
+    is_required: false,
+    options: p.options, help_text: p.placeholder || null,
+    targets: p.targets, target: p.targets[0], rules: [],
+    sort_order: props.catalogue.filter(f => f.source === 'custom').length,
+  }).select('id, label, field_type, options').maybeSingle()
+  if (error || !data) { toast.add({ severity: 'error', summary: 'Could not create the field', detail: error?.message, life: 4000 }); return }
+
+  // Hand it to the page so the catalogue prop updates, then select it into the row
+  // that asked — otherwise you'd create "School" and still have to go find it.
+  emit('field-created', { key: data.id, label: data.label, source: 'custom', field_type: data.field_type, options: Array.isArray(data.options) ? data.options : [] })
+  await nextTick()
+  if (creatingFor.value) { creatingFor.value.field_key = data.id; onFieldChange(creatingFor.value) }
+  creatingField.value = false
+  toast.add({ severity: 'success', summary: `"${data.label}" added`, life: 2000 })
+}
 
 // ── Inheritance ─────────────────────────────────────────────────────────────
 const byId = (id: string | null) => props.disciplines.find(d => d.id === id) ?? null
@@ -271,7 +306,7 @@ async function finish() {
         :value-options="valueOptionsFor(r.field_key)" :numeric="isNumericField(r.field_key)" :shadowed="shadowedFor(r.field_key)"
         :field-label="fieldLabel" lead="Is" lead-more="and is"
         @field-change="onFieldChange(r)" @operator="setOperator(r, $event)" @range="setRange(r, $event.i, $event.v)"
-        @remove="removeReq(r)" @revert="revertInherited(r.field_key)" />
+        @remove="removeReq(r)" @revert="revertInherited(r.field_key)" @create-field="openCreateField(r)" />
 
       <button class="text-xs text-primary hover:underline" @click="addReq('identity')">+ Add something that identifies them</button>
       <p v-if="!identityReqs.length && !untouchedInherited('identity').length" class="text-xs text-gray-400">
@@ -308,7 +343,7 @@ async function finish() {
         :value-options="valueOptionsFor(r.field_key)" :numeric="isNumericField(r.field_key)" :shadowed="shadowedFor(r.field_key)"
         :field-label="fieldLabel" lead="Must have" lead-more="and must have"
         @field-change="onFieldChange(r)" @operator="setOperator(r, $event)" @range="setRange(r, $event.i, $event.v)"
-        @remove="removeReq(r)" @revert="revertInherited(r.field_key)" />
+        @remove="removeReq(r)" @revert="revertInherited(r.field_key)" @create-field="openCreateField(r)" />
 
       <button class="text-xs text-primary hover:underline" @click="addReq('data')">+ Add something they must have</button>
       <p v-if="!dataReqs.length && !untouchedInherited('data').length" class="text-xs text-gray-400">
@@ -368,5 +403,13 @@ async function finish() {
         None of this stops anyone registering — clubs see a flag when someone doesn't match.
       </p>
     </div>
+
+    <!-- Invent a field without leaving the wizard. -->
+    <Dialog v-model:visible="creatingField" modal header="New field" :style="{ width: '95vw', maxWidth: '420px' }">
+      <p class="text-xs text-gray-500 px-4 pt-3 -mb-1">
+        It joins {{ orgName }}'s fields, so every discipline can ask for it — and clubs beneath you inherit it.
+      </p>
+      <FieldCreator hide-required @add="onFieldCreated" />
+    </Dialog>
   </WizardShell>
 </template>

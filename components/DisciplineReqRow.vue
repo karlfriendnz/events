@@ -36,7 +36,17 @@ const emit = defineEmits<{
   (e: 'range', v: { i: 0 | 1; v: any }): void
   (e: 'remove'): void
   (e: 'revert'): void
+  (e: 'create-field'): void
 }>()
+
+// Picking "+ Create a new field…" must not stick as the row's value — hand it to
+// the host and leave the select where it was.
+const NEW = '__new__'
+function onPick(el: HTMLSelectElement, row: any) {
+  if (el.value === NEW) { el.value = row.field_key || ''; emit('create-field'); return }
+  row.field_key = el.value
+  emit('field-change')
+}
 </script>
 
 <template>
@@ -50,13 +60,17 @@ const emit = defineEmits<{
 
     <select :value="row.field_key" class="w-full text-sm border border-gray-300 rounded px-2 py-1.5"
       style="-webkit-appearance:auto;appearance:auto;background:white;"
-      @change="row.field_key = ($event.target as HTMLSelectElement).value; emit('field-change')">
+      @change="onPick($event.target as HTMLSelectElement, row)">
       <option value="">Choose…</option>
       <optgroup label="Their details">
         <option v-for="f in coreFields" :key="f.key" :value="f.key">{{ f.label }}</option>
       </optgroup>
-      <optgroup :label="orgName + ' fields'">
+      <optgroup v-if="customFields.length" :label="orgName + ' fields'">
         <option v-for="f in customFields" :key="f.key" :value="f.key">{{ f.label }}</option>
+      </optgroup>
+      <!-- Don't send someone to Settings and back mid-wizard just to invent "School". -->
+      <optgroup label=" ">
+        <option :value="NEW">+ Create a new field…</option>
       </optgroup>
     </select>
 

@@ -175,6 +175,9 @@ const wizardParent = ref<string | null>(null)
 function openNew(parentId: string | null = null) { wizardEditing.value = null; wizardParent.value = parentId; wizardOpen.value = true }
 function startEdit(d: Disc) { wizardEditing.value = d; wizardParent.value = null; wizardOpen.value = true }
 async function onWizardSaved() { wizardOpen.value = false; await load() }
+/** A field invented inside the wizard — the page owns the catalogue, so append it
+ *  here rather than reloading (a reload mid-wizard would blow away the draft). */
+function onFieldCreated(f: PersonFieldDef) { catalogue.value = [...catalogue.value, f] }
 
 async function remove(d: Disc) { await (db.from as any)('disciplines').delete().eq('id', d.id); await load() }
 
@@ -205,7 +208,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
       <DisciplineWizard v-if="wizardOpen" :editing="wizardEditing" :parent-id="wizardParent"
         :disciplines="disciplines" :all-reqs="allReqs" :catalogue="catalogue"
         :org-name="org?.name || 'Organisation'" :parts="DISCIPLINE_PARTS"
-        @close="wizardOpen = false" @saved="onWizardSaved" />
+        @close="wizardOpen = false" @saved="onWizardSaved" @field-created="onFieldCreated" />
 
       <!-- Hierarchy -->
       <div class="card p-0 overflow-hidden">

@@ -4,7 +4,14 @@
   `add` with { label, type, placeholder, required, options }.
 -->
 <script setup lang="ts">
-const props = defineProps<{ personTypes?: { key: string; label: string }[] }>()
+const props = defineProps<{
+  personTypes?: { key: string; label: string }[]
+  /** Hide the "Required" tick (mirrors <FormFieldAdvancedEditor>'s hideFinancial).
+   *  is_required means "required on every form for this type" — a host that decides
+   *  requiredness ITSELF (the discipline wizard: the DISCIPLINE says who needs it)
+   *  must not offer a tick that quietly makes the field mandatory club-wide. */
+  hideRequired?: boolean
+}>()
 const emit = defineEmits<{ add: [{ label: string; type: string; placeholder: string; required: boolean; options: string[]; targets: string[] }] }>()
 
 // Same list/values as components/FormBuilder.vue
@@ -29,7 +36,7 @@ function add() {
     label: f.label.trim(),
     type: f.type,
     placeholder: f.placeholder.trim(),
-    required: f.required,
+    required: props.hideRequired ? false : f.required,
     options: f.type === 'select' ? f.optionsText.split('\n').map(s => s.trim()).filter(Boolean) : [],
     targets: f.targets.length ? f.targets : ['member'],
   })
@@ -57,7 +64,7 @@ function add() {
       class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] mb-3" />
     <input v-else v-model="f.placeholder" type="text" placeholder="Placeholder text (optional)"
       class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] mb-3" />
-    <label class="flex items-center gap-2 cursor-pointer mb-3">
+    <label v-if="!hideRequired" class="flex items-center gap-2 cursor-pointer mb-3">
       <input type="checkbox" v-model="f.required" class="w-4 h-4 accent-primary" />
       <span class="text-xs font-medium text-gray-600">Required</span>
     </label>
