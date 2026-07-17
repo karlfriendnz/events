@@ -17,7 +17,7 @@ const emit = defineEmits<{ (e: 'back'): void }>()
 
 const db = useDb()
 const toast = useToast()
-const { resolveFields, fieldAppliesTo } = useOrgFieldPolicy()
+const { resolveFields, fieldAppliesTo, loadOrgTypes, loadTypeLinks } = useOrgFieldPolicy()
 const { uploadFile } = useUpload()
 const uploadingImg = ref(false)
 async function onImageUpload(e: Event) {
@@ -105,7 +105,14 @@ async function load() {
     (db.from as any)('profile_forms').select('config').eq('org_id', props.orgId).eq('type_key', target.value).maybeSingle(),
     resolveFields(props.orgId),
   ])
-  libDefs.value = all.filter((f: any) => fieldAppliesTo(f, target.value))
+  // Resolve through the type's LINKS, not its spelling (mig 272) — the same chain
+  // the Fields tab and the profile use. Without this the builder's library would
+  // hide the very fields the Fields tab says apply: a club calling them "Member"
+  // would never be offered Football's field, which targets 'player'.
+  const [clubTypes, links] = await Promise.all([loadOrgTypes(props.orgId), loadTypeLinks(props.orgId)])
+  const myType = (clubTypes ?? []).find((t: any) => (t.key || '').toLowerCase() === (target.value || '').toLowerCase())
+  const chain = expandTypeKeys([target.value], myType ? linksForTypes(links ?? [], [myType.id]) : [])
+  libDefs.value = all.filter((f: any) => chain.some(k => fieldAppliesTo(f, k)))
   const cfg = pf?.config?.fields
   layout.value = Array.isArray(cfg) ? cfg.map((f: any) => ({ ...f, _key: f._key || crypto.randomUUID() })) : []
   // Entities (Team / Company / Club / Group …) are not people — no person default layout.
@@ -158,6 +165,61 @@ function ensureRequired() {
   if (JSON.stringify(next.map(f => f._key)) !== JSON.stringify(layout.value.map(f => f._key))) layout.value = next
 }
 
+/**
+ * Write an OWN field's edits back to its field_definitions row.
+ *
+ * Without this, renaming a field here only renames the LAYOUT's copy: the
+ * definition keeps whatever it was created as ("New field"), and the definition
+ * is the thing that INHERITS. A governing body would rename its field to
+ * "Football NZ ID", see "Football NZ ID" on its own screen forever, and ship
+ * every affiliated club a locked field called "New field" — with no way to
+ * discover it, because the body sees the layout and the clubs see the definition.
+ * (This had already happened: Gymnastics NZ shipped a "New field" to two clubs.)
+ *
+ * Own fields only. An inherited field's label/type belong to the body that owns
+ * it — the editor disables them (`:disabled="editing.inherited"`), and we must
+ * never write to another org's row. Core fields have no definition at all.
+ */
+function defPatchFor(f: any) {
+  return {
+    label: f.label ?? '',
+    field_type: f.field_type,
+    options: Array.isArray(f.options) ? f.options : [],
+    key: f.system_name || null,
+    is_required: !!f.is_required,
+    meta: { ...(f.meta ?? {}), placeholder: f.placeholder ?? '', col_span: f.col_span ?? 1 },
+  }
+}
+// Only push when something actually differs, so a plain drag-to-reorder doesn't
+// fire an UPDATE per field on every autosave.
+function defIsStale(f: any, def: any) {
+  return def.label !== (f.label ?? '')
+    || def.field_type !== f.field_type
+    || JSON.stringify(def.options ?? []) !== JSON.stringify(Array.isArray(f.options) ? f.options : [])
+    || (def.key ?? null) !== (f.system_name || null)
+    || !!def.is_required !== !!f.is_required
+    || (def.meta?.placeholder ?? '') !== (f.placeholder ?? '')
+    || (def.meta?.col_span ?? 1) !== (f.col_span ?? 1)
+}
+/** Which governing body owns an inherited field — so the club can see WHO set it,
+ *  not just that it's locked. resolveFields already carries ownerName. */
+function ownerOf(f: any): string {
+  return (libDefs.value.find((d: any) => d.id === f?.def_id) as any)?.ownerName ?? ''
+}
+
+async function syncOwnDefs() {
+  const mine = layout.value.filter((f: any) => f.def_id && !f.inherited && !f.core && !BLOCK_SET.has(f.field_type))
+  for (const f of mine as any[]) {
+    const def = libDefs.value.find((d: any) => d.id === f.def_id)
+    if (!def || def.inherited) continue          // never write another org's row
+    if (!defIsStale(f, def)) continue
+    const patch = defPatchFor(f)
+    const { error } = await (db.from as any)('field_definitions').update(patch).eq('id', f.def_id).eq('org_id', props.orgId)
+    if (error) { toast.add({ severity: 'error', summary: 'Field not saved', detail: error.message, life: 4000 }); continue }
+    Object.assign(def, patch)                    // keep the library in step without a refetch
+  }
+}
+
 let saveTimer: any = null
 function scheduleSave() {
   saving.value = true
@@ -167,6 +229,9 @@ function scheduleSave() {
       { org_id: props.orgId, type_key: target.value, config: { fields: layout.value }, updated_at: new Date().toISOString() },
       { onConflict: 'org_id,type_key' },
     )
+    // The layout is this org's own; the definition is what every affiliated club
+    // sees. Both, or the two views drift apart silently.
+    await syncOwnDefs()
     saving.value = false
   }, 500)
 }
@@ -300,7 +365,11 @@ watch([() => props.target, () => props.orgId], () => { editingKey.value = null; 
             <h3 class="text-sm font-semibold text-gray-700">Edit {{ BLOCK_SET.has(editing.field_type) ? 'block' : 'field' }}</h3>
             <button class="text-xs text-gray-400 hover:text-gray-600" @click="editingKey = null"><i class="pi pi-times" /></button>
           </div>
-          <p v-if="editing.inherited" class="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1.5"><i class="pi pi-lock text-xs mr-1" />Inherited field — label/type set by the governing body; you control its placement &amp; visibility here.</p>
+          <p v-if="editing.inherited" class="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1.5">
+            <i class="pi pi-lock text-xs mr-1" />
+            <template v-if="ownerOf(editing)">Set by <span class="font-semibold">{{ ownerOf(editing) }}</span> — you control its placement &amp; visibility here.</template>
+            <template v-else>Inherited field — label/type set by the governing body; you control its placement &amp; visibility here.</template>
+          </p>
           <p v-else-if="editing.core" class="text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5">Core person field.</p>
 
           <div class="flex flex-col gap-1.5"><label class="text-xs font-medium text-gray-600">Label</label><InputText v-model="editing.label" :disabled="editing.inherited" /></div>

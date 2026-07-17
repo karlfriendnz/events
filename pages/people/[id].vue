@@ -340,7 +340,7 @@ watch([lensId, personLensLocations], () => {
   }
 })
 const { ensureTerms, t } = useTerms()
-const { resolveFields, resolvePersonTypes, fieldAppliesTo } = useOrgFieldPolicy()
+const { resolveFields, resolvePersonTypes, fieldAppliesTo, loadOrgTypes, loadTypeLinks } = useOrgFieldPolicy()
 const personTypes = ref<any[]>([])
 
 const TABS = computed(() => [
@@ -643,7 +643,13 @@ async function load() {
   // A person can hold several roles — show every custom field that applies to ANY
   // of them. Fall back to the legacy single type, then 'member'.
   const ptypes: string[] = (p?.person_types?.length ? p.person_types : (p?.person_type ? [p.person_type] : ['member']))
-  customFields.value = (fields ?? []).filter((f: any) => ptypes.some(t => fieldAppliesTo(f, t)))
+  // Resolve through the type's LINKS, not its spelling (mig 272). A club calling
+  // them "Footballer" still gets fields Football targets at 'player'. Without this
+  // the group page's flag popover links here saying "the fields you came to fill in
+  // are on Profile" and the field renders NOWHERE.
+  const [clubTypes, links] = await Promise.all([loadOrgTypes(orgId.value as string), loadTypeLinks(orgId.value as string)])
+  const chain = chainForPersonTypes(ptypes, clubTypes ?? [], links ?? [])
+  customFields.value = (fields ?? []).filter((f: any) => chain.some(t => fieldAppliesTo(f, t)))
   activity.value = (invites ?? [])
     .map((i: any) => ({ event_id: i.event_id, status: i.status, attended: i.attended, title: i.events?.title ?? 'Event', start_at: i.events?.start_at }))
     .sort((a: any, b: any) => (b.start_at || '').localeCompare(a.start_at || ''))

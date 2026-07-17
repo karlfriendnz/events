@@ -13,7 +13,7 @@
 const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
-const { loadOrgTypes, resolveFields, fieldAppliesTo } = useOrgFieldPolicy()
+const { loadOrgTypes, resolveFields, fieldAppliesTo, loadTypeLinks, loadLinkableTypes, linkType, unlinkType } = useOrgFieldPolicy()
 const { CORE_SECTIONS, coreStatus, loadConfig } = useCoreFields()
 
 const STANDARD = [
@@ -62,8 +62,18 @@ const saving = ref(false)
 const adding = ref(false)
 const newLabel = ref('')
 
+// ── Which fields apply to the selected type ──
+// NOT just its own key. A club names its type whatever it likes ("Footballer",
+// "Member"), so what the governing bodies' fields target is resolved through the
+// type's LINKS (mig 272), never through spelling. Own key + every linked body's
+// key = the chain; a field applies if it targets any of them.
+const typeLinks = ref<PersonTypeLink[]>([])
+const linkableTypes = ref<any[]>([])
+const linksForSelected = computed(() => selected.value ? typeLinks.value.filter(l => l.type_id === selected.value!.id) : [])
+const selectedKeyChain = computed(() =>
+  selected.value ? expandTypeKeys([selected.value.key], linksForSelected.value) : [])
 const applicableFields = computed(() =>
-  selected.value ? fields.value.filter(f => fieldAppliesTo(f, selected.value!.key)) : [])
+  selected.value ? fields.value.filter(f => selectedKeyChain.value.some(k => fieldAppliesTo(f, k))) : [])
 const fieldTargetOptions = computed(() =>
   selected.value ? [{ key: selected.value.key, label: selected.value.label }] : [])
 const personTypeOptions = computed(() => personTypes.value.map(t => ({ label: t.label, value: t.key })))
@@ -165,13 +175,44 @@ async function load() {
   loading.value = true
   const id = orgId.value
   if (!id) { loading.value = false; return }
-  const [all, flds, ce] = await Promise.all([loadOrgTypes(id), resolveFields(id), loadConfig()])
+  const [all, flds, ce, links, linkable] = await Promise.all([
+    loadOrgTypes(id), resolveFields(id), loadConfig(), loadTypeLinks(id), loadLinkableTypes(id),
+  ])
   coreConfig.value = ce
   allTypes.value = (all ?? []).map((t: any) => ({
     ...t, permissions: t.permissions ?? {}, member_slots: t.member_slots ?? [],
   }))
   fields.value = flds
+  typeLinks.value = links
+  linkableTypes.value = linkable ?? []
   loading.value = false
+}
+
+// ── Connect a type to a governing body's type (mig 272) ──
+// Offered only for types the club's bodies actually own, and only of the same
+// kind (a Team must not answer to a Player).
+const linkableForSelected = computed(() => {
+  if (!selected.value) return []
+  const taken = new Set(linksForSelected.value.map(l => l.source_type_id))
+  return linkableTypes.value
+    .filter(t => t.kind === selected.value!.kind && !taken.has(t.id))
+    .map(t => ({ ...t, _label: `${t.ownerName} · ${t.label}` }))
+})
+const linkBusy = ref(false)
+async function addLink(sourceTypeId: string) {
+  if (!selected.value || !sourceTypeId) return
+  linkBusy.value = true
+  const { error } = await linkType(orgId.value!, selected.value.id, sourceTypeId)
+  linkBusy.value = false
+  if (error) { toast.add({ severity: 'error', summary: 'Could not connect', detail: error.message, life: 4000 }); return }
+  typeLinks.value = await loadTypeLinks(orgId.value!)
+}
+async function removeLink(linkId: string) {
+  linkBusy.value = true
+  const { error } = await unlinkType(linkId)
+  linkBusy.value = false
+  if (error) { toast.add({ severity: 'error', summary: 'Could not disconnect', detail: error.message, life: 4000 }); return }
+  typeLinks.value = await loadTypeLinks(orgId.value!)
 }
 
 async function seedStandard() {
@@ -467,6 +508,40 @@ watch(orgId, load, { immediate: true })
 
           <!-- FIELDS -->
           <div v-show="tab === 'fields'" class="space-y-3">
+            <!-- Connected to (mig 272) — the club names this type whatever it likes;
+                 the LINK is what makes a governing body's fields apply, not the spelling. -->
+            <div v-if="linkableTypes.length" class="card p-0 overflow-hidden">
+              <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                <span class="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <i class="pi pi-link text-[10px] mr-1" />Connected to
+                </span>
+                <span class="field-help">Their fields apply to your {{ selected?.label }}</span>
+              </div>
+              <div class="p-3 space-y-2">
+                <div v-for="l in linksForSelected" :key="l.id"
+                  class="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-100">
+                  <span class="text-sm text-emerald-900">
+                    <span class="font-medium">{{ l.source_org_name }}</span>
+                    <span class="text-emerald-700"> calls them </span>
+                    <span class="font-medium">{{ l.source_label }}</span>
+                  </span>
+                  <button class="text-emerald-700/60 hover:text-rose-600 shrink-0" :disabled="linkBusy"
+                    v-tooltip.top="'Disconnect — their fields stop applying'" @click="removeLink(l.id)">
+                    <i class="pi pi-times text-xs" />
+                  </button>
+                </div>
+                <!-- Not connected is a real, visible state. An empty Fields tab used to
+                     look identical to a working one; now it says why. -->
+                <div v-if="!linksForSelected.length" class="px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-sm text-amber-800">
+                  Not connected to a governing body — none of their fields apply to your {{ selected?.label }}.
+                </div>
+                <Select v-if="linkableForSelected.length" :model-value="null" :options="linkableForSelected"
+                  option-label="_label" option-value="id" :disabled="linkBusy"
+                  :placeholder="linksForSelected.length ? 'Connect to another…' : 'Connect to…'"
+                  class="w-full" @update:model-value="addLink" />
+              </div>
+            </div>
+
             <!-- global core fields block (people only) -->
             <div v-if="kind === 'person'" class="card p-0 overflow-hidden border-dashed">
               <div class="px-4 py-2 bg-gray-50 border-b border-gray-100">

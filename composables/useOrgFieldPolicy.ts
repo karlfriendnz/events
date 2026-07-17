@@ -21,9 +21,118 @@ export interface FieldDef {
   ownerLevel: string
 }
 
+/** A club type → the governing-body types it answers to (migration 272). */
+export interface PersonTypeLink {
+  id: string
+  type_id: string
+  source_type_id: string
+  /** The body's key — what its fields actually target. */
+  source_key: string
+  source_label: string
+  /** The body that owns source_type_id. */
+  source_org_id: string
+  source_org_name: string
+}
+
+/**
+ * Expand a club's person-type keys to every key their fields could be targeted by:
+ * the club's own keys PLUS the keys of the governing-body types they're linked to.
+ *
+ * PURE, and the whole point of migration 272. Every consumer already maps over a
+ * LIST of person-type keys (fieldAppliesTo, requirementApplies, the profile's
+ * customFields filter), so widening the list is all that's needed — the club can
+ * call them "Footballer" and still receive fields targeting Football's 'player'.
+ *
+ * `links` MUST already be narrowed to the types being expanded (see linksForTypes)
+ * — pass every link the club has and a body's fields leak onto a type that never
+ * answered to it. Case-insensitive + deduped, matching fieldAppliesTo's own
+ * comparison.
+ */
+export function expandTypeKeys(ownKeys: string[], links: PersonTypeLink[]): string[] {
+  const out = new Map<string, string>()   // lowercased → first-seen original casing
+  const add = (k: string) => { const lc = (k || '').toLowerCase(); if (lc && !out.has(lc)) out.set(lc, k) }
+  for (const k of ownKeys ?? []) add(k)
+  for (const l of links ?? []) add(l.source_key)
+  return [...out.values()]
+}
+
+/** The links belonging to a set of the club's types. Narrow BEFORE expandTypeKeys. */
+export function linksForTypes(links: PersonTypeLink[], typeIds: string[]): PersonTypeLink[] {
+  const ids = new Set(typeIds ?? [])
+  return (links ?? []).filter(l => ids.has(l.type_id))
+}
+
+/** A person's own type keys → the full chain, given the club's types + links. */
+export function chainForPersonTypes(
+  personTypeKeys: string[],
+  clubTypes: { id: string; key: string }[],
+  links: PersonTypeLink[],
+): string[] {
+  const lc = (s: string) => (s || '').toLowerCase()
+  const held = new Set((personTypeKeys ?? []).map(lc))
+  const ids = (clubTypes ?? []).filter(t => held.has(lc(t.key))).map(t => t.id)
+  return expandTypeKeys(personTypeKeys ?? [], linksForTypes(links, ids))
+}
+
 export function useOrgFieldPolicy() {
   const db = useDb()
   const { ancestors, governingOrgs } = useOrgHierarchy()
+
+  /**
+   * Every person-type link this club has, hydrated with the body's key/label/org.
+   *
+   * `source_key` is the payload that matters — a field targets a KEY string, so
+   * that's what resolution needs. Links whose body is no longer in the club's
+   * governing chain are DROPPED: disconnecting a sport must stop its fields, and
+   * a stale link would otherwise keep a body's fields flowing forever.
+   */
+  async function loadTypeLinks(orgId: string): Promise<PersonTypeLink[]> {
+    const gov = await governingOrgs(orgId)
+    const reachable = new Set(gov.map(g => g.id))
+    const { data } = await (db.from as any)('person_type_links')
+      .select('id, type_id, source_type_id, source:person_target_types!person_type_links_source_type_id_fkey(key, label, org_id, organisations(name))')
+      .eq('org_id', orgId)
+    return (data ?? [])
+      .filter((l: any) => l.source?.org_id && reachable.has(l.source.org_id))
+      .map((l: any) => ({
+        id: l.id,
+        type_id: l.type_id,
+        source_type_id: l.source_type_id,
+        source_key: l.source?.key ?? '',
+        source_label: l.source?.label ?? '',
+        source_org_id: l.source?.org_id ?? '',
+        source_org_name: l.source?.organisations?.name ?? '',
+      }))
+      .filter((l: PersonTypeLink) => l.source_key)
+  }
+
+  /**
+   * The person types a club may link to: every type owned by a body in its
+   * governing chain. This is the ONLY list the linker should offer — a link to an
+   * unreachable body is ignored at resolution, so offering one would be a lie.
+   */
+  async function loadLinkableTypes(orgId: string) {
+    const gov = await governingOrgs(orgId)
+    if (!gov.length) return []
+    const { data } = await (db.from as any)('person_target_types')
+      .select('id, org_id, key, label, kind, organisations(name)')
+      .in('org_id', gov.map(g => g.id))
+      .order('sort_order')
+    return (data ?? []).map((t: any) => ({
+      ...t, kind: t.kind ?? 'person', ownerName: t.organisations?.name ?? '',
+    }))
+  }
+
+  async function linkType(orgId: string, typeId: string, sourceTypeId: string) {
+    // Idempotent: unique(type_id, source_type_id) makes a repeat link a no-op,
+    // which is what keeps the connect-a-sport reconciliation safe to re-run.
+    return await (db.from as any)('person_type_links')
+      .upsert({ org_id: orgId, type_id: typeId, source_type_id: sourceTypeId }, { onConflict: 'type_id,source_type_id' })
+  }
+
+  async function unlinkType(linkId: string) {
+    return await (db.from as any)('person_type_links').delete().eq('id', linkId)
+  }
 
   /**
    * Own + inherited field definitions for an org.
@@ -92,5 +201,8 @@ export function useOrgFieldPolicy() {
     return list.includes(lc(key))
   }
 
-  return { resolveFields, resolvePersonTypes, loadOrgTypes, fieldAppliesTo }
+  return {
+    resolveFields, resolvePersonTypes, loadOrgTypes, fieldAppliesTo,
+    loadTypeLinks, loadLinkableTypes, linkType, unlinkType,
+  }
 }
