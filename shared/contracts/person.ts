@@ -1,0 +1,30 @@
+// The CONTRACT for a person: a Zod schema + the domain type inferred from it,
+// shared by the client (typed composable) and the server (Nitro route output
+// validation). Deliberately DB-neutral — a person has `personTypes: string[]`
+// whether it's stored as json, a Postgres array, or a join table; only the
+// repository mapper knows the storage.
+//
+// Lives in shared/ so both the Vue app and the Nitro server import the exact same
+// definition — one source of truth for the shape AND its validation.
+import { z } from 'zod'
+
+export const personSchema = z.object({
+  id: z.string(),
+  orgId: z.string(),
+  firstName: z.string(),
+  lastName: z.string(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  // ISO 8601 date (yyyy-mm-dd) — the transport form. The DB stores a date; the repo serialises.
+  dob: z.string().nullable(),
+  gender: z.string().nullable(),
+  membershipType: z.string().nullable(),
+  // A person may hold several types (Member, Coach…). A Postgres array / MySQL json
+  // column in storage; always a plain string[] to the UI and the pure logic.
+  personTypes: z.array(z.string()),
+  // Free-form answers keyed by field id — shape varies by org, so kept open.
+  customFields: z.record(z.any()),
+})
+export type Person = z.infer<typeof personSchema>
+
+export const personListSchema = z.array(personSchema)
