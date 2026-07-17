@@ -7,16 +7,18 @@
   completely different things, so nobody could tell what a discipline meant by
   reading it.
 
-  So the steps ARE the distinction:
+  Steps:
     1 The discipline    — what it's called, where it sits (shows the resulting path)
-    2 Who it's for      — identity rules: who BELONGS here (Gender = Male, Age 10–14)
-    3 What to record    — data rules: what the club must HAVE about them (School)
-    4 Where it applies  — Events / Groups / Competitions
-    5 Review            — everything, including what it inherits and what it shadows
+    2 What it requires  — ONE rule list
+    3 Where it applies  — Events / Groups / Competitions
+    4 Review            — everything, including what it inherits and what it shadows
 
-  Steps 2 and 3 write the same table; `purpose` records which one meant what (268),
-  because the club-side flag differs: "she shouldn't be in Male" vs "chase her for
-  her school".
+  This was briefly two rule steps ("Who it's for" / "What to record"), which read as
+  duplication — same picker, same operators, same row, differing only by a word. The
+  distinction is real (the club's flag says "she shouldn't be in Male" vs "chase her
+  for her school") but the OPERATOR already carries it: a presence test means chase
+  them, a value test means they don't belong. So `purpose` (268) is DERIVED from how
+  the rule is phrased and stored, rather than asked for on a screen of its own.
 
   Uses the shared <WizardShell> — the standing rule is that any stepped modal uses
   that chrome rather than a hand-rolled one.
@@ -55,8 +57,7 @@ const dr = useDisciplineRequirements()
 
 const STEPS = [
   { key: 'about', label: 'The discipline' },
-  { key: 'who', label: "Who it's for" },
-  { key: 'record', label: 'What to record' },
+  { key: 'rules', label: 'What it requires' },
   { key: 'where', label: 'Where it applies' },
   { key: 'review', label: 'Review' },
 ]
@@ -64,17 +65,15 @@ const step = ref(0)
 const saving = ref(false)
 
 // ── Form ────────────────────────────────────────────────────────────────────
-interface DraftReq { key: string; field_key: string; purpose: ReqPurpose; operator: ReqOperator; value: any; exempt: boolean; message: string }
+interface DraftReq { key: string; field_key: string; operator: ReqOperator; value: any; exempt: boolean; message: string }
 const form = reactive<{ name: string; code: string; parent_id: string | null; applies_to: string[]; reqs: DraftReq[] }>({
   name: '', code: '', parent_id: null, applies_to: [], reqs: [],
 })
 
-const newDraft = (purpose: ReqPurpose, field_key = ''): DraftReq => ({
-  key: Math.random().toString(36).slice(2), field_key, purpose,
-  operator: purpose === 'identity' ? 'Equals' : 'Is Not Empty', value: null, exempt: false, message: '',
+const newDraft = (field_key = ''): DraftReq => ({
+  key: Math.random().toString(36).slice(2), field_key,
+  operator: 'Is Not Empty', value: null, exempt: false, message: '',
 })
-const identityReqs = computed(() => form.reqs.filter(r => r.purpose === 'identity'))
-const dataReqs = computed(() => form.reqs.filter(r => r.purpose === 'data'))
 
 onMounted(() => {
   if (props.editing) {
@@ -82,7 +81,7 @@ onMounted(() => {
     form.name = d.name; form.code = d.code ?? ''; form.parent_id = d.parent_id
     form.applies_to = [...(d.applies_to ?? [])]
     form.reqs = props.allReqs.filter(r => r.discipline_id === d.id).sort((a, b) => a.sort_order - b.sort_order)
-      .map(r => ({ key: r.id, field_key: r.field_key, purpose: r.purpose, operator: r.operator, value: r.value, exempt: r.exempt, message: r.message ?? '' }))
+      .map(r => ({ key: r.id, field_key: r.field_key, operator: r.operator, value: r.value, exempt: r.exempt, message: r.message ?? '' }))
   } else {
     form.parent_id = props.parentId ?? null
   }
@@ -100,8 +99,9 @@ const GENDER_VALUES = ['MALE', 'FEMALE', 'NON_BINARY', 'UNSPECIFIED']
 const valueOptionsFor = (key: string) => key === 'gender' ? GENDER_VALUES : (fieldOf(key)?.options?.length ? fieldOf(key)!.options! : null)
 const isNumericField = (key: string) => key === 'age' || fieldOf(key)?.field_type === 'number'
 
-const optionsFor = (r: DraftReq) => REQUIREMENT_OPTIONS.filter(o =>
-  !o.operator || !NUMERIC_OPERATORS.includes(o.operator) || isNumericField(r.field_key))
+// Numeric phrasings only where they can fire — "School must be at most 15" is a
+// rule that never does anything.
+const optionsFor = (r: DraftReq) => REQUIREMENT_OPTIONS.filter(o => !o.numeric || isNumericField(r.field_key))
 function setOperator(r: DraftReq, label: string) {
   const opt = REQUIREMENT_OPTIONS.find(o => o.label === label)!
   r.exempt = opt.exempt
@@ -110,10 +110,11 @@ function setOperator(r: DraftReq, label: string) {
     : RANGE_OPERATORS.includes(r.operator) ? [null, null] : null
 }
 function onFieldChange(r: DraftReq) {
-  if (NUMERIC_OPERATORS.includes(r.operator) && !isNumericField(r.field_key)) setOperator(r, 'Is Not Empty')
-  else if (r.field_key === 'age' && r.operator === 'Equals') setOperator(r, 'Is Between')
+  // Switching to a non-numeric field must drop a numeric phrasing the picker no
+  // longer offers, or the row keeps a rule you can't see or change.
+  if (NUMERIC_OPERATORS.includes(r.operator) && !isNumericField(r.field_key)) setOperator(r, 'must be recorded')
 }
-const operatorLabel = (r: DraftReq) => (r.exempt ? 'Not required' : r.operator)
+const operatorLabel = (r: DraftReq) => optionFor(r).label
 const showsValue = (r: DraftReq) => !r.exempt && !VALUELESS_OPERATORS.includes(r.operator)
 const showsRange = (r: DraftReq) => !r.exempt && RANGE_OPERATORS.includes(r.operator)
 function setRange(r: DraftReq, i: 0 | 1, v: any) {
@@ -121,7 +122,7 @@ function setRange(r: DraftReq, i: 0 | 1, v: any) {
   pair[i] = v === '' || v == null ? null : Number(v)
   r.value = pair
 }
-function addReq(purpose: ReqPurpose, field_key = '') { form.reqs.push(newDraft(purpose, field_key)) }
+function addReq(field_key = '') { form.reqs.push(newDraft(field_key)) }
 const removeReq = (r: DraftReq) => { form.reqs = form.reqs.filter(x => x.key !== r.key) }
 
 // ── Create a field without leaving ──────────────────────────────────────────
@@ -136,8 +137,8 @@ function openCreateField(r: DraftReq) { creatingFor.value = r; creatingField.val
  *  writing its first data rule has no fields yet, so "make one" has to be visible
  *  on the step, not buried at the bottom of a dropdown you only reach by adding a
  *  row you can't yet fill. */
-function createFieldFrom(purpose: ReqPurpose) {
-  const r = newDraft(purpose)
+function createFieldFrom() {
+  const r = newDraft()
   form.reqs.push(r)
   openCreateField(r)
 }
@@ -187,10 +188,9 @@ const inheritedEntries = computed<ReqEntry[]>(() => {
   return resolveFor(form.parent_id, nodes, reqs)
 })
 const ownKeys = computed(() => new Set(form.reqs.map(r => r.field_key).filter(Boolean)))
-const inheritedFor = (purpose: ReqPurpose) => inheritedEntries.value.filter(e => e.rows[0]?.purpose === purpose)
-const untouchedInherited = (purpose: ReqPurpose) => inheritedFor(purpose).filter(e => !ownKeys.value.has(e.field_key))
+const untouchedInherited = computed(() => inheritedEntries.value.filter(e => !ownKeys.value.has(e.field_key)))
 const shadowedFor = (field_key: string) => inheritedEntries.value.find(e => e.field_key === field_key) ?? null
-function overrideInherited(e: ReqEntry) { addReq(e.rows[0]?.purpose ?? 'data', e.field_key) }
+function overrideInherited(e: ReqEntry) { addReq(e.field_key) }
 const revertInherited = (field_key: string) => { form.reqs = form.reqs.filter(r => r.field_key !== field_key) }
 
 // Cycle-safe parent options (can't nest a discipline inside its own subtree).
@@ -209,10 +209,10 @@ const parentOptions = computed(() => {
 /** Own rows + everything inherited that isn't overridden — i.e. what this
  *  discipline actually demands, which is the only thing worth reviewing. */
 function reviewLines(purpose: ReqPurpose) {
-  const own = form.reqs.filter(r => r.purpose === purpose && r.field_key && !r.exempt)
-    .map(r => ({ text: `${fieldLabel(r.field_key)} ${describeRequirement(r).toLowerCase()}`, from: '' }))
-  const inh = untouchedInherited(purpose).flatMap(e => e.rows.filter(r => !r.exempt)
-    .map(r => ({ text: `${fieldLabel(e.field_key)} ${describeRequirement(r).toLowerCase()}`, from: e.source.disciplineName })))
+  const own = form.reqs.filter(r => r.field_key && !r.exempt && derivePurpose(r) === purpose)
+    .map(r => ({ text: `${fieldLabel(r.field_key)} ${describeRequirement(r)}`, from: '' }))
+  const inh = untouchedInherited.value.flatMap(e => e.rows.filter(r => !r.exempt && derivePurpose(r) === purpose)
+    .map(r => ({ text: `${fieldLabel(e.field_key)} ${describeRequirement(r)}`, from: e.source.disciplineName })))
   return [...own, ...inh]
 }
 const reviewIdentity = computed(() => reviewLines('identity'))
@@ -227,8 +227,7 @@ const canNext = computed(() => {
   if (step.value === 0) return !!form.name.trim()
   // Half-finished rows are the thing that makes a rule silently never fire, so
   // don't let someone walk past one.
-  if (step.value === 1) return identityReqs.value.every(rowReady) && !badRange.value
-  if (step.value === 2) return dataReqs.value.every(rowReady)
+  if (step.value === 1) return form.reqs.every(rowReady) && !badRange.value
   return true
 })
 
@@ -249,7 +248,7 @@ async function finish() {
     await dr.saveRequirements(id, form.reqs.filter(r => r.field_key).map(r => ({
       field_key: r.field_key,
       field_source: (fieldOf(r.field_key)?.source ?? 'core') as 'core' | 'custom',
-      purpose: r.purpose, operator: r.operator, value: r.value ?? null, exempt: r.exempt,
+      purpose: derivePurpose(r), operator: r.operator, value: r.value ?? null, exempt: r.exempt,
       message: r.message.trim() || null, applies_to: [] as string[],
     })))
   }
@@ -292,17 +291,19 @@ async function finish() {
       </div>
     </div>
 
-    <!-- 2 · Who it's for (identity) -->
+    <!-- 2 · What it requires — ONE list. The operator phrasing carries what each
+         rule MEANS, so purpose is derived rather than asked for on its own screen. -->
     <div v-show="step === 1" class="space-y-4 max-w-2xl">
       <div>
-        <h3 class="text-sm font-semibold text-gray-800">Who is in {{ form.name.trim() || 'this discipline' }}?</h3>
+        <h3 class="text-sm font-semibold text-gray-800">What does {{ form.name.trim() || 'this discipline' }} require?</h3>
         <p class="text-xs text-gray-500 mt-0.5">
-          What makes someone belong here. Someone who doesn't match is flagged to the club as being in
-          the wrong place — it never blocks their registration.
+          Say it as you'd say it out loud — “Gender must be Female”, “School must be recorded”.
+          Anyone who doesn't meet a rule is flagged to their club; nothing ever blocks a registration.
         </p>
       </div>
 
-      <div v-for="e in untouchedInherited('identity')" :key="'i-' + e.field_key"
+      <!-- Inherited from above: locked, naming where it came from. -->
+      <div v-for="e in untouchedInherited" :key="'i-' + e.field_key"
         class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 flex items-start justify-between gap-2">
         <div class="min-w-0">
           <div class="flex items-center gap-1.5 text-xs text-gray-700">
@@ -315,76 +316,37 @@ async function finish() {
         <button class="text-xs text-primary hover:underline shrink-0" @click="overrideInherited(e)">Override</button>
       </div>
 
-      <DisciplineReqRow v-for="r in identityReqs" :key="r.key" :row="r" :index="identityReqs.indexOf(r)"
+      <DisciplineReqRow v-for="(r, i) in form.reqs" :key="r.key" :row="r" :index="i"
         :core-fields="coreFields" :custom-fields="customFields" :org-name="orgName"
         :options="optionsFor(r)" :operator-label="operatorLabel(r)" :shows-value="showsValue(r)" :shows-range="showsRange(r)"
         :value-options="valueOptionsFor(r.field_key)" :numeric="isNumericField(r.field_key)" :shadowed="shadowedFor(r.field_key)"
-        :field-label="fieldLabel" lead="Is" lead-more="and is"
+        :field-label="fieldLabel" lead="Requires" lead-more="and requires"
         @field-change="onFieldChange(r)" @operator="setOperator(r, $event)" @range="setRange(r, $event.i, $event.v)"
         @remove="removeReq(r)" @revert="revertInherited(r.field_key)" @create-field="openCreateField(r)" />
 
       <div class="flex items-center gap-4">
-        <button class="text-xs text-primary hover:underline" @click="addReq('identity')">+ Add something that identifies them</button>
-        <button class="text-xs text-gray-500 hover:text-gray-800 hover:underline" @click="createFieldFrom('identity')">
+        <button class="text-xs text-primary hover:underline" @click="addReq()">+ Add a requirement</button>
+        <button class="text-xs text-gray-500 hover:text-gray-800 hover:underline" @click="createFieldFrom()">
           + Create a new field
         </button>
       </div>
-      <div v-if="!identityReqs.length && !untouchedInherited('identity').length"
+
+      <div v-if="!form.reqs.length && !untouchedInherited.length"
         class="rounded-lg border border-dashed border-gray-200 px-4 py-5 text-center">
-        <p class="text-xs text-gray-500">Nothing yet — anyone can be in this discipline.</p>
-        <p class="text-xs text-gray-400 mt-1">That's right for a grouping like “Football”; a “Juniors” would want an age.</p>
-      </div>
-    </div>
-
-    <!-- 3 · What to record (data) -->
-    <div v-show="step === 2" class="space-y-4 max-w-2xl">
-      <div>
-        <h3 class="text-sm font-semibold text-gray-800">What must clubs have on record?</h3>
-        <p class="text-xs text-gray-500 mt-0.5">
-          Information every person in this discipline needs. Anyone missing it is flagged to their club
-          so they can chase it — it never blocks their registration.
-        </p>
-      </div>
-
-      <div v-for="e in untouchedInherited('data')" :key="'d-' + e.field_key"
-        class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 flex items-start justify-between gap-2">
-        <div class="min-w-0">
-          <div class="flex items-center gap-1.5 text-xs text-gray-700">
-            <i class="pi pi-lock text-xs text-blue-400" />
-            <span class="font-medium truncate">{{ fieldLabel(e.field_key) }}</span>
-            <span class="text-gray-500 truncate">{{ e.rows.map(describeRequirement).join(' · ') }}</span>
-          </div>
-          <div class="text-xs text-gray-400 mt-0.5">From {{ e.source.disciplineName }}</div>
-        </div>
-        <button class="text-xs text-primary hover:underline shrink-0" @click="overrideInherited(e)">Override</button>
-      </div>
-
-      <DisciplineReqRow v-for="r in dataReqs" :key="r.key" :row="r" :index="dataReqs.indexOf(r)"
-        :core-fields="coreFields" :custom-fields="customFields" :org-name="orgName"
-        :options="optionsFor(r)" :operator-label="operatorLabel(r)" :shows-value="showsValue(r)" :shows-range="showsRange(r)"
-        :value-options="valueOptionsFor(r.field_key)" :numeric="isNumericField(r.field_key)" :shadowed="shadowedFor(r.field_key)"
-        :field-label="fieldLabel" lead="Must have" lead-more="and must have"
-        @field-change="onFieldChange(r)" @operator="setOperator(r, $event)" @range="setRange(r, $event.i, $event.v)"
-        @remove="removeReq(r)" @revert="revertInherited(r.field_key)" @create-field="openCreateField(r)" />
-
-      <div class="flex items-center gap-4">
-        <button class="text-xs text-primary hover:underline" @click="addReq('data')">+ Add something they must have</button>
-        <button class="text-xs text-gray-500 hover:text-gray-800 hover:underline" @click="createFieldFrom('data')">
-          + Create a new field
-        </button>
-      </div>
-      <div v-if="!dataReqs.length && !untouchedInherited('data').length" class="rounded-lg border border-dashed border-gray-200 px-4 py-5 text-center">
-        <p class="text-xs text-gray-500">Nothing yet — clubs won't be asked for anything extra.</p>
-        <p v-if="!customFields.length" class="text-xs text-gray-400 mt-1">
-          {{ orgName }} has no fields of its own yet, so there's nothing to ask for.
-          <button class="text-primary hover:underline" @click="createFieldFrom('data')">Create the first one</button> —
-          e.g. School, or a membership number.
+        <p class="text-xs text-gray-500">Nothing yet — anyone can be in this discipline and clubs won't be asked for anything.</p>
+        <p class="text-xs text-gray-400 mt-1">
+          That's right for a grouping like “Football”; a “Juniors” would want an age.
+          <template v-if="!customFields.length">
+            {{ orgName }} has no fields of its own yet —
+            <button class="text-primary hover:underline" @click="createFieldFrom()">create the first one</button>
+            (e.g. School).
+          </template>
         </p>
       </div>
     </div>
 
-    <!-- 4 · Where it applies -->
-    <div v-show="step === 3" class="space-y-4 max-w-xl">
+    <!-- 3 · Where it applies -->
+    <div v-show="step === 2" class="space-y-4 max-w-xl">
       <div>
         <h3 class="text-sm font-semibold text-gray-800">Where can clubs use it?</h3>
         <p class="text-xs text-gray-500 mt-0.5">
@@ -395,8 +357,8 @@ async function finish() {
         placeholder="Everywhere" show-toggle-all class="w-full" />
     </div>
 
-    <!-- 5 · Review -->
-    <div v-show="step === 4" class="space-y-4 max-w-2xl">
+    <!-- 4 · Review -->
+    <div v-show="step === 3" class="space-y-4 max-w-2xl">
       <div>
         <h3 class="text-sm font-semibold text-gray-800">Here's what you're creating</h3>
         <p class="text-xs text-gray-500 mt-0.5">Everything this discipline demands, including what it picks up from above.</p>

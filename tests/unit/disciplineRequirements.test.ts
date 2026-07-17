@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import {
   disciplineChain, effectiveRequirements, effectiveRequirementsForMany,
   resolveFor, testRequirement, unmetFor, brokenIn, personValueFor, requirementApplies,
-  describeRequirement, AGE_FIELD_KEY, REQUIREMENT_OPERATORS, SHARED_OPERATORS, REQUIREMENT_OPTIONS,
+  describeRequirement, derivePurpose, optionFor, AGE_FIELD_KEY,
+  REQUIREMENT_OPERATORS, SHARED_OPERATORS, REQUIREMENT_OPTIONS,
   type DisciplineNode, type DisciplineRequirement,
 } from '../../composables/useDisciplineRequirements'
 import { ageFromDob } from '../../composables/useAge'
@@ -22,10 +23,16 @@ const SCHOOL_ID = '11111111-1111-1111-1111-111111111111'
 const JOB_ID = '22222222-2222-2222-2222-222222222222'
 const TOP_ID = '33333333-3333-3333-3333-333333333333'
 
-const req = (p: Partial<DisciplineRequirement>): DisciplineRequirement => ({
-  id: Math.random().toString(36).slice(2), discipline_id: 'fb', field_key: SCHOOL_ID, field_source: 'custom',
-  operator: 'Is Not Empty', value: null, exempt: false, applies_to: [], message: null, sort_order: 0, ...p,
-})
+// purpose is DERIVED at save (the wizard has one rule list, not a screen per
+// purpose), so the fixture derives it too — otherwise the tests would assert
+// against rows no editor could ever produce.
+const req = (p: Partial<DisciplineRequirement>): DisciplineRequirement => {
+  const base = {
+    id: Math.random().toString(36).slice(2), discipline_id: 'fb', field_key: SCHOOL_ID, field_source: 'custom' as const,
+    operator: 'Is Not Empty' as const, value: null, exempt: false, applies_to: [], message: null, sort_order: 0, ...p,
+  }
+  return { ...base, purpose: p.purpose ?? derivePurpose(base) } as DisciplineRequirement
+}
 
 const REQS: DisciplineRequirement[] = [
   req({ id: 'fb-job', discipline_id: 'fb', field_key: JOB_ID, operator: 'Is Not Empty' }),
@@ -54,19 +61,61 @@ describe('vocabulary', () => {
   it('adds numeric operators on top, and nothing else', () => {
     expect(REQUIREMENT_OPERATORS).toEqual([...SHARED_OPERATORS, 'Is At Least', 'Is At Most', 'Is Between'])
   })
-  it('offers "Not required" as a label for exempt, never as an operator', () => {
-    expect(REQUIREMENT_OPTIONS[0]).toEqual({ label: 'Not required', exempt: true, operator: null })
+  // The editor speaks in sentences; the DB stores the operator. A phrasing must
+  // never leak into the operator column (the CHECK would reject it anyway).
+  it('phrases every option as the author would say it', () => {
+    expect(REQUIREMENT_OPTIONS.map(o => o.label)).toEqual([
+      'must be recorded', 'must be', 'must not be', 'must contain',
+      'must be at least', 'must be at most', 'must be between', 'must be blank',
+      'is not required here',
+    ])
+  })
+  it('exempt is a phrasing, never a stored operator', () => {
+    expect(REQUIREMENT_OPTIONS.find(o => o.exempt)!.operator).toBeNull()
     expect(REQUIREMENT_OPERATORS).not.toContain('Not required' as any)
+  })
+  it('round-trips a stored row back to its phrasing', () => {
+    expect(optionFor({ operator: 'Is At Most', exempt: false }).label).toBe('must be at most')
+    expect(optionFor({ operator: 'Equals', exempt: true }).label).toBe('is not required here')
+  })
+})
+
+// The reason there is ONE rule list rather than a screen per purpose: the words
+// already say which it is.
+describe('derivePurpose', () => {
+  it('a presence test means "chase them for it"', () => {
+    expect(derivePurpose({ operator: 'Is Not Empty', exempt: false })).toBe('data')
+    expect(derivePurpose({ operator: 'Is Empty', exempt: false })).toBe('data')
+  })
+  it('a value test means "they do not belong here"', () => {
+    expect(derivePurpose({ operator: 'Equals', exempt: false })).toBe('identity')
+    expect(derivePurpose({ operator: 'Is Between', exempt: false })).toBe('identity')
+    expect(derivePurpose({ operator: 'Is At Most', exempt: false })).toBe('identity')
+    expect(derivePurpose({ operator: 'Is Not', exempt: false })).toBe('identity')
+  })
+  it('an exemption asserts nothing, so it is the weaker claim', () => {
+    expect(derivePurpose({ operator: 'Equals', exempt: true })).toBe('data')
+  })
+  it("covers Karl's examples", () => {
+    expect(derivePurpose({ operator: 'Is Not Empty', exempt: false })).toBe('data')      // School must be recorded
+    expect(derivePurpose({ operator: 'Equals', exempt: false })).toBe('identity')        // Top colour must be Blue
+    expect(derivePurpose({ operator: 'Is At Most', exempt: false })).toBe('identity')    // Age must be at most 15
   })
 })
 
 describe('describeRequirement', () => {
-  it('phrases every row shape', () => {
-    expect(describeRequirement({ operator: 'Is At Most', value: 15, exempt: false })).toBe('Is At Most 15')
-    expect(describeRequirement({ operator: 'Is Between', value: [5, 15], exempt: false })).toBe('Is between 5 and 15')
-    expect(describeRequirement({ operator: 'Is Not Empty', value: null, exempt: false })).toBe('Is Not Empty')
-    expect(describeRequirement({ operator: 'Equals', value: 'Blue', exempt: false })).toBe('Equals Blue')
-    expect(describeRequirement({ operator: 'Equals', value: 'Blue', exempt: true })).toBe('Not required')
+  // The same words the editor's dropdown uses, so the review, the tree summary and
+  // the club's flag all read like what was written.
+  it('reads back as the sentence that was written', () => {
+    expect(describeRequirement({ operator: 'Is At Most', value: 15, exempt: false })).toBe('must be at most 15')
+    expect(describeRequirement({ operator: 'Is Between', value: [5, 15], exempt: false })).toBe('must be between 5 and 15')
+    expect(describeRequirement({ operator: 'Is Not Empty', value: null, exempt: false })).toBe('must be recorded')
+    expect(describeRequirement({ operator: 'Equals', value: 'Blue', exempt: false })).toBe('must be Blue')
+    expect(describeRequirement({ operator: 'Equals', value: 'Blue', exempt: true })).toBe('is not required here')
+  })
+  it('a half-open range reads as the bound that is set', () => {
+    expect(describeRequirement({ operator: 'Is Between', value: [null, 15], exempt: false })).toBe('must be at most 15')
+    expect(describeRequirement({ operator: 'Is Between', value: [16, null], exempt: false })).toBe('must be at least 16')
   })
 })
 
@@ -211,7 +260,7 @@ describe('age as an ordinary requirement', () => {
     const { effective } = effectiveRequirements('jr', TREE, [{ ...ageReq('Is At Most', 15), discipline_id: 'jr' }])
     const [u] = unmetFor(aged(17), effective, { catalogue: CATALOGUE, asOf: at })
     expect(u.reason).toBe('mismatch')
-    expect(u.message).toBe('Age must be at most 15 for Junior Football')
+    expect(u.message).toBe("Doesn't match Junior Football — age must be at most 15 there")
   })
 
   it('inherits and overrides exactly like any other requirement', () => {
@@ -265,7 +314,7 @@ describe('testRequirement / unmetFor', () => {
   it('generates a message naming the field and the discipline, and honours a custom one', () => {
     const { effective } = effectiveRequirements('jr', TREE, REQS)
     const [u] = unmetFor(person({}), effective, { catalogue: CATALOGUE })
-    expect(u.message).toBe('School is required by Junior Football')
+    expect(u.message).toBe('School must be recorded for Junior Football')
     expect(u.reason).toBe('missing')
 
     const custom = effectiveRequirements('jr', TREE, [req({ discipline_id: 'jr', field_key: SCHOOL_ID, message: 'We need their school' })])

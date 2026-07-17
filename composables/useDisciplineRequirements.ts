@@ -51,12 +51,43 @@ export const VALUELESS_OPERATORS: ReqOperator[] = ['Is Empty', 'Is Not Empty']
 /** Is Between takes a pair: value = [min, max]. */
 export const RANGE_OPERATORS: ReqOperator[] = ['Is Between']
 
-// The editor's single dropdown. "Not required" is a LABEL for exempt — never a
-// stored operator, which would diverge this vocabulary from visibility_conditions.
-export const REQUIREMENT_OPTIONS: { label: string; exempt: boolean; operator: ReqOperator | null }[] = [
-  { label: 'Not required', exempt: true, operator: null },
-  ...REQUIREMENT_OPERATORS.map(o => ({ label: o as string, exempt: false, operator: o })),
+// The editor's single dropdown, phrased as the author would say it out loud —
+// "School must be recorded", "Gender must be Female". The words carry the meaning,
+// which is why there is ONE rule list rather than a screen per purpose.
+//
+// "Not required" is a LABEL for exempt — never a stored operator, which would
+// diverge this vocabulary from visibility_conditions.
+export interface ReqOption { label: string; exempt: boolean; operator: ReqOperator | null; numeric?: boolean }
+export const REQUIREMENT_OPTIONS: ReqOption[] = [
+  { label: 'must be recorded', exempt: false, operator: 'Is Not Empty' },
+  { label: 'must be', exempt: false, operator: 'Equals' },
+  { label: 'must not be', exempt: false, operator: 'Is Not' },
+  { label: 'must contain', exempt: false, operator: 'Contains' },
+  { label: 'must be at least', exempt: false, operator: 'Is At Least', numeric: true },
+  { label: 'must be at most', exempt: false, operator: 'Is At Most', numeric: true },
+  { label: 'must be between', exempt: false, operator: 'Is Between', numeric: true },
+  { label: 'must be blank', exempt: false, operator: 'Is Empty' },
+  { label: 'is not required here', exempt: true, operator: null },
 ]
+export const optionFor = (r: { operator: ReqOperator; exempt: boolean }): ReqOption =>
+  REQUIREMENT_OPTIONS.find(o => (r.exempt ? o.exempt : !o.exempt && o.operator === r.operator)) ?? REQUIREMENT_OPTIONS[0]
+
+/**
+ * What a rule MEANS, derived from how it's phrased — so the author never answers a
+ * question the words already answer.
+ *
+ *   a PRESENCE test ("must be recorded") → data     → "chase them for it"
+ *   a VALUE test    ("must be Female")   → identity → "they shouldn't be here"
+ *
+ * Every real example follows this. The narrow exception is a data-QUALITY rule
+ * written as a value test — "GNZ Number must contain GNZ" means "fix their number",
+ * not "they're not a gymnast". `purpose` is stored rather than computed at read
+ * time precisely so that case can be overridden later without a migration.
+ */
+export function derivePurpose(r: { operator: ReqOperator; exempt: boolean }): ReqPurpose {
+  if (r.exempt) return 'data'
+  return r.operator === 'Is Not Empty' || r.operator === 'Is Empty' ? 'data' : 'identity'
+}
 
 // ── Types ───────────────────────────────────────────────────────────────────
 /**
@@ -126,15 +157,21 @@ const num = (v: any) => {
 /** The virtual field key whose value is computed from persons.dob, not stored. */
 export const AGE_FIELD_KEY = 'age'
 
-/** Human phrasing for one requirement row — used by the editor and the flags. */
+/**
+ * One rule as a sentence — the SAME words the editor's dropdown uses, so the
+ * review, the tree summary and the club's flag all read like what was written:
+ * "must be recorded", "must be Female", "must be between 10 and 14".
+ */
 export function describeRequirement(r: Pick<DisciplineRequirement, 'operator' | 'value' | 'exempt'>): string {
-  if (r.exempt) return 'Not required'
-  if (VALUELESS_OPERATORS.includes(r.operator)) return r.operator
+  const label = optionFor(r).label
+  if (r.exempt || VALUELESS_OPERATORS.includes(r.operator)) return label
   if (r.operator === 'Is Between') {
     const [lo, hi] = Array.isArray(r.value) ? r.value : [null, null]
-    return `Is between ${lo ?? '—'} and ${hi ?? '—'}`
+    return lo != null && hi != null ? `${label} ${lo} and ${hi}`
+      : lo != null ? `must be at least ${lo}`
+      : hi != null ? `must be at most ${hi}` : label
   }
-  return `${r.operator} ${r.value ?? ''}`.trim()
+  return `${label} ${r.value ?? ''}`.trim()
 }
 
 /**
@@ -366,16 +403,14 @@ export function unmetFor(
     // The two purposes are different problems needing different actions, so they
     // must not read the same. An identity breach says "they're in the wrong place";
     // a data gap says "go and ask them".
-    const rule = describeRequirement(req).replace(/^Is /, '').toLowerCase()
+    const rule = describeRequirement(req)
     const fallback = reason === 'unknown'
       ? req.field_key === AGE_FIELD_KEY
         ? `Date of birth isn't recorded, so we can't check the age ${req.viaDisciplineName} needs`
         : `${fieldLabel} isn't recorded, so we can't check what ${req.viaDisciplineName} needs`
       : req.purpose === 'identity'
-        ? `Doesn't match ${req.viaDisciplineName} — it's for ${fieldLabel.toLowerCase()} ${rule}`
-        : reason === 'missing'
-          ? `${fieldLabel} is required by ${req.viaDisciplineName}`
-          : `${fieldLabel} must be ${rule} for ${req.viaDisciplineName}`
+        ? `Doesn't match ${req.viaDisciplineName} — ${fieldLabel.toLowerCase()} ${rule} there`
+        : `${fieldLabel} ${rule} for ${req.viaDisciplineName}`
     out.push({
       requirement: req,
       fieldKey: req.field_key,
