@@ -14,6 +14,19 @@ interface Disc {
   sort_order?: number; applies_to?: string[] | null; depth?: number
 }
 
+// The parts of the system a discipline can be tied to. Empty = applies everywhere.
+const DISCIPLINE_PARTS = [
+  { label: 'Events', value: 'event' },
+  { label: 'Groups', value: 'group' },
+  { label: 'Competitions', value: 'competition' },
+]
+const partLabel = (v: string) => DISCIPLINE_PARTS.find(p => p.value === v)?.label ?? v
+
+const org = ref<{ name: string; org_level: string } | null>(null)
+const isGoverning = computed(() => !!org.value && isGoverningBody(org.value.org_level))
+const disciplines = ref<Disc[]>([])
+const loading = ref(true)
+
 const dr = useDisciplineRequirements()
 const { loadFieldCatalogue } = usePersonFields()
 
