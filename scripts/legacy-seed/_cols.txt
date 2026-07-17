@@ -1,0 +1,838 @@
+Asset	id	int	NO	∅	PRI
+Asset	status	tinyint	NO	1	
+Asset	name	varchar	NO		
+Asset	optionText	varchar	NO		
+Asset	showRegistration	tinyint	NO	∅	
+Asset	merchandise	tinyint	NO	∅	
+Asset	customise	tinyint	NO	∅	
+Asset	qty	int	NO	∅	
+Asset	purchaseType	tinyint	NO	∅	
+Asset	priceRent	decimal	NO	∅	
+Asset	pricePurchase	decimal	NO	∅	
+Asset	account	varchar	YES	∅	
+Asset	notes	mediumtext	NO	∅	
+Asset	order	int	NO	∅	
+Asset	guid	char	NO	uuid()	
+AssetGroup	assetID	int	NO	∅	PRI
+AssetGroup	groupID	int	NO	∅	PRI
+AssetGroup	guid	char	NO	uuid()	
+AssetOption	id	int	NO	∅	PRI
+AssetOption	status	tinyint	NO	1	
+AssetOption	assetID	int	NO	∅	MUL
+AssetOption	name	varchar	NO		
+AssetOption	qty	int	NO	∅	
+AssetOption	price	decimal	NO	∅	
+AssetOption	account	varchar	YES	∅	
+AssetOption	order	int	NO	∅	
+AssetOption	guid	char	NO	uuid()	
+AssetPerson	id	int	NO	∅	PRI
+AssetPerson	status	tinyint	NO	1	
+AssetPerson	assetID	int	NO	∅	MUL
+AssetPerson	assetOptionID	int	YES	∅	MUL
+AssetPerson	personID	int	NO	∅	MUL
+AssetPerson	purchaseType	tinyint	NO	1	
+AssetPerson	termID	int	YES	∅	MUL
+AssetPerson	issueDate	datetime	NO	∅	
+AssetPerson	issuedByID	int	YES	∅	MUL
+AssetPerson	returnDate	datetime	NO	∅	
+AssetPerson	returnedByID	int	YES	∅	MUL
+AssetPerson	note	varchar	NO		
+AssetPerson	identifier	varchar	NO		
+AssetPerson	guid	char	NO	uuid()	
+AuthToken	selector	char	NO	∅	PRI
+AuthToken	validatorHash	char	NO	∅	
+AuthToken	userID	int	NO	∅	
+AuthToken	expires	timestamp	NO	CURRENT_TIMESTAMP	
+AuthToken	type	varchar	NO		
+AuthToken	guid	char	NO	uuid()	
+Award	id	int	NO	∅	PRI
+Award	status	tinyint	NO	1	
+Award	name	varchar	NO	∅	
+Award	awardGroupID	int	NO	∅	MUL
+Award	awardCategoryID	int	YES	∅	MUL
+Award	description	varchar	NO	∅	
+Award	order	int	NO	∅	
+Award	externalID	varchar	YES	∅	
+Award	guid	char	NO	uuid()	
+AwardCategory	id	int	NO	∅	PRI
+AwardCategory	name	varchar	NO	∅	
+AwardCategory	colour	tinyint	NO	∅	
+AwardCategory	guid	char	NO	uuid()	
+AwardGroup	id	int	NO	∅	PRI
+AwardGroup	status	tinyint	NO	1	
+AwardGroup	name	varchar	NO	∅	
+AwardGroup	assocType	varchar	NO	∅	
+AwardGroup	assocID	int	NO	∅	MUL
+AwardGroup	type	tinyint	NO	∅	
+AwardGroup	order	int	NO	∅	
+AwardGroup	emailContent	mediumtext	NO	∅	
+AwardGroup	externalID	varchar	YES	∅	
+AwardGroup	guid	char	NO	uuid()	
+AwardGroupPerson	awardGroupID	int	NO	∅	PRI
+AwardGroupPerson	personID	int	NO	∅	PRI
+AwardGroupPerson	status	tinyint	NO	∅	
+AwardGroupPerson	dateCompleted	date	NO	∅	
+AwardGroupPerson	guid	char	NO	uuid()	
+AwardPerson	id	int	NO	∅	PRI
+AwardPerson	status	tinyint	NO	1	
+AwardPerson	awardID	int	NO	∅	MUL
+AwardPerson	personID	int	NO	∅	MUL
+AwardPerson	date	date	NO	∅	
+AwardPerson	awardedByID	int	YES	∅	MUL
+AwardPerson	notes	varchar	NO	∅	
+AwardPerson	guid	char	NO	uuid()	
+Code	id	int	NO	∅	PRI
+Code	status	tinyint	NO	1	
+Code	name	varchar	NO	∅	
+Code	parentID	int	YES	∅	MUL
+Code	termset	tinyint	NO	∅	
+Code	order	int	NO	∅	
+Code	publish	tinyint	NO	∅	
+Code	guid	char	NO	uuid()	
+Comp	id	int	NO	∅	PRI
+Comp	status	tinyint	NO	1	
+Comp	name	varchar	NO	∅	
+Comp	compSportID	int	NO	∅	MUL
+Comp	start	date	NO	∅	
+Comp	end	date	NO	∅	
+Comp	signupOpen	date	NO	∅	
+Comp	signupClosed	date	NO	∅	
+Comp	playerCutoff	date	NO	∅	
+Comp	exclCutoff	date	NO	∅	
+Comp	account	varchar	YES	∅	
+Comp	needUmpire	tinyint	NO	∅	
+Comp	registerPool	tinyint	NO	∅	
+Comp	playerNotify	tinyint	NO	1	
+Comp	publicRegister	tinyint	NO	∅	
+Comp	playerRegTabID	int	YES	∅	MUL
+Comp	officialRegTabID	int	YES	∅	MUL
+Comp	teamFields	text	NO	∅	
+Comp	maxClubTeams	int	NO	∅	
+Comp	entryRequirement	text	NO	∅	
+Comp	requiredStaffPositions	varchar	NO	∅	
+Comp	personHelpText	text	NO	∅	
+Comp	token	char	YES	∅	
+Comp	guid	char	NO	uuid()	
+CompCertificate	id	int	NO	∅	PRI
+CompCertificate	status	tinyint	NO	1	
+CompCertificate	name	varchar	NO	∅	
+CompCertificate	layout	varchar	NO	∅	
+CompCertificate	guid	char	NO	uuid()	
+CompClub	id	int	NO	0	
+CompClub	status	int	NO	0	
+CompClub	name	varchar	NO	∅	
+CompClub	groupID	varchar	NO	∅	
+CompClub	firstName	varchar	NO	∅	
+CompClub	lastName	varchar	NO	∅	
+CompClub	gender	varchar	NO	∅	
+CompClub	role	tinyint	NO	∅	
+CompClub	email	varchar	YES	∅	
+CompClub	password	varchar	NO	∅	
+CompClub	lastLoggedIn	datetime	NO	∅	
+CompClub	dateOfBirth	date	NO	∅	
+CompClub	phone	varchar	NO		
+CompClub	alternatePhone	varchar	NO		
+CompClub	street	varchar	NO	∅	
+CompClub	suburb	varchar	NO	∅	
+CompClub	city	varchar	NO	∅	
+CompClub	country	varchar	NO	∅	
+CompClub	postCode	varchar	NO	∅	
+CompClub	medical	mediumtext	NO	∅	
+CompClub	notes	mediumtext	NO	∅	
+CompClub	primaryContact	int	YES	∅	
+CompClub	relatedComms	tinyint	NO	∅	
+CompClub	subscribed	tinyint	NO	1	
+CompClub	joinDate	timestamp	NO	CURRENT_TIMESTAMP	
+CompClub	resignDate	date	NO	∅	
+CompClub	concessions	tinyint	YES	∅	
+CompClub	invalidEmail	tinyint	NO	∅	
+CompClub	allowPhotos	tinyint	NO	1	
+CompClub	xeroID	char	YES	∅	
+CompClub	ezidebitCustomerID	int	YES	∅	
+CompClubPerson	personID	int	NO	∅	PRI
+CompClubPerson	compClubID	int	NO	∅	PRI
+CompClubPerson	guid	char	NO	uuid()	
+CompClubPersonRole	personID	int	NO	∅	PRI
+CompClubPersonRole	compClubID	int	NO	∅	PRI
+CompClubPersonRole	name	varchar	NO	∅	PRI
+CompClubPersonRole	guid	char	NO	uuid()	
+CompClubRole	name	varchar	NO	∅	PRI
+CompClubRole	minimum	int	NO	∅	
+CompClubRole	guid	char	NO	uuid()	
+CompDivision	id	int	NO	∅	PRI
+CompDivision	status	tinyint	NO	1	
+CompDivision	type	int	NO	∅	
+CompDivision	name	varchar	NO		
+CompDivision	compID	int	NO	∅	MUL
+CompDivision	scoreSheet	varchar	NO		
+CompDivision	fee	decimal	NO	∅	
+CompDivision	umpireFee	decimal	NO	∅	
+CompDivision	feeDue	date	NO	∅	
+CompDivision	account	varchar	YES	∅	
+CompDivision	minTeams	int	NO	∅	
+CompDivision	maxTeams	int	NO	∅	
+CompDivision	maxClubTeams	int	NO	∅	
+CompDivision	minAge	int	NO	∅	
+CompDivision	maxAge	int	NO	∅	
+CompDivision	ageCutoff	date	NO	∅	
+CompDivision	gender	int	NO	∅	
+CompDivision	awards	varchar	NO		
+CompDivision	playerMin	int	NO	∅	
+CompDivision	playerMax	int	NO	∅	
+CompDivision	minMales	int	NO	∅	
+CompDivision	maxMales	int	NO	∅	
+CompDivision	minFemales	int	NO	∅	
+CompDivision	maxFemales	int	NO	∅	
+CompDivision	order	int	NO	∅	
+CompDivision	rules	mediumtext	NO	∅	
+CompDivision	info	mediumtext	NO	∅	
+CompDivision	scoreEntry	tinyint	NO	∅	
+CompDivision	ringIns	tinyint	NO	∅	
+CompDivision	gamePlayers	int	NO	∅	
+CompDivision	gameReserves	int	NO	∅	
+CompDivision	placings	tinyint	NO	∅	
+CompDivision	guid	char	NO	uuid()	
+CompDivisionTeam	compTeamID	int	NO	∅	PRI
+CompDivisionTeam	compDivisionID	int	NO	∅	PRI
+CompDivisionTeam	approved	tinyint	NO	∅	
+CompDivisionTeam	requireUmpire	tinyint	NO	∅	
+CompDivisionTeam	guid	char	NO	uuid()	
+CompDuty	id	int	NO	∅	PRI
+CompDuty	name	varchar	NO	∅	MUL
+CompDuty	compDivisionID	int	YES	∅	MUL
+CompDuty	type	tinyint	NO	∅	
+CompDuty	order	int	NO	∅	
+CompDuty	guid	char	NO	uuid()	
+CompEvent	id	int	NO	∅	PRI
+CompEvent	status	tinyint	NO	1	
+CompEvent	name	varchar	NO	∅	
+CompEvent	time	int	NO	∅	
+CompEvent	order	int	NO	∅	
+CompEvent	passes	int	NO	∅	
+CompEvent	isTeam	tinyint	NO	∅	
+CompEvent	compSessionSportID	int	NO	∅	
+CompEvent	guid	char	NO	uuid()	
+CompGame	id	int	NO	∅	PRI
+CompGame	status	tinyint	NO	1	
+CompGame	type	tinyint	NO	∅	
+CompGame	compRoundID	int	NO	∅	MUL
+CompGame	eventID	int	YES	∅	MUL
+CompGame	homeID	int	YES	∅	MUL
+CompGame	awayID	int	YES	∅	MUL
+CompGame	homeTeamPlaceID	int	YES	∅	MUL
+CompGame	awayTeamPlaceID	int	YES	∅	MUL
+CompGame	homeScore	int	NO	∅	
+CompGame	awayScore	int	NO	∅	
+CompGame	homePoints	tinyint	NO	∅	
+CompGame	awayPoints	tinyint	NO	∅	
+CompGame	homeBonus	tinyint	NO	∅	
+CompGame	awayBonus	tinyint	NO	∅	
+CompGame	homeGameID	int	YES	∅	MUL
+CompGame	awayGameID	int	YES	∅	MUL
+CompGame	homePoolID	int	YES	∅	MUL
+CompGame	awayPoolID	int	YES	∅	MUL
+CompGame	homeRank	int	NO	∅	
+CompGame	awayRank	int	NO	∅	
+CompGame	name	varchar	NO	∅	
+CompGame	note	mediumtext	NO	∅	
+CompGame	token	char	YES	∅	
+CompGame	playoffs	tinyint	NO	∅	
+CompGame	placement	int	NO	∅	
+CompGame	groupName	varchar	NO	∅	
+CompGame	guid	char	NO	uuid()	
+CompGameOfficial	id	int	NO	∅	PRI
+CompGameOfficial	status	tinyint	NO	1	
+CompGameOfficial	compGameID	int	NO	∅	MUL
+CompGameOfficial	personID	int	YES	∅	MUL
+CompGameOfficial	compTeamID	int	YES	∅	MUL
+CompGameOfficial	duty	varchar	NO	∅	
+CompGameOfficial	type	int	NO	∅	
+CompGameOfficial	guid	char	NO	uuid()	
+CompGamePerson	id	int	NO	∅	PRI
+CompGamePerson	status	tinyint	NO	1	
+CompGamePerson	type	tinyint	NO	∅	
+CompGamePerson	compGameID	int	NO	∅	MUL
+CompGamePerson	compTeamID	int	NO	∅	MUL
+CompGamePerson	personID	int	NO	∅	MUL
+CompGamePerson	shirtNo	varchar	NO	∅	
+CompGamePerson	position	varchar	NO	∅	
+CompGamePerson	order	tinyint	NO	∅	
+CompGamePerson	token	char	YES	∅	UNI
+CompGamePerson	available	tinyint	NO	0	
+CompGamePerson	note	varchar	NO	∅	
+CompGamePerson	special	tinyint	NO	∅	
+CompGamePerson	guid	char	NO	uuid()	
+CompGamePoints	compID	int	YES	∅	MUL
+CompGamePoints	compDivisionID	int	YES	∅	MUL
+CompGamePoints	type	varchar	NO		
+CompGamePoints	value	int	YES	∅	
+CompGamePoints	bonus	int	YES	∅	
+CompGamePoints	guid	char	NO	uuid()	
+CompGameStats	compGameID	int	NO	∅	PRI
+CompGameStats	type	varchar	NO		PRI
+CompGameStats	num	tinyint	NO	∅	PRI
+CompGameStats	home	int	NO	∅	
+CompGameStats	away	int	NO	∅	
+CompGameStats	text	mediumtext	YES	∅	
+CompGameStats	guid	char	NO	uuid()	
+CompGameTime	id	int	NO	∅	PRI
+CompGameTime	status	tinyint	NO	1	
+CompGameTime	venueID	int	NO	∅	MUL
+CompGameTime	compDivisionID	int	NO	∅	MUL
+CompGameTime	day	tinyint	NO	∅	
+CompGameTime	time	time	NO	∅	
+CompGameTime	guid	char	NO	uuid()	
+CompGroup	id	int	NO	∅	PRI
+CompGroup	status	tinyint	NO	1	
+CompGroup	name	varchar	NO	∅	
+CompGroup	compSessionID	int	NO	∅	MUL
+CompGroup	order	int	NO	∅	
+CompGroup	guid	char	NO	uuid()	
+CompPersonSport	compTeamPersonID	int	NO	∅	PRI
+CompPersonSport	compSportID	int	NO	∅	PRI
+CompPersonSport	guid	char	NO	uuid()	
+CompPool	id	int	NO	∅	PRI
+CompPool	status	tinyint	NO	1	
+CompPool	name	varchar	NO		
+CompPool	compRoundID	int	NO	∅	MUL
+CompPool	guid	char	NO	uuid()	
+CompPoolTeam	compPoolID	int	NO	∅	PRI
+CompPoolTeam	compTeamID	int	NO	∅	PRI
+CompPoolTeam	order	int	NO	0	
+CompPoolTeam	guid	char	NO	uuid()	
+CompRound	id	int	NO	∅	PRI
+CompRound	status	tinyint	NO	1	
+CompRound	name	varchar	NO		
+CompRound	compDivisionID	int	NO	∅	
+CompRound	type	tinyint	NO	∅	
+CompRound	parentID	int	YES	∅	
+CompRound	publishFrom	date	NO	∅	
+CompRound	publishTo	date	NO	∅	
+CompRound	publishOptions	tinyint	NO	∅	
+CompRound	order	int	NO	∅	
+CompRound	guid	char	NO	uuid()	
+CompSession	id	int	NO	∅	PRI
+CompSession	status	tinyint	NO	1	
+CompSession	compID	int	NO	∅	MUL
+CompSession	name	varchar	NO	∅	
+CompSession	sessionSportID	int	NO	∅	
+CompSession	gender	int	NO	∅	
+CompSession	maxParticipants	int	NO	∅	
+CompSession	minAge	int	NO	∅	
+CompSession	maxAge	int	NO	∅	
+CompSession	ageCutoff	date	NO	∅	
+CompSession	allowDoubles	tinyint	NO	∅	
+CompSession	clubLimit	int	NO	∅	
+CompSession	startingScore	int	NO	∅	
+CompSession	teamEvent	tinyint	NO	∅	
+CompSession	groupSize	int	NO	∅	
+CompSession	clubMaxGroups	int	NO	∅	
+CompSession	date	date	YES	∅	
+CompSession	startTime	time	NO	∅	
+CompSession	levels	tinyint	NO	∅	
+CompSession	divisions	tinyint	NO	∅	
+CompSession	publishWebsite	tinyint	NO	∅	
+CompSession	publishDate	date	YES	∅	
+CompSession	publishTime	time	YES	∅	
+CompSession	fee	decimal	NO	∅	
+CompSession	feeDue	date	NO	∅	
+CompSession	account	varchar	YES	∅	
+CompSession	order	int	NO	∅	
+CompSession	guid	char	NO	uuid()	
+CompSessionEvent	id	int	NO	∅	PRI
+CompSessionEvent	status	tinyint	NO	1	
+CompSessionEvent	compSessionID	int	NO	∅	MUL
+CompSessionEvent	compEventID	int	YES	∅	MUL
+CompSessionEvent	publishInternally	tinyint	NO	∅	
+CompSessionEvent	publishWebsite	tinyint	NO	∅	
+CompSessionEvent	publishDate	date	YES	∅	
+CompSessionEvent	publishTime	time	YES	∅	
+CompSessionEvent	guid	char	NO	uuid()	
+CompSessionOfficial	id	int	NO	∅	PRI
+CompSessionOfficial	status	tinyint	NO	1	
+CompSessionOfficial	personID	int	YES	∅	MUL
+CompSessionOfficial	compSessionID	int	NO	∅	MUL
+CompSessionOfficial	title	varchar	NO	∅	
+CompSessionOfficial	compEventID	int	NO	∅	MUL
+CompSessionOfficial	type	int	NO	∅	
+CompSessionOfficial	order	int	NO	∅	
+CompSessionOfficial	guid	char	NO	uuid()	
+CompSessionParticipant	id	int	NO	∅	PRI
+CompSessionParticipant	status	tinyint	NO	1	
+CompSessionParticipant	compGroupID	int	YES	∅	MUL
+CompSessionParticipant	compSessionID	int	NO	∅	MUL
+CompSessionParticipant	personID	int	YES	∅	MUL
+CompSessionParticipant	compTeamID	int	YES	∅	MUL
+CompSessionParticipant	compClubID	int	YES	∅	MUL
+CompSessionParticipant	level	varchar	NO	∅	
+CompSessionParticipant	division	varchar	NO	∅	
+CompSessionParticipant	order	int	NO	∅	
+CompSessionParticipant	guid	char	NO	uuid()	
+CompSessionSchedule	id	int	NO	∅	PRI
+CompSessionSchedule	status	tinyint	NO	1	
+CompSessionSchedule	compSessionParticipantID	int	NO	∅	MUL
+CompSessionSchedule	compGroupID	int	NO	∅	MUL
+CompSessionSchedule	compEventID	int	NO	∅	MUL
+CompSessionSchedule	eventOrder	int	NO	∅	
+CompSessionSchedule	participantOrder	int	NO	∅	
+CompSessionSchedule	pass	int	NO	∅	
+CompSessionSchedule	guid	char	NO	uuid()	
+CompSessionScore	id	int	NO	∅	PRI
+CompSessionScore	status	tinyint	NO	1	
+CompSessionScore	compSessionScheduleID	int	NO	∅	MUL
+CompSessionScore	compSessionOfficialID	int	NO	∅	MUL
+CompSessionScore	score	decimal	YES	∅	
+CompSessionScore	pass	tinyint	NO	∅	
+CompSessionScore	guid	char	NO	uuid()	
+CompSessionTeam	compTeamID	int	NO	∅	PRI
+CompSessionTeam	compSessionID	int	NO	∅	PRI
+CompSessionTeam	approved	tinyint	NO	∅	
+CompSessionTeam	participants	int	NO	∅	
+CompSessionTeam	guid	char	NO	uuid()	
+CompTeam	id	int	NO	∅	PRI
+CompTeam	status	tinyint	NO	1	
+CompTeam	name	varchar	NO	∅	
+CompTeam	compClubID	int	YES	∅	MUL
+CompTeam	guid	char	NO	uuid()	
+CompTeamConflict	id	int	NO	∅	PRI
+CompTeamConflict	status	tinyint	NO	1	
+CompTeamConflict	compTeamID	int	NO	∅	MUL
+CompTeamConflict	compID	int	NO	∅	MUL
+CompTeamConflict	conflictTeamID	int	NO	∅	MUL
+CompTeamConflict	reason	varchar	NO	∅	
+CompTeamConflict	message	varchar	NO	∅	
+CompTeamConflict	guid	char	NO	uuid()	
+CompTeamExclusion	id	int	NO	∅	PRI
+CompTeamExclusion	status	tinyint	NO	1	
+CompTeamExclusion	compTeamID	int	NO	∅	MUL
+CompTeamExclusion	compID	int	NO	∅	MUL
+CompTeamExclusion	date	date	NO	∅	
+CompTeamExclusion	day	tinyint	NO	∅	
+CompTeamExclusion	startTime	time	NO	∅	
+CompTeamExclusion	endTime	time	NO	∅	
+CompTeamExclusion	reason	varchar	NO	∅	
+CompTeamExclusion	message	varchar	NO	∅	
+CompTeamExclusion	guid	char	NO	uuid()	
+CompTeamPerson	id	int	NO	∅	PRI
+CompTeamPerson	status	tinyint	NO	1	
+CompTeamPerson	compTeamID	int	YES	∅	MUL
+CompTeamPerson	personID	int	NO	∅	MUL
+CompTeamPerson	compID	int	YES	∅	MUL
+CompTeamPerson	role	tinyint	NO	∅	
+CompTeamPerson	position	varchar	NO		
+CompTeamPerson	special	tinyint	NO	∅	
+CompTeamPerson	guid	char	NO	uuid()	
+CompTeamPlace	id	int	NO	∅	PRI
+CompTeamPlace	compPoolID	int	YES	∅	MUL
+CompTeamPlace	compTeamID	int	YES	∅	MUL
+CompTeamPlace	order	int	NO	∅	
+CompTeamPlace	placePoolID	int	YES	∅	MUL
+CompTeamPlace	placement	int	NO	∅	
+CompTeamPlace	rank	int	NO	∅	
+CompTeamPlace	placeGameID	int	YES	∅	MUL
+CompTeamPlace	tempGameID	int	YES	∅	
+CompTeamPlace	guid	char	NO	uuid()	
+CustomField	id	int	NO	∅	PRI
+CustomField	status	tinyint	NO	1	
+CustomField	field	varchar	NO	∅	UNI
+CustomField	name	varchar	NO	∅	
+CustomField	assocType	varchar	NO	∅	
+CustomField	codeID	int	YES	∅	MUL
+CustomField	type	varchar	NO	∅	
+CustomField	values	varchar	NO	∅	
+CustomField	access	tinyint	NO	∅	
+CustomField	order	int	NO	∅	
+CustomField	description	text	NO	∅	
+CustomField	conditionField	varchar	NO	∅	
+CustomField	conditionValue	varchar	NO	∅	
+CustomField	guid	char	NO	uuid()	
+CustomFieldPerson	field	varchar	NO	∅	PRI
+CustomFieldPerson	personID	int	NO	∅	PRI
+CustomFieldPerson	value	varchar	NO		
+CustomFieldPerson	guid	char	NO	uuid()	
+CustomFieldTeam	field	varchar	NO	∅	PRI
+CustomFieldTeam	compTeamID	int	NO	∅	PRI
+CustomFieldTeam	compID	int	NO	∅	PRI
+CustomFieldTeam	value	varchar	NO	∅	
+CustomFieldTeam	guid	char	NO	uuid()	
+CustomSelectValue	id	int	NO	∅	PRI
+CustomSelectValue	value	varchar	NO	∅	
+CustomSelectValue	parentID	int	YES	∅	MUL
+CustomSelectValue	customFieldID	int	NO	∅	MUL
+CustomSelectValue	order	int	NO	∅	
+CustomSelectValue	guid	char	NO	uuid()	
+Discount	id	int	NO	∅	PRI
+Discount	status	tinyint	NO	1	
+Discount	numFees	tinyint	NO	∅	
+Discount	discount	decimal	NO	∅	
+Discount	type	tinyint	NO	∅	
+Discount	guid	char	NO	uuid()	
+Email	id	int	NO	∅	PRI
+Email	status	tinyint	NO	1	
+Email	datetime	timestamp	NO	CURRENT_TIMESTAMP	
+Email	subject	varchar	NO	∅	
+Email	message	mediumtext	NO	∅	
+Email	personID	int	YES	∅	MUL
+Email	recipients	mediumtext	NO	∅	
+Email	subscribers	tinyint	NO	∅	
+Email	transmissionID	bigint	YES	∅	
+Email	guid	char	NO	uuid()	
+Event	id	int	NO	∅	PRI
+Event	status	tinyint	NO	1	MUL
+Event	personID	int	YES	∅	MUL
+Event	type	tinyint	NO	∅	
+Event	name	varchar	NO	∅	
+Event	location	varchar	NO	∅	
+Event	venueID	int	YES	∅	MUL
+Event	date	date	NO	∅	
+Event	startTime	time	NO	∅	
+Event	endDate	date	NO	∅	
+Event	endTime	time	NO	∅	
+Event	fee	decimal	NO	∅	
+Event	feeDue	date	NO	∅	
+Event	account	varchar	YES	∅	
+Event	notes	mediumtext	NO	∅	
+Event	awardID	int	YES	∅	MUL
+Event	programID	int	YES	∅	MUL
+Event	maxAttendees	int	NO	∅	
+Event	closeDate	date	NO	∅	
+Event	terms	text	NO	∅	
+Event	emailID	int	YES	∅	
+Event	notifications	tinyint	NO	∅	
+Event	guid	char	NO	uuid()	
+EventCategory	id	int	NO	∅	PRI
+EventCategory	name	varchar	YES	∅	
+EventCategory	colour	varchar	YES	∅	
+EventCategory	selected	tinyint	NO	∅	
+EventCategory	eventType	tinyint	YES	∅	
+EventCategory	guid	char	NO	uuid()	
+EventCategoryLink	eventID	int	NO	∅	PRI
+EventCategoryLink	eventCategoryID	int	NO	∅	PRI
+EventCategoryLink	guid	char	NO	uuid()	
+EventGroup	eventID	int	NO	∅	PRI
+EventGroup	groupID	int	NO	∅	PRI
+EventGroup	guid	char	NO	uuid()	
+EventPerson	id	int	NO	∅	PRI
+EventPerson	status	tinyint	NO	∅	
+EventPerson	eventID	int	NO	∅	MUL
+EventPerson	personID	int	YES	∅	MUL
+EventPerson	type	tinyint	NO	∅	
+EventPerson	hours	float	NO	∅	
+EventPerson	name	varchar	NO	∅	
+EventPerson	note	varchar	NO	∅	
+EventPerson	token	char	YES	∅	UNI
+EventPerson	signedinID	int	YES	∅	MUL
+EventPerson	signedoutID	int	YES	∅	MUL
+EventPerson	signedInTime	timestamp	YES	∅	
+EventPerson	signedOutTime	timestamp	YES	∅	
+EventPerson	guid	char	NO	uuid()	
+EventTag	eventID	int	NO	∅	MUL
+EventTag	tag	varchar	NO	∅	
+EventTag	guid	char	NO	uuid()	
+Fee	id	int	NO	∅	PRI
+Fee	status	tinyint	NO	1	MUL
+Fee	type	tinyint	NO	∅	
+Fee	date	date	NO	∅	
+Fee	dueDate	date	NO	∅	
+Fee	name	varchar	NO	∅	
+Fee	amount	decimal	NO	∅	
+Fee	personID	int	NO	∅	MUL
+Fee	assocType	varchar	NO	∅	
+Fee	assocID	varchar	NO	∅	
+Fee	invoiced	timestamp	YES	∅	
+Fee	notes	varchar	NO	∅	
+Fee	promptDiscount	decimal	NO	∅	
+Fee	account	varchar	YES	∅	
+Fee	xeroID	char	YES	∅	MUL
+Fee	parentFeeID	int	YES	∅	MUL
+Fee	guid	char	NO	uuid()	
+FeeRecur	feeID	int	NO	∅	PRI
+FeeRecur	date	date	NO	∅	
+FeeRecur	dueDays	tinyint	NO	∅	
+FeeRecur	endDate	date	NO	∅	
+FeeRecur	amount	decimal	NO	∅	
+FeeRecur	ezidebitCustomerID	int	YES	∅	
+FeeRecur	guid	char	NO	uuid()	
+Group	id	int	NO	∅	PRI
+Group	status	tinyint	NO	1	
+Group	order	int	NO	∅	
+Group	name	varchar	NO	∅	
+Group	codeID	int	NO	∅	MUL
+Group	headID	int	YES	∅	MUL
+Group	playersPerStaff	smallint	NO	∅	
+Group	limit	smallint	NO	∅	
+Group	public	tinyint	NO	∅	
+Group	description	mediumtext	NO	∅	
+Group	startAge	tinyint	NO	∅	
+Group	endAge	tinyint	NO	∅	
+Group	gender	int	NO	∅	
+Group	shortCode	varchar	NO	∅	
+Group	guid	char	NO	uuid()	
+GroupTime	id	int	NO	∅	PRI
+GroupTime	status	tinyint	NO	1	
+GroupTime	groupID	int	NO	∅	MUL
+GroupTime	day	tinyint	NO	∅	
+GroupTime	startTime	time	YES	∅	
+GroupTime	endTime	time	YES	∅	
+GroupTime	venueID	int	YES	∅	MUL
+GroupTime	guid	char	NO	uuid()	
+Image	id	int	NO	∅	PRI
+Image	label	varchar	NO	∅	MUL
+Image	width	smallint	NO	∅	
+Image	height	smallint	NO	∅	
+Image	ext	varchar	NO	∅	
+Image	assocID	int	NO	∅	MUL
+Image	guid	char	NO	uuid()	
+Log	id	int	NO	∅	PRI
+Log	timestamp	timestamp	NO	CURRENT_TIMESTAMP	
+Log	userID	int	YES	∅	
+Log	ip	varchar	NO	∅	
+Log	table	varchar	NO	∅	
+Log	rowID	int	NO	∅	
+Log	data	mediumtext	NO	∅	
+Log	guid	char	NO	uuid()	
+LoginAttempts	ip	varchar	YES	∅	UNI
+LoginAttempts	username	varchar	YES	∅	UNI
+LoginAttempts	attempts	tinyint	NO	∅	
+LoginAttempts	lastAttempt	timestamp	NO	CURRENT_TIMESTAMP	
+LoginAttempts	guid	char	NO	uuid()	
+Person	id	int	NO	∅	PRI
+Person	status	tinyint	NO	1	MUL
+Person	firstName	varchar	NO	∅	
+Person	lastName	varchar	NO	∅	
+Person	gender	varchar	NO	∅	
+Person	role	tinyint	NO	∅	
+Person	email	varchar	YES	∅	UNI
+Person	password	varchar	NO	∅	
+Person	lastLoggedIn	datetime	NO	∅	
+Person	dateOfBirth	date	NO	∅	
+Person	phone	varchar	NO		
+Person	alternatePhone	varchar	NO		
+Person	street	varchar	NO	∅	
+Person	suburb	varchar	NO	∅	
+Person	city	varchar	NO	∅	
+Person	country	varchar	NO	∅	
+Person	postCode	varchar	NO	∅	
+Person	medical	mediumtext	NO	∅	
+Person	notes	mediumtext	NO	∅	
+Person	primaryContact	int	YES	∅	MUL
+Person	relatedComms	tinyint	NO	∅	
+Person	subscribed	tinyint	NO	1	
+Person	joinDate	timestamp	NO	CURRENT_TIMESTAMP	
+Person	resignDate	date	NO	∅	
+Person	concessions	tinyint	YES	∅	
+Person	invalidEmail	tinyint	NO	∅	
+Person	allowPhotos	tinyint	NO	1	
+Person	xeroID	char	YES	∅	
+Person	ezidebitCustomerID	int	YES	∅	
+Person	guid	char	NO	uuid()	UNI
+PersonCode	personID	int	NO	∅	PRI
+PersonCode	codeID	int	NO	∅	PRI
+PersonCode	guid	char	NO	uuid()	
+PersonContact	personID	int	NO	∅	PRI
+PersonContact	contactID	int	NO	∅	PRI
+PersonContact	relationship	varchar	NO	∅	
+PersonContact	ec	tinyint	NO	∅	
+PersonContact	guid	char	NO	uuid()	
+PersonGroup	personID	int	NO	∅	PRI
+PersonGroup	groupID	int	NO	∅	PRI
+PersonGroup	termID	int	NO	∅	PRI
+PersonGroup	staff	tinyint	NO	∅	PRI
+PersonGroup	position	varchar	NO	∅	
+PersonGroup	guid	char	NO	uuid()	
+PersonTag	personID	int	YES	∅	MUL
+PersonTag	tag	varchar	NO	∅	
+PersonTag	guid	char	NO	uuid()	
+Program	id	int	NO	∅	PRI
+Program	status	int	NO	1	
+Program	name	varchar	NO	∅	
+Program	account	varchar	YES	∅	
+Program	open	date	NO	∅	
+Program	close	date	NO	∅	
+Program	cost	decimal	NO	∅	
+Program	dayCost	decimal	NO	∅	
+Program	feeDue	date	NO	∅	
+Program	startAge	tinyint	NO	∅	
+Program	endAge	tinyint	NO	∅	
+Program	guid	char	NO	uuid()	
+RegForm	id	int	NO	∅	PRI
+RegForm	status	tinyint	NO	1	
+RegForm	name	varchar	NO		
+RegForm	subtitle	varchar	NO		
+RegForm	type	varchar	NO		
+RegForm	regTab1ID	int	YES	∅	MUL
+RegForm	regTab2ID	int	YES	∅	MUL
+RegForm	primary	varchar	NO		
+RegForm	termset	tinyint	YES	∅	
+RegForm	billingCodeID	int	YES	∅	MUL
+RegForm	concessions	tinyint	NO	∅	
+RegForm	vaccinePass	tinyint	NO	∅	
+RegForm	assetsText	mediumtext	NO	∅	
+RegForm	termsText	mediumtext	NO	∅	
+RegForm	summaryText	mediumtext	NO	∅	
+RegForm	successText	mediumtext	NO	∅	
+RegForm	order	int	NO	∅	
+RegForm	tileColour	char	YES	∅	
+RegForm	guid	char	NO	uuid()	
+RegFormCode	regFormID	int	NO	∅	PRI
+RegFormCode	codeID	int	NO	∅	PRI
+RegFormCode	guid	char	NO	uuid()	
+RegTab	id	int	NO	∅	PRI
+RegTab	status	tinyint	NO	1	
+RegTab	name	varchar	NO		
+RegTab	type	varchar	NO		
+RegTab	singular	varchar	NO		
+RegTab	min	tinyint	NO	∅	
+RegTab	max	tinyint	NO	∅	
+RegTab	intro	mediumtext	NO	∅	
+RegTab	fields	mediumtext	NO	∅	
+RegTab	showEC	tinyint	NO	∅	
+RegTab	guid	char	NO	uuid()	
+Resource	id	int	NO	∅	PRI
+Resource	status	tinyint	NO	1	
+Resource	name	varchar	NO	∅	
+Resource	type	tinyint	NO	∅	
+Resource	data	varchar	NO	∅	
+Resource	preview	varchar	NO	∅	
+Resource	description	varchar	NO	∅	
+Resource	startDate	date	NO	∅	
+Resource	endDate	date	YES	∅	
+Resource	guid	char	NO	uuid()	
+ResourceCategory	id	int	NO	∅	PRI
+ResourceCategory	status	tinyint	NO	1	
+ResourceCategory	name	varchar	NO	∅	
+ResourceCategory	assocType	varchar	NO	∅	
+ResourceCategory	codeID	int	YES	∅	MUL
+ResourceCategory	guid	char	NO	uuid()	
+ResourceCategoryGroup	resourceCategoryID	int	NO	∅	PRI
+ResourceCategoryGroup	groupID	int	NO	∅	PRI
+ResourceCategoryGroup	guid	char	NO	uuid()	
+ResourceCategoryLink	resourceID	int	NO	∅	PRI
+ResourceCategoryLink	resourceCategoryID	int	NO	∅	PRI
+ResourceCategoryLink	guid	char	NO	uuid()	
+ResourcePerson	resourceID	int	NO	∅	PRI
+ResourcePerson	personID	int	NO	∅	PRI
+ResourcePerson	timestamp	timestamp	NO	CURRENT_TIMESTAMP	
+ResourcePerson	guid	char	NO	uuid()	
+Settings	key	varchar	NO	∅	PRI
+Settings	value	varchar	NO	∅	
+Settings	guid	char	NO	uuid()	
+Settings2	key	varchar	NO	∅	PRI
+Settings2	value	mediumtext	NO	∅	
+Settings2	guid	char	NO	uuid()	
+Sponsor	id	int	NO	∅	PRI
+Sponsor	status	tinyint	NO	1	
+Sponsor	name	varchar	NO	∅	
+Sponsor	phone	varchar	NO	∅	
+Sponsor	email	varchar	NO	∅	
+Sponsor	website	varchar	NO	∅	
+Sponsor	order	int	NO	∅	
+Sponsor	guid	char	NO	uuid()	
+Term	id	int	NO	∅	PRI
+Term	status	tinyint	NO	1	
+Term	name	varchar	NO	∅	
+Term	start	date	NO	∅	
+Term	end	date	NO	∅	
+Term	signupOpenDate	date	NO	∅	
+Term	signupCloseDate	date	NO	∅	
+Term	preOpenDate	date	NO	∅	
+Term	signupEmailed	tinyint	NO	∅	
+Term	transferable	tinyint	NO	∅	
+Term	termset	tinyint	NO	∅	
+Term	guid	char	NO	uuid()	
+TermFee	id	int	NO	∅	PRI
+TermFee	name	varchar	NO	∅	
+TermFee	status	tinyint	NO	1	
+TermFee	termID	int	YES	∅	MUL
+TermFee	groupID	int	YES	∅	MUL
+TermFee	codeID	int	YES	∅	MUL
+TermFee	amount	decimal	NO	∅	
+TermFee	dueDate	date	NO	∅	
+TermFee	account	varchar	YES	∅	
+TermFee	type	tinyint	NO	∅	
+TermFee	dueDays	tinyint	NO	∅	
+TermFee	hasLineItems	tinyint	NO	∅	
+TermFee	guid	char	NO	uuid()	
+TermFeeItem	id	int	NO	∅	PRI
+TermFeeItem	status	tinyint	NO	1	
+TermFeeItem	termFeeID	int	NO	∅	MUL
+TermFeeItem	name	varchar	NO	∅	
+TermFeeItem	amount	decimal	NO	∅	
+TermFeeItem	account	varchar	YES	∅	
+Transaction	id	int	NO	∅	PRI
+Transaction	status	tinyint	NO	1	
+Transaction	date	date	NO	∅	
+Transaction	amount	decimal	NO	∅	
+Transaction	method	tinyint	NO	∅	
+Transaction	personID	int	NO	∅	MUL
+Transaction	feeID	int	YES	∅	MUL
+Transaction	creditFeeID	int	YES	∅	MUL
+Transaction	notes	varchar	NO	∅	
+Transaction	xeroID	char	YES	∅	
+Transaction	bankReceiptID	varchar	YES	∅	
+Transaction	ezidebitCustomerID	int	YES	∅	
+Transaction	guid	char	NO	uuid()	
+VaccinePass	id	int	NO	∅	PRI
+VaccinePass	status	tinyint	NO	1	
+VaccinePass	firstName	varchar	NO	∅	
+VaccinePass	lastName	varchar	NO	∅	
+VaccinePass	dob	date	NO	∅	
+VaccinePass	personID	int	NO	∅	UNI
+VaccinePass	validFrom	date	NO	∅	
+VaccinePass	expiryDate	date	NO	∅	
+VaccinePass	scanDate	date	NO	∅	
+VaccinePass	sightedByID	int	YES	∅	MUL
+VaccinePass	sightedDate	date	YES	∅	
+VaccinePass	guid	char	NO	uuid()	
+Venue	id	int	NO	∅	PRI
+Venue	status	tinyint	NO	1	
+Venue	name	varchar	NO	∅	
+Venue	location	varchar	NO	∅	
+Venue	description	mediumtext	NO	∅	
+Venue	personID	int	YES	∅	MUL
+Venue	maxBookings	tinyint	NO	∅	
+Venue	maxDays	int	NO	∅	
+Venue	minDays	int	NO	∅	
+Venue	account	varchar	YES	∅	
+Venue	emailContent	mediumtext	NO	∅	
+Venue	instructions	mediumtext	NO	∅	
+Venue	parentID	int	YES	∅	MUL
+Venue	memberGroups	varchar	NO	∅	
+Venue	order	int	NO	∅	
+Venue	guid	char	NO	uuid()	
+VenueLink	venueID	int	NO	∅	PRI
+VenueLink	venueTimeID	int	NO	∅	PRI
+VenueLink	guid	char	NO	uuid()	
+VenueSport	venueID	int	NO	∅	PRI
+VenueSport	compSportID	int	NO	∅	PRI
+VenueSport	guid	char	NO	uuid()	
+VenueTime	id	int	NO	∅	PRI
+VenueTime	status	tinyint	NO	1	
+VenueTime	venueID	int	NO	∅	MUL
+VenueTime	label	varchar	NO	∅	
+VenueTime	day	tinyint	NO	∅	
+VenueTime	startTime	time	NO	∅	
+VenueTime	endTime	time	NO	∅	
+VenueTime	term	tinyint	NO	∅	
+VenueTime	book	tinyint	NO	∅	
+VenueTime	memberFee	decimal	NO	∅	
+VenueTime	publicFee	decimal	NO	∅	
+VenueTime	date	date	YES	∅	
+VenueTime	guid	char	NO	uuid()	
+Voucher	id	int	NO	∅	PRI
+Voucher	status	tinyint	NO	1	
+Voucher	name	varchar	NO		
+Voucher	amount	decimal	NO	∅	
+Voucher	account	varchar	YES	∅	
+Voucher	expiry	date	NO	∅	
+Voucher	code	varchar	NO		
+Voucher	guid	char	NO	uuid()	
+XeroError	id	int	NO	∅	PRI
+XeroError	status	tinyint	NO	∅	
+XeroError	date	timestamp	NO	CURRENT_TIMESTAMP	
+XeroError	assocType	varchar	NO	∅	
+XeroError	assocID	int	NO	∅	
+XeroError	action	varchar	NO	∅	
+XeroError	endpoint	varchar	NO	∅	
+XeroError	message	mediumtext	NO	∅	
+XeroError	guid	char	NO	uuid()	

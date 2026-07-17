@@ -46,3 +46,6 @@ old/
 # test artifacts
 playwright-report/
 test-results/
+
+# graphify generated knowledge graph
+graphify-out/
