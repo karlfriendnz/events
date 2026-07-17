@@ -24,3 +24,10 @@ export const organisationSchema = z.object({
 export type Organisation = z.infer<typeof organisationSchema>
 
 export const organisationListSchema = z.array(organisationSchema)
+
+// A node in an ancestor/descendant walk — an organisation plus its distance from
+// the anchor (depth 1 = immediate parent/child). Replaces the Postgres RPCs
+// org_ancestors / org_descendants, which become recursive CTEs in the repository.
+export const orgTreeNodeSchema = organisationSchema.extend({ depth: z.number().int() })
+export type OrgTreeNode = z.infer<typeof orgTreeNodeSchema>
+export const orgTreeListSchema = z.array(orgTreeNodeSchema)
