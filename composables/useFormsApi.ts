@@ -6,6 +6,8 @@ import type {
   FormSubmission,
   RegistrationForm,
   RegistrationFormTarget,
+  RegistrationFormCreate,
+  RegistrationFormPatch,
 } from '../shared/contracts/form'
 
 export function useFormsApi() {
@@ -30,5 +32,14 @@ export function useFormsApi() {
       query: { orgId, ...opts },
     })
   }
-  return { list, get, targets, submissions }
+  async function create(input: RegistrationFormCreate): Promise<RegistrationForm> {
+    return await $fetch<RegistrationForm>('/api/v1/forms', { method: 'POST', body: input })
+  }
+  async function update(id: string, patch: RegistrationFormPatch): Promise<RegistrationForm> {
+    return await $fetch<RegistrationForm>(`/api/v1/forms/${id}`, { method: 'PATCH', body: patch })
+  }
+  async function remove(id: string): Promise<void> {
+    await $fetch(`/api/v1/forms/${id}`, { method: 'DELETE' })
+  }
+  return { list, get, targets, submissions, create, update, remove }
 }

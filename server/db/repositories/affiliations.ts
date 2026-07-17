@@ -10,6 +10,7 @@
 // `asArray` / `asObj` normalise either (and never throw), so the domain always sees
 // a real JS array / object. Timestamps come back as Date (or a string) and are
 // serialised to ISO 8601 at the boundary.
+import { randomUUID } from 'node:crypto'
 import { asc, eq } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
@@ -17,6 +18,10 @@ import type {
   LocationStaff,
   OrgManagerGrant,
   OrgSport,
+  OrgSportCreate,
+  OrgSportPatch,
+  LocationCreate,
+  LocationPatch,
 } from '../../../shared/contracts/affiliation'
 
 // Coerce a json column into string[]: already an array → use it; a string → parse;
@@ -150,4 +155,82 @@ export async function listLocationStaff(orgId: string): Promise<LocationStaff[]>
     .from(schema.locationStaff)
     .where(eq(schema.locationStaff.orgId, orgId))
   return rows.map(toLocationStaff)
+}
+
+// ── Writes ──
+// The repo owns the id (MySQL can't default a uuid). The `terminology` json object
+// is passed as a PLAIN JS object — drizzle's json() serialises it; DON'T
+// JSON.stringify first or it stores a double-encoded string. `as any` mirrors the
+// app's insert idiom (the first-pass schema over-requires notNull columns the DB
+// defaults, e.g. requested_at).
+export async function getOrgSport(id: string): Promise<OrgSport | null> {
+  const [r] = await db.select().from(schema.orgSports).where(eq(schema.orgSports.id, id)).limit(1)
+  return r ? toOrgSport(r) : null
+}
+
+export async function createOrgSport(input: OrgSportCreate): Promise<OrgSport> {
+  const id = randomUUID()
+  await db.insert(schema.orgSports).values({
+    id,
+    orgId: input.orgId,
+    sport: input.sport,
+    displayName: input.displayName ?? null,
+    nsoOrgId: input.nsoOrgId ?? null,
+    isPrimary: input.isPrimary ?? false,
+    sortOrder: input.sortOrder ?? 0,
+    affiliationStatus: input.affiliationStatus ?? 'approved',
+    terminology: input.terminology ?? null,
+  } as any)
+  return (await getOrgSport(id))!
+}
+
+export async function updateOrgSport(id: string, patch: OrgSportPatch): Promise<OrgSport | null> {
+  const set: Record<string, any> = {}
+  if (patch.orgId !== undefined) set.orgId = patch.orgId
+  if (patch.sport !== undefined) set.sport = patch.sport
+  if (patch.displayName !== undefined) set.displayName = patch.displayName
+  if (patch.nsoOrgId !== undefined) set.nsoOrgId = patch.nsoOrgId
+  if (patch.isPrimary !== undefined) set.isPrimary = patch.isPrimary
+  if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
+  if (patch.affiliationStatus !== undefined) set.affiliationStatus = patch.affiliationStatus
+  if (patch.terminology !== undefined) set.terminology = patch.terminology
+  if (Object.keys(set).length) await db.update(schema.orgSports).set(set).where(eq(schema.orgSports.id, id))
+  return getOrgSport(id)
+}
+
+export async function deleteOrgSport(id: string): Promise<void> {
+  await db.delete(schema.orgSports).where(eq(schema.orgSports.id, id))
+}
+
+export async function getLocation(id: string): Promise<Location | null> {
+  const [r] = await db.select().from(schema.locations).where(eq(schema.locations.id, id)).limit(1)
+  return r ? toLocation(r) : null
+}
+
+export async function createLocation(input: LocationCreate): Promise<Location> {
+  const id = randomUUID()
+  await db.insert(schema.locations).values({
+    id,
+    orgId: input.orgId,
+    name: input.name,
+    address: input.address ?? null,
+    color: input.color ?? null,
+    sortOrder: input.sortOrder ?? 0,
+  } as any)
+  return (await getLocation(id))!
+}
+
+export async function updateLocation(id: string, patch: LocationPatch): Promise<Location | null> {
+  const set: Record<string, any> = {}
+  if (patch.orgId !== undefined) set.orgId = patch.orgId
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.address !== undefined) set.address = patch.address
+  if (patch.color !== undefined) set.color = patch.color
+  if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
+  if (Object.keys(set).length) await db.update(schema.locations).set(set).where(eq(schema.locations.id, id))
+  return getLocation(id)
+}
+
+export async function deleteLocation(id: string): Promise<void> {
+  await db.delete(schema.locations).where(eq(schema.locations.id, id))
 }

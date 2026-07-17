@@ -45,6 +45,36 @@ export type Discount = z.infer<typeof discountSchema>
 
 export const discountListSchema = z.array(discountSchema)
 
+// WRITE contracts. Create omits the server-owned id AND orgId (the table has no
+// org_id — it's resolved from the linked event by the repo). name is required; the
+// notNull columns (type / modifierType / modifierValue / applyTo / conditions /
+// isActive) default in the repo, everything else is optional. Patch is a partial.
+export const discountCreateSchema = discountSchema
+  .omit({ id: true, orgId: true })
+  .partial({
+    eventId: true,
+    type: true,
+    code: true,
+    formText: true,
+    modifierType: true,
+    modifierValue: true,
+    applyTo: true,
+    conditions: true,
+    eligibility: true,
+    usageCap: true,
+    perUserCap: true,
+    minSessions: true,
+    linkedEventId: true,
+    validFrom: true,
+    expiresAt: true,
+    isActive: true,
+  })
+  .extend({ name: z.string().min(1) })
+export type DiscountCreate = z.infer<typeof discountCreateSchema>
+
+export const discountPatchSchema = discountCreateSchema.partial()
+export type DiscountPatch = z.infer<typeof discountPatchSchema>
+
 // A BOOKING discount (table `booking_discounts`) — the resource-booking twin of an
 // event discount, scoped directly to an org with its own use caps + validity window.
 export const bookingDiscountSchema = z.object({

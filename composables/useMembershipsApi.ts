@@ -7,8 +7,13 @@
 // wrapping typed $fetch to /api/v1/*.
 import type {
   MembershipEntitlement,
+  MembershipPlan,
   MembershipPlanWithOptions,
+  MembershipPlanCreate,
+  MembershipPlanPatch,
   OrgTerm,
+  OrgTermCreate,
+  OrgTermPatch,
   TermSet,
 } from '../shared/contracts/membership'
 
@@ -33,5 +38,32 @@ export function useMembershipsApi() {
   async function termSets(orgId: string): Promise<TermSet[]> {
     return await $fetch<TermSet[]>('/api/v1/term-sets', { query: { orgId } })
   }
-  return { plans, entitlements, terms, termSets }
+  /** Create a term/season. */
+  async function createTerm(input: OrgTermCreate): Promise<OrgTerm> {
+    return await $fetch<OrgTerm>('/api/v1/terms', { method: 'POST', body: input })
+  }
+  /** Update a term/season. */
+  async function updateTerm(id: string, patch: OrgTermPatch): Promise<OrgTerm> {
+    return await $fetch<OrgTerm>(`/api/v1/terms/${id}`, { method: 'PATCH', body: patch })
+  }
+  /** Delete a term/season. */
+  async function removeTerm(id: string): Promise<void> {
+    await $fetch(`/api/v1/terms/${id}`, { method: 'DELETE' })
+  }
+  /** Create a membership plan. */
+  async function createPlan(input: MembershipPlanCreate): Promise<MembershipPlan> {
+    return await $fetch<MembershipPlan>('/api/v1/memberships/plans', { method: 'POST', body: input })
+  }
+  /** Update a membership plan. */
+  async function updatePlan(id: string, patch: MembershipPlanPatch): Promise<MembershipPlan> {
+    return await $fetch<MembershipPlan>(`/api/v1/memberships/plans/${id}`, { method: 'PATCH', body: patch })
+  }
+  /** Delete a membership plan. */
+  async function removePlan(id: string): Promise<void> {
+    await $fetch(`/api/v1/memberships/plans/${id}`, { method: 'DELETE' })
+  }
+  return {
+    plans, entitlements, terms, termSets,
+    createTerm, updateTerm, removeTerm, createPlan, updatePlan, removePlan,
+  }
 }

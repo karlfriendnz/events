@@ -34,6 +34,17 @@ export type OrgSport = z.infer<typeof orgSportSchema>
 
 export const orgSportListSchema = z.array(orgSportSchema)
 
+// WRITE contracts. Create omits server-owned fields (id + the requested/decided
+// timestamps the repo owns); sport is required, the rest default in the repo. Patch
+// is a partial.
+export const orgSportCreateSchema = orgSportSchema
+  .omit({ id: true, requestedAt: true, decidedAt: true })
+  .partial({ displayName: true, nsoOrgId: true, isPrimary: true, sortOrder: true, affiliationStatus: true, terminology: true })
+export type OrgSportCreate = z.infer<typeof orgSportCreateSchema>
+
+export const orgSportPatchSchema = orgSportCreateSchema.partial()
+export type OrgSportPatch = z.infer<typeof orgSportPatchSchema>
+
 // Cross-club authority granted to a person at a governing org. `targetOrgId` null =
 // the whole subtree beneath the granting org; set = a specific club override.
 // `capabilities` is a json array (report / events / comms) → string[].
@@ -61,6 +72,17 @@ export const locationSchema = z.object({
 export type Location = z.infer<typeof locationSchema>
 
 export const locationListSchema = z.array(locationSchema)
+
+// WRITE contracts. Create omits the server-owned id; name + orgId are required, the
+// rest default in the repo. Patch is a partial.
+export const locationCreateSchema = locationSchema
+  .omit({ id: true })
+  .partial({ address: true, color: true, sortOrder: true })
+  .extend({ name: z.string().min(1) })
+export type LocationCreate = z.infer<typeof locationCreateSchema>
+
+export const locationPatchSchema = locationCreateSchema.partial()
+export type LocationPatch = z.infer<typeof locationPatchSchema>
 
 // A staff member's role at a location (and optionally a sport). `locationId` null =
 // a club-wide grant; `roleKey` is an open string validated at the boundary.

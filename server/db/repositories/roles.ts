@@ -8,6 +8,7 @@
 // them back already parsed, but a driver/config can return the raw string —
 // `asArray`/`asObj` normalise either into a real JS value (and never throw), so the
 // domain always sees a string[] / plain object.
+import { randomUUID } from 'node:crypto'
 import { asc, eq, isNull, or } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
@@ -15,6 +16,8 @@ import type {
   PermissionGroup,
   CodeRoleDef,
   CodeStaff,
+  ScopedRoleDefCreate,
+  ScopedRoleDefPatch,
 } from '../../../shared/contracts/role'
 
 // Coerce a json column into string[]: already an array → use it; a string → parse;
@@ -135,4 +138,48 @@ export async function listCodeStaff(orgId: string): Promise<CodeStaff[]> {
     .from(schema.codeStaff)
     .where(eq(schema.codeStaff.orgId, orgId))
   return rows.map(toCodeStaff)
+}
+
+// ── Writes ── (scoped-role catalogue)
+// The repo owns the id (MySQL can't default a uuid). `capabilities` is passed as a
+// PLAIN JS ARRAY — drizzle's json() serialises it; DON'T JSON.stringify first or it
+// stores a double-encoded string. `as any` mirrors the app's insert idiom (the
+// first-pass schema over-requires notNull columns the DB defaults, e.g. sort_order).
+export async function getScopedRoleDef(id: string): Promise<ScopedRoleDef | null> {
+  const [r] = await db.select().from(schema.scopedRoleDefs).where(eq(schema.scopedRoleDefs.id, id)).limit(1)
+  return r ? toScopedRoleDef(r) : null
+}
+
+export async function createScopedRoleDef(input: ScopedRoleDefCreate): Promise<ScopedRoleDef> {
+  const id = randomUUID()
+  await db.insert(schema.scopedRoleDefs).values({
+    id,
+    orgId: input.orgId,
+    resourceType: input.resourceType,
+    key: input.key,
+    label: input.label,
+    roleGroup: input.roleGroup,
+    capabilities: input.capabilities ?? [],
+    fieldType: input.fieldType ?? null,
+    sortOrder: input.sortOrder ?? 0,
+  } as any)
+  return (await getScopedRoleDef(id))!
+}
+
+export async function updateScopedRoleDef(id: string, patch: ScopedRoleDefPatch): Promise<ScopedRoleDef | null> {
+  const set: Record<string, any> = {}
+  if (patch.orgId !== undefined) set.orgId = patch.orgId
+  if (patch.resourceType !== undefined) set.resourceType = patch.resourceType
+  if (patch.key !== undefined) set.key = patch.key
+  if (patch.label !== undefined) set.label = patch.label
+  if (patch.roleGroup !== undefined) set.roleGroup = patch.roleGroup
+  if (patch.capabilities !== undefined) set.capabilities = patch.capabilities
+  if (patch.fieldType !== undefined) set.fieldType = patch.fieldType
+  if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
+  if (Object.keys(set).length) await db.update(schema.scopedRoleDefs).set(set).where(eq(schema.scopedRoleDefs.id, id))
+  return getScopedRoleDef(id)
+}
+
+export async function deleteScopedRoleDef(id: string): Promise<void> {
+  await db.delete(schema.scopedRoleDefs).where(eq(schema.scopedRoleDefs.id, id))
 }

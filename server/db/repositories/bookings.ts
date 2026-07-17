@@ -8,9 +8,19 @@
 // pricing/addons are `json` columns. mysql2 usually hands them back already parsed,
 // but a driver/config can return the raw string — asArray/asObj normalise either
 // (and never throw), so the domain always sees a real JS value.
+import { randomUUID } from 'node:crypto'
 import { asc, desc, eq } from 'drizzle-orm'
 import { db, schema } from '../client'
-import type { Bookable, Activity, ActivityMode, Booking } from '../../../shared/contracts/booking'
+import type {
+  Bookable,
+  Activity,
+  ActivityMode,
+  Booking,
+  BookableCreate,
+  BookablePatch,
+  ActivityCreate,
+  ActivityPatch,
+} from '../../../shared/contracts/booking'
 
 // Coerce a json column into string[]: already an array → use it; a string → parse;
 // anything else / a parse failure → [].
@@ -149,6 +159,55 @@ export async function getBookable(id: string): Promise<Bookable | null> {
   return r ? toBookable(r) : null
 }
 
+// ── Bookable writes ──
+// The repo owns the id (MySQL can't default a uuid). The json array columns
+// (sections/features/categories/sports) are JSON.stringify'd on the way IN,
+// mirroring asArray on the way OUT. `as any` on the insert: the first-pass schema
+// marks many columns .notNull() (from Postgres) without their defaults, so Drizzle
+// over-requires them; the DB (defaults + relaxed mode) fills the rest. Consistent
+// with the app's (db.from as any) idiom.
+export async function createBookable(input: BookableCreate): Promise<Bookable> {
+  const id = randomUUID()
+  await db.insert(schema.bookables).values({
+    id,
+    orgId: input.orgId,
+    name: input.name,
+    type: input.type ?? 'VENUE',
+    parentId: input.parentId ?? null,
+    masterId: input.masterId ?? null,
+    maxConcurrent: input.maxConcurrent ?? 1,
+    status: input.status ?? 'ACTIVE',
+    isPublic: input.isPublic ?? true,
+    sections: input.sections ?? [],
+    features: input.features ?? [],
+    categories: input.categories ?? [],
+    sports: input.sports ?? [],
+  } as any)
+  return (await getBookable(id))!
+}
+
+export async function updateBookable(id: string, patch: BookablePatch): Promise<Bookable | null> {
+  const set: Record<string, any> = {}
+  if (patch.orgId !== undefined) set.orgId = patch.orgId
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.type !== undefined) set.type = patch.type
+  if (patch.parentId !== undefined) set.parentId = patch.parentId
+  if (patch.masterId !== undefined) set.masterId = patch.masterId
+  if (patch.maxConcurrent !== undefined) set.maxConcurrent = patch.maxConcurrent
+  if (patch.status !== undefined) set.status = patch.status
+  if (patch.isPublic !== undefined) set.isPublic = patch.isPublic
+  if (patch.sections !== undefined) set.sections = patch.sections ?? []
+  if (patch.features !== undefined) set.features = patch.features ?? []
+  if (patch.categories !== undefined) set.categories = patch.categories ?? []
+  if (patch.sports !== undefined) set.sports = patch.sports ?? []
+  if (Object.keys(set).length) await db.update(schema.bookables).set(set).where(eq(schema.bookables.id, id))
+  return getBookable(id)
+}
+
+export async function deleteBookable(id: string): Promise<void> {
+  await db.delete(schema.bookables).where(eq(schema.bookables.id, id))
+}
+
 /** Every activity an org offers, in sort order. */
 export async function listActivities(orgId: string): Promise<Activity[]> {
   const rows = await db
@@ -163,6 +222,50 @@ export async function listActivities(orgId: string): Promise<Activity[]> {
 export async function getActivity(id: string): Promise<Activity | null> {
   const [r] = await db.select().from(schema.activities).where(eq(schema.activities.id, id)).limit(1)
   return r ? toActivity(r) : null
+}
+
+// ── Activity writes ──
+// The repo owns the id. activities has no json columns, so nothing to stringify;
+// `as any` per the insert idiom above lets the DB fill the .notNull() columns the
+// contract doesn't carry (the many booking-behaviour flags).
+export async function createActivity(input: ActivityCreate): Promise<Activity> {
+  const id = randomUUID()
+  await db.insert(schema.activities).values({
+    id,
+    orgId: input.orgId,
+    name: input.name,
+    description: input.description ?? null,
+    color: input.color ?? '#1E2157',
+    icon: input.icon ?? 'pi-calendar',
+    imageUrl: input.imageUrl ?? null,
+    status: input.status ?? 'ACTIVE',
+    staffBookableId: input.staffBookableId ?? null,
+    bookingFlow: input.bookingFlow ?? 'wizard',
+    assignmentMode: input.assignmentMode ?? 'system',
+    bookingsEnabled: input.bookingsEnabled ?? true,
+  } as any)
+  return (await getActivity(id))!
+}
+
+export async function updateActivity(id: string, patch: ActivityPatch): Promise<Activity | null> {
+  const set: Record<string, any> = {}
+  if (patch.orgId !== undefined) set.orgId = patch.orgId
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.description !== undefined) set.description = patch.description
+  if (patch.color !== undefined) set.color = patch.color
+  if (patch.icon !== undefined) set.icon = patch.icon
+  if (patch.imageUrl !== undefined) set.imageUrl = patch.imageUrl
+  if (patch.status !== undefined) set.status = patch.status
+  if (patch.staffBookableId !== undefined) set.staffBookableId = patch.staffBookableId
+  if (patch.bookingFlow !== undefined) set.bookingFlow = patch.bookingFlow
+  if (patch.assignmentMode !== undefined) set.assignmentMode = patch.assignmentMode
+  if (patch.bookingsEnabled !== undefined) set.bookingsEnabled = patch.bookingsEnabled
+  if (Object.keys(set).length) await db.update(schema.activities).set(set).where(eq(schema.activities.id, id))
+  return getActivity(id)
+}
+
+export async function deleteActivity(id: string): Promise<void> {
+  await db.delete(schema.activities).where(eq(schema.activities.id, id))
 }
 
 /** The modes of one activity, in sort order. */

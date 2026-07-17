@@ -23,6 +23,17 @@ export type Waitlist = z.infer<typeof waitlistSchema>
 
 export const waitlistListSchema = z.array(waitlistSchema)
 
+// WRITE contracts. Create omits the server-owned id; name + orgId are required,
+// orderMode + the term/lineage links default in the repo. Patch is a partial.
+export const waitlistCreateSchema = waitlistSchema
+  .omit({ id: true })
+  .partial({ termId: true, orderMode: true, lineageId: true })
+  .extend({ name: z.string().min(1) })
+export type WaitlistCreate = z.infer<typeof waitlistCreateSchema>
+
+export const waitlistPatchSchema = waitlistCreateSchema.partial()
+export type WaitlistPatch = z.infer<typeof waitlistPatchSchema>
+
 // One person waiting in a queue, with their position + priority.
 export const waitlistEntrySchema = z.object({
   id: z.string(),

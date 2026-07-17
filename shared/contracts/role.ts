@@ -27,6 +27,17 @@ export type ScopedRoleDef = z.infer<typeof scopedRoleDefSchema>
 
 export const scopedRoleDefListSchema = z.array(scopedRoleDefSchema)
 
+// WRITE contracts. Create omits the server-owned id; orgId/resourceType/key/label/
+// roleGroup are required, capabilities + fieldType + sortOrder default in the repo.
+// Patch is a partial.
+export const scopedRoleDefCreateSchema = scopedRoleDefSchema
+  .omit({ id: true })
+  .partial({ capabilities: true, fieldType: true, sortOrder: true })
+export type ScopedRoleDefCreate = z.infer<typeof scopedRoleDefCreateSchema>
+
+export const scopedRoleDefPatchSchema = scopedRoleDefCreateSchema.partial()
+export type ScopedRoleDefPatch = z.infer<typeof scopedRoleDefPatchSchema>
+
 // An org-wide RBAC permission group (a "user type"). Core templates every club
 // inherits have `orgId = null` + `isCore = true`. `grants` is the json access map
 // (stored in the `permissions` column) — a free object passed through at the

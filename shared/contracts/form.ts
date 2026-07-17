@@ -25,6 +25,18 @@ export type RegistrationForm = z.infer<typeof registrationFormSchema>
 
 export const registrationFormListSchema = z.array(registrationFormSchema)
 
+// WRITE contracts. Create omits the server-owned id; name + orgId are required, and
+// config defaults to an empty object in the repo. Patch is a partial — rename the
+// form and/or overwrite its designed config.
+export const registrationFormCreateSchema = registrationFormSchema
+  .omit({ id: true })
+  .partial({ config: true })
+  .extend({ name: z.string().min(1) })
+export type RegistrationFormCreate = z.infer<typeof registrationFormCreateSchema>
+
+export const registrationFormPatchSchema = registrationFormCreateSchema.partial()
+export type RegistrationFormPatch = z.infer<typeof registrationFormPatchSchema>
+
 // A connection between a form and something it registers into — a code (whole
 // programme) or a group (one class); `targetType` is open text (events etc. later),
 // validated as a string at the boundary, not a DB CHECK.

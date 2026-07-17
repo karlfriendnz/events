@@ -11,6 +11,10 @@ import type {
   MemberGroupMembership,
   MemberGroupSchedule,
   GroupFeeOption,
+  MemberGroupCreate,
+  MemberGroupPatch,
+  GroupCodeCreate,
+  GroupCodePatch,
 } from '../shared/contracts/group'
 
 export function useGroupsApi() {
@@ -38,5 +42,32 @@ export function useGroupsApi() {
   async function feeOptions(groupId: string): Promise<GroupFeeOption[]> {
     return await $fetch<GroupFeeOption[]>(`/api/v1/groups/${groupId}/fee-options`)
   }
-  return { list, get, memberships, schedules, codes, feeOptions }
+  /** Create a group. */
+  async function create(input: MemberGroupCreate): Promise<MemberGroup> {
+    return await $fetch<MemberGroup>('/api/v1/groups', { method: 'POST', body: input })
+  }
+  /** Update a group. */
+  async function update(id: string, patch: MemberGroupPatch): Promise<MemberGroup> {
+    return await $fetch<MemberGroup>(`/api/v1/groups/${id}`, { method: 'PATCH', body: patch })
+  }
+  /** Delete a group. */
+  async function remove(id: string): Promise<void> {
+    await $fetch(`/api/v1/groups/${id}`, { method: 'DELETE' })
+  }
+  /** Create a code. */
+  async function createCode(input: GroupCodeCreate): Promise<GroupCode> {
+    return await $fetch<GroupCode>('/api/v1/group-codes', { method: 'POST', body: input })
+  }
+  /** Update a code. */
+  async function updateCode(id: string, patch: GroupCodePatch): Promise<GroupCode> {
+    return await $fetch<GroupCode>(`/api/v1/group-codes/${id}`, { method: 'PATCH', body: patch })
+  }
+  /** Delete a code. */
+  async function removeCode(id: string): Promise<void> {
+    await $fetch(`/api/v1/group-codes/${id}`, { method: 'DELETE' })
+  }
+  return {
+    list, get, memberships, schedules, codes, feeOptions,
+    create, update, remove, createCode, updateCode, removeCode,
+  }
 }

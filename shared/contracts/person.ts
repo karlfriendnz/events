@@ -29,3 +29,28 @@ export const personSchema = z.object({
 export type Person = z.infer<typeof personSchema>
 
 export const personListSchema = z.array(personSchema)
+
+// WRITE contracts. Create omits the server-owned id (the repo generates it);
+// orgId + firstName are the minimum, everything else defaults in the repo. The
+// json-backed fields (personTypes, customFields) stay plain array/object here —
+// the repo serialises them. Patch is a partial — any subset of the writable fields.
+export const personCreateSchema = personSchema
+  .omit({ id: true })
+  .partial({
+    lastName: true,
+    email: true,
+    phone: true,
+    dob: true,
+    gender: true,
+    membershipType: true,
+    personTypes: true,
+    customFields: true,
+  })
+  .extend({
+    orgId: z.string().min(1),
+    firstName: z.string().min(1),
+  })
+export type PersonCreate = z.infer<typeof personCreateSchema>
+
+export const personPatchSchema = personCreateSchema.partial()
+export type PersonPatch = z.infer<typeof personPatchSchema>

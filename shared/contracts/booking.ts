@@ -35,6 +35,21 @@ export type Bookable = z.infer<typeof bookableSchema>
 
 export const bookableListSchema = z.array(bookableSchema)
 
+// WRITE contracts. Create omits the server-owned id (the repo generates it) and
+// makes everything but orgId + name optional — the repo/DB supply the rest. The
+// four json arrays default to [] in the repo. Update is a partial.
+export const bookableCreateSchema = bookableSchema
+  .omit({ id: true })
+  .partial({
+    type: true, parentId: true, masterId: true, maxConcurrent: true, status: true,
+    isPublic: true, sections: true, features: true, categories: true, sports: true,
+  })
+  .extend({ name: z.string().min(1) })
+export type BookableCreate = z.infer<typeof bookableCreateSchema>
+
+export const bookablePatchSchema = bookableCreateSchema.partial()
+export type BookablePatch = z.infer<typeof bookablePatchSchema>
+
 // An activity — the bookable "thing to do" (a court hire, a coaching service, an
 // item rental). `bookingFlow` (wizard|scheduler|item) and `assignmentMode` are open
 // strings. `staffBookableId` non-null = owned by one staff/PERSON bookable.
@@ -55,6 +70,21 @@ export const activitySchema = z.object({
 export type Activity = z.infer<typeof activitySchema>
 
 export const activityListSchema = z.array(activitySchema)
+
+// WRITE contracts. Create omits the server-owned id and requires only orgId +
+// name; the repo/DB supply the rest (activities has no json columns). Update is a
+// partial.
+export const activityCreateSchema = activitySchema
+  .omit({ id: true })
+  .partial({
+    description: true, color: true, icon: true, imageUrl: true, status: true,
+    staffBookableId: true, bookingFlow: true, assignmentMode: true, bookingsEnabled: true,
+  })
+  .extend({ name: z.string().min(1) })
+export type ActivityCreate = z.infer<typeof activityCreateSchema>
+
+export const activityPatchSchema = activityCreateSchema.partial()
+export type ActivityPatch = z.infer<typeof activityPatchSchema>
 
 // A mode of an activity (e.g. "Singles", "Doubles", a rate card). `pricing` is a
 // free jsonb object, `addons` a jsonb array — passthrough at the boundary. Item

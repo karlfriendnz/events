@@ -9,6 +9,7 @@
 // (`override_targets` — mysql2 can hand a TINYINT back as 0/1, so `asBool`
 // normalises to a real boolean) and timestamps (`created_at` on a view →
 // ISO 8601 at the boundary).
+import { randomUUID } from 'node:crypto'
 import { and, asc, desc, eq } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
@@ -16,6 +17,8 @@ import type {
   ResourceFolder,
   ResourceTarget,
   ResourceView,
+  ResourceCreate,
+  ResourcePatch,
 } from '../../../shared/contracts/resource'
 
 // Coerce a TINYINT/boolean column into a real boolean: the driver may return 1/0.
@@ -123,4 +126,47 @@ export async function listViews(resourceId: string): Promise<ResourceView[]> {
     .where(eq(schema.resourceViews.resourceId, resourceId))
     .orderBy(desc(schema.resourceViews.createdAt))
   return rows.map(toView)
+}
+
+// ── Writes ──
+// The repo owns the id (MySQL can't default a uuid). This domain has no json columns
+// — flat scalar rows. `as any` mirrors the app's insert idiom (the first-pass schema
+// over-requires notNull columns the DB defaults, e.g. override_targets / sort_order).
+export async function getResource(id: string): Promise<Resource | null> {
+  const [r] = await db.select().from(schema.resources).where(eq(schema.resources.id, id)).limit(1)
+  return r ? toResource(r) : null
+}
+
+export async function createResource(input: ResourceCreate): Promise<Resource> {
+  const id = randomUUID()
+  await db.insert(schema.resources).values({
+    id,
+    orgId: input.orgId,
+    folderId: input.folderId ?? null,
+    kind: input.kind,
+    title: input.title,
+    url: input.url,
+    description: input.description ?? null,
+    overrideTargets: input.overrideTargets ?? false,
+    sortOrder: input.sortOrder ?? 0,
+  } as any)
+  return (await getResource(id))!
+}
+
+export async function updateResource(id: string, patch: ResourcePatch): Promise<Resource | null> {
+  const set: Record<string, any> = {}
+  if (patch.orgId !== undefined) set.orgId = patch.orgId
+  if (patch.folderId !== undefined) set.folderId = patch.folderId
+  if (patch.kind !== undefined) set.kind = patch.kind
+  if (patch.title !== undefined) set.title = patch.title
+  if (patch.url !== undefined) set.url = patch.url
+  if (patch.description !== undefined) set.description = patch.description
+  if (patch.overrideTargets !== undefined) set.overrideTargets = patch.overrideTargets
+  if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
+  if (Object.keys(set).length) await db.update(schema.resources).set(set).where(eq(schema.resources.id, id))
+  return getResource(id)
+}
+
+export async function deleteResource(id: string): Promise<void> {
+  await db.delete(schema.resources).where(eq(schema.resources.id, id))
 }

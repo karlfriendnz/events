@@ -27,6 +27,18 @@ export type Discipline = z.infer<typeof disciplineSchema>
 
 export const disciplineListSchema = z.array(disciplineSchema)
 
+// WRITE contracts. Create omits the server-owned id (the repo generates it); name +
+// orgId are required, everything else defaults in the repo. Patch is a partial —
+// any subset of the writable fields.
+export const disciplineCreateSchema = disciplineSchema
+  .omit({ id: true })
+  .partial({ sport: true, code: true, parentId: true, sortOrder: true, appliesTo: true, personTypeKeys: true })
+  .extend({ name: z.string().min(1) })
+export type DisciplineCreate = z.infer<typeof disciplineCreateSchema>
+
+export const disciplinePatchSchema = disciplineCreateSchema.partial()
+export type DisciplinePatch = z.infer<typeof disciplinePatchSchema>
+
 // What a governing body DEMANDS of a person in one of its disciplines. `operator`
 // is a plain string (validated as a set by the boundary, not a DB CHECK); `value`
 // is a free json payload (a label, a number, or a [min,max] pair for Is Between).
@@ -48,3 +60,13 @@ export const disciplineRequirementSchema = z.object({
 export type DisciplineRequirement = z.infer<typeof disciplineRequirementSchema>
 
 export const disciplineRequirementListSchema = z.array(disciplineRequirementSchema)
+
+// A requirement in a WRITE payload — the whole set for a discipline is replaced at
+// once (delete-then-insert), so a row omits its own id AND the disciplineId (which
+// comes from the route). purpose + operator are required; the rest default.
+export const disciplineRequirementCreateSchema = disciplineRequirementSchema
+  .omit({ id: true, disciplineId: true })
+  .partial({ fieldColumn: true, fieldDefinitionId: true, fieldKey: true, value: true, exempt: true, appliesTo: true, message: true, sortOrder: true })
+export type DisciplineRequirementCreate = z.infer<typeof disciplineRequirementCreateSchema>
+
+export const disciplineRequirementSaveSchema = z.array(disciplineRequirementCreateSchema)

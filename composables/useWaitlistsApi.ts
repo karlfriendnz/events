@@ -4,6 +4,8 @@
 // idea whether the data came from MySQL today or the backend team's API tomorrow.
 import type {
   Waitlist,
+  WaitlistCreate,
+  WaitlistPatch,
   WaitlistEntry,
   Communication,
   CommunicationTopic,
@@ -15,6 +17,15 @@ export function useWaitlistsApi() {
   /** Every waitlist an org has. */
   async function waitlists(orgId: string): Promise<Waitlist[]> {
     return await $fetch<Waitlist[]>('/api/v1/waitlists', { query: { orgId } })
+  }
+  async function createWaitlist(input: WaitlistCreate): Promise<Waitlist> {
+    return await $fetch<Waitlist>('/api/v1/waitlists', { method: 'POST', body: input })
+  }
+  async function updateWaitlist(id: string, patch: WaitlistPatch): Promise<Waitlist> {
+    return await $fetch<Waitlist>(`/api/v1/waitlists/${id}`, { method: 'PATCH', body: patch })
+  }
+  async function removeWaitlist(id: string): Promise<void> {
+    await $fetch(`/api/v1/waitlists/${id}`, { method: 'DELETE' })
   }
   /** The people waiting in one queue, in position order. */
   async function entries(waitlistId: string): Promise<WaitlistEntry[]> {
@@ -40,5 +51,15 @@ export function useWaitlistsApi() {
   async function calendars(orgId: string): Promise<Calendar[]> {
     return await $fetch<Calendar[]>('/api/v1/calendars', { query: { orgId } })
   }
-  return { waitlists, entries, communications, topics, emailTemplates, calendars }
+  return {
+    waitlists,
+    createWaitlist,
+    updateWaitlist,
+    removeWaitlist,
+    entries,
+    communications,
+    topics,
+    emailTemplates,
+    calendars,
+  }
 }

@@ -3,9 +3,10 @@
 // functions; they never touch Drizzle or the DB directly. When the backend team's
 // MySQL API replaces this, only this file changes — routes, composables and UI are
 // untouched.
+import { randomUUID } from 'node:crypto'
 import { and, asc, eq, like, or } from 'drizzle-orm'
 import { db, schema } from '../client'
-import type { Person } from '../../../shared/contracts/person'
+import type { Person, PersonCreate, PersonPatch } from '../../../shared/contracts/person'
 
 // A json() column may hand back an already-parsed value OR a JSON string depending
 // on the driver/column — normalise to an array, defaulting to [] on anything odd.
@@ -92,4 +93,50 @@ export async function listPeople(
 export async function getPerson(id: string): Promise<Person | null> {
   const [r] = await db.select().from(schema.persons).where(eq(schema.persons.id, id)).limit(1)
   return r ? toDomain(r) : null
+}
+
+// ── Writes ──
+// The repo owns the id (MySQL can't default a uuid). The json columns (personTypes,
+// customFields) are JSON.stringify'd on the way IN, mirroring asArray/asObj's parse
+// on the way OUT.
+export async function createPerson(input: PersonCreate): Promise<Person> {
+  const id = randomUUID()
+  // `as any`: the first-pass schema marks columns .notNull() (from Postgres) without
+  // their defaults, so Drizzle's insert type over-requires them, and json columns
+  // take a stringified value here rather than the JS object the type expects. The DB
+  // fills the rest. Consistent with the app's (db.from as any) idiom.
+  await db.insert(schema.persons).values({
+    id,
+    orgId: input.orgId,
+    firstName: input.firstName,
+    lastName: input.lastName ?? '',
+    email: input.email ?? null,
+    phone: input.phone ?? null,
+    dob: input.dob ?? null,
+    gender: input.gender ?? null,
+    membershipType: input.membershipType ?? null,
+    personTypes: input.personTypes ?? [],
+    customFields: input.customFields ?? {},
+  } as any)
+  return (await getPerson(id))!
+}
+
+export async function updatePerson(id: string, patch: PersonPatch): Promise<Person | null> {
+  const set: Record<string, any> = {}
+  if (patch.orgId !== undefined) set.orgId = patch.orgId
+  if (patch.firstName !== undefined) set.firstName = patch.firstName
+  if (patch.lastName !== undefined) set.lastName = patch.lastName
+  if (patch.email !== undefined) set.email = patch.email
+  if (patch.phone !== undefined) set.phone = patch.phone
+  if (patch.dob !== undefined) set.dob = patch.dob
+  if (patch.gender !== undefined) set.gender = patch.gender
+  if (patch.membershipType !== undefined) set.membershipType = patch.membershipType
+  if (patch.personTypes !== undefined) set.personTypes = patch.personTypes
+  if (patch.customFields !== undefined) set.customFields = patch.customFields
+  if (Object.keys(set).length) await db.update(schema.persons).set(set).where(eq(schema.persons.id, id))
+  return getPerson(id)
+}
+
+export async function deletePerson(id: string): Promise<void> {
+  await db.delete(schema.persons).where(eq(schema.persons.id, id))
 }

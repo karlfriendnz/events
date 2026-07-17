@@ -5,7 +5,16 @@
 //
 // This follows the use<Thing>Api() template every migrated screen uses: typed
 // $fetch to /api/v1/*.
-import type { Bookable, Activity, ActivityMode, Booking } from '../shared/contracts/booking'
+import type {
+  Bookable,
+  Activity,
+  ActivityMode,
+  Booking,
+  BookableCreate,
+  BookablePatch,
+  ActivityCreate,
+  ActivityPatch,
+} from '../shared/contracts/booking'
 
 export function useBookingsApi() {
   /** Every bookable an org owns. */
@@ -37,5 +46,33 @@ export function useBookingsApi() {
       query: { orgId, ...(opts?.limit != null ? { limit: opts.limit } : {}), ...(opts?.offset != null ? { offset: opts.offset } : {}) },
     })
   }
-  return { bookables, bookable, activities, activity, activityModes, bookings }
+  /** Create a bookable. */
+  async function createBookable(input: BookableCreate): Promise<Bookable> {
+    return await $fetch<Bookable>('/api/v1/bookables', { method: 'POST', body: input })
+  }
+  /** Update a bookable. */
+  async function updateBookable(id: string, patch: BookablePatch): Promise<Bookable> {
+    return await $fetch<Bookable>(`/api/v1/bookables/${id}`, { method: 'PATCH', body: patch })
+  }
+  /** Delete a bookable. */
+  async function removeBookable(id: string): Promise<void> {
+    await $fetch(`/api/v1/bookables/${id}`, { method: 'DELETE' })
+  }
+  /** Create an activity. */
+  async function createActivity(input: ActivityCreate): Promise<Activity> {
+    return await $fetch<Activity>('/api/v1/activities', { method: 'POST', body: input })
+  }
+  /** Update an activity. */
+  async function updateActivity(id: string, patch: ActivityPatch): Promise<Activity> {
+    return await $fetch<Activity>(`/api/v1/activities/${id}`, { method: 'PATCH', body: patch })
+  }
+  /** Delete an activity. */
+  async function removeActivity(id: string): Promise<void> {
+    await $fetch(`/api/v1/activities/${id}`, { method: 'DELETE' })
+  }
+  return {
+    bookables, bookable, activities, activity, activityModes, bookings,
+    createBookable, updateBookable, removeBookable,
+    createActivity, updateActivity, removeActivity,
+  }
 }

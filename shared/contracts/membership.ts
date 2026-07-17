@@ -39,6 +39,17 @@ export const membershipPlanSchema = z.object({
 export type MembershipPlan = z.infer<typeof membershipPlanSchema>
 export const membershipPlanListSchema = z.array(membershipPlanSchema)
 
+// WRITE contracts for a plan (the base row — its duration options are managed
+// separately). orgId + name required, the rest optional; the repo fills defaults.
+export const membershipPlanCreateSchema = membershipPlanSchema.omit({ id: true }).partial().extend({
+  orgId: z.string(),
+  name: z.string().min(1),
+})
+export type MembershipPlanCreate = z.infer<typeof membershipPlanCreateSchema>
+
+export const membershipPlanPatchSchema = membershipPlanCreateSchema.partial()
+export type MembershipPlanPatch = z.infer<typeof membershipPlanPatchSchema>
+
 // A duration option under a plan (1/3/6 month, still the same plan).
 export const membershipPlanOptionSchema = z.object({
   id: z.string(),
@@ -76,6 +87,17 @@ export const orgTermSchema = z.object({
 })
 export type OrgTerm = z.infer<typeof orgTermSchema>
 export const orgTermListSchema = z.array(orgTermSchema)
+
+// WRITE contracts for a term. orgId + name required, the rest optional; the repo
+// defaults the notNull start/end dates (to today) when a caller omits them.
+export const orgTermCreateSchema = orgTermSchema.omit({ id: true }).partial().extend({
+  orgId: z.string(),
+  name: z.string().min(1),
+})
+export type OrgTermCreate = z.infer<typeof orgTermCreateSchema>
+
+export const orgTermPatchSchema = orgTermCreateSchema.partial()
+export type OrgTermPatch = z.infer<typeof orgTermPatchSchema>
 
 // An independent sequence of terms (the legacy "term set" concept); may belong to a sport.
 export const termSetSchema = z.object({

@@ -10,6 +10,8 @@ import type {
   ResourceFolder,
   ResourceTarget,
   ResourceView,
+  ResourceCreate,
+  ResourcePatch,
 } from '../shared/contracts/resource'
 
 export function useResourcesApi() {
@@ -31,5 +33,14 @@ export function useResourcesApi() {
   async function views(resourceId: string): Promise<ResourceView[]> {
     return await $fetch<ResourceView[]>('/api/v1/resource-views', { query: { resourceId } })
   }
-  return { folders, resources, targets, views }
+  async function create(input: ResourceCreate): Promise<Resource> {
+    return await $fetch<Resource>('/api/v1/resources', { method: 'POST', body: input })
+  }
+  async function update(id: string, patch: ResourcePatch): Promise<Resource> {
+    return await $fetch<Resource>(`/api/v1/resources/${id}`, { method: 'PATCH', body: patch })
+  }
+  async function remove(id: string): Promise<void> {
+    await $fetch(`/api/v1/resources/${id}`, { method: 'DELETE' })
+  }
+  return { folders, resources, targets, views, create, update, remove }
 }

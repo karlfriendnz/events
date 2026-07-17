@@ -9,6 +9,7 @@
 // return the raw string — `asArray` / `asObj` normalise either (and never throw),
 // so the domain always sees a real JS array/object. Booleans come off MySQL as
 // tinyint 0/1; `!!` coerces them to real booleans. Timestamps → ISO via `toIso`.
+import { randomUUID } from 'node:crypto'
 import { asc, desc, eq } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
@@ -16,6 +17,8 @@ import type {
   CircleMember,
   CommsPreference,
   Entity,
+  EntityCreate,
+  EntityPatch,
   EntityMember,
   PersonNote,
 } from '../../../shared/contracts/circle'
@@ -191,4 +194,42 @@ export async function listEntityMembers(entityId: string): Promise<EntityMember[
     .where(eq(schema.entityMembers.entityId, entityId))
     .orderBy(asc(schema.entityMembers.sortOrder))
   return rows.map(toEntityMember)
+}
+
+// ── Entity writes ──
+// The repo owns the id. customFields (a json column) is JSON.stringify'd on the way
+// IN, mirroring asObj on the way OUT. `as any`: the schema over-requires notNull
+// columns without defaults AND the json column takes a stringified value here —
+// consistent with the app's (db.from as any) idiom.
+export async function getEntity(id: string): Promise<Entity | null> {
+  const [r] = await db.select().from(schema.entities).where(eq(schema.entities.id, id)).limit(1)
+  return r ? toEntity(r) : null
+}
+
+export async function createEntity(input: EntityCreate): Promise<Entity> {
+  const id = randomUUID()
+  await db.insert(schema.entities).values({
+    id,
+    orgId: input.orgId,
+    typeKey: input.typeKey,
+    name: input.name,
+    customFields: input.customFields ?? {},
+    status: input.status ?? 'active',
+  } as any)
+  return (await getEntity(id))!
+}
+
+export async function updateEntity(id: string, patch: EntityPatch): Promise<Entity | null> {
+  const set: Record<string, any> = {}
+  if (patch.orgId !== undefined) set.orgId = patch.orgId
+  if (patch.typeKey !== undefined) set.typeKey = patch.typeKey
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.customFields !== undefined) set.customFields = patch.customFields
+  if (patch.status !== undefined) set.status = patch.status
+  if (Object.keys(set).length) await db.update(schema.entities).set(set).where(eq(schema.entities.id, id))
+  return getEntity(id)
+}
+
+export async function deleteEntity(id: string): Promise<void> {
+  await db.delete(schema.entities).where(eq(schema.entities.id, id))
 }

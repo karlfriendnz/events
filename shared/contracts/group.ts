@@ -37,6 +37,18 @@ export type MemberGroup = z.infer<typeof memberGroupSchema>
 
 export const memberGroupListSchema = z.array(memberGroupSchema)
 
+// WRITE contracts. Create omits the server-owned id (the repo generates it); orgId +
+// name are required, everything else optional (the repo/DB fill defaults). Patch is a
+// partial — any subset of the writable fields.
+export const memberGroupCreateSchema = memberGroupSchema.omit({ id: true }).partial().extend({
+  orgId: z.string(),
+  name: z.string().min(1),
+})
+export type MemberGroupCreate = z.infer<typeof memberGroupCreateSchema>
+
+export const memberGroupPatchSchema = memberGroupCreateSchema.partial()
+export type MemberGroupPatch = z.infer<typeof memberGroupPatchSchema>
+
 // A hierarchical container that holds member groups and passes down inheritable
 // properties (term, staff-role minimums, member positions). Codes nest via parentId.
 export const groupCodeSchema = z.object({
@@ -56,6 +68,17 @@ export const groupCodeSchema = z.object({
 export type GroupCode = z.infer<typeof groupCodeSchema>
 
 export const groupCodeListSchema = z.array(groupCodeSchema)
+
+// WRITE contracts (same shape as the group ones — orgId + name required, the rest
+// optional; the repo fills json defaults, incl. the notNull positionMinimums column).
+export const groupCodeCreateSchema = groupCodeSchema.omit({ id: true }).partial().extend({
+  orgId: z.string(),
+  name: z.string().min(1),
+})
+export type GroupCodeCreate = z.infer<typeof groupCodeCreateSchema>
+
+export const groupCodePatchSchema = groupCodeCreateSchema.partial()
+export type GroupCodePatch = z.infer<typeof groupCodePatchSchema>
 
 // One person's participation in a group. roles/positions are json arrays; the
 // singular `role` is the legacy anchor (= roles[0]).

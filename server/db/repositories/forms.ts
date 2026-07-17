@@ -8,12 +8,15 @@
 // mysql2 usually hands them back already parsed, but a driver/config can return the
 // raw string — `asObj` normalises either into a plain object (and never throws), so
 // the domain always sees a real JS object.
+import { randomUUID } from 'node:crypto'
 import { and, asc, desc, eq } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   FormSubmission,
   RegistrationForm,
   RegistrationFormTarget,
+  RegistrationFormCreate,
+  RegistrationFormPatch,
 } from '../../../shared/contracts/form'
 
 // Coerce a json column into a plain object: already an object → use it; a string →
@@ -133,4 +136,34 @@ export async function listSubmissions(
 
   const rows = await q
   return rows.map(toSubmission)
+}
+
+// ── Writes ──
+// The repo owns the id (MySQL can't default a uuid). `config` is passed as a PLAIN
+// JS object — drizzle's json() serialises it; DON'T JSON.stringify first or it
+// stores a double-encoded string. `as any` mirrors the app's insert idiom (the
+// first-pass schema over-requires notNull columns the DB defaults, e.g. is_template).
+export async function createForm(input: RegistrationFormCreate): Promise<RegistrationForm> {
+  const id = randomUUID()
+  await db.insert(schema.registrationForms).values({
+    id,
+    orgId: input.orgId,
+    name: input.name,
+    isTemplate: false,
+    config: input.config ?? {},
+  } as any)
+  return (await getForm(id))!
+}
+
+export async function updateForm(id: string, patch: RegistrationFormPatch): Promise<RegistrationForm | null> {
+  const set: Record<string, any> = {}
+  if (patch.orgId !== undefined) set.orgId = patch.orgId
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.config !== undefined) set.config = patch.config
+  if (Object.keys(set).length) await db.update(schema.registrationForms).set(set).where(eq(schema.registrationForms.id, id))
+  return getForm(id)
+}
+
+export async function deleteForm(id: string): Promise<void> {
+  await db.delete(schema.registrationForms).where(eq(schema.registrationForms.id, id))
 }

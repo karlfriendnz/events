@@ -43,6 +43,23 @@ export type FMEvent = z.infer<typeof fmEventSchema>
 
 export const fmEventListSchema = z.array(fmEventSchema)
 
+// WRITE contracts. Create omits the server-owned id (the repo generates it) and
+// makes everything but orgId + title optional — the repo/DB supply the rest.
+// Update is a partial: any subset of the writable fields.
+export const fmEventCreateSchema = fmEventSchema
+  .omit({ id: true })
+  .partial({
+    description: true, style: true, status: true, startAt: true, endAt: true,
+    isPublic: true, isProgramme: true, formId: true, memberGroupId: true,
+    categoryId: true, bannerUrl: true, ageMin: true, ageMax: true,
+    recurrenceRule: true, recurrenceParentId: true, createdVia: true, exdates: true,
+  })
+  .extend({ title: z.string().min(1) })
+export type FMEventCreate = z.infer<typeof fmEventCreateSchema>
+
+export const fmEventPatchSchema = fmEventCreateSchema.partial()
+export type FMEventPatch = z.infer<typeof fmEventPatchSchema>
+
 // One occurrence of an event. NB: the `sessions` table has no `status` column
 // (session lifecycle is carried elsewhere) — status is exposed as nullable for
 // contract stability and mapped to null. start/end are nullable in the schema.
@@ -64,6 +81,21 @@ export const sessionSchema = z.object({
 export type Session = z.infer<typeof sessionSchema>
 
 export const sessionListSchema = z.array(sessionSchema)
+
+// WRITE contracts for a session. Create omits the server-owned id and the
+// always-null `status` (no column), requires eventId + a title (title is a
+// required DB column not surfaced on the read shape), and defaults the rest.
+export const sessionCreateSchema = sessionSchema
+  .omit({ id: true, status: true })
+  .partial({
+    startAt: true, endAt: true, capacityMax: true, locationType: true,
+    address: true, meetingLink: true, isMaster: true, masterId: true, addons: true,
+  })
+  .extend({ title: z.string().min(1) })
+export type SessionCreate = z.infer<typeof sessionCreateSchema>
+
+export const sessionPatchSchema = sessionCreateSchema.partial()
+export type SessionPatch = z.infer<typeof sessionPatchSchema>
 
 // An invited person on an event — the answer to "are you coming" lives in `status`
 // (CONFIRMED/DECLINED/INVITED…). `roles` is a json array of scoped-role keys.

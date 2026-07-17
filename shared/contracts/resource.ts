@@ -40,6 +40,17 @@ export type Resource = z.infer<typeof resourceSchema>
 
 export const resourceListSchema = z.array(resourceSchema)
 
+// WRITE contracts. Create omits the server-owned id; orgId/kind/title/url are
+// required, the rest default in the repo. Patch is a partial.
+export const resourceCreateSchema = resourceSchema
+  .omit({ id: true })
+  .partial({ folderId: true, description: true, overrideTargets: true, sortOrder: true })
+  .extend({ title: z.string().min(1) })
+export type ResourceCreate = z.infer<typeof resourceCreateSchema>
+
+export const resourcePatchSchema = resourceCreateSchema.partial()
+export type ResourcePatch = z.infer<typeof resourcePatchSchema>
+
 // A polymorphic audience link: a folder or a resource (`ownerType`/`ownerId`)
 // aimed at a group or person-type (`targetType`/`targetId`). All open strings.
 export const resourceTargetSchema = z.object({

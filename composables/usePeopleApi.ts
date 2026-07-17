@@ -2,7 +2,7 @@
 // never Supabase, never $fetch to a raw table. It returns fully-typed domain
 // objects (the shared contract), so a component has no idea whether the data came
 // from MySQL today or the backend team's API tomorrow.
-import type { Person } from '../shared/contracts/person'
+import type { Person, PersonCreate, PersonPatch } from '../shared/contracts/person'
 
 export function usePeopleApi() {
   /** Everyone in an org, with optional paging + a name/email search. */
@@ -20,5 +20,17 @@ export function usePeopleApi() {
   async function get(id: string): Promise<Person> {
     return await $fetch<Person>(`/api/v1/people/${id}`)
   }
-  return { list, get }
+  /** Create a person; returns the created domain object. */
+  async function create(input: PersonCreate): Promise<Person> {
+    return await $fetch<Person>('/api/v1/people', { method: 'POST', body: input })
+  }
+  /** Partially update a person; returns the updated domain object. */
+  async function update(id: string, patch: PersonPatch): Promise<Person> {
+    return await $fetch<Person>(`/api/v1/people/${id}`, { method: 'PATCH', body: patch })
+  }
+  /** Delete a person. */
+  async function remove(id: string): Promise<void> {
+    await $fetch(`/api/v1/people/${id}`, { method: 'DELETE' })
+  }
+  return { list, get, create, update, remove }
 }

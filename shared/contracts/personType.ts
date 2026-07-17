@@ -29,6 +29,30 @@ export const personTypeSchema = z.object({
 export type PersonType = z.infer<typeof personTypeSchema>
 export const personTypeListSchema = z.array(personTypeSchema)
 
+// WRITE contracts for a person type. Create omits the server-owned id; key + label
+// are the minimum (the type's identity + name), everything else defaults in the
+// repo. orgId is nullable (a global type has none). The json-backed fields
+// (permissions, memberSlots) stay plain object/array here — the repo serialises them.
+export const personTypeCreateSchema = personTypeSchema
+  .omit({ id: true })
+  .partial({
+    orgId: true,
+    kind: true,
+    isAccess: true,
+    isPublished: true,
+    permissions: true,
+    memberSlots: true,
+    sortOrder: true,
+  })
+  .extend({
+    key: z.string().min(1),
+    label: z.string().min(1),
+  })
+export type PersonTypeCreate = z.infer<typeof personTypeCreateSchema>
+
+export const personTypePatchSchema = personTypeCreateSchema.partial()
+export type PersonTypePatch = z.infer<typeof personTypePatchSchema>
+
 // A custom field a person type can carry. `targets` (json → string[]) is the
 // multi-type list a field applies to; `target` is the legacy single-type anchor.
 // `options` (json → array) holds dropdown values (null when not a select).
@@ -47,6 +71,29 @@ export const fieldDefinitionSchema = z.object({
 })
 export type FieldDefinition = z.infer<typeof fieldDefinitionSchema>
 export const fieldDefinitionListSchema = z.array(fieldDefinitionSchema)
+
+// WRITE contracts for a custom field. Create omits the server-owned id; orgId +
+// label + fieldType are the minimum, everything else defaults in the repo. `options`
+// stays a plain array (or null); `targets` a plain string[] — the repo serialises
+// the json columns. Patch is a partial.
+export const fieldDefinitionCreateSchema = fieldDefinitionSchema
+  .omit({ id: true })
+  .partial({
+    options: true,
+    isRequired: true,
+    target: true,
+    targets: true,
+    sortOrder: true,
+  })
+  .extend({
+    orgId: z.string().min(1),
+    label: z.string().min(1),
+    fieldType: z.string().min(1),
+  })
+export type FieldDefinitionCreate = z.infer<typeof fieldDefinitionCreateSchema>
+
+export const fieldDefinitionPatchSchema = fieldDefinitionCreateSchema.partial()
+export type FieldDefinitionPatch = z.infer<typeof fieldDefinitionPatchSchema>
 
 // A person type inheriting from another (a club type sourced from an NSO type).
 export const personTypeLinkSchema = z.object({

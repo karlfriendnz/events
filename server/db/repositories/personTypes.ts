@@ -3,11 +3,16 @@
 // call these functions; they never touch Drizzle or the DB directly. When the
 // backend team's MySQL API replaces this, only this file changes — routes,
 // composables and UI are untouched.
+import { randomUUID } from 'node:crypto'
 import { asc, eq } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   PersonType,
+  PersonTypeCreate,
+  PersonTypePatch,
   FieldDefinition,
+  FieldDefinitionCreate,
+  FieldDefinitionPatch,
   PersonTypeLink,
 } from '../../../shared/contracts/personType'
 
@@ -103,4 +108,110 @@ export async function listPersonTypeLinks(orgId: string): Promise<PersonTypeLink
     .from(schema.personTypeLinks)
     .where(eq(schema.personTypeLinks.orgId, orgId))
   return rows.map(linkToDomain)
+}
+
+// ── Person-type writes ──
+// The repo owns the id. json columns (permissions, memberSlots) are JSON.stringify'd
+// on the way IN, mirroring asObj/asArray on the way OUT. `as any`: the schema
+// over-requires notNull columns without defaults AND the json columns take a
+// stringified value here — matches the app's (db.from as any) idiom.
+export async function getPersonType(id: string): Promise<PersonType | null> {
+  const [r] = await db
+    .select()
+    .from(schema.personTargetTypes)
+    .where(eq(schema.personTargetTypes.id, id))
+    .limit(1)
+  return r ? typeToDomain(r) : null
+}
+
+export async function createPersonType(input: PersonTypeCreate): Promise<PersonType> {
+  const id = randomUUID()
+  await db.insert(schema.personTargetTypes).values({
+    id,
+    orgId: input.orgId ?? null,
+    key: input.key,
+    label: input.label,
+    kind: input.kind ?? 'person',
+    isAccess: input.isAccess ?? false,
+    isPublished: input.isPublished ?? false,
+    permissions: input.permissions ?? {},
+    memberSlots: input.memberSlots ?? [],
+    sortOrder: input.sortOrder ?? 0,
+    // notNull columns absent from the contract — supplied with sensible defaults.
+    minCount: 0,
+    isGlobal: false,
+  } as any)
+  return (await getPersonType(id))!
+}
+
+export async function updatePersonType(id: string, patch: PersonTypePatch): Promise<PersonType | null> {
+  const set: Record<string, any> = {}
+  if (patch.orgId !== undefined) set.orgId = patch.orgId
+  if (patch.key !== undefined) set.key = patch.key
+  if (patch.label !== undefined) set.label = patch.label
+  if (patch.kind !== undefined) set.kind = patch.kind
+  if (patch.isAccess !== undefined) set.isAccess = patch.isAccess
+  if (patch.isPublished !== undefined) set.isPublished = patch.isPublished
+  if (patch.permissions !== undefined) set.permissions = patch.permissions
+  if (patch.memberSlots !== undefined) set.memberSlots = patch.memberSlots
+  if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
+  if (Object.keys(set).length)
+    await db.update(schema.personTargetTypes).set(set).where(eq(schema.personTargetTypes.id, id))
+  return getPersonType(id)
+}
+
+export async function deletePersonType(id: string): Promise<void> {
+  await db.delete(schema.personTargetTypes).where(eq(schema.personTargetTypes.id, id))
+}
+
+// ── Field-definition writes ──
+// Same shape: repo owns the id; options (nullable) + targets are JSON.stringify'd,
+// and the notNull json columns absent from the contract (rules, meta) default empty.
+export async function getFieldDefinition(id: string): Promise<FieldDefinition | null> {
+  const [r] = await db
+    .select()
+    .from(schema.fieldDefinitions)
+    .where(eq(schema.fieldDefinitions.id, id))
+    .limit(1)
+  return r ? fieldToDomain(r) : null
+}
+
+export async function createFieldDefinition(input: FieldDefinitionCreate): Promise<FieldDefinition> {
+  const id = randomUUID()
+  const targets = input.targets ?? []
+  await db.insert(schema.fieldDefinitions).values({
+    id,
+    orgId: input.orgId,
+    label: input.label,
+    fieldType: input.fieldType,
+    // options is nullable — keep null distinct from an empty list.
+    options: input.options == null ? null : input.options,
+    isRequired: input.isRequired ?? false,
+    target: input.target ?? targets[0] ?? '',
+    targets: targets,
+    sortOrder: input.sortOrder ?? 0,
+    // notNull json columns absent from the contract — default to empty.
+    rules: [],
+    meta: {},
+  } as any)
+  return (await getFieldDefinition(id))!
+}
+
+export async function updateFieldDefinition(id: string, patch: FieldDefinitionPatch): Promise<FieldDefinition | null> {
+  const set: Record<string, any> = {}
+  if (patch.orgId !== undefined) set.orgId = patch.orgId
+  if (patch.label !== undefined) set.label = patch.label
+  if (patch.fieldType !== undefined) set.fieldType = patch.fieldType
+  if (patch.options !== undefined) set.options = patch.options == null ? null : patch.options
+  if (patch.isRequired !== undefined) set.isRequired = patch.isRequired
+  if (patch.target !== undefined) set.target = patch.target
+  if (patch.targets !== undefined) set.targets = patch.targets
+  if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
+  if (Object.keys(set).length)
+    await db.update(schema.fieldDefinitions).set(set).where(eq(schema.fieldDefinitions.id, id))
+  return getFieldDefinition(id)
+}
+
+export async function deleteFieldDefinition(id: string): Promise<void> {
+  await db.delete(schema.fieldDefinitions).where(eq(schema.fieldDefinitions.id, id))
 }

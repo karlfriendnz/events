@@ -10,6 +10,8 @@ import type {
   Circle,
   CircleMember,
   Entity,
+  EntityCreate,
+  EntityPatch,
   EntityMember,
   PersonNote,
 } from '../shared/contracts/circle'
@@ -31,9 +33,24 @@ export function useCirclesApi() {
   async function entities(orgId: string): Promise<Entity[]> {
     return await $fetch<Entity[]>('/api/v1/entities', { query: { orgId } })
   }
+  /** Create an entity record; returns the created domain object. */
+  async function createEntity(input: EntityCreate): Promise<Entity> {
+    return await $fetch<Entity>('/api/v1/entities', { method: 'POST', body: input })
+  }
+  /** Partially update an entity record; returns the updated domain object. */
+  async function updateEntity(id: string, patch: EntityPatch): Promise<Entity> {
+    return await $fetch<Entity>(`/api/v1/entities/${id}`, { method: 'PATCH', body: patch })
+  }
+  /** Delete an entity record. */
+  async function removeEntity(id: string): Promise<void> {
+    await $fetch(`/api/v1/entities/${id}`, { method: 'DELETE' })
+  }
   /** The roster of one entity. */
   async function entityMembers(entityId: string): Promise<EntityMember[]> {
     return await $fetch<EntityMember[]>(`/api/v1/entities/${entityId}/members`)
   }
-  return { circlesForPerson, members, notes, entities, entityMembers }
+  return {
+    circlesForPerson, members, notes,
+    entities, createEntity, updateEntity, removeEntity, entityMembers,
+  }
 }

@@ -9,6 +9,7 @@
 // them back already parsed, but a driver/config can return the raw string — the
 // `asArray` / `asObj` / `asJson` helpers normalise either form (and never throw), so
 // the domain always sees a real JS array / object / value.
+import { randomUUID } from 'node:crypto'
 import { asc, eq } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
@@ -18,6 +19,10 @@ import type {
   MemberGroupSchedule,
   GroupFeeOption,
   GroupFeeOptionItem,
+  MemberGroupCreate,
+  MemberGroupPatch,
+  GroupCodeCreate,
+  GroupCodePatch,
 } from '../../../shared/contracts/group'
 
 // Coerce a json column into string[]: already an array → use it; a string → parse;
@@ -223,4 +228,103 @@ export async function listFeeOptions(groupId: string): Promise<GroupFeeOption[]>
   }
 
   return optionRows.map((o) => toFeeOption(o, itemsByOption.get(o.id) ?? []))
+}
+
+// One code by id, or null — used to re-read a code after a write and map it through
+// the same toCode as the list reads (there's no public getCode in the read API).
+async function loadCode(id: string): Promise<GroupCode | null> {
+  const [r] = await db.select().from(schema.groupCodes).where(eq(schema.groupCodes.id, id)).limit(1)
+  return r ? toCode(r) : null
+}
+
+// ── Writes ──
+// The repo owns the id (MySQL can't default a uuid). `as any` on the insert values:
+// the first-pass schema marks columns .notNull() without their DB defaults, so
+// Drizzle's insert type over-requires them; consistent with the app's (db.from as any)
+// idiom. NB the json() columns (subGroups/locationIds/roleMinimums/memberPositions)
+// take a RAW JS array/object — Drizzle's json type serialises it on the way in
+// (mirroring the asArray/asObj parse on the way out); a JSON.stringify here would
+// double-encode and read back as a string.
+export async function createGroup(input: MemberGroupCreate): Promise<MemberGroup> {
+  const id = randomUUID()
+  await db.insert(schema.memberGroups).values({
+    id,
+    orgId: input.orgId,
+    name: input.name,
+    color: input.color ?? null,
+    codeId: input.codeId ?? null,
+    termId: input.termId ?? null,
+    capacity: input.capacity ?? null,
+    ageRange: input.ageRange ?? null,
+    genderRestriction: input.genderRestriction ?? null,
+    subGroups: input.subGroups ?? [],
+    locationIds: input.locationIds ?? [],
+    kind: input.kind ?? 'class',
+    formId: input.formId ?? null,
+    imageUrl: input.imageUrl ?? null,
+    sortOrder: input.sortOrder ?? 0,
+  } as any)
+  return (await getGroup(id))!
+}
+
+export async function updateGroup(id: string, patch: MemberGroupPatch): Promise<MemberGroup | null> {
+  const set: Record<string, any> = {}
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.color !== undefined) set.color = patch.color
+  if (patch.codeId !== undefined) set.codeId = patch.codeId
+  if (patch.termId !== undefined) set.termId = patch.termId
+  if (patch.capacity !== undefined) set.capacity = patch.capacity
+  if (patch.ageRange !== undefined) set.ageRange = patch.ageRange
+  if (patch.genderRestriction !== undefined) set.genderRestriction = patch.genderRestriction
+  if (patch.subGroups !== undefined) set.subGroups = patch.subGroups
+  if (patch.locationIds !== undefined) set.locationIds = patch.locationIds
+  if (patch.kind !== undefined) set.kind = patch.kind
+  if (patch.formId !== undefined) set.formId = patch.formId
+  if (patch.imageUrl !== undefined) set.imageUrl = patch.imageUrl
+  if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
+  if (Object.keys(set).length) await db.update(schema.memberGroups).set(set).where(eq(schema.memberGroups.id, id))
+  return getGroup(id)
+}
+
+export async function deleteGroup(id: string): Promise<void> {
+  await db.delete(schema.memberGroups).where(eq(schema.memberGroups.id, id))
+}
+
+export async function createCode(input: GroupCodeCreate): Promise<GroupCode> {
+  const id = randomUUID()
+  await db.insert(schema.groupCodes).values({
+    id,
+    orgId: input.orgId,
+    name: input.name,
+    color: input.color ?? null,
+    parentId: input.parentId ?? null,
+    termId: input.termId ?? null,
+    sortOrder: input.sortOrder ?? 0,
+    roleMinimums: input.roleMinimums ?? {},
+    memberPositions: input.memberPositions ?? [],
+    // notNull json column that isn't in the contract — always seed it.
+    positionMinimums: {},
+    memberTypeKey: input.memberTypeKey ?? null,
+    sportId: input.sportId ?? null,
+  } as any)
+  return (await loadCode(id))!
+}
+
+export async function updateCode(id: string, patch: GroupCodePatch): Promise<GroupCode | null> {
+  const set: Record<string, any> = {}
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.color !== undefined) set.color = patch.color
+  if (patch.parentId !== undefined) set.parentId = patch.parentId
+  if (patch.termId !== undefined) set.termId = patch.termId
+  if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
+  if (patch.roleMinimums !== undefined) set.roleMinimums = patch.roleMinimums
+  if (patch.memberPositions !== undefined) set.memberPositions = patch.memberPositions
+  if (patch.memberTypeKey !== undefined) set.memberTypeKey = patch.memberTypeKey
+  if (patch.sportId !== undefined) set.sportId = patch.sportId
+  if (Object.keys(set).length) await db.update(schema.groupCodes).set(set).where(eq(schema.groupCodes.id, id))
+  return loadCode(id)
+}
+
+export async function deleteCode(id: string): Promise<void> {
+  await db.delete(schema.groupCodes).where(eq(schema.groupCodes.id, id))
 }

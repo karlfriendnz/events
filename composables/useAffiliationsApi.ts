@@ -4,14 +4,27 @@
 // came from MySQL today or the backend team's API tomorrow.
 import type {
   Location,
+  LocationCreate,
+  LocationPatch,
   OrgManagerGrant,
   OrgSport,
+  OrgSportCreate,
+  OrgSportPatch,
 } from '../shared/contracts/affiliation'
 
 export function useAffiliationsApi() {
   /** A club's sports + their governing-body affiliation. */
   async function orgSports(orgId: string): Promise<OrgSport[]> {
     return await $fetch<OrgSport[]>('/api/v1/org-sports', { query: { orgId } })
+  }
+  async function createOrgSport(input: OrgSportCreate): Promise<OrgSport> {
+    return await $fetch<OrgSport>('/api/v1/org-sports', { method: 'POST', body: input })
+  }
+  async function updateOrgSport(id: string, patch: OrgSportPatch): Promise<OrgSport> {
+    return await $fetch<OrgSport>(`/api/v1/org-sports/${id}`, { method: 'PATCH', body: patch })
+  }
+  async function removeOrgSport(id: string): Promise<void> {
+    await $fetch(`/api/v1/org-sports/${id}`, { method: 'DELETE' })
   }
   /** The cross-club manager grants a governing org has issued. */
   async function managerGrants(orgId: string): Promise<OrgManagerGrant[]> {
@@ -21,5 +34,24 @@ export function useAffiliationsApi() {
   async function locations(orgId: string): Promise<Location[]> {
     return await $fetch<Location[]>('/api/v1/locations', { query: { orgId } })
   }
-  return { orgSports, managerGrants, locations }
+  async function createLocation(input: LocationCreate): Promise<Location> {
+    return await $fetch<Location>('/api/v1/locations', { method: 'POST', body: input })
+  }
+  async function updateLocation(id: string, patch: LocationPatch): Promise<Location> {
+    return await $fetch<Location>(`/api/v1/locations/${id}`, { method: 'PATCH', body: patch })
+  }
+  async function removeLocation(id: string): Promise<void> {
+    await $fetch(`/api/v1/locations/${id}`, { method: 'DELETE' })
+  }
+  return {
+    orgSports,
+    createOrgSport,
+    updateOrgSport,
+    removeOrgSport,
+    managerGrants,
+    locations,
+    createLocation,
+    updateLocation,
+    removeLocation,
+  }
 }

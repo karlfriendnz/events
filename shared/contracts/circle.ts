@@ -93,6 +93,25 @@ export type Entity = z.infer<typeof entitySchema>
 
 export const entityListSchema = z.array(entitySchema)
 
+// WRITE contracts for an entity record. Create omits the server-owned id; orgId +
+// typeKey + name are the minimum, customFields/status default in the repo.
+// customFields stays a plain object here — the repo serialises the json column.
+export const entityCreateSchema = entitySchema
+  .omit({ id: true })
+  .partial({
+    customFields: true,
+    status: true,
+  })
+  .extend({
+    orgId: z.string().min(1),
+    typeKey: z.string().min(1),
+    name: z.string().min(1),
+  })
+export type EntityCreate = z.infer<typeof entityCreateSchema>
+
+export const entityPatchSchema = entityCreateSchema.partial()
+export type EntityPatch = z.infer<typeof entityPatchSchema>
+
 // A person attached to an entity, with the roles they hold on it.
 export const entityMemberSchema = z.object({
   id: z.string(),

@@ -2,12 +2,27 @@
 // useDb(), never Supabase, never $fetch to a raw table. It returns fully-typed domain
 // objects (the shared contract), so a component has no idea whether the data came from
 // MySQL today or the backend team's API tomorrow.
-import type { ScopedRoleDef, PermissionGroup, CodeStaff } from '../shared/contracts/role'
+import type {
+  ScopedRoleDef,
+  ScopedRoleDefCreate,
+  ScopedRoleDefPatch,
+  PermissionGroup,
+  CodeStaff,
+} from '../shared/contracts/role'
 
 export function useRolesApi() {
   /** The org's scoped-role catalogue (per-resource roles for groups / events). */
   async function scopedRoles(orgId: string): Promise<ScopedRoleDef[]> {
     return await $fetch<ScopedRoleDef[]>('/api/v1/scoped-roles', { query: { orgId } })
+  }
+  async function createScopedRole(input: ScopedRoleDefCreate): Promise<ScopedRoleDef> {
+    return await $fetch<ScopedRoleDef>('/api/v1/scoped-roles', { method: 'POST', body: input })
+  }
+  async function updateScopedRole(id: string, patch: ScopedRoleDefPatch): Promise<ScopedRoleDef> {
+    return await $fetch<ScopedRoleDef>(`/api/v1/scoped-roles/${id}`, { method: 'PATCH', body: patch })
+  }
+  async function removeScopedRole(id: string): Promise<void> {
+    await $fetch(`/api/v1/scoped-roles/${id}`, { method: 'DELETE' })
   }
   /** The org's permission groups PLUS the core templates it inherits. */
   async function permissionGroups(orgId: string): Promise<PermissionGroup[]> {
@@ -17,5 +32,12 @@ export function useRolesApi() {
   async function codeStaff(orgId: string): Promise<CodeStaff[]> {
     return await $fetch<CodeStaff[]>('/api/v1/code-staff', { query: { orgId } })
   }
-  return { scopedRoles, permissionGroups, codeStaff }
+  return {
+    scopedRoles,
+    createScopedRole,
+    updateScopedRole,
+    removeScopedRole,
+    permissionGroups,
+    codeStaff,
+  }
 }

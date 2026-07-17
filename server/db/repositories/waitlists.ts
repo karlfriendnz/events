@@ -9,6 +9,7 @@
 // return the raw string — `asArray` / `asJson` normalise either (and never throw),
 // so the domain always sees a real JS value. Timestamps → ISO via `asIso`; the
 // driver may return 1/0 for booleans, so `asBool` coerces.
+import { randomUUID } from 'node:crypto'
 import { asc, eq } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
@@ -18,6 +19,8 @@ import type {
   CommunicationTopic,
   EmailTemplate,
   Calendar,
+  WaitlistCreate,
+  WaitlistPatch,
 } from '../../../shared/contracts/waitlist'
 
 // Coerce a json column into string[]: already an array → use it; a string → parse;
@@ -123,6 +126,44 @@ export async function listWaitlists(orgId: string): Promise<Waitlist[]> {
     .where(eq(schema.waitlists.orgId, orgId))
     .orderBy(asc(schema.waitlists.createdAt))
   return rows.map(toWaitlist)
+}
+
+/** One waitlist by id, or null. */
+export async function getWaitlist(id: string): Promise<Waitlist | null> {
+  const [r] = await db.select().from(schema.waitlists).where(eq(schema.waitlists.id, id)).limit(1)
+  return r ? toWaitlist(r) : null
+}
+
+// ── Writes ── (the waitlist itself)
+// The repo owns the id (MySQL can't default a uuid). No json columns here. `as any`
+// mirrors the app's insert idiom (the first-pass schema over-requires notNull
+// columns the DB defaults, e.g. order_mode).
+export async function createWaitlist(input: WaitlistCreate): Promise<Waitlist> {
+  const id = randomUUID()
+  await db.insert(schema.waitlists).values({
+    id,
+    orgId: input.orgId,
+    name: input.name,
+    orderMode: input.orderMode ?? 'custom',
+    termId: input.termId ?? null,
+    lineageId: input.lineageId ?? null,
+  } as any)
+  return (await getWaitlist(id))!
+}
+
+export async function updateWaitlist(id: string, patch: WaitlistPatch): Promise<Waitlist | null> {
+  const set: Record<string, any> = {}
+  if (patch.orgId !== undefined) set.orgId = patch.orgId
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.orderMode !== undefined) set.orderMode = patch.orderMode
+  if (patch.termId !== undefined) set.termId = patch.termId
+  if (patch.lineageId !== undefined) set.lineageId = patch.lineageId
+  if (Object.keys(set).length) await db.update(schema.waitlists).set(set).where(eq(schema.waitlists.id, id))
+  return getWaitlist(id)
+}
+
+export async function deleteWaitlist(id: string): Promise<void> {
+  await db.delete(schema.waitlists).where(eq(schema.waitlists.id, id))
 }
 
 /** The people waiting in one queue, in position order. */
