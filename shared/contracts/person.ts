@@ -23,7 +23,8 @@ export const personSchema = z.object({
   // column in storage; always a plain string[] to the UI and the pure logic.
   personTypes: z.array(z.string()),
   // Free-form answers keyed by field id — shape varies by org, so kept open.
-  customFields: z.record(z.any()),
+  // (Zod v4: z.record needs an explicit key schema.)
+  customFields: z.record(z.string(), z.any()),
 })
 export type Person = z.infer<typeof personSchema>
 
