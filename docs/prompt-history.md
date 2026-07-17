@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-328 sessions · 1754 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+328 sessions · 1758 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -29153,7 +29153,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > </task-notification>
 
 
-## Session 2026-07-17 06:04 (27 prompts)
+## Session 2026-07-17 06:04 (31 prompts)
 
 **06:04** — a club needs to be able to connect a person type to a NSO person type i.e a national body creates Player, the club also has player but its connected to the player for nso to know the required feilds for a player at club level - does that make sence'?
 
@@ -29522,4 +29522,12 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **07:39** — ok i have connected that
 
 **07:41** — yup
+
+**07:46** — ok we are gettign somewhere now
+
+**07:48** — Maybe we could do somehtng like a club gets creatd, then they set up and then they go to a arear in the system wher they "connect" to a nso > sends a request to the NSO the nso approves it then the club downloads all the settings it needs to get sorted
+
+**07:51** — yeah download is not the right word/ concept
+
+**07:51** — ok lets do that - build it then wipe the data again
 

@@ -11,17 +11,25 @@ const { orgId } = useOrg()
 // Disciplines are a governing-body (NSO/Regional/Association) concept — show that
 // menu item only for non-club orgs.
 const isGoverning = ref(false)
+// Clubs waiting on this body to say yes — a request nobody sees is the same as no
+// request at all, which is how affiliation stayed one-sided for so long.
+const pendingAffiliations = ref(0)
 watch(orgId, async () => {
-  if (!orgId.value) { isGoverning.value = false; return }
+  if (!orgId.value) { isGoverning.value = false; pendingAffiliations.value = 0; return }
   const { data } = await (db.from as any)('organisations').select('org_level').eq('id', orgId.value).single()
   isGoverning.value = !!data?.org_level && data.org_level !== 'CLUB'
+  pendingAffiliations.value = isGoverning.value ? await useAffiliations().pendingCountForBody(orgId.value) : 0
 }, { immediate: true })
 
 const tabs = computed(() => [
   { label: 'General', icon: 'pi-cog', to: '/settings', tab: 'general' },
   { label: 'People & Entities', icon: 'pi-id-card', to: '/settings/fields' },
   { label: 'Fields', icon: 'pi-list', to: '/settings/field-catalogue' },
-  ...(isGoverning.value ? [{ label: 'Disciplines', icon: 'pi-tags', to: '/disciplines' }] : []),
+  ...(isGoverning.value ? [
+    { label: 'Disciplines', icon: 'pi-tags', to: '/disciplines' },
+    // A body's register of its own clubs + the approval queue (mig 273).
+    { label: 'Clubs', icon: 'pi-sitemap', to: '/settings/affiliations', badge: pendingAffiliations.value || undefined },
+  ] : []),
   { label: 'Registration forms', icon: 'pi-file-edit', to: '/forms' },
   { label: 'Integrations', icon: 'pi-link', to: '/settings/integrations' },
   { label: 'Club setup', icon: 'pi-sliders-v', to: '/settings/modules' },
@@ -52,6 +60,8 @@ function active(t: any) {
         class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0"
         :class="active(t) ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'">
         <i :class="['pi', t.icon, 'text-xs w-4 text-center']" />{{ t.label }}
+        <span v-if="t.badge" class="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+          :class="active(t) ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'">{{ t.badge }}</span>
       </NuxtLink>
     </template>
   </nav>
