@@ -23,16 +23,11 @@ export function useCustomReports() {
   const db = useDb()
   const { orgId } = useOrg()
 
-  function ageFromDob(dob: string | null): number | null {
-    if (!dob) return null
-    const d = new Date(dob); if (isNaN(d.getTime())) return null
-    // Whole years — no Date.now() in some contexts, but this runs client-side.
-    const now = new Date()
-    let a = now.getFullYear() - d.getFullYear()
-    const m = now.getMonth() - d.getMonth()
-    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--
-    return a
-  }
+  // ageFromDob comes from useAge (THE age helper) — re-exported below so this
+  // composable's API is unchanged. NB it now clamps to 0..130, so a typo'd dob
+  // reports null instead of a confident 126: lt/gt/between stop matching it and
+  // `set` reads as empty. That's a behaviour change to saved reports, and an
+  // intended one — 126 was a lie.
 
   // ── Persistence ──
   async function loadReports(): Promise<CustomReport[]> {

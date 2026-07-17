@@ -22,17 +22,7 @@ export interface AllocPerson {
 export function useTeamAllocator() {
   const db = useDb()
 
-  // Whole numeric age today from an ISO date-of-birth (null when unknown).
-  function ageFromDob(dob: string | null): number | null {
-    if (!dob) return null
-    const d = new Date(dob)
-    if (isNaN(d.getTime())) return null
-    const now = new Date()
-    let age = now.getFullYear() - d.getFullYear()
-    const m = now.getMonth() - d.getMonth()
-    if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--
-    return age >= 0 && age < 130 ? age : null
-  }
+  // Re-exported from useAge (THE age helper) so this composable's API is unchanged.
 
   // Load every member_group_memberships row for the given group ids, keyed by
   // group id → AllocPerson[]. One query, then bucketed client-side.

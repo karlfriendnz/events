@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-327 sessions · 1709 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+327 sessions · 1711 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -29068,7 +29068,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **23:07** — A NSO has the ability to create a Person Type, They want to know how many of that person type is in all thier clubs. The person type has certian feilds that are connected to it ie ethnicity, but then a club could be connected to two nso and there for 1 person could be both person types, and both nso's could collect differnet ethnicites
 
 
-## Session 2026-07-16 23:18 (4 prompts)
+## Session 2026-07-16 23:18 (6 prompts)
 
 **23:18** — ok what we were talking baout
 
@@ -29077,4 +29077,40 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **23:25** — Why do we need sport in disiplines?
 
 **23:28** — yes please
+
+**23:50** — ok
+
+**23:55** — <task-notification>
+> <task-id>af31d127f6e696b7f</task-id>
+> <tool-use-id>toolu_01B6Ne41Gh3i6koJBYu99hXm</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/ba6b4c01-70eb-4f47-8b7b-365d5d99ff43/tasks/af31d127f6e696b7f.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Plan the UI surfaces" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>I've read all the named files plus the supporting composables. Here's the plan.
+> 
+> ---
+> 
+> # Discipline Requirements — UI Surfaces Implementation Plan
+> 
+> ## 0. The thing that will silently break everything — read first
+> 
+> `disciplines` rows are owned by the **NSO**, not the club (`/Users/karl/fm-events/pages/disciplines/index.vue:129` filters `.eq('org_id', orgId)`, and the page only renders when `isGoverningBody`). `DisciplineLinker` reaches them via the `org_sport_ancestors` RPC (`/Users/karl/fm-events/components/DisciplineLinker.vue:44-54`).
+> 
+> So `discipline_requirements.org_id` is **the NSO's org id**. Every club-side consumer (group page, dashboard widget, form designer) must read requirements **by `discipline_id`** — which they already hold from `member_group_disciplines` / `event_disciplines` — and must **never** add `.eq('org_id', orgId.value)`. A naive org filter returns zero rows in every club, and the feature dies silently with no error.
+> 
+> Corollary for the schema agent: **RLS on `discipline_requirements` must let a club read its ancestors' rows**, the same way `useOrgFieldPolicy.resolveFields()` widens to `[orgId, ...ancestors]` (`/Users/karl/fm-events/composables/useOrgFieldPolicy.ts:29-33`). Good news: inherited `field_definitions` keep the same `id` across the hierarchy, so `field_key` → `field_definitions.id` resolves identically for the NSO author and the club evaluator. That part is sound.
+> 
+> ---
+> 
+> ## 1. Discipline requirements editor — `/Users/karl/fm-events/pages/disciplines/index.vue`
+> 
+> ### Where things go: **one drawer, no sub-page, no second drawer**
+> 
+> Everything goes in the existing `&lt;Drawer&gt;` at `:179-209`, keeping `maxWidth: '440px'`.
+> 
+> Reasoning:
+> - Decision 1 says requirements live *on the discipline*. Putting them one click away contradicts the model the UI is meant to teach. A sub-page also forces create-then-navigate (the drawer's `save()` at `:141-152` currently closes on save), turning a 20-second task into a two-screen flow.
+> - **Don't widen the drawer.** The condition-row block I'm mirroring (`/Users/karl/fm-events/components/FormFieldAdvancedEditor.vue:13-43`) is a *stacked two-row* layout (field-select on row 1; operator + value on row 2) already proven in a ~380px panel. At 440px it fits with room. Widen to 560px and the stacked rows look under-filled and you'd be tempted into a single-line layout that then breaks at `95vw` on a 390px phone. One layout, two widths, no respon
+> … [truncated — 30968 chars total]
 

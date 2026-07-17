@@ -10,6 +10,10 @@ export interface PersonFieldDef {
   label: string
   source: 'core' | 'custom'
   field_type: string
+  // A select field's allowed values. Without these a caller offering a value
+  // picker can only show a free-text box — which is how someone types "blue" for
+  // a field whose stored option is "Blue" and silently never matches.
+  options?: string[]
 }
 
 const CORE_FIELDS: PersonFieldDef[] = [
@@ -29,7 +33,7 @@ export function usePersonFields() {
     const defs = await resolveFields(orgId)
     const custom = (defs ?? [])
       .filter((f: any) => fieldAppliesTo(f, typeKey))
-      .map((f: any) => ({ key: f.id as string, label: f.label as string, source: 'custom' as const, field_type: f.field_type as string }))
+      .map((f: any) => ({ key: f.id as string, label: f.label as string, source: 'custom' as const, field_type: f.field_type as string, options: Array.isArray(f.options) ? f.options : [] }))
     return [...CORE_FIELDS, ...custom]
   }
 

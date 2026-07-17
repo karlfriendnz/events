@@ -547,10 +547,11 @@ async function load() {
   const GENDER_LABEL: Record<string, string> = { MALE: 'Male', FEMALE: 'Female', NON_BINARY: 'Non-binary', UNSPECIFIED: 'Unspecified' }
   const today = new Date()
   const ageBands = ['Under 13', '13–17', '18–29', '30–49', '50+', 'Unknown']
+  // Bands, not a number — the one age helper that stays local. It reads its age
+  // from useAge, so a garbage dob lands in "Unknown" rather than a real band.
   const ageOf = (p: any) => {
-    if (!p.dob) return 'Unknown'
-    const d = new Date(p.dob); let a = today.getFullYear() - d.getFullYear()
-    const m = today.getMonth() - d.getMonth(); if (m < 0 || (m === 0 && today.getDate() < d.getDate())) a--
+    const a = ageFromDob(p.dob, today)
+    if (a == null) return 'Unknown'
     return a < 13 ? 'Under 13' : a < 18 ? '13–17' : a < 30 ? '18–29' : a < 50 ? '30–49' : '50+'
   }
   const bd: Record<string, { label: string; count: number }[]> = {

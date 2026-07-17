@@ -446,13 +446,8 @@ function validate(): boolean {
     const refDate = props.event?.start_at ? new Date(props.event.start_at) : new Date()
     for (const s of subjects.value) {
       for (let inst = 1; inst <= count(s.key); inst++) {
-        const dobRaw = getVal(s.key, inst, 'Date of Birth')
-        if (!dobRaw) continue
-        const dob = new Date(dobRaw as any)
-        if (isNaN(dob.getTime())) continue
-        let age = refDate.getFullYear() - dob.getFullYear()
-        const mo = refDate.getMonth() - dob.getMonth()
-        if (mo < 0 || (mo === 0 && refDate.getDate() < dob.getDate())) age--
+        const age = ageFromDob(getVal(s.key, inst, 'Date of Birth') as any, refDate)
+        if (age == null) continue
         const who = `${s.label}${count(s.key) > 1 ? ' ' + inst : ''}`
         if (amin != null && age < amin) { error.value = `${who} must be at least ${amin} year${amin === 1 ? '' : 's'} old for this event.`; return false }
         if (amax != null && age > amax) { error.value = `${who} must be ${amax} or younger for this event.`; return false }
