@@ -1,20 +1,21 @@
 import { describe, it, expect } from 'vitest'
 import {
-  disciplineChain, effectiveRequirements, effectiveRequirementsForMany, resolveDisciplinesFor,
+  disciplineChain, effectiveRequirements, effectiveRequirementsForMany,
   resolveFor, testRequirement, unmetFor, brokenIn, personValueFor, requirementApplies,
-  ageBandLabel, REQUIREMENT_OPERATORS, REQUIREMENT_OPTIONS,
+  describeRequirement, AGE_FIELD_KEY, REQUIREMENT_OPERATORS, SHARED_OPERATORS, REQUIREMENT_OPTIONS,
   type DisciplineNode, type DisciplineRequirement,
 } from '../../composables/useDisciplineRequirements'
 import { ageFromDob } from '../../composables/useAge'
 import type { PersonFieldDef } from '../../composables/usePersonFields'
 
-// The worked example the whole model exists for:
+// The worked example the whole model exists for. Age is an ORDINARY requirement —
+// there is no age band and no derivation:
 //   Football          → Job Is Not Empty
-//   ├─ Junior Football (age_max 15) → School Is Not Empty · Job EXEMPT
-//   └─ Senior Football (age_min 16) → (inherits Job)
-const FOOTBALL: DisciplineNode = { id: 'fb', name: 'Football', parent_id: null, age_min: null, age_max: null, sort_order: 0 }
-const JUNIOR: DisciplineNode = { id: 'jr', name: 'Junior Football', parent_id: 'fb', age_min: null, age_max: 15, sort_order: 0 }
-const SENIOR: DisciplineNode = { id: 'sr', name: 'Senior Football', parent_id: 'fb', age_min: 16, age_max: null, sort_order: 1 }
+//   ├─ Junior Football → Age Is At Most 15 · School Is Not Empty · Job EXEMPT
+//   └─ Senior Football → Age Is At Least 16 (inherits Job)
+const FOOTBALL: DisciplineNode = { id: 'fb', name: 'Football', parent_id: null, sort_order: 0 }
+const JUNIOR: DisciplineNode = { id: 'jr', name: 'Junior Football', parent_id: 'fb', sort_order: 0 }
+const SENIOR: DisciplineNode = { id: 'sr', name: 'Senior Football', parent_id: 'fb', sort_order: 1 }
 const TREE = [FOOTBALL, JUNIOR, SENIOR]
 
 const SCHOOL_ID = '11111111-1111-1111-1111-111111111111'
@@ -35,6 +36,7 @@ const REQS: DisciplineRequirement[] = [
 const CATALOGUE: PersonFieldDef[] = [
   { key: 'dob', label: 'Date of birth', source: 'core', field_type: 'date' },
   { key: 'gender', label: 'Gender', source: 'core', field_type: 'text' },
+  { key: 'age', label: 'Age', source: 'core', field_type: 'number' },
   { key: SCHOOL_ID, label: 'School', source: 'custom', field_type: 'text' },
   { key: JOB_ID, label: 'Job', source: 'custom', field_type: 'text' },
   { key: TOP_ID, label: 'Top colour', source: 'custom', field_type: 'select', options: ['Blue', 'Red'] },
@@ -43,22 +45,28 @@ const CATALOGUE: PersonFieldDef[] = [
 const keysOf = (rs: { field_key: string }[]) => rs.map(r => r.field_key).sort()
 
 describe('vocabulary', () => {
-  it('matches visibility_conditions exactly — no extra stored operator', () => {
-    expect(REQUIREMENT_OPERATORS).toEqual(['Equals', 'Is Not', 'Contains', 'Is Empty', 'Is Not Empty'])
+  // The shared five must stay byte-identical to FormFieldAdvancedEditor's list.
+  it('shares exactly the visibility_conditions five', () => {
+    expect(SHARED_OPERATORS).toEqual(['Equals', 'Is Not', 'Contains', 'Is Empty', 'Is Not Empty'])
+  })
+  // The numeric three are a DELIBERATE superset: condPasses tests form answers by
+  // label; a requirement tests stored person data including a computed age.
+  it('adds numeric operators on top, and nothing else', () => {
+    expect(REQUIREMENT_OPERATORS).toEqual([...SHARED_OPERATORS, 'Is At Least', 'Is At Most', 'Is Between'])
   })
   it('offers "Not required" as a label for exempt, never as an operator', () => {
-    const notRequired = REQUIREMENT_OPTIONS[0]
-    expect(notRequired).toEqual({ label: 'Not required', exempt: true, operator: null })
+    expect(REQUIREMENT_OPTIONS[0]).toEqual({ label: 'Not required', exempt: true, operator: null })
     expect(REQUIREMENT_OPERATORS).not.toContain('Not required' as any)
   })
 })
 
-describe('ageBandLabel', () => {
-  it('phrases every band shape', () => {
-    expect(ageBandLabel(5, 15)).toBe('Ages 5–15')
-    expect(ageBandLabel(16, null)).toBe('Ages 16+')
-    expect(ageBandLabel(null, 15)).toBe('Up to age 15')
-    expect(ageBandLabel(null, null)).toBeNull()
+describe('describeRequirement', () => {
+  it('phrases every row shape', () => {
+    expect(describeRequirement({ operator: 'Is At Most', value: 15, exempt: false })).toBe('Is At Most 15')
+    expect(describeRequirement({ operator: 'Is Between', value: [5, 15], exempt: false })).toBe('Is between 5 and 15')
+    expect(describeRequirement({ operator: 'Is Not Empty', value: null, exempt: false })).toBe('Is Not Empty')
+    expect(describeRequirement({ operator: 'Equals', value: 'Blue', exempt: false })).toBe('Equals Blue')
+    expect(describeRequirement({ operator: 'Equals', value: 'Blue', exempt: true })).toBe('Not required')
   })
 })
 
@@ -67,8 +75,8 @@ describe('disciplineChain', () => {
     expect(disciplineChain('jr', TREE).map(d => d.id)).toEqual(['jr', 'fb'])
   })
   it('terminates on a cycle rather than hanging', () => {
-    const a: DisciplineNode = { id: 'a', name: 'A', parent_id: 'b', age_min: null, age_max: null }
-    const b: DisciplineNode = { id: 'b', name: 'B', parent_id: 'a', age_min: null, age_max: null }
+    const a: DisciplineNode = { id: 'a', name: 'A', parent_id: 'b' }
+    const b: DisciplineNode = { id: 'b', name: 'B', parent_id: 'a' }
     expect(disciplineChain('a', [a, b]).map(d => d.id)).toEqual(['a', 'b'])
   })
   it('treats a parent missing from the array as root', () => {
@@ -103,7 +111,7 @@ describe('effectiveRequirements — closest-wins', () => {
   })
 
   it('skips levels — the closest ancestor WITH rows wins', () => {
-    const u12: DisciplineNode = { id: 'u12', name: 'U12', parent_id: 'jr', age_min: null, age_max: 11 }
+    const u12: DisciplineNode = { id: 'u12', name: 'U12', parent_id: 'jr' }
     const reqs = [req({ id: 'fb-s', discipline_id: 'fb', field_key: SCHOOL_ID }), req({ id: 'u12-s', discipline_id: 'u12', field_key: SCHOOL_ID, operator: 'Equals', value: 'X' })]
     const { effective, shadowed } = effectiveRequirements('u12', [...TREE, u12], reqs)
     expect(effective.map(r => r.id)).toEqual(['u12-s'])     // Junior has no School rows — skipped
@@ -146,7 +154,7 @@ describe('effectiveRequirements — closest-wins', () => {
 
 describe('effectiveRequirementsForMany — closest-wins is per-chain', () => {
   it('a rule from one NSO does not shadow another NSO rule on the same field', () => {
-    const cricket: DisciplineNode = { id: 'ck', name: 'Cricket NZ Seniors', parent_id: null, age_min: null, age_max: null }
+    const cricket: DisciplineNode = { id: 'ck', name: 'Cricket NZ Seniors', parent_id: null }
     const reqs = [
       req({ id: 'fb-school', discipline_id: 'fb', field_key: SCHOOL_ID, operator: 'Is Not Empty' }),
       req({ id: 'ck-school', discipline_id: 'ck', field_key: SCHOOL_ID, operator: 'Equals', value: 'X' }),
@@ -156,43 +164,64 @@ describe('effectiveRequirementsForMany — closest-wins is per-chain', () => {
   })
 })
 
-describe('resolveDisciplinesFor', () => {
+// Age is an ordinary requirement on a VIRTUAL field computed from dob — there is
+// no persons.age column, and no band/derivation step to test.
+describe('age as an ordinary requirement', () => {
   const at = new Date('2026-07-17T00:00:00Z')
-  const aged = (years: number) => ({ dob: `${at.getFullYear() - years}-01-01` })
+  const aged = (years: number) => ({ dob: `${at.getFullYear() - years}-01-01`, custom_fields: {} })
+  const ageReq = (op: any, value: any) => req({ field_key: AGE_FIELD_KEY, field_source: 'core', operator: op, value })
 
-  it('picks the child whose band contains the person', () => {
-    expect(resolveDisciplinesFor(aged(12), ['fb'], TREE, at).resolvedIds).toEqual(['jr'])
-    expect(resolveDisciplinesFor(aged(30), ['fb'], TREE, at).resolvedIds).toEqual(['sr'])
+  it('computes age from dob rather than reading a stored column', () => {
+    expect(personValueFor(aged(12), { field_key: 'age', field_source: 'core' }, at)).toBe(12)
+    expect(personValueFor({ dob: null }, { field_key: 'age', field_source: 'core' }, at)).toBeNull()
   })
-  it('uses the discipline as linked when it has no banded children', () => {
-    const r = resolveDisciplinesFor(aged(12), ['jr'], TREE, at)
-    expect(r.resolvedIds).toEqual(['jr'])
-    expect(r.matched[0].via).toBe('direct')
+
+  it('"a junior is anyone under 16" is Age Is At Most 15', () => {
+    const r = ageReq('Is At Most', 15)
+    expect(testRequirement(aged(15), r, CATALOGUE, at)).toBe(true)
+    expect(testRequirement(aged(16), r, CATALOGUE, at)).toBe(false)
   })
-  it('never guesses without a dob — stays put and says so', () => {
-    const r = resolveDisciplinesFor({ dob: null }, ['fb'], TREE, at)
-    expect(r.resolvedIds).toEqual(['fb'])
-    expect(r.notes).toEqual([{ kind: 'no-dob', linkedId: 'fb' }])
+
+  it('Is At Least and Is Between are inclusive at both ends', () => {
+    expect(testRequirement(aged(16), ageReq('Is At Least', 16), CATALOGUE, at)).toBe(true)
+    expect(testRequirement(aged(15), ageReq('Is At Least', 16), CATALOGUE, at)).toBe(false)
+    const band = ageReq('Is Between', [5, 15])
+    expect(testRequirement(aged(5), band, CATALOGUE, at)).toBe(true)
+    expect(testRequirement(aged(15), band, CATALOGUE, at)).toBe(true)
+    expect(testRequirement(aged(16), band, CATALOGUE, at)).toBe(false)
+    expect(testRequirement(aged(4), band, CATALOGUE, at)).toBe(false)
   })
-  it('does not snap an out-of-band person to the nearest band', () => {
-    const kid: DisciplineNode = { id: 'k', name: 'Kids', parent_id: 'fb', age_min: 5, age_max: 10 }
-    const r = resolveDisciplinesFor(aged(30), ['fb'], [FOOTBALL, kid], at)
-    expect(r.resolvedIds).toEqual(['fb'])
-    expect(r.notes[0]).toMatchObject({ kind: 'out-of-band', age: 30 })
+
+  it('an open-ended Is Between only bounds the end that is set', () => {
+    expect(testRequirement(aged(40), ageReq('Is Between', [null, 15]), CATALOGUE, at)).toBe(false)
+    expect(testRequirement(aged(40), ageReq('Is Between', [16, null]), CATALOGUE, at)).toBe(true)
   })
-  it('picks the narrowest band on an overlap, deterministically', () => {
-    const juniors: DisciplineNode = { id: 'j2', name: 'Juniors', parent_id: 'fb', age_min: 5, age_max: 17, sort_order: 0 }
-    const u12: DisciplineNode = { id: 'u12', name: 'U12', parent_id: 'fb', age_min: 5, age_max: 11, sort_order: 1 }
-    const r = resolveDisciplinesFor(aged(10), ['fb'], [FOOTBALL, juniors, u12], at)
-    expect(r.resolvedIds).toEqual(['u12'])
-    expect(r.notes[0]).toMatchObject({ kind: 'ambiguous', chosenId: 'u12' })
+
+  // Without a dob we cannot PROVE someone is out of band. Saying "false" would
+  // accuse them on data we don't have; saying "true" would hide a real gap.
+  it('no dob is UNTESTABLE, not a failure', () => {
+    expect(testRequirement({ dob: null }, ageReq('Is At Most', 15), CATALOGUE, at)).toBeNull()
+    const { effective } = effectiveRequirements('jr', TREE, [{ ...ageReq('Is At Most', 15), discipline_id: 'jr' }])
+    const [u] = unmetFor({ dob: null }, effective, { catalogue: CATALOGUE, asOf: at })
+    expect(u.reason).toBe('unknown')
+    expect(u.message).toMatch(/Date of birth isn't recorded/)
   })
-  it('recurses two levels', () => {
-    const u12: DisciplineNode = { id: 'u12', name: 'U12', parent_id: 'jr', age_min: null, age_max: 11 }
-    expect(resolveDisciplinesFor(aged(10), ['fb'], [...TREE, u12], at).resolvedIds).toEqual(['u12'])
+
+  it('an out-of-band person reads as a mismatch, with a message that says so', () => {
+    const { effective } = effectiveRequirements('jr', TREE, [{ ...ageReq('Is At Most', 15), discipline_id: 'jr' }])
+    const [u] = unmetFor(aged(17), effective, { catalogue: CATALOGUE, asOf: at })
+    expect(u.reason).toBe('mismatch')
+    expect(u.message).toBe('Age must be at most 15 for Junior Football')
   })
-  it('dedupes when two links resolve to the same discipline', () => {
-    expect(resolveDisciplinesFor(aged(12), ['fb', 'jr'], TREE, at).resolvedIds).toEqual(['jr'])
+
+  it('inherits and overrides exactly like any other requirement', () => {
+    const reqs = [
+      { ...ageReq('Is At Least', 5), id: 'fb-age', discipline_id: 'fb' },
+      { ...ageReq('Is At Most', 15), id: 'jr-age', discipline_id: 'jr' },
+    ]
+    const { effective, shadowed } = effectiveRequirements('jr', TREE, reqs)
+    expect(effective.map(r => r.id)).toEqual(['jr-age'])     // no second inheritance rule to learn
+    expect(shadowed.map(r => r.id)).toEqual(['fb-age'])
   })
 })
 
@@ -300,29 +329,44 @@ describe('ageFromDob', () => {
 // The acceptance criterion, in the user's own words:
 // "if I am a junior footballer I require my school ... but if I'm a senior player
 //  then I require my job ... a junior is anyone under 16"
+//
+// A class links to the SPECIFIC discipline (Junior Football / Senior Football) —
+// there is no derivation from the parent. "Under 16" is a requirement on the junior
+// discipline, so a 17-year-old in a junior class is flagged rather than quietly
+// re-sorted into seniors.
 describe('the whole point', () => {
   const at = new Date('2026-07-17T00:00:00Z')
+  const FULL: DisciplineRequirement[] = [
+    ...REQS,
+    req({ id: 'jr-age', discipline_id: 'jr', field_key: AGE_FIELD_KEY, field_source: 'core', operator: 'Is At Most', value: 15 }),
+    req({ id: 'sr-age', discipline_id: 'sr', field_key: AGE_FIELD_KEY, field_source: 'core', operator: 'Is At Least', value: 16 }),
+  ]
   const footballer = (age: number, fields: Record<string, any> = {}) => ({
     person_types: ['member'], dob: `${at.getFullYear() - age}-01-01`, custom_fields: fields,
   })
-  const flags = (person: any) => {
-    const res = resolveDisciplinesFor(person, ['fb'], TREE, at)
-    const { effective } = effectiveRequirementsForMany(res.resolvedIds, TREE, REQS, { personTypeKeys: ['member'] })
-    return unmetFor(person, effective, { catalogue: CATALOGUE }).map(u => u.fieldLabel)
-  }
+  // `linked` is the discipline the CLASS is connected to.
+  const flags = (person: any, linked: string) =>
+    unmetFor(person, effectiveRequirementsForMany([linked], TREE, FULL, { personTypeKeys: ['member'] }).effective,
+      { catalogue: CATALOGUE, asOf: at }).map(u => u.fieldLabel)
 
-  it('a 12-year-old needs their school, not their job', () => {
-    expect(flags(footballer(12))).toEqual(['School'])
-    expect(flags(footballer(12, { [SCHOOL_ID]: 'Local Primary' }))).toEqual([])
+  it('a junior footballer needs their school, not their job', () => {
+    expect(flags(footballer(12), 'jr')).toEqual(['School'])
+    expect(flags(footballer(12, { [SCHOOL_ID]: 'Local Primary' }), 'jr')).toEqual([])
   })
 
-  it('a 30-year-old needs their job, not their school', () => {
-    expect(flags(footballer(30))).toEqual(['Job'])
-    expect(flags(footballer(30, { [JOB_ID]: 'Builder' }))).toEqual([])
+  it('a senior player needs their job, not their school', () => {
+    expect(flags(footballer(30), 'sr')).toEqual(['Job'])
+    expect(flags(footballer(30, { [JOB_ID]: 'Builder' }), 'sr')).toEqual([])
   })
 
-  it('16 is the boundary — "a junior is anyone under 16"', () => {
-    expect(flags(footballer(15))).toEqual(['School'])
-    expect(flags(footballer(16))).toEqual(['Job'])
+  it('16 is the line — a 17-year-old in a junior class is flagged for it', () => {
+    expect(flags(footballer(15, { [SCHOOL_ID]: 'Local Primary' }), 'jr')).toEqual([])
+    expect(flags(footballer(17, { [SCHOOL_ID]: 'Local Primary' }), 'jr')).toEqual(['Age'])
+  })
+
+  it('the junior exemption stops seniors-only rules reaching juniors', () => {
+    // Job is required on Football (the parent) and exempt on Junior Football.
+    expect(flags(footballer(12, { [SCHOOL_ID]: 'X' }), 'jr')).toEqual([])
+    expect(flags(footballer(12, { [SCHOOL_ID]: 'X' }), 'fb')).toEqual(['Job'])
   })
 })

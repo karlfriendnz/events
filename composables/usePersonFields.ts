@@ -26,16 +26,30 @@ const CORE_FIELDS: PersonFieldDef[] = [
   { key: 'membership_type', label: 'Membership type', source: 'core', field_type: 'text' },
 ]
 
+// VIRTUAL — computed from persons.dob at read time, never stored (there is no
+// persons.age column and there should not be one, or it would be wrong by the next
+// birthday). useCustomReports already does exactly this for its 'age' report
+// field. Kept out of CORE_FIELDS so the profile-dashboard pickers, which read
+// person[key] directly, don't offer a key that has no column behind it — callers
+// that can compute it opt in via `includeAge`.
+const AGE_FIELD: PersonFieldDef = { key: 'age', label: 'Age', source: 'core', field_type: 'number' }
+
 export function usePersonFields() {
   const { resolveFields, fieldAppliesTo } = useOrgFieldPolicy()
 
-  async function loadFieldCatalogue(orgId: string, typeKey = 'member'): Promise<PersonFieldDef[]> {
+  /**
+   * `typeKey = null` → EVERY field the org has, whatever person type it's for.
+   * Callers that scope by person type themselves need this: a governing body's
+   * fields often target 'gymnast'/'player' rather than 'member', so filtering the
+   * catalogue to 'member' would hand them an empty list.
+   */
+  async function loadFieldCatalogue(orgId: string, typeKey: string | null = 'member', opts?: { includeAge?: boolean }): Promise<PersonFieldDef[]> {
     const defs = await resolveFields(orgId)
     const custom = (defs ?? [])
-      .filter((f: any) => fieldAppliesTo(f, typeKey))
+      .filter((f: any) => typeKey === null || fieldAppliesTo(f, typeKey))
       .map((f: any) => ({ key: f.id as string, label: f.label as string, source: 'custom' as const, field_type: f.field_type as string, options: Array.isArray(f.options) ? f.options : [] }))
-    return [...CORE_FIELDS, ...custom]
+    return [...CORE_FIELDS, ...(opts?.includeAge ? [AGE_FIELD] : []), ...custom]
   }
 
-  return { CORE_FIELDS, loadFieldCatalogue }
+  return { CORE_FIELDS, AGE_FIELD, loadFieldCatalogue }
 }

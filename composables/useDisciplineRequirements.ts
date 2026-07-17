@@ -29,15 +29,27 @@ import type { PersonFieldDef } from './usePersonFields'
 import { ageFromDob } from './useAge'
 
 // ── Vocabulary ──────────────────────────────────────────────────────────────
-// IDENTICAL to visibility_conditions (FormFieldAdvancedEditor.vue's operators,
-// evaluated by FormRenderer.vue's condPasses). If one list gains an operator, so
-// does the other — see the note in that file. There are already three condition
-// vocabularies in this repo (this one, useCustomReports' REPORT_OPS, and
-// useEventDiscounts'); do not add a fourth.
-export type ReqOperator = 'Equals' | 'Is Not' | 'Contains' | 'Is Empty' | 'Is Not Empty'
+// A deliberate SUPERSET of visibility_conditions (FormFieldAdvancedEditor.vue's
+// operators, evaluated by FormRenderer.vue's condPasses).
+//
+// The shared five MUST stay identical in both places — if one gains a text
+// operator, so does the other. The three numeric ones are ours alone, and the
+// divergence is principled rather than drift: condPasses tests FORM ANSWERS
+// matched by label, while a requirement tests STORED PERSON DATA including a
+// computed age — something form answers have no concept of.
+//
+// There are already three condition vocabularies here (this one, useCustomReports'
+// REPORT_OPS and useEventDiscounts'); do not add a fourth.
+export type ReqOperator =
+  | 'Equals' | 'Is Not' | 'Contains' | 'Is Empty' | 'Is Not Empty'
+  | 'Is At Least' | 'Is At Most' | 'Is Between'
 
-export const REQUIREMENT_OPERATORS: ReqOperator[] = ['Equals', 'Is Not', 'Contains', 'Is Empty', 'Is Not Empty']
+export const SHARED_OPERATORS: ReqOperator[] = ['Equals', 'Is Not', 'Contains', 'Is Empty', 'Is Not Empty']
+export const NUMERIC_OPERATORS: ReqOperator[] = ['Is At Least', 'Is At Most', 'Is Between']
+export const REQUIREMENT_OPERATORS: ReqOperator[] = [...SHARED_OPERATORS, ...NUMERIC_OPERATORS]
 export const VALUELESS_OPERATORS: ReqOperator[] = ['Is Empty', 'Is Not Empty']
+/** Is Between takes a pair: value = [min, max]. */
+export const RANGE_OPERATORS: ReqOperator[] = ['Is Between']
 
 // The editor's single dropdown. "Not required" is a LABEL for exempt — never a
 // stored operator, which would diverge this vocabulary from visibility_conditions.
@@ -71,8 +83,6 @@ export interface DisciplineNode {
   id: string
   name: string
   parent_id: string | null
-  age_min: number | null
-  age_max: number | null
   sort_order?: number
 }
 
@@ -82,7 +92,7 @@ export interface Unmet {
   fieldLabel: string
   disciplineId: string              // where the rule was AUTHORED
   disciplineName: string
-  reason: 'missing' | 'mismatch'
+  reason: 'missing' | 'mismatch' | 'unknown'
   message: string
 }
 
@@ -91,37 +101,30 @@ export interface Broken {           // admin-facing — never a person's fault, 
   reason: 'field-not-in-catalogue'
 }
 
-export type DisciplineResolutionNote =
-  | { kind: 'no-dob'; linkedId: string }
-  | { kind: 'ambiguous'; linkedId: string; candidateIds: string[]; chosenId: string; age: number }
-  | { kind: 'out-of-band'; linkedId: string; age: number; candidateIds: string[] }
-
-export interface DisciplineResolution {
-  resolvedIds: string[]
-  matched: { linkedId: string; resolvedId: string; via: 'direct' | 'age-band' }[]
-  notes: DisciplineResolutionNote[]
-}
-
 // ── Small pure helpers ──────────────────────────────────────────────────────
 const blank = (v: any) => v == null || (Array.isArray(v) ? v.length === 0 : String(v).trim() === '')
 const low = (v: any) => String(v ?? '').trim().toLowerCase()
-
-/** "Ages 5–15" / "Ages 5+" / "Up to age 15" / null. ONE phrasing everywhere. */
-export function ageBandLabel(lo: number | null | undefined, hi: number | null | undefined): string | null {
-  if (lo == null && hi == null) return null
-  if (lo != null && hi != null) return `Ages ${lo}–${hi}`
-  if (lo != null) return `Ages ${lo}+`
-  return `Up to age ${hi}`
+// null for anything that isn't a real number. NB Number(null) is 0 and Number('')
+// is 0 — so coercing straight to Number would read a person with no date of birth
+// as age 0 and silently PASS them on "under 16". Guard the empties first.
+const num = (v: any) => {
+  if (v == null || v === '' || typeof v === 'boolean' || Array.isArray(v)) return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
 }
 
-/** Does this discipline declare an age band of its own? Bands do not inherit. */
-export function hasAgeBand(d: Pick<DisciplineNode, 'age_min' | 'age_max'>): boolean {
-  return d.age_min != null || d.age_max != null
-}
+/** The virtual field key whose value is computed from persons.dob, not stored. */
+export const AGE_FIELD_KEY = 'age'
 
-/** Inclusive both ends, matching events.age_min/age_max (mig 264). */
-export function ageInBand(age: number, d: Pick<DisciplineNode, 'age_min' | 'age_max'>): boolean {
-  return (d.age_min == null || age >= d.age_min) && (d.age_max == null || age <= d.age_max)
+/** Human phrasing for one requirement row — used by the editor and the flags. */
+export function describeRequirement(r: Pick<DisciplineRequirement, 'operator' | 'value' | 'exempt'>): string {
+  if (r.exempt) return 'Not required'
+  if (VALUELESS_OPERATORS.includes(r.operator)) return r.operator
+  if (r.operator === 'Is Between') {
+    const [lo, hi] = Array.isArray(r.value) ? r.value : [null, null]
+    return `Is between ${lo ?? '—'} and ${hi ?? '—'}`
+  }
+  return `${r.operator} ${r.value ?? ''}`.trim()
 }
 
 /**
@@ -269,9 +272,20 @@ export function effectiveRequirementsForMany(
  *   core   → person[field_key]
  *   custom → person.custom_fields[field_key]
  * By KEY, not by label — which is what FormRenderer's condPasses gets wrong.
+ *
+ * 'age' is VIRTUAL: computed from persons.dob, never stored. Same trick
+ * useCustomReports already uses for its 'age' report field — there is no
+ * persons.age column and there should not be one. `asOf` lets a caller age
+ * someone at an event date rather than today.
  */
-export function personValueFor(person: any, req: Pick<DisciplineRequirement, 'field_key' | 'field_source'>): any {
-  return req.field_source === 'custom' ? person?.custom_fields?.[req.field_key] : person?.[req.field_key]
+export function personValueFor(
+  person: any,
+  req: Pick<DisciplineRequirement, 'field_key' | 'field_source'>,
+  asOf?: Date,
+): any {
+  if (req.field_source === 'custom') return person?.custom_fields?.[req.field_key]
+  if (req.field_key === AGE_FIELD_KEY) return ageFromDob(person?.dob, asOf ?? new Date())
+  return person?.[req.field_key]
 }
 
 /**
@@ -289,10 +303,10 @@ export function personValueFor(person: any, req: Pick<DisciplineRequirement, 'fi
  * `School Is Not "Home schooled"` on a child SHADOWS a parent's presence test, so
  * a junior with no school recorded becomes compliant.
  */
-export function testRequirement(person: any, req: DisciplineRequirement, catalogue?: PersonFieldDef[]): boolean | null {
+export function testRequirement(person: any, req: DisciplineRequirement, catalogue?: PersonFieldDef[], asOf?: Date): boolean | null {
   if (req.exempt) return true
   if (catalogue && !catalogue.some(f => f.key === req.field_key)) return null
-  const v = personValueFor(person, req)
+  const v = personValueFor(person, req, asOf)
   const t = req.value
   switch (req.operator) {
     case 'Is Empty': return blank(v)
@@ -300,30 +314,60 @@ export function testRequirement(person: any, req: DisciplineRequirement, catalog
     case 'Equals': return Array.isArray(v) ? v.map(low).includes(low(t)) : low(v) === low(t)
     case 'Is Not': return Array.isArray(v) ? !v.map(low).includes(low(t)) : low(v) !== low(t)
     case 'Contains': return Array.isArray(v) ? v.some((x: any) => low(x).includes(low(t))) : low(v).includes(low(t))
+    // Numeric. An unknown value (no dob, blank number) is UNTESTABLE, not a
+    // failure — we can't prove a 17-year-old is out of band if we don't know
+    // their age. It surfaces as its own note rather than a false accusation.
+    case 'Is At Least': { const n = num(v), b = num(t); return n == null || b == null ? null : n >= b }
+    case 'Is At Most': { const n = num(v), b = num(t); return n == null || b == null ? null : n <= b }
+    case 'Is Between': {
+      const n = num(v)
+      const [lo, hi] = Array.isArray(t) ? [num(t[0]), num(t[1])] : [null, null]
+      if (n == null) return null
+      return (lo == null || n >= lo) && (hi == null || n <= hi)
+    }
     default: return true
   }
 }
 
-/** Which requirements this person fails, and why. */
+/**
+ * Which requirements this person fails, and why.
+ *
+ * Three reasons, and the third matters: 'unknown' is "we can't check" (no date of
+ * birth, so an age rule is untestable) rather than "they failed". Reporting that as
+ * a failure would accuse someone on the strength of data we don't have; reporting
+ * nothing would hide a real gap. It's its own flag.
+ *
+ * A field the catalogue doesn't know is never a person's fault — see brokenIn.
+ */
 export function unmetFor(
   person: any,
   requirements: ResolvedRequirement[],
-  ctx?: { catalogue?: PersonFieldDef[] },
+  ctx?: { catalogue?: PersonFieldDef[]; asOf?: Date },
 ): Unmet[] {
   const labelOf = (key: string) => ctx?.catalogue?.find(f => f.key === key)?.label ?? key
+  const known = ctx?.catalogue ? new Set(ctx.catalogue.map(f => f.key)) : null
   const out: Unmet[] = []
   for (const req of requirements) {
-    const ok = testRequirement(person, req, ctx?.catalogue)
-    if (ok === null || ok === true) continue
+    if (known && !known.has(req.field_key)) continue          // broken, not unmet
+    const ok = testRequirement(person, req, ctx?.catalogue, ctx?.asOf)
+    if (ok === true) continue
     const fieldLabel = labelOf(req.field_key)
+    const reason: Unmet['reason'] = ok === null ? 'unknown' : req.operator === 'Is Not Empty' ? 'missing' : 'mismatch'
+    const fallback = reason === 'unknown'
+      ? req.field_key === AGE_FIELD_KEY
+        ? `Date of birth isn't recorded, so we can't check the age ${req.viaDisciplineName} requires`
+        : `${fieldLabel} isn't recorded, so we can't check what ${req.viaDisciplineName} requires`
+      : reason === 'missing'
+        ? `${fieldLabel} is required by ${req.viaDisciplineName}`
+        : `${fieldLabel} must be ${describeRequirement(req).replace(/^Is /, '').toLowerCase()} for ${req.viaDisciplineName}`
     out.push({
       requirement: req,
       fieldKey: req.field_key,
       fieldLabel,
       disciplineId: req.viaDisciplineId,
       disciplineName: req.viaDisciplineName,
-      reason: req.operator === 'Is Not Empty' ? 'missing' : 'mismatch',
-      message: req.message || `${fieldLabel} is required by ${req.viaDisciplineName}`,
+      reason,
+      message: req.message || fallback,
     })
   }
   return out
@@ -335,72 +379,15 @@ export function brokenIn(requirements: ResolvedRequirement[], catalogue: PersonF
   return requirements.filter(r => !known.has(r.field_key)).map(r => ({ requirement: r, reason: 'field-not-in-catalogue' as const }))
 }
 
-// ── Discipline resolution (the derivation rule) ──────────────────────────────
-/**
- * Given the disciplines a group/event is LINKED to, work out which discipline each
- * person actually falls into — so a class linked to plain "Football" resolves a
- * 12-year-old to Junior Football and a 30-year-old to Senior Football.
- *
- * Age bands do NOT inherit: only a discipline's OWN declared band makes it an
- * age-candidate. An inherited band would make every child match its parent's full
- * range, and selection would be ambiguous for everyone.
- */
-export function resolveDisciplinesFor(
-  person: { dob?: string | null },
-  linkedDisciplineIds: string[],
-  allDisciplines: DisciplineNode[],
-  asOf: Date = new Date(),
-): DisciplineResolution {
-  const byId = new Map(allDisciplines.map(d => [d.id, d]))
-  const childrenOf = (id: string) => allDisciplines.filter(d => d.parent_id === id)
-  const matched: DisciplineResolution['matched'] = []
-  const notes: DisciplineResolutionNote[] = []
-  const resolvedIds: string[] = []
-
-  for (const linkedId of linkedDisciplineIds) {
-    const start = byId.get(linkedId)
-    if (!start) continue
-    let cur = start
-    let via: 'direct' | 'age-band' = 'direct'
-    const seen = new Set<string>([cur.id])
-
-    for (;;) {
-      const banded = childrenOf(cur.id).filter(hasAgeBand)
-      if (!banded.length) break                                   // leaf, or no banded children
-
-      const age = ageFromDob(person.dob, asOf)
-      if (age == null) { notes.push({ kind: 'no-dob', linkedId }); break }   // never guess
-
-      const inBand = banded.filter(d => ageInBand(age, d))
-      if (!inBand.length) {
-        notes.push({ kind: 'out-of-band', linkedId, age, candidateIds: banded.map(d => d.id) })
-        break                                                     // stay on cur — don't snap to the nearest band
-      }
-
-      let next = inBand[0]
-      if (inBand.length > 1) {
-        // Overlapping bands are an authoring mistake; the narrowest is what was
-        // meant ("Juniors 5–17" + "U12 5–11"). Deterministic, so a person never
-        // flips discipline between page loads. A safety net, not a feature — the
-        // real fix is a sibling-overlap warning in the editor.
-        const span = (d: DisciplineNode) => (d.age_max ?? 200) - (d.age_min ?? 0)
-        next = [...inBand].sort((a, b) =>
-          span(a) - span(b) || (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id))[0]
-        notes.push({ kind: 'ambiguous', linkedId, candidateIds: inBand.map(d => d.id), chosenId: next.id, age })
-      }
-
-      if (seen.has(next.id)) break                                // cycle guard
-      seen.add(next.id)
-      cur = next
-      via = 'age-band'
-    }
-
-    matched.push({ linkedId, resolvedId: cur.id, via })
-    if (!resolvedIds.includes(cur.id)) resolvedIds.push(cur.id)
-  }
-
-  return { resolvedIds, matched, notes }
-}
+// NB there is deliberately NO discipline "resolution"/derivation step. Age used to
+// be a band on the discipline that SELECTED which child a person fell into, so a
+// class could link to plain "Football" and sort juniors from seniors by DOB. That
+// bought one convenience and cost a pile of machinery — overlapping-band
+// tie-breaks, out-of-band fallback, recursion, and a second inheritance rule that
+// behaved unlike requirements two inches away on the same screen. Age is now an
+// ordinary requirement ("Age Is At Most 15"), and a class links to the SPECIFIC
+// discipline it belongs to. The disciplines a group/event is linked to ARE its
+// disciplines; each one's chain is resolved and its requirements evaluated.
 
 // ── The editor-facing view ──────────────────────────────────────────────────
 export type ReqEntryState = 'own' | 'inherited' | 'overridden' | 'cancelled'
@@ -516,11 +503,8 @@ export function useDisciplineRequirements() {
   async function loadDisciplines(orgIds: string[]): Promise<DisciplineNode[]> {
     if (!orgIds.length) return []
     const { data } = await (db.from as any)('disciplines')
-      .select('id, name, parent_id, age_min, age_max, sort_order').in('org_id', orgIds).order('sort_order').order('name')
-    return (data ?? []).map((d: any) => ({
-      id: d.id, name: d.name, parent_id: d.parent_id ?? null,
-      age_min: d.age_min ?? null, age_max: d.age_max ?? null, sort_order: d.sort_order ?? 0,
-    }))
+      .select('id, name, parent_id, sort_order').in('org_id', orgIds).order('sort_order').order('name')
+    return (data ?? []).map((d: any) => ({ id: d.id, name: d.name, parent_id: d.parent_id ?? null, sort_order: d.sort_order ?? 0 }))
   }
 
   /** The disciplines a group/event is linked to, plus every requirement in their chains. */
@@ -554,16 +538,16 @@ export function useDisciplineRequirements() {
     person: any,
     entity: { type: 'event' | 'group'; id: string },
     ctx?: { catalogue?: PersonFieldDef[]; asOf?: Date },
-  ): Promise<{ unmet: Unmet[]; notes: DisciplineResolutionNote[]; broken: Broken[] }> {
+  ): Promise<{ unmet: Unmet[]; broken: Broken[] }> {
     const { disciplines, linkedIds, requirements } = await loadForEntity(entity.type, entity.id)
-    if (!linkedIds.length) return { unmet: [], notes: [], broken: [] }
-    const res = resolveDisciplinesFor(person, linkedIds, disciplines, ctx?.asOf)
-    const { effective } = effectiveRequirementsForMany(res.resolvedIds, disciplines, requirements, {
+    if (!linkedIds.length) return { unmet: [], broken: [] }
+    // The linked disciplines ARE the disciplines — no derivation. Each one's chain
+    // is resolved independently and the results unioned.
+    const { effective } = effectiveRequirementsForMany(linkedIds, disciplines, requirements, {
       personTypeKeys: personTypeKeysOf(person),
     })
     return {
-      unmet: unmetFor(person, effective, { catalogue: ctx?.catalogue }),
-      notes: res.notes,
+      unmet: unmetFor(person, effective, { catalogue: ctx?.catalogue, asOf: ctx?.asOf }),
       broken: ctx?.catalogue ? brokenIn(effective, ctx.catalogue) : [],
     }
   }

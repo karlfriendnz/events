@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-327 sessions · 1711 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+327 sessions · 1713 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -29068,7 +29068,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **23:07** — A NSO has the ability to create a Person Type, They want to know how many of that person type is in all thier clubs. The person type has certian feilds that are connected to it ie ethnicity, but then a club could be connected to two nso and there for 1 person could be both person types, and both nso's could collect differnet ethnicites
 
 
-## Session 2026-07-16 23:18 (6 prompts)
+## Session 2026-07-16 23:18 (8 prompts)
 
 **23:18** — ok what we were talking baout
 
@@ -29113,4 +29113,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > - Decision 1 says requirements live *on the discipline*. Putting them one click away contradicts the model the UI is meant to teach. A sub-page also forces create-then-navigate (the drawer's `save()` at `:141-152` currently closes on save), turning a 20-second task into a two-screen flow.
 > - **Don't widen the drawer.** The condition-row block I'm mirroring (`/Users/karl/fm-events/components/FormFieldAdvancedEditor.vue:13-43`) is a *stacked two-row* layout (field-select on row 1; operator + value on row 2) already proven in a ~380px panel. At 440px it fits with room. Widen to 560px and the stacked rows look under-filled and you'd be tempted into a single-line layout that then breaks at `95vw` on a 390px phone. One layout, two widths, no respon
 > … [truncated — 30968 chars total]
+
+**00:09** — yes
+
+**00:20** — Why is the age bad different to requiremetns
 
