@@ -3,9 +3,10 @@
 // these functions; they never touch Drizzle or the DB directly. When the backend
 // team's MySQL API replaces this, only this file changes — routes, composables and
 // UI are untouched.
+import { randomUUID } from 'node:crypto'
 import { asc, eq, sql } from 'drizzle-orm'
 import { db, schema } from '../client'
-import type { Organisation, OrgTreeNode } from '../../../shared/contracts/organisation'
+import type { Organisation, OrgTreeNode, OrganisationCreate, OrganisationPatch } from '../../../shared/contracts/organisation'
 
 function toDomain(r: typeof schema.organisations.$inferSelect): Organisation {
   const created = r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt as any)
@@ -27,6 +28,37 @@ export async function listOrganisations(): Promise<Organisation[]> {
 export async function getOrganisation(id: string): Promise<Organisation | null> {
   const [r] = await db.select().from(schema.organisations).where(eq(schema.organisations.id, id)).limit(1)
   return r ? toDomain(r) : null
+}
+
+// ── Writes ──
+// The repo owns the id (MySQL can't default a uuid). Domain fields map to columns
+// directly here (organisations has no json/array columns); domains that DO carry
+// arrays JSON.stringify them on the way IN, mirroring toDomain's parse on the way OUT.
+export async function createOrganisation(input: OrganisationCreate): Promise<Organisation> {
+  const id = randomUUID()
+  // `as any`: the first-pass schema marks many columns .notNull() (from Postgres)
+  // without their defaults, so Drizzle's insert type over-requires them; the DB
+  // (defaults + relaxed mode) fills the rest. Drops away when a domain's schema is
+  // refined with real defaults. Consistent with the app's (db.from as any) idiom.
+  await db.insert(schema.organisations).values({
+    id, name: input.name, slug: input.slug ?? null,
+    orgLevel: input.orgLevel ?? 'CLUB', parentId: input.parentId ?? null,
+  } as any)
+  return (await getOrganisation(id))!
+}
+
+export async function updateOrganisation(id: string, patch: OrganisationPatch): Promise<Organisation | null> {
+  const set: Record<string, any> = {}
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.slug !== undefined) set.slug = patch.slug
+  if (patch.orgLevel !== undefined) set.orgLevel = patch.orgLevel
+  if (patch.parentId !== undefined) set.parentId = patch.parentId
+  if (Object.keys(set).length) await db.update(schema.organisations).set(set).where(eq(schema.organisations.id, id))
+  return getOrganisation(id)
+}
+
+export async function deleteOrganisation(id: string): Promise<void> {
+  await db.delete(schema.organisations).where(eq(schema.organisations.id, id))
 }
 
 // Raw SQL returns snake_case columns (the DB names), unlike a Drizzle select which

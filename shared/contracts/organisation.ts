@@ -25,6 +25,16 @@ export type Organisation = z.infer<typeof organisationSchema>
 
 export const organisationListSchema = z.array(organisationSchema)
 
+// WRITE contracts. Create omits server-owned fields (id, createdAt); the repo
+// generates the id. Update is a partial — any subset of the writable fields.
+export const organisationCreateSchema = organisationSchema.omit({ id: true, createdAt: true }).partial({ slug: true, parentId: true }).extend({
+  name: z.string().min(1),
+})
+export type OrganisationCreate = z.infer<typeof organisationCreateSchema>
+
+export const organisationPatchSchema = organisationCreateSchema.partial()
+export type OrganisationPatch = z.infer<typeof organisationPatchSchema>
+
 // A node in an ancestor/descendant walk — an organisation plus its distance from
 // the anchor (depth 1 = immediate parent/child). Replaces the Postgres RPCs
 // org_ancestors / org_descendants, which become recursive CTEs in the repository.

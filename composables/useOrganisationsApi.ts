@@ -5,11 +5,20 @@
 //
 // This is the template every migrated screen follows: a use<Thing>Api() composable
 // wrapping typed $fetch to /api/v1/*.
-import type { Organisation, OrgTreeNode } from '../shared/contracts/organisation'
+import type { Organisation, OrgTreeNode, OrganisationCreate, OrganisationPatch } from '../shared/contracts/organisation'
 
 export function useOrganisationsApi() {
   async function list(): Promise<Organisation[]> {
     return await $fetch<Organisation[]>('/api/v1/organisations')
+  }
+  async function create(input: OrganisationCreate): Promise<Organisation> {
+    return await $fetch<Organisation>('/api/v1/organisations', { method: 'POST', body: input })
+  }
+  async function update(id: string, patch: OrganisationPatch): Promise<Organisation> {
+    return await $fetch<Organisation>(`/api/v1/organisations/${id}`, { method: 'PATCH', body: patch })
+  }
+  async function remove(id: string): Promise<void> {
+    await $fetch(`/api/v1/organisations/${id}`, { method: 'DELETE' })
   }
   /** The governing chain above an org (immediate parent first). */
   async function ancestors(id: string): Promise<OrgTreeNode[]> {
@@ -19,5 +28,5 @@ export function useOrganisationsApi() {
   async function descendants(id: string): Promise<OrgTreeNode[]> {
     return await $fetch<OrgTreeNode[]>(`/api/v1/organisations/${id}/descendants`)
   }
-  return { list, ancestors, descendants }
+  return { list, create, update, remove, ancestors, descendants }
 }
