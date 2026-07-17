@@ -75,6 +75,7 @@
       <tr><td class="task">Local MySQL running</td><td>Dedicated MySQL 8.4 container (<code>fm-new</code>, port 3400), isolated from the legacy-import work so it can’t be reset from under us.</td><td><span class="badge b-ok">✅</span></td></tr>
       <tr><td class="task">Typed middle layer (the seam)</td><td>App → small typed API → MySQL. Swapping the backend later = change one layer, not every screen.</td><td><span class="badge b-ok">✅</span></td></tr>
       <tr><td class="task">All 118 tables in MySQL</td><td>Whole database structure translated &amp; created, generated automatically.</td><td><span class="badge b-ok">✅</span></td></tr>
+      <tr><td class="task">Data copied into MySQL</td><td>A faithful copy of the current data (arrays &amp; JSON converted correctly) so screens run against real data — and the same script is the eventual cutover.</td><td><span class="badge b-ok">✅</span></td></tr>
       <tr><td class="task">Org hierarchy queries</td><td>“Who’s above / below an org” rebuilt as real MySQL queries.</td><td><span class="badge b-ok">✅</span></td></tr>
       <tr><td class="task">Architecture write-up</td><td>The rulebook the backend team follows.</td><td><span class="badge b-ok">✅</span></td></tr>
     </tbody>
