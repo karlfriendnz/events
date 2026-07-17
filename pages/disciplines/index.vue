@@ -12,6 +12,8 @@ const { orgId } = useOrg()
 interface Disc {
   id: string; org_id: string; name: string; code: string | null; parent_id: string | null
   sort_order?: number; applies_to?: string[] | null; depth?: number
+  /** The cast (mig 276) — the body's own type keys who take part. null = inherit. */
+  person_type_keys?: string[] | null
 }
 
 // The parts of the system a discipline can be tied to. Empty = applies everywhere.
@@ -127,7 +129,10 @@ async function load() {
   loading.value = true
   const [{ data: o }, { data: discs }, cat] = await Promise.all([
     (db.from as any)('organisations').select('name, org_level').eq('id', orgId.value).single(),
-    (db.from as any)('disciplines').select('id, org_id, name, code, parent_id, sort_order, applies_to').eq('org_id', orgId.value).order('sort_order').order('name'),
+    // person_type_keys = the cast (276). MUST be selected: the wizard hydrates from
+    // this row and writes back what it read, so an unselected column round-trips to
+    // null and silently wipes the cast on the next save.
+    (db.from as any)('disciplines').select('id, org_id, name, code, parent_id, sort_order, applies_to, person_type_keys').eq('org_id', orgId.value).order('sort_order').order('name'),
     // null = every field this body has. A requirement carries its own person-type
     // scope, so the PICKER must not be filtered by one — GNZ's fields target
     // 'gymnast', not 'member', and would otherwise never appear.

@@ -125,6 +125,9 @@ export interface DisciplineNode {
   name: string
   parent_id: string | null
   sort_order?: number
+  /** The cast (mig 276): the OWNING BODY's person_target_types.key[] who take part.
+   *  null/empty = says nothing, inherit from the parent. NOT "nobody takes part". */
+  person_type_keys?: string[] | null
 }
 
 export interface Unmet {
@@ -288,6 +291,36 @@ export function effectiveRequirements(
 
   const bySort = (a: ResolvedRequirement, b: ResolvedRequirement) => a.sort_order - b.sort_order || a.field_key.localeCompare(b.field_key)
   return { effective: effective.sort(bySort), shadowed: shadowed.sort(bySort) }
+}
+
+/**
+ * THE CAST: whose person types take part in this discipline (mig 276).
+ *
+ * CLOSEST-WINS up the parent chain, like requirements: Juniors inherits Football's
+ * cast unless it names its own. An empty/null list says NOTHING (inherit) rather
+ * than "nobody takes part" — a discipline that meant nobody would be a discipline
+ * with no members, which is not a thing anyone authors.
+ *
+ * Returns the BODY's own keys. Crossing to the club's words is the LINK's job
+ * (useOrgFieldPolicy.clubTypesForCast) — the club may call them anything.
+ */
+export function castFor(disciplineId: string, allDisciplines: DisciplineNode[]): string[] {
+  const chain = disciplineChain(disciplineId, allDisciplines)   // self first, then up
+  for (const d of chain) {
+    const keys = (d.person_type_keys ?? []).filter(Boolean)
+    if (keys.length) return [...new Set(keys.map(k => k.toLowerCase()))]
+  }
+  return []
+}
+
+/**
+ * Union ACROSS chains — a group may be linked to disciplines from several bodies,
+ * and each names its own cast. Cricket NZ's Player does not shadow Auckland's.
+ */
+export function castForMany(disciplineIds: string[], allDisciplines: DisciplineNode[]): string[] {
+  const out = new Set<string>()
+  for (const id of disciplineIds ?? []) for (const k of castFor(id, allDisciplines)) out.add(k)
+  return [...out]
 }
 
 /**
@@ -553,8 +586,11 @@ export function useDisciplineRequirements() {
   async function loadDisciplines(orgIds: string[]): Promise<DisciplineNode[]> {
     if (!orgIds.length) return []
     const { data } = await (db.from as any)('disciplines')
-      .select('id, name, parent_id, sort_order').in('org_id', orgIds).order('sort_order').order('name')
-    return (data ?? []).map((d: any) => ({ id: d.id, name: d.name, parent_id: d.parent_id ?? null, sort_order: d.sort_order ?? 0 }))
+      .select('id, name, parent_id, sort_order, person_type_keys').in('org_id', orgIds).order('sort_order').order('name')
+    return (data ?? []).map((d: any) => ({
+      id: d.id, name: d.name, parent_id: d.parent_id ?? null, sort_order: d.sort_order ?? 0,
+      person_type_keys: Array.isArray(d.person_type_keys) ? d.person_type_keys : null,
+    }))
   }
 
   /** The disciplines a group/event is linked to, plus every requirement in their chains. */

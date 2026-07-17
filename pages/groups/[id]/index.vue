@@ -1336,6 +1336,17 @@
           </div>
         </div>
 
+        <!-- They're a… — only when a linked discipline names its cast (mig 276).
+             This is what the governing body's rules are scoped to: applies_to reads
+             the person's TYPE, not their roster role, so picking here is what lets
+             "coaches need a certificate" ever find anyone. No discipline, no cast,
+             no question — the code's member type applies exactly as before. -->
+        <div v-if="castTypeOptions.length > 1" class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">They're a…</label>
+          <SelectButton v-model="addPersonType" :options="castTypeOptions" optionLabel="label" optionValue="key" :allow-empty="false" />
+          <span class="text-xs text-gray-400">{{ linkedDisciplineNames }} {{ groupDisciplineIds.length > 1 ? 'name' : 'names' }} who takes part.</span>
+        </div>
+
         <!-- Position(s) — the member field (most people are members) -->
         <div class="flex flex-col gap-1.5">
           <div class="flex items-center justify-between">
@@ -1928,6 +1939,8 @@ async function loadDisciplineFlags() {
     clubTypesForFlags.value = types ?? []
     typeLinksForFlags.value = links ?? []
   }
+  // Who the linked disciplines say takes part (mig 276) — union across bodies.
+  disciplineCast.value = castForMany(groupDisciplineIds.value, disciplines)
 }
 
 /** What this person fails, for the requirements their types are subject to. */
@@ -2491,6 +2504,24 @@ async function ensurePersonType(personId: string, typeKey: string) {
   if (current.includes(typeKey)) return
   await (db.from as any)('persons').update({ person_types: [...current, typeKey], person_type: person?.person_type || typeKey }).eq('id', personId)
 }
+
+// ── The discipline's CAST (migs 276 + 272) ──
+// A body says who takes part in Juniors ("player", "coach"); we call them whatever
+// we like; the LINK crosses the gap. This matters because being a coach on a roster
+// is a per-class ROLE, while a requirement's applies_to reads the person's global
+// TYPE — so without stamping the type, a body's "coaches need a certificate" rule
+// matches nobody, silently.
+const disciplineCast = ref<string[]>([])          // the BODY's keys
+const castTypeOptions = computed(() =>
+  clubTypesForCast(disciplineCast.value, clubTypesForFlags.value, typeLinksForFlags.value)
+    .map((t: any) => ({ key: t.key, label: t.label })))
+/** What we'll stamp: the cast pick, else the code's member type (today's behaviour).
+ *  A class with no discipline must not start asking new questions. */
+const addPersonType = ref<string | null>(null)
+const effectiveAddType = computed(() => addPersonType.value ?? groupMemberType.value)
+/** Whose rules these are — so the dialog says where the question came from. */
+const linkedDisciplineNames = computed(() =>
+  [...new Set(effectiveReqs.value.map(r => r.viaDisciplineName))].join(', ') || 'This class\'s discipline')
 
 // Head picker: only the group's STAFF (coaches) — a head is a staff member.
 const headPersonOptions = computed(() => {
@@ -3678,6 +3709,14 @@ function openAdd(mode: 'member' | 'coach', person?: any) {
   addRoles.value = person?.id ? staffRolesOf(person.allRoles ?? person.roles ?? [])
     : (mode === 'coach' && coachSeed ? [coachSeed] : [])
   addPositions.value = Array.isArray(person?.positions) ? [...person.positions] : []
+  // The cast pick (mig 276). Guess from which card was clicked — a coach add means
+  // the coach-ish cast member — but never guess when the cast is ambiguous; leave
+  // it null and the code's member type applies exactly as it does today.
+  addPersonType.value = castTypeOptions.value.length
+    ? (mode === 'coach'
+        ? (castTypeOptions.value.find(t => /coach|staff/i.test(t.key))?.key ?? null)
+        : (castTypeOptions.value.find(t => t.key === groupMemberType.value)?.key ?? castTypeOptions.value[0]?.key ?? null))
+    : null
   // Reveal the staff-role picker only when relevant (coach card / existing staff).
   showStaffRoles.value = mode === 'coach' || addRoles.value.length > 0
   newAddPosition.value = ''
@@ -3771,11 +3810,14 @@ async function addPerson() {
     .upsert({ group_id: group.value.id, person_id: p.id, roles: merged, role: merged[0] ?? null, positions, ...(enrol ?? {}) },
       { onConflict: 'group_id,person_id' })
   if (!error) {
-    // Stamp the code's member type on the person (joining as a member) so they
-    // pick up that type's custom fields. NOT for a referenced club person — their
-    // record is owned by the club, so we don't mutate its types from up here.
-    if (!referencedClubPerson && groupMemberType.value && (!merged.length || memberRolesOf(merged).length)) {
-      await ensurePersonType(p.id, groupMemberType.value)
+    // Stamp the person's TYPE so they pick up its fields — and so a governing
+    // body's rule scoped "for Coaches" can actually find them (applies_to reads
+    // persons.person_types, not the roster role). An explicit cast pick wins;
+    // otherwise the code's member type, as before. NOT for a referenced club
+    // person — their record is owned by their club, so we don't mutate it up here.
+    if (!referencedClubPerson && effectiveAddType.value
+        && (addPersonType.value || !merged.length || memberRolesOf(merged).length)) {
+      await ensurePersonType(p.id, effectiveAddType.value)
     }
     const base = { id: p.id, name, email: p.email ?? null, phone: p.phone ?? null, allRoles: merged, positions }
     // Rebuild this person's presence across both tables from the merged roles.

@@ -73,9 +73,32 @@ const saving = ref(false)
 // players and juniors' coaches are not asked for the same things, and until this
 // was authorable every rule silently meant "everyone on the roster".
 interface DraftReq { key: string; field_key: string; operator: ReqOperator; value: any; exempt: boolean; message: string; applies_to: string[] }
-const form = reactive<{ name: string; code: string; parent_id: string | null; applies_to: string[]; reqs: DraftReq[] }>({
-  name: '', code: '', parent_id: null, applies_to: [], reqs: [],
+const form = reactive<{ name: string; code: string; parent_id: string | null; applies_to: string[]; person_type_keys: string[]; reqs: DraftReq[] }>({
+  name: '', code: '', parent_id: null, applies_to: [], person_type_keys: [], reqs: [],
 })
+// The CAST (mig 276) — who takes part. Declared, not derived from the rules:
+// you cannot say "juniors have coaches" by first inventing a requirement about
+// coaches, and a referee the body requires nothing of is still in the discipline.
+function toggleCast(key: string) {
+  const has = form.person_type_keys.includes(key)
+  form.person_type_keys = has ? form.person_type_keys.filter(k => k !== key) : [...form.person_type_keys, key]
+  // A rule can only be "for" someone in the cast — drop a scope we just removed,
+  // or the rule keeps a target nobody can see or change.
+  if (has) for (const r of form.reqs) r.applies_to = r.applies_to.filter(k => k !== key)
+}
+/** Inherited from the parent when this discipline names nobody — same closest-wins
+ *  as requirements, so a child doesn't have to restate its parent's cast. */
+const inheritedCast = computed<string[]>(() => {
+  if (form.person_type_keys.length || !form.parent_id) return []
+  return castFor(form.parent_id, props.disciplines as any)
+})
+const effectiveCast = computed<string[]>(() =>
+  form.person_type_keys.length ? form.person_type_keys : inheritedCast.value)
+/** A rule may only be scoped to someone in the cast; no cast = every type we own
+ *  (nothing to narrow by yet), matching the old behaviour. */
+const scopeOptions = computed(() => effectiveCast.value.length
+  ? props.personTypes.filter(t => effectiveCast.value.includes(t.key))
+  : props.personTypes)
 
 const newDraft = (field_key = ''): DraftReq => ({
   key: Math.random().toString(36).slice(2), field_key,
@@ -91,6 +114,7 @@ onMounted(() => {
     const d = props.editing
     form.name = d.name; form.code = d.code ?? ''; form.parent_id = d.parent_id
     form.applies_to = [...(d.applies_to ?? [])]
+    form.person_type_keys = [...((d as any).person_type_keys ?? [])]
     // applies_to MUST round-trip: dropping it here and writing [] back on finish
     // silently un-scoped every rule the moment anyone edited the discipline.
     form.reqs = props.allReqs.filter(r => r.discipline_id === d.id).sort((a, b) => a.sort_order - b.sort_order)
@@ -249,6 +273,9 @@ async function finish() {
   const payload: any = {
     org_id: orgId.value, name: form.name.trim(), code: form.code.trim() || null,
     parent_id: form.parent_id, applies_to: form.applies_to.length ? form.applies_to : null,
+    // null (not []) = says nothing → inherit the parent's cast. [] would read as
+    // "nobody takes part", which is not a thing anyone means.
+    person_type_keys: form.person_type_keys.length ? form.person_type_keys : null,
   }
   let id = props.editing?.id ?? null
   if (id) await (db.from as any)('disciplines').update(payload).eq('id', id)
@@ -315,6 +342,36 @@ async function finish() {
         </p>
       </div>
 
+      <!-- THE CAST (mig 276) — declared before the rules, because that's the order
+           you think in: who takes part, then what we ask of them. It also gives the
+           clubs the shape of the discipline with zero rules attached, and scopes
+           each rule's "for" chips below. -->
+      <div v-if="personTypes.length" class="rounded-lg border border-gray-200 p-3 space-y-2">
+        <div>
+          <p class="text-xs font-medium text-gray-700">Who takes part?</p>
+          <p class="text-xs text-gray-400 mt-0.5">
+            Our clubs connect their own people to these — they can call them anything.
+          </p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button v-for="t in personTypes" :key="t.key" type="button"
+            class="text-xs px-2 py-1 rounded-full border transition-colors"
+            :class="form.person_type_keys.includes(t.key)
+              ? 'bg-primary text-white border-primary'
+              : 'bg-white text-gray-500 border-gray-200 hover:border-primary/40'"
+            @click="toggleCast(t.key)">{{ t.label }}</button>
+        </div>
+        <!-- Inheriting rather than silently empty: closest-wins, like the rules. -->
+        <p v-if="!form.person_type_keys.length && inheritedCast.length" class="text-xs text-gray-400">
+          <i class="pi pi-lock text-[10px] mr-1" />Inheriting
+          <span class="font-medium text-gray-500">{{ inheritedCast.map(k => personTypes.find(t => t.key === k)?.label ?? k).join(', ') }}</span>
+          from {{ byId(form.parent_id)?.name }} — pick some to override.
+        </p>
+        <p v-else-if="!form.person_type_keys.length" class="text-xs text-gray-400">
+          Nobody named yet — clubs will add people however they normally do.
+        </p>
+      </div>
+
       <!-- Inherited from above: locked, naming where it came from. -->
       <div v-for="e in untouchedInherited" :key="'i-' + e.field_key"
         class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 flex items-start justify-between gap-2">
@@ -333,7 +390,7 @@ async function finish() {
         :core-fields="coreFields" :custom-fields="customFields" :org-name="orgName"
         :options="optionsFor(r)" :operator-label="operatorLabel(r)" :shows-value="showsValue(r)" :shows-range="showsRange(r)"
         :value-options="valueOptionsFor(r.field_key)" :numeric="isNumericField(r.field_key)" :shadowed="shadowedFor(r.field_key)"
-        :field-label="fieldLabel" lead="Requires" lead-more="and requires" :person-types="personTypes"
+        :field-label="fieldLabel" lead="Requires" lead-more="and requires" :person-types="scopeOptions"
         @field-change="onFieldChange(r)" @operator="setOperator(r, $event)" @range="setRange(r, $event.i, $event.v)"
         @remove="removeReq(r)" @revert="revertInherited(r.field_key)" @create-field="openCreateField(r)"
         @toggle-type="toggleReqType(r, $event)" />

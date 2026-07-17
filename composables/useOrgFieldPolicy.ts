@@ -90,6 +90,32 @@ export function expandTypeKeys(
   return [...out.values()]
 }
 
+/**
+ * The CLUB's types that answer to a governing body's cast (migs 272 + 276).
+ *
+ * The body names its own keys ("Juniors involves player, coach"); the club calls
+ * them whatever it likes. This crosses the gap: a club type is in the cast if its
+ * chain intersects it. Reuses expandTypeKeys, so it's TRANSITIVE for free — a club
+ * Member linked to Auckland's Player, whose Player links to Football NZ's, still
+ * answers a cast written by Football NZ.
+ *
+ * Empty cast → empty result, NOT "everything". The caller falls back to its own
+ * behaviour; a discipline that says nothing must not silently redefine the club's
+ * add-person flow.
+ */
+export function clubTypesForCast<T extends { id: string; key: string }>(
+  cast: string[],
+  clubTypes: T[],
+  links: PersonTypeLink[],
+): T[] {
+  if (!cast?.length) return []
+  const want = new Set(cast.map(k => (k || '').toLowerCase()))
+  return (clubTypes ?? []).filter(t => {
+    const chain = expandTypeKeys([t.key], links ?? [], [t.id])
+    return chain.some(k => want.has((k || '').toLowerCase()))
+  })
+}
+
 /** The links belonging to a set of types (one hop). */
 export function linksForTypes(links: PersonTypeLink[], typeIds: string[]): PersonTypeLink[] {
   const ids = new Set(typeIds ?? [])

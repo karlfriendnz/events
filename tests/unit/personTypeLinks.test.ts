@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
-  expandTypeKeys, linksForTypes, chainForPersonTypes,
+  expandTypeKeys, linksForTypes, chainForPersonTypes, clubTypesForCast,
   type PersonTypeLink,
 } from '../../composables/useOrgFieldPolicy'
+import { castFor, castForMany, type DisciplineNode } from '../../composables/useDisciplineRequirements'
 
 // The case this whole thing exists for, in one picture:
 //
@@ -230,5 +231,125 @@ describe('chainForPersonTypes', () => {
 
   it('is the identity when the club has no links at all', () => {
     expect(chainForPersonTypes(['footballer'], clubTypes, [])).toEqual(['footballer'])
+  })
+})
+
+// ── The cast (mig 276): who takes part in a discipline ──────────────────────
+//
+// Declared on the discipline, not derived from its rules. Karl's three reasons,
+// which killed my "derive it" idea: you cannot say juniors have coaches without
+// first inventing a requirement about coaches; a referee the body requires nothing
+// of is still in the discipline; and the cast is useful with zero rules attached.
+//
+// It exists because being a "coach" on a roster is a per-class ROLE while a
+// requirement's applies_to reads the person's GLOBAL type. The cast is what lets
+// the add-person dialog stamp the type the rule actually reads.
+
+const disc = (o: Partial<DisciplineNode> = {}): DisciplineNode => ({
+  id: 'd', name: 'D', parent_id: null, sort_order: 0, ...o,
+})
+
+describe('castFor', () => {
+  const tree: DisciplineNode[] = [
+    disc({ id: 'football', name: 'Football', person_type_keys: ['player', 'coach'] }),
+    disc({ id: 'juniors', name: 'Juniors', parent_id: 'football' }),
+    disc({ id: 'premiers', name: 'Premiers', parent_id: 'football', person_type_keys: ['player', 'physio'] }),
+    disc({ id: 'futsal', name: 'Futsal' }),
+  ]
+
+  it('inherits the parent cast when the child names nobody', () => {
+    // Juniors doesn't restate Football's cast — closest-wins, like requirements.
+    expect(castFor('juniors', tree)).toEqual(['player', 'coach'])
+  })
+
+  it('a child that names its own cast overrides, it does not merge', () => {
+    // Premiers has a physio and no coach. Merging would silently re-add the coach.
+    expect(castFor('premiers', tree)).toEqual(['player', 'physio'])
+  })
+
+  it('names its own when it has one', () => {
+    expect(castFor('football', tree)).toEqual(['player', 'coach'])
+  })
+
+  it('says nothing when nothing up the chain does', () => {
+    expect(castFor('futsal', tree)).toEqual([])
+  })
+
+  it('empty is "inherit", never "nobody takes part"', () => {
+    // [] and null must behave the same — a discipline meaning nobody is not a thing
+    // anyone authors, and treating it as such would empty the club's dialog.
+    const t = [disc({ id: 'p', person_type_keys: ['player'] }), disc({ id: 'c', parent_id: 'p', person_type_keys: [] })]
+    expect(castFor('c', t)).toEqual(['player'])
+  })
+
+  it('lower-cases + dedupes — the picker and applies_to must agree on the key', () => {
+    expect(castFor('x', [disc({ id: 'x', person_type_keys: ['Player', 'player', 'COACH'] })])).toEqual(['player', 'coach'])
+  })
+
+  it('survives an unknown discipline instead of throwing', () => {
+    expect(castFor('nope', tree)).toEqual([])
+  })
+})
+
+describe('castForMany', () => {
+  it('unions across bodies — one class, two disciplines, neither shadows the other', () => {
+    const t = [
+      disc({ id: 'a', person_type_keys: ['player'] }),
+      disc({ id: 'b', person_type_keys: ['coach', 'player'] }),
+    ]
+    expect(castForMany(['a', 'b'], t).sort()).toEqual(['coach', 'player'])
+  })
+
+  it('no disciplines linked → no cast', () => {
+    expect(castForMany([], [disc({ id: 'a', person_type_keys: ['player'] })])).toEqual([])
+  })
+})
+
+describe('clubTypesForCast', () => {
+  // The body says "player, coach"; the club says "Member, Gaffer". The link crosses it.
+  const clubTypes = [
+    { id: 't-mem', key: 'member', label: 'Member' },
+    { id: 't-gaf', key: 'gaffer', label: 'Gaffer' },
+    { id: 't-vol', key: 'volunteer', label: 'Volunteer' },
+  ]
+  const links = [
+    link({ id: '1', type_id: 't-mem', source_type_id: 's-p', source_key: 'player' }),
+    link({ id: '2', type_id: 't-gaf', source_type_id: 's-c', source_key: 'coach' }),
+  ]
+
+  it('returns the club types that answer to the cast, in the club\'s own words', () => {
+    expect(clubTypesForCast(['player', 'coach'], clubTypes, links).map(t => t.label)).toEqual(['Member', 'Gaffer'])
+  })
+
+  it('leaves out a club type nothing in the cast points at', () => {
+    // Volunteer is the club's own business — the body never named it.
+    expect(clubTypesForCast(['player'], clubTypes, links).map(t => t.label)).toEqual(['Member'])
+  })
+
+  it('is transitive — a cast written by the National still finds the club type', () => {
+    const deep = [
+      link({ id: 'c', type_id: 't-mem', source_type_id: 't-akl', source_key: 'player' }),
+      link({ id: 'a', type_id: 't-akl', source_type_id: 't-nat', source_key: 'athlete' }),
+    ]
+    expect(clubTypesForCast(['athlete'], clubTypes, deep).map(t => t.label)).toEqual(['Member'])
+  })
+
+  it('an empty cast returns NOTHING, not everything', () => {
+    // Load-bearing: the caller falls back to the code's member type. Returning all
+    // would make a discipline that says nothing silently redefine the add flow.
+    expect(clubTypesForCast([], clubTypes, links)).toEqual([])
+  })
+
+  it('an unlinked club type still matches by spelling — the legacy fallback', () => {
+    // Deliberate, and consistent with fieldAppliesTo, which also still matches raw
+    // keys: a club that hasn't linked but happens to say "Player" keeps working.
+    // The LINK is what makes the label FREE, not what makes matching possible —
+    // making the cast the one place that ignored spelling would be surprising.
+    expect(clubTypesForCast(['player'], [{ id: 'x', key: 'player', label: 'Player' }], []).map(t => t.label))
+      .toEqual(['Player'])
+  })
+
+  it('but a differently-named unlinked type does NOT match — that is what the link is for', () => {
+    expect(clubTypesForCast(['player'], [{ id: 'x', key: 'gumby', label: 'Gumby' }], [])).toEqual([])
   })
 })
