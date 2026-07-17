@@ -30,6 +30,9 @@ const loading = ref(true)
 const saving = ref(false)
 
 const connectedSports = computed(() => orgSports.value.filter(s => s.nso_org_id))
+/** This org authors disciplines of its own — i.e. it IS a governing body, linking
+ *  its own groups/events. Changes what an empty picker should tell you. */
+const ownsDisciplines = ref(false)
 
 async function load() {
   loading.value = true
@@ -47,11 +50,18 @@ async function load() {
   ])
   orgSports.value = sportsRes?.data ?? []
 
-  // That governing-body set's disciplines (depends on step 2).
-  const govIds = (ancRes?.data ?? []).map((a: any) => a.id)
+  // Disciplines this org can reach: the governing bodies ABOVE it (step 2), plus
+  // its OWN.
+  //
+  // Its own matters because a governing body runs groups and events too, and it is
+  // affiliated to nobody — so it has no org_sports rows, resolves no ancestors, and
+  // was being told to "connect a sport to a governing body" while looking at the
+  // very disciplines it had just authored. A club owns no disciplines, so including
+  // itself costs a club nothing.
+  const govIds = [...new Set([orgId.value, ...(ancRes?.data ?? []).map((a: any) => a.id)])].filter(Boolean)
   if (govIds.length) {
     const { data: discs } = await (db.from as any)('disciplines')
-      .select('id, name, parent_id, sort_order, applies_to, organisations(name)').in('org_id', govIds).order('sort_order').order('name')
+      .select('id, name, parent_id, sort_order, applies_to, org_id, organisations(name)').in('org_id', govIds).order('sort_order').order('name')
     // A discipline shows here only when it's scoped to this context (event/group)
     // or scoped to nothing at all (applies everywhere). Its ANCESTORS are always
     // kept so a shown child never dangles without its parent in the tree.
@@ -64,10 +74,15 @@ async function load() {
       let p = d.parent_id
       while (p && byId.has(p) && !keep.has(p)) { keep.add(p); p = (byId.get(p) as any).parent_id }
     }
+    // Measured BEFORE the applies_to filter: "you author disciplines but none apply
+    // to a group" and "you author none" are different problems and must not read the
+    // same.
+    ownsDisciplines.value = rows.some((d: any) => d.org_id === orgId.value)
     allDisciplines.value = rows.filter((d: any) => keep.has(d.id))
       .map((d: any) => ({ id: d.id, name: d.name, parent_id: d.parent_id ?? null, sort_order: d.sort_order ?? 0, nso: d.organisations?.name ?? '' }))
   } else {
     allDisciplines.value = []
+    ownsDisciplines.value = false
   }
 
   selected.value = (linksRes?.data ?? []).map((l: any) => l.discipline_id)
@@ -138,11 +153,13 @@ watch(() => props.entityId, (v) => { if (v) load() }, { immediate: true })
 </script>
 
 <template>
-  <div v-if="!loading && orgSports.length">
-    <!-- ONE picker: every discipline the club can reach, grouped by sport.
-         Chips are removable and the whole thing is clearable, so a choice can
-         always be undone. -->
-    <template v-if="connectedSports.length">
+  <div v-if="!loading">
+    <!-- ONE picker: every discipline this org can reach, grouped by the body that
+         owns them. Chips are removable and the whole thing is clearable, so a
+         choice can always be undone.
+         Gated on having DISCIPLINES, not on having org_sports rows: a governing
+         body has none of the latter and all of the former. -->
+    <template v-if="allDisciplines.length">
       <div class="flex items-center gap-2">
         <!-- <ChipMultiSelect>, not a raw MultiSelect: selected values collapse to
              "First + N more" on ONE line instead of wrapping into a growing wall
@@ -151,9 +168,7 @@ watch(() => props.entityId, (v) => { if (v) load() }, { immediate: true })
         <ChipMultiSelect v-model="selected" :options="disciplineGroups"
           option-label="name" option-value="id"
           option-group-label="label" option-group-children="items"
-          filter
-          :placeholder="allDisciplines.length ? 'Link to disciplines' : 'No disciplines defined yet'"
-          :disabled="!allDisciplines.length" class="flex-1 min-w-0" @hide="save">
+          filter placeholder="Link to disciplines" class="flex-1 min-w-0" @hide="save">
           <template #optiongroup="{ option }">
             <span class="text-xs font-bold uppercase tracking-wide text-gray-500">{{ option.label }}</span>
           </template>
@@ -168,14 +183,24 @@ watch(() => props.entityId, (v) => { if (v) load() }, { immediate: true })
           v-tooltip.top="'Clear disciplines'" @click="clearDisciplines" />
       </div>
       <p class="text-xs text-surface-400 mt-1">
-        Maps this {{ entityType }} to your governing body's disciplines so it rolls up for cross-club reporting.
+        {{ ownsDisciplines
+          ? `Puts this ${entityType} in a discipline, so what it requires applies to the people in it.`
+          : `Maps this ${entityType} to your governing body's disciplines so it rolls up for cross-club reporting.` }}
         <span v-if="saving" class="text-primary">· saving…</span>
       </p>
     </template>
 
-    <!-- Standalone: no sport is connected to a governing body -->
-    <p v-else class="text-xs text-surface-400">
+    <!-- Nothing to link — three different reasons, which must not read the same. -->
+    <p v-else-if="ownsDisciplines" class="text-xs text-surface-400">
+      No disciplines apply to a {{ entityType }} yet. Add one in
+      <NuxtLink to="/disciplines" class="text-primary hover:underline">Settings → Disciplines</NuxtLink>,
+      and make sure its “where it applies” covers {{ entityType }}s.
+    </p>
+    <p v-else-if="!connectedSports.length" class="text-xs text-surface-400">
       None of your sports are connected to a governing body, so there are no disciplines to link. Connect one in <NuxtLink to="/settings/locations" class="text-primary hover:underline">Settings → Sports &amp; locations</NuxtLink> to enable cross-club reporting.
+    </p>
+    <p v-else class="text-xs text-surface-400">
+      Your governing {{ connectedSports.length === 1 ? 'body hasn\'t' : 'bodies haven\'t' }} defined any disciplines that apply to a {{ entityType }} yet.
     </p>
   </div>
 </template>
