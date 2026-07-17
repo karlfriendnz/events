@@ -337,7 +337,8 @@
                   </th>
                   <th v-if="canManage" class="px-4 py-2.5" />
                 </tr>
-                <tr v-for="c in displayCoaches" :key="c.id" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                <tr v-for="c in displayCoaches" :key="c.id" class="border-b border-gray-100 transition-colors"
+                  :class="hasFlags(c) ? 'bg-red-50 hover:bg-red-100/70' : 'hover:bg-gray-50'">
                   <td v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 text-gray-700 align-top">
                     <template v-if="col.key === 'name'">
                       <div class="flex items-center gap-2">
@@ -350,10 +351,10 @@
                             @click="openPersonMenu($event, c)">{{ personInitials(c.name) }}</button>
                         </span>
                         <button type="button" class="text-[#1E2157] hover:underline text-left" @click="openAdd('coach', c)">{{ c.name }}</button>
-                        <button v-if="flagsFor(c).length" type="button"
-                          class="shrink-0 text-amber-500 hover:text-amber-600"
-                          :title="`${flagsFor(c).length} unmet requirement${flagsFor(c).length === 1 ? '' : 's'}`"
-                          @click.stop="openFlagPanel($event, c)">
+                        <button v-if="hasFlags(c)" type="button"
+                          class="shrink-0 text-red-500 hover:text-red-600"
+                          @mouseenter="showFlagPanel($event, c)" @mouseleave="hideFlagPanelSoon"
+                          @click.stop="showFlagPanel($event, c)">
                           <i class="pi pi-exclamation-triangle text-xs" />
                         </button>
                       </div>
@@ -450,7 +451,8 @@
                   </th>
                   <th v-if="canManage" class="px-4 py-2.5" />
                 </tr>
-                <tr v-for="m in displayMembers" :key="m.id" class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                <tr v-for="m in displayMembers" :key="m.id" class="border-b border-gray-100 transition-colors"
+                  :class="hasFlags(m) ? 'bg-red-50 hover:bg-red-100/70' : 'hover:bg-gray-50'">
                   <td v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 text-gray-700 align-top">
                     <template v-if="col.key === 'name'">
                       <div class="flex items-center gap-2">
@@ -468,10 +470,10 @@
                              so a column would appear unpredictably for existing users.
                              A Popover rather than a tooltip because "what do I do about
                              it" is the whole value, and a tooltip can't hold the link. -->
-                        <button v-if="flagsFor(m).length" type="button"
-                          class="shrink-0 text-amber-500 hover:text-amber-600"
-                          :title="`${flagsFor(m).length} unmet requirement${flagsFor(m).length === 1 ? '' : 's'}`"
-                          @click.stop="openFlagPanel($event, m)">
+                        <button v-if="hasFlags(m)" type="button"
+                          class="shrink-0 text-red-500 hover:text-red-600"
+                          @mouseenter="showFlagPanel($event, m)" @mouseleave="hideFlagPanelSoon"
+                          @click.stop="showFlagPanel($event, m)">
                           <i class="pi pi-exclamation-triangle text-xs" />
                         </button>
                       </div>
@@ -528,9 +530,11 @@
         </div>
 
         <!-- Filter popover (by role) -->
-        <!-- What one person fails, and where to go and fix it. -->
+        <!-- What one person fails, and where to go and fix it. Shown on hover; the
+             card keeps itself open while the pointer is inside it, so the profile
+             link is actually reachable. -->
         <Popover ref="flagPanel">
-          <div v-if="flagPerson" class="w-72 text-sm">
+          <div v-if="flagPerson" class="w-72 text-sm" @mouseenter="keepFlagPanel" @mouseleave="hideFlagPanelSoon">
             <div class="text-xs font-semibold text-gray-800 mb-2">{{ flagPerson.name }}</div>
             <ul class="space-y-2">
               <li v-for="u in flagsFor(flagPerson)" :key="u.fieldKey + u.requirement.id" class="flex items-start gap-2">
@@ -1922,10 +1926,28 @@ const memberFlagSummary = computed(() => flagSummary(members.value))
 const coachFlagSummary = computed(() => flagSummary(coaches.value))
 const disciplineNameForFlags = computed(() => groupDisciplineNames.value.join(' · '))
 
-// Per-person detail popover.
+// Per-person detail, on HOVER. A grace period on leave so the pointer can travel
+// into the card itself — otherwise the "Open profile" link inside it is
+// unreachable, and that link is the whole point of showing the detail.
 const flagPanel = ref()
 const flagPerson = ref<any>(null)
-function openFlagPanel(e: Event, p: any) { flagPerson.value = p; flagPanel.value?.toggle(e) }
+let flagHideTimer: any = null
+function showFlagPanel(e: Event, p: any) {
+  clearTimeout(flagHideTimer)
+  if (flagPerson.value?.id === p.id) return   // already showing for them
+  flagPerson.value = p
+  flagPanel.value?.show(e)
+}
+function hideFlagPanelSoon() {
+  clearTimeout(flagHideTimer)
+  flagHideTimer = setTimeout(() => { flagPanel.value?.hide(); flagPerson.value = null }, 220)
+}
+const keepFlagPanel = () => clearTimeout(flagHideTimer)
+
+/** Any unmet requirement marks the person. NB this includes "we can't check their
+ *  age because there's no date of birth" — a gap, not a proven failure. If that
+ *  turns out to be too shouty, split it out here rather than at the call sites. */
+const hasFlags = (p: any) => flagsFor(p).length > 0
 // A group whose term has ended is frozen history — soft-locked (no edits).
 const isHistory = computed(() => {
   const end = groupTerm.value?.end_date

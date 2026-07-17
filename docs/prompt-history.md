@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-327 sessions · 1723 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+327 sessions · 1724 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -29068,7 +29068,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **23:07** — A NSO has the ability to create a Person Type, They want to know how many of that person type is in all thier clubs. The person type has certian feilds that are connected to it ie ethnicity, but then a club could be connected to two nso and there for 1 person could be both person types, and both nso's could collect differnet ethnicites
 
 
-## Session 2026-07-16 23:18 (18 prompts)
+## Session 2026-07-16 23:18 (19 prompts)
 
 **23:18** — ok what we were talking baout
 
@@ -29137,4 +29137,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **01:33** — The displines box on the group is not wokring
 
 **01:47** — ok so i have added sam to the group under 16's but its not showing any flags
+
+**01:59** — this should be on the hover on the icon and his row should be red
 
