@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Re-plumb progress</title>
 <style>
-  :root { --nat:#2494D3; --navy:#1E2157; --ok:#16a34a; --wip:#d97706; --todo:#9ca3af; --bg:#f5f8fa; --card:#fff; --line:#e6ebf1; --ink:#1f2937; --mut:#6b7280; }
+  :root { --nat:#2494D3; --ok:#16a34a; --wip:#d97706; --bg:#f5f8fa; --card:#fff; --line:#e6ebf1; --ink:#1f2937; --mut:#6b7280; }
   * { box-sizing:border-box; }
   body { margin:0; font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--ink); background:var(--bg); }
   .wrap { max-width:1000px; margin:0 auto; padding:28px 20px 80px; }
@@ -33,11 +33,9 @@
   details { background:var(--card); border:1px solid var(--line); border-radius:12px; margin-bottom:10px; overflow:hidden; }
   summary { cursor:pointer; padding:13px 16px; font-weight:700; display:flex; align-items:center; gap:12px; list-style:none; }
   summary::-webkit-details-marker { display:none; }
-  summary::before { content:"▸"; color:var(--mut); font-size:12px; transition:transform .15s; }
+  summary::before { content:"\25B8"; color:var(--mut); font-size:12px; transition:transform .15s; }
   details[open] summary::before { transform:rotate(90deg); }
   summary .count { margin-left:auto; font-weight:600; font-size:13px; color:var(--mut); }
-  .track { width:120px; height:6px; background:#eef1f4; border-radius:99px; overflow:hidden; }
-  .track > i { display:block; height:100%; background:var(--ok); }
   details table { border:none; border-radius:0; border-top:1px solid var(--line); }
   details td.task { font-weight:500; white-space:normal; }
   .note { background:#fff; border:1px dashed var(--line); border-radius:12px; padding:14px 16px; color:var(--mut); font-size:14px; margin-top:14px; }
@@ -50,7 +48,7 @@
   <header>
     <h1>Re-plumb progress</h1>
     <p>Moving the app off its current database wiring onto a clean, swappable layer, so the backend team can plug their MySQL backend in later — while your testable version keeps working the whole time.</p>
-    <div class="updated">Last updated: 18 Jul 2026, 9:05pm · branch <code>replumb/mysql-foundation</code></div>
+    <div class="updated">Last updated: 18 Jul 2026 · branch <code>replumb/mysql-foundation</code> · isolated worktree <code>/Users/karl/fm-replumb</code> · DB <code>fm-new</code> :3400</div>
   </header>
 
   <div class="bars">
@@ -74,7 +72,7 @@
   <h2>Foundation &amp; data layer</h2>
   <table>
     <tbody>
-      <tr><td class="task">Local MySQL running</td><td>Real MySQL 8.4 database <code>fm</code>, sharing the legacy-import server.</td><td><span class="badge b-ok">✅</span></td></tr>
+      <tr><td class="task">Local MySQL running</td><td>Dedicated MySQL 8.4 container (<code>fm-new</code>, port 3400), isolated from the legacy-import work so it can’t be reset from under us.</td><td><span class="badge b-ok">✅</span></td></tr>
       <tr><td class="task">Typed middle layer (the seam)</td><td>App → small typed API → MySQL. Swapping the backend later = change one layer, not every screen.</td><td><span class="badge b-ok">✅</span></td></tr>
       <tr><td class="task">All 118 tables in MySQL</td><td>Whole database structure translated &amp; created, generated automatically.</td><td><span class="badge b-ok">✅</span></td></tr>
       <tr><td class="task">Org hierarchy queries</td><td>“Who’s above / below an org” rebuilt as real MySQL queries.</td><td><span class="badge b-ok">✅</span></td></tr>
@@ -87,147 +85,116 @@
   <div class="legend">
     <span><span class="badge b-ok">✅</span> migrated</span>
     <span><span class="badge b-wip">🔄</span> in progress</span>
-    <span><span class="badge b-ready">◐ data-ready</span> its data layer exists, screen not yet switched</span>
+    <span><span class="badge b-ready">◐</span> data-ready, not switched</span>
     <span><span class="badge b-todo">⬜</span> not started</span>
   </div>
 
   <details open>
-    <summary>Organisations &amp; NSO (governing)<span class="track"><i style="width:14%"></i></span><span class="count">1 / 7</span></summary>
+    <summary>Organisations &amp; NSO (governing)<span class="count">2 / 7</span></summary>
     <table><tbody>
-      <tr><td class="url">/organisations</td><td class="task">Entity records directory</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/organisations/:id</td><td class="task">A single entity record + its people</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/managers</td><td class="task">Cross-club managers &amp; club report</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/disciplines</td><td class="task">Governing-body disciplines &amp; requirements</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/settings/affiliations</td><td class="task">The Clubs register + approvals</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">(api) organisations list</td><td class="task">List of organisations — full seam</td><td><span class="badge b-ok">✅</span></td></tr>
       <tr><td class="url">(api) org tree</td><td class="task">Ancestors / descendants — full seam</td><td><span class="badge b-ok">✅</span></td></tr>
+      <tr><td class="url">/organisations · /:id</td><td class="task">Entity records directory + record</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/managers</td><td class="task">Cross-club managers &amp; club report</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/disciplines</td><td class="task">Governing disciplines &amp; requirements</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/settings/affiliations</td><td class="task">Clubs register + approvals</td><td><span class="badge b-todo">⬜</span></td></tr>
     </tbody></table>
   </details>
 
   <details>
-    <summary>People<span class="track"><i style="width:0%"></i></span><span class="count">0 / 3</span></summary>
+    <summary>People<span class="count">0 / 3</span></summary>
     <table><tbody>
-      <tr><td class="url">/people</td><td class="task">People directory (+ Admins, Organisations tabs)</td><td><span class="badge b-ready">◐ data-ready soon</span></td></tr>
+      <tr><td class="url">/people</td><td class="task">People directory</td><td><span class="badge b-ready">◐</span></td></tr>
       <tr><td class="url">/people/:id</td><td class="task">Person profile</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/account/profiles</td><td class="task">My contacts &amp; circles (member side)</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/account/profiles</td><td class="task">My contacts &amp; circles</td><td><span class="badge b-todo">⬜</span></td></tr>
     </tbody></table>
   </details>
 
   <details>
-    <summary>Classes &amp; Groups<span class="track"><i style="width:0%"></i></span><span class="count">0 / 15</span></summary>
+    <summary>Classes &amp; Groups<span class="count">0 / 15</span></summary>
     <table><tbody>
-      <tr><td class="url">/groups</td><td class="task">Classes board (landing)</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/groups/:id</td><td class="task">Group detail (the big one)</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/groups/:id/form</td><td class="task">Group registration-form designer</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/groups · /groups/:id</td><td class="task">Classes board &amp; group detail</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">/groups/timetable</td><td class="task">Week view</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/groups/retention</td><td class="task">Retention report</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/groups/fees</td><td class="task">Group fees overview</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/groups/term-wizard</td><td class="task">Term set-up wizard</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/groups/rollover</td><td class="task">Term rollover</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/groups/waitlists</td><td class="task">Waitlists</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/groups/allocator</td><td class="task">Team allocation board</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/groups/views · /view/:id</td><td class="task">Saved class views</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/groups/codes · /codes/:id</td><td class="task">Code hierarchy &amp; per-code settings</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/groups/codes/default-roles</td><td class="task">Default roles &amp; positions</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/settings/terms</td><td class="task">Terms / seasons</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/attendance</td><td class="task">Attendance landing</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/groups/fees · /retention</td><td class="task">Fees &amp; retention reports</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/groups/term-wizard · /rollover</td><td class="task">Term set-up &amp; rollover</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/groups/waitlists · /allocator</td><td class="task">Waitlists &amp; team allocation</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/groups/views · /codes</td><td class="task">Saved views &amp; code hierarchy</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/settings/terms · /attendance</td><td class="task">Terms &amp; attendance</td><td><span class="badge b-todo">⬜</span></td></tr>
     </tbody></table>
   </details>
 
   <details>
-    <summary>Memberships<span class="track"><i style="width:0%"></i></span><span class="count">0 / 3</span></summary>
+    <summary>Memberships<span class="count">0 / 3</span></summary>
     <table><tbody>
-      <tr><td class="url">/memberships</td><td class="task">Memberships board</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/memberships/programme/:id</td><td class="task">Umbrella report</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/memberships · /programme/:id</td><td class="task">Memberships board &amp; report</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">/settings/memberships</td><td class="task">Legacy membership plans</td><td><span class="badge b-todo">⬜</span></td></tr>
     </tbody></table>
   </details>
 
   <details>
-    <summary>Events &amp; Programmes<span class="track"><i style="width:0%"></i></span><span class="count">0 / 9</span></summary>
+    <summary>Events &amp; Programmes<span class="count">0 / 8</span></summary>
     <table><tbody>
       <tr><td class="url">/events</td><td class="task">Events calendar</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/events/new-basic</td><td class="task">Single-event wizard</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/events/new-advanced</td><td class="task">Advanced event form</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/events/new-multi</td><td class="task">Multi-session / programme create</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/events/new-basic · advanced · multi</td><td class="task">Event creation wizards</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">/events/:id</td><td class="task">Main event editor (largest file)</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/events/reporting</td><td class="task">Event analytics</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/events/register/:id</td><td class="task">Staff register-on-behalf</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/programme · /programme/:id</td><td class="task">Programmes board &amp; dates view</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/events/reporting</td><td class="task">Event reporting</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/events/reporting · /register/:id</td><td class="task">Analytics &amp; staff registration</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/programme · /programme/:id</td><td class="task">Programmes board &amp; dates</td><td><span class="badge b-todo">⬜</span></td></tr>
     </tbody></table>
   </details>
 
   <details>
-    <summary>Bookings, Venues &amp; Activities<span class="track"><i style="width:0%"></i></span><span class="count">0 / 8</span></summary>
+    <summary>Bookings, Venues &amp; Activities<span class="count">0 / 8</span></summary>
     <table><tbody>
-      <tr><td class="url">/bookables</td><td class="task">Bookings / venues / activities hub</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/bookables/new · /new-v2</td><td class="task">Venue / club setup wizards</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/bookables/:id</td><td class="task">Venue detail</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/bookings/new</td><td class="task">Staff booking picker</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/book</td><td class="task">Public booker</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/activities/:id</td><td class="task">Activity detail</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/activities/:id/modes/:id</td><td class="task">Mode editor</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/bookables · /:id</td><td class="task">Bookings hub &amp; venue detail</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/bookings/new · /book</td><td class="task">Staff &amp; public booking</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/activities/:id · /modes/:id</td><td class="task">Activity &amp; mode editors</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">/settings/venues</td><td class="task">Venue tree editor</td><td><span class="badge b-todo">⬜</span></td></tr>
     </tbody></table>
   </details>
 
   <details>
-    <summary>Registration &amp; Forms (incl. public)<span class="track"><i style="width:0%"></i></span><span class="count">0 / 7</span></summary>
+    <summary>Registration &amp; Forms (incl. public)<span class="count">0 / 6</span></summary>
     <table><tbody>
-      <tr><td class="url">/forms · /forms/new · /forms/:id</td><td class="task">Form list, wizard, editor</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/forms · /new · /:id</td><td class="task">Form list, wizard, editor</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">/r/:context/:id</td><td class="task">Public registration page</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">/rsvp/:event/:person</td><td class="task">Public RSVP</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/registration</td><td class="task">Registration management</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/embed/calendar</td><td class="task">Public embed calendar</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/registration · /embed/calendar</td><td class="task">Registration mgmt &amp; embed</td><td><span class="badge b-todo">⬜</span></td></tr>
     </tbody></table>
   </details>
 
   <details>
-    <summary>Dashboard, Finances &amp; Reporting<span class="track"><i style="width:0%"></i></span><span class="count">0 / 5</span></summary>
+    <summary>Dashboard, Finances &amp; Reporting<span class="count">0 / 5</span></summary>
     <table><tbody>
       <tr><td class="url">/dashboard</td><td class="task">Club dashboard (widgets)</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/finances</td><td class="task">Financial reporting</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/reporting</td><td class="task">General reporting</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/resources · /resources/library</td><td class="task">Resources library (admin + member)</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/finances · /reporting</td><td class="task">Financial &amp; general reporting</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/resources · /library</td><td class="task">Resources library</td><td><span class="badge b-todo">⬜</span></td></tr>
     </tbody></table>
   </details>
 
   <details>
-    <summary>Settings<span class="track"><i style="width:0%"></i></span><span class="count">0 / 14</span></summary>
+    <summary>Settings<span class="count">0 / 14</span></summary>
     <table><tbody>
-      <tr><td class="url">/settings</td><td class="task">Org settings (General/Advanced)</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/settings/fields</td><td class="task">Types &amp; fields</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/settings/core-fields</td><td class="task">Personal &amp; comms fields</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/settings/terminology</td><td class="task">Club terminology</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/settings/modules</td><td class="task">Club setup (modules on/off)</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/settings/roles</td><td class="task">Scoped-role catalogue</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/settings/permissions</td><td class="task">User-type permissions</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/settings · /fields · /core-fields</td><td class="task">Org settings, types &amp; fields</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/settings/terminology · /modules</td><td class="task">Terminology &amp; module setup</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/settings/roles · /permissions</td><td class="task">Roles &amp; permissions</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">/settings/locations</td><td class="task">Sports &amp; locations</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/settings/profile-dashboard</td><td class="task">Profile-dashboard builder</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/settings/dashboard-defaults</td><td class="task">Per-role dashboard defaults</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">/settings/xero · /integrations</td><td class="task">Xero &amp; integrations</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/settings/calendars</td><td class="task">Calendar integrations</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/settings/communications</td><td class="task">Communications / Mailer</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/settings/… (dashboards, calendars, comms)</td><td class="task">Remaining settings pages</td><td><span class="badge b-todo">⬜</span></td></tr>
       <tr><td class="url">/onboarding</td><td class="task">New-club guided setup</td><td><span class="badge b-todo">⬜</span></td></tr>
     </tbody></table>
   </details>
 
   <details>
-    <summary>Admin (super-admin) &amp; misc<span class="track"><i style="width:0%"></i></span><span class="count">0 / 7</span></summary>
+    <summary>Admin (super-admin) &amp; misc<span class="count">0 / 7</span></summary>
     <table><tbody>
-      <tr><td class="url">/admin</td><td class="task">Cross-org overview</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/admin/master</td><td class="task">Brands &amp; club types</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/admin/club-defaults/:id</td><td class="task">Club-type setup template</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/admin/permissions</td><td class="task">Core permission templates</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/admin/help · /help</td><td class="task">Help documentation</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/login</td><td class="task">Auth</td><td><span class="badge b-todo">⬜</span></td></tr>
-      <tr><td class="url">/dev/seed-items</td><td class="task">Demo seeder</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/admin · /master · /club-defaults/:id</td><td class="task">Cross-org, brands, templates</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/admin/permissions · /help</td><td class="task">Core templates &amp; help docs</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="url">/login · /dev/seed-items</td><td class="task">Auth &amp; demo seeder</td><td><span class="badge b-todo">⬜</span></td></tr>
     </tbody></table>
   </details>
 
   <div class="note">
-    <strong>Reading this:</strong> “data-ready” means a screen’s data can already come through the new layer, it just hasn’t been switched over yet. Screens are moved area by area — starting with Organisations/NSO (new surface, nothing old to unpick). Your live version keeps running on the old database until each area is done.
+    <strong>Where we are:</strong> the plumbing is in and the whole database exists in MySQL, now on its own isolated container so the parallel legacy work can’t disturb it. Next: moving real screens across, area by area, starting with Organisations/NSO. Your live version keeps running on the old database until each area is moved.
   </div>
 </div>
 </body>
