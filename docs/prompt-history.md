@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-328 sessions · 1775 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+328 sessions · 1776 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -29153,7 +29153,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > </task-notification>
 
 
-## Session 2026-07-17 06:04 (48 prompts)
+## Session 2026-07-17 06:04 (49 prompts)
 
 **06:04** — a club needs to be able to connect a person type to a NSO person type i.e a national body creates Player, the club also has player but its connected to the player for nso to know the required feilds for a player at club level - does that make sence'?
 
@@ -29564,4 +29564,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **08:58** — for discipline setuop
 
 **09:03** — i think this is better
+
+**09:06** — its better its juts not perfect
 

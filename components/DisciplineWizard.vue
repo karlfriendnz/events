@@ -93,12 +93,15 @@ const effectiveCast = computed<string[]>(() =>
  * ONE PAGE readable — a single page was tried first and became mush precisely
  * because the rules were one undifferentiated pile.
  */
+// "Every Coach" — not "Coachs". Pluralising a label by bolting an s on it breaks
+// the moment it ends in a sibilant, and "Every X" says the same thing without ever
+// needing to know how to pluralise anything.
 const reqSections = computed(() => [
   ...effectiveCast.value.map(k => {
     const label = props.personTypes.find(t => t.key === k)?.label ?? k
-    return { key: k as string | null, heading: `${label}s must have…` }
+    return { key: k as string | null, heading: `Every ${label}` }
   }),
-  { key: null as string | null, heading: effectiveCast.value.length ? 'Everyone must have…' : 'Everyone in it must have…' },
+  { key: null as string | null, heading: effectiveCast.value.length ? 'Everyone else' : 'Everyone in it' },
 ])
 /** A rule belongs to exactly ONE section — its first scope, or Everyone. */
 const sectionKeyOf = (r: DraftReq) => r.applies_to?.[0] ?? null
@@ -291,6 +294,17 @@ async function finish() {
     @update:visible="v => { if (!v) emit('close') }">
 
     <div class="space-y-5">
+      <!-- What this screen IS. A body admin opening it cold has no idea what a
+           discipline is or what they're about to make, and every other hint here
+           answers "what goes in this box" rather than "why am I doing this". -->
+      <p v-if="!editing" class="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+        A discipline is a category your clubs connect their classes and events to —
+        <span class="text-gray-700">Juniors</span>, <span class="text-gray-700">Premiers</span>,
+        <span class="text-gray-700">Women's</span>. Say who takes part and what you need recorded about them,
+        and every affiliated club is asked for it automatically.
+        <span class="text-gray-400">Nobody is ever blocked — people who don't meet a rule are flagged to their club.</span>
+      </p>
+
       <!-- WHAT IT IS -->
       <div class="grid grid-cols-1 sm:grid-cols-[1fr_200px] gap-3">
         <div class="flex flex-col gap-1.5">
@@ -326,9 +340,13 @@ async function finish() {
       <!-- WHO'S IN IT — declared before the rules, because that's the order you
            think in, and because it gives the rules below their shape. -->
       <div v-if="personTypes.length" class="border-t border-gray-100 pt-4 space-y-2">
-        <div class="flex items-baseline justify-between gap-2">
+        <div>
           <label class="field-label">Who takes part?</label>
-          <span class="field-help">Clubs connect their own people to these — they can call them anything.</span>
+          <p class="field-help">
+            The kinds of people involved. Clubs connect their own people to these and can call them
+            anything — your <em>{{ personTypes[0]?.label ?? 'Player' }}</em> might be their “Member”.
+            It's also how a club knows who to add to a class it connects here.
+          </p>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
           <button v-for="t in personTypes" :key="t.key" type="button"
@@ -351,9 +369,13 @@ async function finish() {
            (A single page failed before because the rules were ONE undifferentiated
            pile; sections are what make it readable, so the wizard isn't needed.) -->
       <div class="border-t border-gray-100 pt-4 space-y-4">
-        <div class="flex items-baseline justify-between gap-2">
+        <div>
           <label class="field-label">What does {{ form.name.trim() || 'it' }} require?</label>
-          <span class="field-help">Say it out loud — “School must be recorded”. Nothing ever blocks a registration.</span>
+          <p class="field-help">
+            What each of those people must have on record. Say it as you'd say it out loud —
+            “<em>School must be recorded</em>”, “<em>Gender must be Female</em>”. Leave a group empty
+            if you need nothing from them.
+          </p>
         </div>
 
         <!-- Inherited from above: locked, naming where it came from. -->
@@ -376,11 +398,11 @@ async function finish() {
             <span v-if="!reqsIn(s.key).length" class="text-xs text-gray-300">nothing</span>
           </div>
 
-          <DisciplineReqRow v-for="(r, i) in reqsIn(s.key)" :key="r.key" :row="r" :index="i"
+          <DisciplineReqRow v-for="r in reqsIn(s.key)" :key="r.key" :row="r"
             :core-fields="coreFields" :custom-fields="customFields" :org-name="orgName"
             :options="optionsFor(r)" :operator-label="operatorLabel(r)" :shows-value="showsValue(r)" :shows-range="showsRange(r)"
             :value-options="valueOptionsFor(r.field_key)" :numeric="isNumericField(r.field_key)" :shadowed="shadowedFor(r.field_key)"
-            :field-label="fieldLabel" lead="Must have" lead-more="and must have"
+            :field-label="fieldLabel"
             @field-change="onFieldChange(r)" @operator="setOperator(r, $event)" @range="setRange(r, $event.i, $event.v)"
             @remove="removeReq(r)" @revert="revertInherited(r.field_key)" @create-field="openCreateField(r)" />
 
@@ -395,7 +417,9 @@ async function finish() {
 
     <template #footer>
       <div class="flex items-center justify-between w-full gap-3">
-        <span class="field-help">Anyone who doesn't meet a rule is flagged to their club. Nothing is ever blocked.</span>
+        <!-- Editing: the intro at the top only shows when creating, so the
+             reassurance still needs saying somewhere. -->
+        <span class="field-help">{{ editing ? 'Changes reach every affiliated club straight away.' : '' }}</span>
         <div class="flex items-center gap-2 shrink-0">
           <Button label="Cancel" text :disabled="saving" @click="emit('close')" />
           <Button :label="saving ? 'Saving…' : (editing ? 'Save changes' : 'Create discipline')"

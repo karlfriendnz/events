@@ -1,22 +1,22 @@
 <!--
   One requirement row inside <DisciplineWizard>.
 
-  It carries NO "who is this for" picker: the row lives under a cast heading
-  ("Players must have…", "Coaches must have…") and the SECTION is the scope. A
-  picker here would be a second way to say the same thing, and the one thing this
-  editor keeps being punished for is saying the same thing two ways.
+  ONE LINE: field · phrasing · value · ✕. It carries no "who is this for" picker and
+  no lead-in words — the row lives under a cast heading ("Every Coach") and the
+  SECTION says both who it's for and that they must have it. Saying it again on the
+  row gave "Every Coach / Must have / NZ FB ID / must be recorded": three sayings of
+  one thing, which is the exact fault this editor keeps getting punished for (a flat
+  drawer, then two rule steps, then scope-chips-plus-sections).
 
-  Structure mirrors the condition-row block in <FormFieldAdvancedEditor> so the two
-  editors read alike. NB mirror its STRUCTURE, not its type scale — that file
-  predates the type-scale rule and is full of arbitrary sizes.
+  The club message is the rare case, so it hides behind a link rather than putting an
+  empty text box on every row.
 -->
 <script setup lang="ts">
 import type { PersonFieldDef } from '~/composables/usePersonFields'
 import type { ReqEntry } from '~/composables/useDisciplineRequirements'
 
-defineProps<{
+const props = defineProps<{
   row: any
-  index: number
   coreFields: PersonFieldDef[]
   customFields: PersonFieldDef[]
   orgName: string
@@ -29,8 +29,6 @@ defineProps<{
   /** The ancestor rule this row replaces, if any — closest-wins hides it otherwise. */
   shadowed: ReqEntry | null
   fieldLabel: (key: string) => string
-  lead: string
-  leadMore: string
 }>()
 const emit = defineEmits<{
   (e: 'field-change'): void
@@ -49,68 +47,72 @@ function onPick(el: HTMLSelectElement, row: any) {
   row.field_key = el.value
   emit('field-change')
 }
+// Open when there's already a message, so an existing one is never hidden.
+const noteOpen = ref(!!props.row.message)
+const SEL = 'text-sm border border-gray-300 rounded px-2 py-1.5 bg-white'
 </script>
 
 <template>
-  <div class="rounded-lg border border-gray-200 p-3 space-y-2">
-    <div class="flex items-center justify-between gap-2">
-      <span class="text-xs font-medium text-gray-500">{{ index === 0 ? lead : leadMore }}</span>
-      <button class="text-gray-300 hover:text-red-500" v-tooltip.top="'Remove'" @click="emit('remove')">
-        <i class="pi pi-times text-xs" />
-      </button>
-    </div>
+  <div class="group/req">
+    <div class="flex items-center gap-2">
+      <select :value="row.field_key" :class="SEL" class="flex-1 min-w-0"
+        style="-webkit-appearance:auto;appearance:auto;"
+        @change="onPick($event.target as HTMLSelectElement, row)">
+        <option value="">Choose a field…</option>
+        <optgroup label="Their details">
+          <option v-for="f in coreFields" :key="f.key" :value="f.key">{{ f.label }}</option>
+        </optgroup>
+        <optgroup v-if="customFields.length" :label="orgName + ' fields'">
+          <option v-for="f in customFields" :key="f.key" :value="f.key">{{ f.label }}</option>
+        </optgroup>
+        <!-- Don't send someone to Settings and back just to invent "School".
+             NB a real label: a blank one renders as an unreadable gap in the list. -->
+        <optgroup label="Not there?">
+          <option :value="NEW">+ Create a new field…</option>
+        </optgroup>
+      </select>
 
-    <select :value="row.field_key" class="w-full text-sm border border-gray-300 rounded px-2 py-1.5"
-      style="-webkit-appearance:auto;appearance:auto;background:white;"
-      @change="onPick($event.target as HTMLSelectElement, row)">
-      <option value="">Choose…</option>
-      <optgroup label="Their details">
-        <option v-for="f in coreFields" :key="f.key" :value="f.key">{{ f.label }}</option>
-      </optgroup>
-      <optgroup v-if="customFields.length" :label="orgName + ' fields'">
-        <option v-for="f in customFields" :key="f.key" :value="f.key">{{ f.label }}</option>
-      </optgroup>
-      <!-- Don't send someone to Settings and back mid-wizard just to invent "School".
-           NB a real label: a blank one renders as an unreadable gap in the list. -->
-      <optgroup label="Not there?">
-        <option :value="NEW">+ Create a new field…</option>
-      </optgroup>
-    </select>
-
-    <div class="flex gap-2">
-      <select :value="operatorLabel" class="text-sm border border-gray-300 rounded px-2 py-1.5"
-        :class="showsValue ? 'w-1/2' : 'w-full'"
-        style="-webkit-appearance:auto;appearance:auto;background:white;"
+      <select :value="operatorLabel" :class="SEL" class="shrink-0"
+        style="-webkit-appearance:auto;appearance:auto;"
         @change="emit('operator', ($event.target as HTMLSelectElement).value)">
         <option v-for="o in options" :key="o.label" :value="o.label">{{ o.label }}</option>
       </select>
 
       <!-- Is Between takes a pair. -->
-      <div v-if="showsRange" class="w-1/2 flex items-center gap-1">
+      <div v-if="showsRange" class="flex items-center gap-1 shrink-0">
         <input type="number" :value="Array.isArray(row.value) ? row.value[0] : null" placeholder="from"
-          class="w-full text-sm border border-gray-300 rounded px-2 py-1.5"
+          :class="SEL" class="w-20"
           @input="emit('range', { i: 0, v: ($event.target as HTMLInputElement).value })" />
         <span class="text-xs text-gray-400">–</span>
         <input type="number" :value="Array.isArray(row.value) ? row.value[1] : null" placeholder="to"
-          class="w-full text-sm border border-gray-300 rounded px-2 py-1.5"
+          :class="SEL" class="w-20"
           @input="emit('range', { i: 1, v: ($event.target as HTMLInputElement).value })" />
       </div>
 
       <template v-else-if="showsValue">
-        <select v-if="valueOptions" v-model="row.value" class="w-1/2 text-sm border border-gray-300 rounded px-2 py-1.5"
-          style="-webkit-appearance:auto;appearance:auto;background:white;">
+        <select v-if="valueOptions" v-model="row.value" :class="SEL" class="shrink-0 w-36"
+          style="-webkit-appearance:auto;appearance:auto;">
           <option v-for="v in valueOptions" :key="v" :value="v">{{ v }}</option>
         </select>
-        <input v-else-if="numeric" v-model="row.value" type="number" placeholder="Value"
-          class="w-1/2 text-sm border border-gray-300 rounded px-2 py-1.5" />
-        <InputText v-else v-model="row.value" placeholder="Value" class="w-1/2" />
+        <input v-else-if="numeric" v-model="row.value" type="number" placeholder="Value" :class="SEL" class="w-24 shrink-0" />
+        <input v-else v-model="row.value" placeholder="Value" :class="SEL" class="w-36 shrink-0" />
       </template>
+
+      <button class="text-gray-300 hover:text-red-500 shrink-0 px-1" v-tooltip.top="'Remove'" @click="emit('remove')">
+        <i class="pi pi-times text-xs" />
+      </button>
     </div>
 
-    <InputText v-model="row.message" placeholder="What the club sees if it's not met (optional)" class="w-full" />
+    <!-- The note + the shadow warning are both exceptions — off the main line. -->
+    <div v-if="noteOpen" class="mt-1.5 pl-0.5">
+      <InputText v-model="row.message" placeholder="What the club sees if it's not met" class="w-full" size="small" />
+    </div>
+    <button v-else
+      class="mt-1 text-xs text-gray-400 hover:text-primary opacity-0 group-hover/req:opacity-100 focus:opacity-100 transition-opacity"
+      @click="noteOpen = true">+ add a note for clubs</button>
 
     <!-- Closest-wins deletes an ancestor's rule silently. Say so, in place. -->
-    <div v-if="shadowed" class="text-xs text-gray-400 border-t border-gray-100 pt-2 flex items-start justify-between gap-2">
+    <div v-if="shadowed" class="mt-1.5 text-xs text-gray-400 flex items-start justify-between gap-2">
       <span class="min-w-0">
         replaces
         <span class="line-through">{{ fieldLabel(shadowed.field_key) }} {{ shadowed.rows.map(describeRequirement).join(' · ') }}</span>
