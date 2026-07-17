@@ -1,0 +1,468 @@
+{
+  "passed": 77,
+  "total": 77,
+  "results": [
+    {
+      "group": "Organisations",
+      "name": "listOrganisations",
+      "pass": true,
+      "note": "5 rows"
+    },
+    {
+      "group": "Organisations",
+      "name": "getOrganisation",
+      "pass": true,
+      "note": "object"
+    },
+    {
+      "group": "Organisations",
+      "name": "getAncestors(club→national)",
+      "pass": true,
+      "note": "2 rows"
+    },
+    {
+      "group": "Organisations",
+      "name": "getDescendants(national→clubs)",
+      "pass": true,
+      "note": "3 rows"
+    },
+    {
+      "group": "Organisations",
+      "name": "create+update+delete",
+      "pass": true,
+      "note": "1 rows"
+    },
+    {
+      "group": "People",
+      "name": "listPeople",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "People",
+      "name": "getPerson(dummy)",
+      "pass": true,
+      "note": "null (ok)"
+    },
+    {
+      "group": "Types & Fields",
+      "name": "listPersonTypes",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Types & Fields",
+      "name": "listFieldDefinitions",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Types & Fields",
+      "name": "listPersonTypeLinks",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Disciplines",
+      "name": "listDisciplines",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Disciplines",
+      "name": "listRequirements([])",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Disciplines",
+      "name": "listGroupDisciplines",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Disciplines",
+      "name": "listEventDisciplines",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Groups",
+      "name": "listGroups",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Groups",
+      "name": "getGroup(dummy)",
+      "pass": true,
+      "note": "null (ok)"
+    },
+    {
+      "group": "Groups",
+      "name": "listCodes",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Groups",
+      "name": "listMemberships",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Groups",
+      "name": "listSchedules",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Groups",
+      "name": "listFeeOptions",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Events",
+      "name": "listEvents",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Events",
+      "name": "getEvent(dummy)",
+      "pass": true,
+      "note": "null (ok)"
+    },
+    {
+      "group": "Events",
+      "name": "listSessions",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Events",
+      "name": "listInvitees",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Events",
+      "name": "listRegistrations",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Bookings",
+      "name": "listBookables",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Bookings",
+      "name": "getBookable(dummy)",
+      "pass": true,
+      "note": "null (ok)"
+    },
+    {
+      "group": "Bookings",
+      "name": "listActivities",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Bookings",
+      "name": "getActivity(dummy)",
+      "pass": true,
+      "note": "null (ok)"
+    },
+    {
+      "group": "Bookings",
+      "name": "listActivityModes",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Bookings",
+      "name": "listBookings",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Memberships",
+      "name": "listPlans",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Memberships",
+      "name": "listEntitlements",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Memberships",
+      "name": "listTerms",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Memberships",
+      "name": "listTermSets",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Affiliations",
+      "name": "listOrgSports",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Affiliations",
+      "name": "listManagerGrants",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Affiliations",
+      "name": "listLocations",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Affiliations",
+      "name": "listLocationStaff",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Forms",
+      "name": "listForms",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Forms",
+      "name": "getForm(dummy)",
+      "pass": true,
+      "note": "null (ok)"
+    },
+    {
+      "group": "Forms",
+      "name": "listTargets",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Forms",
+      "name": "listSubmissions",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Circles/Entities",
+      "name": "listCirclesForPerson",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Circles/Entities",
+      "name": "listCircleMembers",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Circles/Entities",
+      "name": "listNotes",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Circles/Entities",
+      "name": "listEntities",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Circles/Entities",
+      "name": "listEntityMembers",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Resources",
+      "name": "listFolders",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Resources",
+      "name": "listResources",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Resources",
+      "name": "listTargets",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Resources",
+      "name": "listViews",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Roles/Permissions",
+      "name": "listScopedRoleDefs",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Roles/Permissions",
+      "name": "listPermissionGroups (+core)",
+      "pass": true,
+      "note": "7 rows"
+    },
+    {
+      "group": "Roles/Permissions",
+      "name": "listCodeStaff",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Finances",
+      "name": "listDiscounts",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Finances",
+      "name": "listBookingDiscounts",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Finances",
+      "name": "getXeroConnection",
+      "pass": true,
+      "note": "null (ok)"
+    },
+    {
+      "group": "Admin/Master",
+      "name": "listBrands",
+      "pass": true,
+      "note": "2 rows"
+    },
+    {
+      "group": "Admin/Master",
+      "name": "listClubTypes",
+      "pass": true,
+      "note": "7 rows"
+    },
+    {
+      "group": "Admin/Master",
+      "name": "listSportCategories",
+      "pass": true,
+      "note": "15 rows"
+    },
+    {
+      "group": "Admin/Master",
+      "name": "listHelpArticles",
+      "pass": true,
+      "note": "4 rows"
+    },
+    {
+      "group": "Admin/Master",
+      "name": "listPageReviewers",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Waitlists/Comms",
+      "name": "listWaitlists",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Waitlists/Comms",
+      "name": "listCommunications",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Waitlists/Comms",
+      "name": "listCommunicationTopics",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Waitlists/Comms",
+      "name": "listEmailTemplates",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "Waitlists/Comms",
+      "name": "listCalendars",
+      "pass": true,
+      "note": "0 rows"
+    },
+    {
+      "group": "People",
+      "name": "person write CRUD",
+      "pass": true,
+      "note": "create→update→delete OK"
+    },
+    {
+      "group": "Groups",
+      "name": "group write CRUD",
+      "pass": true,
+      "note": "create→update→delete OK"
+    },
+    {
+      "group": "Events",
+      "name": "event write CRUD",
+      "pass": true,
+      "note": "create→update→delete OK"
+    },
+    {
+      "group": "Bookings",
+      "name": "bookable write CRUD",
+      "pass": true,
+      "note": "create→update→delete OK"
+    },
+    {
+      "group": "Bookings",
+      "name": "activity write CRUD",
+      "pass": true,
+      "note": "create→update→delete OK"
+    },
+    {
+      "group": "Forms",
+      "name": "form write CRUD",
+      "pass": true,
+      "note": "create→update→delete OK"
+    },
+    {
+      "group": "Multi-sport",
+      "name": "club affiliates 4 sports to 4 bodies",
+      "pass": true,
+      "note": "4 org_sports on one club"
+    },
+    {
+      "group": "Multi-sport",
+      "name": "each body lists the club as an affiliate",
+      "pass": true,
+      "note": "4/4 bodies see the club"
+    },
+    {
+      "group": "Multi-sport",
+      "name": "ancestor walk resolves region + national",
+      "pass": true,
+      "note": "2 ancestors"
+    }
+  ]
+}

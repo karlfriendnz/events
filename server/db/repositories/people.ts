@@ -123,7 +123,9 @@ export async function createPerson(input: PersonCreate): Promise<Person> {
 
 export async function updatePerson(id: string, patch: PersonPatch): Promise<Person | null> {
   const set: Record<string, any> = {}
-  if (patch.orgId !== undefined) set.orgId = patch.orgId
+  // orgId is intentionally NOT writable — moving a person between tenants is not an
+  // edit (security audit CRIT-3). It's stripped from personPatchSchema; omitting it
+  // here keeps direct repo calls safe too.
   if (patch.firstName !== undefined) set.firstName = patch.firstName
   if (patch.lastName !== undefined) set.lastName = patch.lastName
   if (patch.email !== undefined) set.email = patch.email

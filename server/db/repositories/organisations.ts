@@ -52,7 +52,9 @@ export async function updateOrganisation(id: string, patch: OrganisationPatch): 
   if (patch.name !== undefined) set.name = patch.name
   if (patch.slug !== undefined) set.slug = patch.slug
   if (patch.orgLevel !== undefined) set.orgLevel = patch.orgLevel
-  if (patch.parentId !== undefined) set.parentId = patch.parentId
+  // parentId is intentionally NOT writable via the general patch — re-parenting is a
+  // privileged, tenant-crossing operation (security audit CRIT-3). It's stripped from
+  // organisationPatchSchema; not writing it here keeps direct repo calls safe too.
   if (Object.keys(set).length) await db.update(schema.organisations).set(set).where(eq(schema.organisations.id, id))
   return getOrganisation(id)
 }

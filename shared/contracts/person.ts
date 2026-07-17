@@ -52,5 +52,9 @@ export const personCreateSchema = personSchema
   })
 export type PersonCreate = z.infer<typeof personCreateSchema>
 
-export const personPatchSchema = personCreateSchema.partial()
+// Patch omits `orgId`: which tenant a person belongs to is not an editable field.
+// Leaving it in would let `PATCH /people/:id {"orgId":"<other>"}` move a person
+// between tenants — cross-tenant record theft (security audit CRIT-3). Moving a
+// person between orgs, if ever needed, is a separate privileged operation.
+export const personPatchSchema = personCreateSchema.omit({ orgId: true }).partial()
 export type PersonPatch = z.infer<typeof personPatchSchema>

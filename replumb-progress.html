@@ -48,15 +48,57 @@
   <header>
     <h1>Re-plumb progress</h1>
     <p>Moving the app off its current database wiring onto a clean, swappable layer, so the backend team can plug their MySQL backend in later — while your testable version keeps working the whole time.</p>
-    <div class="updated">Last updated: 18 Jul 2026 · branch <code>replumb/mysql-foundation</code> · worktree <code>/Users/karl/fm-replumb</code> · DB <code>fm-new</code> :3400<br>✅ 15 domains seam-built (parallel subagents, batches 1–4): People · Types &amp; Fields · Disciplines · Groups · Events · Bookings · Memberships · Affiliations/Locations · Forms · Circles/Entities · Resources · Roles/Permissions · Finances/Discounts/Xero · Admin/Master · Waitlists/Communications</div>
+    <div class="updated">Last updated: 18 Jul 2026 · branch <code>replumb/mysql-foundation</code> · worktree <code>/Users/karl/fm-replumb</code> · DB <code>fm-new</code> :3400<br>✅ 15 domains seam-built (parallel subagents, batches 1–4): People · Types &amp; Fields · Disciplines · Groups · Events · Bookings · Memberships · Affiliations/Locations · Forms · Circles/Entities · Resources · Roles/Permissions · Finances/Discounts/Xero · Admin/Master · Waitlists/Communications<br>✅ Full seam test <b>77/77</b> (reads + create/update/delete + multi-sport club) · security audit + penetration test done (2 findings fixed in place) · API reference generated (116 endpoints)</div>
   </header>
 
   <div class="bars">
     <div class="stat"><b>118</b><span>tables in MySQL</span></div>
     <div class="stat"><b>1 / ~80</b><span>screens migrated</span></div>
     <div class="stat"><b>Green</b><span>live version still works</span></div>
-    <div class="stat"><b>Phase 2</b><span>moving the screens</span></div>
+    <div class="stat"><b>77/77</b><span>seam checks passing</span></div>
   </div>
+
+  <h2>Full test pass — every rebuilt function <span style="color:var(--mut);font-weight:400;font-size:14px">(77/77 checks ✅)</span></h2>
+  <p style="color:var(--mut);margin:-4px 0 12px">A National org + a Region + two Clubs are seeded, then every repository function is exercised (reads, create→update→delete round-trips, and a four-sport multi-body club) against real MySQL. Run: <code>npx tsx scripts/test-seam.ts</code>.</p>
+  <table>
+    <thead><tr><th>Domain</th><th>Coverage</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td class="task">Organisations</td><td>5 / 5 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+      <tr><td class="task">People</td><td>3 / 3 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+      <tr><td class="task">Types & Fields</td><td>3 / 3 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+      <tr><td class="task">Disciplines</td><td>4 / 4 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+      <tr><td class="task">Groups</td><td>7 / 7 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+      <tr><td class="task">Events</td><td>6 / 6 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+      <tr><td class="task">Bookings</td><td>8 / 8 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+      <tr><td class="task">Memberships</td><td>4 / 4 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+      <tr><td class="task">Affiliations</td><td>4 / 4 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+      <tr><td class="task">Forms</td><td>5 / 5 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+      <tr><td class="task">Circles/Entities</td><td>5 / 5 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+      <tr><td class="task">Resources</td><td>4 / 4 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+      <tr><td class="task">Roles/Permissions</td><td>3 / 3 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+      <tr><td class="task">Finances</td><td>3 / 3 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+      <tr><td class="task">Admin/Master</td><td>5 / 5 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+      <tr><td class="task">Waitlists/Comms</td><td>5 / 5 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+      <tr><td class="task">Multi-sport</td><td>3 / 3 functions exercised</td><td><span class="badge b-ok">✅ all pass</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Security check &amp; penetration test</h2>
+  <p style="color:var(--mut);margin:-4px 0 12px">Static review + a live read-only probe against MySQL. Full report: <code>docs/security-audit.md</code>. The mapping layer (parameterised queries, Zod in/out, secrets kept server-side) is sound; the missing piece is the authn/authz layer, which the backend team owns. Two cheap, backend-independent findings were fixed in place.</p>
+  <table>
+    <thead><tr><th>Finding</th><th>Detail</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td class="task">CRITICAL-1</td><td><b>No auth on any /api/v1 route</b><br>Backend team owns the authn layer — the seam is deliberately the data-mapping layer; documented as #1 priority for handover.</td><td><span class="badge b-todo">⚠ handover</span></td></tr>
+      <tr><td class="task">CRITICAL-2</td><td><b>No tenant isolation (orgId is a trusted param)</b><br>Needs the session-derived <code>requireOrgAccess()</code> gate — backend team, alongside CRIT-1.</td><td><span class="badge b-todo">⚠ handover</span></td></tr>
+      <tr><td class="task">CRITICAL-3</td><td><b>Mass-assignment: records/orgs movable between tenants</b><br><b>Fixed now.</b> Patch contracts strip <code>orgId</code>/<code>parentId</code>; repos no longer write them.</td><td><span class="badge b-ok">✅ fixed</span></td></tr>
+      <tr><td class="task">HIGH-1</td><td><b>Unbounded list endpoints</b><br>Flagged for the backend team — add default+max page size on every list route.</td><td><span class="badge b-todo">⚠ handover</span></td></tr>
+      <tr><td class="task">MEDIUM-1/2</td><td><b>Error leakage · anon hierarchy enumeration</b><br>Covered by the global error handler + the auth gate (backend team).</td><td><span class="badge b-todo">⚠ handover</span></td></tr>
+      <tr><td class="task">LOW-1</td><td><b>Hardcoded root DB fallback</b><br><b>Fixed now.</b> Production throws if <code>MYSQL_URL</code> is unset; no root fallback ships.</td><td><span class="badge b-ok">✅ fixed</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>API reference</h2>
+  <p style="color:var(--mut);margin:-4px 0 12px">Every endpoint the client talks to, generated from the route files: <b>116 endpoints across 38 groups</b> (52 GET · 22 POST · 21 PATCH · 21 DELETE). See <code>docs/api-reference.html</code>. Run: <code>npx tsx scripts/gen-api-doc.ts</code>.</p>
 
   <h2>The 4 phases</h2>
   <table>

@@ -32,7 +32,12 @@ export const organisationCreateSchema = organisationSchema.omit({ id: true, crea
 })
 export type OrganisationCreate = z.infer<typeof organisationCreateSchema>
 
-export const organisationPatchSchema = organisationCreateSchema.partial()
+// Patch deliberately omits `parentId` (and id/createdAt are already gone): moving
+// an org in the hierarchy re-parents it under a different governing body, which is
+// a privileged administrative act, not a field on the general update. Exposing it
+// here would let any caller graft orgs across tenants (security audit CRIT-3).
+// Re-parenting must be its own permission-checked endpoint.
+export const organisationPatchSchema = organisationCreateSchema.omit({ parentId: true }).partial()
 export type OrganisationPatch = z.infer<typeof organisationPatchSchema>
 
 // A node in an ancestor/descendant walk — an organisation plus its distance from

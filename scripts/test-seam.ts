@@ -171,6 +171,58 @@ async function main() {
   await test('Waitlists/Comms', 'listEmailTemplates', () => waitlists.listEmailTemplates(O))
   await test('Waitlists/Comms', 'listCalendars', () => waitlists.listCalendars(O))
 
+  // ── WRITE CRUD (create → update → delete → confirm gone) ──
+  async function crud(group: string, name: string, create: () => Promise<any>, update: (id: string) => Promise<any>, del: (id: string) => Promise<void>, get: (id: string) => Promise<any>) {
+    try {
+      const c = await create()
+      if (!c?.id) throw new Error('create returned no id')
+      await update(c.id)
+      await del(c.id)
+      if (await get(c.id)) throw new Error('row not deleted')
+      results.push({ group, name, pass: true, note: 'create→update→delete OK' })
+    } catch (e: any) { results.push({ group, name, pass: false, note: e.message?.slice(0, 120) ?? 'error' }) }
+  }
+  await crud('People', 'person write CRUD', () => people.createPerson({ orgId: O, firstName: 'T', lastName: 'X' } as any), id => people.updatePerson(id, { lastName: 'Y' } as any), id => people.deletePerson(id), id => people.getPerson(id))
+  await crud('Groups', 'group write CRUD', () => groups.createGroup({ orgId: O, name: 'T' } as any), id => groups.updateGroup(id, { name: 'Y' } as any), id => groups.deleteGroup(id), id => groups.getGroup(id))
+  await crud('Events', 'event write CRUD', () => events.createEvent({ orgId: O, title: 'T' } as any), id => events.updateEvent(id, { title: 'Y' } as any), id => events.deleteEvent(id), id => events.getEvent(id))
+  await crud('Bookings', 'bookable write CRUD', () => bookings.createBookable({ orgId: O, name: 'T' } as any), id => bookings.updateBookable(id, { name: 'Y' } as any), id => bookings.deleteBookable(id), id => bookings.getBookable(id))
+  await crud('Bookings', 'activity write CRUD', () => bookings.createActivity({ orgId: O, name: 'T' } as any), id => bookings.updateActivity(id, { name: 'Y' } as any), id => bookings.deleteActivity(id), id => bookings.getActivity(id))
+  await crud('Forms', 'form write CRUD', () => forms.createForm({ orgId: O, name: 'T' } as any), id => forms.updateForm(id, { name: 'Y' } as any), id => forms.deleteForm(id), id => forms.getForm(id))
+
+  // ── MULTI-SPORT CLUB (the case that drove this work) ──
+  // One club, four sports, four separate national bodies — the exact shape a
+  // multi-sport club takes. Verifies the seam handles many affiliations on one org
+  // and that the hierarchy walks resolve each body.
+  const msBodies: any[] = []
+  const msClubId = club1.id
+  try {
+    for (const s of ['Tennis', 'Badminton', 'Squash', 'Pickleball']) {
+      const body = await org.createOrganisation({ name: `Test ${s} NZ`, orgLevel: 'NATIONAL', slug: `test-${s.toLowerCase()}-nz` })
+      msBodies.push(body)
+      await affiliations.createOrgSport({ orgId: msClubId, sport: s, nsoOrgId: body.id, isPrimary: s === 'Tennis' } as any)
+    }
+    const sports = await affiliations.listOrgSports(msClubId)
+    if (sports.length < 4) throw new Error(`expected ≥4 org_sports, got ${sports.length}`)
+    results.push({ group: 'Multi-sport', name: 'club affiliates 4 sports to 4 bodies', pass: true, note: `${sports.length} org_sports on one club` })
+
+    // Each body must see the club as one of its affiliates.
+    let seen = 0
+    for (const b of msBodies) { if ((await affiliations.listAffiliationsForBody(b.id)).some(a => a.orgId === msClubId)) seen++ }
+    results.push({ group: 'Multi-sport', name: 'each body lists the club as an affiliate', pass: seen === 4, note: `${seen}/4 bodies see the club` })
+
+    // The club's ancestor walk resolves its regional + national parents (the
+    // primary-sport chain via parent_id).
+    const anc = await org.getAncestors(msClubId)
+    const okAnc = anc.some(a => a.id === region.id) && anc.some(a => a.id === nat.id)
+    results.push({ group: 'Multi-sport', name: 'ancestor walk resolves region + national', pass: okAnc, note: `${anc.length} ancestors` })
+  } catch (e: any) {
+    results.push({ group: 'Multi-sport', name: 'multi-sport scenario', pass: false, note: e.message?.slice(0, 120) ?? 'error' })
+  } finally {
+    // Detach the org_sports (FK to the club) then remove the four extra bodies.
+    for (const s of await affiliations.listOrgSports(msClubId)) { try { await affiliations.deleteOrgSport(s.id) } catch {} }
+    for (const b of msBodies) { try { await org.deleteOrganisation(b.id) } catch {} }
+  }
+
   // Clean up the seeded hierarchy so re-runs stay idempotent.
   for (const id of [club1.id, club2.id, region.id, nat.id]) await org.deleteOrganisation(id)
 
