@@ -1,31 +1,29 @@
 <!--
-  Discipline wizard — how a governing body creates or edits a discipline.
+  Discipline editor — how a governing body creates or edits a discipline.
 
-  Replaces a single slide-out that crammed name / code / parent / applies-to /
-  requirements into one scroll. The requirements list was the problem: "Gender =
-  Male" and "School Is Not Empty" sat in one undifferentiated pile despite saying
-  completely different things, so nobody could tell what a discipline meant by
-  reading it.
+  ONE PAGE. This was a 4-step wizard (The discipline / What it requires / Where it
+  applies / Review) and Karl's verdict was "it's a bit all over the place, it should
+  be simple to follow ... maybe one page?". He's right, and the history is worth
+  knowing: it was a single page ORIGINALLY, which became mush and got broken into
+  steps. But the thing that made it mush was the REQUIREMENTS — "Gender = Male" and
+  "School Is Not Empty" in one undifferentiated pile, so you couldn't tell what a
+  discipline meant by reading it.
+  
+  The cast (mig 276) is what fixed that, and it's why one page works now: the rules
+  are grouped under who they're for ("Players must have…", "Coaches must have…"), so
+  the pile is gone. The section a rule sits in IS its scope, which also killed the
+  per-rule "who" picker. And once the page reads top-to-bottom — what it is, who's in
+  it, what they need — the Review step has nothing left to review: the page IS the
+  review.
 
-  Steps:
-    1 The discipline    — what it's called, where it sits (shows the resulting path)
-    2 What it requires  — ONE rule list
-    3 Where it applies  — Events / Groups / Competitions
-    4 Review            — everything, including what it inherits and what it shadows
-
-  This was briefly two rule steps ("Who it's for" / "What to record"), which read as
-  duplication — same picker, same operators, same row, differing only by a word. The
-  distinction is real (the club's flag says "she shouldn't be in Male" vs "chase her
-  for her school") but the OPERATOR already carries it: a presence test means chase
-  them, a value test means they don't belong. So `purpose` (268) is DERIVED from how
-  the rule is phrased and stored, rather than asked for on a screen of its own.
-
-  Uses the shared <WizardShell> — the standing rule is that any stepped modal uses
-  that chrome rather than a hand-rolled one.
+  A rule's `purpose` (268) stays DERIVED from its phrasing rather than asked for: a
+  presence test means chase them, a value test means they don't belong. Asking would
+  be a third framing of the same rule. (Two rule steps was also tried, and read as
+  duplication — same picker, same operators, differing by a word.)
 -->
 <script setup lang="ts">
 import type { PersonFieldDef } from '~/composables/usePersonFields'
-import type { DisciplineRequirement, ReqEntry, ReqOperator, ReqPurpose } from '~/composables/useDisciplineRequirements'
+import type { DisciplineRequirement, ReqEntry, ReqOperator } from '~/composables/useDisciplineRequirements'
 
 interface Disc {
   id: string; org_id: string; name: string; code: string | null; parent_id: string | null
@@ -59,13 +57,6 @@ const { orgId } = useOrg()
 const toast = useToast()
 const dr = useDisciplineRequirements()
 
-const STEPS = [
-  { key: 'about', label: 'The discipline' },
-  { key: 'rules', label: 'What it requires' },
-  { key: 'where', label: 'Where it applies' },
-  { key: 'review', label: 'Review' },
-]
-const step = ref(0)
 const saving = ref(false)
 
 // ── Form ────────────────────────────────────────────────────────────────────
@@ -94,21 +85,35 @@ const inheritedCast = computed<string[]>(() => {
 })
 const effectiveCast = computed<string[]>(() =>
   form.person_type_keys.length ? form.person_type_keys : inheritedCast.value)
-/** A rule may only be scoped to someone in the cast; no cast = every type we own
- *  (nothing to narrow by yet), matching the old behaviour. */
-const scopeOptions = computed(() => effectiveCast.value.length
-  ? props.personTypes.filter(t => effectiveCast.value.includes(t.key))
-  : props.personTypes)
+/**
+ * The rule sections — one per cast member, plus "Everyone".
+ *
+ * The cast IS the structure: the section a rule sits in is its scope, so a row is
+ * just field + phrasing and no rule carries a "who" picker. This is also what makes
+ * ONE PAGE readable — a single page was tried first and became mush precisely
+ * because the rules were one undifferentiated pile.
+ */
+const reqSections = computed(() => [
+  ...effectiveCast.value.map(k => {
+    const label = props.personTypes.find(t => t.key === k)?.label ?? k
+    return { key: k as string | null, heading: `${label}s must have…` }
+  }),
+  { key: null as string | null, heading: effectiveCast.value.length ? 'Everyone must have…' : 'Everyone in it must have…' },
+])
+/** A rule belongs to exactly ONE section — its first scope, or Everyone. */
+const sectionKeyOf = (r: DraftReq) => r.applies_to?.[0] ?? null
+const reqsIn = (key: string | null) => form.reqs.filter(r => sectionKeyOf(r) === key)
+/** Adding under a heading IS the scoping — no separate picker to forget. */
+function addReqIn(key: string | null) {
+  const r = newDraft()
+  r.applies_to = key ? [key] : []
+  form.reqs.push(r)
+}
 
 const newDraft = (field_key = ''): DraftReq => ({
   key: Math.random().toString(36).slice(2), field_key,
   operator: 'Is Not Empty', value: null, exempt: false, message: '', applies_to: [],
 })
-function toggleReqType(r: DraftReq, key: string) {
-  const has = r.applies_to.includes(key)
-  r.applies_to = has ? r.applies_to.filter(k => k !== key) : [...r.applies_to, key]
-}
-
 onMounted(() => {
   if (props.editing) {
     const d = props.editing
@@ -243,30 +248,12 @@ const parentOptions = computed(() => {
 })
 
 // ── Review ──────────────────────────────────────────────────────────────────
-/** Own rows + everything inherited that isn't overridden — i.e. what this
- *  discipline actually demands, which is the only thing worth reviewing. */
-function reviewLines(purpose: ReqPurpose) {
-  const own = form.reqs.filter(r => r.field_key && !r.exempt && derivePurpose(r) === purpose)
-    .map(r => ({ text: `${fieldLabel(r.field_key)} ${describeRequirement(r)}`, from: '' }))
-  const inh = untouchedInherited.value.flatMap(e => e.rows.filter(r => !r.exempt && derivePurpose(r) === purpose)
-    .map(r => ({ text: `${fieldLabel(e.field_key)} ${describeRequirement(r)}`, from: e.source.disciplineName })))
-  return [...own, ...inh]
-}
-const reviewIdentity = computed(() => reviewLines('identity'))
-const reviewData = computed(() => reviewLines('data'))
 
 // ── Navigation + save ───────────────────────────────────────────────────────
 const rowReady = (r: DraftReq) => !!r.field_key && (r.exempt || VALUELESS_OPERATORS.includes(r.operator)
   || (RANGE_OPERATORS.includes(r.operator) ? Array.isArray(r.value) && (r.value[0] != null || r.value[1] != null) : r.value != null && r.value !== ''))
 const badRange = computed(() => form.reqs.find(r => RANGE_OPERATORS.includes(r.operator) && !r.exempt
   && Array.isArray(r.value) && r.value[0] != null && r.value[1] != null && Number(r.value[0]) > Number(r.value[1])))
-const canNext = computed(() => {
-  if (step.value === 0) return !!form.name.trim()
-  // Half-finished rows are the thing that makes a rule silently never fire, so
-  // don't let someone walk past one.
-  if (step.value === 1) return form.reqs.every(rowReady) && !badRange.value
-  return true
-})
 
 async function finish() {
   saving.value = true
@@ -299,182 +286,128 @@ async function finish() {
 </script>
 
 <template>
-  <WizardShell v-model="step" :steps="STEPS" :title="editing ? `Edit ${editing.name}` : 'New discipline'"
-    :can-next="canNext" :saving="saving" :finish-label="editing ? 'Save changes' : 'Create discipline'"
-    @finish="finish" @close="emit('close')">
+  <Dialog :visible="true" modal :header="editing ? `Edit ${editing.name}` : 'New discipline'"
+    :style="{ width: '95vw', maxWidth: '820px' }" :closable="!saving"
+    @update:visible="v => { if (!v) emit('close') }">
 
-    <!-- 1 · The discipline -->
-    <div v-show="step === 0" class="space-y-5 max-w-xl">
-      <div>
-        <h3 class="text-sm font-semibold text-gray-800">What is this discipline?</h3>
-        <p class="text-xs text-gray-500 mt-0.5">Clubs beneath you connect their classes and events to it.</p>
+    <div class="space-y-5">
+      <!-- WHAT IT IS -->
+      <div class="grid grid-cols-1 sm:grid-cols-[1fr_200px] gap-3">
+        <div class="flex flex-col gap-1.5">
+          <label class="field-label">Name</label>
+          <InputText v-model="form.name" placeholder="e.g. Juniors, Premiers, 10-14's" class="w-full" autofocus />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="field-label">Short code <span class="text-gray-400 font-normal">— optional</span></label>
+          <InputText v-model="form.code" placeholder="e.g. U14M" class="w-full" />
+        </div>
       </div>
-      <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-medium text-gray-600">Name</label>
-        <InputText v-model="form.name" placeholder="e.g. Juniors, Premiers, 10-14's" class="w-full" autofocus />
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="flex flex-col gap-1.5">
+          <label class="field-label">Sits under <span class="text-gray-400 font-normal">— optional</span></label>
+          <Select v-model="form.parent_id" :options="parentOptions" option-label="name" option-value="id"
+            placeholder="Nothing — it's top level" show-clear filter class="w-full" />
+          <span class="field-help">Picks up everything its parents require, and can override any of it.</span>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="field-label">Clubs can use it for</label>
+          <ChipMultiSelect v-model="form.applies_to" :options="parts" option-label="label" option-value="value"
+            placeholder="Everywhere" show-toggle-all class="w-full" />
+          <span class="field-help">Empty = everywhere.</span>
+        </div>
       </div>
-      <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-medium text-gray-600">Sits under <span class="text-gray-400 font-normal">— optional</span></label>
-        <Select v-model="form.parent_id" :options="parentOptions" option-label="name" option-value="id"
-          placeholder="Nothing — it's top level" show-clear filter class="w-full" />
-        <p class="text-xs text-gray-400">
-          It picks up everything its parents require, and can override any of it.
-        </p>
-      </div>
-      <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-medium text-gray-600">Short code <span class="text-gray-400 font-normal">— optional</span></label>
-        <InputText v-model="form.code" placeholder="e.g. U14M" class="w-full" />
-      </div>
+
       <div class="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
         <div class="text-xs text-gray-400 mb-0.5">It'll sit here</div>
         <div class="text-sm text-gray-700 font-medium">{{ path.join('  ›  ') }}</div>
       </div>
-    </div>
 
-    <!-- 2 · What it requires — ONE list. The operator phrasing carries what each
-         rule MEANS, so purpose is derived rather than asked for on its own screen. -->
-    <div v-show="step === 1" class="space-y-4 max-w-2xl">
-      <div>
-        <h3 class="text-sm font-semibold text-gray-800">What does {{ form.name.trim() || 'this discipline' }} require?</h3>
-        <p class="text-xs text-gray-500 mt-0.5">
-          Say it as you'd say it out loud — “Gender must be Female”, “School must be recorded”.
-          Anyone who doesn't meet a rule is flagged to their club; nothing ever blocks a registration.
-        </p>
-      </div>
-
-      <!-- THE CAST (mig 276) — declared before the rules, because that's the order
-           you think in: who takes part, then what we ask of them. It also gives the
-           clubs the shape of the discipline with zero rules attached, and scopes
-           each rule's "for" chips below. -->
-      <div v-if="personTypes.length" class="rounded-lg border border-gray-200 p-3 space-y-2">
-        <div>
-          <p class="text-xs font-medium text-gray-700">Who takes part?</p>
-          <p class="text-xs text-gray-400 mt-0.5">
-            Our clubs connect their own people to these — they can call them anything.
-          </p>
+      <!-- WHO'S IN IT — declared before the rules, because that's the order you
+           think in, and because it gives the rules below their shape. -->
+      <div v-if="personTypes.length" class="border-t border-gray-100 pt-4 space-y-2">
+        <div class="flex items-baseline justify-between gap-2">
+          <label class="field-label">Who takes part?</label>
+          <span class="field-help">Clubs connect their own people to these — they can call them anything.</span>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
           <button v-for="t in personTypes" :key="t.key" type="button"
-            class="text-xs px-2 py-1 rounded-full border transition-colors"
+            class="text-xs px-2.5 py-1 rounded-full border transition-colors"
             :class="form.person_type_keys.includes(t.key)
               ? 'bg-primary text-white border-primary'
               : 'bg-white text-gray-500 border-gray-200 hover:border-primary/40'"
             @click="toggleCast(t.key)">{{ t.label }}</button>
         </div>
-        <!-- Inheriting rather than silently empty: closest-wins, like the rules. -->
-        <p v-if="!form.person_type_keys.length && inheritedCast.length" class="text-xs text-gray-400">
+        <p v-if="!form.person_type_keys.length && inheritedCast.length" class="field-help">
           <i class="pi pi-lock text-[10px] mr-1" />Inheriting
           <span class="font-medium text-gray-500">{{ inheritedCast.map(k => personTypes.find(t => t.key === k)?.label ?? k).join(', ') }}</span>
           from {{ byId(form.parent_id)?.name }} — pick some to override.
         </p>
-        <p v-else-if="!form.person_type_keys.length" class="text-xs text-gray-400">
-          Nobody named yet — clubs will add people however they normally do.
-        </p>
       </div>
 
-      <!-- Inherited from above: locked, naming where it came from. -->
-      <div v-for="e in untouchedInherited" :key="'i-' + e.field_key"
-        class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 flex items-start justify-between gap-2">
-        <div class="min-w-0">
-          <div class="flex items-center gap-1.5 text-xs text-gray-700">
-            <i class="pi pi-lock text-xs text-blue-400" />
-            <span class="font-medium truncate">{{ fieldLabel(e.field_key) }}</span>
-            <span class="text-gray-500 truncate">{{ e.rows.map(describeRequirement).join(' · ') }}</span>
-          </div>
-          <div class="text-xs text-gray-400 mt-0.5">From {{ e.source.disciplineName }}</div>
+      <!-- WHAT THEY NEED — the cast IS the structure. The section a rule sits in is
+           its scope, so a row is just field + phrasing, and the page reads as the
+           sentence you'd say: "junior players need this, junior coaches need that".
+           (A single page failed before because the rules were ONE undifferentiated
+           pile; sections are what make it readable, so the wizard isn't needed.) -->
+      <div class="border-t border-gray-100 pt-4 space-y-4">
+        <div class="flex items-baseline justify-between gap-2">
+          <label class="field-label">What does {{ form.name.trim() || 'it' }} require?</label>
+          <span class="field-help">Say it out loud — “School must be recorded”. Nothing ever blocks a registration.</span>
         </div>
-        <button class="text-xs text-primary hover:underline shrink-0" @click="overrideInherited(e)">Override</button>
-      </div>
 
-      <DisciplineReqRow v-for="(r, i) in form.reqs" :key="r.key" :row="r" :index="i"
-        :core-fields="coreFields" :custom-fields="customFields" :org-name="orgName"
-        :options="optionsFor(r)" :operator-label="operatorLabel(r)" :shows-value="showsValue(r)" :shows-range="showsRange(r)"
-        :value-options="valueOptionsFor(r.field_key)" :numeric="isNumericField(r.field_key)" :shadowed="shadowedFor(r.field_key)"
-        :field-label="fieldLabel" lead="Requires" lead-more="and requires" :person-types="scopeOptions"
-        @field-change="onFieldChange(r)" @operator="setOperator(r, $event)" @range="setRange(r, $event.i, $event.v)"
-        @remove="removeReq(r)" @revert="revertInherited(r.field_key)" @create-field="openCreateField(r)"
-        @toggle-type="toggleReqType(r, $event)" />
+        <!-- Inherited from above: locked, naming where it came from. -->
+        <div v-for="e in untouchedInherited" :key="'i-' + e.field_key"
+          class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 flex items-start justify-between gap-2">
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 text-xs text-gray-700">
+              <i class="pi pi-lock text-xs text-blue-400" />
+              <span class="font-medium truncate">{{ fieldLabel(e.field_key) }}</span>
+              <span class="text-gray-500 truncate">{{ e.rows.map(describeRequirement).join(' · ') }}</span>
+            </div>
+            <div class="text-xs text-gray-400 mt-0.5">From {{ e.source.disciplineName }}</div>
+          </div>
+          <button class="text-xs text-primary hover:underline shrink-0" @click="overrideInherited(e)">Override</button>
+        </div>
 
-      <div class="flex items-center gap-4">
-        <button class="text-xs text-primary hover:underline" @click="addReq()">+ Add a requirement</button>
+        <div v-for="s in reqSections" :key="s.key ?? '__all'" class="space-y-2">
+          <div class="flex items-baseline gap-2">
+            <h4 class="text-xs font-semibold text-gray-700">{{ s.heading }}</h4>
+            <span v-if="!reqsIn(s.key).length" class="text-xs text-gray-300">nothing</span>
+          </div>
+
+          <DisciplineReqRow v-for="(r, i) in reqsIn(s.key)" :key="r.key" :row="r" :index="i"
+            :core-fields="coreFields" :custom-fields="customFields" :org-name="orgName"
+            :options="optionsFor(r)" :operator-label="operatorLabel(r)" :shows-value="showsValue(r)" :shows-range="showsRange(r)"
+            :value-options="valueOptionsFor(r.field_key)" :numeric="isNumericField(r.field_key)" :shadowed="shadowedFor(r.field_key)"
+            :field-label="fieldLabel" lead="Must have" lead-more="and must have"
+            @field-change="onFieldChange(r)" @operator="setOperator(r, $event)" @range="setRange(r, $event.i, $event.v)"
+            @remove="removeReq(r)" @revert="revertInherited(r.field_key)" @create-field="openCreateField(r)" />
+
+          <button class="text-xs text-primary hover:underline" @click="addReqIn(s.key)">+ Add</button>
+        </div>
+
         <button class="text-xs text-gray-500 hover:text-gray-800 hover:underline" @click="createFieldFrom()">
           + Create a new field
         </button>
       </div>
-
-      <div v-if="!form.reqs.length && !untouchedInherited.length"
-        class="rounded-lg border border-dashed border-gray-200 px-4 py-5 text-center">
-        <p class="text-xs text-gray-500">Nothing yet — anyone can be in this discipline and clubs won't be asked for anything.</p>
-        <p class="text-xs text-gray-400 mt-1">
-          That's right for a grouping like “Football”; a “Juniors” would want an age.
-          <template v-if="!customFields.length">
-            {{ orgName }} has no fields of its own yet —
-            <button class="text-primary hover:underline" @click="createFieldFrom()">create the first one</button>
-            (e.g. School).
-          </template>
-        </p>
-      </div>
     </div>
 
-    <!-- 3 · Where it applies -->
-    <div v-show="step === 2" class="space-y-4 max-w-xl">
-      <div>
-        <h3 class="text-sm font-semibold text-gray-800">Where can clubs use it?</h3>
-        <p class="text-xs text-gray-500 mt-0.5">
-          Leave it empty and it shows up everywhere. Narrow it and it only appears where it makes sense.
-        </p>
+    <template #footer>
+      <div class="flex items-center justify-between w-full gap-3">
+        <span class="field-help">Anyone who doesn't meet a rule is flagged to their club. Nothing is ever blocked.</span>
+        <div class="flex items-center gap-2 shrink-0">
+          <Button label="Cancel" text :disabled="saving" @click="emit('close')" />
+          <Button :label="saving ? 'Saving…' : (editing ? 'Save changes' : 'Create discipline')"
+            :disabled="!form.name.trim() || saving"
+            style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="finish" />
+        </div>
       </div>
-      <ChipMultiSelect v-model="form.applies_to" :options="parts" option-label="label" option-value="value"
-        placeholder="Everywhere" show-toggle-all class="w-full" />
-    </div>
+    </template>
 
-    <!-- 4 · Review -->
-    <div v-show="step === 3" class="space-y-4 max-w-2xl">
-      <div>
-        <h3 class="text-sm font-semibold text-gray-800">Here's what you're creating</h3>
-        <p class="text-xs text-gray-500 mt-0.5">Everything this discipline demands, including what it picks up from above.</p>
-      </div>
-      <div class="card p-4 space-y-3">
-        <div>
-          <div class="text-xs text-gray-400">Discipline</div>
-          <div class="text-sm font-medium text-gray-800">{{ path.join('  ›  ') }}</div>
-        </div>
-        <div class="border-t border-gray-100 pt-3">
-          <div class="text-xs text-gray-400 mb-1">Who it's for</div>
-          <ul v-if="reviewIdentity.length" class="space-y-1">
-            <li v-for="l in reviewIdentity" :key="l.text" class="text-sm text-gray-700 flex items-center gap-1.5">
-              <i class="pi pi-user text-xs text-gray-300" />{{ l.text }}
-              <span v-if="l.from" class="text-xs text-gray-400">· from {{ l.from }}</span>
-            </li>
-          </ul>
-          <p v-else class="text-sm text-gray-400">Anyone</p>
-        </div>
-        <div class="border-t border-gray-100 pt-3">
-          <div class="text-xs text-gray-400 mb-1">What clubs must record</div>
-          <ul v-if="reviewData.length" class="space-y-1">
-            <li v-for="l in reviewData" :key="l.text" class="text-sm text-gray-700 flex items-center gap-1.5">
-              <i class="pi pi-check-circle text-xs text-gray-300" />{{ l.text }}
-              <span v-if="l.from" class="text-xs text-gray-400">· from {{ l.from }}</span>
-            </li>
-          </ul>
-          <p v-else class="text-sm text-gray-400">Nothing extra</p>
-        </div>
-        <div class="border-t border-gray-100 pt-3">
-          <div class="text-xs text-gray-400 mb-1">Clubs can use it on</div>
-          <p class="text-sm text-gray-700">{{ form.applies_to.length ? form.applies_to.map(v => parts.find(p => p.value === v)?.label).join(' · ') : 'Everything' }}</p>
-        </div>
-      </div>
-      <p class="text-xs text-gray-400">
-        None of this stops anyone registering — clubs see a flag when someone doesn't match.
-      </p>
-    </div>
-
-    <!-- Invent a field without leaving the wizard. -->
+    <!-- Create a field without leaving — a body writing its first rule has none. -->
     <Dialog v-model:visible="creatingField" modal header="New field" :style="{ width: '95vw', maxWidth: '420px' }" @hide="onCreatorHide">
-      <p class="text-xs text-gray-500 px-4 pt-3 -mb-1">
-        It joins {{ orgName }}'s fields, so every discipline can ask for it — and clubs beneath you inherit it.
-      </p>
-      <FieldCreator hide-required @add="onFieldCreated" />
+      <FieldCreator hide-required :person-types="personTypes" @add="onFieldCreated" />
     </Dialog>
-  </WizardShell>
+  </Dialog>
 </template>
