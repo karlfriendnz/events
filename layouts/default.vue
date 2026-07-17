@@ -3,7 +3,7 @@
     <!-- Icon-rail sidebar (desktop only — mobile uses the bottom tab bar) -->
     <aside class="shrink-0 hidden md:flex flex-col py-3 gap-1 relative z-[60] transition-[width] duration-200"
       :class="railExpanded ? 'w-56 items-stretch px-2' : 'w-14 items-center'"
-      style="background: linear-gradient(180deg, var(--brand-primary) 0%, #21278E 100%)">
+      style="background: linear-gradient(180deg, var(--brand-primary) 0%, var(--brand-primary-dark, #21278E) 100%)">
       <button type="button" @click="toggleRail"
         v-tooltip.right="railExpanded ? '' : 'Expand menu'"
         class="mb-3 flex items-center rounded-lg text-white hover:bg-white/10 transition-colors"

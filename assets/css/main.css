@@ -39,6 +39,9 @@
   --brand-primary: #1E2157;
   --brand-primary-hover: #2a2f6e;
   --brand-primary-light: rgba(30, 33, 87, 0.06);
+  /* The dark end of the left-nav gradient. Derived from the brand at runtime
+     (useBrandTheme) so a rebranded rail stays coherent; this is the FM default. */
+  --brand-primary-dark: #21278E;
 }
 
 body {

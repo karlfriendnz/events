@@ -19,6 +19,11 @@ function rgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`
 }
 
+// A governing body with no brand of its own reads as a DIFFERENT tier of the
+// platform, so its rail is FM's national blue rather than the club navy. A club,
+// or an NSO that connected a real brand, is unaffected (the brand still wins).
+const GOVERNING_PRIMARY = '#2494D3'
+
 export function useBrandTheme() {
   const db = useDb()
   const { orgId } = useOrg()
@@ -30,22 +35,30 @@ export function useBrandTheme() {
       root.setProperty('--brand-primary', color)
       root.setProperty('--brand-primary-hover', darken(color))
       root.setProperty('--brand-primary-light', rgba(color, 0.06))
+      // The nav-rail gradient's dark end — derived so a bright brand doesn't fade
+      // into the unrelated FM navy default.
+      root.setProperty('--brand-primary-dark', darken(color, 0.32))
     } else {
       // Fall back to the :root defaults.
       root.removeProperty('--brand-primary')
       root.removeProperty('--brand-primary-hover')
       root.removeProperty('--brand-primary-light')
+      root.removeProperty('--brand-primary-dark')
     }
   }
 
   async function load(id: string | null) {
     if (!import.meta.client) return
     if (!id) { apply(null); return }
-    const { data: org } = await (db.from as any)('organisations').select('brand_id').eq('id', id).maybeSingle()
+    const { data: org } = await (db.from as any)('organisations').select('brand_id, org_level').eq('id', id).maybeSingle()
     const brandId = org?.brand_id ?? null
-    if (!brandId) { apply(null); return }
-    const { data: brand } = await (db.from as any)('brands').select('color').eq('id', brandId).maybeSingle()
-    apply(brand?.color ?? null)
+    if (brandId) {
+      const { data: brand } = await (db.from as any)('brands').select('color').eq('id', brandId).maybeSingle()
+      if (brand?.color) { apply(brand.color); return }
+    }
+    // No connected brand: a governing body gets the national blue, everyone else
+    // the :root FM navy.
+    apply(isGoverningBody(org?.org_level) ? GOVERNING_PRIMARY : null)
   }
 
   watch(orgId, id => load(id), { immediate: true })
