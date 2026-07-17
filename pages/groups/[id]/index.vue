@@ -1296,6 +1296,25 @@
           </div>
         </div>
 
+        <!-- What this person doesn't meet, before you add them rather than after.
+             Never blocks the add — the club may be adding them in order to fix it,
+             and it's a governing body's rule, not this club's gate. -->
+        <div v-if="addPersonFlags.length" class="rounded-lg px-3.5 py-2.5 text-sm bg-red-50 text-red-800" style="border-left:4px solid #EF4444">
+          <div class="flex items-start gap-2">
+            <i class="pi pi-exclamation-triangle mt-0.5 shrink-0 text-red-500" />
+            <div class="min-w-0">
+              <p class="font-semibold">
+                {{ (pendingPerson?.first_name || 'They') }} {{ addPersonFlags.length === 1 ? "doesn't meet one thing" : `doesn't meet ${addPersonFlags.length} things` }}
+                {{ disciplineNameForFlags ? `${disciplineNameForFlags} requires` : 'this discipline requires' }}
+              </p>
+              <ul class="mt-1 space-y-0.5">
+                <li v-for="u in addPersonFlags" :key="u.fieldKey + u.requirement.id" class="text-xs">· {{ u.message }}</li>
+              </ul>
+              <p class="text-xs text-red-600 mt-1.5">You can still add them — this is a flag, not a block.</p>
+            </div>
+          </div>
+        </div>
+
         <!-- capacity → waitlist warning -->
         <div v-if="addWaitlistWarn" class="rounded-lg px-3.5 py-2.5 text-sm" style="background:#EAF1FE;border-left:4px solid #3B82F6;color:#2563EB">
           <div class="flex items-start gap-2">
@@ -3558,6 +3577,13 @@ const addWillBeMember = computed(() => {
   const merged = Array.from(new Set([...prev, ...addRoles.value]))
   return addPositions.value.length > 0 || !rolesAreStaff(merged) || memberRolesOf(merged).length > 0
 })
+/** What the person you're about to add doesn't meet. Shown in the dialog rather
+ *  than only on the roster afterwards: the moment you're looking at someone is the
+ *  moment to know they don't fit — and it still never blocks the add, because the
+ *  club may be adding them precisely to fix it. */
+const addPersonFlags = computed<Unmet[]>(() =>
+  pendingPerson.value?.id ? flagsFor({ person: pendingPerson.value }) : [])
+
 const groupFull = computed(() => !!group.value?.capacity && members.value.length >= (group.value!.capacity as number))
 const addWaitlistWarn = computed(() =>
   !!pendingPerson.value?.id && addWillBeMember.value
@@ -3669,7 +3695,9 @@ async function searchPersons(e: { query: string }) {
   // Existing members CAN be picked again — adding a role merges into their
   // membership (e.g. give a coach the Player role so they're both).
   let query = (db.from as any)('persons')
-    .select('id, first_name, last_name, email, phone, gender')
+    // dob/custom_fields/person_types come along so the dialog can say what this
+    // person fails BEFORE you add them — checking after the fact is a worse moment.
+    .select('id, first_name, last_name, email, phone, gender, dob, custom_fields, person_types, person_type')
     .eq('org_id', orgId.value).order('last_name').limit(25)
   if (q) query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`)
   const { data } = await query
