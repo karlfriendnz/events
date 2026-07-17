@@ -59,11 +59,21 @@ export const REQUIREMENT_OPTIONS: { label: string; exempt: boolean; operator: Re
 ]
 
 // ── Types ───────────────────────────────────────────────────────────────────
+/**
+ * What a rule is SAYING — the club-side flag means something different for each,
+ * and only the author knows which they meant (a top colour is data, yet "must have
+ * a blue top to be part of this discipline" is identity).
+ *   identity → who is IN the discipline      → unmet = "they shouldn't be here"
+ *   data     → what must be RECORDED         → unmet = "chase them for it"
+ */
+export type ReqPurpose = 'identity' | 'data'
+
 export interface DisciplineRequirement {
   id: string
   discipline_id: string
   field_key: string                 // core column name | field_definitions.id
   field_source: 'core' | 'custom'
+  purpose: ReqPurpose
   operator: ReqOperator
   value: any
   exempt: boolean
@@ -353,13 +363,19 @@ export function unmetFor(
     if (ok === true) continue
     const fieldLabel = labelOf(req.field_key)
     const reason: Unmet['reason'] = ok === null ? 'unknown' : req.operator === 'Is Not Empty' ? 'missing' : 'mismatch'
+    // The two purposes are different problems needing different actions, so they
+    // must not read the same. An identity breach says "they're in the wrong place";
+    // a data gap says "go and ask them".
+    const rule = describeRequirement(req).replace(/^Is /, '').toLowerCase()
     const fallback = reason === 'unknown'
       ? req.field_key === AGE_FIELD_KEY
-        ? `Date of birth isn't recorded, so we can't check the age ${req.viaDisciplineName} requires`
-        : `${fieldLabel} isn't recorded, so we can't check what ${req.viaDisciplineName} requires`
-      : reason === 'missing'
-        ? `${fieldLabel} is required by ${req.viaDisciplineName}`
-        : `${fieldLabel} must be ${describeRequirement(req).replace(/^Is /, '').toLowerCase()} for ${req.viaDisciplineName}`
+        ? `Date of birth isn't recorded, so we can't check the age ${req.viaDisciplineName} needs`
+        : `${fieldLabel} isn't recorded, so we can't check what ${req.viaDisciplineName} needs`
+      : req.purpose === 'identity'
+        ? `Doesn't match ${req.viaDisciplineName} — it's for ${fieldLabel.toLowerCase()} ${rule}`
+        : reason === 'missing'
+          ? `${fieldLabel} is required by ${req.viaDisciplineName}`
+          : `${fieldLabel} must be ${rule} for ${req.viaDisciplineName}`
     out.push({
       requirement: req,
       fieldKey: req.field_key,
@@ -455,7 +471,7 @@ export function resolveFor(
 }
 
 // ── DB factory ──────────────────────────────────────────────────────────────
-const COLS = 'id, discipline_id, field_column, field_definition_id, field_key, operator, value, exempt, applies_to, message, sort_order'
+const COLS = 'id, discipline_id, field_column, field_definition_id, field_key, purpose, operator, value, exempt, applies_to, message, sort_order'
 
 function rowToReq(r: any): DisciplineRequirement {
   return {
@@ -463,6 +479,7 @@ function rowToReq(r: any): DisciplineRequirement {
     discipline_id: r.discipline_id,
     field_key: r.field_key ?? r.field_definition_id ?? r.field_column,
     field_source: r.field_definition_id ? 'custom' : 'core',
+    purpose: r.purpose === 'identity' ? 'identity' : 'data',
     operator: r.operator,
     value: r.value,
     exempt: !!r.exempt,
