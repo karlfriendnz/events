@@ -44,7 +44,10 @@ const tab = ref<'layout' | 'fields' | 'access' | 'dashboard' | 'profile' | 'menu
 function openEditor(key: string, t: 'layout' | 'fields' | 'access' | 'dashboard' | 'profile' | 'menu') {
   const found = allTypes.value.find(x => x.key === key)
   if (found) kind.value = (found.kind ?? 'person') as any
-  editingKey.value = key; tab.value = t
+  editingKey.value = key
+  // A published standard only HAS a Fields tab (mig 275). Opening it at 'layout'
+  // would render an editor with nothing in it — every v-show is false.
+  tab.value = (found?.is_published && !(PUBLISHED_TABS as readonly string[]).includes(t)) ? 'fields' : t
 }
 function backToTable() { editingKey.value = null }
 const accessTabLabel = computed(() => kind.value === 'person' ? 'permissions' : 'members')
@@ -380,6 +383,10 @@ watch(orgId, load, { immediate: true })
               <thead>
                 <tr class="bg-gray-50 text-xs text-gray-500 border-b border-gray-100">
                   <th class="text-left px-4 sm:px-5 py-2.5 font-medium">{{ sec.kind === 'person' ? 'Person type' : 'Entity type' }}</th>
+                  <!-- Fields decides WHAT YOU COLLECT about a person, and was the one
+                       tab the table wouldn't take you to. For a published standard it
+                       is the only tab there is. -->
+                  <th class="text-left px-4 py-3 font-medium w-24">Fields</th>
                   <th class="text-left px-4 py-3 font-medium w-24">Form</th>
                   <th class="text-left px-4 py-3 font-medium w-36">{{ sec.kind === 'person' ? 'Permissions' : 'Members' }}</th>
                   <th v-if="sec.kind === 'person'" class="text-left px-4 py-3 font-medium w-28">Landing page</th>
@@ -397,22 +404,36 @@ watch(orgId, load, { immediate: true })
                   <td class="px-4 sm:px-5 py-2.5">
                     <span class="font-medium text-gray-800 inline-flex items-center gap-1.5">
                       <i class="pi pi-bars text-gray-300 group-hover:text-gray-600 text-xs cursor-grab active:cursor-grabbing shrink-0 transition-colors" title="Drag to reorder" />
-                      {{ t.label }}<i v-if="t.is_access" v-tooltip.top="'Grants access (permissions)'" class="pi pi-shield text-[10px] text-emerald-400" /></span>
+                      {{ t.label }}
+                      <i v-if="t.is_access" v-tooltip.top="'Grants access (permissions)'" class="pi pi-shield text-[10px] text-emerald-400" />
+                      <!-- A standard, not a kind of person here — so the rest of this
+                           row doesn't apply to it. Say so rather than showing dead links. -->
+                      <span v-if="t.is_published" class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600"
+                        v-tooltip.top="'A standard our clubs follow. Nobody here is one, so it has no form, permissions or menu.'">standard</span>
+                    </span>
                   </td>
                   <td class="px-4 py-3">
-                    <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'layout')"><i class="pi pi-window-maximize text-[10px]" />Form</button>
+                    <button class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'fields')"><i class="pi pi-list text-[10px]" />Fields</button>
                   </td>
                   <td class="px-4 py-3">
-                    <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'access')"><i class="pi pi-shield text-[10px]" />{{ sec.kind === 'person' ? 'Permissions' : 'Members' }}</button>
+                    <button v-if="!t.is_published" class="text-primary hover:underline inline-flex items-center gap-1" @click="openEditor(t.key, 'layout')"><i class="pi pi-window-maximize text-[10px]" />Form</button>
+                    <span v-else class="text-gray-300">—</span>
+                  </td>
+                  <td class="px-4 py-3">
+                    <button v-if="!t.is_published" class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'access')"><i class="pi pi-shield text-[10px]" />{{ sec.kind === 'person' ? 'Permissions' : 'Members' }}</button>
+                    <span v-else class="text-gray-300">—</span>
                   </td>
                   <td v-if="sec.kind === 'person'" class="px-4 py-3">
-                    <NuxtLink :to="`/dashboard?editTemplate=${t.key}`" class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap"><i class="pi pi-th-large text-[10px]" />Landing page</NuxtLink>
+                    <NuxtLink v-if="!t.is_published" :to="`/dashboard?editTemplate=${t.key}`" class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap"><i class="pi pi-th-large text-[10px]" />Landing page</NuxtLink>
+                    <span v-else class="text-gray-300">—</span>
                   </td>
                   <td v-if="sec.kind === 'person'" class="px-4 py-3">
-                    <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'profile')"><i class="pi pi-user text-[10px]" />Profile</button>
+                    <button v-if="!t.is_published" class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'profile')"><i class="pi pi-user text-[10px]" />Profile</button>
+                    <span v-else class="text-gray-300">—</span>
                   </td>
                   <td v-if="sec.kind === 'person'" class="px-4 py-3">
-                    <button class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'menu')"><i class="pi pi-bars text-[10px]" />Menu items</button>
+                    <button v-if="!t.is_published" class="text-primary hover:underline inline-flex items-center gap-1 whitespace-nowrap" @click="openEditor(t.key, 'menu')"><i class="pi pi-bars text-[10px]" />Menu items</button>
+                    <span v-else class="text-gray-300">—</span>
                   </td>
                   <td class="px-4 py-3">
                     <div class="flex items-center gap-3">
@@ -447,7 +468,26 @@ watch(orgId, load, { immediate: true })
           <button class="text-sm text-gray-500 hover:text-primary inline-flex items-center gap-1" @click="backToTable"><i class="pi pi-arrow-left text-xs" /> All types</button>
           <span class="text-gray-300">/</span>
           <span class="text-sm font-semibold text-gray-800 inline-flex items-center gap-1.5">{{ selected.label }}<i v-if="selected.is_access" v-tooltip.top="'Grants access'" class="pi pi-shield text-[10px] text-emerald-400" /></span>
+
+          <!-- What this type IS (mig 275) — so it belongs at the top, on every tab,
+               not buried in one of the tabs it removes. Governing bodies only: a
+               club has nobody beneath it to publish to. -->
+          <div v-if="isGoverningOrg && kind === 'person'" class="ml-auto inline-flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+            <button type="button" class="px-2.5 py-1.5 transition-colors"
+              :class="!isPublished ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
+              v-tooltip.top="'Real people here — they log in and get a form, permissions, a menu.'"
+              @click="setPublished(selected, false)">Our people</button>
+            <button type="button" class="px-2.5 py-1.5 transition-colors border-l border-gray-200"
+              :class="isPublished ? 'bg-primary text-white' : 'text-gray-500 hover:bg-gray-50'"
+              v-tooltip.top="'A standard our clubs follow — what must be recorded about them. Nobody here is one.'"
+              @click="setPublished(selected, true)">Standard for our clubs</button>
+          </div>
         </div>
+        <p v-if="isPublished" class="text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1.5">
+          <i class="pi pi-sitemap text-[10px] mr-1" />
+          A standard. Our clubs connect their own type to this and inherit its fields — they can call them whatever they like.
+          Nobody here <em>is</em> a {{ selected.label }}, so there's no form, permissions or menu to set.
+        </p>
         <!-- A PUBLISHED standard is only "what must be recorded about a Player" —
              it has no layout, no permissions, no menu, no dashboard, because
              nobody here IS one. Our own people get the full toolkit. (mig 275) -->
@@ -543,29 +583,6 @@ watch(orgId, load, { immediate: true })
 
           <!-- FIELDS -->
           <div v-show="tab === 'fields'" class="space-y-3">
-            <!-- Publish (mig 275) — governing bodies only. Turns this type from
-                 "our own people" into a STANDARD the orgs beneath us link to:
-                 fields and rules, no layout/permissions/menu, because nobody here
-                 IS one. A club has nobody beneath it, so it never sees this. -->
-            <div v-if="isGoverningOrg && kind === 'person'" class="card p-0 overflow-hidden">
-              <div class="px-4 py-3 flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="text-sm font-semibold text-gray-800">Publish to our clubs</p>
-                  <p class="field-help">
-                    <template v-if="isPublished">
-                      A standard. Clubs connect their own type to this and inherit its fields — they can call them anything.
-                      This isn’t a kind of person <span class="font-medium">here</span>, so it has no layout, permissions or menu.
-                    </template>
-                    <template v-else>
-                      Our own people — they log in here and get the full setup. Turn this on to make it a standard our clubs follow instead.
-                    </template>
-                  </p>
-                </div>
-                <ToggleSwitch :model-value="isPublished" class="shrink-0 mt-0.5"
-                  @update:model-value="v => setPublished(selected, v)" />
-              </div>
-            </div>
-
             <!-- Connected to (mig 272) — the club names this type whatever it likes;
                  the LINK is what makes a governing body's fields apply, not the spelling. -->
             <div v-if="linkableTypes.length && !isPublished" class="card p-0 overflow-hidden">
