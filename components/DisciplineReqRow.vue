@@ -29,6 +29,10 @@ defineProps<{
   fieldLabel: (key: string) => string
   lead: string
   leadMore: string
+  /** THIS body's own person types — juniors' players and juniors' coaches are not
+   *  asked for the same things. Empty list = the body defines no types, so the
+   *  picker hides and the rule applies to everyone (the pre-existing behaviour). */
+  personTypes: { key: string; label: string }[]
 }>()
 const emit = defineEmits<{
   (e: 'field-change'): void
@@ -37,6 +41,7 @@ const emit = defineEmits<{
   (e: 'remove'): void
   (e: 'revert'): void
   (e: 'create-field'): void
+  (e: 'toggle-type', key: string): void
 }>()
 
 // Picking "+ Create a new field…" must not stick as the row's value — hand it to
@@ -103,6 +108,22 @@ function onPick(el: HTMLSelectElement, row: any) {
           class="w-1/2 text-sm border border-gray-300 rounded px-2 py-1.5" />
         <InputText v-else v-model="row.value" placeholder="Value" class="w-1/2" />
       </template>
+    </div>
+
+    <!-- Who it's for. A discipline's players and its coaches are not asked for the
+         same things, so the rule has to say which. Nothing ticked = everyone in
+         the discipline, which is what every rule silently meant until now. The
+         club may call them anything — its type LINKS back to ours (mig 272), so
+         we name OUR types here and resolution crosses the gap. -->
+    <div v-if="personTypes.length" class="flex items-center gap-2 flex-wrap">
+      <span class="text-xs text-gray-500 shrink-0">for</span>
+      <button v-for="t in personTypes" :key="t.key" type="button"
+        class="text-xs px-2 py-1 rounded-full border transition-colors"
+        :class="(row.applies_to ?? []).includes(t.key)
+          ? 'bg-primary text-white border-primary'
+          : 'bg-white text-gray-500 border-gray-200 hover:border-primary/40'"
+        @click="emit('toggle-type', t.key)">{{ t.label }}</button>
+      <span v-if="!(row.applies_to ?? []).length" class="text-xs text-gray-400">everyone in this discipline</span>
     </div>
 
     <InputText v-model="row.message" placeholder="What the club sees if it's not met (optional)" class="w-full" />

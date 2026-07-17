@@ -1902,6 +1902,10 @@ const dr = useDisciplineRequirements()
 const { loadFieldCatalogue } = usePersonFields()
 const reqCatalogue = ref<PersonFieldDef[]>([])
 const effectiveReqs = ref<ResolvedRequirement[]>([])
+// Our types + their links to the bodies' types (mig 272) — what lets a rule scoped
+// to Football's "Player" find our "Members".
+const clubTypesForFlags = ref<any[]>([])
+const typeLinksForFlags = ref<PersonTypeLink[]>([])
 
 async function loadDisciplineFlags() {
   if (!groupDisciplineIds.value.length) { effectiveReqs.value = []; return }
@@ -1914,12 +1918,26 @@ async function loadDisciplineFlags() {
     // 'member', and a rule can name the virtual Age field.
     reqCatalogue.value = await loadFieldCatalogue(orgId.value, null, { includeAge: true })
   }
+  // A rule is scoped to the BODY's type keys ("for Players"), while our people
+  // carry OUR keys ('member'). Without the links (mig 272) they never match and
+  // every scoped rule silently applies to nobody.
+  if (orgId.value) {
+    // `policy` is declared further down; safe because this only runs on load(),
+    // long after setup has finished executing.
+    const [types, links] = await Promise.all([policy.loadOrgTypes(orgId.value), policy.loadTypeLinks(orgId.value)])
+    clubTypesForFlags.value = types ?? []
+    typeLinksForFlags.value = links ?? []
+  }
 }
 
 /** What this person fails, for the requirements their types are subject to. */
 const flagsFor = (p: any): Unmet[] => {
   if (!effectiveReqs.value.length || !p?.person) return []
-  const keys = personTypeKeysOf(p.person)
+  // Expand our type keys through the links before matching: Football says "for
+  // Players", our people are Members, and the link is what says those are the
+  // same people. A coach holds no link to Player, so a players-only rule leaves
+  // them alone — which is the whole point of scoping a rule at all.
+  const keys = chainForPersonTypes(personTypeKeysOf(p.person), clubTypesForFlags.value, typeLinksForFlags.value)
   const mine = effectiveReqs.value.filter(r => requirementApplies(r, keys))
   return unmetFor(p.person, mine, { catalogue: reqCatalogue.value })
 }

@@ -29,10 +29,12 @@ const loading = ref(true)
 
 const dr = useDisciplineRequirements()
 const { loadFieldCatalogue } = usePersonFields()
+const { loadOrgTypes } = useOrgFieldPolicy()
 
 // Every requirement across this org's disciplines — the chain walk needs ancestors.
 const allReqs = ref<DisciplineRequirement[]>([])
 const catalogue = ref<PersonFieldDef[]>([])
+const personTypes = ref<{ key: string; label: string }[]>([])
 const fieldLabel = (key: string) => catalogue.value.find(f => f.key === key)?.label ?? key
 const fieldOf = (key: string) => catalogue.value.find(f => f.key === key)
 // Effective parent key (treats orphaned parent_id as top-level).
@@ -136,6 +138,13 @@ async function load() {
   org.value = o ?? null
   disciplines.value = discs ?? []
   catalogue.value = cat ?? []
+  // OUR OWN person types, for per-rule scoping — juniors' players and juniors'
+  // coaches are not asked for the same things. Own-only (loadOrgTypes, not
+  // resolvePersonTypes): a rule scoped to a type we don't define is unauthorable,
+  // and a club's type links back to OURS rather than the other way round.
+  personTypes.value = ((await loadOrgTypes(orgId.value!)) ?? [])
+    .filter((t: any) => (t.kind ?? 'person') === 'person')
+    .map((t: any) => ({ key: t.key, label: t.label }))
   // Requirements for every discipline in the org — the parent chain needs them.
   allReqs.value = await dr.loadRequirements(disciplines.value.map(d => d.id))
   loading.value = false
@@ -207,7 +216,7 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
       <!-- Create / edit runs through the stepped wizard. -->
       <DisciplineWizard v-if="wizardOpen" :editing="wizardEditing" :parent-id="wizardParent"
         :disciplines="disciplines" :all-reqs="allReqs" :catalogue="catalogue"
-        :org-name="org?.name || 'Organisation'" :parts="DISCIPLINE_PARTS"
+        :org-name="org?.name || 'Organisation'" :parts="DISCIPLINE_PARTS" :person-types="personTypes"
         @close="wizardOpen = false" @saved="onWizardSaved" @field-created="onFieldCreated" />
 
       <!-- Hierarchy -->

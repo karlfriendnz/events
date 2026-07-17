@@ -42,6 +42,10 @@ const props = defineProps<{
   catalogue: PersonFieldDef[]
   orgName: string
   parts: { label: string; value: string }[]
+  /** THIS body's own person types, for per-rule scoping ("juniors' players need
+   *  an ID, juniors' coaches need a certificate"). A club's type LINKS to ours
+   *  (mig 272), so naming our own keys here resolves across the club's label. */
+  personTypes: { key: string; label: string }[]
 }>()
 const emit = defineEmits<{
   (e: 'close'): void
@@ -65,23 +69,32 @@ const step = ref(0)
 const saving = ref(false)
 
 // ── Form ────────────────────────────────────────────────────────────────────
-interface DraftReq { key: string; field_key: string; operator: ReqOperator; value: any; exempt: boolean; message: string }
+// applies_to = OUR person-type keys ([] = everyone in the discipline). Juniors'
+// players and juniors' coaches are not asked for the same things, and until this
+// was authorable every rule silently meant "everyone on the roster".
+interface DraftReq { key: string; field_key: string; operator: ReqOperator; value: any; exempt: boolean; message: string; applies_to: string[] }
 const form = reactive<{ name: string; code: string; parent_id: string | null; applies_to: string[]; reqs: DraftReq[] }>({
   name: '', code: '', parent_id: null, applies_to: [], reqs: [],
 })
 
 const newDraft = (field_key = ''): DraftReq => ({
   key: Math.random().toString(36).slice(2), field_key,
-  operator: 'Is Not Empty', value: null, exempt: false, message: '',
+  operator: 'Is Not Empty', value: null, exempt: false, message: '', applies_to: [],
 })
+function toggleReqType(r: DraftReq, key: string) {
+  const has = r.applies_to.includes(key)
+  r.applies_to = has ? r.applies_to.filter(k => k !== key) : [...r.applies_to, key]
+}
 
 onMounted(() => {
   if (props.editing) {
     const d = props.editing
     form.name = d.name; form.code = d.code ?? ''; form.parent_id = d.parent_id
     form.applies_to = [...(d.applies_to ?? [])]
+    // applies_to MUST round-trip: dropping it here and writing [] back on finish
+    // silently un-scoped every rule the moment anyone edited the discipline.
     form.reqs = props.allReqs.filter(r => r.discipline_id === d.id).sort((a, b) => a.sort_order - b.sort_order)
-      .map(r => ({ key: r.id, field_key: r.field_key, operator: r.operator, value: r.value, exempt: r.exempt, message: r.message ?? '' }))
+      .map(r => ({ key: r.id, field_key: r.field_key, operator: r.operator, value: r.value, exempt: r.exempt, message: r.message ?? '', applies_to: [...(r.applies_to ?? [])] }))
   } else {
     form.parent_id = props.parentId ?? null
   }
@@ -249,7 +262,7 @@ async function finish() {
       field_key: r.field_key,
       field_source: (fieldOf(r.field_key)?.source ?? 'core') as 'core' | 'custom',
       purpose: derivePurpose(r), operator: r.operator, value: r.value ?? null, exempt: r.exempt,
-      message: r.message.trim() || null, applies_to: [] as string[],
+      message: r.message.trim() || null, applies_to: r.applies_to ?? [],
     })))
   }
   saving.value = false
@@ -320,9 +333,10 @@ async function finish() {
         :core-fields="coreFields" :custom-fields="customFields" :org-name="orgName"
         :options="optionsFor(r)" :operator-label="operatorLabel(r)" :shows-value="showsValue(r)" :shows-range="showsRange(r)"
         :value-options="valueOptionsFor(r.field_key)" :numeric="isNumericField(r.field_key)" :shadowed="shadowedFor(r.field_key)"
-        :field-label="fieldLabel" lead="Requires" lead-more="and requires"
+        :field-label="fieldLabel" lead="Requires" lead-more="and requires" :person-types="personTypes"
         @field-change="onFieldChange(r)" @operator="setOperator(r, $event)" @range="setRange(r, $event.i, $event.v)"
-        @remove="removeReq(r)" @revert="revertInherited(r.field_key)" @create-field="openCreateField(r)" />
+        @remove="removeReq(r)" @revert="revertInherited(r.field_key)" @create-field="openCreateField(r)"
+        @toggle-type="toggleReqType(r, $event)" />
 
       <div class="flex items-center gap-4">
         <button class="text-xs text-primary hover:underline" @click="addReq()">+ Add a requirement</button>

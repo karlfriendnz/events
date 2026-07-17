@@ -79,6 +79,60 @@ describe('linksForTypes', () => {
   })
 })
 
+describe('the case Karl described: juniors\' players and juniors\' coaches', () => {
+  // "Somehow we need to be able to set junior players have these fields but the
+  // junior coaches have these fields."
+  //
+  // ONE discipline (Juniors), TWO rules, each scoped to one of the BODY's person
+  // types. The club calls its people something else entirely — so the scoping only
+  // resolves through the links. Before them, a rule saying 'player' matched a
+  // person typed 'member' never, and the whole feature was inert.
+  const clubTypes = [
+    { id: 't-mem', key: 'member' },   // the club's word for a player
+    { id: 't-cch', key: 'coach' },
+  ]
+  const links = [
+    link({ id: 'a', type_id: 't-mem', source_key: 'player', source_org_name: 'Football NZ' }),
+    link({ id: 'b', type_id: 't-cch', source_key: 'coach', source_org_name: 'Football NZ' }),
+  ]
+  // What the body authored on the Juniors discipline.
+  const playerRule = { applies_to: ['player'] }   // Football NZ ID
+  const coachRule = { applies_to: ['coach'] }     // Coaching certificate
+  const everyoneRule = { applies_to: [] as string[] }  // e.g. Date of birth
+
+  // Mirrors requirementApplies' comparison without importing the whole composable.
+  const applies = (req: { applies_to: string[] }, chain: string[]) =>
+    !req.applies_to.length || req.applies_to.some(t => chain.map(k => k.toLowerCase()).includes(t.toLowerCase()))
+
+  it('the players-only rule reaches a club "Member" — via the link, not the word', () => {
+    const chain = chainForPersonTypes(['member'], clubTypes, links)
+    expect(applies(playerRule, chain)).toBe(true)
+  })
+
+  it('and leaves the coach alone — which is the entire point of scoping', () => {
+    const chain = chainForPersonTypes(['coach'], clubTypes, links)
+    expect(applies(playerRule, chain)).toBe(false)
+    expect(applies(coachRule, chain)).toBe(true)
+  })
+
+  it('an unscoped rule still hits everyone — the pre-existing behaviour survives', () => {
+    expect(applies(everyoneRule, chainForPersonTypes(['member'], clubTypes, links))).toBe(true)
+    expect(applies(everyoneRule, chainForPersonTypes(['coach'], clubTypes, links))).toBe(true)
+  })
+
+  it('a playing coach is subject to BOTH rules', () => {
+    const chain = chainForPersonTypes(['member', 'coach'], clubTypes, links)
+    expect(applies(playerRule, chain)).toBe(true)
+    expect(applies(coachRule, chain)).toBe(true)
+  })
+
+  it('without the link, the players-only rule finds NOBODY — the bug this fixes', () => {
+    const chain = chainForPersonTypes(['member'], clubTypes, [])
+    expect(chain).toEqual(['member'])
+    expect(applies(playerRule, chain)).toBe(false)   // silently, with no error
+  })
+})
+
 describe('chainForPersonTypes', () => {
   const clubTypes = [
     { id: 't-player', key: 'footballer' },

@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-328 sessions · 1759 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+328 sessions · 1761 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-16 06:21 (123 prompts)
@@ -29153,7 +29153,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > </task-notification>
 
 
-## Session 2026-07-17 06:04 (32 prompts)
+## Session 2026-07-17 06:04 (34 prompts)
 
 **06:04** — a club needs to be able to connect a person type to a NSO person type i.e a national body creates Player, the club also has player but its connected to the player for nso to know the required feilds for a player at club level - does that make sence'?
 
@@ -29532,4 +29532,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **07:51** — ok lets do that - build it then wipe the data again
 
 **08:03** — that worked well
+
+**08:05** — ok so we know the feilds work lets see if the displines work
+
+**08:08** — Somehow we need to be able to set junoirs players have these feilds but the junior coaches have these feilds
 
