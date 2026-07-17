@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Re-plumb progress</title>
+<style>
+  :root { --nat:#2494D3; --navy:#1E2157; --ok:#16a34a; --wip:#d97706; --todo:#9ca3af; --bg:#f5f8fa; --card:#fff; --line:#e6ebf1; --ink:#1f2937; --mut:#6b7280; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.55 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; color:var(--ink); background:var(--bg); }
+  .wrap { max-width:980px; margin:0 auto; padding:28px 20px 80px; }
+  header { background:linear-gradient(180deg,var(--nat),#176089); color:#fff; border-radius:16px; padding:24px 26px; }
+  header h1 { margin:0 0 6px; font-size:24px; }
+  header p { margin:0; opacity:.9; }
+  .updated { margin-top:10px; font-size:13px; opacity:.85; }
+  .bars { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:20px 0; }
+  .stat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .stat b { display:block; font-size:26px; }
+  .stat span { color:var(--mut); font-size:13px; }
+  h2 { font-size:16px; margin:26px 0 8px; }
+  .lead { color:var(--mut); margin:0 0 12px; font-size:14px; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  th,td { text-align:left; padding:11px 14px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { background:#fafbfc; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+  tr:last-child td { border-bottom:none; }
+  td.task { font-weight:600; white-space:nowrap; }
+  td.desc { color:#374151; }
+  .badge { display:inline-block; padding:3px 9px; border-radius:999px; font-size:12px; font-weight:700; white-space:nowrap; }
+  .b-ok { background:#dcfce7; color:var(--ok); }
+  .b-wip { background:#fef3c7; color:var(--wip); }
+  .b-todo { background:#eef1f4; color:#4b5563; }
+  .note { background:#fff; border:1px dashed var(--line); border-radius:12px; padding:14px 16px; color:var(--mut); font-size:14px; margin-top:14px; }
+  code { background:#eef1f4; padding:1px 5px; border-radius:5px; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Re-plumb progress</h1>
+    <p>Moving the app off its current database wiring onto a clean, swappable layer, so the backend team can plug their MySQL backend in later — while your testable version keeps working the whole time.</p>
+    <div class="updated">Last updated: 18 Jul 2026, 8:50pm · branch <code>replumb/mysql-foundation</code></div>
+  </header>
+
+  <div class="bars">
+    <div class="stat"><b>118</b><span>tables now in MySQL</span></div>
+    <div class="stat"><b>Green</b><span>your live version still works</span></div>
+    <div class="stat"><b>7</b><span>milestones committed</span></div>
+    <div class="stat"><b>Phase 2</b><span>where we are now</span></div>
+  </div>
+
+  <h2>The plan, in plain English</h2>
+  <p class="lead">Four phases. We finish each one before moving on, and your shared/test version never goes down.</p>
+  <table>
+    <thead><tr><th>Phase</th><th>What it means</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td class="task">0 · Foundation</td><td class="desc">Stand up a local MySQL database and a typed “middle layer” the app talks to instead of the database directly. Prove data can flow through it.</td><td><span class="badge b-ok">✅ Done</span></td></tr>
+      <tr><td class="task">1 · The schema</td><td class="desc">Recreate all the database tables in MySQL (the new database speaks a different dialect, so arrays, IDs and functions all have to be translated).</td><td><span class="badge b-ok">✅ Done (first pass)</span></td></tr>
+      <tr><td class="task">2 · Move the screens</td><td class="desc">Point each screen at the new middle layer instead of the old database, one area at a time. Old areas keep working on the old wiring until their turn.</td><td><span class="badge b-wip">🔄 In progress</span></td></tr>
+      <tr><td class="task">3 · Cutover</td><td class="desc">Once nothing uses the old database, switch it off. The app now runs entirely on MySQL, ready to hand over.</td><td><span class="badge b-todo">⬜ To do</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Done so far</h2>
+  <table>
+    <thead><tr><th>Task</th><th>What it means</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td class="task">Local MySQL running</td><td class="desc">A real MySQL 8.4 database (<code>fm</code>) running on your machine, sharing the same server as the legacy-import work.</td><td><span class="badge b-ok">✅</span></td></tr>
+      <tr><td class="task">Typed middle layer</td><td class="desc">The “seam” — the app talks to a small typed API, which talks to MySQL. Swapping the backend later means changing this one layer, not 177 screens.</td><td><span class="badge b-ok">✅</span></td></tr>
+      <tr><td class="task">First screen’s data proven</td><td class="desc">Organisations list flows all the way from a web request → the layer → MySQL → back, as clean typed data. The template every other screen copies.</td><td><span class="badge b-ok">✅</span></td></tr>
+      <tr><td class="task">Org hierarchy queries</td><td class="desc">“Who’s above / below this org” (the governing tree) rebuilt as proper MySQL queries — the first thing that genuinely differs from the old database.</td><td><span class="badge b-ok">✅</span></td></tr>
+      <tr><td class="task">All 118 tables in MySQL</td><td class="desc">The whole database structure translated and created in MySQL, generated automatically from the current one so nothing’s missed.</td><td><span class="badge b-ok">✅</span></td></tr>
+      <tr><td class="task">Architecture write-up</td><td class="desc">The rulebook the backend team will follow, plus the translation rules, all documented.</td><td><span class="badge b-ok">✅</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Still to do</h2>
+  <table>
+    <thead><tr><th>Task</th><th>What it means</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td class="task">Move the screens</td><td class="desc">Convert each area (people, groups, events, bookings, settings, the new NSO screens…) off the old database onto the seam. This is the biggest chunk — done area by area, keeping everything working.</td><td><span class="badge b-wip">🔄 Next</span></td></tr>
+      <tr><td class="task">Refine each table</td><td class="desc">As each area moves, tidy its tables (indexes, relationships, sensible defaults) — the first pass got the shape right; this makes it production-solid.</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="task">Shared/test deploy on MySQL</td><td class="desc">Point your always-on test site at a hosted MySQL so testers keep using it during the move.</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="task">Import from old FriendlyManager</td><td class="desc">The script that loads real legacy club data into the new platform (your other agent is prepping the legacy databases for this).</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="task">API spec for the backend team</td><td class="desc">Auto-generate the formal API description (OpenAPI) so they can build the real backend to match exactly.</td><td><span class="badge b-todo">⬜</span></td></tr>
+      <tr><td class="task">Switch off the old database</td><td class="desc">Final cutover once nothing needs it.</td><td><span class="badge b-todo">⬜</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>Where we are right now:</strong> the plumbing is in and the whole database exists in MySQL. Next I start moving real screens across, one area at a time — beginning with the organisations/NSO screens, since those are new and have no old wiring to unpick. Your current live version keeps running on the old database until each area is moved.
+  </div>
+</div>
+</body>
+</html>
