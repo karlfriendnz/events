@@ -537,16 +537,17 @@
           <div v-if="flagPerson" class="w-72 text-sm" @mouseenter="keepFlagPanel" @mouseleave="hideFlagPanelSoon">
             <div class="text-xs font-semibold text-gray-800 mb-2">{{ flagPerson.name }}</div>
             <ul class="space-y-2">
+              <!-- No "Set on X" line: the message already names the discipline
+                   ("Doesn't match GRADE A — …"), so it only ever repeated itself. -->
               <li v-for="u in flagsFor(flagPerson)" :key="u.fieldKey + u.requirement.id" class="flex items-start gap-2">
                 <i class="pi text-xs mt-0.5 shrink-0"
-                  :class="u.reason === 'unknown' ? 'pi-question-circle text-gray-400' : 'pi-exclamation-triangle text-amber-500'" />
-                <div class="min-w-0">
-                  <div class="text-xs text-gray-700">{{ u.message }}</div>
-                  <div class="text-xs text-gray-400">Set on {{ u.disciplineName }}</div>
-                </div>
+                  :class="u.reason === 'unknown' ? 'pi-question-circle text-gray-400' : 'pi-exclamation-triangle text-red-500'" />
+                <div class="text-xs text-gray-700 min-w-0">{{ u.message }}</div>
               </li>
             </ul>
-            <NuxtLink :to="`/people/${flagPerson.id}`" class="text-xs text-primary hover:underline mt-3 inline-block">
+            <!-- #profile, not the bare path: the profile page opens on its Dashboard
+                 tab, and the fields you came here to fill in are on Profile. -->
+            <NuxtLink :to="`/people/${flagPerson.id}#profile`" class="text-xs text-primary hover:underline mt-3 inline-block">
               Open profile →
             </NuxtLink>
           </div>

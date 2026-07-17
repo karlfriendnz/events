@@ -28,6 +28,12 @@ const loading = ref(true)
 // ---------- Terms ----------
 interface TermRow {
   id: string | null
+  /** Stable client-side row identity, for v-for :key.
+   *  A new term has no id, so the key used to fall back to the row's NAME — which
+   *  changes on every keystroke, so Vue tore the row down and rebuilt it, the input
+   *  lost focus, and you could type exactly one letter. A key must never contain
+   *  something the user is editing. */
+  uid: string
   name: string
   start_date: Date | null
   end_date: Date | null
@@ -101,8 +107,9 @@ async function removeSet(s: TermSet) {
   sets.value = sets.value.filter(x => x.id !== s.id)
 }
 
+const newUid = () => `t${Math.random().toString(36).slice(2)}`
 function addTerm(setId: string | null = null) {
-  terms.value.push({ id: null, name: '', start_date: null, end_date: null, signup_open: null, signup_close: null, set_id: setId, sort_order: terms.value.length })
+  terms.value.push({ id: null, uid: newUid(), name: '', start_date: null, end_date: null, signup_open: null, signup_close: null, set_id: setId, sort_order: terms.value.length })
 }
 function removeTerm(r: TermRow) {
   if (r.id) removedTermIds.push(r.id)
@@ -296,7 +303,7 @@ async function load() {
     .eq('org_id', orgId.value)
     .order('sort_order', { ascending: true, nullsFirst: false }).order('start_date')
   terms.value = (t || []).map((r: any) => ({
-    id: r.id, name: r.name,
+    id: r.id, uid: r.id, name: r.name,
     start_date: r.start_date ? new Date(r.start_date + 'T00:00:00') : null,
     end_date: r.end_date ? new Date(r.end_date + 'T00:00:00') : null,
     signup_open: r.signup_open ? new Date(r.signup_open + 'T00:00:00') : null,
@@ -410,7 +417,7 @@ watch(orgId, v => { if (v) load() })
                 <div v-if="sec.list.length" class="hidden lg:grid grid-cols-[1fr_170px_170px_170px_170px_40px] gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide px-3 py-2.5 bg-gray-50 border-b border-gray-200">
                   <span>Name</span><span>Starts</span><span>Ends</span><span v-tooltip.top="`When ${t('member', false, true)} registration opens. Blank = open right away.`">Sign-up opens</span><span v-tooltip.top="`When registration closes. Blank = when the ${t('term', false, true)} ends.`">Sign-up closes</span><span></span>
                 </div>
-                <div v-for="t in sec.list" :key="t.id ?? t.sort_order + t.name"
+                <div v-for="t in sec.list" :key="t.uid"
                   class="grid grid-cols-1 lg:grid-cols-[1fr_170px_170px_170px_170px_40px] gap-2 lg:items-center rounded-lg lg:rounded-none border border-gray-100 lg:border-0 lg:border-b lg:border-gray-100 lg:last:border-b-0 p-3 lg:px-3 lg:py-2">
                   <div class="flex items-center gap-3">
                     <label class="lg:hidden w-28 shrink-0 text-xs font-semibold text-gray-500 uppercase tracking-wide">Name</label>

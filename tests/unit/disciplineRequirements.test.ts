@@ -253,14 +253,16 @@ describe('age as an ordinary requirement', () => {
     const { effective } = effectiveRequirements('jr', TREE, [{ ...ageReq('Is At Most', 15), discipline_id: 'jr' }])
     const [u] = unmetFor({ dob: null }, effective, { catalogue: CATALOGUE, asOf: at })
     expect(u.reason).toBe('unknown')
-    expect(u.message).toMatch(/Date of birth isn't recorded/)
+    // "can't check" — never an accusation built on data we don't have.
+    expect(u.message).toBe("No date of birth — can't check their age")
   })
 
   it('an out-of-band person reads as a mismatch, with a message that says so', () => {
     const { effective } = effectiveRequirements('jr', TREE, [{ ...ageReq('Is At Most', 15), discipline_id: 'jr' }])
     const [u] = unmetFor(aged(17), effective, { catalogue: CATALOGUE, asOf: at })
     expect(u.reason).toBe('mismatch')
-    expect(u.message).toBe("Doesn't match Junior Football — age must be at most 15 there")
+    // The rule reads as itself; the surface supplies the context.
+    expect(u.message).toBe('Age must be at most 15')
   })
 
   it('inherits and overrides exactly like any other requirement', () => {
@@ -314,7 +316,7 @@ describe('testRequirement / unmetFor', () => {
   it('generates a message naming the field and the discipline, and honours a custom one', () => {
     const { effective } = effectiveRequirements('jr', TREE, REQS)
     const [u] = unmetFor(person({}), effective, { catalogue: CATALOGUE })
-    expect(u.message).toBe('School must be recorded for Junior Football')
+    expect(u.message).toBe('School must be recorded')
     expect(u.reason).toBe('missing')
 
     const custom = effectiveRequirements('jr', TREE, [req({ discipline_id: 'jr', field_key: SCHOOL_ID, message: 'We need their school' })])

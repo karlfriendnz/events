@@ -400,17 +400,15 @@ export function unmetFor(
     if (ok === true) continue
     const fieldLabel = labelOf(req.field_key)
     const reason: Unmet['reason'] = ok === null ? 'unknown' : req.operator === 'Is Not Empty' ? 'missing' : 'mismatch'
-    // The two purposes are different problems needing different actions, so they
-    // must not read the same. An identity breach says "they're in the wrong place";
-    // a data gap says "go and ask them".
-    const rule = describeRequirement(req)
+    // Say the one thing that's wrong. The surface already gives the context — the
+    // roster band names the discipline — so repeating it here ("Doesn't match GRADE
+    // A — level of player must be Grade A there") just made every line a sentence
+    // you had to read twice. The rule reads as itself: "Gender must be MALE".
     const fallback = reason === 'unknown'
       ? req.field_key === AGE_FIELD_KEY
-        ? `Date of birth isn't recorded, so we can't check the age ${req.viaDisciplineName} needs`
-        : `${fieldLabel} isn't recorded, so we can't check what ${req.viaDisciplineName} needs`
-      : req.purpose === 'identity'
-        ? `Doesn't match ${req.viaDisciplineName} — ${fieldLabel.toLowerCase()} ${rule} there`
-        : `${fieldLabel} ${rule} for ${req.viaDisciplineName}`
+        ? `No date of birth — can't check their age`
+        : `No ${fieldLabel.toLowerCase()} recorded — can't check it`
+      : `${fieldLabel} ${describeRequirement(req)}`
     out.push({
       requirement: req,
       fieldKey: req.field_key,
