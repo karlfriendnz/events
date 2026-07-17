@@ -323,6 +323,8 @@
                     <span class="text-amber-700"> — minimum set on this {{ t('group', false, true) }}'s {{ t('code', false, true) }}.</span>
                   </td>
                 </tr>
+                <DisciplineFlagBand :colspan="colCount" :summary="coachFlagSummary"
+                  :discipline-name="disciplineNameForFlags" noun="coach" noun-plural="coaches" />
                 <tr class="text-left text-[11px] font-semibold uppercase tracking-wide text-gray-400 border-b border-gray-100">
                   <th v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 font-semibold align-middle">
                     <span v-if="col.key === 'name'" class="flex items-center gap-2">
@@ -348,6 +350,12 @@
                             @click="openPersonMenu($event, c)">{{ personInitials(c.name) }}</button>
                         </span>
                         <button type="button" class="text-[#1E2157] hover:underline text-left" @click="openAdd('coach', c)">{{ c.name }}</button>
+                        <button v-if="flagsFor(c).length" type="button"
+                          class="shrink-0 text-amber-500 hover:text-amber-600"
+                          :title="`${flagsFor(c).length} unmet requirement${flagsFor(c).length === 1 ? '' : 's'}`"
+                          @click.stop="openFlagPanel($event, c)">
+                          <i class="pi pi-exclamation-triangle text-xs" />
+                        </button>
                       </div>
                     </template>
                     <template v-else-if="col.key === 'roles'">
@@ -428,6 +436,8 @@
                     <span class="text-amber-700"> — minimum set on this {{ t('group', false, true) }}'s {{ t('code', false, true) }}.</span>
                   </td>
                 </tr>
+                <DisciplineFlagBand :colspan="colCount" :summary="memberFlagSummary"
+                  :discipline-name="disciplineNameForFlags" :noun="t('member', false, true)" :noun-plural="t('member', true, true)" />
                 <tr class="text-left text-[11px] font-semibold uppercase tracking-wide text-gray-400 border-b border-gray-100">
                   <th v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 font-semibold align-middle">
                     <span v-if="col.key === 'name'" class="flex items-center gap-2">
@@ -453,6 +463,17 @@
                             @click="openPersonMenu($event, m)">{{ personInitials(m.name) }}</button>
                         </span>
                         <button type="button" class="text-[#1E2157] hover:underline text-left" @click="openAdd('member', m)">{{ m.name }}</button>
+                        <!-- Not a new column: personColumns drives the colgroup, every
+                             colspan AND a localStorage-persisted hidden-column choice,
+                             so a column would appear unpredictably for existing users.
+                             A Popover rather than a tooltip because "what do I do about
+                             it" is the whole value, and a tooltip can't hold the link. -->
+                        <button v-if="flagsFor(m).length" type="button"
+                          class="shrink-0 text-amber-500 hover:text-amber-600"
+                          :title="`${flagsFor(m).length} unmet requirement${flagsFor(m).length === 1 ? '' : 's'}`"
+                          @click.stop="openFlagPanel($event, m)">
+                          <i class="pi pi-exclamation-triangle text-xs" />
+                        </button>
                       </div>
                     </template>
                     <template v-else-if="col.key === 'roles'">
@@ -507,6 +528,26 @@
         </div>
 
         <!-- Filter popover (by role) -->
+        <!-- What one person fails, and where to go and fix it. -->
+        <Popover ref="flagPanel">
+          <div v-if="flagPerson" class="w-72 text-sm">
+            <div class="text-xs font-semibold text-gray-800 mb-2">{{ flagPerson.name }}</div>
+            <ul class="space-y-2">
+              <li v-for="u in flagsFor(flagPerson)" :key="u.fieldKey + u.requirement.id" class="flex items-start gap-2">
+                <i class="pi text-xs mt-0.5 shrink-0"
+                  :class="u.reason === 'unknown' ? 'pi-question-circle text-gray-400' : 'pi-exclamation-triangle text-amber-500'" />
+                <div class="min-w-0">
+                  <div class="text-xs text-gray-700">{{ u.message }}</div>
+                  <div class="text-xs text-gray-400">Set on {{ u.disciplineName }}</div>
+                </div>
+              </li>
+            </ul>
+            <NuxtLink :to="`/people/${flagPerson.id}`" class="text-xs text-primary hover:underline mt-3 inline-block">
+              Open profile →
+            </NuxtLink>
+          </div>
+        </Popover>
+
         <Popover ref="filterPanel">
           <div class="w-56 text-sm">
             <div class="text-xs font-semibold text-gray-400 mb-2">Filter by role</div>
@@ -1815,12 +1856,76 @@ const heroColor = computed(() => groupCode.value?.color || group.value?.color ||
 // Disciplines — a summary for the stat cell + a dialog to edit them.
 const disciplinesOpen = ref(false)
 const groupDisciplineNames = ref<string[]>([])
-async function loadGroupDisciplines() {
-  if (!group.value?.id) { groupDisciplineNames.value = []; return }
+/** The disciplines this group is linked to — ids included, because requirements
+ *  join on them. Defaulted param + called from the parallel load wave: its only
+ *  input is route.params.id, known upfront, so it costs no extra latency and can't
+ *  race the roster into rendering with an empty flag set. */
+const groupDisciplineIds = ref<string[]>([])
+async function loadGroupDisciplines(gid = group.value?.id ?? (route.params.id as string)) {
+  if (!gid) { groupDisciplineNames.value = []; groupDisciplineIds.value = []; return }
   const { data } = await (db.from as any)('member_group_disciplines')
-    .select('disciplines(name)').eq('group_id', group.value.id)
+    .select('discipline_id, disciplines(id, name)').eq('group_id', gid)
   groupDisciplineNames.value = (data ?? []).map((r: any) => r.disciplines?.name).filter(Boolean)
+  groupDisciplineIds.value = (data ?? []).map((r: any) => r.discipline_id).filter(Boolean)
+  await loadDisciplineFlags()
 }
+
+// ── Discipline requirements: what the governing body demands of these people ──
+// The rules are authored by the NSO on ITS disciplines, so they're read by
+// discipline_id and never scoped to this club's org — an .eq('org_id', orgId) here
+// would return nothing, in every club, with no error.
+const dr = useDisciplineRequirements()
+const { loadFieldCatalogue } = usePersonFields()
+const reqCatalogue = ref<PersonFieldDef[]>([])
+const effectiveReqs = ref<ResolvedRequirement[]>([])
+
+async function loadDisciplineFlags() {
+  if (!groupDisciplineIds.value.length) { effectiveReqs.value = []; return }
+  const { disciplines, requirements } = await dr.loadForEntity('group', group.value?.id ?? (route.params.id as string))
+  // Union across chains: a group can be linked to disciplines from several bodies,
+  // and neither authority's rules shadow the other's.
+  effectiveReqs.value = effectiveRequirementsForMany(groupDisciplineIds.value, disciplines, requirements).effective
+  if (effectiveReqs.value.length && !reqCatalogue.value.length && orgId.value) {
+    // null typeKey + age: the NSO's fields often target 'gymnast'/'player', not
+    // 'member', and a rule can name the virtual Age field.
+    reqCatalogue.value = await loadFieldCatalogue(orgId.value, null, { includeAge: true })
+  }
+}
+
+/** What this person fails, for the requirements their types are subject to. */
+const flagsFor = (p: any): Unmet[] => {
+  if (!effectiveReqs.value.length || !p?.person) return []
+  const keys = personTypeKeysOf(p.person)
+  const mine = effectiveReqs.value.filter(r => requirementApplies(r, keys))
+  return unmetFor(p.person, mine, { catalogue: reqCatalogue.value })
+}
+/** Tally for one band — one line per field, so it reads "School (2)".
+ *  Runs over BOTH bands: a coach is in the discipline just as a member is, and
+ *  WHO a rule applies to is the rule's own applies_to, not which table someone
+ *  happens to render in. */
+function flagSummary(people: any[]) {
+  const byField = new Map<string, { label: string; count: number }>()
+  let n = 0
+  for (const m of people) {
+    const f = flagsFor(m)
+    if (!f.length) continue
+    n++
+    for (const u of f) {
+      const e = byField.get(u.fieldKey) ?? { label: u.fieldLabel, count: 0 }
+      e.count++
+      byField.set(u.fieldKey, e)
+    }
+  }
+  return { people: n, fields: [...byField.values()].sort((a, b) => b.count - a.count) }
+}
+const memberFlagSummary = computed(() => flagSummary(members.value))
+const coachFlagSummary = computed(() => flagSummary(coaches.value))
+const disciplineNameForFlags = computed(() => groupDisciplineNames.value.join(' · '))
+
+// Per-person detail popover.
+const flagPanel = ref()
+const flagPerson = ref<any>(null)
+function openFlagPanel(e: Event, p: any) { flagPerson.value = p; flagPanel.value?.toggle(e) }
 // A group whose term has ended is frozen history — soft-locked (no edits).
 const isHistory = computed(() => {
   const end = groupTerm.value?.end_date
@@ -1921,7 +2026,7 @@ const positionShortfalls = computed(() => {
 const allPeople = computed(() => {
   const map = new Map<string, any>()
   for (const p of [...coaches.value, ...members.value]) {
-    if (!map.has(p.id)) map.set(p.id, { id: p.id, name: p.name, email: p.email, phone: p.phone, allRoles: p.allRoles, roles: p.allRoles, positions: p.positions ?? [], subGroupId: p.subGroupId ?? null })
+    if (!map.has(p.id)) map.set(p.id, { id: p.id, name: p.name, email: p.email, phone: p.phone, allRoles: p.allRoles, roles: p.allRoles, positions: p.positions ?? [], subGroupId: p.subGroupId ?? null, person: p.person })
   }
   return Array.from(map.values())
 })
@@ -2715,8 +2820,10 @@ async function load() {
       .eq('id', id)
       .eq('org_id', orgId.value)
       .maybeSingle(),
+    // dob/gender/custom_fields are for the discipline-requirement flags — without
+    // them there is nothing to check a person against.
     (db.from as any)('member_group_memberships')
-      .select('roles, role, positions, sub_group_id, person:persons!inner(id, first_name, last_name, email, phone)')
+      .select('roles, role, positions, sub_group_id, person:persons!inner(id, first_name, last_name, email, phone, dob, gender, custom_fields, person_types, person_type)')
       .eq('group_id', id),
     loadEvents(id),
     (db.from as any)('member_group_schedules')
@@ -2772,11 +2879,11 @@ async function load() {
   // be BOTH staff and a member (e.g. a coach who also plays Wing).
   members.value = mapped
     .filter((x: any) => x.positions?.length || !rolesAreStaff(x.roles) || memberRolesOf(x.roles).length)
-    .map((x: any) => ({ id: x.p.id, name: named(x), email: x.p.email ?? null, phone: x.p.phone ?? null, roles: memberRolesOf(x.roles), allRoles: x.roles, positions: x.positions, subGroupId: x.subGroupId }))
+    .map((x: any) => ({ id: x.p.id, name: named(x), email: x.p.email ?? null, phone: x.p.phone ?? null, roles: memberRolesOf(x.roles), allRoles: x.roles, positions: x.positions, subGroupId: x.subGroupId, person: x.p }))
     .sort((a: Member, b: Member) => a.name.localeCompare(b.name))
   coaches.value = mapped
     .filter((x: any) => rolesAreStaff(x.roles))
-    .map((x: any) => ({ id: x.p.id, name: named(x), email: x.p.email ?? null, phone: x.p.phone ?? null, roles: staffRolesOf(x.roles), allRoles: x.roles, positions: x.positions, subGroupId: x.subGroupId }))
+    .map((x: any) => ({ id: x.p.id, name: named(x), email: x.p.email ?? null, phone: x.p.phone ?? null, roles: staffRolesOf(x.roles), allRoles: x.roles, positions: x.positions, subGroupId: x.subGroupId, person: x.p }))
     .sort((a: Coach, b: Coach) => a.name.localeCompare(b.name))
 
   // Weekly training schedules for this group.
@@ -2797,7 +2904,9 @@ async function load() {
   // Attendance needs both the event list (loadEvents) and the resolved roster.
   await loadAttendance()
   await loadNoteCounts()
-  loadGroupDisciplines()
+  // AWAITED, unlike before: the flags derive from it, and fire-and-forget would let
+  // the roster render "no problems here" for a beat before the truth arrived.
+  await loadGroupDisciplines(id)
 
   loading.value = false
 
