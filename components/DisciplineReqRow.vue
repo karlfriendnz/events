@@ -68,8 +68,9 @@ function onPick(el: HTMLSelectElement, row: any) {
       <optgroup v-if="customFields.length" :label="orgName + ' fields'">
         <option v-for="f in customFields" :key="f.key" :value="f.key">{{ f.label }}</option>
       </optgroup>
-      <!-- Don't send someone to Settings and back mid-wizard just to invent "School". -->
-      <optgroup label=" ">
+      <!-- Don't send someone to Settings and back mid-wizard just to invent "School".
+           NB a real label: a blank one renders as an unreadable gap in the list. -->
+      <optgroup label="Not there?">
         <option :value="NEW">+ Create a new field…</option>
       </optgroup>
     </select>

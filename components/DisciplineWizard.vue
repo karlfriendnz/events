@@ -132,6 +132,21 @@ const removeReq = (r: DraftReq) => { form.reqs = form.reqs.filter(x => x.key !==
 const creatingFor = ref<DraftReq | null>(null)
 const creatingField = ref(false)
 function openCreateField(r: DraftReq) { creatingFor.value = r; creatingField.value = true }
+/** Create a field from the step itself — no row needed first. A governing body
+ *  writing its first data rule has no fields yet, so "make one" has to be visible
+ *  on the step, not buried at the bottom of a dropdown you only reach by adding a
+ *  row you can't yet fill. */
+function createFieldFrom(purpose: ReqPurpose) {
+  const r = newDraft(purpose)
+  form.reqs.push(r)
+  openCreateField(r)
+}
+/** Drop the half-made row if the creator is dismissed without adding anything. */
+function onCreatorHide() {
+  const r = creatingFor.value
+  if (r && !r.field_key) form.reqs = form.reqs.filter(x => x.key !== r.key)
+  creatingFor.value = null
+}
 
 async function onFieldCreated(p: { label: string; type: string; placeholder: string; required: boolean; options: string[]; targets: string[] }) {
   const { data, error } = await (db.from as any)('field_definitions').insert({
@@ -308,10 +323,17 @@ async function finish() {
         @field-change="onFieldChange(r)" @operator="setOperator(r, $event)" @range="setRange(r, $event.i, $event.v)"
         @remove="removeReq(r)" @revert="revertInherited(r.field_key)" @create-field="openCreateField(r)" />
 
-      <button class="text-xs text-primary hover:underline" @click="addReq('identity')">+ Add something that identifies them</button>
-      <p v-if="!identityReqs.length && !untouchedInherited('identity').length" class="text-xs text-gray-400">
-        Nothing yet — anyone can be in this discipline. That's fine for a grouping like “Football”.
-      </p>
+      <div class="flex items-center gap-4">
+        <button class="text-xs text-primary hover:underline" @click="addReq('identity')">+ Add something that identifies them</button>
+        <button class="text-xs text-gray-500 hover:text-gray-800 hover:underline" @click="createFieldFrom('identity')">
+          + Create a new field
+        </button>
+      </div>
+      <div v-if="!identityReqs.length && !untouchedInherited('identity').length"
+        class="rounded-lg border border-dashed border-gray-200 px-4 py-5 text-center">
+        <p class="text-xs text-gray-500">Nothing yet — anyone can be in this discipline.</p>
+        <p class="text-xs text-gray-400 mt-1">That's right for a grouping like “Football”; a “Juniors” would want an age.</p>
+      </div>
     </div>
 
     <!-- 3 · What to record (data) -->
@@ -345,10 +367,20 @@ async function finish() {
         @field-change="onFieldChange(r)" @operator="setOperator(r, $event)" @range="setRange(r, $event.i, $event.v)"
         @remove="removeReq(r)" @revert="revertInherited(r.field_key)" @create-field="openCreateField(r)" />
 
-      <button class="text-xs text-primary hover:underline" @click="addReq('data')">+ Add something they must have</button>
-      <p v-if="!dataReqs.length && !untouchedInherited('data').length" class="text-xs text-gray-400">
-        Nothing yet — clubs won't be asked for anything extra.
-      </p>
+      <div class="flex items-center gap-4">
+        <button class="text-xs text-primary hover:underline" @click="addReq('data')">+ Add something they must have</button>
+        <button class="text-xs text-gray-500 hover:text-gray-800 hover:underline" @click="createFieldFrom('data')">
+          + Create a new field
+        </button>
+      </div>
+      <div v-if="!dataReqs.length && !untouchedInherited('data').length" class="rounded-lg border border-dashed border-gray-200 px-4 py-5 text-center">
+        <p class="text-xs text-gray-500">Nothing yet — clubs won't be asked for anything extra.</p>
+        <p v-if="!customFields.length" class="text-xs text-gray-400 mt-1">
+          {{ orgName }} has no fields of its own yet, so there's nothing to ask for.
+          <button class="text-primary hover:underline" @click="createFieldFrom('data')">Create the first one</button> —
+          e.g. School, or a membership number.
+        </p>
+      </div>
     </div>
 
     <!-- 4 · Where it applies -->
@@ -405,7 +437,7 @@ async function finish() {
     </div>
 
     <!-- Invent a field without leaving the wizard. -->
-    <Dialog v-model:visible="creatingField" modal header="New field" :style="{ width: '95vw', maxWidth: '420px' }">
+    <Dialog v-model:visible="creatingField" modal header="New field" :style="{ width: '95vw', maxWidth: '420px' }" @hide="onCreatorHide">
       <p class="text-xs text-gray-500 px-4 pt-3 -mb-1">
         It joins {{ orgName }}'s fields, so every discipline can ask for it — and clubs beneath you inherit it.
       </p>
