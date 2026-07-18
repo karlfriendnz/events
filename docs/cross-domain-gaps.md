@@ -1,24 +1,25 @@
 # Cross-domain seam gaps — serial fill worklist
 
-## ▶ RESUME HERE (next session) — re-plumb at 68% (501 useDb calls left, build green)
-Branch `replumb/mysql-foundation` (worktree /Users/karl/fm-replumb, DB `fm-new` :3400). All 14 domains have a complete typed seam (/api/v1 + repos + use*Api + contracts); 68% of the frontend is repointed. Build is green. Live app still runs on Supabase for un-converted screens.
+# Cross-domain seam gaps — serial fill worklist
 
-**THE NEXT STEP = a final cleanup pass to reach ~90%:**
-1. Repoint the remaining **cross-domain call sites** in already-converted files to the EXISTING Api composables (a page reads another domain's table — e.g. notifications/communications/member_groups/events/discounts/booking_items — swap the useDb call for the owning domain's use*Api). Mechanical.
-2. Build the last **3 small seams**: (a) notifications + communications SEND path; (b) booking_items read/write (bookings domain); (c) the groups training-event generator (useTermRollover.generateTrainingEvents + groups/[id] createAttendanceEvent) which writes events + invitees — needs an events-domain write route. Plus useOnboarding.detect() cross-domain count aggregate.
-3. Run 3-4 disjoint-repo agents (events/groups/bookings/platform) like the gap-fill wave, methodical, no swarms; build-gate; commit.
+## ▶ STATUS — re-plumb at 83% (261 useDb calls left; build green)
+Branch `replumb/mysql-foundation` (worktree /Users/karl/fm-replumb, DB `fm-new` :3400). ALL 14 domains have a complete typed seam. Of 261 remaining calls: **189 are deliberately-left** (auth, anonymous public booker/calendar, dev seeders, settings/index dev utilities, registration flat-editor) and only **72 are a deep convertible tail**. Excluding deliberate leaves, ~91% converted. Build green; live app still runs on Supabase for un-converted screens.
 
-**DELIBERATELY LEFT (do NOT convert without the decisions below):**
-- Auth (login/set-password — Supabase auth client, not data).
-- Anonymous public booker/calendar (/book, embed/calendar) — blocked on decision 3.
-- Dev utilities (seedDemoEvents/resetDatabase in settings/index.vue, ~100 calls) — blocked on decision 1.
-- registration/index.vue flat-form editor — DECIDED: retire (superseded by FormDesigner); formally remove the route.
+**Waves done:** wave-1 (5 small domains) · wave-2 (groups/events/bookings) · settings+infra · gap-fill wave (missing seam surface) · final cleanup wave (5 agents) · final small-seam batch (12 items). Seams built for every domain incl. attendance, communications, reviews, booking_items, calendar-writes, training-gen, etc.
 
-**TWO OPEN DECISIONS (need Karl):**
-1. Dev seed/reset utilities → build a dedicated dev-only endpoint, or retire from the UI?
-2. /api/v1 GET routes anonymous-capable (so the public embed booker uses the seam), or keep the public booker on the direct RLS client?
+**REMAINING 72-call convertible tail** (small, scattered — a final polish pass):
+- EventsBoard calendars/calendar_categories writes (calendar-writes seam now EXISTS — just repoint) + org-wide separate-sessions read.
+- events/[id]: bookings event-driven reads/deletes (bookings has bookingsForBookables/updateBooking — repoint), member_group_memberships-by-person+group.
+- groups/[id]: forms-tab bookings @~3225, member_group_memberships @~4017.
+- PersonNotes updateNote (people: add updateNote route). useOnboarding.detect (cross-domain count aggregate — build a counts endpoint or accept).
+- Assorted single-call files (grep `db.from` to find; each maps to an existing Api).
 
-**Then the handoff:** backend team builds MySQL behind /api/v1 + adds the auth/tenant-isolation layer (security-audit CRIT-1/2, docs/security-audit.md). Progress dashboard: replumb-progress.html. API reference: docs/api-reference.html.
+**TWO OPEN DECISIONS (Karl):**
+1. Dev seed/reset utilities (settings/index.vue, ~100 calls) → dedicated dev endpoint, or retire?
+2. /api/v1 GET routes anonymous-capable (public embed booker/calendar + /r registration), or keep on the RLS client?
+(Flat-form editor registration/index.vue — DECIDED: retire.)
+
+**Then handoff:** backend team builds MySQL behind /api/v1 + the auth/tenant-isolation layer (security-audit CRIT-1/2, docs/security-audit.md). Dashboard: replumb-progress.html. API ref: docs/api-reference.html.
 
 ---
 
