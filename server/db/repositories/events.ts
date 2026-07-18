@@ -249,7 +249,9 @@ export async function upcomingEvents(
     eq(schema.events.orgId, orgId),
     ne(schema.events.status, 'ARCHIVED'),
     ne(schema.events.status, 'CANCELLED'),
-    gte(schema.events.startAt, nowIso),
+    // startAt is a Drizzle date column — it needs a Date, not the ISO string
+    // (Drizzle calls .toISOString() on the bound value).
+    gte(schema.events.startAt, new Date(nowIso)),
   )
   const rows = await db.select().from(schema.events).where(where)
     .orderBy(asc(schema.events.startAt)).limit(limit)

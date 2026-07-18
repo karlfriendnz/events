@@ -17,13 +17,18 @@ const creds = existsSync('_test/e2e-creds.json')
 type Gap = { where: string; kind: string; detail: string }
 const gaps: Gap[] = []
 mkdirSync('_test/screens', { recursive: true })
+const flush = () => {
+  const byKind: Record<string, number> = {}
+  for (const g of gaps) byKind[g.kind] = (byKind[g.kind] || 0) + 1
+  writeFileSync('_test/scenario-gaps.json', JSON.stringify({ base: BASE, total: gaps.length, byKind, gaps }, null, 2))
+}
 
 // The pages each org type should reach (club gets the full set).
 const CLUB_PAGES = ['/dashboard', '/people', '/groups', '/groups/timetable', '/events', '/bookables',
   '/memberships', '/attendance', '/finances', '/reporting', '/forms', '/settings',
   '/settings/fields', '/settings/permissions', '/settings/memberships', '/organisations', '/disciplines']
 
-test.describe.configure({ mode: 'serial', timeout: 120_000 })
+test.describe.configure({ mode: 'serial', timeout: 360_000 })
 
 test('NSO → Region → 3 Clubs, then walk every page and record the gaps', async ({ page }) => {
   // ── instrument: capture everything that goes wrong ──
@@ -37,10 +42,20 @@ test('NSO → Region → 3 Clubs, then walk every page and record the gaps', asy
   current = 'login'
   await page.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded' })
   await page.locator('input[type="email"]').first().fill(creds.email)
-  await page.locator('input[type="password"], input.p-password-input, input[autocomplete="current-password"]').first().fill(creds.password)
-  await page.getByRole('button', { name: /sign in|log in|login/i }).first().click().catch(() => page.keyboard.press('Enter'))
+  const pw = page.locator('input[type="password"], input.p-password-input, input[autocomplete="current-password"]').first()
+  await pw.fill(creds.password)
+  // The SUBMIT "Sign in" is the last such button (the first is the Sign-in/Register tab toggle).
+  await page.locator('button:has-text("Sign in"), button[type="submit"]').last().click().catch(() => {})
+  await pw.press('Enter').catch(() => {})
   const landed = await page.waitForURL(u => !u.pathname.includes('/login'), { timeout: 30_000 }).then(() => true).catch(() => false)
-  if (!landed) { gaps.push({ where: 'login', kind: 'blocker', detail: 'did not leave /login — auth or dual-backend org-resolution failed' }); await page.screenshot({ path: '_test/screens/login-stuck.png' }) }
+  if (!landed) {
+    const toast = await page.locator('.p-toast, .p-message, [role="alert"]').innerText().catch(() => '')
+    gaps.push({ where: 'login', kind: 'blocker', detail: 'did not leave /login' + (toast ? ` — toast: ${toast.slice(0, 120)}` : ' (no error shown — auth or org-resolution stalled)') })
+    await page.screenshot({ path: '_test/screens/login-stuck.png' })
+  } else {
+    await page.screenshot({ path: '_test/screens/logged-in.png' })
+  }
+  flush()
 
   // ── create the hierarchy via /admin ──
   const createOrg = async (name: string, level: string, parent?: string) => {
@@ -86,13 +101,13 @@ test('NSO → Region → 3 Clubs, then walk every page and record the gaps', asy
   for (const route of CLUB_PAGES) {
     current = `page ${route}`
     const errsBefore = gaps.length
-    const resp = await page.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(() => null)
-    await page.waitForTimeout(1200)
+    await page.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded', timeout: 20_000 }).catch(() => null)
+    await page.waitForTimeout(700)
     if (page.url().includes('/login')) gaps.push({ where: current, kind: 'bounced-login', detail: `${route} bounced to /login` })
     const main = await page.locator('main').innerText().catch(() => '')
     if (main.trim().length < 5 && !page.url().includes('/login')) gaps.push({ where: current, kind: 'empty-main', detail: `${route} rendered empty <main>` })
-    // screenshot the ones that produced errors
     if (gaps.length > errsBefore) await page.screenshot({ path: `_test/screens/err-${route.replace(/\W+/g, '-')}.png` }).catch(() => {})
+    flush()
   }
 
   // ── report ──
