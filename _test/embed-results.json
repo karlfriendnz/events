@@ -1,0 +1,38 @@
+[
+  {
+    "name": "embed-calendar",
+    "url": "/embed/calendar?org=8580bd6b-a297-45f0-a655-01d97c3cdd80",
+    "rendered": true,
+    "consoleErrors": 0,
+    "pageErrors": 0,
+    "directSupabase": [],
+    "sampleErr": ""
+  },
+  {
+    "name": "public-booker",
+    "url": "/book?org=8580bd6b-a297-45f0-a655-01d97c3cdd80",
+    "rendered": true,
+    "consoleErrors": 0,
+    "pageErrors": 0,
+    "directSupabase": [],
+    "sampleErr": ""
+  },
+  {
+    "name": "event-registration",
+    "url": "/r/event/b4532187-cabe-40e8-a758-2dc3aa8abcab",
+    "rendered": true,
+    "consoleErrors": 0,
+    "pageErrors": 0,
+    "directSupabase": [],
+    "sampleErr": ""
+  },
+  {
+    "name": "form-registration",
+    "url": "/r/form/937a4b4c-1e95-4ca9-9fbd-2aae4d56a50b",
+    "rendered": true,
+    "consoleErrors": 0,
+    "pageErrors": 0,
+    "directSupabase": [],
+    "sampleErr": ""
+  }
+]
