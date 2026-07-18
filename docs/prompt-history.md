@@ -1,10 +1,10 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-1 sessions · 211 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+1 sessions · 214 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
-## Session 2026-07-17 06:04 (211 prompts)
+## Session 2026-07-17 06:04 (214 prompts)
 
 **06:04** — a club needs to be able to connect a person type to a NSO person type i.e a national body creates Player, the club also has player but its connected to the player for nso to know the required feilds for a player at club level - does that make sence'?
 
@@ -2429,4 +2429,10 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **20:52** — yes check
 
 **20:55** — sounds good i just want one version of the whole things so do what you need to get that work ing
+
+**21:06** — ok great whats next?
+
+**21:10** — so we need to keep building so we have our backend - but then we need a process to hand it over - which changes the code to a static code base so they can work out what backend they want to do - so we do what we wnat until we Split it out
+
+**21:13** — yup  lets do both of these things
 

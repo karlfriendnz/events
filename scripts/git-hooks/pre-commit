@@ -7,3 +7,6 @@ if node "$REPO/scripts/extract-prompts.mjs" >/dev/null 2>&1; then
   git add "$REPO/docs/prompt-history.md" 2>/dev/null
 fi
 exit 0
+
+# Seam guardrail — block re-tangling the frontend with the backend
+node scripts/check-seam.mjs || exit 1

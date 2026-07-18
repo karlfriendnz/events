@@ -19,7 +19,8 @@
     "test:e2e": "playwright test tests/scenario-hierarchy.spec.ts",
     "e2e:provision": "node --env-file=.env scripts/provision-e2e-user.mjs",
     "e2e:cleanup": "node --env-file=.env scripts/provision-e2e-user.mjs --delete",
-    "test:embeds": "playwright test tests/embeds.spec.ts"
+    "test:embeds": "playwright test tests/embeds.spec.ts",
+    "check:seam": "node scripts/check-seam.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.89.0",
