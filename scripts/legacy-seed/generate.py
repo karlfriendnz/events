@@ -60,6 +60,9 @@ BCRYPT = "$2y$10$4ZFVSAqGXmcSgIHQPs1j9ObWqYNlU0BD.FVxiDLVe80VbQ8pBWYtW"  # bcryp
 PROGRAMMES = [("Recreational",["Rec Juniors","Rec Seniors"]),("Development",["Dev Squad","Dev Advanced"]),
     ("Competitive",["Comp Level 3","Comp Level 5","Comp Elite"]),("Adults",["Adult Fitness"]),
     ("Preschool",["KindyGym","Tumble Tots"]),("Holiday",["Holiday Programme"])]
+TEAM_NAMES = ("Thunderbirds Lightning Phoenix Titans Vipers Falcons Hurricanes Cyclones "
+    "Rockets Comets Blaze Storm Panthers Cobras Kea Hawks Sharks Dragons Warriors Raptors "
+    "Wolves Tigers Kestrels Bolts Flames Spartans Meteors Jaguars Avengers Phantoms Chargers Rebels").split()
 Z = "'0000-00-00'"   # legacy sentinel date (relaxed sql_mode)
 
 # ================================================================== build
@@ -99,7 +102,7 @@ def build(cfg):
         first=r.choice(FIRST); last=r.choice(LAST)
         gender="Female" if first in FEMALE else "Male"
         age=r.randint(19,55) if is_c else r.randint(4,17)
-        role=(6 if i<=3 else 2) if is_c else 1
+        role=(9 if pid==1 else 6 if i<=3 else 2) if is_c else 1   # person 1 = ROLE_ROOT (9)
         if is_c: coaches.append(pid)
         dob=dt.date(2025-age,r.randint(1,12),r.randint(1,28))
         email=(f"admin@{cfg['slug']}.local" if pid==1 else f"{first.lower()}.{last.lower()}{pid}@{cfg['slug']}.demo")
@@ -240,25 +243,36 @@ def build(cfg):
     g.insert("Discount",["id","numFees","discount","type"],rows)
 
     # ---- 10. CUSTOM FIELDS ---------------------------------------------
-    cf=[]; cfnames=[("medical_conditions","Medical conditions","text"),("tshirt","T-shirt size","select"),("school","School","text")]
-    cfids=[]
-    for i,(field,label,typ) in enumerate(cfnames):
-        cid=g.nid("CustomField"); cfids.append((cid,field,typ))
-        cf.append([str(cid),q(field),q(label),q("person"),n(r.choice(codes) if i==2 else None),q(typ),
-            q("S,M,L,XL" if typ=="select" else ""),"1",str(i),"''","''","''"])
+    cf=[]; cfids=[]
+    # (field, label, type, values-CSV, sample-values-for-people)
+    cfdefs=[("medical_conditions","Medical conditions","text","",["None","Asthma","Eczema","ADHD","Epilepsy","None"]),
+            ("allergies","Allergies","text","",["None","Nuts","Dairy","Bee sting","Penicillin","None"]),
+            ("tshirt","T-shirt size","select","XS,S,M,L,XL,XXL",["XS","S","M","L","XL","XXL"]),
+            ("school","School","text","",["St Mary's School","Albany Primary","Rangitoto College","Home schooled","Takapuna Grammar"]),
+            ("year_level","School year level","select","Yr 1,Yr 2,Yr 3,Yr 4,Yr 5,Yr 6,Yr 7,Yr 8",["Yr 1","Yr 2","Yr 3","Yr 4","Yr 5","Yr 6","Yr 7","Yr 8"]),
+            ("dietary","Dietary requirements","text","",["None","Vegetarian","Gluten free","Halal","None"]),
+            ("previous_club","Previous club","text","",["","North Shore Gym","City Gymnastics","","Harbour Club"]),
+            ("photo_consent","Photo/media consent","checkbox","",["1","1","1","0"]),
+            ("skill_level","Skill level","select","Beginner,Intermediate,Advanced,Elite",["Beginner","Intermediate","Advanced","Elite"]),
+            ("emergency_relationship","Emergency contact relationship","text","",["Mother","Father","Grandparent","Guardian","Aunt"])]
+    for i,(field,label,typ,vals,_) in enumerate(cfdefs):
+        cid=g.nid("CustomField"); cfids.append((cid,field,typ,cfdefs[i][4]))
+        cf.append([str(cid),q(field),q(label),q("person"),n(r.choice(codes) if field in ("school","year_level") else None),q(typ),
+            q(vals),"1",str(i),q(f"Captured on registration"),"''","''"])
     g.insert("CustomField",["id","field","name","assocType","codeID","type","values","access","order","description","conditionField","conditionValue"],cf)
+    # CustomSelectValue rows for each select field's options
     rows=[]
-    sel=next(c for c in cfids if c[2]=="select")
-    for i,v in enumerate(["S","M","L","XL"]):
-        rows.append([str(g.nid("CustomSelectValue")),q(v),"NULL",str(sel[0]),str(i)])
+    for (cid,field,typ,samples) in cfids:
+        if typ=="select":
+            for i,v in enumerate(dict.fromkeys(samples)):
+                rows.append([str(g.nid("CustomSelectValue")),q(v),"NULL",str(cid),str(i)])
     g.insert("CustomSelectValue",["id","value","parentID","customFieldID","order"],rows)
+    # populate ~60% of members across several fields
     rows=[]; cfp=set()
-    for pid in r.sample(members,min(len(members),300)):
-        c=r.choice(cfids)
-        if (c[1],pid) in cfp: continue
-        cfp.add((c[1],pid))
-        val="M" if c[2]=="select" else r.choice(["None","Asthma","St Marys School","Nut allergy"])
-        rows.append([q(c[1]),str(pid),q(val)])
+    for pid in members:
+        for (cid,field,typ,samples) in r.sample(cfids,r.randint(2,5)):
+            if (field,pid) in cfp: continue
+            cfp.add((field,pid)); rows.append([q(field),str(pid),q(r.choice(samples))])
     g.insert("CustomFieldPerson",["field","personID","value"],rows)
 
     # ---- 11. AWARDS -----------------------------------------------------
@@ -367,20 +381,32 @@ def build(cfg):
     g.insert("EventTag",["eventID","tag"],rows)
 
     # ---- 15. REG FORMS --------------------------------------------------
-    regtabs=[]; rows=[]
-    for i,(nm,typ) in enumerate([("Player details","player"),("Parent details","parent"),("Emergency contact","ec")]):
-        rt=g.nid("RegTab"); regtabs.append(rt)
-        rows.append([str(rt),q(nm),q(typ),q(nm.split()[0]),"1",str(r.choice([1,4])),q("Please complete"),q('[]'),str(r.choice([0,1]))])
+    # subject tabs (reused across forms)
+    tabdefs=[("Player details","player","Player"),("Parent/Guardian","parent","Parent"),
+             ("Emergency contact","ec","Contact"),("Volunteer details","volunteer","Volunteer"),
+             ("Coach details","coach","Coach")]
+    tab={}; rows=[]
+    for i,(nm,typ,sing) in enumerate(tabdefs):
+        rt=g.nid("RegTab"); tab[typ]=rt
+        rows.append([str(rt),q(nm),q(typ),q(sing),"1",str(4 if typ in("player","volunteer")else 2),q("Please complete this section"),q('[]'),str(1 if typ=="player" else 0)])
     g.insert("RegTab",["id","name","type","singular","min","max","intro","fields","showEC"],rows)
+    # multiple registration forms
+    formdefs=[("Junior Player Registration","term","player","player","parent","#1E90FF"),
+              ("Senior Player Registration","term","player","player","ec","#E4572E"),
+              ("Holiday Programme Registration","holiday","player","player","parent","#17A398"),
+              ("Casual / Social Membership","casual","player","player","ec","#8E44AD"),
+              ("Volunteer & Coach Registration","volunteer","volunteer","volunteer","coach","#F39C12")]
     regforms=[]; rows=[]
-    for i in range(2):
+    for i,(nm,typ,prim,t1,t2,col) in enumerate(formdefs):
         rf=g.nid("RegForm"); regforms.append(rf)
-        rows.append([str(rf),q(f"{'Term' if i==0 else 'Holiday'} Registration"),q("Sign up now"),q("term"),
-            str(regtabs[0]),str(regtabs[1]),q("player"),"0",n(r.choice(codes)),"1","0","''","''","''","''",str(i),"NULL"])
+        rows.append([str(rf),q(nm),q("Register online in a few minutes"),q(typ),str(tab[t1]),str(tab[t2]),q(prim),
+            "0",n(r.choice(codes)),str(1 if typ in("term","casual")else 0),str(1 if typ=="holiday" else 0),
+            q("Assets/uniforms can be added during checkout."),q("I agree to the club terms and conditions."),
+            q("Please review your details before submitting."),q("Thanks for registering! A confirmation email is on its way."),str(i),q(col)])
     g.insert("RegForm",["id","name","subtitle","type","regTab1ID","regTab2ID","primary","termset","billingCodeID","concessions","vaccinePass","assetsText","termsText","summaryText","successText","order","tileColour"],rows)
     rows=[]; rfc=set()
     for rf in regforms:
-        for c in r.sample(leaf,3):
+        for c in r.sample(leaf,r.randint(2,4)):
             if (rf,c) not in rfc: rfc.add((rf,c)); rows.append([str(rf),str(c)])
     g.insert("RegFormCode",["regFormID","codeID"],rows)
 
@@ -398,7 +424,12 @@ def build(cfg):
     g.insert("Email",["id","subject","message","personID","recipients","subscribers","transmissionID"],rows)
     rows=[[str(g.nid("Image")),q(r.choice(["logo","banner","gallery"])),"800","600",q("jpg"),str(r.choice([gr['id'] for gr in groups]))] for _ in range(12)]
     g.insert("Image",["id","label","width","height","ext","assocID"],rows)
-    setts=[("clubName",cfg["slug"].title()+" Club"),("currency","NZD"),("locale","en-NZ"),("season","2025"),("timezone","Pacific/Auckland")]
+    setts=[("clubName",cfg["slug"].title()+" Club"),("currency","NZD"),("locale","en-NZ"),("season",str(TODAY.year)),("timezone","Pacific/Auckland"),
+        # --- enable EVERY module (menu gates on these) ---
+        ("module-venues","1"),("module-competitions","enabled"),("module-merchandise","1"),("module-program","1"),
+        ("module-assets","1"),("module-awards","1"),("module-resources","1"),
+        ("signup","1"),("waitlist","1"),("membership","group"),("comp-sports","0"),
+        ("comp-scoreentry","1"),("comp-scoresheets","1"),("signup-payment","1")]
     g.insert("Settings",["key","value"],[[q(k),q(v)] for k,v in setts])
     g.insert("Settings2",["key","value"],[[q("terminology"),q('{"member":"Gymnast","group":"Class"}')],[q("theme"),q('{"primary":"#1E2157"}')]])
     rows=[[str(g.nid("Log")),n(r.choice(coaches)),q("127.0.0.1"),q(r.choice(["Person","Group","Fee"])),str(r.randint(1,100)),q('{"action":"update"}')] for _ in range(20)]
@@ -428,19 +459,19 @@ def build(cfg):
     g.insert("CompClubPerson",["personID","compClubID"],cprows)
     g.insert("CompClubPersonRole",["personID","compClubID","name"],crrows)
     for ci in range(NC):
-        comp=g.nid("Comp"); cs=dt.date(2025,r.choice([3,6,9]),1)
+        comp=g.nid("Comp"); cs=TODAY + dt.timedelta(days=r.choice([14,28,42]))  # upcoming -> signup OPEN now
         g.insert("Comp",["id","name","compSportID","start","end","signupOpen","signupClosed","playerCutoff","exclCutoff",
             "needUmpire","registerPool","playerNotify","publicRegister","playerRegTabID","officialRegTabID","teamFields",
             "maxClubTeams","entryRequirement","requiredStaffPositions","personHelpText"],
             [[str(comp),q(f"{cfg['slug'].title()} Championship {ci+1}"),str(r.randint(1,4)),dd(cs),dd(cs+dt.timedelta(days=60)),
               dd(cs-dt.timedelta(days=40)),dd(cs-dt.timedelta(days=10)),dd(cs),dd(cs),"1","0","1","1",
-              str(regtabs[0]),str(regtabs[2]),q("[]"),"4",q(""),q("Manager,Coach"),q("")]])
+              str(tab['player']),str(tab['coach']),q("[]"),"4",q(""),q("Manager,Coach"),q("")]])
         # divisions
         divs=[]
         drows=[]
-        for di in range(r.randint(2,3)):
+        for di in range(2):   # exactly 2 divisions
             d=g.nid("CompDivision"); divs.append(d)
-            drows.append([str(d),str(r.choice([0,1])),q(f"Division {di+1}"),str(comp),q("standard"),money(r.choice([40,60,80])),
+            drows.append([str(d),"0",q(["Premier Division","Championship Division"][di]),str(comp),q("standard"),money(r.choice([40,60,80])),
                 money(10),dd(cs),"4","8","2",str(r.choice([6,8])),str(r.choice([14,18])),dd(cs),str(r.choice((0,1,2))),q("Medals"),
                 "5","12","0","0","0","0",str(di),"''","''","1","0","7","5","3"])
         g.insert("CompDivision",["id","type","name","compID","scoreSheet","fee","umpireFee","feeDue","minTeams","maxTeams",
@@ -456,66 +487,89 @@ def build(cfg):
         g.insert("CompGameTime",["id","venueID","compDivisionID","day","time"],
             [[str(g.nid("CompGameTime")),str(r.choice(venues)),str(d),str(r.randint(1,7)),"'09:00:00'"] for d in divs])
         # teams (per division) with players
-        teams=[]; trows=[]; dtrows=[]; tprows=[]; psrows=[]
+        teams=[]; trows=[]; dtrows=[]; tprows=[]; psrows=[]; div_teams={d:[] for d in divs}
+        tnames=r.sample(TEAM_NAMES,len(divs)*4); tni=0; tname_of={}
         for d in divs:
-            for ti in range(r.randint(3,5)):
-                tm=g.nid("CompTeam"); teams.append((tm,d)); rep=r.choice(clubreps)
-                trows.append([str(tm),q(f"Team {tm}"),n(rep)])
+            for ti in range(4):   # 4 teams per division (clean double round-robin + top-4 playoffs)
+                tm=g.nid("CompTeam"); teams.append((tm,d)); div_teams[d].append(tm)
+                tname_of[tm]=tnames[tni]
+                trows.append([str(tm),q(tnames[tni]),"NULL"]); tni+=1   # internal comp -> no external comp-club
                 dtrows.append([str(tm),str(d),"1","1"])
-                for pid in r.sample(allteam_persons,r.randint(6,9)):
+                for j,pid in enumerate(r.sample(allteam_persons,14)):   # 12 players + coach + manager
                     tp=g.nid("CompTeamPerson")
-                    tprows.append([str(tp),str(tm),str(pid),str(comp),str(r.choice([1,1,2])),q(r.choice(["","Captain","Vice"])),"0"])
+                    role=2 if j==0 else 3 if j==1 else 0   # 1 coach, 1 manager, rest ROLE_PLAYER(0)
+                    tprows.append([str(tp),str(tm),str(pid),str(comp),str(role),q("Captain" if j==2 else ""),"0"])
                     psrows.append([str(tp),str(r.randint(1,4))])
+        # competition COORDINATORS (compTeamID NULL): CCOORD 12, UCOORD 11, RCOORD 10 -> the "Coordinators" tab
+        for role,pid in zip((12,11,10,10),r.sample(coaches,4)):
+            tp=g.nid("CompTeamPerson")
+            tprows.append([str(tp),"NULL",str(pid),str(comp),str(role),q(""),"0"])
         g.insert("CompTeam",["id","name","compClubID"],trows)
         g.insert("CompDivisionTeam",["compTeamID","compDivisionID","approved","requireUmpire"],dtrows)
         g.insert("CompTeamPerson",["id","compTeamID","personID","compID","role","position","special"],tprows)
         g.insert("CompPersonSport",["compTeamPersonID","compSportID"],psrows)
-        # rounds -> pools -> games
-        rounds=[]; rrows=[]
-        for d in divs:
-            for ri in range(2):
-                rd=g.nid("CompRound"); rounds.append((rd,d))
-                rrows.append([str(rd),q(f"Round {ri+1}"),str(d),str(r.choice([0,1])),"NULL",dd(cs),dd(cs+dt.timedelta(days=30)),"1",str(ri)])
+        # per division: ONE double round-robin round (type 0) + ONE playoffs round (type 4)
+        games=[]; grows=[]; cevrows=[]; rrows=[]; prows=[]; ptrows=[]; tprows2=[]
+        SLOTS=["09:00:00","10:30:00","12:00:00","13:30:00","15:00:00"]
+        def mkgame(gm,rd,h,a,gtype,playoffs,placement,gname,gdate,slot,played=True):
+            ev=g.nid("Event")
+            cevrows.append([str(ev),n(r.choice(coaches)),"2",q(gname),q("Competition venue"),str(r.choice(venues)),
+                dd(gdate),f"'{slot}'",dd(gdate),"'16:30:00'",money(0),dd(gdate),q("Competition fixture"),"NULL","NULL","0",dd(gdate),"''","0"])
+            if played:
+                hs,as_=r.randint(10,40),r.randint(10,40); st=5   # STATUS_PLAYED
+                hp="3" if hs>as_ else ("1" if hs==as_ else "0"); ap="3" if as_>hs else ("1" if hs==as_ else "0")
+            else:
+                hs,as_,st,hp,ap=0,0,1,"0","0"   # STATUS_UNPLAYED (scheduled, no result yet)
+            grows.append([str(gm),str(st),str(gtype),str(rd),str(ev),str(h),str(a),"NULL","NULL",str(hs),str(as_),
+                hp,ap,"0","0","NULL","NULL","NULL","NULL","0","0",q(gname),"''",str(playoffs),str(placement),q("")])
+            return hs,as_
+        for di,d in enumerate(divs):
+            dteams=div_teams[d]
+            # --- ROUND ROBIN (double: every pair plays twice, home/away swapped) ---
+            rr=g.nid("CompRound"); rrows.append([str(rr),q("Round Robin"),str(d),"0","NULL",dd(cs),dd(cs+dt.timedelta(days=70)),"1","0"])
+            pool=g.nid("CompPool"); prows.append([str(pool),q("Pool A"),str(rr)])
+            for oi,t in enumerate(dteams): ptrows.append([str(pool),str(t),str(oi)])
+            pairs=[(dteams[i],dteams[j]) for i in range(len(dteams)) for j in range(i+1,len(dteams))]
+            fixtures=pairs+[(b,a) for (a,b) in pairs]   # second leg swaps home/away
+            standings={t:0 for t in dteams}
+            for gi,(h,a) in enumerate(fixtures):
+                gm=g.nid("CompGame"); games.append((gm,d,h,a))
+                gdate=cs+dt.timedelta(days=7*(gi//2))   # ~2 fixtures per weekend
+                hs,as_=mkgame(gm,rr,h,a,0,0,0,f"Round {gi//2+1}: {tname_of[h]} v {tname_of[a]}",gdate,SLOTS[gi%len(SLOTS)])
+                if hs>as_: standings[h]+=3
+                elif as_>hs: standings[a]+=3
+                else: standings[h]+=1; standings[a]+=1
+            # --- PLAYOFFS (seeded by round-robin standings) ---
+            seeds=sorted(dteams,key=lambda t:-standings[t])   # 1st..4th
+            po=g.nid("CompRound"); rrows.append([str(po),q("Playoffs"),str(d),"4","NULL",dd(cs),dd(cs+dt.timedelta(days=100)),"1","1"])
+            pod=cs+dt.timedelta(days=7*(len(fixtures)//2)+7)
+            # semis are PLAYED; grand final + 3rd/4th are scheduled but NOT yet played (partial finals)
+            g1=g.nid("CompGame"); games.append((g1,d,seeds[0],seeds[3])); h1,a1=mkgame(g1,po,seeds[0],seeds[3],1,1,4,f"Semi Final 1: {tname_of[seeds[0]]} v {tname_of[seeds[3]]}",pod,SLOTS[0])
+            g2=g.nid("CompGame"); games.append((g2,d,seeds[1],seeds[2])); h2,a2=mkgame(g2,po,seeds[1],seeds[2],1,1,4,f"Semi Final 2: {tname_of[seeds[1]]} v {tname_of[seeds[2]]}",pod,SLOTS[1])
+            w1,l1=(seeds[0],seeds[3]) if h1>=a1 else (seeds[3],seeds[0])
+            w2,l2=(seeds[1],seeds[2]) if h2>=a2 else (seeds[2],seeds[1])
+            gf=g.nid("CompGame"); games.append((gf,d,w1,w2)); mkgame(gf,po,w1,w2,1,1,1,f"Grand Final: {tname_of[w1]} v {tname_of[w2]}",pod+dt.timedelta(days=7),SLOTS[0],played=False)
+            gb=g.nid("CompGame"); games.append((gb,d,l1,l2)); mkgame(gb,po,l1,l2,1,1,3,f"3rd / 4th Playoff: {tname_of[l1]} v {tname_of[l2]}",pod+dt.timedelta(days=7),SLOTS[1],played=False)
+            for oi,t in enumerate(seeds):
+                tprows2.append([str(g.nid("CompTeamPlace")),str(pool),str(t),str(oi),"NULL",str(oi+1),str(oi+1),"NULL","NULL"])
         g.insert("CompRound",["id","name","compDivisionID","type","parentID","publishFrom","publishTo","publishOptions","order"],rrows)
-        pools=[]; prows=[]
-        for (rd,d) in rounds:
-            pool=g.nid("CompPool"); pools.append((pool,d)); prows.append([str(pool),q(f"Pool {pool}"),str(rd)])
         g.insert("CompPool",["id","name","compRoundID"],prows)
-        ptrows=[]
-        for (pool,d) in pools:
-            dteams=[t for (t,dd_) in teams if dd_==d]
-            for i,t in enumerate(r.sample(dteams,min(len(dteams),4)) if dteams else []):
-                ptrows.append([str(pool),str(t),str(i)])
         g.insert("CompPoolTeam",["compPoolID","compTeamID","order"],ptrows)
-        # games (round robin-ish within division)
-        games=[]; grows=[]
-        for (rd,d) in rounds:
-            dteams=[t for (t,dd_) in teams if dd_==d]
-            r.shuffle(dteams)
-            for i in range(0,len(dteams)-1,2):
-                gm=g.nid("CompGame"); h,a=dteams[i],dteams[i+1]; games.append((gm,d,h,a))
-                hs,as_=r.randint(0,40),r.randint(0,40)
-                grows.append([str(gm),"1",str(rd),"NULL",str(h),str(a),"NULL","NULL",str(hs),str(as_),
-                    "3" if hs>as_ else "0","3" if as_>hs else "0","0","0","NULL","NULL","NULL","NULL","0","0",
-                    q(f"Game {gm}"),"''","0","0",q("")])
-        g.insert("CompGame",["id","type","compRoundID","eventID","homeID","awayID","homeTeamPlaceID","awayTeamPlaceID",
+        g.insert("Event",["id","personID","type","name","location","venueID","date","startTime","endDate","endTime","fee","feeDue","notes","awardID","programID","maxAttendees","closeDate","terms","notifications"],cevrows)
+        g.insert("CompGame",["id","status","type","compRoundID","eventID","homeID","awayID","homeTeamPlaceID","awayTeamPlaceID",
             "homeScore","awayScore","homePoints","awayPoints","homeBonus","awayBonus","homeGameID","awayGameID",
             "homePoolID","awayPoolID","homeRank","awayRank","name","note","playoffs","placement","groupName"],grows)
-        # team places (standings) referencing pools
-        tprows2=[]
-        for (pool,d) in pools:
-            dteams=[t for (t,dd_) in teams if dd_==d]
-            for i,t in enumerate(r.sample(dteams,min(len(dteams),4)) if dteams else []):
-                tprows2.append([str(g.nid("CompTeamPlace")),str(pool),str(t),str(i),"NULL",str(i+1),str(i+1),"NULL","NULL"])
         g.insert("CompTeamPlace",["id","compPoolID","compTeamID","order","placePoolID","placement","rank","placeGameID","tempGameID"],tprows2)
         # game officials + game persons + stats
         gofr=[]; gpr=[]; gsr=[]
         for (gm,d,h,a) in games:
             gofr.append([str(g.nid("CompGameOfficial")),str(gm),n(r.choice(coaches)),"NULL",q("Umpire"),"1"])
+            gseen=set(); ordn=0
             for team in (h,a):
-                tp_players=[r_[2] for r_ in [] ]  # placeholder
                 for pid in r.sample(allteam_persons,r.randint(5,7)):
-                    gpr.append([str(g.nid("CompGamePerson")),"1",str(gm),str(team),str(pid),str(r.randint(1,20)),q(r.choice(["GK","DEF","MID","FWD"])),"0","''","0"])
+                    if pid in gseen: continue   # a person can't play for both teams in one game
+                    gseen.add(pid)
+                    gpr.append([str(g.nid("CompGamePerson")),"1",str(gm),str(team),str(pid),str(r.randint(1,20)),q(r.choice(["GK","DEF","MID","FWD"])),str(ordn),"''","0"]); ordn+=1
             for stype in ["goals","fouls"]:
                 gsr.append([str(gm),q(stype),"1",str(r.randint(0,10)),str(r.randint(0,10))])
         g.insert("CompGameOfficial",["id","compGameID","personID","compTeamID","duty","type"],gofr)
@@ -558,7 +612,7 @@ def build(cfg):
                 if (se,pid) in pseen: continue
                 pseen.add((se,pid))
                 p=g.nid("CompSessionParticipant"); parts.append((p,cg,se))
-                sprows.append([str(p),str(cg),str(se),str(pid),"NULL",n(r.choice(clubreps)),q("L3"),q("Div1"),"0"])
+                sprows.append([str(p),str(cg),str(se),str(pid),"NULL","NULL",q("L3"),q("Div1"),"0"])
         g.insert("CompSessionParticipant",["id","compGroupID","compSessionID","personID","compTeamID","compClubID","level","division","order"],sprows)
         schedrows=[]; scheds=[]
         for (p,cg,se) in parts:
