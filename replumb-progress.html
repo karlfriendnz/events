@@ -53,10 +53,28 @@
 
   <div class="bars">
     <div class="stat"><b>118</b><span>tables in MySQL</span></div>
-    <div class="stat"><b>1 / ~80</b><span>screens migrated</span></div>
+    <div class="stat"><b>0 / 138</b><span>screens on the seam</span></div>
     <div class="stat"><b>Green</b><span>live version still works</span></div>
     <div class="stat"><b>77/77</b><span>seam checks passing</span></div>
   </div>
+
+  <h2>Seam coverage audit <span style="color:var(--mut);font-weight:400;font-size:14px">(64 / 118 tables have a repo · 54 gaps)</span></h2>
+  <p style="color:var(--mut);margin:-4px 0 12px">Automated audit of which of the 118 MySQL tables a repository actually touches (<code>schema.X</code> references). 64 covered by the 16 domain repos; the 54 below are gaps — mostly <b>child/detail tables inside already-built domains</b> (extend that repo), plus a few whole domains with no repo yet. These must close before the pages that use them can fully convert.</p>
+  <table>
+    <thead><tr><th>Group</th><th>Uncovered tables</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td class="task">Bookings / venues detail (extend bookings repo)</td><td>19 tables — <code>activity_bookables</code> <code>activity_groups</code> <code>activity_mode_bookables</code> <code>activity_mode_required_items</code> <code>activity_mode_resources</code> <code>addons</code> …</td><td><span class="badge b-todo">⬜ seam gap</span></td></tr>
+      <tr><td class="task">Access-control hardware (post-prototype)</td><td>6 tables — <code>access_scans</code> <code>doors</code> <code>light_zones</code> <code>bookable_doors</code> <code>bookable_light_zones</code> <code>physical_schedules</code></td><td><span class="badge b-todo">⬜ seam gap</span></td></tr>
+      <tr><td class="task">Events detail (extend events repo)</td><td>8 tables — <code>fee_components</code> <code>registration_sessions</code> <code>registration_ticket_items</code> <code>event_notes</code> <code>event_tasks</code> <code>connection_groups</code> …</td><td><span class="badge b-todo">⬜ seam gap</span></td></tr>
+      <tr><td class="task">Groups / memberships detail (extend those repos)</td><td>4 tables — <code>member_group_plans</code> <code>member_group_terms</code> <code>group_views</code> <code>profile_forms</code></td><td><span class="badge b-todo">⬜ seam gap</span></td></tr>
+      <tr><td class="task">Finance detail (extend finances repo)</td><td>5 tables — <code>transactions</code> <code>bank_accounts</code> <code>xero_sync_errors</code> <code>booking_discount_activities</code> <code>booking_discount_activity_modes</code></td><td><span class="badge b-todo">⬜ seam gap</span></td></tr>
+      <tr><td class="task">People / access / dashboards (new repo work)</td><td>4 tables — <code>person_memberships</code> <code>org_members</code> <code>permission_group_members</code> <code>user_dashboards</code></td><td><span class="badge b-todo">⬜ seam gap</span></td></tr>
+      <tr><td class="task">Cross-cutting infra (new repos)</td><td>8 tables — <code>attendance</code> <code>audit_log</code> <code>notifications</code> <code>tasks</code> <code>custom_reports</code> <code>page_comments</code> …</td><td><span class="badge b-todo">⬜ seam gap</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>End-to-end HTTP path — proven ✅</h2>
+  <p style="color:var(--mut);margin:-4px 0 12px">The seam was verified through a live Nitro dev server (port 3077, pointed at MySQL), not just the repo layer: <code>GET /api/v1/organisations</code> → route → repo → MySQL → contract-validated JSON returned the seeded org; <code>GET /api/v1/people?orgId=…</code> returned its roster; a missing <code>orgId</code> correctly returned <b>400</b>. The full request path (Nitro route → repository → Drizzle → MySQL → parse-on-output) works.</p>
 
   <h2>Full test pass — every rebuilt function <span style="color:var(--mut);font-weight:400;font-size:14px">(77/77 checks ✅)</span></h2>
   <p style="color:var(--mut);margin:-4px 0 12px">A National org + a Region + two Clubs are seeded, then every repository function is exercised (reads, create→update→delete round-trips, and a four-sport multi-body club) against real MySQL. Run: <code>npx tsx scripts/test-seam.ts</code>.</p>
