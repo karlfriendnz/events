@@ -1,5 +1,28 @@
 # Cross-domain seam gaps — serial fill worklist
 
+## ▶ RESUME HERE (next session) — re-plumb at 68% (501 useDb calls left, build green)
+Branch `replumb/mysql-foundation` (worktree /Users/karl/fm-replumb, DB `fm-new` :3400). All 14 domains have a complete typed seam (/api/v1 + repos + use*Api + contracts); 68% of the frontend is repointed. Build is green. Live app still runs on Supabase for un-converted screens.
+
+**THE NEXT STEP = a final cleanup pass to reach ~90%:**
+1. Repoint the remaining **cross-domain call sites** in already-converted files to the EXISTING Api composables (a page reads another domain's table — e.g. notifications/communications/member_groups/events/discounts/booking_items — swap the useDb call for the owning domain's use*Api). Mechanical.
+2. Build the last **3 small seams**: (a) notifications + communications SEND path; (b) booking_items read/write (bookings domain); (c) the groups training-event generator (useTermRollover.generateTrainingEvents + groups/[id] createAttendanceEvent) which writes events + invitees — needs an events-domain write route. Plus useOnboarding.detect() cross-domain count aggregate.
+3. Run 3-4 disjoint-repo agents (events/groups/bookings/platform) like the gap-fill wave, methodical, no swarms; build-gate; commit.
+
+**DELIBERATELY LEFT (do NOT convert without the decisions below):**
+- Auth (login/set-password — Supabase auth client, not data).
+- Anonymous public booker/calendar (/book, embed/calendar) — blocked on decision 3.
+- Dev utilities (seedDemoEvents/resetDatabase in settings/index.vue, ~100 calls) — blocked on decision 1.
+- registration/index.vue flat-form editor — DECIDED: retire (superseded by FormDesigner); formally remove the route.
+
+**TWO OPEN DECISIONS (need Karl):**
+1. Dev seed/reset utilities → build a dedicated dev-only endpoint, or retire from the UI?
+2. /api/v1 GET routes anonymous-capable (so the public embed booker uses the seam), or keep the public booker on the direct RLS client?
+
+**Then the handoff:** backend team builds MySQL behind /api/v1 + adds the auth/tenant-isolation layer (security-audit CRIT-1/2, docs/security-audit.md). Progress dashboard: replumb-progress.html. API reference: docs/api-reference.html.
+
+---
+
+
 Gaps reported by the domain-conversion agents: a function/field one domain needs
 from a domain it doesn't own. All are **guarded/documented in-code** (no build break;
 the feature degrades gracefully until filled). Most auto-resolve when the owning
