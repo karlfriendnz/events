@@ -1,0 +1,307 @@
+{
+  "base": "http://localhost:3077",
+  "total": 59,
+  "byKind": {
+    "server-5xx": 2,
+    "console-error": 2,
+    "request-failed": 54,
+    "page-crash": 1
+  },
+  "gaps": [
+    {
+      "where": "page /dashboard",
+      "kind": "server-5xx",
+      "detail": "500 /api/v1/events/upcoming?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80&now=2026-07-18T10:46:48.474Z&limit=6"
+    },
+    {
+      "where": "page /dashboard",
+      "kind": "console-error",
+      "detail": "Failed to load resource: the server responded with a status of 500 (Server Error)"
+    },
+    {
+      "where": "page /dashboard",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /dashboard",
+      "kind": "server-5xx",
+      "detail": "500 /api/v1/events/upcoming?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80&now=2026-07-18T10:46:48.474Z&limit=6"
+    },
+    {
+      "where": "page /dashboard",
+      "kind": "console-error",
+      "detail": "Failed to load resource: the server responded with a status of 500 (Server Error)"
+    },
+    {
+      "where": "page /dashboard",
+      "kind": "page-crash",
+      "detail": "[GET] \"/api/v1/events/upcoming?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80&now=2026-07-18T10:46:48.474Z&limit=6\": 500 Server Error"
+    },
+    {
+      "where": "page /people",
+      "kind": "request-failed",
+      "detail": "GET https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/organisations?select=name%2Corg_level%2Cicon_url%2Clogo_url%2Cbrand_id&id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /people",
+      "kind": "request-failed",
+      "detail": "GET https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/notifications?select=id%2Ctype%2Ctitle%2Cbody%2Clink%2Cread_at%2Ccreated_at&org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&order=created_at.desc&limit=20 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /people",
+      "kind": "request-failed",
+      "detail": "GET https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/calendars?select=id%2Cname%2Cpin_to_nav%2Cicon%2Ccolor&org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&order=sort_order.asc — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /people",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /people",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /people",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /people",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /groups",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /groups",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /groups",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /groups/timetable",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /groups/timetable",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /groups/timetable",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /events",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /events",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /events",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /bookables",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /bookables",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /bookables",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /memberships",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /memberships",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /memberships",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /attendance",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /attendance",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /attendance",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /finances",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /finances",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /finances",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /reporting",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /reporting",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /reporting",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /forms",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /forms",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /forms",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /settings",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /settings",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /settings",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /settings/fields",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /settings/fields",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /settings/fields",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /settings/permissions",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /settings/permissions",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /settings/permissions",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /settings/memberships",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /settings/memberships",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /settings/memberships",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /organisations",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /organisations",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /organisations",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /organisations",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /disciplines",
+      "kind": "request-failed",
+      "detail": "GET /api/v1/terminology/sport?orgId=8580bd6b-a297-45f0-a655-01d97c3cdd80 — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /disciplines",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    },
+    {
+      "where": "page /disciplines",
+      "kind": "request-failed",
+      "detail": "HEAD https://hqhvuwfhnxrkeeoevvtx.supabase.co/rest/v1/bookings?select=id%2Cbookable%3Abookables%21inner%28org_id%29&bookable.org_id=eq.8580bd6b-a297-45f0-a655-01d97c3cdd80&status=eq.PENDING — net::ERR_ABORTED"
+    }
+  ]
+}

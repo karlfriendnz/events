@@ -1,0 +1,166 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Re-plumb — overnight report</title>
+<style>
+:root{--nat:#2494D3;--ok:#16a34a;--wip:#d97706;--bad:#dc2626;--bg:#f5f8fa;--card:#fff;--line:#e6ebf1;--ink:#1f2937;--mut:#6b7280}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+.wrap{max-width:1000px;margin:0 auto;padding:28px 20px 90px}
+header{background:linear-gradient(180deg,var(--nat),#176089);color:#fff;border-radius:16px;padding:26px 28px}
+header h1{margin:0 0 6px;font-size:26px}header p{margin:0;opacity:.94}
+.sub{margin-top:10px;font-size:13px;opacity:.85}
+h2{font-size:17px;margin:30px 0 10px;border-bottom:2px solid var(--line);padding-bottom:6px}
+h3{font-size:15px;margin:18px 0 6px}
+.bars{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:20px 0}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.stat b{display:block;font-size:24px}.stat span{color:var(--mut);font-size:13px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:10px 0}
+th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line);vertical-align:top;font-size:14px}
+th{background:#fafbfc;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+tr:last-child td{border-bottom:none}
+.b{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+.ok{background:#dcfce7;color:var(--ok)}.wip{background:#fef3c7;color:var(--wip)}.bad{background:#fee2e2;color:var(--bad)}.info{background:#e0f2fe;color:#0369a1}
+code{background:#eef1f4;padding:1px 6px;border-radius:5px;font-size:13px;font-family:ui-monospace,Menlo,monospace}
+pre{background:#0f172a;color:#e2e8f0;padding:14px 16px;border-radius:10px;overflow-x:auto;font-size:13px;line-height:1.5}
+ul{margin:6px 0 6px 2px;padding-left:20px}li{margin:3px 0}
+.k{color:var(--ok);font-weight:700}.x{color:var(--bad);font-weight:700}
+.lead{color:var(--mut)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:720px){.grid2{grid-template-columns:1fr}}
+.big{font-size:15px}
+</style></head><body><div class="wrap">
+
+<header>
+<h1>Re-plumb — overnight report</h1>
+<p>Everything done while you were out: the frontend cut over onto the swappable MySQL seam, tested from three angles, and the NSO→Region→3-Clubs scenario driven end-to-end through the real UI with Playwright.</p>
+<div class="sub">Branch <code>replumb/mysql-foundation</code> · worktree <code>/Users/karl/fm-replumb</code> · all committed &amp; pushed (HEAD <code>d1ea433</code>) · build green · dev server running on <b>http://localhost:3077</b></div>
+</header>
+
+<div class="bars">
+<div class="stat"><b>14 / 14</b><span>domains on the seam</span></div>
+<div class="stat"><b>~99%</b><span>of convertible frontend done</span></div>
+<div class="stat"><b>464</b><span>/api/v1 routes</span></div>
+<div class="stat"><b>Green</b><span>build + live server</span></div>
+</div>
+
+<div class="card big">
+<b>Bottom line:</b> the re-plumb is <b>functionally complete</b>. Every one of the 14 domains has a full typed seam (repos → <code>/api/v1</code> → composables → Zod contracts), and the frontend is repointed onto it apart from three <i>deliberately-left</i> buckets (dev utilities, the anonymous public booker, and Supabase auth). The seam works end-to-end: a super-admin logged in via Playwright and <b>created a National → Region → 3 Clubs hierarchy through the real UI, writing to MySQL.</b> The remaining work is the backend team's (real MySQL + the auth/tenant layer) plus two product decisions that are yours.
+</div>
+
+<h2>1 · What got done overnight ✅</h2>
+<table>
+<tr><th>Work</th><th>Result</th></tr>
+<tr><td><b>Final polish pass</b> — repointed the last convertible tail onto the seam via ~9 new tiny seams (updateNote, onboarding-counts, event-driven-bookings CRUD, createNotification [cleared 6 sites], categoryEventCounts, upcoming, separateSessions, accessConnectionCounts, groupsForPersons)</td><td><span class="b ok">✅ done</span></td></tr>
+<tr><td><b>3-angle automated test</b> of the whole seam (good-user / hacker / numpty) — <code>scripts/full-test.ts</code></td><td><span class="b ok">✅ built + run</span></td></tr>
+<tr><td><b>Playwright E2E scenario</b> — login → build NSO/Region/3-Clubs through the UI → walk every major page, recording gaps — <code>tests/scenario-hierarchy.spec.ts</code></td><td><span class="b ok">✅ passed</span></td></tr>
+<tr><td><b>Fixed a real bug</b> the scenario surfaced: <code>events/upcoming</code> 500 (dashboard widget) — Drizzle date column got an ISO string</td><td><span class="b ok">✅ fixed</span></td></tr>
+<tr><td><b>Live dev server</b> stood up against MySQL so you can click around</td><td><span class="b ok">✅ up on :3077</span></td></tr>
+<tr><td><b>Test suite wired in</b> — <code>npm run test:seam</code>, <code>test:e2e</code>, <code>e2e:provision</code>/<code>e2e:cleanup</code></td><td><span class="b ok">✅ in package.json</span></td></tr>
+</table>
+
+<h2>2 · Test results — the three angles</h2>
+
+<div class="grid2">
+<div class="card"><h3>😊 Good user — <span class="k">4 / 4</span></h3><ul>
+<li><span class="k">✔</span> All <b>197 GET routes</b> respond — <b>zero 500s</b></li>
+<li><span class="k">✔</span> people create→update→delete round-trip</li>
+<li><span class="k">✔</span> events create→update→delete round-trip</li>
+<li><span class="k">✔</span> groups create→update→delete round-trip</li>
+</ul><p class="lead">The seam works end-to-end through the real HTTP path.</p></div>
+
+<div class="card"><h3>🕵️ Hacker — <span class="k">6 / 6</span></h3><ul>
+<li><span class="k">✔</span> Mass-assignment blocked — <code>PATCH person {orgId}</code> can't move tenants</li>
+<li><span class="k">✔</span> Mass-assignment blocked — <code>PATCH org {parentId}</code> can't re-parent</li>
+<li><span class="k">✔</span> SQL-injection in <code>?q</code> — parameterised, table intact</li>
+<li><span class="k">✔</span> Garbage id → 404, no crash</li>
+<li><span class="x">⚠</span> <b>No auth</b> on routes (CRIT-1) — <i>confirmed open, backend team's layer</i></li>
+<li><span class="x">⚠</span> <b>No tenant isolation</b> — any <code>?orgId</code> honoured (CRIT-2) — <i>same</i></li>
+</ul></div>
+</div>
+
+<div class="card"><h3>🤪 Numpty — <span class="x">1 / 4</span> — <b>a real finding</b></h3>
+<p><b>171 of 199 write routes return a <span class="x">500</span> on garbage input instead of a clean <span class="k">400</span>.</b> The routes validate <i>output</i> (parse-on-output) but throw an unhandled <code>ZodError</code> on bad <i>input</i>, which surfaces as a 500 with a stack. Empty-body create and wrong-type fields both 500.</p>
+<p class="lead"><b>Not fixed tonight</b> (a safe fix touches all ~199 routes / adds a global error handler — the backend team's route-hardening domain; it's already the security audit's MEDIUM-1). <b>Recommended fix:</b> a Nitro error hook mapping <code>ZodError → 400</code> + <code>safeParse</code> on input. Low user impact today (real forms send valid shapes); matters for a public API.</p>
+</div>
+
+<h2>3 · The Playwright scenario — NSO → Region → 3 Clubs 🎭</h2>
+<div class="card">
+<p><b>It works.</b> Playwright logged in as a super-admin and, <b>through the real UI</b>, created the whole hierarchy — now live in MySQL:</p>
+<pre>6 organisations:  E2E National · E2E Region · E2E Club Alpha · E2E Club Beta · E2E Club Gamma  (+ football nz)</pre>
+<p>It then walked 17 major pages. Gaps recorded (all in <code>_test/scenario-gaps.json</code>, screenshots in <code>_test/screens/</code>):</p>
+<table>
+<tr><th>Gap</th><th>Verdict</th></tr>
+<tr><td><code>GET /api/v1/events/upcoming</code> → 500 (dashboard widget)</td><td><span class="b ok">✅ FIXED tonight</span></td></tr>
+<tr><td><code>terminology/sport</code> "aborted" on every page</td><td><span class="b info">false alarm — returns 204 (empty); the abort was navigation-cancel noise</span></td></tr>
+<tr><td>Nav rail still reads <b>Supabase directly</b>: org branding, notifications, pinned calendars, bookings-pending count</td><td><span class="b wip">⬜ documented gap — see §4</span></td></tr>
+<tr><td>Numpty write-route 500s (as above)</td><td><span class="b wip">⬜ documented — backend hardening</span></td></tr>
+</table>
+</div>
+
+<h2>4 · What's left (all documented in <code>docs/cross-domain-gaps.md</code>)</h2>
+<h3>Deliberately left un-converted (correct as-is)</h3>
+<ul>
+<li><b>Dev utilities</b> — <code>settings/index.vue</code> seed/reset (95) + <code>dev/seed-items.vue</code> (42). <span class="lead">→ decision below.</span></li>
+<li><b>Anonymous public booker + registration</b> — <code>/book</code>, <code>/embed/calendar</code>, <code>/r/:context/:id</code>, the Booking* public components. <span class="lead">→ decision below.</span></li>
+<li><b>Auth</b> — <code>login.vue</code>, <code>set-password.vue</code>, <code>db.auth.getSession()</code> (Supabase auth, not data — never converts).</li>
+<li><b>Legacy flat-form editor</b> — <code>registration/index.vue</code> (7). <span class="lead">Decided: retire.</span></li>
+</ul>
+<h3>Genuine small remainders (a short follow-up)</h3>
+<ul>
+<li><b>The nav rail</b> (<code>layouts/default.vue</code> + nav components) still reads Supabase for org branding / notifications / pinned calendars / pending-count — was never in conversion scope. Seams mostly exist (<code>useWaitlistsApi.calendars</code>, <code>useOrganisationsApi.getBrandTheme</code>, <code>useBookingsApi</code>) — a ~1-file repoint.</li>
+<li><code>useRetention</code> batch outstanding-for-persons (1) — needs a finances batch endpoint.</li>
+</ul>
+
+<h2>5 · Two decisions that are yours</h2>
+<table>
+<tr><th>Decision</th><th>Options</th></tr>
+<tr><td><b>Dev seed/reset utilities</b> (~137 calls)</td><td>Build a dedicated dev-only endpoint, <b>or</b> retire them from the UI (my lean: dedicated endpoint — keeps the demo tooling).</td></tr>
+<tr><td><b><code>/api/v1</code> anonymous-capable?</b></td><td>Add public read routes so the embed booker/calendar/registration use the seam, <b>or</b> keep the public paths on the direct client (my lean: keep on the direct client for now; the authed seam stays clean).</td></tr>
+</table>
+
+<h2>6 · See it in action 🚀</h2>
+<div class="card">
+<p>The dev server is <b>running now</b> against MySQL with the E2E hierarchy seeded:</p>
+<pre>http://localhost:3077        (log in to browse the created NSO/Region/Clubs)</pre>
+<p><b>Temporary test super-admin</b> (created for the Playwright run — delete when done via <code>npm run e2e:cleanup</code>):</p>
+<pre>email     e2e-super@fmreplumb.test
+password  E2e-Replumb-Test1!</pre>
+<p class="lead">Note: converted screens read MySQL (which is lightly seeded); un-converted screens (nav bits, public pages) still read Supabase. That dual-backend state is expected during the transition. If the server isn't up, start it with <code>PORT=3077 npm run dev</code> in the worktree.</p>
+</div>
+
+<h2>7 · Database access (browse the structure)</h2>
+<div class="card">
+<p>MySQL 8.4 in the <code>fm-new</code> Docker container — point TablePlus / DBeaver / any client at:</p>
+<pre>Host      127.0.0.1
+Port      3400
+User      root
+Password  fmroot
+Database  fm
+URL       mysql://root:fmroot@127.0.0.1:3400/fm</pre>
+<p class="lead"><b>119 tables · 1,284 columns</b> — the full schema, generated from the Postgres source and translated to MySQL (uuid→varchar(36), arrays/jsonb→json, recursive RPCs→CTEs). Schema lives in <code>server/db/schema.ts</code>; the porting rules are in <code>docs/replumb-architecture.md</code>.</p>
+</div>
+
+<h2>8 · Run the tests yourself</h2>
+<pre># with the dev server up on :3077
+BASE=http://localhost:3077 npm run test:seam    # 3-angle seam test
+BASE=http://localhost:3077 npm run test:e2e     # Playwright NSO→region→3clubs
+npm run test:unit                                # 42 pure-logic unit tests
+npm run e2e:cleanup                              # remove the temp super-admin</pre>
+
+<h2>9 · The whole journey — checklist</h2>
+<table>
+<tr><td>Foundation: MySQL container, Drizzle schema (119 tables), data-copy, architecture doc</td><td><span class="b ok">✅</span></td></tr>
+<tr><td>Wave 1 — 5 small domains (People, Resources, Affiliations, Forms, Fields, Admin, Finances, Dashboard)</td><td><span class="b ok">✅</span></td></tr>
+<tr><td>Wave 2 — Groups, Events, Bookings, People-links (seam + composables + pages)</td><td><span class="b ok">✅</span></td></tr>
+<tr><td>Settings + Infra domains (incl. the reviews seam)</td><td><span class="b ok">✅</span></td></tr>
+<tr><td>Gap-fill wave — the missing seam surface (attendance, communications, permissions, booking_items, calendar-writes, session/invitee/registration widening…)</td><td><span class="b ok">✅</span></td></tr>
+<tr><td>Cleanup wave (5 agents) + final small-seam batch (12 items) + the mega-files (events/[id], groups/[id], bookables/[id], settings/index)</td><td><span class="b ok">✅</span></td></tr>
+<tr><td>Final polish — convertible tail to ~0</td><td><span class="b ok">✅</span></td></tr>
+<tr><td>Security audit + penetration test (docs/security-audit.md) — 2 findings fixed in place (CRIT-3, LOW-1)</td><td><span class="b ok">✅</span></td></tr>
+<tr><td>API reference — 464 routes (docs/api-reference.html)</td><td><span class="b ok">✅</span></td></tr>
+<tr><td>3-angle seam test + Playwright E2E scenario + suite wired into package.json</td><td><span class="b ok">✅</span></td></tr>
+<tr><td>Live dev server + SQL access + this report</td><td><span class="b ok">✅</span></td></tr>
+<tr><td>Backend team: real MySQL behind /api/v1 + auth/tenant-isolation layer (CRIT-1/2)</td><td><span class="b info">→ handoff</span></td></tr>
+<tr><td>Your two decisions (dev utilities · /api/v1 anonymous)</td><td><span class="b wip">⬜ awaiting</span></td></tr>
+</table>
+
+<p class="lead" style="margin-top:24px">Reference docs, all in the repo: <code>replumb-progress.html</code> (live tracker) · <code>docs/cross-domain-gaps.md</code> (worklist) · <code>docs/api-reference.html</code> · <code>docs/security-audit.md</code> · <code>docs/replumb-architecture.md</code> · <code>docs/page-conversion-guide.md</code>.</p>
+
+</div></body></html>

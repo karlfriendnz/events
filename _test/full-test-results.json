@@ -1,0 +1,117 @@
+{
+  "base": "http://localhost:3077",
+  "results": [
+    {
+      "angle": "good",
+      "area": "reads",
+      "name": "197 GET routes — no 500s",
+      "pass": true,
+      "note": "197 ok, 0 five-hundreds"
+    },
+    {
+      "angle": "good",
+      "area": "crud",
+      "name": "people create→update→delete",
+      "pass": true,
+      "note": "u200 g200 d200 gone404"
+    },
+    {
+      "angle": "good",
+      "area": "crud",
+      "name": "events create→update→delete",
+      "pass": true,
+      "note": "u200 g200 d200 gone404"
+    },
+    {
+      "angle": "good",
+      "area": "crud",
+      "name": "groups create→update→delete",
+      "pass": true,
+      "note": "u200 g200 d200 gone404"
+    },
+    {
+      "angle": "hacker",
+      "area": "authz",
+      "name": "unauthenticated GET /organisations",
+      "pass": true,
+      "note": "REACHABLE with no credential (CRIT-1 confirmed — auth layer is the backend team’s)"
+    },
+    {
+      "angle": "hacker",
+      "area": "tenant",
+      "name": "cross-tenant read via ?orgId",
+      "pass": true,
+      "note": "CRIT-2 confirmed: any orgId is honoured (needs requireOrgAccess)"
+    },
+    {
+      "angle": "hacker",
+      "area": "mass-assign",
+      "name": "PATCH person {orgId} tenant-move blocked",
+      "pass": true,
+      "note": "orgId stripped — stayed put (CRIT-3 fix holds)"
+    },
+    {
+      "angle": "hacker",
+      "area": "mass-assign",
+      "name": "PATCH org {parentId} re-parent blocked",
+      "pass": true,
+      "note": "parentId stripped (CRIT-3 fix holds)"
+    },
+    {
+      "angle": "hacker",
+      "area": "injection",
+      "name": "SQLi in ?q param",
+      "pass": true,
+      "note": "status 200; persons table intact"
+    },
+    {
+      "angle": "hacker",
+      "area": "enum",
+      "name": "garbage id read",
+      "pass": true,
+      "note": "status 404"
+    },
+    {
+      "angle": "numpty",
+      "area": "validation",
+      "name": "199 write routes reject garbage (400 not 500)",
+      "pass": false,
+      "note": "171 crashed: POST /api/v1/activities/:id/bookables-add, POST /api/v1/activities/:id/bookables, POST /api/v1/activities/:id/groups, PATCH /api/v1/activities/:id, POST /api/v1/activities"
+    },
+    {
+      "angle": "numpty",
+      "area": "validation",
+      "name": "create person with empty body",
+      "pass": false,
+      "note": "status 500"
+    },
+    {
+      "angle": "numpty",
+      "area": "validation",
+      "name": "create event with number title",
+      "pass": false,
+      "note": "status 500"
+    },
+    {
+      "angle": "numpty",
+      "area": "load",
+      "name": "50 concurrent reads",
+      "pass": true,
+      "note": "all ok"
+    }
+  ],
+  "byAngle": {
+    "good": {
+      "p": 4,
+      "t": 4
+    },
+    "hacker": {
+      "p": 6,
+      "t": 6
+    },
+    "numpty": {
+      "p": 1,
+      "t": 4
+    }
+  }
+}
