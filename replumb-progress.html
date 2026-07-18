@@ -53,10 +53,33 @@
 
   <div class="bars">
     <div class="stat"><b>118</b><span>tables in MySQL</span></div>
-    <div class="stat"><b>0 / 138</b><span>screens on the seam</span></div>
+    <div class="stat"><b>1 / 14</b><span>domains on the seam</span></div>
     <div class="stat"><b>Green</b><span>live version still works</span></div>
     <div class="stat"><b>77/77</b><span>seam checks passing</span></div>
   </div>
+
+  <h2>Conversion tracker — the real scope <span style="color:var(--mut);font-weight:400;font-size:14px">(195 files · 1592 data-access calls)</span></h2>
+  <p style="color:var(--mut);margin:-4px 0 12px">Moving every screen off direct database calls onto the seam. The true surface is <b>195 files / 1592 call sites</b> — 76 pages, 62 components, and 59 shared composables (the backbone: convert a composable and every page using it is partly done for free). One domain converts at a time (own files only, main session commits, build stays green). People is done; Resources in progress.</p>
+  <table>
+    <thead><tr><th>Domain</th><th>Size</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td class="task">People directory</td><td>2 files · 23 calls</td><td><span class="badge b-ok">✅ done</span></td></tr>
+      <tr><td class="task">Resources (library + engagement)</td><td>4 files · 33 calls</td><td><span class="badge b-wip">🔄 in progress</span></td></tr>
+      <tr><td class="task">Groups · terms · fees · waitlists</td><td>25 files · 219 calls</td><td><span class="badge b-todo">⬜ to do</span></td></tr>
+      <tr><td class="task">Events · programme · forms</td><td>17 files · 233 calls</td><td><span class="badge b-todo">⬜ to do</span></td></tr>
+      <tr><td class="task">Bookings · venues · activities</td><td>31 files · 317 calls</td><td><span class="badge b-todo">⬜ to do</span></td></tr>
+      <tr><td class="task">Settings</td><td>15 files · 222 calls</td><td><span class="badge b-todo">⬜ to do</span></td></tr>
+      <tr><td class="task">People links · circles · entities</td><td>6 files · 42 calls</td><td><span class="badge b-todo">⬜ to do</span></td></tr>
+      <tr><td class="task">Affiliations · locations · managers</td><td>6 files · 35 calls</td><td><span class="badge b-todo">⬜ to do</span></td></tr>
+      <tr><td class="task">Fields · types · disciplines</td><td>9 files · 45 calls</td><td><span class="badge b-todo">⬜ to do</span></td></tr>
+      <tr><td class="task">Admin · master · club types</td><td>5 files · 41 calls</td><td><span class="badge b-todo">⬜ to do</span></td></tr>
+      <tr><td class="task">Dashboard · profile</td><td>2 files · 51 calls</td><td><span class="badge b-todo">⬜ to do</span></td></tr>
+      <tr><td class="task">Finances · reporting · xero</td><td>5 files · 26 calls</td><td><span class="badge b-todo">⬜ to do</span></td></tr>
+      <tr><td class="task">Public (registration · booker · embed)</td><td>14 files · 137 calls</td><td><span class="badge b-todo">⬜ to do</span></td></tr>
+      <tr><td class="task">Infra · misc (review · auth · dev)</td><td>13 files · 132 calls</td><td><span class="badge b-todo">⬜ to do</span></td></tr>
+    </tbody>
+  </table>
+  <p style="color:var(--mut);margin:6px 0 0;font-size:13px">57 files not yet bucketed. Pattern proven on the People pilot (0 calls left, build green); Resources validates whole-domain (composable + pages) conversion.</p>
 
   <h2>Seam coverage audit <span style="color:var(--mut);font-weight:400;font-size:14px">(64 / 118 tables have a repo · 54 gaps)</span></h2>
   <p style="color:var(--mut);margin:-4px 0 12px">Automated audit of which of the 118 MySQL tables a repository actually touches (<code>schema.X</code> references). 64 covered by the 16 domain repos; the 54 below are gaps — mostly <b>child/detail tables inside already-built domains</b> (extend that repo), plus a few whole domains with no repo yet. These must close before the pages that use them can fully convert.</p>
