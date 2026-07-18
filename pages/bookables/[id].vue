@@ -1439,11 +1439,8 @@ function navToday() {
 // the URL so /bookings/new picks the right flow (scheduler vs wizard) without
 // the user having to choose again.
 async function uniqueActivityIdForBookable(bookableId: string): Promise<string | null> {
-  const { data } = await (db.from as any)('activity_bookables')
-    .select('activity_id')
-    .eq('bookable_id', bookableId)
-    .limit(2)
-  if ((data?.length ?? 0) === 1) return data[0].activity_id as string
+  const acts = await api.bookableActivities(bookableId)
+  if (acts.length === 1) return acts[0].id
   return null
 }
 
@@ -1560,6 +1557,7 @@ async function loadModeFormFields(formId: string | null) {
   if (!formId) return
   modeFormLoading.value = true
   try {
+    // TODO cross-domain: form_fields / registration_forms still via useDb (owned by forms)
     const [{ data: ff }, { data: rf }] = await Promise.all([
       (db.from as any)('form_fields').select('*').eq('form_id', formId).order('sort_order'),
       (db.from as any)('registration_forms').select('config').eq('id', formId).maybeSingle(),
@@ -1625,14 +1623,26 @@ const editingBookingStatusSeverity = computed(() => {
 
 async function loadEditBookingOptions() {
   if (!orgId.value) return
-  const [{ data: acts }, { data: modes }, { data: books }] = await Promise.all([
-    (db.from as any)('activities').select('id, name, color').eq('org_id', orgId.value).eq('status', 'ACTIVE').order('name'),
-    (db.from as any)('activity_modes').select('id, activity_id, name, color, form_id').order('name'),
-    (db.from as any)('bookables').select('id, name, type').eq('org_id', orgId.value).neq('status', 'ARCHIVED').neq('status', 'DELETED').order('name'),
+  const [acts, books] = await Promise.all([
+    api.activities(orgId.value),
+    api.bookables(orgId.value),
   ])
-  venueActivities.value = acts ?? []
-  venueActivityModes.value = modes ?? []
-  allVenueBookables.value = books ?? []
+  // Options only offer ACTIVE activities (matches the old status filter), but
+  // modes are loaded across ALL activities so a booking on an inactive
+  // activity still resolves its mode name/colour.
+  venueActivities.value = acts
+    .filter(a => a.status === 'ACTIVE')
+    .sort((a, b) => a.name.localeCompare(b.name))
+  // The seam reads modes per-activity (no org-wide bulk method) — fan out.
+  const modeArrays = await Promise.all(acts.map(a => api.activityModes(a.id)))
+  venueActivityModes.value = modeArrays.flat().map((m: any) => ({
+    id: m.id, activity_id: m.activityId, name: m.name, color: m.color,
+    form_id: m.formId, custom_fields: m.customFields ?? [],
+  }))
+  allVenueBookables.value = books
+    .filter(b => b.status !== 'ARCHIVED' && b.status !== 'DELETED')
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(b => ({ id: b.id, name: b.name, type: b.type }))
 }
 
 function openEditBooking(booking: any) {
@@ -1663,6 +1673,8 @@ async function saveEditBooking() {
   if (!editingBooking.value?.id) return
   savingEdit.value = true
   try {
+    // TODO seam-gap: full-field booking update — the seam only exposes
+    // setBookingStatus(id, status); no PATCH for start/end/contacts/activity/etc.
     await db.from('bookings').update({
       status: editForm.status,
       start_at: editForm.start_at?.toISOString(),
@@ -1690,9 +1702,10 @@ async function approveBooking() {
   if (!editingBooking.value?.id) return
   savingEdit.value = true
   try {
-    await db.from('bookings').update({ status: 'CONFIRMED' }).eq('id', editingBooking.value.id)
+    await api.setBookingStatus(editingBooking.value.id, 'CONFIRMED')
     editForm.status = 'CONFIRMED'
     if (editingBooking.value) editingBooking.value.status = 'CONFIRMED'
+    // TODO cross-domain: notifications still via useDb (owned by comms)
     const { data: n } = await (db.from as any)('notifications').insert({
       org_id: orgId.value,
       type: 'booking.approved',
@@ -1716,9 +1729,10 @@ async function declineBooking() {
   if (!confirm('Decline this booking? It will be cancelled and the slot freed up.')) return
   savingEdit.value = true
   try {
-    await db.from('bookings').update({ status: 'CANCELLED' }).eq('id', editingBooking.value.id)
+    await api.setBookingStatus(editingBooking.value.id, 'CANCELLED')
     editForm.status = 'CANCELLED'
     if (editingBooking.value) editingBooking.value.status = 'CANCELLED'
+    // TODO cross-domain: notifications still via useDb (owned by comms)
     const { data: n } = await (db.from as any)('notifications').insert({
       org_id: orgId.value,
       type: 'booking.declined',
@@ -1741,7 +1755,7 @@ async function declineBooking() {
 async function deleteBooking() {
   if (!editingBooking.value?.id) return
   if (!confirm('Delete this booking?')) return
-  await db.from('bookings').delete().eq('id', editingBooking.value.id)
+  await api.removeBooking(editingBooking.value.id)
   showEditDialog.value = false
   await loadBookings()
   toast.add({ severity: 'success', summary: 'Booking deleted', life: 2000 })
@@ -1791,7 +1805,7 @@ const moreMenuItems = computed(() => [
     class: 'text-red-500',
     command: async () => {
       if (!confirm(`Archive "${venue.value?.name}"?`)) return
-      await db.from('bookables').update({ status: 'ARCHIVED' }).eq('id', id)
+      await api.updateBookable(id, { status: 'ARCHIVED' })
       toast.add({ severity: 'success', summary: 'Archived', life: 3000 })
       navigateTo('/bookables')
     }
@@ -1834,22 +1848,26 @@ async function onSaved(saved: any) {
 
 async function onDelete() {
   if (!confirm(`Delete "${venue.value?.name}"? This cannot be undone.`)) return
-  await db.from('bookables').update({ status: 'DELETED' }).eq('id', id)
+  await api.updateBookable(id, { status: 'DELETED' })
   toast.add({ severity: 'success', summary: 'Deleted', life: 2000 })
   navigateTo('/bookables')
 }
 
 async function loadVenue() {
   loading.value = true
-  const [{ data }, { data: all }] = await Promise.all([
-    db.from('bookables').select('*').eq('id', id).maybeSingle(),
-    db.from('bookables').select('id, name, type').eq('org_id', orgId.value).neq('status', 'DELETED').order('name'),
+  const [one, all] = await Promise.all([
+    api.bookable(id).catch(() => null),
+    api.bookables(orgId.value!),
   ])
+  const data = one ? snakeBookable(one) : null
   venue.value = data
-  allBookables.value = all ?? []
+  allBookables.value = all
+    .filter(b => b.status !== 'DELETED')
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(snakeBookable)
   if (data?.parent_id) {
-    const { data: parent } = await db.from('bookables').select('id, name').eq('id', data.parent_id).maybeSingle()
-    parentVenue.value = parent
+    const parent = await api.bookable(data.parent_id).catch(() => null)
+    parentVenue.value = parent ? { id: parent.id, name: parent.name } : null
   } else {
     parentVenue.value = null
   }
@@ -1871,8 +1889,11 @@ async function loadVenue() {
 }
 
 async function loadLinked() {
-  const { data } = await db.from('bookables').select('*').eq('master_id', id).neq('status', 'DELETED').order('name')
-  linkedItems.value = data ?? []
+  const all = await api.bookables(orgId.value!)
+  linkedItems.value = all
+    .filter(b => b.masterId === id && b.status !== 'DELETED')
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(snakeBookable)
 }
 
 async function syncToLinked() {
@@ -1880,13 +1901,16 @@ async function syncToLinked() {
   syncing.value = true
   const master = venue.value
   // Copy bookable fields
-  await db.from('bookables').update({
+  const patch = {
     description: master.description,
     rules: master.rules,
     features: master.features,
     sports: master.sports,
-    max_concurrent: master.max_concurrent,
-  }).in('id', linkedItems.value.map(l => l.id))
+    maxConcurrent: master.max_concurrent,
+  }
+  for (const l of linkedItems.value) {
+    await api.updateBookable(l.id, patch)
+  }
   syncing.value = false
   toast.add({ severity: 'success', summary: `Synced to ${linkedItems.value.length} linked item(s)`, life: 3000 })
 }
@@ -1895,15 +1919,15 @@ async function syncFromMaster() {
   if (!venue.value?.master_id) return
   syncing.value = true
   const masterId = venue.value.master_id
-  const { data: master } = await db.from('bookables').select('*').eq('id', masterId).single()
+  const master = await api.bookable(masterId).catch(() => null)
   if (master) {
-    await db.from('bookables').update({
+    await api.updateBookable(id, {
       description: master.description,
       rules: master.rules,
       features: master.features,
       sports: master.sports,
-      max_concurrent: master.max_concurrent,
-    }).eq('id', id)
+      maxConcurrent: master.maxConcurrent,
+    })
     await loadVenue()
     await afterPricingMutation()
   }
@@ -1912,8 +1936,11 @@ async function syncFromMaster() {
 }
 
 async function loadChildren() {
-  const { data } = await db.from('bookables').select('*').eq('parent_id', id).eq('type', 'VENUE').neq('status', 'DELETED').order('name')
-  children.value = data ?? []
+  const all = await api.bookables(orgId.value!)
+  children.value = all
+    .filter(b => b.parentId === id && b.type === 'VENUE' && b.status !== 'DELETED')
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(snakeBookable)
 }
 
 // ── Configurations ────────────────────────────────────────────────────────
@@ -1937,30 +1964,22 @@ interface ConfigurationRow {
 }
 const configurations = ref<ConfigurationRow[]>([])
 async function loadConfigurations() {
-  const { data: cfgs } = await (db.from as any)('bookable_configurations')
-    .select('id, key, name, sort_order')
-    .eq('parent_bookable_id', id)
-    .order('sort_order')
-  const rows = (cfgs ?? []) as { id: string; key: string; name: string; sort_order: number }[]
-  if (!rows.length) { configurations.value = []; return }
-  const { data: cc } = await (db.from as any)('bookable_configuration_children')
-    .select('configuration_id, bookable_id, sort_order, slot_index, slot_name')
-    .in('configuration_id', rows.map(r => r.id))
-    .order('slot_index')
-    .order('sort_order')
-  type ChildRow = { configuration_id: string; bookable_id: string; slot_index: number; slot_name: string | null }
-  const slotsByCfg: Record<string, Record<number, ConfigSlot>> = {}
-  for (const c of (cc ?? []) as ChildRow[]) {
-    const cfgSlots = (slotsByCfg[c.configuration_id] ??= {})
-    const idx = c.slot_index ?? 0
-    const slot = (cfgSlots[idx] ??= { index: idx, name: c.slot_name ?? `Slot ${idx + 1}`, childIds: [] })
-    slot.childIds.push(c.bookable_id)
-  }
-  configurations.value = rows.map(r => {
-    const sl = slotsByCfg[r.id] ?? {}
-    const slots = Object.values(sl).sort((a, b) => a.index - b.index)
-    return { ...r, slots }
-  })
+  const cfgs = await api.configurations(id)
+  configurations.value = [...cfgs]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map(cfg => {
+      const slotsByIdx: Record<number, ConfigSlot> = {}
+      const kids = [...cfg.children].sort(
+        (a, b) => (a.slotIndex - b.slotIndex) || (a.sortOrder - b.sortOrder),
+      )
+      for (const c of kids) {
+        const idx = c.slotIndex ?? 0
+        const slot = (slotsByIdx[idx] ??= { index: idx, name: c.slotName ?? `Slot ${idx + 1}`, childIds: [] })
+        slot.childIds.push(c.bookableId)
+      }
+      const slots = Object.values(slotsByIdx).sort((a, b) => a.index - b.index)
+      return { id: cfg.id, key: cfg.key, name: cfg.name, sort_order: cfg.sortOrder, slots }
+    })
 }
 
 // Edit/create dialog state. The dialog edits configurations as ordered
@@ -2110,15 +2129,13 @@ async function saveConfigDialog() {
   // children on the sibling are skipped (the sibling stays partial).
   let siblingsSynced = 0
   if (venue.value.is_master && linkedItems.value.length) {
+    const allB = await api.bookables(orgId.value!)
     for (const sibling of linkedItems.value) {
       if ((sibling.customized_sections ?? []).includes('sub-venues')) continue
-      const { data: sibChildren } = await (db.from as any)('bookables')
-        .select('id, master_id')
-        .eq('parent_id', sibling.id)
-        .neq('status', 'DELETED')
+      const sibChildren = allB.filter(b => b.parentId === sibling.id && b.status !== 'DELETED')
       const masterToSibling = new Map<string, string>()
-      for (const c of (sibChildren ?? []) as { id: string; master_id: string | null }[]) {
-        if (c.master_id) masterToSibling.set(c.master_id, c.id)
+      for (const c of sibChildren) {
+        if (c.masterId) masterToSibling.set(c.masterId, c.id)
       }
       const mappedSlots = slots.map(s => ({
         name: s.name,
@@ -2151,24 +2168,26 @@ async function deleteConfiguration(cfg: ConfigurationRow) {
   // doesn't auto-propagate (the user can clean those up individually if
   // they want; safer than yanking config out from under siblings that may
   // have been customized).
-  await (db.from as any)('bookable_configuration_children').delete().eq('configuration_id', cfg.id)
-  await (db.from as any)('bookable_configurations').delete().eq('id', cfg.id)
+  await api.deleteConfiguration(cfg.id)
   await loadConfigurations()
   toast.add({ severity: 'success', summary: 'Configuration deleted', life: 2500 })
 }
 
 async function duplicateVenue(child: any) {
-  const { id: _, created_at: __, ...rest } = child
-  const { data } = await db.from('bookables').insert({ ...rest, name: `${child.name} (copy)` }).select('id').single()
-  if (data?.id) {
+  const input = { ...camelBookableCreate(child), name: `${child.name} (copy)` }
+  const created = await api.createBookable(input)
+  if (created?.id) {
     await loadChildren()
     toast.add({ severity: 'success', summary: 'Duplicated', detail: `"${child.name} (copy)" created`, life: 2500 })
   }
 }
 
 async function loadItems() {
-  const { data } = await db.from('bookables').select('*').eq('parent_id', id).eq('type', 'ITEM').neq('status', 'DELETED').order('sort_order').order('name')
-  items.value = data ?? []
+  const all = await api.bookables(orgId.value!)
+  items.value = all
+    .filter(b => b.parentId === id && b.type === 'ITEM' && b.status !== 'DELETED')
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || (a.name ?? '').localeCompare(b.name ?? ''))
+    .map(snakeBookable)
 }
 
 function loadBookings() {
