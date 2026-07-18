@@ -10,7 +10,7 @@
 // so the domain always sees a real JS value. Timestamps → ISO via `asIso`; the
 // driver may return 1/0 for booleans, so `asBool` coerces.
 import { randomUUID } from 'node:crypto'
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   Waitlist,
@@ -191,15 +191,37 @@ export async function listCommunications(orgId: string): Promise<Communication[]
     .innerJoin(schema.events, eq(schema.communications.eventId, schema.events.id))
     .where(eq(schema.events.orgId, orgId))
     .orderBy(asc(schema.communications.sentAt))
-  return rows.map((r) => ({
+  return rows.map(toCommunication)
+}
+
+// One communications row + its org → the Communication contract. status is synthesised
+// ('SENT' — the log only holds sent messages); sentAt IS the row's single timestamp,
+// mirrored into createdAt for consumers that read either.
+function toCommunication(r: { c: typeof schema.communications.$inferSelect; orgId: string }): Communication {
+  return {
     id: r.c.id,
     orgId: r.orgId,
+    eventId: r.c.eventId ?? null,
     subject: r.c.subject,
     body: r.c.body,
     status: 'SENT',
     recipientCount: r.c.recipientCount,
+    sentAt: asIso(r.c.sentAt),
     createdAt: asIso(r.c.sentAt),
-  }))
+  }
+}
+
+/** Communications sent about a SET of events (a profile's per-event comms), newest
+ *  first. Empty in → empty out. Org resolved via the event join. */
+export async function listCommunicationsByEvents(eventIds: string[]): Promise<Communication[]> {
+  if (!eventIds.length) return []
+  const rows = await db
+    .select({ c: schema.communications, orgId: schema.events.orgId })
+    .from(schema.communications)
+    .innerJoin(schema.events, eq(schema.communications.eventId, schema.events.id))
+    .where(inArray(schema.communications.eventId, eventIds))
+    .orderBy(desc(schema.communications.sentAt))
+  return rows.map(toCommunication)
 }
 
 /** The comms topics an org offers, in sort order. */

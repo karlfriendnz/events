@@ -55,10 +55,15 @@ export const waitlistEntryListSchema = z.array(waitlistEntrySchema)
 export const communicationSchema = z.object({
   id: z.string(),
   orgId: z.string(),
+  // The event this message was sent about — needed to group per-event comms on a
+  // profile. Nullable for defensive parity, though the column is notNull.
+  eventId: z.string().nullable(),
   subject: z.string(),
   body: z.string(),
   status: z.string(),
   recipientCount: z.number().int(),
+  // When it was sent (the row's only timestamp) — mirrored into createdAt too.
+  sentAt: z.string().nullable(),
   createdAt: z.string().nullable(),
 })
 export type Communication = z.infer<typeof communicationSchema>

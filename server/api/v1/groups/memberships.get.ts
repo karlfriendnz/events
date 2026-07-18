@@ -10,6 +10,8 @@ const outSchema = z.array(
     personId: z.string(),
     groupId: z.string(),
     locationId: z.string().nullable(),
+    // codeId (mig 205) — the class's code, for deriving its effective sport (access lens).
+    codeId: z.string().nullable(),
     // role/roles (mig 183) — needed by retention + the staff-vs-member split.
     role: z.string().nullable(),
     roles: z.array(z.string()),

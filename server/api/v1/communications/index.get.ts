@@ -5,6 +5,7 @@
 // database. Output is validated against the shared contract before it leaves.
 import {
   listCommunications,
+  listCommunicationsByEvents,
   listCommunicationTopics,
   listActiveCommunicationTopics,
   listEmailTemplates,
@@ -16,7 +17,11 @@ import {
 } from '../../../../shared/contracts/waitlist'
 
 export default defineEventHandler(async (event) => {
-  const { orgId, resource } = getQuery(event)
+  const { orgId, resource, eventIds } = getQuery(event)
+  // eventIds mode: per-event comms for a profile (no orgId needed — scoped by events).
+  if (typeof eventIds === 'string' && eventIds.length) {
+    return communicationListSchema.parse(await listCommunicationsByEvents(eventIds.split(',')))
+  }
   if (!orgId) {
     throw createError({ statusCode: 400, statusMessage: 'orgId is required' })
   }

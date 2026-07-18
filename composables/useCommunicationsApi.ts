@@ -11,6 +11,9 @@ import type {
   CommTopicCreate,
   CommTopicPatch,
 } from '../shared/contracts/communication'
+// The sent-message log's Communication shape lives in the waitlist contract (its
+// historical home, shared with the /api/v1/communications log route).
+import type { Communication } from '../shared/contracts/waitlist'
 
 export function useCommunicationsApi() {
   // ── Email templates ──
@@ -41,5 +44,13 @@ export function useCommunicationsApi() {
     await $fetch(`/api/v1/communication-topics/${id}`, { method: 'DELETE', query: { orgId } })
   }
 
-  return { getEmailTemplate, upsertEmailTemplate, listTopics, createTopic, updateTopic, removeTopic }
+  // ── Sent-message log ──
+  /** Communications sent about a SET of events (a profile's per-event comms), newest
+   *  first. */
+  async function byEvents(eventIds: string[]): Promise<Communication[]> {
+    if (!eventIds.length) return []
+    return await $fetch<Communication[]>('/api/v1/communications', { query: { eventIds: eventIds.join(',') } })
+  }
+
+  return { getEmailTemplate, upsertEmailTemplate, listTopics, createTopic, updateTopic, removeTopic, byEvents }
 }

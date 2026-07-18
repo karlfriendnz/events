@@ -762,6 +762,9 @@ export interface OrgMembershipRef {
   personId: string
   groupId: string
   locationId: string | null
+  // The group's code (mig 205) — the sport/programme container. Needed to derive the
+  // class's effective sport for the location+sport access lens (useActiveLocation).
+  codeId: string | null
   // The person's role on the group — the singular legacy anchor + the multi-role array
   // (mig 183). Consumers (retention, staff-vs-member split, dashboard) need both.
   role: string | null
@@ -773,6 +776,7 @@ export async function listMembershipsByOrg(orgId: string): Promise<OrgMembership
       personId: schema.memberGroupMemberships.personId,
       groupId: schema.memberGroupMemberships.groupId,
       locationId: schema.memberGroups.locationId,
+      codeId: schema.memberGroups.codeId,
       role: schema.memberGroupMemberships.role,
       roles: schema.memberGroupMemberships.roles,
     })
@@ -783,6 +787,7 @@ export async function listMembershipsByOrg(orgId: string): Promise<OrgMembership
     personId: r.personId,
     groupId: r.groupId,
     locationId: r.locationId ?? null,
+    codeId: r.codeId ?? null,
     role: r.role ?? null,
     roles: asArray(r.roles),
   }))
@@ -797,6 +802,9 @@ export interface PersonMembershipRef {
   role: string | null
   roles: string[]
   locationId: string | null
+  // The group's code (mig 205) — for deriving the class's effective sport (the
+  // location+sport access lens, useActiveLocation).
+  codeId: string | null
 }
 export async function listMembershipsForPerson(
   orgId: string,
@@ -809,6 +817,7 @@ export async function listMembershipsForPerson(
       role: schema.memberGroupMemberships.role,
       roles: schema.memberGroupMemberships.roles,
       locationId: schema.memberGroups.locationId,
+      codeId: schema.memberGroups.codeId,
     })
     .from(schema.memberGroupMemberships)
     .innerJoin(schema.memberGroups, eq(schema.memberGroupMemberships.groupId, schema.memberGroups.id))
@@ -819,6 +828,7 @@ export async function listMembershipsForPerson(
     role: r.role ?? null,
     roles: asArray(r.roles),
     locationId: r.locationId ?? null,
+    codeId: r.codeId ?? null,
   }))
 }
 
@@ -1776,4 +1786,22 @@ export async function setWaitlistGroups(waitlistId: string, groupIds: string[]):
 }
 export async function connectGroupToWaitlist(groupId: string, waitlistId: string | null): Promise<void> {
   await db.update(schema.memberGroups).set({ waitlistId }).where(eq(schema.memberGroups.id, groupId))
+}
+
+// ── Group disciplines (member_group_disciplines link table, for <DisciplineLinker>) ──
+// The group-context twin of the events domain's event_disciplines seam.
+export async function listGroupDisciplineIds(groupId: string): Promise<string[]> {
+  const rows = await db
+    .select()
+    .from(schema.memberGroupDisciplines)
+    .where(eq(schema.memberGroupDisciplines.groupId, groupId))
+  return rows.map((r) => r.disciplineId)
+}
+// Replace the disciplines linked to a group (delete-then-insert), mirroring
+// setEventDisciplines.
+export async function setGroupDisciplines(groupId: string, disciplineIds: string[]): Promise<void> {
+  await db.delete(schema.memberGroupDisciplines).where(eq(schema.memberGroupDisciplines.groupId, groupId))
+  for (const disciplineId of disciplineIds) {
+    await db.insert(schema.memberGroupDisciplines).values({ groupId, disciplineId } as any)
+  }
 }

@@ -5,7 +5,7 @@
 //
 // This is the template every migrated screen follows: a use<Thing>Api() composable
 // wrapping typed $fetch to /api/v1/*.
-import type { Organisation, OrgTreeNode, OrganisationCreate, OrganisationPatch, OrgBrandTheme, OnboardingState } from '../shared/contracts/organisation'
+import type { Organisation, OrgTreeNode, OrganisationCreate, OrganisationPatch, OrgBrandTheme, OnboardingState, UserOrgMembership } from '../shared/contracts/organisation'
 import type { OrgSettings } from '../shared/contracts/orgSettings'
 import type { OrgDashboardMeta } from '../shared/contracts/orgDashboard'
 import type { OrgProfile, OrgProfilePatch } from '../shared/contracts/orgProfile'
@@ -89,6 +89,12 @@ export function useOrganisationsApi() {
   async function setDefaultPositions(orgId: string, positions: string[]): Promise<void> {
     await $fetch(`/api/v1/organisations/${orgId}/default-positions`, { method: 'PATCH', body: { positions } })
   }
+  /** The clubs a login belongs to (org_members by auth user id) — the ProfileMenu
+   *  club switcher. */
+  async function orgsForUser(userId: string): Promise<UserOrgMembership[]> {
+    if (!userId) return []
+    return await $fetch<UserOrgMembership[]>('/api/v1/organisations/for-user', { query: { userId } })
+  }
   /** The new-club onboarding checklist state. */
   async function getOnboarding(orgId: string): Promise<OnboardingState> {
     return await $fetch<OnboardingState>(`/api/v1/organisations/${orgId}/onboarding`)
@@ -97,5 +103,5 @@ export function useOrganisationsApi() {
   async function setOnboarding(orgId: string, state: OnboardingState): Promise<void> {
     await $fetch(`/api/v1/organisations/${orgId}/onboarding`, { method: 'PATCH', body: state })
   }
-  return { list, get, create, update, remove, ancestors, descendants, getSettings, setPeopleColumns, getDashboardMeta, setDashboardBanner, setProfileDashboard, getProfile, updateProfile, setParent, setMemberPullMode, getBrandTheme, getDefaultPositions, setDefaultPositions, getOnboarding, setOnboarding }
+  return { list, get, create, update, remove, ancestors, descendants, getSettings, setPeopleColumns, getDashboardMeta, setDashboardBanner, setProfileDashboard, getProfile, updateProfile, setParent, setMemberPullMode, getBrandTheme, getDefaultPositions, setDefaultPositions, orgsForUser, getOnboarding, setOnboarding }
 }

@@ -40,6 +40,9 @@ import type {
   BankAccount,
   BankAccountCreate,
   BankAccountPatch,
+  PersonRegistration,
+  OutstandingSummary,
+  RegistrationTransaction,
 } from '../../../shared/contracts/finance'
 
 // Coerce a json column into its parsed value, leaving non-string payloads as-is.
@@ -636,4 +639,62 @@ export async function updateBankAccount(id: string, patch: BankAccountPatch): Pr
 
 export async function deleteBankAccount(id: string, orgId: string): Promise<void> {
   await db.delete(schema.bankAccounts).where(and(eq(schema.bankAccounts.id, id), eq(schema.bankAccounts.orgId, orgId)))
+}
+
+// ── Person financials (profile Financials widget + member portal) ──
+// registrations has no org_id — a child of events. A person's registrations are read
+// by person_id; the org-wide outstanding rollup joins events for org scope.
+// Money columns are decimals — mysql2 returns strings; coerce to number here.
+const num = (v: unknown): number => (v == null ? 0 : Number(v)) || 0
+
+/** One person's registrations (money owed/paid) — profile Financials + member portal. */
+export async function listRegistrationsForPerson(personId: string): Promise<PersonRegistration[]> {
+  if (!personId) return []
+  const rows = await db
+    .select({
+      id: schema.registrations.id,
+      personId: schema.registrations.personId,
+      status: schema.registrations.status,
+      totalAmount: schema.registrations.totalAmount,
+      paidAmount: schema.registrations.paidAmount,
+    })
+    .from(schema.registrations)
+    .where(eq(schema.registrations.personId, personId))
+  return rows.map((r) => ({
+    id: r.id,
+    personId: r.personId ?? null,
+    status: r.status,
+    totalAmount: num(r.totalAmount),
+    paidAmount: num(r.paidAmount),
+  }))
+}
+
+/** The org-wide outstanding rollup: Σ max(0, total − paid) + count of registrations
+ *  still carrying a balance. Joins events for org scope (registrations has no org_id). */
+export async function outstandingByOrg(orgId: string): Promise<OutstandingSummary> {
+  const rows = await db
+    .select({ total: schema.registrations.totalAmount, paid: schema.registrations.paidAmount })
+    .from(schema.registrations)
+    .innerJoin(schema.events, eq(schema.registrations.eventId, schema.events.id))
+    .where(eq(schema.events.orgId, orgId))
+  let owed = 0, count = 0
+  for (const r of rows) {
+    const due = Math.max(0, num(r.total) - num(r.paid))
+    if (due > 0) { owed += due; count++ }
+  }
+  return { owed, count }
+}
+
+/** Transaction refs (Xero invoice id) for a set of registrations — the profile
+ *  Financials rows surface the invoice id. Empty in → empty out. */
+export async function listTransactionsForRegistrations(regIds: string[]): Promise<RegistrationTransaction[]> {
+  if (!regIds.length) return []
+  const rows = await db
+    .select({
+      registrationId: schema.transactions.registrationId,
+      xeroInvoiceId: schema.transactions.xeroInvoiceId,
+    })
+    .from(schema.transactions)
+    .where(inArray(schema.transactions.registrationId, regIds))
+  return rows.map((r) => ({ registrationId: r.registrationId, xeroInvoiceId: r.xeroInvoiceId ?? null }))
 }

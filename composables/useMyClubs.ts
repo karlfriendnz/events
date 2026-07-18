@@ -13,12 +13,10 @@ export interface MyClub {
 }
 
 export function useMyClubs() {
-  // SEAM GAP (people): resolving one login to EVERY club they have a record in is a
-  // CROSS-ORG persons-by-email read joined to organisations (name/level) — the people
-  // seam's findByEmail is single-org-scoped, so there's no seam function for this yet
-  // (needs findAllByEmail(email) → persons across all orgs + org name/level). Left on
-  // useDb. Guarded: a failed read just yields no clubs (login routing falls back).
-  const db = useDb()
+  // On the seam: the cross-club identity read (persons-across-all-orgs by email, joined
+  // to organisations for name/level) is people.findAllByEmail. Guarded: a failed read
+  // just yields no clubs (login routing falls back).
+  const { findAllByEmail } = usePeopleApi()
   const user = useSupabaseUser()
   const clubs = useState<MyClub[]>('fm-my-clubs', () => [])
   const loaded = useState<boolean>('fm-my-clubs-loaded', () => false)
@@ -28,16 +26,14 @@ export function useMyClubs() {
     const email = user.value?.email
     if (!email) { clubs.value = []; loaded.value = true; return [] }
     // All persons rows across every org matching this login's email.
-    const { data } = await (db.from as any)('persons')
-      .select('id, org_id, person_type, person_types, organisations(name, org_level)')
-      .ilike('email', email)
-    const list: MyClub[] = (data ?? []).map((p: any) => ({
-      orgId: p.org_id,
-      orgName: p.organisations?.name ?? 'Club',
-      orgLevel: p.organisations?.org_level ?? null,
+    const data = await findAllByEmail(email).catch(() => [])
+    const list: MyClub[] = data.map((p) => ({
+      orgId: p.orgId,
+      orgName: p.orgName || 'Club',
+      orgLevel: p.orgLevel ?? null,
       personId: p.id,
-      typeKeys: p.person_types?.length ? p.person_types : (p.person_type ? [p.person_type] : []),
-      primaryType: (p.person_types?.length ? p.person_types[0] : p.person_type) ?? null,
+      typeKeys: p.personTypes.length ? p.personTypes : (p.personType ? [p.personType] : []),
+      primaryType: (p.personTypes.length ? p.personTypes[0] : p.personType) ?? null,
     }))
     // De-dupe by org (one card per club) + alpha.
     const byOrg = new Map<string, MyClub>()

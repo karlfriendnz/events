@@ -1784,6 +1784,8 @@ const orgApi = useOrganisationsApi()
 const bookingsApi = useBookingsApi()
 const formsApi = useFormsApi()
 const eventsApi = useEventsApi()
+const attendanceApi = useAttendanceApi()
+const circlesApi = useCirclesApi()
 const disciplinesApi = useDisciplinesApi()
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
@@ -2900,14 +2902,11 @@ const noteInThisGroup = (n: any) => Array.isArray(n.links) && n.links.some((l: a
 async function loadNoteCounts() {
   const ids = [...coaches.value, ...members.value].map(p => p.id)
   if (!group.value || !ids.length) { noteCounts.value = {}; return }
-  // SEAM GAP (circles domain): person_notes READ by a LIST of person ids. The seam
-  // has useCirclesApi().notes(personId) per person only; a batch reader (and the
-  // widened PersonNote read) is a documented circles-domain follow-up. Fanning out
-  // one call per roster member would be N round-trips, so this stays on useDb until
-  // circles adds notesForPeople(ids).
-  const { data } = await (db.from as any)('person_notes').select('person_id, links').in('person_id', ids)
+  // person_notes for the whole roster in one batch read (circles seam). Each note
+  // carries its links; count those linked to THIS group.
+  const data = await circlesApi.notesForPeople(ids)
   const counts: Record<string, number> = {}
-  for (const n of (data ?? [])) if (noteInThisGroup(n)) counts[n.person_id] = (counts[n.person_id] || 0) + 1
+  for (const n of data) if (noteInThisGroup(n)) counts[n.personId] = (counts[n.personId] || 0) + 1
   noteCounts.value = counts
 }
 
@@ -3058,19 +3057,17 @@ async function loadEvents(gid = group.value?.id) {
     trainingSessions.value = []
     return
   }
-  // SEAM GAP (events domain): events read filtered by member_group_id (this group's
-  // training occurrences). useEventsApi.list is org-wide only — filtering it client-
-  // side would pull every event in the club on each group-page load. Needs an events
-  // reader `byMemberGroup(groupId)`. Kept on useDb until then.
-  const { data } = await (db.from as any)('events')
-    .select('id, title, start_at, end_at, locations, member_group_schedule_id')
-    .eq('member_group_id', gid)
-    .order('start_at', { ascending: true })
-  // events.locations is a jsonb array of LocationEntry; consumers here render a
-  // single `.location`, so surface the first entry. (The old code selected a
-  // non-existent `location` column and silently got empty lists.)
-  const rows = (data ?? []).map((e: any) => ({
-    ...e,
+  // The events linked to this group (its training occurrences) — a scoped seam read
+  // (byMemberGroup), never the org-wide list. Seam returns camelCase; map to the
+  // snake_case shape these consumers render, and surface the first `locations` entry
+  // as a single `.location`.
+  const evs = await eventsApi.byMemberGroup(gid)
+  const rows = evs.map((e) => ({
+    id: e.id,
+    title: e.title,
+    start_at: e.startAt,
+    end_at: e.endAt,
+    member_group_schedule_id: e.memberGroupScheduleId,
     location: Array.isArray(e.locations) ? (e.locations[0] ?? null) : (e.locations ?? null),
   }))
   const map: Record<string, { id: string; title: string }> = {}
@@ -3134,21 +3131,17 @@ const visitorPeople = ref<Array<{ id: string; name: string; roles: string[] }>>(
 async function loadAttendance() {
   const ids = trainingSessions.value.map(s => s.id)
   if (!ids.length) { attendanceRows.value = []; visitorPeople.value = []; return }
-  // SEAM GAP (attendance domain): these training rows are EVENT-level (event_id set,
-  // session_id null). useAttendanceApi only reads bySession(s) — needs a byEvents(ids)
-  // reader. Kept on useDb until the attendance seam adds it.
-  const { data } = await (db.from as any)('attendance')
-    .select('person_id, event_id').in('event_id', ids).eq('attended', true)
-  attendanceRows.value = data ?? []
+  // These training rows are EVENT-level attendance (event_id set, session_id null) —
+  // the attendance seam's byEvents reader. Map to the snake_case shape the matrix reads.
+  const rows = await attendanceApi.byEvents(ids)
+  attendanceRows.value = rows.map(r => ({ person_id: r.personId, event_id: r.eventId }))
   const onRoster = new Set([...members.value, ...coaches.value].map(p => p.id))
   const visitorIds = [...new Set(attendanceRows.value.map(r => r.person_id))].filter(pid => !onRoster.has(pid))
   if (!visitorIds.length) { visitorPeople.value = []; return }
-  // SEAM GAP: people read-by-ids (usePeopleApi has list(orgId,{q}) + get(id), no
-  // bulk by-ids projection) — visitor names for the attendance report.
-  const { data: vp } = await (db.from as any)('persons')
-    .select('id, first_name, last_name, email, phone').in('id', visitorIds)
-  visitorPeople.value = (vp ?? []).map((p: any) => ({
-    id: p.id, name: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || '—', email: p.email ?? null, phone: p.phone ?? null, roles: [],
+  // Visitor names — the people seam's bulk by-ids read.
+  const vp = await peopleApi.byIds(visitorIds)
+  visitorPeople.value = vp.map((p) => ({
+    id: p.id, name: `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || '—', email: p.email ?? null, phone: p.phone ?? null, roles: [],
   }))
 }
 const attendedByPerson = computed(() => {
@@ -3797,15 +3790,18 @@ async function addPerson() {
   if (showNewPerson.value && !p?.id) {
     const fn = newPerson.first_name.trim(), ln = newPerson.last_name.trim()
     if (!fn && !ln) return
-    // SEAM GAP: this inline add permits a person with ONLY a last name (first_name
-    // null), which PersonCreate (firstName min(1)) can't express — kept on useDb so
-    // the only-last-name path stays valid.
-    const { data: created, error: cErr } = await (db.from as any)('persons')
-      .insert({ org_id: orgId.value, first_name: fn || null, last_name: ln || null, email: newPerson.email.trim() || null, phone: newPerson.phone.trim() || null })
-      .select('id, first_name, last_name, email, phone, gender').single()
-    if (cErr || !created) { toast.add({ severity: 'error', summary: 'Could not create person', detail: cErr?.message, life: 4000 }); return }
-    p = created
-    pendingPerson.value = created
+    // PersonCreate now allows an optional firstName, so a last-name-only add goes
+    // through the seam. Map the created (camelCase) person to the snake_case shape the
+    // rest of addPerson() reads.
+    let created
+    try {
+      created = await peopleApi.create({ orgId: orgId.value, firstName: fn || undefined, lastName: ln || '', email: newPerson.email.trim() || null, phone: newPerson.phone.trim() || null })
+    } catch (e: any) {
+      toast.add({ severity: 'error', summary: 'Could not create person', detail: e?.message, life: 4000 }); return
+    }
+    const createdRow = { id: created.id, first_name: created.firstName, last_name: created.lastName, email: created.email, phone: created.phone, gender: created.gender }
+    p = createdRow
+    pendingPerson.value = createdRow
   }
   if (!p?.id) return
   // Governing org pulling a club member (migration 250): reference the club's
@@ -3896,101 +3892,16 @@ async function createAttendanceEvent() {
   const season = effectiveSeason()
   creatingEvent.value = true
   try {
-    const { expandRrule, dateKey } = await import('~/composables/useRecurrence')
-    // Re-fetch existing event links right before iterating so a stale
-    // local cache (e.g. a previous click that already created events
-    // but the watcher hasn't repainted) can't double-create.
-    await loadEvents()
-    const toCreate = schedules.value.filter(s => !trainingEventByScheduleId.value[s.id])
-
-    const untilStr = `${season.end.replace(/-/g, '')}T235959Z`
-    const [ey, em, ed] = season.end.split('-').map(Number)
-    const seasonEndDate = new Date(ey, (em ?? 1) - 1, ed ?? 1, 23, 59, 59)
-    const byDayCodes = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
-
-    for (const sched of toCreate) {
-      const firstDate = findFirstOccurrence(sched.day_of_week, season.start)
-      if (!firstDate || firstDate > seasonEndDate) continue
-
-      const [sh, smin] = sched.start_time.split(':').map(Number)
-      const [eh, emin] = sched.end_time.split(':').map(Number)
-      const masterStart = new Date(firstDate.getFullYear(), firstDate.getMonth(), firstDate.getDate(), sh ?? 0, smin ?? 0)
-      const masterEnd = new Date(firstDate.getFullYear(), firstDate.getMonth(), firstDate.getDate(), eh ?? 0, emin ?? 0)
-      const duration = masterEnd.getTime() - masterStart.getTime()
-
-      const rrule = `FREQ=WEEKLY;BYDAY=${byDayCodes[sched.day_of_week]};UNTIL=${untilStr}`
-      const dayName = dayNames[sched.day_of_week]
-
-      const sharedFields = {
-        org_id: orgId.value,
-        title: sched.name?.trim() ? `${group.value.name} — ${sched.name.trim()}` : `${group.value.name} — ${dayName} Training`,
-        style: 'BASIC',
-        member_group_id: group.value.id,
-        member_group_schedule_id: sched.id,
-        location_type: sched.location.type,
-        bookable_id: sched.location.type === 'BOOKABLE' ? (sched.location.bookable_ids[0] ?? null) : null,
-        address: sched.location.type === 'ADDRESS'
-          ? [sched.location.venue_name, sched.location.address].filter(Boolean).join(', ') || null
-          : null,
-        meeting_link: sched.location.type === 'ONLINE' ? (sched.location.meeting_link || null) : null,
-        status: 'DRAFT',
-      }
-
-      // SEAM GAP: events training-gen route — this writes a recurrence master +
-      // weekly children + invitees, the same pattern as useTermRollover
-      // .generateTrainingEvents. Both wait on useEventsApi().generateTrainingEvents(…),
-      // which the events cleanup owns; kept on useDb until that route lands.
-      const { data: master } = await (db.from as any)('events').insert({
-        ...sharedFields,
-        start_at: masterStart.toISOString(),
-        end_at: masterEnd.toISOString(),
-        recurrence_rule: rrule,
-      }).select('id').single()
-      if (!master) continue
-
-      // Materialize child events (one per subsequent weekly occurrence
-      // inside the season). The master itself already represents the
-      // first occurrence so we skip its dateKey.
-      const occurrences = expandRrule(rrule, masterStart, seasonEndDate, 200)
-      const masterKey = dateKey(masterStart)
-      // Children inherit member_group_id (so reporting + the attendance
-      // landing still find them) but the schedule-id pointer stays on
-      // the master alone — that keeps the "1 schedule = 1 master" model
-      // clean.
-      const { member_group_schedule_id: _omit, ...childShared } = sharedFields
-      const childRows = occurrences
-        .filter(d => dateKey(d) !== masterKey)
-        .map(d => {
-          const childStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), sh ?? 0, smin ?? 0)
-          const childEnd = new Date(childStart.getTime() + duration)
-          return {
-            ...childShared,
-            recurrence_parent_id: master.id,
-            recurrence_rule: null,
-            start_at: childStart.toISOString(),
-            end_at: childEnd.toISOString(),
-          }
-        })
-      const eventIds: string[] = [master.id]
-      if (childRows.length) {
-        const { data: insertedChildren } = await (db.from as any)('events').insert(childRows).select('id')
-        for (const c of insertedChildren ?? []) eventIds.push(c.id)
-      }
-
-      // Invite every group member to every event in the series, so the
-      // attendance tab on each occurrence is preloaded with the roster.
-      const memberPersonIds = members.value.map(m => m.id)
-      if (memberPersonIds.length && eventIds.length) {
-        const inviteeRows: any[] = []
-        for (const eid of eventIds) {
-          for (const pid of memberPersonIds) {
-            inviteeRows.push({ event_id: eid, person_id: pid, status: 'INVITED' })
-          }
-        }
-        await (db.from as any)('invitees').insert(inviteeRows)
-      }
-    }
-
+    // The whole series materialisation (recurrence master + weekly children) and
+    // member-invite runs server-side in one seam call, idempotently: schedules that
+    // already have a linked master event are skipped. Members (not staff) are invited
+    // to every occurrence so attendance opens pre-rostered.
+    await eventsApi.generateTrainingEvents({
+      orgId: orgId.value,
+      groupIds: [group.value.id],
+      window: { start: season.start, end: season.end },
+      membersByGroup: { [group.value.id]: members.value.map(m => m.id) },
+    })
     await loadEvents()
     await loadAttendance()
   } finally {

@@ -38,7 +38,7 @@ export function useGroupsApi() {
   async function membershipsByOrg(
     orgId: string,
   ): Promise<
-    { personId: string; groupId: string; locationId: string | null; role: string | null; roles: string[] }[]
+    { personId: string; groupId: string; locationId: string | null; codeId: string | null; role: string | null; roles: string[] }[]
   > {
     return await $fetch(`/api/v1/groups/memberships`, { query: { orgId } })
   }
@@ -47,7 +47,7 @@ export function useGroupsApi() {
     orgId: string,
     personId: string,
   ): Promise<
-    { groupId: string; personId: string; role: string | null; roles: string[]; locationId: string | null }[]
+    { groupId: string; personId: string; role: string | null; roles: string[]; locationId: string | null; codeId: string | null }[]
   > {
     return await $fetch(`/api/v1/groups/memberships`, { query: { orgId, personId } })
   }
@@ -299,6 +299,15 @@ export function useGroupsApi() {
   async function removeView(id: string): Promise<void> {
     await $fetch(`/api/v1/group-views/${id}`, { method: 'DELETE' })
   }
+  // ── Group disciplines (member_group_disciplines link table, <DisciplineLinker>) ──
+  /** The discipline ids linked to a member group. */
+  async function groupDisciplineIds(groupId: string): Promise<string[]> {
+    return await $fetch<string[]>(`/api/v1/groups/${groupId}/disciplines`)
+  }
+  /** Replace the disciplines linked to a member group (delete-then-insert). */
+  async function setGroupDisciplines(groupId: string, disciplineIds: string[]): Promise<void> {
+    await $fetch(`/api/v1/groups/${groupId}/disciplines`, { method: 'PUT', body: { disciplineIds } })
+  }
   return {
     list, get, memberships, membershipsByOrg, membershipsForPerson, groupsByCodeIds,
     upsertMembership, removeMembership, membershipsWithPersonForGroups,
@@ -308,5 +317,6 @@ export function useGroupsApi() {
     rosterWithPerson, saveBilling,
     create, update, remove, createCode, updateCode, removeCode,
     views, view, createView, updateView, removeView,
+    groupDisciplineIds, setGroupDisciplines,
   }
 }

@@ -1,7 +1,7 @@
 <!-- Dashboard widget: outstanding money across registrations -->
 <script setup lang="ts">
-const db = useDb()
 const { orgId } = useOrg()
+const financesApi = useFinancesApi()
 
 const loading = ref(true)
 const owed = ref(0)
@@ -9,19 +9,10 @@ const owing = ref(0)
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  // SEAM GAP (finances/events domain): no org-wide registrations-outstanding read exists.
-  // Needs a route summing (total_amount − paid_amount) across an org's registrations
-  // (registrations join events for org scope). Left on useDb until the seam provides it.
-  const { data } = await (db.from as any)('registrations')
-    .select('total_amount, paid_amount, event:events!inner(org_id)')
-    .eq('event.org_id', orgId.value).limit(2000)
-  let sum = 0, n = 0
-  for (const r of (data ?? [])) {
-    const due = Math.max(0, (Number(r.total_amount) || 0) - (Number(r.paid_amount) || 0))
-    if (due > 0) { sum += due; n++ }
-  }
+  // Org-wide outstanding rollup on the seam (Σ max(0, total − paid) + count owing).
+  const { owed: sum, count } = await financesApi.outstandingByOrg(orgId.value)
   owed.value = sum
-  owing.value = n
+  owing.value = count
   loading.value = false
 }
 onMounted(load)

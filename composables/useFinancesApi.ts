@@ -17,6 +17,9 @@ import type {
   AddonCreate,
   ReportingBundle,
   AttendanceSession,
+  PersonRegistration,
+  OutstandingSummary,
+  RegistrationTransaction,
 } from '../shared/contracts/finance'
 
 export function useFinancesApi() {
@@ -87,6 +90,20 @@ export function useFinancesApi() {
       query: { orgId, from, to },
     })
   }
+  /** One person's registrations (money owed/paid) — profile Financials + member portal. */
+  async function registrationsForPerson(personId: string): Promise<PersonRegistration[]> {
+    if (!personId) return []
+    return await $fetch<PersonRegistration[]>('/api/v1/finances/registrations-for-person', { query: { personId } })
+  }
+  /** The org-wide outstanding-money rollup (total owed + count still owing). */
+  async function outstandingByOrg(orgId: string): Promise<OutstandingSummary> {
+    return await $fetch<OutstandingSummary>('/api/v1/finances/outstanding', { query: { orgId } })
+  }
+  /** Transaction refs (Xero invoice id) for a set of registrations. */
+  async function registrationTransactions(regIds: string[]): Promise<RegistrationTransaction[]> {
+    if (!regIds.length) return []
+    return await $fetch<RegistrationTransaction[]>('/api/v1/finances/registration-transactions', { query: { regIds: regIds.join(',') } })
+  }
   return {
     discounts,
     createDiscount,
@@ -106,5 +123,8 @@ export function useFinancesApi() {
     orgCurrency,
     reportingBundle,
     attendanceSessions,
+    registrationsForPerson,
+    outstandingByOrg,
+    registrationTransactions,
   }
 }

@@ -64,13 +64,12 @@ export interface RolloverPlan {
 }
 
 export function useTermRollover() {
-  // SEAM GAP (events domain): generateTrainingEvents() below writes `events` + `invitees`
-  // (events-domain tables) alongside reading schedules/memberships — it stays on useDb
-  // until useEventsApi exposes a "generate training series + invite members" op. Every
-  // other function here is on the /api/v1 seam.
-  const db = useDb()
+  // Fully on the /api/v1 seam. generateTrainingEvents() resolves each group's
+  // staff-filtered member list client-side (role classification is a client concern)
+  // and hands the whole series-materialisation + member-invite op to the events seam.
   const { orgId } = useOrg()
   const groupsApi = useGroupsApi()
+  const eventsApi = useEventsApi()
   const tm = useTermsMemberships()
   const scoped = useScopedRoles()
 
@@ -221,96 +220,23 @@ export function useTermRollover() {
   // staff) are invited to every occurrence so attendance opens pre-rostered.
   async function generateTrainingEvents(term: OrgTerm, groupIds: string[]): Promise<{ events: number; classes: number }> {
     if (!groupIds.length || !term.start_date || !term.end_date || !orgId.value) return { events: 0, classes: 0 }
-    const { expandRrule, dateKey } = await import('~/composables/useRecurrence')
     await scoped.loadRoleDefs()
-    const [{ data: scheds }, { data: linked }, { data: mems }, { data: groups }] = await Promise.all([
-      (db.from as any)('member_group_schedules').select('*').in('group_id', groupIds).order('sort_order'),
-      (db.from as any)('events').select('member_group_schedule_id').in('member_group_id', groupIds).not('member_group_schedule_id', 'is', null),
-      (db.from as any)('member_group_memberships').select('group_id, person_id, roles, role').in('group_id', groupIds),
-      (db.from as any)('member_groups').select('id, name').in('id', groupIds),
-    ])
-    const nameById: Record<string, string> = Object.fromEntries((groups ?? []).map((g: any) => [g.id, g.name]))
+    // Resolve each group's staff-filtered members (the invitees the server will roster)
+    // — role classification is a client concern; the seam takes the resolved lists.
+    const mems = await groupsApi.roster(groupIds)
     const membersByGroup: Record<string, string[]> = {}
-    for (const m of (mems ?? [])) {
+    for (const m of mems) {
       const roles = scoped.normalizeRoles('group', m.roles, m.role)
-      if (!scoped.isStaff('group', roles)) (membersByGroup[m.group_id] ??= []).push(m.person_id)
+      if (!scoped.isStaff('group', roles)) (membersByGroup[m.groupId] ??= []).push(m.personId)
     }
-    const alreadyLinked = new Set((linked ?? []).map((r: any) => r.member_group_schedule_id))
-
-    const untilStr = `${term.end_date.replace(/-/g, '')}T235959Z`
-    const [ey, em, ed] = term.end_date.split('-').map(Number)
-    const termEndDate = new Date(ey, (em ?? 1) - 1, ed ?? 1, 23, 59, 59)
-    const [ty, tm2, td] = term.start_date.split('-').map(Number)
-    const byDayCodes = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-
-    let events = 0
-    const touched = new Set<string>()
-    for (const sched of (scheds ?? [])) {
-      if (alreadyLinked.has(sched.id)) continue
-      const first = new Date(ty, (tm2 ?? 1) - 1, td ?? 1)
-      while (first.getDay() !== sched.day_of_week) first.setDate(first.getDate() + 1)
-      if (first > termEndDate) continue
-
-      const loc = sched.location || {}
-      const [sh, smin] = String(sched.start_time || '0:0').split(':').map(Number)
-      const [eh, emin] = String(sched.end_time || '0:0').split(':').map(Number)
-      const masterStart = new Date(first.getFullYear(), first.getMonth(), first.getDate(), sh ?? 0, smin ?? 0)
-      const masterEnd = new Date(first.getFullYear(), first.getMonth(), first.getDate(), eh ?? 0, emin ?? 0)
-      const duration = masterEnd.getTime() - masterStart.getTime()
-      const rrule = `FREQ=WEEKLY;BYDAY=${byDayCodes[sched.day_of_week]};UNTIL=${untilStr}`
-      const groupName = nameById[sched.group_id] ?? 'Class'
-
-      const sharedFields = {
-        org_id: orgId.value,
-        title: sched.name?.trim() ? `${groupName} — ${sched.name.trim()}` : `${groupName} — ${dayNames[sched.day_of_week]} Training`,
-        style: 'BASIC',
-        member_group_id: sched.group_id,
-        member_group_schedule_id: sched.id,
-        location_type: loc.type ?? null,
-        bookable_id: loc.type === 'BOOKABLE' ? (loc.bookable_ids?.[0] ?? null) : null,
-        address: loc.type === 'ADDRESS' ? ([loc.venue_name, loc.address].filter(Boolean).join(', ') || null) : null,
-        meeting_link: loc.type === 'ONLINE' ? (loc.meeting_link || null) : null,
-        status: 'DRAFT',
-      }
-      const { data: master } = await (db.from as any)('events').insert({
-        ...sharedFields,
-        start_at: masterStart.toISOString(),
-        end_at: masterEnd.toISOString(),
-        recurrence_rule: rrule,
-      }).select('id').single()
-      if (!master) continue
-
-      const occurrences = expandRrule(rrule, masterStart, termEndDate, 200)
-      const masterKey = dateKey(masterStart)
-      const { member_group_schedule_id: _omit, ...childShared } = sharedFields
-      const childRows = occurrences
-        .filter((d: Date) => dateKey(d) !== masterKey)
-        .map((d: Date) => {
-          const childStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), sh ?? 0, smin ?? 0)
-          return {
-            ...childShared,
-            recurrence_parent_id: master.id,
-            recurrence_rule: null,
-            start_at: childStart.toISOString(),
-            end_at: new Date(childStart.getTime() + duration).toISOString(),
-          }
-        })
-      const eventIds: string[] = [master.id]
-      if (childRows.length) {
-        const { data: kids } = await (db.from as any)('events').insert(childRows).select('id')
-        for (const c of (kids ?? [])) eventIds.push(c.id)
-      }
-      const people = membersByGroup[sched.group_id] ?? []
-      if (people.length) {
-        const inviteeRows: any[] = []
-        for (const eid of eventIds) for (const pid of people) inviteeRows.push({ event_id: eid, person_id: pid, status: 'INVITED' })
-        await (db.from as any)('invitees').insert(inviteeRows)
-      }
-      events += eventIds.length
-      touched.add(sched.group_id)
-    }
-    return { events, classes: touched.size }
+    // The series materialisation + member-invite runs server-side in one seam call
+    // (idempotent — schedules with an existing master event are skipped).
+    return await eventsApi.generateTrainingEvents({
+      orgId: orgId.value,
+      groupIds,
+      window: { start: term.start_date, end: term.end_date },
+      membersByGroup,
+    })
   }
 
   // Should the club be nudged to roll over? True when a term that HAS groups is

@@ -57,6 +57,10 @@ export function useAdminApi() {
   async function dashboardTemplates(orgId: string): Promise<DashboardTemplate[]> {
     return await $fetch<DashboardTemplate[]>('/api/v1/dashboard-templates', { query: { orgId } })
   }
+  /** Upsert a per-role dashboard template (the /dashboard template-edit-mode Save). */
+  async function saveDashboardTemplate(orgId: string, userType: string, config: any): Promise<void> {
+    await $fetch('/api/v1/dashboard-templates', { method: 'POST', body: { orgId, userType, config } })
+  }
   /** Delete a per-role dashboard template (reverts that role to the standard layout). */
   async function removeDashboardTemplate(orgId: string, userType: string): Promise<void> {
     await $fetch('/api/v1/dashboard-templates', { method: 'DELETE', query: { orgId, userType } })
@@ -170,7 +174,7 @@ export function useAdminApi() {
   }
 
   return {
-    brands, clubTypes, sportCategories, helpArticles, createHelpArticle, updateHelpArticle, removeHelpArticle, dashboardTemplates, removeDashboardTemplate, pageReviewers,
+    brands, clubTypes, sportCategories, helpArticles, createHelpArticle, updateHelpArticle, removeHelpArticle, dashboardTemplates, saveDashboardTemplate, removeDashboardTemplate, pageReviewers,
     createBrand, updateBrand, deleteBrand,
     getClubType, createClubType, updateClubType, deleteClubType, saveClubTypeDefaults, overallDefaultClubTypeId,
     corePermissionGroups, createCorePermissionGroup, updateCorePermissionGroup, deleteCorePermissionGroup, reorderCorePermissionGroups,

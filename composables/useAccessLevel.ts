@@ -11,13 +11,11 @@
 // in a club where you DO have a record (see useMyClubs / login routing), so this
 // only bites truly unrecognised sessions. Cached per org.
 export function useAccessLevel() {
-  // The Admin-vs-Person resolver reads cross-domain, now through the typed seam:
+  // The Admin-vs-Person resolver reads cross-domain, all through the typed seam:
   // person-by-email (people), the org's own types + their is_access (person-types),
-  // a person's legacy permission groups (roles), and their class-membership roles
-  // (groups). ONLY the invitees (event) roles read stays on useDb — the events domain
-  // has no invitee-roles-by-person seam function yet (SEAM GAP below). Guarded: an
-  // unresolved session fails to the least privilege (member portal), never locks out.
-  const db = useDb()
+  // a person's legacy permission groups (roles), their class-membership roles
+  // (groups), and their event-invitee roles (events). Guarded: an unresolved session
+  // fails to the least privilege (member portal), never locks out.
   const { orgId } = useOrg()
   const user = useSupabaseUser()
   const scoped = useScopedRoles()
@@ -25,6 +23,7 @@ export function useAccessLevel() {
   const { listOrgTypes } = usePersonTypesApi()
   const { permissionGroupsForPerson } = useRolesApi()
   const { membershipsForPerson } = useGroupsApi()
+  const { inviteesForPerson } = useEventsApi()
 
   const isAdmin = useState<boolean>('fm_is_admin', () => true)
   const myPersonId = useState<string | null>('fm_my_person_id', () => null)
@@ -69,12 +68,11 @@ export function useAccessLevel() {
       const roles = (m.roles?.length ? m.roles : [m.role]).filter(Boolean) as string[]
       if (roles.length && scoped.isStaff('group', roles)) { isAdmin.value = true; return true }
     }
-    // SEAM GAP (events): no invitee-roles-by-person seam function yet — the invitees
-    // read stays on useDb. Guarded: worst case a staff-only-via-event login reads as a
-    // member (least privilege), never locked out.
-    const { data: iv } = await (db.from as any)('invitees').select('roles, role').eq('person_id', person.id)
-    for (const m of (iv ?? [])) {
-      const roles = (m.roles?.length ? m.roles : [m.role]).filter(Boolean)
+    // Any STAFF role on an event? Guarded: worst case a staff-only-via-event login
+    // reads as a member (least privilege), never locked out.
+    const iv = await inviteesForPerson(person.id)
+    for (const m of iv) {
+      const roles = (m.roles?.length ? m.roles : [m.role]).filter(Boolean) as string[]
       if (roles.length && scoped.isStaff('event', roles)) { isAdmin.value = true; return true }
     }
 

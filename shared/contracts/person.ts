@@ -52,6 +52,10 @@ export const personCreateSchema = personSchema
   // createdAt is server-owned (the DB stamps it) — omitted like id.
   .omit({ id: true, createdAt: true })
   .partial({
+    // firstName is optional: a roster can add a person with ONLY a last name (the
+    // group page's inline last-name-only add). The repo stores null; the READ mapper
+    // presents '' so the non-nullable read contract still holds.
+    firstName: true,
     lastName: true,
     email: true,
     phone: true,
@@ -67,9 +71,22 @@ export const personCreateSchema = personSchema
   })
   .extend({
     orgId: z.string().min(1),
-    firstName: z.string().min(1),
   })
 export type PersonCreate = z.infer<typeof personCreateSchema>
+
+// One person plus the org they belong to (name + level) — the cross-org "which clubs
+// does this login belong to" read (useMyClubs). A lean projection, not the full
+// Person, since the caller only needs identity + type + club label.
+export const personWithOrgSchema = z.object({
+  id: z.string(),
+  orgId: z.string(),
+  orgName: z.string(),
+  orgLevel: z.string().nullable(),
+  personType: z.string().nullable(),
+  personTypes: z.array(z.string()),
+})
+export type PersonWithOrg = z.infer<typeof personWithOrgSchema>
+export const personWithOrgListSchema = z.array(personWithOrgSchema)
 
 // Patch omits `orgId`: which tenant a person belongs to is not an editable field.
 // Leaving it in would let `PATCH /people/:id {"orgId":"<other>"}` move a person

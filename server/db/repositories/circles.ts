@@ -362,6 +362,18 @@ export async function listNotes(personId: string): Promise<PersonNote[]> {
   return rows.map(toNote)
 }
 
+/** Notes for a SET of people (roster note-count badges), newest first. Empty in →
+ *  empty out; the caller buckets by personId. */
+export async function listNotesForPeople(personIds: string[]): Promise<PersonNote[]> {
+  if (!personIds.length) return []
+  const rows = await db
+    .select()
+    .from(schema.personNotes)
+    .where(inArray(schema.personNotes.personId, personIds))
+    .orderBy(desc(schema.personNotes.createdAt))
+  return rows.map(toNote)
+}
+
 /** Every entity record an org has (optionally one type), newest first. */
 export async function listEntities(orgId: string, typeKey?: string): Promise<Entity[]> {
   if (!orgId) return []

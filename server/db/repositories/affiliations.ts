@@ -278,6 +278,17 @@ export async function listLocationStaff(orgId: string): Promise<LocationStaff[]>
   }))
 }
 
+/** One person's explicit site access grants within an org (location_staff rows) — the
+ *  access-lens resolver reads these to restrict a staff member to their sites. No
+ *  person join needed (the caller already knows who they are). */
+export async function listLocationStaffByPerson(orgId: string, personId: string): Promise<LocationStaff[]> {
+  const rows = await db
+    .select()
+    .from(schema.locationStaff)
+    .where(and(eq(schema.locationStaff.orgId, orgId), eq(schema.locationStaff.personId, personId)))
+  return rows.map(toLocationStaff)
+}
+
 /** Grant a person a role at a site (or club-wide when locationId is null). */
 export async function createLocationStaff(input: LocationStaffCreate): Promise<LocationStaff> {
   const id = randomUUID()

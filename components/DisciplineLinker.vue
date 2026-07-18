@@ -15,22 +15,21 @@
   member_group_disciplines / event_disciplines.
 -->
 <script setup lang="ts">
-// CROSS-DOMAIN GAP: this component stays on useDb() until three seam pieces land,
-// because its load() chain is entangled and every link is load-bearing:
-//   1. `org_sports` read (sport + nso_org_id) — no seam (org_sports has no owner).
-//   2. the `org_sport_ancestors` RPC → govIds — the noted "governingOrgs" gap (Fi1);
-//      needs a recursive-CTE route (parent chain ∪ approved sport chains).
-//   3. `member_group_disciplines` WRITE (group context) — groups domain, no write seam.
-// The disciplines READ could move to useDisciplinesApi().listForOrgs(govIds) and the
-// EVENT link read/write to useEventsApi().eventDisciplineIds/setEventDisciplines, but
-// both depend on govIds from (2), so partial conversion can't remove useDb here. Do
-// the whole component once (2) exists. See cross-domain-gaps.md.
+// On the seam. The three pieces that used to keep this on useDb() now exist:
+//   1. org_sports read → useAffiliationsApi().orgSports (sport + nsoOrgId).
+//   2. govIds (parent chain ∪ approved sport chains) → useOrgHierarchy().governingOrgs,
+//      backed by the MySQL recursive CTE (org_sport_ancestors ported); it returns the
+//      bodies with NAMES, so the discipline-group headings resolve in the same call.
+//   3. disciplines read → useDisciplinesApi().listForOrgs(govIds); the join read/write
+//      → useGroupsApi().groupDisciplineIds/setGroupDisciplines (group) or
+//      useEventsApi().eventDisciplineIds/setEventDisciplines (event).
 const props = defineProps<{ entityType: 'group' | 'event'; entityId: string }>()
-const db = useDb()
 const { orgId } = useOrg()
-
-const joinTable = props.entityType === 'group' ? 'member_group_disciplines' : 'event_disciplines'
-const fk = props.entityType === 'group' ? 'group_id' : 'event_id'
+const affiliationsApi = useAffiliationsApi()
+const disciplinesApi = useDisciplinesApi()
+const groupsApi = useGroupsApi()
+const eventsApi = useEventsApi()
+const { governingOrgs } = useOrgHierarchy()
 
 interface Disc { id: string; name: string; parent_id: string | null; sort_order: number; nso: string }
 const orgSports = ref<{ sport: string; nso_org_id: string | null }[]>([])
@@ -49,16 +48,20 @@ async function load() {
   // Steps 1, 2 and the existing-links lookup are all independent (keyed only by
   // org + entity, both known upfront), so fire them together instead of chaining
   // three serial round-trips. Only the disciplines fetch depends on step 2.
-  const [sportsRes, ancRes, linksRes] = await Promise.all([
+  const [sports, gov, links] = await Promise.all([
     // 1. The club's sports + which are connected to a governing body.
-    (db.from as any)('org_sports')
-      .select('sport, nso_org_id').eq('org_id', orgId.value).order('sort_order'),
-    // 2. Every governing body reachable from the club's connected sports.
-    (db.rpc as any)('org_sport_ancestors', { p_org: orgId.value, p_sport: null }),
+    affiliationsApi.orgSports(orgId.value),
+    // 2. Every governing body reachable from the club's connected sports (the
+    //    parent chain ∪ approved sport chains — the seam's governing walk); carries
+    //    each body's NAME for the discipline-group headings below.
+    governingOrgs(orgId.value),
     // 3. Existing links.
-    (db.from as any)(joinTable).select('discipline_id').eq(fk, props.entityId),
+    props.entityType === 'group'
+      ? groupsApi.groupDisciplineIds(props.entityId)
+      : eventsApi.eventDisciplineIds(props.entityId),
   ])
-  orgSports.value = sportsRes?.data ?? []
+  // Map to the snake_case shape the template's empty-state messaging reads.
+  orgSports.value = sports.map(s => ({ sport: s.sport, nso_org_id: s.nsoOrgId ?? null }))
 
   // Disciplines this org can reach: the governing bodies ABOVE it (step 2), plus
   // its OWN.
@@ -68,43 +71,46 @@ async function load() {
   // was being told to "connect a sport to a governing body" while looking at the
   // very disciplines it had just authored. A club owns no disciplines, so including
   // itself costs a club nothing.
-  const govIds = [...new Set([orgId.value, ...(ancRes?.data ?? []).map((a: any) => a.id)])].filter(Boolean)
+  const govIds = [...new Set([orgId.value, ...gov.map(g => g.id)])].filter(Boolean)
+  // Body name per org id — governingOrgs carries the ancestors' names; add the org's
+  // own name (excluded from governingOrgs) so a self-owned discipline groups under it.
+  const nameById = new Map<string, string>(gov.map(g => [g.id, g.name]))
   if (govIds.length) {
-    const { data: discs } = await (db.from as any)('disciplines')
-      .select('id, name, parent_id, sort_order, applies_to, org_id, organisations(name)').in('org_id', govIds).order('sort_order').order('name')
+    if (!nameById.has(orgId.value)) {
+      try { nameById.set(orgId.value, (await useOrganisationsApi().get(orgId.value)).name) } catch { /* heading falls back to '' */ }
+    }
+    // Seam returns camelCase disciplines (parentId/sortOrder/appliesTo/orgId).
+    const rows = await disciplinesApi.listForOrgs(govIds)
     // A discipline shows here only when it's scoped to this context (event/group)
     // or scoped to nothing at all (applies everywhere). Its ANCESTORS are always
     // kept so a shown child never dangles without its parent in the tree.
-    const rows = (discs ?? [])
-    const inContext = (d: any) => !d.applies_to || !d.applies_to.length || d.applies_to.includes(props.entityType)
+    const inContext = (d: any) => !d.appliesTo || !d.appliesTo.length || d.appliesTo.includes(props.entityType)
     const keep = new Set<string>()
     for (const d of rows) if (inContext(d)) keep.add(d.id)
     const byId = new Map(rows.map((d: any) => [d.id, d]))
     for (const d of rows) if (keep.has(d.id)) {
-      let p = d.parent_id
-      while (p && byId.has(p) && !keep.has(p)) { keep.add(p); p = (byId.get(p) as any).parent_id }
+      let p = d.parentId
+      while (p && byId.has(p) && !keep.has(p)) { keep.add(p); p = (byId.get(p) as any).parentId }
     }
     // Measured BEFORE the applies_to filter: "you author disciplines but none apply
     // to a group" and "you author none" are different problems and must not read the
     // same.
-    ownsDisciplines.value = rows.some((d: any) => d.org_id === orgId.value)
+    ownsDisciplines.value = rows.some((d: any) => d.orgId === orgId.value)
     allDisciplines.value = rows.filter((d: any) => keep.has(d.id))
-      .map((d: any) => ({ id: d.id, name: d.name, parent_id: d.parent_id ?? null, sort_order: d.sort_order ?? 0, nso: d.organisations?.name ?? '' }))
+      .map((d: any) => ({ id: d.id, name: d.name, parent_id: d.parentId ?? null, sort_order: d.sortOrder ?? 0, nso: nameById.get(d.orgId) ?? '' }))
   } else {
     allDisciplines.value = []
     ownsDisciplines.value = false
   }
 
-  selected.value = (linksRes?.data ?? []).map((l: any) => l.discipline_id)
+  selected.value = links
   loading.value = false
 }
 
 async function save() {
   saving.value = true
-  await (db.from as any)(joinTable).delete().eq(fk, props.entityId)
-  if (selected.value.length) {
-    await (db.from as any)(joinTable).insert(selected.value.map(id => ({ [fk]: props.entityId, discipline_id: id })))
-  }
+  if (props.entityType === 'group') await groupsApi.setGroupDisciplines(props.entityId, selected.value)
+  else await eventsApi.setEventDisciplines(props.entityId, selected.value)
   saving.value = false
 }
 

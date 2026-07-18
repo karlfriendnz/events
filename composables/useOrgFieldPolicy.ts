@@ -144,9 +144,9 @@ export function useOrgFieldPolicy() {
   // stitches in the org-hierarchy walk.
   const api = usePersonTypesApi()
   // Ancestors come from the seam (orgs.ancestors, MySQL-backed). governingOrgs (parent
-  // chain ∪ every connected sport's chain) has no seam function yet — CROSS-DOMAIN
-  // GAP — so it's still resolved by useOrgHierarchy (RPC) until the org/affiliations
-  // domain exposes a governingOrgs seam. No useDb lives in this file.
+  // chain ∪ every approved sport chain) is ALSO on the seam now — useOrgHierarchy backs
+  // it via useAdminApi().orgGoverning, the MySQL recursive CTE (org_sport_ancestors
+  // ported). No useDb lives in this file.
   const { ancestors } = useOrganisationsApi()
   const { governingOrgs } = useOrgHierarchy()
 

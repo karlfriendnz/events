@@ -45,6 +45,19 @@ export async function listBySessions(sessionIds: string[], onlyAttended = true):
 }
 
 /**
+ * Attendance rows for a SET of events (present-only by default). Training events are
+ * EVENT-level attendance (event_id set, session_id null), so the group page's
+ * attendance matrix reads by event, not by session.
+ */
+export async function listByEvents(eventIds: string[], onlyAttended = true): Promise<AttendanceRow[]> {
+  if (!eventIds.length) return []
+  const preds: any[] = [inArray(schema.attendance.eventId, eventIds)]
+  if (onlyAttended) preds.push(eq(schema.attendance.attended, true))
+  const rows = await db.select().from(schema.attendance).where(and(...preds))
+  return rows.map(toRow)
+}
+
+/**
  * Per-event distinct-attendee counts for a whole org — the reporting rollup. Joins
  * attendance → events to scope by org (attendance has no org_id), counts DISTINCT
  * persons with ≥1 attended row per event. One query, reduced in JS.

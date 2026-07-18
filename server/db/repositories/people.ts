@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto'
 import { and, asc, eq, inArray, like, or, sql } from 'drizzle-orm'
 import { db, schema } from '../client'
-import type { Person, PersonCreate, PersonPatch } from '../../../shared/contracts/person'
+import type { Person, PersonCreate, PersonPatch, PersonWithOrg } from '../../../shared/contracts/person'
 import type { PersonNote } from '../../../shared/contracts/circle'
 import type { PersonNoteCreate } from '../../../shared/contracts/personNote'
 
@@ -59,8 +59,10 @@ function toDomain(r: typeof schema.persons.$inferSelect): Person {
   return {
     id: r.id,
     orgId: r.orgId,
-    firstName: r.firstName,
-    lastName: r.lastName,
+    // A last-name-only person has a null firstName in storage; present '' so the
+    // non-nullable read contract holds and the UI's `first_name ?? ''` idiom is met.
+    firstName: r.firstName ?? '',
+    lastName: r.lastName ?? '',
     email: r.email ?? null,
     phone: r.phone ?? null,
     dob: toIsoDate(r.dob),
@@ -110,6 +112,44 @@ export async function getPerson(id: string): Promise<Person | null> {
   return r ? toDomain(r) : null
 }
 
+/** A bulk fetch of persons by a set of ids (e.g. attendance visitor names). Empty in
+ *  → empty out; order not guaranteed (the caller keys by id). */
+export async function getPeopleByIds(ids: string[]): Promise<Person[]> {
+  if (!ids.length) return []
+  const rows = await db.select().from(schema.persons).where(inArray(schema.persons.id, ids))
+  return rows.map(toDomain)
+}
+
+/**
+ * Every persons row across EVERY org matching a login's email (one row per club) +
+ * that org's name/level. Cross-org by design — the cross-club identity resolver
+ * (useMyClubs) lands a login in the right club. Case-insensitive on email.
+ */
+export async function findAllPersonsByEmail(email: string): Promise<PersonWithOrg[]> {
+  const target = email.trim().toLowerCase()
+  if (!target) return []
+  const rows = await db
+    .select({
+      id: schema.persons.id,
+      orgId: schema.persons.orgId,
+      personType: schema.persons.personType,
+      personTypes: schema.persons.personTypes,
+      orgName: schema.organisations.name,
+      orgLevel: schema.organisations.orgLevel,
+    })
+    .from(schema.persons)
+    .innerJoin(schema.organisations, eq(schema.persons.orgId, schema.organisations.id))
+    .where(sql`LOWER(${schema.persons.email}) = ${target}`)
+  return rows.map((r) => ({
+    id: r.id,
+    orgId: r.orgId,
+    orgName: r.orgName,
+    orgLevel: r.orgLevel ?? null,
+    personType: r.personType ?? null,
+    personTypes: asArray(r.personTypes),
+  }))
+}
+
 // ── Writes ──
 // The repo owns the id (MySQL can't default a uuid). The json columns (personTypes,
 // customFields) are JSON.stringify'd on the way IN, mirroring asArray/asObj's parse
@@ -123,7 +163,8 @@ export async function createPerson(input: PersonCreate): Promise<Person> {
   await db.insert(schema.persons).values({
     id,
     orgId: input.orgId,
-    firstName: input.firstName,
+    // firstName is optional (last-name-only add) — store null when absent.
+    firstName: input.firstName ?? null,
     lastName: input.lastName ?? '',
     email: input.email ?? null,
     phone: input.phone ?? null,

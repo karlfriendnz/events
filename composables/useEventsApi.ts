@@ -87,6 +87,11 @@ export function useEventsApi() {
       query: { personId },
     })
   }
+  /** The events linked to one member group (training occurrences, earliest first) —
+   *  carries `locations` + `memberGroupScheduleId` for the group page. */
+  async function byMemberGroup(groupId: string): Promise<FMEvent[]> {
+    return await $fetch<FMEvent[]>('/api/v1/events/by-member-group', { query: { groupId } })
+  }
   /** Per-event invitee totals (total + confirmed) across an org — reporting page. */
   async function inviteeCountsByOrg(orgId: string): Promise<{ eventId: string; total: number; confirmed: number }[]> {
     return await $fetch('/api/v1/events/invitee-counts', { query: { orgId } })
@@ -333,7 +338,7 @@ export function useEventsApi() {
   }
 
   return {
-    list, get, sessions, invitees, inviteesWithPerson, registrations, inviteesForPerson, inviteeCountsByOrg,
+    list, get, sessions, invitees, inviteesWithPerson, registrations, inviteesForPerson, byMemberGroup, inviteeCountsByOrg,
     ticketOrders,
     seriesCount, series, generateSeries, deleteSeries, setEventsStatus,
     create, update, remove,

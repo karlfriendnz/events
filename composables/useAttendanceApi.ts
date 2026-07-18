@@ -17,6 +17,14 @@ export function useAttendanceApi() {
       query: { sessionIds: sessionIds.join(','), onlyAttended: onlyAttended ? undefined : '0' },
     })
   }
+  /** Attendance rows for a SET of events (EVENT-level, present-only by default) —
+   *  training events attach attendance to the event, not a session. */
+  async function byEvents(eventIds: string[], onlyAttended = true): Promise<AttendanceRow[]> {
+    if (!eventIds.length) return []
+    return await $fetch<AttendanceRow[]>('/api/v1/attendance', {
+      query: { eventIds: eventIds.join(','), onlyAttended: onlyAttended ? undefined : '0' },
+    })
+  }
   /** Per-event distinct-attendee counts across a whole org (reporting rollup). */
   async function countsByOrg(orgId: string): Promise<AttendanceCount[]> {
     return await $fetch<AttendanceCount[]>('/api/v1/attendance/counts', { query: { orgId } })
@@ -35,5 +43,5 @@ export function useAttendanceApi() {
     await $fetch(`/api/v1/attendance/${id}`, { method: 'DELETE' })
   }
 
-  return { bySession, bySessions, countsByOrg, create, createMany, remove }
+  return { bySession, bySessions, byEvents, countsByOrg, create, createMany, remove }
 }

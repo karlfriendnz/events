@@ -80,3 +80,13 @@ export const onboardingStateSchema = z.object({
   completed_at: z.string().nullable().optional(),
 })
 export type OnboardingState = z.infer<typeof onboardingStateSchema>
+
+// One club a login belongs to (org_members joined to organisations) — the ProfileMenu
+// club switcher. Keyed by the auth user id, distinct from the persons-by-email read.
+export const userOrgMembershipSchema = z.object({
+  orgId: z.string(),
+  name: z.string(),
+  logoUrl: z.string().nullable(),
+})
+export type UserOrgMembership = z.infer<typeof userOrgMembershipSchema>
+export const userOrgMembershipListSchema = z.array(userOrgMembershipSchema)

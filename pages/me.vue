@@ -6,16 +6,12 @@
 -->
 <script setup lang="ts">
 definePageMeta({ layout: 'portal' })
-// SEAM GAP: this is the member-portal build of the profile Dashboard bundle, and
-// every read below is another domain's — persons (people), member_group_memberships
-// + group (groups), registrations (finances/events), invitees + events (events D9),
-// person_notes (circles D8; writes owned by people.ts), organisations.profile_dashboard
-// (settings) + person_target_types.profile_dashboard (person-types D5). It maps 1:1 to
-// the dashboard-domain's still-gap-blocked D-series cross-domain seam. Left on useDb as
-// a whole until that bundle exists — converting piecemeal would half-wire the page.
-// useDb retained for ONE read only — registrations-by-person (see the SEAM GAP in
-// load()). Every other read/write below is on the seam.
-const db = useDb()
+// The member-portal build of the profile Dashboard bundle — every read below is
+// another domain's, all now on the seam: persons (people), member_group_memberships +
+// group (groups), registrations (finances), invitees + events (events),
+// person_notes (circles), organisations.profile_dashboard (settings) +
+// person_target_types.profile_dashboard (person-types).
+// Every read/write below is on the seam.
 const { orgId } = useOrg()
 const user = useSupabaseUser()
 const { myPersonId, resolveAccessLevel } = useAccessLevel()
@@ -27,6 +23,7 @@ const eventsApi = useEventsApi()
 const circlesApi = useCirclesApi()
 const orgsApi = useOrganisationsApi()
 const personTypesApi = usePersonTypesApi()
+const financesApi = useFinancesApi()
 
 // Map a seam PersonNote (camelCase) to the snake shape <ProfileDashboard> reads.
 function toNoteRow(n: any) {
@@ -70,9 +67,8 @@ async function load() {
   const pid = myPersonId.value
   if (!pid) { me.value = null; loading.value = false; return }
   // Seam reads: person, this person's memberships, their event invitees, their notes,
-  // the club-default profile dashboard + the field catalogue. registrations stays on
-  // useDb (no per-person read — see gap below).
-  const [personDomain, mships, groupList, inv, notesDomain, orgMeta, defs, { data: regs }] = await Promise.all([
+  // the club-default profile dashboard, the field catalogue + their registrations.
+  const [personDomain, mships, groupList, inv, notesDomain, orgMeta, defs, regs] = await Promise.all([
     peopleApi.get(pid).catch(() => null),
     groupsApi.membershipsForPerson(orgId.value as string, pid),
     groupsApi.list(orgId.value as string),
@@ -80,9 +76,8 @@ async function load() {
     circlesApi.notes(pid),
     orgsApi.getDashboardMeta(orgId.value as string).catch(() => null),
     resolveFields(orgId.value),
-    // SEAM GAP (finances/events domain): no registrations-by-person read. The financials
-    // widget sums (total − paid) across this person's registrations. Left on useDb.
-    (db.from as any)('registrations').select('id, total_amount, paid_amount, status').eq('person_id', pid),
+    // The financials widget sums (total − paid) across this person's registrations.
+    financesApi.registrationsForPerson(pid).catch(() => []),
   ])
   const person = personDomain ? {
     id: personDomain.id, first_name: personDomain.firstName, last_name: personDomain.lastName,
@@ -97,7 +92,7 @@ async function load() {
     const g = groupById[m.groupId]
     return { id: m.groupId, group: g?.name || 'Class', color: g?.color, role: m.role || '', expiry: '' }
   })
-  financials.value = (regs ?? []).map((r: any) => ({ id: r.id, amount: r.total_amount, paid: r.paid_amount, status: r.status, outstanding: (Number(r.total_amount) || 0) - (Number(r.paid_amount) || 0) }))
+  financials.value = regs.map((r) => ({ id: r.id, amount: r.totalAmount, paid: r.paidAmount, status: r.status, outstanding: (Number(r.totalAmount) || 0) - (Number(r.paidAmount) || 0) }))
   communications.value = inv.map((r: any) => ({ id: r.eventId, title: r.eventTitle, date: r.eventStartAt, status: r.status }))
   activity.value = inv.map((r: any) => ({ id: r.eventId, title: r.eventTitle, date: r.eventStartAt }))
   notes.value = notesDomain.map(toNoteRow)

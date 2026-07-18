@@ -303,3 +303,34 @@ export const bankAccountPatchSchema = z.object({
   isDefault: z.boolean().optional(),
 })
 export type BankAccountPatch = z.infer<typeof bankAccountPatchSchema>
+
+// ── Person financials (profile Financials widget + member portal) ──
+// A lean registration projection: the money owed/paid on one person's registrations.
+// Money columns are decimals — mysql2 returns strings; the repo coerces to number.
+export const personRegistrationSchema = z.object({
+  id: z.string(),
+  personId: z.string().nullable(),
+  status: z.string(),
+  totalAmount: z.number(),
+  paidAmount: z.number(),
+})
+export type PersonRegistration = z.infer<typeof personRegistrationSchema>
+export const personRegistrationListSchema = z.array(personRegistrationSchema)
+
+// The org-wide outstanding-money rollup: total still owed across the org's
+// registrations (Σ max(0, total − paid)) + how many registrations carry a balance.
+export const outstandingSummarySchema = z.object({
+  owed: z.number(),
+  count: z.number().int(),
+})
+export type OutstandingSummary = z.infer<typeof outstandingSummarySchema>
+
+// A registration's transaction refs — enough to surface the Xero invoice id on the
+// profile Financials rows. One row per transaction; the caller keeps the first with
+// an invoice id per registration.
+export const registrationTransactionSchema = z.object({
+  registrationId: z.string(),
+  xeroInvoiceId: z.string().nullable(),
+})
+export type RegistrationTransaction = z.infer<typeof registrationTransactionSchema>
+export const registrationTransactionListSchema = z.array(registrationTransactionSchema)

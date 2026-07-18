@@ -2,7 +2,7 @@
 // never Supabase, never $fetch to a raw table. It returns fully-typed domain
 // objects (the shared contract), so a component has no idea whether the data came
 // from MySQL today or the backend team's API tomorrow.
-import type { Person, PersonCreate, PersonPatch } from '../shared/contracts/person'
+import type { Person, PersonCreate, PersonPatch, PersonWithOrg } from '../shared/contracts/person'
 import type { PersonNote } from '../shared/contracts/circle'
 import type { PersonNoteCreate } from '../shared/contracts/personNote'
 
@@ -34,6 +34,17 @@ export function usePeopleApi() {
       throw e
     }
   }
+  /** A bulk person fetch by id set — attendance visitor names, dashboard lookups. */
+  async function byIds(ids: string[]): Promise<Person[]> {
+    if (!ids.length) return []
+    return await $fetch<Person[]>('/api/v1/people/by-ids', { query: { ids: ids.join(',') } })
+  }
+  /** Every persons row across every org matching a login's email (one per club) + the
+   *  org name/level — the cross-club identity read (useMyClubs). */
+  async function findAllByEmail(email: string): Promise<PersonWithOrg[]> {
+    if (!email) return []
+    return await $fetch<PersonWithOrg[]>('/api/v1/people/by-email-all', { query: { email } })
+  }
   /** Create a person; returns the created domain object. */
   async function create(input: PersonCreate): Promise<Person> {
     return await $fetch<Person>('/api/v1/people', { method: 'POST', body: input })
@@ -63,5 +74,5 @@ export function usePeopleApi() {
   async function removeNote(id: string): Promise<void> {
     await $fetch(`/api/v1/person-notes/${id}`, { method: 'DELETE' })
   }
-  return { list, get, findByEmail, create, update, remove, setTypeForMany, removeMany, addNote, removeNote }
+  return { list, get, findByEmail, byIds, findAllByEmail, create, update, remove, setTypeForMany, removeMany, addNote, removeNote }
 }

@@ -357,3 +357,18 @@ export async function getOnboarding(id: string): Promise<{ dismissed?: boolean; 
 export async function setOnboarding(id: string, state: { dismissed?: boolean; completed_at?: string | null }): Promise<void> {
   await db.update(schema.organisations).set({ onboarding: state } as any).where(eq(schema.organisations.id, id))
 }
+
+/** The clubs a login belongs to (org_members by auth user_id, joined to organisations
+ *  for name + logo). The ProfileMenu club switcher. Alpha by name. Distinct from the
+ *  persons-by-email read (useMyClubs) — keyed by the auth user id. */
+export async function listOrgsForUser(userId: string): Promise<{ orgId: string; name: string; logoUrl: string | null }[]> {
+  if (!userId) return []
+  const rows = await db
+    .select({ orgId: schema.orgMembers.orgId, name: schema.organisations.name, logoUrl: schema.organisations.logoUrl })
+    .from(schema.orgMembers)
+    .innerJoin(schema.organisations, eq(schema.orgMembers.orgId, schema.organisations.id))
+    .where(eq(schema.orgMembers.userId, userId))
+  return rows
+    .map((r) => ({ orgId: r.orgId, name: r.name, logoUrl: r.logoUrl ?? null }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}

@@ -821,13 +821,8 @@ async function saveLayout() {
     return
   }
   if (templateMode.value) {
-    // Save the role's default template, then return to Settings.
-    // SEAM GAP (admin domain): useAdminApi has dashboardTemplates READ + removeDashboardTemplate
-    // (DELETE) but no UPSERT/save route. Left on useDb until a save route exists.
-    await (db.from as any)('dashboard_templates').upsert(
-      { org_id: orgId.value, user_type: templateType.value, config: next, updated_at: new Date().toISOString() },
-      { onConflict: 'org_id,user_type' },
-    )
+    // Save the role's default template (admin seam upsert), then return to Settings.
+    await useAdminApi().saveDashboardTemplate(orgId.value as string, templateType.value as string, next)
     saving.value = false
     toast.add({ severity: 'success', summary: `Saved default for ${templateLabel.value}`, life: 2200 })
     navigateTo('/settings/fields')

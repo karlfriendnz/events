@@ -603,6 +603,25 @@ export async function applyClubTypeDefaults(
   }
 }
 
+/** Upsert a per-role dashboard template (the template-edit-mode Save). Keyed by the
+ *  (org, userType) composite pk: update the config when the row exists, else insert.
+ *  config is a json column — takes the raw JS value (no JSON.stringify). */
+export async function saveDashboardTemplate(orgId: string, userType: string, config: any): Promise<void> {
+  const [existing] = await db
+    .select({ userType: schema.dashboardTemplates.userType })
+    .from(schema.dashboardTemplates)
+    .where(and(eq(schema.dashboardTemplates.orgId, orgId), eq(schema.dashboardTemplates.userType, userType)))
+    .limit(1)
+  if (existing) {
+    await db
+      .update(schema.dashboardTemplates)
+      .set({ config, updatedAt: new Date() } as any)
+      .where(and(eq(schema.dashboardTemplates.orgId, orgId), eq(schema.dashboardTemplates.userType, userType)))
+  } else {
+    await db.insert(schema.dashboardTemplates).values({ orgId, userType, config } as any)
+  }
+}
+
 /** Delete a per-role dashboard template (reverts that role to the standard layout).
  *  Keyed by the (org, userType) composite pk. */
 export async function deleteDashboardTemplate(orgId: string, userType: string): Promise<void> {

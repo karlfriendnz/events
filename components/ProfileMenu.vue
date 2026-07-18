@@ -7,9 +7,7 @@
   the top bar, so here they just see their active org.
 -->
 <script setup lang="ts">
-// useDb retained for ONE read only — the non-super org_members-by-user membership
-// list (see the SEAM GAP note in loadMemberships).
-const db = useDb()
+// Every data read is on the seam; the Supabase client stays only for auth (signOut).
 const supa = useSupabaseClient()
 const user = useSupabaseUser()
 const { orgId } = useOrg()
@@ -43,14 +41,9 @@ async function loadMemberships() {
       memberships.value = meta ? [{ org_id: orgId.value, name: meta.name, logo_url: meta.logoUrl ?? null }] : []
     } else memberships.value = []
   } else {
-    // SEAM GAP (organisations/auth domain): no read for "the orgs a user belongs to"
-    // (org_members joined to organisations). Left on useDb until a memberships-by-user
-    // route exists.
-    const { data } = await (db.from as any)('org_members')
-      .select('org_id, organisations(id, name, logo_url)').eq('user_id', user.value.id)
-    memberships.value = (data ?? [])
-      .map((r: any) => ({ org_id: r.org_id, name: r.organisations?.name ?? '—', logo_url: r.organisations?.logo_url ?? null }))
-      .sort((a: Membership, b: Membership) => a.name.localeCompare(b.name))
+    // The orgs this login belongs to (org_members by auth user id) — the organisations seam.
+    const rows = await orgsApi.orgsForUser(user.value.id).catch(() => [])
+    memberships.value = rows.map(r => ({ org_id: r.orgId, name: r.name || '—', logo_url: r.logoUrl ?? null }))
   }
   // Resolve this user's person record in the active org for the "My profile" link.
   const email = user.value?.email

@@ -56,28 +56,30 @@ export function useActiveLocation() {
     myGrants.value = []
     grantsRestrict.value = false
     try {
-      // Resolving the signed-in person's location ACCESS GRANTS is cross-domain.
-      // Converted to the seam: person-by-email (people) + the legacy-permission-group
-      // check (roles). STILL on useDb (SEAM GAPs, guarded — any failure fails OPEN /
-      // unrestricted, never locks out):
-      //  • location_staff BY PERSON — affiliations exposes only locationStaffByOrg, and
-      //    its camelCase shape differs from the snake_case LocationStaff this file's
-      //    grant math consumes downstream.
-      //  • member_group_memberships with the group join carrying code_id — the groups
-      //    membershipsForPerson projection omits code_id (needed for effectiveSportId).
+      // Resolving the signed-in person's location ACCESS GRANTS is cross-domain, all
+      // on the seam now: person-by-email (people), the legacy-permission-group check
+      // (roles), the explicit site grants (affiliations.locationStaffByPerson), and the
+      // person's memberships carrying group location_id + code_id (groups
+      // .membershipsForPerson). db is kept ONLY for the auth session fallback (not a
+      // data read). Guarded — any failure fails OPEN / unrestricted, never locks out.
       const db = useDb()
       const user = useSupabaseUser()
       const { findByEmail } = usePeopleApi()
+      const affiliationsApi = useAffiliationsApi()
+      const groupsApi = useGroupsApi()
       let u = user.value
       if (!u) { const { data: { session } } = await db.auth.getSession(); u = session?.user ?? null }
       if (!u?.email) return
       if ((u as any).app_metadata?.role === 'super_admin') return   // supers unrestricted
       const me = await findByEmail(orgId.value, u.email)
       if (!me) return
-      const { data: grants } = await (db.from as any)('location_staff')
-        .select('id, location_id, sport_id, person_id, role_key')
-        .eq('org_id', orgId.value).eq('person_id', me.id)
-      const explicit = (grants ?? []) as LocationStaff[]
+      // Explicit site grants — seam returns camelCase; map to the snake_case LocationStaff
+      // this file's grant math consumes downstream.
+      const grants = await affiliationsApi.locationStaffByPerson(orgId.value, me.id)
+      const explicit: LocationStaff[] = grants.map(g => ({
+        id: g.id, location_id: g.locationId ?? null, sport_id: g.sportId ?? null,
+        person_id: g.personId, role_key: g.roleKey,
+      })) as LocationStaff[]
       // DERIVED scopes: being STAFF ON A CLASS automatically carries access to
       // that class's (location, sport) — no explicit grant needed. The grants
       // page is only for access BEYOND your classes (location managers etc.).
@@ -85,22 +87,20 @@ export function useActiveLocation() {
       try {
         const scoped = useScopedRoles()
         const gc = useGroupCodes()
-        const [{ data: mships }, codes] = await Promise.all([
-          (db.from as any)('member_group_memberships')
-            .select('roles, role, group:member_groups!inner(org_id, location_id, code_id)')
-            .eq('person_id', me.id).eq('group.org_id', orgId.value),
+        const [mships, codes] = await Promise.all([
+          groupsApi.membershipsForPerson(orgId.value, me.id),
           gc.loadCodes(),
         ])
         const codesById: Record<string, any> = Object.fromEntries((codes ?? []).map((c: any) => [c.id, c]))
-        for (const m of (mships ?? [])) {
+        for (const m of mships) {
           const roles = ((m.roles?.length ? m.roles : [m.role]) as string[]).filter(Boolean)
           if (!roles.length || !scoped.isStaff('group', roles)) continue
-          const locId = m.group?.location_id
+          const locId = m.locationId
           if (!locId) continue
           derived.push({
-            id: `derived-${locId}-${m.group?.code_id ?? ''}`,
+            id: `derived-${locId}-${m.codeId ?? ''}`,
             location_id: locId,
-            sport_id: gc.effectiveSportId({ code_id: m.group?.code_id }, codesById),
+            sport_id: gc.effectiveSportId({ code_id: m.codeId }, codesById),
             person_id: me.id,
             role_key: 'class_staff',
           })

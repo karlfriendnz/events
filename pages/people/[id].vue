@@ -312,10 +312,8 @@ import { COMMS_CATEGORIES } from '~/composables/usePeopleLinks'
 const route = useRoute()
 const router = useRouter()
 const { orgId } = useOrg()
-// useDb retained for the reads without a seam yet — profile_forms layout,
-// registrations + transactions, and per-event communications (all SEAM GAPs, marked
-// at their call sites). Every other read/write below is on the seam.
-const db = useDb()
+// Every read/write below is on the seam (profile_forms layout via person-types,
+// registrations + transactions via finances, per-event comms via communications).
 const toast = useToast()
 
 // Map a seam PersonNote (camelCase) to the snake shape <ProfileDashboard> + the Notes
@@ -716,53 +714,44 @@ async function load() {
 
   // ── Designed profile layout for this person's PRIMARY type (falls back to default list) ──
   const typeKey = (ptypes[0] || 'member')
-  // SEAM GAP (settings/forms domain): no read for a person type's designed form LAYOUT
-  // (profile_forms by org + type_key). Left on useDb until a seam exposes it.
-  ;(db.from as any)('profile_forms').select('config').eq('org_id', orgId.value).eq('type_key', typeKey).maybeSingle()
-    .then(({ data }: any) => { profileLayout.value = Array.isArray(data?.config?.fields) ? data.config.fields : null })
+  // The person type's designed form LAYOUT (profile_forms by org + type_key) — the
+  // person-types seam. Null when the type has no designed layout.
+  usePersonTypesApi().getProfileForm(orgId.value as string, typeKey)
+    .then((pf) => { profileLayout.value = Array.isArray((pf?.config as any)?.fields) ? (pf!.config as any).fields : null })
+    .catch(() => { profileLayout.value = null })
 
   // ── Dashboard bundle ──
-  const [orgMeta, types, notesDomain, { data: regs }] = await Promise.all([
+  const financesApi = useFinancesApi()
+  const [orgMeta, types, notesDomain, regList] = await Promise.all([
     useOrganisationsApi().getDashboardMeta(orgId.value as string).catch(() => null),
     usePersonTypesApi().listTypes(orgId.value as string).catch(() => []),
     useCirclesApi().notes(String(route.params.id)),
-    // SEAM GAP (finances/events domain): no registrations-by-person read (transactions
-    // read below is tied to it). Left on useDb.
-    (db.from as any)('registrations').select('id, total_amount, paid_amount, status').eq('person_id', route.params.id),
+    // The person's registrations (money owed/paid) — the finances seam.
+    financesApi.registrationsForPerson(String(route.params.id)).catch(() => []),
   ])
   // The person's TYPE layout (mig 245) wins over the club default.
   const typeRow = types.find((t: any) => t.key === typeKey)
   dashConfig.value = typeRow?.profileDashboard ?? orgMeta?.profileDashboard ?? null
   notes.value = notesDomain.map(toNoteRow)
 
-  const regList = regs ?? []
-  const regIds = regList.map((r: any) => r.id)
-  let txns: any[] = []
-  if (regIds.length) {
-    // SEAM GAP (finances domain): no transactions-by-registration read; tied to the
-    // registrations gap above. Left on useDb.
-    const { data } = await (db.from as any)('transactions').select('registration_id, xero_invoice_id').in('registration_id', regIds)
-    txns = data ?? []
-  }
+  const regIds = regList.map((r) => r.id)
+  // Xero invoice ids for those registrations — the finances seam.
+  const txns = regIds.length ? await financesApi.registrationTransactions(regIds).catch(() => []) : []
   const invByReg: Record<string, string> = {}
-  for (const t of txns) if (t.xero_invoice_id && !invByReg[t.registration_id]) invByReg[t.registration_id] = t.xero_invoice_id
-  financials.value = regList.map((r: any) => ({
+  for (const t of txns) if (t.xeroInvoiceId && !invByReg[t.registrationId]) invByReg[t.registrationId] = t.xeroInvoiceId
+  financials.value = regList.map((r) => ({
     invoice: invByReg[r.id] || `REG-${String(r.id).slice(0, 8)}`,
-    amount: `$${Number(r.total_amount || 0).toFixed(2)}`,
-    status: Number(r.total_amount || 0) > 0 && Number(r.paid_amount || 0) >= Number(r.total_amount || 0) ? 'PAID' : 'PENDING',
+    amount: `$${Number(r.totalAmount || 0).toFixed(2)}`,
+    status: Number(r.totalAmount || 0) > 0 && Number(r.paidAmount || 0) >= Number(r.totalAmount || 0) ? 'PAID' : 'PENDING',
   }))
-  outstandingBalance.value = regList.reduce((s: number, r: any) => s + Math.max(0, Number(r.total_amount || 0) - Number(r.paid_amount || 0)), 0)
+  outstandingBalance.value = regList.reduce((s: number, r) => s + Math.max(0, Number(r.totalAmount || 0) - Number(r.paidAmount || 0)), 0)
 
   const eventIds = invites.map((i: any) => i.eventId).filter(Boolean)
   if (eventIds.length) {
-    // SEAM GAP (communications domain): the Communication contract has no eventId/sentAt,
-    // and there's no by-event read — so per-event profile comms can't come off the seam
-    // yet. Left on useDb.
-    const { data: comms } = await (db.from as any)('communications')
-      .select('subject, status, sent_at, created_at, event_id').in('event_id', eventIds)
-      .order('created_at', { ascending: false }).limit(12)
-    communications.value = (comms ?? []).map((c: any) => ({
-      date: formatDate(new Date(c.sent_at || c.created_at)), subject: c.subject, status: c.status,
+    // Per-event comms for this profile — the communications seam (byEvents, newest first).
+    const comms = await useCommunicationsApi().byEvents(eventIds).catch(() => [])
+    communications.value = comms.slice(0, 12).map((c) => ({
+      date: formatDate(new Date(c.sentAt || c.createdAt || Date.now())), subject: c.subject, status: c.status,
     }))
   } else communications.value = []
 

@@ -77,6 +77,11 @@ export function useCirclesApi() {
   async function notes(personId: string): Promise<PersonNote[]> {
     return await $fetch<PersonNote[]>('/api/v1/person-notes', { query: { personId } })
   }
+  /** Notes for a SET of people (roster note-count badges), newest first. */
+  async function notesForPeople(personIds: string[]): Promise<PersonNote[]> {
+    if (!personIds.length) return []
+    return await $fetch<PersonNote[]>('/api/v1/person-notes', { query: { personIds: personIds.join(',') } })
+  }
   /** Every entity record an org has. */
   async function entities(orgId: string): Promise<Entity[]> {
     return await $fetch<Entity[]>('/api/v1/entities', { query: { orgId } })
@@ -101,7 +106,7 @@ export function useCirclesApi() {
     circlesForPerson, circlesForOrg, members,
     createCircle, updateCircle, removeCircle, addMember, updateMember, removeMember,
     commsPreferences, commsPreferencesForSubject, setCommsPreference,
-    notes,
+    notes, notesForPeople,
     entities, createEntity, updateEntity, removeEntity, entityMembers,
   }
 }

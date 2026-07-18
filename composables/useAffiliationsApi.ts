@@ -81,6 +81,10 @@ export function useAffiliationsApi() {
   async function locationStaffByOrg(orgId: string): Promise<LocationStaff[]> {
     return await $fetch<LocationStaff[]>('/api/v1/location-staff', { query: { orgId } })
   }
+  /** One person's explicit site-access grants (the access-lens resolver). */
+  async function locationStaffByPerson(orgId: string, personId: string): Promise<LocationStaff[]> {
+    return await $fetch<LocationStaff[]>('/api/v1/location-staff', { query: { orgId, personId } })
+  }
   async function createLocationStaff(input: LocationStaffCreate): Promise<LocationStaff> {
     return await $fetch<LocationStaff>('/api/v1/location-staff', { method: 'POST', body: input })
   }
@@ -108,6 +112,7 @@ export function useAffiliationsApi() {
     updateLocation,
     removeLocation,
     locationStaffByOrg,
+    locationStaffByPerson,
     createLocationStaff,
     updateLocationStaff,
     removeLocationStaff,

@@ -242,6 +242,22 @@ export async function getEvent(id: string): Promise<FMEvent | null> {
   return r ? toEvent(r) : null
 }
 
+/**
+ * Every event linked to one member group (its training occurrences — master +
+ * weekly children), earliest first. The group page reads these for its Upcoming
+ * events / Session Times / attendance-report columns; each carries `locations` +
+ * `memberGroupScheduleId` (which master a schedule row produced). Org-wide listEvents
+ * would pull the whole club per group-page load — this is the scoped read.
+ */
+export async function listEventsByMemberGroup(groupId: string): Promise<FMEvent[]> {
+  const rows = await db
+    .select()
+    .from(schema.events)
+    .where(eq(schema.events.memberGroupId, groupId))
+    .orderBy(asc(schema.events.startAt))
+  return rows.map(toEvent)
+}
+
 // ── Writes ──
 // The repo owns the id (MySQL can't default a uuid). json columns (exdates) are
 // JSON.stringify'd on the way IN, mirroring asArray on the way OUT; timestamps
