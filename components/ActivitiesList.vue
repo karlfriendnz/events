@@ -88,8 +88,18 @@
 </template>
 
 <script setup lang="ts">
-const db = useDb()
+const api = useBookingsApi()
 const { orgId } = useOrg()
+
+// Seam returns camelCase; this list's template reads snake_case.
+function snakeActivity(a: any) {
+  return {
+    id: a.id, org_id: a.orgId, name: a.name, description: a.description, color: a.color,
+    icon: a.icon, image_url: a.imageUrl, status: a.status, sort_order: a.sortOrder,
+    booking_flow: a.bookingFlow, bookings_enabled: a.bookingsEnabled, staff_bookable_id: a.staffBookableId,
+    area_name_singular: a.areaNameSingular, area_name_plural: a.areaNamePlural,
+  }
+}
 
 const COLORS = ['#6366F1','#EF4444','#F59E0B','#10B981','#3B82F6','#EC4899','#8B5CF6','#F97316','#14B8A6','#84CC16']
 
@@ -109,19 +119,16 @@ async function load() {
     // Staff-owned activities (staff_bookable_id set) live on the staff's
     // profile page under "What I offer" — exclude them from the global
     // list so they don't clutter the venue/item activity catalogue.
-    const { data } = await (db.from as any)('activities')
-      .select('*').eq('org_id', orgId.value)
-      .is('staff_bookable_id', null)
-      .order('sort_order').order('name')
-    activities.value = data ?? []
+    const all = await api.activities(orgId.value!)
+    activities.value = all
+      .filter(a => !a.staffBookableId)
+      .sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name))
+      .map(snakeActivity)
 
     if (activities.value.length) {
-      const { data: links } = await (db.from as any)('activity_bookables')
-        .select('activity_id').in('activity_id', activities.value.map((a: any) => a.id))
+      const linkLists = await Promise.all(activities.value.map(a => api.activityBookables(a.id)))
       const counts: Record<string, number> = {}
-      for (const l of links ?? []) {
-        counts[l.activity_id] = (counts[l.activity_id] ?? 0) + 1
-      }
+      activities.value.forEach((a, i) => { counts[a.id] = linkLists[i].length })
       venueCount.value = counts
     }
   } finally {
@@ -140,14 +147,14 @@ async function create() {
   if (!newName.value.trim()) return
   creating.value = true
   try {
-    const { data } = await (db.from as any)('activities').insert({
-      org_id: orgId.value,
+    const created = await api.createActivity({
+      orgId: orgId.value!,
       name: newName.value.trim(),
       description: newDescription.value.trim() || null,
       color: newColor.value,
-    }).select().single()
+    })
     showCreate.value = false
-    navigateTo(`/activities/${data.id}`)
+    navigateTo(`/activities/${created.id}`)
   } finally {
     creating.value = false
   }

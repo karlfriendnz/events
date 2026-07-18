@@ -172,6 +172,29 @@ export function useGroupsApi() {
   }): Promise<void> {
     await $fetch('/api/v1/groups/move-membership', { method: 'POST', body: input })
   }
+  /** Roster of many groups (role/roles + subGroupId + person name) — term rollover. */
+  async function roster(groupIds: string[]): Promise<
+    {
+      groupId: string
+      personId: string
+      role: string | null
+      roles: string[]
+      subGroupId: string | null
+      firstName: string | null
+      lastName: string | null
+    }[]
+  > {
+    if (groupIds.length === 0) return []
+    return await $fetch('/api/v1/groups/roster', { query: { groupIds: groupIds.join(',') } })
+  }
+  /** Clone a term's chosen groups into a target term (the whole rollover). */
+  async function rollover(input: {
+    orgId: string
+    targetTerm: { id: string; name: string | null; startDate: string | null; endDate: string | null }
+    plans: any[]
+  }): Promise<{ created: number }> {
+    return await $fetch('/api/v1/groups/rollover', { method: 'POST', body: input })
+  }
   /** Replace a group's weekly training schedules (delete-then-insert). */
   async function saveSchedules(
     groupId: string,
@@ -227,7 +250,7 @@ export function useGroupsApi() {
   return {
     list, get, memberships, membershipsByOrg, membershipsForPerson, groupsByCodeIds,
     upsertMembership, removeMembership, membershipsWithPersonForGroups,
-    membershipsForRetention, moveMembership,
+    membershipsForRetention, moveMembership, roster, rollover,
     schedules, schedulesForGroups, codes, feeOptions,
     saveFeeOptions, addFeeOptionToGroups, saveSchedules,
     create, update, remove, createCode, updateCode, removeCode,

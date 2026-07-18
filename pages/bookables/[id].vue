@@ -812,10 +812,59 @@ const { orgId, orgReady } = useOrg()
 const router = useRouter()
 
 const db = useDb()
+const api = useBookingsApi()
 const toast = useToast()
 const route = useRoute()
 const id = route.params.id as string
 const breadcrumbs = useBreadcrumbs()
+
+// The bookings seam returns camelCase domain objects; this page's template +
+// computeds read snake_case. Map a bookable back to the full snake shape they
+// expect (mirrors the mapper in components/BookablesList.vue).
+function snakeBookable(b: any) {
+  if (!b) return b
+  return {
+    id: b.id, org_id: b.orgId, name: b.name, internal_name: b.internalName, type: b.type,
+    status: b.status, parent_id: b.parentId, master_id: b.masterId, is_master: b.isMaster,
+    is_slave_auto_assign: b.isSlaveAutoAssign, is_public: b.isPublic, is_network: b.isNetwork,
+    max_concurrent: b.maxConcurrent, location: b.location, show_location: b.showLocation,
+    description: b.description, features: b.features, rules: b.rules, images: b.images,
+    categories: b.categories, sports: b.sports, custom_fields: b.customFields, sort_order: b.sortOrder,
+    item_category: b.itemCategory, default_booking_view: b.defaultBookingView, closed_from: b.closedFrom,
+    closed_until: b.closedUntil, closure_reason: b.closureReason, customized_sections: b.customizedSections,
+    main_image: b.mainImage, sponsor_image: b.sponsorImage, show_in_menu: b.showInMenu, sections: b.sections,
+    space_type: b.spaceType, booking_limit_type: b.bookingLimitType, booking_limit_count: b.bookingLimitCount,
+    disallow_concurrent: b.disallowConcurrent, disallow_consecutive: b.disallowConsecutive,
+    allow_modes_with_others: b.allowModesWithOthers, allow_sub_venues: b.allowSubVenues,
+    auto_resolve_children: b.autoResolveChildren, access_enabled: b.accessEnabled,
+    access_code_delivery: b.accessCodeDelivery, access_code_length: b.accessCodeLength,
+    access_unlock_before_mins: b.accessUnlockBeforeMins, access_unlock_after_mins: b.accessUnlockAfterMins,
+    lighting_ramp_up_mins: b.lightingRampUpMins, lighting_ramp_down_mins: b.lightingRampDownMins,
+    lighting_level_percent: b.lightingLevelPercent,
+  }
+}
+// Inverse: a snake-shaped bookable → the camelCase create input the seam takes.
+function camelBookableCreate(b: any) {
+  return {
+    orgId: b.org_id, name: b.name, internalName: b.internal_name, type: b.type,
+    status: b.status, parentId: b.parent_id, masterId: b.master_id, isMaster: b.is_master,
+    isSlaveAutoAssign: b.is_slave_auto_assign, isPublic: b.is_public, isNetwork: b.is_network,
+    maxConcurrent: b.max_concurrent, location: b.location, showLocation: b.show_location,
+    description: b.description, features: b.features, rules: b.rules, images: b.images,
+    categories: b.categories, sports: b.sports, customFields: b.custom_fields, sortOrder: b.sort_order,
+    itemCategory: b.item_category, defaultBookingView: b.default_booking_view, closedFrom: b.closed_from,
+    closedUntil: b.closed_until, closureReason: b.closure_reason, customizedSections: b.customized_sections,
+    mainImage: b.main_image, sponsorImage: b.sponsor_image, showInMenu: b.show_in_menu, sections: b.sections,
+    spaceType: b.space_type, bookingLimitType: b.booking_limit_type, bookingLimitCount: b.booking_limit_count,
+    disallowConcurrent: b.disallow_concurrent, disallowConsecutive: b.disallow_consecutive,
+    allowModesWithOthers: b.allow_modes_with_others, allowSubVenues: b.allow_sub_venues,
+    autoResolveChildren: b.auto_resolve_children, accessEnabled: b.access_enabled,
+    accessCodeDelivery: b.access_code_delivery, accessCodeLength: b.access_code_length,
+    accessUnlockBeforeMins: b.access_unlock_before_mins, accessUnlockAfterMins: b.access_unlock_after_mins,
+    lightingRampUpMins: b.lighting_ramp_up_mins, lightingRampDownMins: b.lighting_ramp_down_mins,
+    lightingLevelPercent: b.lighting_level_percent,
+  }
+}
 
 const venue = ref<any>(null)
 const parentVenue = ref<any>(null)
@@ -831,19 +880,19 @@ const linkedMasterId = ref<string | null>(null)
 
 async function createChildBookable(type: 'VENUE' | 'ITEM') {
   if (!venue.value || !orgId.value) return
-  const { data, error } = await (db.from as any)('bookables').insert({
-    org_id: orgId.value,
-    name: type === 'ITEM' ? 'Untitled Item' : 'Untitled Sub-venue',
-    type,
-    status: 'DRAFT',
-    max_concurrent: 1,
-    parent_id: venue.value.id,
-  }).select('id').single()
-  if (error || !data?.id) {
-    toast.add({ severity: 'error', summary: 'Could not create', detail: error?.message ?? 'Unknown error', life: 4000 })
-    return
+  try {
+    const created = await api.createBookable({
+      orgId: orgId.value,
+      name: type === 'ITEM' ? 'Untitled Item' : 'Untitled Sub-venue',
+      type,
+      status: 'DRAFT',
+      maxConcurrent: 1,
+      parentId: venue.value.id,
+    })
+    await navigateTo(`/bookables/${created.id}?new=1`)
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not create', detail: e?.message ?? 'Unknown error', life: 4000 })
   }
-  await navigateTo(`/bookables/${data.id}?new=1`)
 }
 
 // Venue map sizing — pick the natural grid for the child count so the visual
@@ -900,7 +949,7 @@ async function applyVenueTemplate(payload: { type: string; division: string | nu
     // system resolves a slot at booking time based on the mode's
     // configuration_key. Re-load the venue so the local form picks up
     // the change.
-    await (db.from as any)('bookables').update({ auto_resolve_children: true }).eq('id', venue.value.id)
+    await api.updateBookable(venue.value.id, { autoResolveChildren: true })
     if (venue.value) venue.value.auto_resolve_children = true
 
     let siblingsSynced = 0
@@ -915,7 +964,7 @@ async function applyVenueTemplate(payload: { type: string; division: string | nu
           siblingsSynced++
         }
         if (ok) {
-          await (db.from as any)('bookables').update({ auto_resolve_children: true }).eq('id', sibling.id)
+          await api.updateBookable(sibling.id, { autoResolveChildren: true })
         }
       }
     }
@@ -959,9 +1008,9 @@ async function applyVenueTemplate(payload: { type: string; division: string | nu
     }
     // Every sibling that received splits gets auto_resolve_children=true
     // so their booker grid renders the sibling itself, not Q1-Q4.
-    await (db.from as any)('bookables')
-      .update({ auto_resolve_children: true })
-      .in('id', siblingIds)
+    for (const sid of siblingIds) {
+      await api.updateBookable(sid, { autoResolveChildren: true })
+    }
   }
 
   venueLibraryOpen.value = false
@@ -1009,26 +1058,27 @@ async function createChildSetUnder(parentId: string, names: string[], mirrorTo: 
     const name = names[i]
     const isFirst = i === 0
     const masterPeer = mirrorTo ? mirrorTo[i] : null
-    const { data, error } = await (db.from as any)('bookables').insert({
-      org_id: orgId.value,
-      name,
-      type: 'VENUE',
-      status: 'ACTIVE',
-      is_public: isPublic,
-      // Within a parent: the first child is the master for the rest of the
-      // siblings under that parent. Across parents (mirror): every child of
-      // a linked sibling links up to the master-parent's matching child.
-      is_master: isFirst && !mirrorTo,
-      master_id: mirrorTo ? masterPeer : (isFirst ? null : ids[0]),
-      parent_id: parentId,
-      sort_order: i,
-      max_concurrent: 1,
-    }).select('id').single()
-    if (error || !data?.id) {
-      toast.add({ severity: 'error', summary: 'Could not create sub-venue', detail: error?.message ?? 'Unknown error', life: 4000 })
+    try {
+      const created = await api.createBookable({
+        orgId: orgId.value,
+        name,
+        type: 'VENUE',
+        status: 'ACTIVE',
+        isPublic,
+        // Within a parent: the first child is the master for the rest of the
+        // siblings under that parent. Across parents (mirror): every child of
+        // a linked sibling links up to the master-parent's matching child.
+        isMaster: isFirst && !mirrorTo,
+        masterId: mirrorTo ? masterPeer : (isFirst ? null : ids[0]),
+        parentId,
+        sortOrder: i,
+        maxConcurrent: 1,
+      })
+      ids.push(created.id)
+    } catch (e: any) {
+      toast.add({ severity: 'error', summary: 'Could not create sub-venue', detail: e?.message ?? 'Unknown error', life: 4000 })
       return ids.length ? ids : null
     }
-    ids.push(data.id)
   }
   return ids
 }
@@ -1058,7 +1108,7 @@ async function toggleSectionInheritance(section: string) {
     // Customise: add to list so master propagation skips this venue for this section
     next = [...current, section]
   }
-  await db.from('bookables').update({ customized_sections: next }).eq('id', id)
+  await api.updateBookable(id, { customizedSections: next })
   venue.value = { ...venue.value, customized_sections: next }
 }
 
@@ -1067,16 +1117,15 @@ async function pullSectionFromMaster(section: string) {
   const masterId = venue.value.master_id
 
   if (section === 'availability') {
-    const { data: avRules } = await (db.from as any)('availability_rules').select('*').eq('bookable_id', masterId)
-    await (db.from as any)('availability_rules').delete().eq('bookable_id', id)
-    if (avRules?.length) {
-      await (db.from as any)('availability_rules').insert(
-        avRules.map(({ id: _, bookable_id: __, created_at: ___, ...rest }: any) => ({ ...rest, bookable_id: id }))
-      )
-    }
+    // Copy the master's availability rules onto this venue. replaceAvailabilityRules
+    // is delete-then-insert, so it handles both the wipe and the re-insert.
+    const avRules = await api.availabilityRules(masterId)
+    const creates = avRules.map(({ id: _omit, ...rest }: any) => ({ ...rest, bookableId: id }))
+    await api.replaceAvailabilityRules(id, creates)
   }
 
   if (section === 'schedule') {
+    // TODO seam-gap: booking_windows/booking_window_slots — no seam method yet
     const { data: wins } = await (db.from as any)('booking_windows').select('*, booking_window_slots(*)').eq('bookable_id', masterId)
     await (db.from as any)('booking_windows').delete().eq('bookable_id', id)
     if (wins?.length) {
@@ -1098,27 +1147,27 @@ async function pullSectionFromMaster(section: string) {
   if (section === 'sub-venues') {
     // Mirror the master's children verbatim, chaining each new child's
     // master_id to the master-side equivalent (so rules cascade two-deep).
-    const { data: masterKids } = await (db.from as any)('bookables')
-      .select('id, name, sort_order, max_concurrent, is_public, type')
-      .eq('parent_id', masterId)
-      .neq('status', 'DELETED')
-      .order('sort_order')
+    const all = await api.bookables(orgId.value!)
+    const masterKids = all
+      .filter(b => b.parentId === masterId && b.status !== 'DELETED')
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
     // Wipe this venue's existing children before re-mirroring.
-    await (db.from as any)('bookables').delete().eq('parent_id', id)
-    if (masterKids?.length) {
-      const rows = masterKids.map((mk: any) => ({
-        org_id: orgId.value,
+    for (const c of all.filter(b => b.parentId === id)) {
+      await api.removeBookable(c.id)
+    }
+    for (const mk of masterKids) {
+      await api.createBookable({
+        orgId: orgId.value!,
         name: mk.name,
         type: mk.type ?? 'VENUE',
         status: 'ACTIVE',
-        is_public: mk.is_public ?? false,
-        is_master: false,
-        master_id: mk.id, // chain to the master's child
-        parent_id: id,
-        sort_order: mk.sort_order ?? 0,
-        max_concurrent: mk.max_concurrent ?? 1,
-      }))
-      await (db.from as any)('bookables').insert(rows)
+        isPublic: mk.isPublic ?? false,
+        isMaster: false,
+        masterId: mk.id, // chain to the master's child
+        parentId: id,
+        sortOrder: mk.sortOrder ?? 0,
+        maxConcurrent: mk.maxConcurrent ?? 1,
+      })
     }
   }
 }
@@ -1142,6 +1191,7 @@ async function propagateSection(section: string, targetIds: string[]) {
   if (!targetIds.length) return
 
   if (section === 'schedule') {
+    // TODO seam-gap: booking_windows/booking_window_slots — no seam method yet
     const { data: wins } = await (db.from as any)('booking_windows').select('*, booking_window_slots(*)').eq('bookable_id', id)
     for (const tid of targetIds) {
       await (db.from as any)('booking_windows').delete().eq('bookable_id', tid)
@@ -1163,27 +1213,27 @@ async function propagateSection(section: string, targetIds: string[]) {
   }
 
   if (section === 'sub-venues') {
-    const { data: masterKids } = await (db.from as any)('bookables')
-      .select('id, name, sort_order, max_concurrent, is_public, type')
-      .eq('parent_id', id)
-      .neq('status', 'DELETED')
-      .order('sort_order')
+    const all = await api.bookables(orgId.value!)
+    const masterKids = all
+      .filter(b => b.parentId === id && b.status !== 'DELETED')
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
     for (const tid of targetIds) {
-      await (db.from as any)('bookables').delete().eq('parent_id', tid)
-      if (masterKids?.length) {
-        const rows = masterKids.map((mk: any) => ({
-          org_id: orgId.value,
+      for (const c of all.filter(b => b.parentId === tid)) {
+        await api.removeBookable(c.id)
+      }
+      for (const mk of masterKids) {
+        await api.createBookable({
+          orgId: orgId.value!,
           name: mk.name,
           type: mk.type ?? 'VENUE',
           status: 'ACTIVE',
-          is_public: mk.is_public ?? false,
-          is_master: false,
-          master_id: mk.id,
-          parent_id: tid,
-          sort_order: mk.sort_order ?? 0,
-          max_concurrent: mk.max_concurrent ?? 1,
-        }))
-        await (db.from as any)('bookables').insert(rows)
+          isPublic: mk.isPublic ?? false,
+          isMaster: false,
+          masterId: mk.id,
+          parentId: tid,
+          sortOrder: mk.sortOrder ?? 0,
+          maxConcurrent: mk.maxConcurrent ?? 1,
+        })
       }
     }
   }
@@ -1193,7 +1243,7 @@ async function setVenueRole(role: 'standalone' | 'master' | 'linked') {
   if (!venue.value) return
   const updates: any = { is_master: false, master_id: null }
   if (role === 'master') updates.is_master = true
-  await db.from('bookables').update(updates).eq('id', id)
+  await api.updateBookable(id, { isMaster: updates.is_master, masterId: updates.master_id })
   venue.value = { ...venue.value, ...updates }
   if (role === 'linked' && updates.master_id) {
     for (const section of ['schedule']) {
@@ -1206,7 +1256,7 @@ async function setVenueRole(role: 'standalone' | 'master' | 'linked') {
 
 async function changeMaster(newMasterId: string) {
   if (!venue.value) return
-  await db.from('bookables').update({ master_id: newMasterId }).eq('id', id)
+  await api.updateBookable(id, { masterId: newMasterId })
   venue.value = { ...venue.value, master_id: newMasterId }
   for (const section of ['schedule']) {
     if (sectionInherited(section)) await pullSectionFromMaster(section)
@@ -1232,15 +1282,20 @@ async function openAddExisting() {
   existingSearch.value = ''
   selectedExistingIds.value = []
   const linkedIds = new Set(items.value.map(i => i.id))
-  const { data } = await db.from('bookables').select('*').eq('type', 'ITEM').eq('status', 'ACTIVE').order('name')
-  allUnlinkedItems.value = (data ?? []).filter(i => !linkedIds.has(i.id))
+  const all = await api.bookables(orgId.value!)
+  allUnlinkedItems.value = all
+    .filter(b => b.type === 'ITEM' && b.status === 'ACTIVE' && !linkedIds.has(b.id))
+    .map(snakeBookable)
+    .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
   showAddExisting.value = true
 }
 
 async function linkSelectedItems() {
   if (!selectedExistingIds.value.length) return
   linkingSaving.value = true
-  await db.from('bookables').update({ parent_id: id }).in('id', selectedExistingIds.value)
+  for (const bid of selectedExistingIds.value) {
+    await api.updateBookable(bid, { parentId: id })
+  }
   linkingSaving.value = false
   showAddExisting.value = false
   await loadItems()
@@ -1249,7 +1304,7 @@ async function linkSelectedItems() {
 
 async function unlinkItem(item: any) {
   if (!confirm(`Unlink "${item.name}" from this bookable?`)) return
-  await db.from('bookables').update({ parent_id: null }).eq('id', item.id)
+  await api.updateBookable(item.id, { parentId: null })
   await loadItems()
   toast.add({ severity: 'success', summary: 'Item unlinked', life: 2000 })
 }

@@ -64,21 +64,24 @@ export interface RolloverPlan {
 }
 
 export function useTermRollover() {
+  // SEAM GAP (events domain): generateTrainingEvents() below writes `events` + `invitees`
+  // (events-domain tables) alongside reading schedules/memberships — it stays on useDb
+  // until useEventsApi exposes a "generate training series + invite members" op. Every
+  // other function here is on the /api/v1 seam.
   const db = useDb()
   const { orgId } = useOrg()
+  const groupsApi = useGroupsApi()
+  const tm = useTermsMemberships()
   const scoped = useScopedRoles()
 
-  const nameOf = (p: any) => `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim() || '—'
+  const nameOf = (first?: string | null, last?: string | null) => `${first ?? ''} ${last ?? ''}`.trim() || '—'
 
   // The most recent term (by start_date) that actually has groups — a sensible
   // default "source" for the rollover screen.
   async function mostRecentTermWithGroups(terms: OrgTerm[]): Promise<string | null> {
-    if (!terms.length) return null
-    const { data } = await (db.from as any)('member_groups')
-      .select('term_id')
-      .eq('org_id', orgId.value)
-      .not('term_id', 'is', null)
-    const present = new Set((data ?? []).map((r: any) => r.term_id))
+    if (!terms.length || !orgId.value) return null
+    const groups = await groupsApi.list(orgId.value)
+    const present = new Set(groups.map((g) => g.termId).filter(Boolean))
     const ordered = [...terms].sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? ''))
     return ordered.find(t => present.has(t.id))?.id ?? null
   }
@@ -88,21 +91,37 @@ export function useTermRollover() {
   async function loadTermGroups(termId: string): Promise<RolloverGroup[]> {
     if (!termId || !orgId.value) return []
     await scoped.loadRoleDefs()
-    const { data: groups } = await (db.from as any)('member_groups')
-      .select('id, name, color, parent_id, sort_order, lineage_id, term_id, code_id, form_id, image_url, discontinued_at, code, age_range, capacity, term_fee, gender_restriction, sub_groups')
-      .eq('org_id', orgId.value)
-      .eq('term_id', termId)
-      .order('sort_order', { ascending: true, nullsFirst: false })
-      .order('name')
-    const list = (groups ?? []) as any[]
+    // Groups in the term (seam list, camelCase → this composable's snake shape),
+    // ordered by sort_order then name.
+    const all = await groupsApi.list(orgId.value)
+    const list = all
+      .filter((g) => g.termId === termId)
+      .map((g) => ({
+        id: g.id,
+        name: g.name,
+        color: g.color,
+        parent_id: g.parentId,
+        sort_order: g.sortOrder,
+        lineage_id: g.lineageId,
+        term_id: g.termId,
+        code_id: g.codeId,
+        form_id: g.formId,
+        image_url: g.imageUrl,
+        discontinued_at: g.discontinuedAt,
+        code: g.code,
+        age_range: g.ageRange,
+        capacity: g.capacity,
+        term_fee: g.termFee != null ? Number(g.termFee) : null,
+        gender_restriction: g.genderRestriction,
+        sub_groups: Array.isArray(g.subGroups) ? g.subGroups : [],
+      }))
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))
     if (!list.length) return []
 
     const ids = list.map(g => g.id)
-    const { data: mems } = await (db.from as any)('member_group_memberships')
-      .select('group_id, person_id, roles, role, sub_group_id, person:persons!inner(id, first_name, last_name)')
-      .in('group_id', ids)
-    const byGroup: Record<string, any[]> = {}
-    for (const m of (mems ?? [])) (byGroup[m.group_id] ??= []).push(m)
+    const mems = await groupsApi.roster(ids)
+    const byGroup: Record<string, typeof mems> = {}
+    for (const m of mems) (byGroup[m.groupId] ??= []).push(m)
 
     // depth from parent_id within the loaded set
     const depthOf = (g: any): number => {
@@ -119,28 +138,25 @@ export function useTermRollover() {
       const staff: RolloverPerson[] = []
       const members: RolloverPerson[] = []
       for (const m of (byGroup[g.id] ?? [])) {
-        if (!m.person) continue
         const roles = scoped.normalizeRoles('group', m.roles, m.role)
         const person: RolloverPerson = {
-          id: m.person_id, name: nameOf(m.person), roles, role: m.role ?? roles[0] ?? null,
-          sub_group_id: m.sub_group_id ?? null,
+          id: m.personId, name: nameOf(m.firstName, m.lastName), roles, role: m.role ?? roles[0] ?? null,
+          sub_group_id: m.subGroupId ?? null,
         }
         if (scoped.isStaff('group', roles)) staff.push(person)
         else members.push(person)
       }
       staff.sort((a, b) => a.name.localeCompare(b.name))
       members.sort((a, b) => a.name.localeCompare(b.name))
-      return { ...g, sub_groups: Array.isArray(g.sub_groups) ? g.sub_groups : [], staff, members, depth: depthOf(g) }
+      return { ...g, staff, members, depth: depthOf(g) }
     })
   }
 
   // Which lineages already have a clone in the target term (to flag/skip).
   async function lineagesInTerm(termId: string): Promise<Set<string>> {
-    const { data } = await (db.from as any)('member_groups')
-      .select('lineage_id')
-      .eq('org_id', orgId.value)
-      .eq('term_id', termId)
-    return new Set((data ?? []).map((r: any) => r.lineage_id).filter(Boolean))
+    if (!orgId.value) return new Set()
+    const all = await groupsApi.list(orgId.value)
+    return new Set(all.filter((g) => g.termId === termId).map((g) => g.lineageId).filter(Boolean) as string[])
   }
 
   function pickPeople(list: RolloverPerson[], mode: CarryMode, ids: string[]): RolloverPerson[] {
@@ -149,182 +165,53 @@ export function useTermRollover() {
     return list
   }
 
-  // Clone the selected source groups into targetTerm. Returns how many were made.
+  // Clone the selected source groups into targetTerm (schedules / plans / term-fee /
+  // fee options / the chosen people + waitlists) — the whole clone runs server-side in
+  // one seam call. The client resolves each plan's people (wipe/pick/rollover) and the
+  // per-group source metadata; the repo re-reads schedules/fees/plans/waitlists.
   async function rollOverGroups(targetTerm: OrgTerm, plans: RolloverPlan[]): Promise<{ created: number }> {
     const chosen = plans.filter(p => p.include)
     if (!chosen.length) return { created: 0 }
-    const includedIds = new Set(chosen.map(p => p.source.id))
-
-    // Bulk-fetch schedules + plan links for the included source groups.
-    const srcIds = [...includedIds]
-    const [{ data: scheds }, { data: planLinks }, { data: feeOpts }] = await Promise.all([
-      (db.from as any)('member_group_schedules')
-        .select('group_id, day_of_week, start_time, end_time, location, sort_order').in('group_id', srcIds),
-      (db.from as any)('member_group_plans').select('group_id, plan_id').in('group_id', srcIds),
-      (db.from as any)('group_fee_options').select('*').in('group_id', srcIds),
-    ])
-    const schedsBy: Record<string, any[]> = {}
-    for (const s of (scheds ?? [])) (schedsBy[s.group_id] ??= []).push(s)
-    const plansBy: Record<string, any[]> = {}
-    for (const l of (planLinks ?? [])) (plansBy[l.group_id] ??= []).push(l)
-    // Fee options (+ their line items) to clone into the new groups.
-    const feeOptsBy: Record<string, any[]> = {}
-    for (const f of (feeOpts ?? [])) (feeOptsBy[f.group_id] ??= []).push(f)
-    const feeItemsBy: Record<string, any[]> = {}
-    if ((feeOpts ?? []).length) {
-      const { data: feeItems } = await (db.from as any)('group_fee_option_items')
-        .select('*').in('option_id', (feeOpts ?? []).map((f: any) => f.id))
-      for (const it of (feeItems ?? [])) (feeItemsBy[it.option_id] ??= []).push(it)
-    }
-
-    // Process parents before children so parent_id can be remapped to the clone.
-    const idToNew = new Map<string, string>()
-    const pending = [...chosen]
-    let created = 0
-    let guard = 0
-    while (pending.length && guard++ < pending.length + chosen.length + 5) {
-      const p = pending.shift()!
-      const srcParent = p.source.parent_id
-      const parentIncluded = srcParent && includedIds.has(srcParent)
-      // Wait until an included parent has been cloned.
-      if (parentIncluded && !idToNew.has(srcParent!)) { pending.push(p); continue }
-      const newParentId = parentIncluded ? idToNew.get(srcParent!)! : null
-      const newId = await cloneOne(p, targetTerm, newParentId, schedsBy, plansBy, feeOptsBy, feeItemsBy)
-      idToNew.set(p.source.id, newId)
-      created++
-    }
-    await rollOverWaitlists(targetTerm, idToNew)
-    return { created }
-  }
-
-  // Roll the source groups' waitlists into the target term: for each waitlist
-  // connected to any rolled group, clone it into the target term under the same
-  // lineage (idempotent), reconnect the NEW groups, and carry the people waiting.
-  async function rollOverWaitlists(targetTerm: OrgTerm, idToNew: Map<string, string>) {
-    const srcGroupIds = [...idToNew.keys()]
-    if (!srcGroupIds.length) return
-    const { data: linked } = await (db.from as any)('member_groups')
-      .select('id, waitlist_id').in('id', srcGroupIds).not('waitlist_id', 'is', null)
-    if (!linked?.length) return
-    // source waitlist id → the NEW (cloned) group ids that should connect to it
-    const newGroupsByWl: Record<string, string[]> = {}
-    for (const g of linked) (newGroupsByWl[g.waitlist_id] ??= []).push(idToNew.get(g.id)!)
-
-    const srcWlIds = Object.keys(newGroupsByWl)
-    const [{ data: srcWls }, { data: existing }] = await Promise.all([
-      (db.from as any)('waitlists').select('*').in('id', srcWlIds),
-      (db.from as any)('waitlists').select('id, lineage_id').eq('org_id', orgId.value).eq('term_id', targetTerm.id),
-    ])
-    const existingByLineage: Record<string, string> = {}
-    for (const w of (existing ?? [])) if (w.lineage_id) existingByLineage[w.lineage_id] = w.id
-
-    for (const src of (srcWls ?? [])) {
-      const lineage = src.lineage_id || src.id
-      let targetId = existingByLineage[lineage]
-      if (!targetId) {
-        const { data: created } = await (db.from as any)('waitlists').insert({
-          org_id: orgId.value, name: src.name, order_mode: src.order_mode ?? 'custom',
-          term_id: targetTerm.id, lineage_id: lineage, rolled_from_id: src.id,
-        }).select('id').single()
-        targetId = created?.id
-        if (!targetId) continue
-      }
-      // connect the new groups to the target waitlist
-      await (db.from as any)('member_groups').update({ waitlist_id: targetId }).in('id', newGroupsByWl[src.id])
-      // carry the people still waiting (idempotent on waitlist_id+person_id)
-      const { data: entries } = await (db.from as any)('waitlist_entries')
-        .select('person_id, status, priority, sort_order').eq('waitlist_id', src.id)
-      if (entries?.length) {
-        await (db.from as any)('waitlist_entries').upsert(
-          entries.map((e: any) => ({ org_id: orgId.value, waitlist_id: targetId, person_id: e.person_id, status: e.status, priority: e.priority, sort_order: e.sort_order })),
-          { onConflict: 'waitlist_id,person_id' })
-      }
-    }
-  }
-
-  async function cloneOne(
-    p: RolloverPlan, targetTerm: OrgTerm, newParentId: string | null,
-    schedsBy: Record<string, any[]>, plansBy: Record<string, any[]>,
-    feeOptsBy: Record<string, any[]>, feeItemsBy: Record<string, any[]>,
-  ): Promise<string> {
-    const src = p.source
-    const { data: g } = await (db.from as any)('member_groups').insert({
-      org_id: orgId.value,
-      name: (p.name?.trim() || src.name),
-      color: src.color,
-      parent_id: newParentId,
-      sort_order: src.sort_order ?? 0,
-      code_id: src.code_id ?? null,          // keep the class in its programme
-      form_id: src.form_id ?? null,          // keep its public registration form
-      image_url: src.image_url ?? null,      // keep its hero photo
-      code: src.code ?? null,
-      age_range: src.age_range ?? null,
-      capacity: src.capacity ?? null,
-      gender_restriction: src.gender_restriction ?? null,
-      term_id: targetTerm.id,
-      term_fee: src.term_fee ?? null,
-      current_term: targetTerm.name ?? null,   // keep the legacy free-text INFO field in sync
-      lineage_id: src.lineage_id || src.id,
-      rolled_from_group_id: src.id,
-      sub_groups: src.sub_groups ?? [],
-    }).select('id').single()
-    const newId = g.id as string
-
-    // A source created outside the rollover path has no lineage yet — stamp it
-    // with its own id so source and clone share one lineage (matches the 201
-    // backfill convention; keeps "already rolled" detection accurate).
-    if (!src.lineage_id) await (db.from as any)('member_groups').update({ lineage_id: src.id }).eq('id', src.id)
-
-    // Weekly training schedules carry (events are (re)generated on the group page).
-    const scheds = schedsBy[src.id] ?? []
-    if (scheds.length) {
-      await (db.from as any)('member_group_schedules').insert(scheds.map((s: any) => ({
-        org_id: orgId.value, group_id: newId,
-        day_of_week: s.day_of_week, start_time: s.start_time, end_time: s.end_time,
-        location: s.location, sort_order: s.sort_order ?? 0,
-      })))
-    }
-
-    // Billing — membership plans carry; a term-fee link for the new term.
-    const links = plansBy[src.id] ?? []
-    if (links.length) {
-      await (db.from as any)('member_group_plans').insert(links.map((l: any) => ({ group_id: newId, plan_id: l.plan_id })))
-    }
-    await (db.from as any)('member_group_terms').insert({ group_id: newId, term_id: targetTerm.id, fee: src.term_fee ?? null })
-
-    // Fee options (+ their line items) carry to the new group.
-    for (const fo of (feeOptsBy[src.id] ?? [])) {
-      const { id: _oid, group_id: _g, created_at: _c, ...foRest } = fo
-      const { data: newFo } = await (db.from as any)('group_fee_options')
-        .insert({ ...foRest, org_id: orgId.value, group_id: newId }).select('id').single()
-      const items = feeItemsBy[fo.id] ?? []
-      if (items.length) {
-        await (db.from as any)('group_fee_option_items').insert(items.map((it: any) => {
-          const { id: _iid, option_id: _o, created_at: _ic, ...itRest } = it
-          return { ...itRest, option_id: newFo.id }
-        }))
-      }
-    }
-
-    // Staff + members per the chosen mode.
-    const people = [
-      ...pickPeople(src.staff, p.staffMode, p.staffIds),
-      ...pickPeople(src.members, p.memberMode, p.memberIds),
-    ]
-    if (people.length) {
-      await (db.from as any)('member_group_memberships').insert(people.map(person => ({
-        group_id: newId,
-        person_id: person.id,
+    const payload = chosen.map((p) => {
+      const src = p.source
+      const people = [
+        ...pickPeople(src.staff, p.staffMode, p.staffIds),
+        ...pickPeople(src.members, p.memberMode, p.memberIds),
+      ].map((person) => ({
+        personId: person.id,
         roles: person.roles ?? (person.role ? [person.role] : []),
         role: person.role ?? person.roles?.[0] ?? null,
-        sub_group_id: person.sub_group_id ?? null,
-        term_id: targetTerm.id,
-        start_date: targetTerm.start_date ?? null,
-        end_date: targetTerm.end_date ?? null,
-        membership_status: 'active',
-      })))
-    }
-    return newId
+        subGroupId: person.sub_group_id ?? null,
+      }))
+      return {
+        sourceId: src.id,
+        parentSourceId: src.parent_id ?? null,
+        name: p.name?.trim() || src.name,
+        color: src.color ?? null,
+        sortOrder: src.sort_order ?? null,
+        codeId: src.code_id ?? null,
+        formId: src.form_id ?? null,
+        imageUrl: src.image_url ?? null,
+        code: src.code ?? null,
+        ageRange: src.age_range ?? null,
+        capacity: src.capacity ?? null,
+        termFee: src.term_fee ?? null,
+        genderRestriction: src.gender_restriction ?? null,
+        subGroups: src.sub_groups ?? [],
+        lineageId: src.lineage_id ?? null,
+        people,
+      }
+    })
+    return await groupsApi.rollover({
+      orgId: orgId.value,
+      targetTerm: {
+        id: targetTerm.id,
+        name: targetTerm.name ?? null,
+        startDate: targetTerm.start_date ?? null,
+        endDate: targetTerm.end_date ?? null,
+      },
+      plans: payload,
+    })
   }
 
   // Generate the term's weekly training events for a set of groups — the same
@@ -432,21 +319,21 @@ export function useTermRollover() {
   // when there's nothing to nudge about (no terms, all rolled, too early).
   async function rolloverNudge(leadDays = 21, graceDays = 45): Promise<RolloverNudge | null> {
     if (!orgId.value) return null
-    const [{ data: terms }, { data: groups }] = await Promise.all([
-      (db.from as any)('org_terms').select('id, name, start_date, end_date, signup_open, signup_close, set_id, status, sort_order')
-        .eq('org_id', orgId.value).order('start_date'),
-      (db.from as any)('member_groups').select('id, term_id, lineage_id, rolled_from_group_id, discontinued_at')
-        .eq('org_id', orgId.value).not('term_id', 'is', null),
+    const [terms, allGroups] = await Promise.all([
+      tm.loadTerms(),
+      groupsApi.list(orgId.value),
     ])
     const termList = (terms ?? []) as OrgTerm[]
-    if (!termList.length || !(groups ?? []).length) return null
+    // Only groups actually attached to a term matter for the nudge.
+    const groups = allGroups.filter((g) => g.termId)
+    if (!termList.length || !groups.length) return null
 
     const byTerm: Record<string, { lineages: Set<string>; rolledFrom: Set<string>; count: number }> = {}
-    for (const g of (groups ?? []) as any[]) {
-      const b = (byTerm[g.term_id] ??= { lineages: new Set(), rolledFrom: new Set(), count: 0 })
-      if (!g.discontinued_at) b.count++   // discontinued classes don't count as roll-over work
-      if (g.lineage_id) b.lineages.add(g.lineage_id)
-      if (g.rolled_from_group_id) b.rolledFrom.add(g.rolled_from_group_id)
+    for (const g of groups) {
+      const b = (byTerm[g.termId!] ??= { lineages: new Set(), rolledFrom: new Set(), count: 0 })
+      if (!g.discontinuedAt) b.count++   // discontinued classes don't count as roll-over work
+      if (g.lineageId) b.lineages.add(g.lineageId)
+      if (g.rolledFromGroupId) b.rolledFrom.add(g.rolledFromGroupId)
     }
 
     const today = new Date(); today.setHours(0, 0, 0, 0)
@@ -471,10 +358,10 @@ export function useTermRollover() {
       const total = byTerm[t.id].count
       if (!next) return { state: 'create-term', currentTerm: t, nextTerm: null, daysLeft: left, total, remaining: total }
       const nextInfo = byTerm[next.id] ?? { lineages: new Set(), rolledFrom: new Set() }
-      const remaining = (groups ?? []).filter((g: any) =>
-        g.term_id === t.id
-        && !g.discontinued_at
-        && (!g.lineage_id || !nextInfo.lineages.has(g.lineage_id))
+      const remaining = groups.filter((g) =>
+        g.termId === t.id
+        && !g.discontinuedAt
+        && (!g.lineageId || !nextInfo.lineages.has(g.lineageId))
         && !nextInfo.rolledFrom.has(g.id)).length
       if (remaining > 0) return { state: 'roll', currentTerm: t, nextTerm: next, daysLeft: left, total, remaining }
     }

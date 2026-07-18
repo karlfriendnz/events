@@ -1032,7 +1032,8 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
-const db = useSupabaseClient()
+const db = useSupabaseClient() // kept for auth (signIn*) + cross-domain reads (events/booking_items/forms/notifications)
+const api = useBookingsApi()
 const { orgId: staffOrgId } = useOrg()
 const toast = useToast()
 
@@ -1273,6 +1274,7 @@ async function resolveModeVenue(): Promise<string | null | '__NONE_AVAILABLE__'>
   const endIso = booking.endAt.toISOString()
   // Pull every overlapping booking on the candidate venues in one query
   // and resolve locally — cheaper than N queries for a small candidate set.
+  // TODO seam-gap: needs a bookable_id-IN + start/end window server filter (api.bookings has none) — kept on the supabase client
   const { data } = await (db.from as any)('bookings')
     .select('bookable_id')
     .in('bookable_id', candidates)
@@ -1294,6 +1296,7 @@ async function checkItemAvailability(rows: { id: string; qty: number; item: any 
   const endIso = booking.endAt.toISOString()
   // booking_items isn't time-aware on its own — the time window comes
   // from the parent bookings row. Join via an inner select.
+  // TODO cross-domain: booking_items still via the supabase client (not a booking-domain seam table)
   const { data } = await (db.from as any)('booking_items')
     .select('bookable_id, quantity, booking:bookings!inner(start_at, end_at, status)')
     .in('bookable_id', ids)
@@ -1422,7 +1425,9 @@ watch(effectiveFormId, async (formId) => {
   for (const k of Object.keys(termsAgreed)) delete termsAgreed[Number(k)]
   if (!formId) return
   const [{ data: ff }, { data: rf }] = await Promise.all([
+    // TODO cross-domain: form_fields still via the supabase client (owned by forms)
     (db.from as any)('form_fields').select('*').eq('form_id', formId).order('sort_order'),
+    // TODO cross-domain: registration_forms still via the supabase client (owned by forms)
     (db.from as any)('registration_forms').select('config').eq('id', formId).single(),
   ])
   const cfg = (rf?.config as any) ?? {}
@@ -2074,8 +2079,11 @@ async function selectBookable(item: any) {
   booking.bookableId = item.id
   booking.bookable = item
   if (!bookableModesByBookable.value[item.id]) {
-    const { data } = await (db.from as any)('bookable_modes').select('id, name, color').eq('bookable_id', item.id).order('name')
-    bookableModesByBookable.value = { ...bookableModesByBookable.value, [item.id]: data ?? [] }
+    const bmRaw = await api.bookableModes(item.id)
+    const data = (bmRaw ?? [])
+      .sort((a: any, b: any) => String(a.name).localeCompare(String(b.name)))
+      .map((m: any) => ({ id: m.id, name: m.name, color: m.color }))
+    bookableModesByBookable.value = { ...bookableModesByBookable.value, [item.id]: data }
   }
 }
 
@@ -2088,6 +2096,7 @@ async function load() {
   loadingBookables.value = true
 
   // Org-level defaults (used as the fallback for modes that haven't set their own).
+  // TODO cross-domain: organisations still via the supabase client (owned by admin/org)
   const { data: orgData } = await (db.from as any)('organisations')
     .select('default_payment_options, default_form_id')
     .eq('id', queryOrgId.value)
@@ -2095,27 +2104,32 @@ async function load() {
   orgDefaultPayments.value = (orgData?.default_payment_options as Record<string, boolean>) ?? {}
   orgDefaultFormId.value = orgData?.default_form_id ?? null
 
-  let bookablesQ = (db.from as any)('bookables')
-    .select('id, name, type, location, default_booking_view, item_category')
-    .eq('org_id', queryOrgId.value)
-    .eq('status', 'ACTIVE')
-  // Public sees only is_public=true. Staff sees everything in their org.
-  if (!props.staff) bookablesQ = bookablesQ.eq('is_public', true)
-  bookablesQ = bookablesQ.order('type').order('name')
-
-  const [{ data: aData }, { data: bData }] = await Promise.all([
-    (db.from as any)('activities')
-      .select('id, name, description, color, image_url, require_mode, mode_label, mode_display')
-      .eq('org_id', queryOrgId.value)
-      .eq('status', 'ACTIVE')
-      .order('name'),
-    bookablesQ,
+  // Seam returns camelCase; the template reads snake_case, so map at the boundary.
+  const [aRaw, allOrgBk] = await Promise.all([
+    api.activities(queryOrgId.value),
+    api.bookables(queryOrgId.value),
   ])
 
-  activities.value = aData ?? []
+  activities.value = (aRaw ?? [])
+    .filter((a: any) => a.status === 'ACTIVE')
+    .sort((x: any, y: any) => String(x.name).localeCompare(String(y.name)))
+    .map((a: any) => ({
+      id: a.id, name: a.name, description: a.description, color: a.color, image_url: a.imageUrl,
+      require_mode: a.requireMode, mode_label: a.modeLabel, mode_display: a.modeDisplay,
+    }))
+
+  // Public sees only is_public=true. Staff sees everything in their org.
+  bookables.value = (allOrgBk ?? [])
+    .filter((b: any) => b.status === 'ACTIVE' && (props.staff || b.isPublic))
+    .sort((a: any, b: any) => String(a.type).localeCompare(String(b.type)) || String(a.name).localeCompare(String(b.name)))
+    .map((b: any) => ({
+      id: b.id, name: b.name, type: b.type, location: b.location,
+      default_booking_view: b.defaultBookingView, item_category: b.itemCategory,
+    }))
 
   // Staff: load org events for the link-to-event selector.
   if (props.staff) {
+    // TODO cross-domain: events still via the supabase client (owned by events)
     const { data: eData } = await (db.from as any)('events')
       .select('id, title')
       .eq('org_id', queryOrgId.value)
@@ -2125,26 +2139,31 @@ async function load() {
   loadingActivities.value = false
 
   if (activities.value.length > 0) {
-    const actIds = activities.value.map((a: any) => a.id)
-    const [{ data: amData }, { data: abData }] = await Promise.all([
-      (db.from as any)('activity_modes')
-        .select('id, activity_id, name, description, color, image_url, sort_order, addons, pricing, min_people, max_people, allow_visitors, min_visitors, max_visitors, form_id, default_booking_view, payment_options, approval_mode')
-        .in('activity_id', actIds)
-        .order('sort_order').order('name'),
-      (db.from as any)('activity_bookables')
-        .select('activity_id, bookable_id')
-        .in('activity_id', actIds),
+    // Seam lists modes/bookables per activity; gather across this org's activities.
+    const [amLists, abLists] = await Promise.all([
+      Promise.all(activities.value.map((a: any) => api.activityModes(a.id))),
+      Promise.all(activities.value.map((a: any) => api.activityBookables(a.id))),
     ])
+    const amData = amLists.flat()
+      .sort((a: any, b: any) => (a.sortOrder - b.sortOrder) || String(a.name).localeCompare(String(b.name)))
+      .map((m: any) => ({
+        id: m.id, activity_id: m.activityId, name: m.name, description: m.description, color: m.color,
+        image_url: m.imageUrl, sort_order: m.sortOrder, addons: m.addons, pricing: m.pricing,
+        min_people: m.minPeople, max_people: m.maxPeople, allow_visitors: m.allowVisitors,
+        min_visitors: m.minVisitors, max_visitors: m.maxVisitors, form_id: m.formId,
+        default_booking_view: m.defaultBookingView, payment_options: m.paymentOptions, approval_mode: m.approvalMode,
+      }))
+    const abData = abLists.flat().map((r: any) => ({ activity_id: r.activityId, bookable_id: r.bookableId }))
 
     const modesByAct: Record<string, any[]> = {}
-    for (const m of amData ?? []) {
+    for (const m of amData) {
       if (!modesByAct[m.activity_id]) modesByAct[m.activity_id] = []
       modesByAct[m.activity_id].push(m)
     }
     activityModesByActivity.value = modesByAct
 
     const actMap: Record<string, Set<string>> = {}
-    for (const row of abData ?? []) {
+    for (const row of abData) {
       if (!actMap[row.activity_id]) actMap[row.activity_id] = new Set()
       actMap[row.activity_id].add(row.bookable_id)
     }
@@ -2152,20 +2171,24 @@ async function load() {
 
     // Coach-mode venue requirements: when set, the system reserves one
     // venue from this list alongside the coach at submit time.
-    const modeIds = (amData ?? []).map((m: any) => m.id)
+    const modeIds = amData.map((m: any) => m.id)
     if (modeIds.length) {
-      const [{ data: rData }, { data: reqItemData }] = await Promise.all([
-        (db.from as any)('activity_mode_resources')
-          .select('mode_id, bookable_id, sort_order')
-          .in('mode_id', modeIds)
-          .order('sort_order'),
-        (db.from as any)('activity_mode_required_items')
-          .select('mode_id, bookable_id, quantity, sort_order, is_optional, price_override')
-          .in('mode_id', modeIds)
-          .order('sort_order'),
+      // Seam lists resources / required items per mode; gather across the modes.
+      const [rLists, reqLists] = await Promise.all([
+        Promise.all(modeIds.map((mid: string) => api.modeResources(mid))),
+        Promise.all(modeIds.map((mid: string) => api.modeRequiredItems(mid))),
       ])
+      const rData = rLists.flat()
+        .sort((a: any, b: any) => a.sortOrder - b.sortOrder)
+        .map((r: any) => ({ mode_id: r.modeId, bookable_id: r.bookableId, sort_order: r.sortOrder }))
+      const reqItemData = reqLists.flat()
+        .sort((a: any, b: any) => a.sortOrder - b.sortOrder)
+        .map((r: any) => ({
+          mode_id: r.modeId, bookable_id: r.bookableId, quantity: r.quantity,
+          sort_order: r.sortOrder, is_optional: r.isOptional, price_override: r.priceOverride,
+        }))
       const resByMode: Record<string, string[]> = {}
-      for (const r of rData ?? []) {
+      for (const r of rData) {
         if (!resByMode[r.mode_id]) resByMode[r.mode_id] = []
         resByMode[r.mode_id].push(r.bookable_id)
       }
@@ -2174,7 +2197,7 @@ async function load() {
       // Split into required (auto-included) and optional (customer-pickable).
       const reqByMode: Record<string, { bookable_id: string; quantity: number; price_override: number | null }[]> = {}
       const optByMode: Record<string, { bookable_id: string; quantity: number; price_override: number | null }[]> = {}
-      for (const r of reqItemData ?? []) {
+      for (const r of reqItemData) {
         const target = r.is_optional ? optByMode : reqByMode
         if (!target[r.mode_id]) target[r.mode_id] = []
         target[r.mode_id].push({
@@ -2187,18 +2210,14 @@ async function load() {
       modeOptionalItemsByMode.value = optByMode
     }
 
-    // ITEM bookables (footballs, cones, …) for the Equipment picker.
-    // Pull every active item in the org — small fixed inventory.
-    const { data: itemData } = await (db.from as any)('bookables')
-      .select('id, name, max_concurrent')
-      .eq('org_id', queryOrgId.value)
-      .eq('type', 'ITEM')
-      .eq('status', 'ACTIVE')
-      .order('name')
-    availableItems.value = itemData ?? []
+    // ITEM bookables (footballs, cones, …) for the Equipment picker — derived from
+    // the org bookables already fetched above (small fixed inventory).
+    availableItems.value = (allOrgBk ?? [])
+      .filter((b: any) => b.type === 'ITEM' && b.status === 'ACTIVE')
+      .sort((a: any, b: any) => String(a.name).localeCompare(String(b.name)))
+      .map((b: any) => ({ id: b.id, name: b.name, max_concurrent: b.maxConcurrent }))
   }
 
-  bookables.value = bData ?? []
   loadingBookables.value = false
   loading.value = false
 }
@@ -2210,12 +2229,10 @@ async function checkCapacityViolation(): Promise<string | null> {
   if (!booking.bookableId || !booking.startAt || !booking.endAt) return null
   const startIso = booking.startAt.toISOString()
   const endIso = booking.endAt.toISOString()
-  const { data: rules } = await (db.from as any)('availability_rules')
-    .select('max_concurrent, name')
-    .eq('bookable_id', booking.bookableId)
-    .not('max_concurrent', 'is', null)
-    .gt('max_concurrent', 0)
-  if (!rules?.length) return null
+  const rulesRaw = await api.availabilityRules(booking.bookableId)
+  const capRules = (rulesRaw ?? []).filter((r: any) => r.maxConcurrent != null && r.maxConcurrent > 0)
+  if (!capRules.length) return null
+  // TODO seam-gap: overlap count needs a bookable_id + start/end window server filter (api.bookings has none) — kept on the supabase client
   const { data: overlaps } = await (db.from as any)('bookings')
     .select('id')
     .eq('bookable_id', booking.bookableId)
@@ -2223,9 +2240,9 @@ async function checkCapacityViolation(): Promise<string | null> {
     .lt('start_at', endIso)
     .gt('end_at', startIso)
   const count = overlaps?.length ?? 0
-  for (const rule of rules) {
-    if (count >= rule.max_concurrent) {
-      return `This slot is at capacity (${count}/${rule.max_concurrent} bookings). Choose a different time.`
+  for (const rule of capRules) {
+    if (count >= rule.maxConcurrent) {
+      return `This slot is at capacity (${count}/${rule.maxConcurrent} bookings). Choose a different time.`
     }
   }
   return null
@@ -2278,57 +2295,57 @@ async function handleSubmit() {
         }
       }
 
-      // Staff: direct DB insert (auth enforced server-side via RLS), supports event_id.
+      // Staff: booking write via the seam (supports event_id).
       // bookings has no org_id — it's derived through bookable_id.
-      const { data: bookingRow, error } = await (db.from as any)('bookings').insert({
-        bookable_id: booking.bookableId,
-        activity_id: booking.activityId || null,
-        activity_mode_id: booking.activityModeId || null,
-        event_id: booking.eventId || null,
+      const bookingRow = await api.createBooking({
+        bookableId: booking.bookableId,
+        activityId: booking.activityId || null,
+        activityModeId: booking.activityModeId || null,
+        eventId: booking.eventId || null,
         type: 'ONE_OFF',
         status: currentActivityMode.value?.approval_mode === 'REQUIRES_APPROVAL' ? 'PENDING' : 'CONFIRMED',
-        start_at: booking.startAt.toISOString(),
-        end_at: booking.endAt.toISOString(),
+        startAt: booking.startAt.toISOString(),
+        endAt: booking.endAt.toISOString(),
         notes: booking.notes || null,
-        selected_addons: booking.selectedAddons ?? [],
-        attendee_count: booking.attendeeCount || null,
-        contact_name: booking.contactName,
-        contact_email: booking.contactEmail,
-        contact_phone: booking.contactPhone || null,
-        is_all_day: false,
-        subject_person_id: subjectPersonId.value,
-        booking_discount_id: claimedDiscountId,
-        discount_amount: claimedDiscountAmount,
-        custom_fields: {
+        selectedAddons: booking.selectedAddons ?? [],
+        attendeeCount: booking.attendeeCount || null,
+        contactName: booking.contactName,
+        contactEmail: booking.contactEmail,
+        contactPhone: booking.contactPhone || null,
+        isAllDay: false,
+        subjectPersonId: subjectPersonId.value,
+        bookingDiscountId: claimedDiscountId,
+        discountAmount: claimedDiscountAmount,
+        customFields: {
           ...visibleFormAnswers(),
           ...(booking.visitorCount != null ? { visitors: booking.visitorCount } : {}),
           ...(modeFormTerms.value.length ? { _terms_agreed: termsConsentSnapshot() } : {}),
           ...(booking.paymentMethod ? { _payment_method: booking.paymentMethod } : {}),
         },
-      }).select('id').single()
-      if (error) throw error
+      })
 
       // Child booking on the venue resolved above (e.g. coach + lane).
       // parent_booking_id ties them together; both calendars block.
       if (resolvedVenueId && bookingRow?.id) {
-        await (db.from as any)('bookings').insert({
-          bookable_id: resolvedVenueId,
-          activity_id: booking.activityId || null,
-          activity_mode_id: booking.activityModeId || null,
-          parent_booking_id: bookingRow.id,
+        await api.createBooking({
+          bookableId: resolvedVenueId,
+          activityId: booking.activityId || null,
+          activityModeId: booking.activityModeId || null,
+          parentBookingId: bookingRow.id,
           type: 'ONE_OFF',
           status: currentActivityMode.value?.approval_mode === 'REQUIRES_APPROVAL' ? 'PENDING' : 'CONFIRMED',
-          start_at: booking.startAt.toISOString(),
-          end_at: booking.endAt.toISOString(),
-          contact_name: booking.contactName,
-          contact_email: booking.contactEmail,
+          startAt: booking.startAt.toISOString(),
+          endAt: booking.endAt.toISOString(),
+          contactName: booking.contactName,
+          contactEmail: booking.contactEmail,
           notes: `via ${currentActivityMode.value?.name ?? 'mode'}`,
-          is_all_day: false,
+          isAllDay: false,
         })
       }
 
       // Equipment rows. Fungible — one row per item type with a quantity.
       if (itemRowsToInsert.length && bookingRow?.id) {
+        // TODO cross-domain: booking_items still via the supabase client (not a booking-domain seam table)
         await (db.from as any)('booking_items').insert(
           itemRowsToInsert.map((r, i) => ({
             booking_id: bookingRow.id,
@@ -2340,6 +2357,7 @@ async function handleSubmit() {
       }
       // Mirror the public-booking notification path.
       const isPending = currentActivityMode.value?.approval_mode === 'REQUIRES_APPROVAL'
+      // TODO cross-domain: notifications still via the supabase client (owned by comms)
       const { data: notif } = await (db.from as any)('notifications').insert({
         org_id: queryOrgId.value,
         type: isPending ? 'booking.pending' : 'booking.created',
