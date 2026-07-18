@@ -149,8 +149,8 @@ import { useToast } from 'primevue/usetoast'
 import { COMMS_CATEGORIES, COMMS_CATEGORY_KEYS } from '~/composables/usePeopleLinks'
 
 const props = defineProps<{ personId: string }>()
-const db = useDb()
 const { orgId } = useOrg()
+const peopleApi = usePeopleApi()
 const toast = useToast()
 const { circlesForPerson, loadCommsPrefsForSubject, setCommsPref, createCircle, renameCircle, updateCircle, deleteCircle, addMember, updateMember, removeMember } = usePeopleLinks()
 const { ensureTerms, t } = useTerms()
@@ -300,12 +300,16 @@ const pickResults = ref<any[]>([])
 function openAdd(c: any) { addTarget.value = c; addRelationship.value = ''; pickQuery.value = ''; addOpen.value = true }
 async function searchPersons(e: { query: string }) {
   const q = (e.query || '').trim()
+  if (!orgId.value) { pickResults.value = []; return }
   const existing = new Set((addTarget.value?.members ?? []).map((m: any) => m.person_id))
-  let query = (db.from as any)('persons').select('id, first_name, last_name, email').eq('org_id', orgId.value).order('last_name').limit(20)
-  if (q) query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`)
-  const { data } = await query
-  pickResults.value = (data ?? []).filter((p: any) => !existing.has(p.id))
-    .map((p: any) => ({ ...p, label: personName(p) + (p.email ? ` · ${p.email}` : '') }))
+  const people = await peopleApi.list(orgId.value, { q: q || undefined, limit: 20 })
+  // Seam is camelCase; this list reads snake — map to the shape personName/onPick expect.
+  pickResults.value = people
+    .filter(p => !existing.has(p.id))
+    .map(p => {
+      const row = { id: p.id, first_name: p.firstName, last_name: p.lastName, email: p.email }
+      return { ...row, label: personName(row) + (row.email ? ` · ${row.email}` : '') }
+    })
 }
 async function onPick(e: { value: any }) {
   const p = e.value

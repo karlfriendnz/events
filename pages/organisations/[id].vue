@@ -5,11 +5,12 @@
   The LIVE home for "people connected to an entity" (promoted from /proto).
 -->
 <script setup lang="ts">
-const db = useDb()
 const { orgId } = useOrg()
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+const peopleApi = usePeopleApi()
+const typesApi = usePersonTypesApi()
 const { resolveFields, fieldAppliesTo } = useOrgFieldPolicy()
 const { loadEntity, saveEntity, deleteEntity, loadMembers, addMember, updateMember, removeMember } = useEntities()
 
@@ -45,18 +46,20 @@ async function load() {
   entity.value = await loadEntity(id)
   if (!entity.value) { loading.value = false; return }
   if (!entity.value.custom_fields) entity.value.custom_fields = {}
-  const [{ data: typeRows }, flds, mem, { data: ppl }] = await Promise.all([
-    (db.from as any)('person_target_types').select('label, member_slots, org_id').eq('key', entity.value.type_key),
+  const [tk, flds, mem, ppl] = await Promise.all([
+    // The type's label + roster slots (own preferred over inherited). Entity types are
+    // own-only, so scoping to this org resolves them.
+    typesApi.typeByKey([orgId.value!], entity.value.type_key),
     resolveFields(orgId.value!),
     loadMembers(id),
-    (db.from as any)('persons').select('id, first_name, last_name, email, phone').eq('org_id', orgId.value).order('last_name'),
+    peopleApi.list(orgId.value!),
   ])
-  const own = (typeRows ?? []).find((r: any) => r.org_id === orgId.value) ?? (typeRows ?? [])[0]
-  typeLabel.value = own?.label ?? entity.value.type_key
-  slots.value = own?.member_slots ?? []
+  typeLabel.value = tk?.label ?? entity.value.type_key
+  slots.value = tk?.memberSlots ?? []
   fields.value = flds.filter(f => fieldAppliesTo(f, entity.value.type_key))
   members.value = mem
-  persons.value = ppl ?? []
+  // Seam is camelCase; personOptions reads snake — map to the shape it expects.
+  persons.value = ppl.map(p => ({ id: p.id, first_name: p.firstName, last_name: p.lastName, email: p.email, phone: p.phone }))
   dirty.value = false
   loading.value = false
 }

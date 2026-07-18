@@ -50,16 +50,57 @@ export const COMMS_CATEGORIES = [
 export const COMMS_CATEGORY_KEYS = COMMS_CATEGORIES.map(c => c.key)
 
 export function usePeopleLinks() {
-  const db = useDb()
   const { orgId } = useOrg()
+  const api = useCirclesApi()
+
+  // The seam returns camelCase; this composable's public surface (and the pages that
+  // read it) is snake_case, so we map at the boundary. One place, so the resolvers +
+  // UI below never change.
+  function toMember(m: any): CircleMember {
+    return {
+      id: m.id,
+      circle_id: m.circleId,
+      person_id: m.personId,
+      role: m.role,
+      can_book_for: m.canBookFor,
+      can_view: m.canView,
+      can_register: m.canRegister,
+      is_lead: m.isLead,
+      relationship: m.relationship ?? null,
+      is_primary: m.isPrimary,
+      contact_type: m.contactType ?? null,
+      receives_comms: m.receivesComms,
+      sort_order: m.sortOrder,
+      person: m.person
+        ? {
+            id: m.person.id,
+            first_name: m.person.firstName,
+            last_name: m.person.lastName,
+            email: m.person.email,
+            phone: m.person.phone,
+            photo_url: m.person.photoUrl,
+            person_type: m.person.personType,
+          }
+        : null,
+    }
+  }
+  function toCircle(c: any): Circle {
+    return {
+      id: c.id,
+      org_id: c.orgId,
+      name: c.name,
+      kind: c.kind,
+      color: c.color ?? null,
+      image_url: c.imageUrl ?? null,
+      members: (c.members ?? []).map(toMember),
+    }
+  }
 
   /** All circles in the org (with members + the member's person), for resolution + admin UI. */
   async function loadCircles(): Promise<Circle[]> {
-    const { data } = await (db.from as any)('circles')
-      .select('id, org_id, name, kind, color, image_url, circle_members(id, circle_id, person_id, role, can_book_for, can_view, can_register, is_lead, relationship, is_primary, contact_type, receives_comms, sort_order, person:persons(id, first_name, last_name, email, phone, photo_url, person_type))')
-      .eq('org_id', orgId.value)
-      .order('name')
-    return (data ?? []).map((c: any) => ({ ...c, members: (c.circle_members ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order) }))
+    if (!orgId.value) return []
+    const rows = await api.circlesForOrg(orgId.value)
+    return rows.map(toCircle)
   }
 
   /** Circles a given person belongs to. */
@@ -145,56 +186,82 @@ export function usePeopleLinks() {
   }
 
   // ── Mutations ──
+  // The seam takes camelCase; callers pass snake_case (extras/patch). Map at the edge.
   async function createCircle(name: string, kind: 'family' | 'circle') {
-    const { data } = await (db.from as any)('circles')
-      .insert({ org_id: orgId.value, name, kind }).select('*').single()
-    return data
+    if (!orgId.value) return null
+    const c = await api.createCircle({ orgId: orgId.value, name, kind })
+    // Callers read `.id` (and treat the result as a circle) — hand back the snake shape.
+    return toCircle({ ...c, members: [] })
   }
   async function renameCircle(id: string, name: string) {
-    await (db.from as any)('circles').update({ name }).eq('id', id)
+    await api.updateCircle(id, { name })
   }
   async function updateCircle(id: string, patch: { name?: string; color?: string | null; image_url?: string | null }) {
-    await (db.from as any)('circles').update(patch).eq('id', id)
+    await api.updateCircle(id, { name: patch.name, color: patch.color, imageUrl: patch.image_url })
   }
   async function deleteCircle(id: string) {
-    await (db.from as any)('circles').delete().eq('id', id)
+    await api.removeCircle(id)
   }
   async function addMember(circleId: string, personId: string, role: string, extras: Record<string, any> = {}) {
-    const { error } = await (db.from as any)('circle_members')
-      .insert({ circle_id: circleId, person_id: personId, role, ...extras })
-    return !error
+    try {
+      await api.addMember(circleId, {
+        personId,
+        role,
+        canBookFor: extras.can_book_for,
+        canView: extras.can_view,
+        canRegister: extras.can_register,
+        isLead: extras.is_lead,
+        relationship: extras.relationship,
+        isPrimary: extras.is_primary,
+        contactType: extras.contact_type,
+        receivesComms: extras.receives_comms,
+        sortOrder: extras.sort_order,
+      })
+      return true
+    } catch {
+      return false
+    }
   }
   async function updateMember(id: string, patch: Partial<CircleMember>) {
-    await (db.from as any)('circle_members').update(patch).eq('id', id)
+    // Only forward the keys present — snake → camel.
+    const p: Record<string, any> = {}
+    if (patch.role !== undefined) p.role = patch.role
+    if (patch.can_book_for !== undefined) p.canBookFor = patch.can_book_for
+    if (patch.can_view !== undefined) p.canView = patch.can_view
+    if (patch.can_register !== undefined) p.canRegister = patch.can_register
+    if (patch.is_lead !== undefined) p.isLead = patch.is_lead
+    if (patch.relationship !== undefined) p.relationship = patch.relationship
+    if (patch.is_primary !== undefined) p.isPrimary = patch.is_primary
+    if (patch.contact_type !== undefined) p.contactType = patch.contact_type
+    if (patch.receives_comms !== undefined) p.receivesComms = patch.receives_comms
+    if (patch.sort_order !== undefined) p.sortOrder = patch.sort_order
+    await api.updateMember(id, p)
   }
   async function removeMember(id: string) {
-    await (db.from as any)('circle_members').delete().eq('id', id)
+    await api.removeMember(id)
   }
 
   // ── Comms preferences (which categories a recipient gets per subject) ──
   /** Map subject_person_id → categories[] for everything `personId` receives.
    *  A subject with no row defaults to ALL categories (full inheritance). */
   async function loadCommsPrefs(personId: string): Promise<Record<string, string[]>> {
-    const { data } = await (db.from as any)('comms_preferences')
-      .select('subject_person_id, categories').eq('person_id', personId)
+    const rows = await api.commsPreferences(personId)
     const out: Record<string, string[]> = {}
-    for (const r of (data ?? [])) out[r.subject_person_id] = r.categories ?? []
+    for (const r of rows) out[r.subjectPersonId] = r.categories ?? []
     return out
   }
   /** Inverse view: for everyone who receives `subjectId`'s comms, their chosen
    *  categories. Map recipient_person_id → categories[]. Used on the subject's
    *  own profile to show "who gets what on my behalf". */
   async function loadCommsPrefsForSubject(subjectId: string): Promise<Record<string, string[]>> {
-    const { data } = await (db.from as any)('comms_preferences')
-      .select('person_id, categories').eq('subject_person_id', subjectId)
+    const rows = await api.commsPreferencesForSubject(subjectId)
     const out: Record<string, string[]> = {}
-    for (const r of (data ?? [])) out[r.person_id] = r.categories ?? []
+    for (const r of rows) out[r.personId] = r.categories ?? []
     return out
   }
   async function setCommsPref(personId: string, subjectPersonId: string, categories: string[]) {
-    await (db.from as any)('comms_preferences')
-      .upsert({ org_id: orgId.value, person_id: personId, subject_person_id: subjectPersonId, categories },
-        { onConflict: 'person_id,subject_person_id' })
+    if (!orgId.value) return
+    await api.setCommsPreference({ orgId: orgId.value, personId, subjectPersonId, categories })
   }
 
   return {

@@ -38,9 +38,34 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ (e: 'count-change', v: number): void }>()
 
+// useDb retained for ONE write only — saveEdit / note UPDATE (see the CROSS-DOMAIN GAP
+// note there). Every other read/write is on the seam.
 const db = useDb()
 const { orgId } = useOrg()
 const user = useSupabaseUser()
+const peopleApi = usePeopleApi()
+const circlesApi = useCirclesApi()
+
+// The seam returns camelCase notes; this component's template + matchesScope/startEdit
+// read snake_case. Map at the boundary so nothing else changes.
+function toRow(n: any) {
+  return {
+    id: n.id,
+    org_id: n.orgId,
+    person_id: n.personId,
+    body: n.body,
+    tags: n.tags ?? [],
+    channel: n.channel ?? null,
+    author_id: n.authorId ?? null,
+    author_name: n.authorName ?? null,
+    links: Array.isArray(n.links) ? n.links : [],
+    visibility: n.visibility ?? 'staff',
+    visible_to: Array.isArray(n.visibleTo) ? n.visibleTo : [],
+    is_important: !!n.isImportant,
+    due_date: n.dueDate ?? null,
+    created_at: n.createdAt,
+  }
+}
 
 // One drawer at a time across every instance; also drives the layout push.
 const uid = `pn-${((globalThis as any).__pnSeq = (((globalThis as any).__pnSeq || 0) + 1))}`
@@ -91,17 +116,17 @@ function setCount(v: number) { count.value = v; emit('count-change', v) }
 
 async function loadCount() {
   if (props.initialCount != null) return
-  const { data } = await (db.from as any)('person_notes').select('id, links').eq('person_id', props.personId)
-  setCount((data ?? []).filter(matchesScope).length)
+  const rows = (await circlesApi.notes(props.personId)).map(toRow)
+  setCount(rows.filter(matchesScope).length)
 }
 
 async function onHover() {
   hovering.value = true
   if (latestLoaded.value || !count.value) return
   latestLoaded.value = true
-  const { data } = await (db.from as any)('person_notes')
-    .select('body, links, created_at').eq('person_id', props.personId).order('created_at', { ascending: false })
-  latestNote.value = (data ?? []).find(matchesScope)?.body ?? null
+  // Seam returns newest-first.
+  const rows = (await circlesApi.notes(props.personId)).map(toRow)
+  latestNote.value = rows.find(matchesScope)?.body ?? null
 }
 
 async function openDrawer() {
@@ -113,9 +138,7 @@ async function openDrawer() {
   noteDue.value = null
   loadParents()
   loading.value = true
-  const { data } = await (db.from as any)('person_notes')
-    .select('*').eq('person_id', props.personId).order('created_at', { ascending: false })
-  notes.value = data ?? []
+  notes.value = (await circlesApi.notes(props.personId)).map(toRow)
   loading.value = false
   setCount(notes.value.filter(matchesScope).length)
 }
@@ -125,28 +148,30 @@ async function add() {
   const body = newNote.value.trim()
   if (!body) return
   saving.value = true
-  const { data, error } = await (db.from as any)('person_notes').insert({
-    org_id: orgId.value, person_id: props.personId, body, links: props.links ?? [], channel: noteChannel.value,
-    visible_to: buildVisibleTo(), visibility: noteAudiences.value[0] || 'staff', is_important: noteImportant.value,
-    due_date: aud.toISODate(noteDue.value),
-    author_id: user.value?.id ?? null,
-    author_name: (user.value?.user_metadata as any)?.full_name || user.value?.email || null,
-  }).select('*').single()
-  saving.value = false
-  if (!error && data) {
-    notes.value.unshift(data)
+  try {
+    const created = await peopleApi.addNote({
+      orgId: orgId.value!, personId: props.personId, body, links: props.links ?? [], channel: noteChannel.value,
+      visibleTo: buildVisibleTo(), visibility: noteAudiences.value[0] || 'staff', isImportant: noteImportant.value,
+      dueDate: aud.toISODate(noteDue.value),
+      authorId: user.value?.id ?? null,
+      authorName: (user.value?.user_metadata as any)?.full_name || user.value?.email || null,
+    })
+    const row = toRow(created)
+    notes.value.unshift(row)
     newNote.value = ''
     noteAudiences.value = ['staff']
     noteImportant.value = false
     noteDue.value = null
     noteChannel.value = null
     latestNote.value = body
-    if (matchesScope(data)) setCount(count.value + 1)
+    if (matchesScope(row)) setCount(count.value + 1)
+  } finally {
+    saving.value = false
   }
 }
 
 async function remove(n: any) {
-  await (db.from as any)('person_notes').delete().eq('id', n.id)
+  await peopleApi.removeNote(n.id)
   notes.value = notes.value.filter(x => x.id !== n.id)
   if (matchesScope(n)) setCount(Math.max(0, count.value - 1))
 }
@@ -177,6 +202,10 @@ async function saveEdit(n: any) {
     is_important: editImportant.value,
     due_date: aud.toISODate(editDue.value),
   }
+  // CROSS-DOMAIN GAP (people): person_notes WRITES live in people.ts (createNote /
+  // deleteNote) — there is no updateNote seam yet, so note editing stays on useDb until
+  // the people domain exposes PATCH /person-notes/:id. Reads + add + delete are already
+  // on the seam above.
   const { error } = await (db.from as any)('person_notes').update(patch).eq('id', n.id)
   if (!error) { Object.assign(n, patch); editingId.value = null }
 }

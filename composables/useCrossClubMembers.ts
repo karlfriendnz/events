@@ -20,14 +20,22 @@ export interface ClubPerson {
 }
 
 export function useCrossClubMembers() {
+  // useDb retained for ONE write only — savePullMode (see the CROSS-DOMAIN GAP note there).
   const db = useDb()
   const { loadAllOrgs, descendantClubs } = useOrgManagers()
+  const peopleApi = usePeopleApi()
+  const groupsApi = useGroupsApi()
+  const orgsApi = useOrganisationsApi()
 
   async function loadPullMode(orgId: string): Promise<PullMode> {
-    const { data } = await (db.from as any)('organisations').select('member_pull_mode').eq('id', orgId).maybeSingle()
-    return data?.member_pull_mode === 'copy' ? 'copy' : 'reference'
+    const s = await orgsApi.getSettings(orgId)
+    return s?.memberPullMode === 'copy' ? 'copy' : 'reference'
   }
   async function savePullMode(orgId: string, mode: PullMode): Promise<void> {
+    // CROSS-DOMAIN GAP (organisations): no seam route writes organisations.member_pull_mode
+    // — organisationPatch omits it. Left on useDb until the organisations domain exposes a
+    // setMemberPullMode (or widens the patch). The READ side is already on the seam
+    // (getSettings().memberPullMode), so only this one write remains.
     await (db.from as any)('organisations').update({ member_pull_mode: mode }).eq('id', orgId)
   }
 
@@ -37,21 +45,22 @@ export function useCrossClubMembers() {
     return descendantClubs(orgId, all).map((o: any) => ({ id: o.id, name: o.name })).sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  /** Search people across the given clubs (for the governing group's "from clubs" picker). */
+  /** Search people across the given clubs (for the governing group's "from clubs" picker).
+   *  One org-scoped people query per club (the seam lists by org), merged + capped at 25
+   *  to preserve the old single-query feel. */
   async function searchClubPersons(clubs: { id: string; name: string }[], q: string): Promise<ClubPerson[]> {
-    const ids = clubs.map(c => c.id)
-    if (!ids.length) return []
-    const nameById = new Map(clubs.map(c => [c.id, c.name]))
-    let query = (db.from as any)('persons')
-      .select('id, first_name, last_name, email, phone, gender, org_id')
-      .in('org_id', ids).order('last_name').limit(25)
+    if (!clubs.length) return []
     const term = q.trim()
-    if (term) query = query.or(`first_name.ilike.%${term}%,last_name.ilike.%${term}%,email.ilike.%${term}%`)
-    const { data } = await query
-    return (data ?? []).map((p: any) => ({
-      id: p.id, first_name: p.first_name, last_name: p.last_name, email: p.email, phone: p.phone, gender: p.gender,
-      club_id: p.org_id, club_name: nameById.get(p.org_id) ?? '—',
-    }))
+    const nameById = new Map(clubs.map(c => [c.id, c.name]))
+    const perClub = await Promise.all(clubs.map(c => peopleApi.list(c.id, { q: term || undefined, limit: 25 })))
+    const out: ClubPerson[] = []
+    clubs.forEach((c, i) => {
+      for (const p of perClub[i]) out.push({
+        id: p.id, first_name: p.firstName, last_name: p.lastName, email: p.email, phone: p.phone, gender: p.gender,
+        club_id: c.id, club_name: nameById.get(c.id) ?? '—',
+      })
+    })
+    return out.sort((a, b) => (a.last_name || '').localeCompare(b.last_name || '')).slice(0, 25)
   }
 
   /**
@@ -59,45 +68,42 @@ export function useCrossClubMembers() {
    * i.e. people pulled up from clubs. Powers the People page "Club members" tab.
    */
   async function clubMembersForOrg(orgId: string): Promise<ClubPerson[]> {
-    // Governing org's own groups → their memberships → person ids.
-    const { data: groups } = await (db.from as any)('member_groups').select('id').eq('org_id', orgId)
-    const groupIds = (groups ?? []).map((g: any) => g.id)
-    if (!groupIds.length) return []
-    const { data: mships } = await (db.from as any)('member_group_memberships').select('person_id').in('group_id', groupIds)
-    const personIds = [...new Set((mships ?? []).map((m: any) => m.person_id))]
+    // Governing org's own groups' memberships → person ids (the seam joins member_groups
+    // for the org scope; member_group_memberships has no org_id of its own).
+    const mships = await groupsApi.membershipsByOrg(orgId)
+    const personIds = [...new Set(mships.map(m => m.personId))]
     if (!personIds.length) return []
-    // Only those NOT owned by this org = pulled from a club.
-    const { data: persons } = await (db.from as any)('persons')
-      .select('id, first_name, last_name, email, phone, gender, org_id')
-      .in('id', personIds).neq('org_id', orgId)
-    const clubIds = [...new Set((persons ?? []).map((p: any) => p.org_id))]
-    if (!clubIds.length) return []
-    const { data: clubs } = await (db.from as any)('organisations').select('id, name').in('id', clubIds)
-    const nameById = new Map((clubs ?? []).map((c: any) => [c.id, c.name]))
-    return (persons ?? []).map((p: any) => ({
-      id: p.id, first_name: p.first_name, last_name: p.last_name, email: p.email, phone: p.phone, gender: p.gender,
-      club_id: p.org_id, club_name: nameById.get(p.org_id) ?? '—',
+    // Resolve each person; only those NOT owned by this org = pulled from a club.
+    const people = await Promise.all(personIds.map(id => peopleApi.get(id).catch(() => null)))
+    const clubSourced = people.filter((p): p is NonNullable<typeof p> => !!p && p.orgId !== orgId)
+    if (!clubSourced.length) return []
+    const allOrgs = await orgsApi.list()
+    const nameById = new Map(allOrgs.map(o => [o.id, o.name]))
+    return clubSourced.map(p => ({
+      id: p.id, first_name: p.firstName, last_name: p.lastName, email: p.email, phone: p.phone, gender: p.gender,
+      club_id: p.orgId, club_name: nameById.get(p.orgId) ?? '—',
     })).sort((a, b) => (a.last_name || '').localeCompare(b.last_name || ''))
   }
 
   /**
    * Resolve the persons.id to attach to a governing group when adding a club person.
    * 'reference' → the club person's own id (no copy). 'copy' → create a governing-owned
-   * mirror row and return its id.
+   * mirror row and return its id (idempotent by email when present).
    */
   async function resolvePulledPersonId(governingOrgId: string, clubPerson: ClubPerson, mode: PullMode): Promise<string | null> {
     if (mode === 'reference') return clubPerson.id
-    // Copy: mirror core fields into a governing-owned persons row (idempotent by email when present).
     if (clubPerson.email) {
-      const { data: existing } = await (db.from as any)('persons')
-        .select('id').eq('org_id', governingOrgId).ilike('email', clubPerson.email).limit(1).maybeSingle()
+      const existing = await peopleApi.findByEmail(governingOrgId, clubPerson.email)
       if (existing?.id) return existing.id
     }
-    const { data: created } = await (db.from as any)('persons').insert({
-      org_id: governingOrgId,
-      first_name: clubPerson.first_name, last_name: clubPerson.last_name,
-      email: clubPerson.email, phone: clubPerson.phone, gender: clubPerson.gender,
-    }).select('id').single()
+    const created = await peopleApi.create({
+      orgId: governingOrgId,
+      firstName: clubPerson.first_name || 'Member',
+      lastName: clubPerson.last_name ?? undefined,
+      email: clubPerson.email ?? undefined,
+      phone: clubPerson.phone ?? undefined,
+      gender: clubPerson.gender ?? undefined,
+    })
     return created?.id ?? null
   }
 

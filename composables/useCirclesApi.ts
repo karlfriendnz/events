@@ -8,7 +8,14 @@
 // names them so consuming screens code against a stable surface.
 import type {
   Circle,
+  CircleCreate,
   CircleMember,
+  CircleMemberCreate,
+  CircleMemberPatch,
+  CirclePatch,
+  CircleWithMembers,
+  CommsPreference,
+  CommsPreferenceUpsert,
   Entity,
   EntityCreate,
   EntityPatch,
@@ -17,13 +24,54 @@ import type {
 } from '../shared/contracts/circle'
 
 export function useCirclesApi() {
-  /** Every circle a person belongs to. */
+  /** Every circle a person belongs to (flat, no members). */
   async function circlesForPerson(personId: string): Promise<Circle[]> {
     return await $fetch<Circle[]>('/api/v1/circles', { query: { personId } })
+  }
+  /** Every circle in an org, each with its members hydrated — the capability resolvers
+   *  + the circles editor read this and filter per person. */
+  async function circlesForOrg(orgId: string): Promise<CircleWithMembers[]> {
+    return await $fetch<CircleWithMembers[]>('/api/v1/circles/with-members', { query: { orgId } })
   }
   /** The members of one circle. */
   async function members(circleId: string): Promise<CircleMember[]> {
     return await $fetch<CircleMember[]>(`/api/v1/circles/${circleId}/members`)
+  }
+  /** Create a circle (family or circle). */
+  async function createCircle(input: CircleCreate): Promise<Circle> {
+    return await $fetch<Circle>('/api/v1/circles', { method: 'POST', body: input })
+  }
+  /** Update a circle's presentation (name / color / imageUrl). */
+  async function updateCircle(id: string, patch: CirclePatch): Promise<void> {
+    await $fetch(`/api/v1/circles/${id}`, { method: 'PATCH', body: patch })
+  }
+  /** Delete a circle (unlinks everyone in it). */
+  async function removeCircle(id: string): Promise<void> {
+    await $fetch(`/api/v1/circles/${id}`, { method: 'DELETE' })
+  }
+  /** Add a person to a circle with a role + optional capability/contact flags. */
+  async function addMember(circleId: string, input: Omit<CircleMemberCreate, 'circleId'>): Promise<CircleMember> {
+    return await $fetch<CircleMember>(`/api/v1/circles/${circleId}/members`, { method: 'POST', body: input })
+  }
+  /** Update one circle-member edge. */
+  async function updateMember(id: string, patch: CircleMemberPatch): Promise<void> {
+    await $fetch(`/api/v1/circles/members/${id}`, { method: 'PATCH', body: patch })
+  }
+  /** Remove one person from a circle. */
+  async function removeMember(id: string): Promise<void> {
+    await $fetch(`/api/v1/circles/members/${id}`, { method: 'DELETE' })
+  }
+  /** Comms prefs a recipient set (keyed to them). */
+  async function commsPreferences(personId: string): Promise<CommsPreference[]> {
+    return await $fetch<CommsPreference[]>('/api/v1/comms-preferences', { query: { personId } })
+  }
+  /** Comms prefs about a subject — everyone who receives their comms + chosen categories. */
+  async function commsPreferencesForSubject(subjectPersonId: string): Promise<CommsPreference[]> {
+    return await $fetch<CommsPreference[]>('/api/v1/comms-preferences', { query: { subjectPersonId } })
+  }
+  /** Upsert a comms preference on (personId, subjectPersonId). */
+  async function setCommsPreference(input: CommsPreferenceUpsert): Promise<void> {
+    await $fetch('/api/v1/comms-preferences', { method: 'POST', body: input })
   }
   /** Every note on a person, newest first. */
   async function notes(personId: string): Promise<PersonNote[]> {
@@ -50,7 +98,10 @@ export function useCirclesApi() {
     return await $fetch<EntityMember[]>(`/api/v1/entities/${entityId}/members`)
   }
   return {
-    circlesForPerson, members, notes,
+    circlesForPerson, circlesForOrg, members,
+    createCircle, updateCircle, removeCircle, addMember, updateMember, removeMember,
+    commsPreferences, commsPreferencesForSubject, setCommsPreference,
+    notes,
     entities, createEntity, updateEntity, removeEntity, entityMembers,
   }
 }

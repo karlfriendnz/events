@@ -5,10 +5,12 @@ import { listEntities } from '../../../db/repositories/circles'
 import { entityListSchema } from '../../../../shared/contracts/circle'
 
 export default defineEventHandler(async (event) => {
-  const orgId = getQuery(event).orgId
+  const q = getQuery(event)
+  const orgId = q.orgId
   if (typeof orgId !== 'string' || !orgId) {
     throw createError({ statusCode: 400, statusMessage: 'orgId is required' })
   }
-  const entities = await listEntities(orgId)
+  const typeKey = typeof q.typeKey === 'string' && q.typeKey ? q.typeKey : undefined
+  const entities = await listEntities(orgId, typeKey)
   return entityListSchema.parse(entities)
 })

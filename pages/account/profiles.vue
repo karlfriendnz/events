@@ -36,9 +36,9 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'portal' })
-const db = useDb()
 const { orgId } = useOrg()
 const user = useSupabaseUser()
+const peopleApi = usePeopleApi()
 const { circlesForPerson, peopleIManage } = usePeopleLinks()
 const { ensureTerms, t } = useTerms()
 
@@ -54,15 +54,18 @@ async function load() {
   void ensureTerms()
   const email = user.value?.email
   if (email && orgId.value) {
-    const { data: me } = await (db.from as any)('persons').select('id').eq('org_id', orgId.value).ilike('email', email).maybeSingle()
+    const me = await peopleApi.findByEmail(orgId.value, email)
     myPersonId.value = me?.id ?? null
   }
   if (myPersonId.value) {
     const circles = await circlesForPerson(myPersonId.value)
     const ids = peopleIManage(circles, myPersonId.value)
     if (ids.length) {
-      const { data } = await (db.from as any)('persons').select('id, first_name, last_name, photo_url').in('id', ids)
-      managed.value = data ?? []
+      // Resolve each managed dependent by id (seam is camelCase; the template reads snake).
+      const people = await Promise.all(ids.map(id => peopleApi.get(id).catch(() => null)))
+      managed.value = people
+        .filter((p): p is NonNullable<typeof p> => !!p)
+        .map(p => ({ id: p.id, first_name: p.firstName, last_name: p.lastName, photo_url: p.photoUrl }))
     } else managed.value = []
   }
   loading.value = false

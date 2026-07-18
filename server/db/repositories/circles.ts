@@ -10,16 +10,26 @@
 // so the domain always sees a real JS array/object. Booleans come off MySQL as
 // tinyint 0/1; `!!` coerces them to real booleans. Timestamps → ISO via `toIso`.
 import { randomUUID } from 'node:crypto'
-import { asc, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   Circle,
+  CircleCreate,
   CircleMember,
+  CircleMemberCreate,
+  CircleMemberPatch,
+  CircleMemberWithPerson,
+  CirclePatch,
+  CircleWithMembers,
   CommsPreference,
+  CommsPreferenceUpsert,
   Entity,
   EntityCreate,
   EntityPatch,
   EntityMember,
+  EntityMemberCreate,
+  EntityMemberWithPerson,
+  LinkedPerson,
   PersonNote,
 } from '../../../shared/contracts/circle'
 
@@ -100,7 +110,27 @@ function toNote(r: typeof schema.personNotes.$inferSelect): PersonNote {
     authorId: r.authorId ?? null,
     authorName: r.authorName ?? null,
     links: Array.isArray(r.links) ? r.links : asArray(r.links),
+    // Widened READ fields (dashboard gap D8) — the profile notes feed reads these.
+    visibility: r.visibility ?? 'staff',
+    visibleTo: Array.isArray(r.visibleTo) ? r.visibleTo : asArray(r.visibleTo),
+    isImportant: !!r.isImportant,
+    // date column → yyyy-mm-dd string (or null). MySQL date can come back as a Date.
+    dueDate: r.dueDate == null ? null : (r.dueDate instanceof Date ? r.dueDate.toISOString().slice(0, 10) : String(r.dueDate)),
     createdAt: toIso(r.createdAt) ?? '',
+  }
+}
+
+// A minimal person projection for hydrated reads (circle members / entity roster).
+function toLinkedPerson(r: typeof schema.persons.$inferSelect | undefined): LinkedPerson {
+  if (!r) return null
+  return {
+    id: r.id,
+    firstName: r.firstName ?? null,
+    lastName: r.lastName ?? null,
+    email: r.email ?? null,
+    phone: r.phone ?? null,
+    photoUrl: r.photoUrl ?? null,
+    personType: r.personType ?? null,
   }
 }
 
@@ -147,6 +177,114 @@ export async function listCircleMembers(circleId: string): Promise<CircleMember[
   return rows.map(toCircleMember)
 }
 
+/**
+ * Every circle in an org, each with its members hydrated (the member's person mini
+ * projection). Powers the capability resolvers + the circles/contacts editor — one
+ * read the composable filters per person. Three cheap queries assembled in code
+ * (circles → members → persons) rather than a wide join, robust to a thin person row.
+ */
+export async function listCirclesForOrg(orgId: string): Promise<CircleWithMembers[]> {
+  if (!orgId) return []
+  const circleRows = await db
+    .select()
+    .from(schema.circles)
+    .where(eq(schema.circles.orgId, orgId))
+    .orderBy(asc(schema.circles.name))
+  if (!circleRows.length) return []
+  const circleIds = circleRows.map((c) => c.id)
+  const memberRows = await db
+    .select()
+    .from(schema.circleMembers)
+    .where(inArray(schema.circleMembers.circleId, circleIds))
+    .orderBy(asc(schema.circleMembers.sortOrder))
+  const personIds = [...new Set(memberRows.map((m) => m.personId))]
+  const personRows = personIds.length
+    ? await db.select().from(schema.persons).where(inArray(schema.persons.id, personIds))
+    : []
+  const personById = new Map(personRows.map((p) => [p.id, p]))
+  const membersByCircle = new Map<string, CircleMemberWithPerson[]>()
+  for (const m of memberRows) {
+    const list = membersByCircle.get(m.circleId) ?? []
+    list.push({ ...toCircleMember(m), person: toLinkedPerson(personById.get(m.personId)) })
+    membersByCircle.set(m.circleId, list)
+  }
+  return circleRows.map((c) => ({ ...toCircle(c), members: membersByCircle.get(c.id) ?? [] }))
+}
+
+// ── Circle writes ──
+// The repo owns the id + the flag defaults (a member's capability/contact flags are
+// notNull tinyints; false unless the caller sets them). `as any`: the schema
+// over-requires notNull cols without defaults — the DB fills created_at.
+export async function createCircle(input: CircleCreate): Promise<Circle> {
+  const id = randomUUID()
+  await db.insert(schema.circles).values({
+    id,
+    orgId: input.orgId,
+    name: input.name,
+    kind: input.kind,
+    color: input.color ?? null,
+    imageUrl: input.imageUrl ?? null,
+  } as any)
+  const [r] = await db.select().from(schema.circles).where(eq(schema.circles.id, id)).limit(1)
+  return toCircle(r)
+}
+
+export async function updateCircle(id: string, patch: CirclePatch): Promise<void> {
+  const set: Record<string, any> = {}
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.color !== undefined) set.color = patch.color
+  if (patch.imageUrl !== undefined) set.imageUrl = patch.imageUrl
+  if (Object.keys(set).length) await db.update(schema.circles).set(set).where(eq(schema.circles.id, id))
+}
+
+export async function deleteCircle(id: string): Promise<void> {
+  // Unlink everyone first (circle_members has no ON DELETE cascade in the schema),
+  // then remove the circle itself.
+  await db.delete(schema.circleMembers).where(eq(schema.circleMembers.circleId, id))
+  await db.delete(schema.circles).where(eq(schema.circles.id, id))
+}
+
+// ── Circle member writes ──
+export async function addCircleMember(input: CircleMemberCreate): Promise<CircleMember> {
+  const id = randomUUID()
+  await db.insert(schema.circleMembers).values({
+    id,
+    circleId: input.circleId,
+    personId: input.personId,
+    role: input.role,
+    canBookFor: input.canBookFor ?? false,
+    canView: input.canView ?? true,
+    canRegister: input.canRegister ?? false,
+    isLead: input.isLead ?? false,
+    relationship: input.relationship ?? null,
+    isPrimary: input.isPrimary ?? false,
+    contactType: input.contactType ?? null,
+    receivesComms: input.receivesComms ?? false,
+    sortOrder: input.sortOrder ?? 0,
+  } as any)
+  const [r] = await db.select().from(schema.circleMembers).where(eq(schema.circleMembers.id, id)).limit(1)
+  return toCircleMember(r)
+}
+
+export async function updateCircleMember(id: string, patch: CircleMemberPatch): Promise<void> {
+  const set: Record<string, any> = {}
+  if (patch.role !== undefined) set.role = patch.role
+  if (patch.canBookFor !== undefined) set.canBookFor = patch.canBookFor
+  if (patch.canView !== undefined) set.canView = patch.canView
+  if (patch.canRegister !== undefined) set.canRegister = patch.canRegister
+  if (patch.isLead !== undefined) set.isLead = patch.isLead
+  if (patch.relationship !== undefined) set.relationship = patch.relationship
+  if (patch.isPrimary !== undefined) set.isPrimary = patch.isPrimary
+  if (patch.contactType !== undefined) set.contactType = patch.contactType
+  if (patch.receivesComms !== undefined) set.receivesComms = patch.receivesComms
+  if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
+  if (Object.keys(set).length) await db.update(schema.circleMembers).set(set).where(eq(schema.circleMembers.id, id))
+}
+
+export async function removeCircleMember(id: string): Promise<void> {
+  await db.delete(schema.circleMembers).where(eq(schema.circleMembers.id, id))
+}
+
 /** Comms preferences a recipient set on a subject's behalf, keyed to a person. */
 export async function listCommsPreferences(personId: string): Promise<CommsPreference[]> {
   if (!personId) return []
@@ -163,6 +301,56 @@ export async function listCommsPreferences(personId: string): Promise<CommsPrefe
   }))
 }
 
+/** The inverse view: everyone who receives a given subject's comms, with their
+ *  chosen categories. Powers "who gets what on my behalf" on the subject's profile. */
+export async function listCommsPreferencesForSubject(subjectPersonId: string): Promise<CommsPreference[]> {
+  if (!subjectPersonId) return []
+  const rows = await db
+    .select()
+    .from(schema.commsPreferences)
+    .where(eq(schema.commsPreferences.subjectPersonId, subjectPersonId))
+  return rows.map((r) => ({
+    id: r.id,
+    orgId: r.orgId,
+    personId: r.personId,
+    subjectPersonId: r.subjectPersonId,
+    categories: asArray(r.categories),
+  }))
+}
+
+/**
+ * Upsert a comms preference on the (personId, subjectPersonId) pair. Done as a manual
+ * select-then-write rather than onDuplicateKeyUpdate — robust whether or not the
+ * (person_id, subject_person_id) unique index made it into the MySQL schema. categories
+ * (a json column) takes the RAW JS array (never JSON.stringify — Drizzle double-encodes).
+ */
+export async function setCommsPreference(input: CommsPreferenceUpsert): Promise<void> {
+  const [existing] = await db
+    .select({ id: schema.commsPreferences.id })
+    .from(schema.commsPreferences)
+    .where(
+      and(
+        eq(schema.commsPreferences.personId, input.personId),
+        eq(schema.commsPreferences.subjectPersonId, input.subjectPersonId),
+      ),
+    )
+    .limit(1)
+  if (existing) {
+    await db
+      .update(schema.commsPreferences)
+      .set({ categories: input.categories } as any)
+      .where(eq(schema.commsPreferences.id, existing.id))
+  } else {
+    await db.insert(schema.commsPreferences).values({
+      id: randomUUID(),
+      orgId: input.orgId,
+      personId: input.personId,
+      subjectPersonId: input.subjectPersonId,
+      categories: input.categories,
+    } as any)
+  }
+}
+
 /** Every note on a person, newest first. */
 export async function listNotes(personId: string): Promise<PersonNote[]> {
   if (!personId) return []
@@ -174,15 +362,77 @@ export async function listNotes(personId: string): Promise<PersonNote[]> {
   return rows.map(toNote)
 }
 
-/** Every entity record an org has, in author order. */
-export async function listEntities(orgId: string): Promise<Entity[]> {
+/** Every entity record an org has (optionally one type), newest first. */
+export async function listEntities(orgId: string, typeKey?: string): Promise<Entity[]> {
   if (!orgId) return []
+  const where = typeKey
+    ? and(eq(schema.entities.orgId, orgId), eq(schema.entities.typeKey, typeKey))
+    : eq(schema.entities.orgId, orgId)
   const rows = await db
     .select()
     .from(schema.entities)
-    .where(eq(schema.entities.orgId, orgId))
-    .orderBy(asc(schema.entities.name))
+    .where(where)
+    .orderBy(desc(schema.entities.createdAt))
   return rows.map(toEntity)
+}
+
+/** { [entityId]: attach count } across an org's entity roster — the directory badge. */
+export async function entityMemberCounts(orgId: string): Promise<Record<string, number>> {
+  if (!orgId) return {}
+  const rows = await db
+    .select({ entityId: schema.entityMembers.entityId })
+    .from(schema.entityMembers)
+    .where(eq(schema.entityMembers.orgId, orgId))
+  const out: Record<string, number> = {}
+  for (const r of rows) out[r.entityId] = (out[r.entityId] ?? 0) + 1
+  return out
+}
+
+/** The roster of one entity with each attached person hydrated (name + contact). */
+export async function listEntityMembersHydrated(entityId: string): Promise<EntityMemberWithPerson[]> {
+  if (!entityId) return []
+  const memberRows = await db
+    .select()
+    .from(schema.entityMembers)
+    .where(eq(schema.entityMembers.entityId, entityId))
+    .orderBy(asc(schema.entityMembers.sortOrder))
+  const personIds = [...new Set(memberRows.map((m) => m.personId))]
+  const personRows = personIds.length
+    ? await db.select().from(schema.persons).where(inArray(schema.persons.id, personIds))
+    : []
+  const personById = new Map(personRows.map((p) => [p.id, p]))
+  return memberRows.map((m) => ({
+    id: m.id,
+    entityId: m.entityId,
+    personId: m.personId,
+    roles: asArray(m.roles),
+    sortOrder: m.sortOrder,
+    person: toLinkedPerson(personById.get(m.personId)),
+  }))
+}
+
+// ── Entity member writes ──
+export async function addEntityMember(input: EntityMemberCreate): Promise<EntityMember> {
+  const id = randomUUID()
+  await db.insert(schema.entityMembers).values({
+    id,
+    orgId: input.orgId,
+    entityId: input.entityId,
+    personId: input.personId,
+    roles: input.roles ?? [],
+    sortOrder: input.sortOrder ?? 0,
+  } as any)
+  const [r] = await db.select().from(schema.entityMembers).where(eq(schema.entityMembers.id, id)).limit(1)
+  return toEntityMember(r)
+}
+
+export async function updateEntityMember(id: string, roles: string[]): Promise<void> {
+  // roles (a json column) takes the RAW JS array — never JSON.stringify.
+  await db.update(schema.entityMembers).set({ roles } as any).where(eq(schema.entityMembers.id, id))
+}
+
+export async function removeEntityMember(id: string): Promise<void> {
+  await db.delete(schema.entityMembers).where(eq(schema.entityMembers.id, id))
 }
 
 /** The roster of one entity — people attached with their roles, in sort order. */
