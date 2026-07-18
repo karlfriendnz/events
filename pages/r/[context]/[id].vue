@@ -7,19 +7,18 @@
   sessions + fee components, then hands them to the context-agnostic renderer.
   Submission posts to /api/public-form-submit which materialises per context.
 
-  Anonymous-friendly: these tables have no RLS, so useDb() reads work for guests
-  (same as the public booker /book).
+  Anonymous-friendly: all reads go through the PUBLIC seam (/api/v1/public/**) via
+  usePublicApi + the forms seam via useFormsApi — no direct DB access for guests.
 -->
 <script setup lang="ts">
 definePageMeta({ layout: 'embed' })
 
 const route = useRoute()
-// The forms-owned reads (registration_forms / form_fields / registration_form_targets)
-// go through the seam. The remaining `db` reads are CROSS-DOMAIN (organisations,
-// events, sessions, fee_components, discounts, member_groups, member_group_memberships,
-// waitlists, group_codes, org_terms) whose seams don't yet expose the exact shapes
-// this page needs — see the report's cross-domain gaps.
-const db = useDb()
+// PUBLIC registration page (layout `embed`, anonymous). All its reads now go through
+// seams: the form CONFIG (with builder→renderer normalisation) via useFormsApi, and
+// everything else — org theme, event+sessions+fees+discounts, group+fee-options+status,
+// the form's connected classes — via the PUBLIC seam usePublicApi (/api/v1/public/**).
+const publicApi = usePublicApi()
 const formsApi = useFormsApi()
 
 const contextType = computed(() => String(route.params.context || ''))
@@ -61,13 +60,12 @@ const embedLoginToSystem = computed(() => route.query.login === '1')
 const themeVars = computed(() => ({ '--brand-primary': embedBtnColor.value }))
 
 async function loadOrg(id: string) {
-  const { data: org } = await (db.from as any)('organisations')
-    .select('id, name, logo_url, booker_theme, currency').eq('id', id).maybeSingle()
+  const org = await publicApi.org(id).catch(() => null)
   if (org) {
     orgName.value = org.name || ''
-    orgLogo.value = org.logo_url || null
+    orgLogo.value = org.logoUrl || null
     currency.value = org.currency || 'NZD'
-    const t = org.booker_theme || {}
+    const t = org.bookerTheme || {}
     theme.value = { canvas: t.canvas || '#F5F8FA', primary: t.primary || '#1E2157', on_primary: t.on_primary || '#FFFFFF' }
   }
 }
@@ -145,56 +143,47 @@ async function load() {
     let formId: string | null = null
 
     if (contextType.value === 'event') {
-      const { data: ev } = await (db.from as any)('events')
-        .select('id, org_id, title, form_id, status, banner_url, start_at, description, location_type, address, age_min, age_max')
-        .eq('id', contextId.value).maybeSingle()
-      if (!ev) { loadError.value = 'This event could not be found.'; return }
-      if (ev.status === 'CANCELLED' || ev.status === 'ARCHIVED') { loadError.value = 'Registrations are closed for this event.'; return }
-      orgId.value = ev.org_id; contextName.value = ev.title; bannerUrl.value = ev.banner_url || null
+      // The public seam bundles the event meta + sessions + event-level fee lines +
+      // active discounts in one call (PUBLISHED/dated gating + narrowing live in the
+      // repo). null = not available (not found or closed) — one message, by design.
+      const ev = await publicApi.event(contextId.value)
+      if (!ev) { loadError.value = 'This event is not available for registration.'; return }
+      orgId.value = ev.orgId; contextName.value = ev.title; bannerUrl.value = ev.bannerUrl || null
       formEvent.value = {
-        title: ev.title, banner_url: ev.banner_url, start_at: ev.start_at, description: ev.description,
-        location: ev.location_type === 'ONLINE' ? 'Online' : (ev.address || null),
-        age_min: ev.age_min ?? null, age_max: ev.age_max ?? null,
+        title: ev.title, banner_url: ev.bannerUrl, start_at: ev.startAt, description: ev.description,
+        location: ev.locationType === 'ONLINE' ? 'Online' : (ev.address || null),
+        age_min: ev.ageMin ?? null, age_max: ev.ageMax ?? null,
       }
-      formId = ev.form_id
-      await loadOrg(ev.org_id)
-      // Sessions first, then fees. Per-session fee_components are keyed by
-      // session_id (NOT event_id — the wizard doesn't stamp event_id on them), so
-      // fetch by event_id OR session_id, otherwise session prices come back $0.
-      const { data: sess } = await (db.from as any)('sessions')
-        .select('id, title, start_at, is_required, display_on_form').eq('event_id', contextId.value).order('sort_order')
-      const sessionIds = (sess ?? []).map((s: any) => s.id)
-      const orFilter = `event_id.eq.${contextId.value}${sessionIds.length ? `,session_id.in.(${sessionIds.join(',')})` : ''}`
-      const { data: feeRows } = await (db.from as any)('fee_components').select('name, amount, session_id, event_id').or(orFilter)
-      feeLineItems.value = (feeRows ?? []).filter((f: any) => !f.session_id).map((f: any) => ({ name: f.name, amount: Number(f.amount) || 0 }))
-      const feeBySession: Record<string, number> = {}
-      for (const f of (feeRows ?? [])) if (f.session_id) feeBySession[f.session_id] = (feeBySession[f.session_id] || 0) + (Number(f.amount) || 0)
-      sessions.value = (sess ?? []).map((s: any) => ({
-        id: s.id, title: s.title, start_at: s.start_at,
-        required: !!s.is_required, display: s.display_on_form !== false,
-        fee: feeBySession[s.id] || 0,
+      formId = ev.formId
+      await loadOrg(ev.orgId)
+      // Map the seam's camelCase session/discount shapes to the snake_case fields
+      // <FormRenderer> reads.
+      sessions.value = ev.sessions.map((s) => ({
+        id: s.id, title: s.title, start_at: s.startAt, required: s.required, display: s.display, fee: s.fee,
       }))
-      // Active discounts — shown on the landing to encourage registration.
-      const { data: discRows } = await (db.from as any)('discounts')
-        .select('name, form_text, modifier_type, modifier_value, is_active').eq('event_id', contextId.value).eq('is_active', true)
-      discounts.value = discRows ?? []
+      feeLineItems.value = ev.feeLineItems
+      discounts.value = ev.discounts.map((d) => ({
+        name: d.name, form_text: d.formText, modifier_type: d.modifierType, modifier_value: d.modifierValue, is_active: true,
+      }))
     } else if (contextType.value === 'group') {
-      const { data: g } = await (db.from as any)('member_groups')
-        .select('id, org_id, name, form_id, image_url, capacity, waitlist_id')
-        .eq('id', contextId.value).maybeSingle()
-      if (!g) { loadError.value = 'This group could not be found.'; return }
-      orgId.value = g.org_id; contextName.value = g.name; bannerUrl.value = g.image_url || null
-      formEvent.value = { title: g.name, banner_url: g.image_url || null }
-      formId = (route.query.form_id as string) || g.form_id || null
-      await loadOrg(g.org_id)
-      // The group's fee options — the registrant picks how they want to pay.
-      const gf = useGroupFees()
-      const opts = await gf.loadFeeOptions(g.id)
-      feeOptions.value = opts.map((o: any) => ({
-        id: o.id, name: o.name, label: gf.priceLabel(o, currency.value),
-        total: gf.optionTotal(o), description: o.description,
+      // The public seam bundles the class meta + fee options + full/waitlist status +
+      // equivalent classes with space — never the roster, only counts.
+      const g = await publicApi.group(contextId.value)
+      if (!g) { loadError.value = 'This class could not be found.'; return }
+      orgId.value = g.orgId; contextName.value = g.name; bannerUrl.value = g.imageUrl || null
+      formEvent.value = { title: g.name, banner_url: g.imageUrl || null }
+      formId = (route.query.form_id as string) || g.formId || null
+      await loadOrg(g.orgId)
+      feeOptions.value = g.feeOptions
+      // Full-class status (offer the equivalent classes with space; the submit lands
+      // on the waitlist server-side). A sibling link carries the current form_id only
+      // when that sibling has no form of its own.
+      groupFull.value = g.full
+      waitlistName.value = g.waitlistName || ''
+      siblingsWithSpace.value = g.siblingsWithSpace.map((s) => ({
+        id: s.id, name: s.name, spaces: s.spaces,
+        link: `/r/group/${s.id}${s.formId ? '' : (formId ? `?form_id=${formId}` : '')}`,
       }))
-      await loadGroupStatus(g, formId)
     } else {
       // Generic: /r/form/:formId (a form connected to 1+ groups, migration 228)
       // or a bare form by ?form_id (enquiries etc.)
@@ -216,141 +205,15 @@ async function load() {
   }
 }
 
-// Roughly split staff out of a member count (same heuristic the submit API uses).
-function isStaffish(row: any) {
-  const keys = [row.role, ...(Array.isArray(row.roles) ? row.roles : [])].filter(Boolean).map((k: string) => String(k).toLowerCase())
-  return keys.some(k => k.includes('coach') || k.includes('manager') || k === 'staff')
-}
-
-// When the class is full: name the waitlist + surface the equivalent groups
-// (same waitlist) that still have space, so a full Thursday offers Friday.
-async function loadGroupStatus(g: any, formId: string | null) {
-  if (g.capacity == null) return
-  const { data: rows } = await (db.from as any)('member_group_memberships').select('role, roles').eq('group_id', g.id)
-  const memberCount = (rows ?? []).filter((r: any) => !isStaffish(r)).length
-  if (memberCount < g.capacity) return
-  groupFull.value = true
-  if (!g.waitlist_id) return
-  const [{ data: w }, { data: sibs }] = await Promise.all([
-    (db.from as any)('waitlists').select('name').eq('id', g.waitlist_id).maybeSingle(),
-    (db.from as any)('member_groups').select('id, name, capacity, form_id').eq('waitlist_id', g.waitlist_id).neq('id', g.id),
-  ])
-  waitlistName.value = w?.name || ''
-  const sibList = (sibs ?? [])
-  if (!sibList.length) return
-  const { data: sibRows } = await (db.from as any)('member_group_memberships')
-    .select('group_id, role, roles').in('group_id', sibList.map((s: any) => s.id))
-  const countBy: Record<string, number> = {}
-  for (const r of (sibRows ?? [])) if (!isStaffish(r)) countBy[r.group_id] = (countBy[r.group_id] || 0) + 1
-  siblingsWithSpace.value = sibList
-    .map((s: any) => ({
-      id: s.id, name: s.name,
-      spaces: s.capacity == null ? null : s.capacity - (countBy[s.id] || 0),
-      link: `/r/group/${s.id}${s.form_id ? '' : (formId ? `?form_id=${formId}` : '')}`,
-    }))
-    .filter((s: any) => s.spaces == null || s.spaces > 0)
-}
-
-// The form's connected classes (registration_form_targets → member_groups),
-// each with live spaces + its fee options, for the in-form class chooser.
-// Targets can be individual GROUPS or whole CODES (programmes) — a code target
-// expands to every class in its subtree (dynamic: classes added later appear
-// automatically), excluding classes whose effective term has already ended.
+// The form's connected classes (registration_form_targets → member_groups), each
+// with live spaces + its fee options, for the in-form class chooser. The public seam
+// does the whole job: expand CODE/programme targets to their subtree (dynamic — new
+// classes appear automatically), drop ended terms, order by code tree, attach spaces +
+// fee options. The returned target shape already matches groupChoices exactly.
 const groupChoices = ref<any[]>([])
 async function loadFormTargets(fid: string) {
-  const tgts = await formsApi.targets(fid)
-  const groupIds = tgts.filter((t) => t.targetType === 'group').map((t) => t.targetId)
-  const codeIds = tgts.filter((t) => t.targetType === 'code').map((t) => t.targetId)
-  if (!groupIds.length && !codeIds.length) return
-
-  // SEAM GAP: the reads below (group_codes, org_terms, member_groups by id/code,
-  // member_group_memberships) stay on useDb — the groups/terms seams don't yet expose
-  // member_groups.waitlist_id, org_terms.end_date, or a by-code group list.
-  // Codes (for subtree expansion + section labels + term inheritance) + terms.
-  const [{ data: codes }, { data: terms }] = await Promise.all([
-    (db.from as any)('group_codes').select('id, name, parent_id, term_id, sort_order').eq('org_id', orgId.value),
-    (db.from as any)('org_terms').select('id, end_date').eq('org_id', orgId.value),
-  ])
-  const codesById: Record<string, any> = {}
-  const codeChildren: Record<string, string[]> = {}
-  for (const c of (codes ?? [])) { codesById[c.id] = c; if (c.parent_id) (codeChildren[c.parent_id] ??= []).push(c.id) }
-  const expandedCodes = new Set<string>()
-  const stack = [...codeIds]
-  while (stack.length) {
-    const id = stack.pop()!
-    if (expandedCodes.has(id)) continue
-    expandedCodes.add(id)
-    for (const k of (codeChildren[id] ?? [])) stack.push(k)
-  }
-
-  // Groups: explicit targets + everything under the expanded codes.
-  const [byId, byCode] = await Promise.all([
-    groupIds.length
-      ? (db.from as any)('member_groups').select('id, name, capacity, waitlist_id, code_id, term_id').in('id', groupIds)
-      : Promise.resolve({ data: [] }),
-    expandedCodes.size
-      ? (db.from as any)('member_groups').select('id, name, capacity, waitlist_id, code_id, term_id').in('code_id', [...expandedCodes])
-      : Promise.resolve({ data: [] }),
-  ])
-  const seen = new Set<string>()
-  let groups = [...(byId.data ?? []), ...(byCode.data ?? [])].filter((g: any) => !seen.has(g.id) && seen.add(g.id))
-
-  // Drop history classes (effective term — own term_id, else walking up the
-  // code chain — already ended). Term-less classes always show.
-  const termEnd: Record<string, string | null> = {}
-  for (const t of (terms ?? [])) termEnd[t.id] = t.end_date
-  const effectiveTermId = (g: any) => {
-    if (g.term_id) return g.term_id
-    let c = g.code_id ? codesById[g.code_id] : null
-    while (c) { if (c.term_id) return c.term_id; c = c.parent_id ? codesById[c.parent_id] : null }
-    return null
-  }
-  const today = new Date().toISOString().slice(0, 10)
-  groups = groups.filter((g: any) => {
-    const end = termEnd[effectiveTermId(g) ?? ''] ?? null
-    return !end || end >= today
-  })
-  if (!groups.length) return
-
-  // Order by code tree (walk order), Ungrouped last, name within a section.
-  const codeOrder: Record<string, number> = {}
-  {
-    const roots = (codes ?? []).filter((c: any) => !c.parent_id || !codesById[c.parent_id])
-      .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))
-    let i = 0
-    const walk = (c: any) => {
-      codeOrder[c.id] = i++
-      const kids = (codeChildren[c.id] ?? []).map(k => codesById[k])
-        .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))
-      kids.forEach(walk)
-    }
-    roots.forEach(walk)
-  }
-  groups.sort((a: any, b: any) =>
-    (codeOrder[a.code_id] ?? 9999) - (codeOrder[b.code_id] ?? 9999) || a.name.localeCompare(b.name))
-
-  const gf = useGroupFees()
-  const ids = groups.map((g: any) => g.id)
-  const [{ data: memRows }, feeLists] = await Promise.all([
-    (db.from as any)('member_group_memberships').select('group_id, role, roles').in('group_id', ids),
-    Promise.all(ids.map((id: string) => gf.loadFeeOptions(id))),
-  ])
-  const countBy: Record<string, number> = {}
-  for (const r of (memRows ?? [])) if (!isStaffish(r)) countBy[r.group_id] = (countBy[r.group_id] || 0) + 1
-  groupChoices.value = groups.map((g: any, i: number) => {
-    const taken = countBy[g.id] || 0
-    const full = g.capacity != null && taken >= g.capacity
-    return {
-      id: g.id, name: g.name,
-      section: g.code_id ? (codesById[g.code_id]?.name ?? null) : null,
-      spaces: g.capacity == null ? null : Math.max(0, g.capacity - taken),
-      full, waitlistable: !!g.waitlist_id,
-      feeOptions: (feeLists[i] ?? []).map((o: any) => ({
-        id: o.id, name: o.name, label: gf.priceLabel(o, currency.value),
-        total: gf.optionTotal(o), description: o.description,
-      })),
-    }
-  })
+  const f = await publicApi.form(fid)
+  if (f) groupChoices.value = f.targets
 }
 
 async function onSubmit(payload: any) {

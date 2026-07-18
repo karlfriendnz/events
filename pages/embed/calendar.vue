@@ -56,12 +56,10 @@
 definePageMeta({ layout: 'embed' })
 
 const route = useRoute()
-// SEAM GAP: public path. This is the PUBLIC website-embed calendar (layout `embed`,
-// allow-listed for anonymous access) — it reads organisations.brand_color + PUBLISHED
-// events with no session. The authed /api/v1 seam can't serve an anonymous request, so
-// this stays on the RLS client until public read routes exist (same call as the public
-// booker). Deliberately left.
-const db = useDb()
+// PUBLIC website-embed calendar (layout `embed`, allow-listed for anonymous access).
+// Its reads go through the PUBLIC seam — /api/v1/public/** — the one anonymous surface.
+// The published/public/dated gate lives in the repo (never taken from the query).
+const publicApi = usePublicApi()
 
 const orgId = computed(() => (route.query.org as string) ?? '')
 const csv = (key: string) => String(route.query[key] ?? '').split(',').filter(Boolean)
@@ -94,12 +92,12 @@ function step(dir: number) {
 const calItems = computed(() =>
   events.value.map(e => ({
     id: e.id,
-    start_at: e.start_at,
-    end_at: e.end_at,
-    is_all_day: e.is_all_day ?? false,
+    start_at: e.startAt,
+    end_at: e.endAt,
+    is_all_day: e.isAllDay ?? false,
     status: 'CONFIRMED',
     notes: e.title,
-    color: e.category?.color ?? accent.value,
+    color: e.categoryColor ?? accent.value,
     event: { id: e.id, title: e.title },
     contact_name: null,
     activity_mode: null,
@@ -112,7 +110,7 @@ const calItems = computed(() =>
 // click is a no-op rather than a dead end.
 function openEvent(item: any) {
   const e = item.extendedProps
-  if (!e?.form_id) return
+  if (!e?.formId) return
   window.open(`/r/event/${e.id}`, '_blank', 'noopener')
 }
 
@@ -123,41 +121,19 @@ async function load() {
     return
   }
 
-  const [{ data: org }, { data, error: err }] = await Promise.all([
-    (db.from as any)('organisations').select('brand_color').eq('id', orgId.value).maybeSingle(),
-    (db.from as any)('events')
-      .select('id, title, start_at, end_at, is_all_day, style, bookable_id, locations, form_id, category_id, category:categories!category_id(id, name, color)')
-      .eq('org_id', orgId.value)
-      .eq('status', 'PUBLISHED')
-      // An undated event has nowhere to sit on a calendar. The staff calendar
-      // parks those on today; a public embed must not invent a date, so they're
-      // simply not published to the website until someone gives them one.
-      .not('start_at', 'is', null)
-      .order('start_at', { ascending: true }),
-  ])
-
-  if (err) {
+  try {
+    // The venue/category(calendar)/type narrowing is applied SERVER-SIDE now — the
+    // internal fields those filters key off (bookable_id, locations, style) never
+    // leave the public seam.
+    const [org, evs] = await Promise.all([
+      publicApi.org(orgId.value).catch(() => null),
+      publicApi.events(orgId.value, { venues: csv('venues'), categories: csv('calendars'), types: csv('types') }),
+    ])
+    if (org?.brandColor) accent.value = org.brandColor
+    events.value = evs
+  } catch {
     error.value = "This calendar couldn't be loaded."
-    loading.value = false
-    return
   }
-  if (org?.brand_color) accent.value = org.brand_color
-
-  const venues = csv('venues')
-  const calendars = csv('calendars')
-  const types = csv('types')
-
-  events.value = (data ?? []).filter((e: any) => {
-    if (calendars.length && !calendars.includes(e.category_id)) return false
-    if (types.length && !types.includes(e.style ?? 'BASIC')) return false
-    if (venues.length) {
-      const ids: string[] = []
-      if (e.bookable_id) ids.push(e.bookable_id)
-      for (const loc of e.locations ?? []) if (loc?.bookable_ids?.length) ids.push(...loc.bookable_ids)
-      if (!ids.some(id => venues.includes(id))) return false
-    }
-    return true
-  })
   loading.value = false
 }
 

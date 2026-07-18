@@ -80,7 +80,10 @@ const emit = defineEmits<{
   (e: 'change', payload: { answers: Record<string, any>; coreValues: Record<string, any>; isValid: boolean }): void
 }>()
 
-const db = useDb()
+// Form fields + config come from the forms seam (works anonymously — the public
+// booker + registration pages render this). Org field_definitions still resolve via
+// useOrgFieldPolicy (the fields domain owns that seam).
+const formsApi = useFormsApi()
 
 // Map known labels to a canonical "core" key so parents can pull out
 // first_name / email / phone regardless of whether the user's form is
@@ -150,25 +153,23 @@ watch(() => props.formId, async (formId) => {
   if (!formId) { applyPrefill(); return }
   loading.value = true
   try {
-    const [{ data: ff }, { data: rf }] = await Promise.all([
-      // TODO cross-domain: form_fields still via useDb (owned by forms)
-      (db.from as any)('form_fields').select('*').eq('form_id', formId).order('sort_order'),
-      // TODO cross-domain: registration_forms still via useDb (owned by forms)
-      (db.from as any)('registration_forms').select('config').eq('id', formId).single(),
+    const [ff, rf] = await Promise.all([
+      formsApi.fields(formId),
+      formsApi.get(formId).catch(() => null),
     ])
     const cfg = (rf?.config as any) ?? {}
     const fieldMeta = cfg.fieldMeta ?? {}
-    loadedFields.value = (ff ?? []).map((f: any): RenderField => {
-      let opts: string[] = []
-      try { opts = JSON.parse(f.options || '[]') } catch { opts = [] }
+    loadedFields.value = (ff ?? []).map((f): RenderField => {
+      // options is a plain array off the seam (json column), not a JSON string.
+      const opts: string[] = Array.isArray(f.options) ? f.options : []
       const meta = fieldMeta[f.label] ?? {}
       return {
         id: f.id,
         label: f.label,
-        field_type: f.field_type,
-        is_required: f.is_required,
+        field_type: f.fieldType,
+        is_required: f.isRequired,
         placeholder: f.placeholder,
-        help_text: f.help_text,
+        help_text: f.helpText,
         _options: opts,
         _core: meta.core ?? CORE_BY_LABEL[f.label] ?? null,
         _col_span: meta.col_span ?? 2,

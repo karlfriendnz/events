@@ -453,7 +453,13 @@
 
 <script setup lang="ts">
 const { orgId } = useOrg()
-const db = useDb() // SEAM GAP: public path — this calendar also renders on the anonymous embed (pages/embed/calendar.vue), so its READS stay on the RLS client until public read routes exist
+// SEAM GAP: this calendar's own reads (loadBookings/loadRules/resolveBookableTree) do
+// NOT run on the anonymous embed — that path passes `customEvents` and never sets a
+// bookableId. They run only in the AUTHED admin calendar + the booker-scheduler flow.
+// A PUBLIC busy-slots read must expose free/busy ONLY (never bookings' contact_* /
+// notes), so it's a narrowly-projected follow-up on the public seam (booking-flow task),
+// not a straight repoint — kept on the RLS client until then.
+const db = useDb()
 const api = useBookingsApi()
 
 const props = defineProps<{

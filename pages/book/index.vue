@@ -201,7 +201,9 @@ interface Activity {
 }
 
 const route = useRoute()
-const db = useDb()
+// PUBLIC booker (layout `embed`, anonymous). Its reads go through the PUBLIC seam —
+// /api/v1/public/booker — which serves only bookings-enabled ACTIVE activities + modes.
+const publicApi = usePublicApi()
 
 const activities = ref<Activity[]>([])
 const allModes = ref<any[]>([])
@@ -327,41 +329,45 @@ function onPickerBack() {
 async function load() {
   const orgId = route.query.org as string | undefined
   if (!orgId) { loading.value = false; return }
-  const [{ data: orgRow }, { data }, { data: modes }] = await Promise.all([
-    // TODO cross-domain: organisations still via useDb (owned by admin/org)
-    (db.from as any)('organisations')
-      .select('booker_theme')
-      .eq('id', orgId)
-      .maybeSingle(),
-    // TODO public-path: activities read — anonymous embed page; /api/v1 seam is the authed path
-    (db.from as any)('activities')
-      .select('id, name, description, color, icon, image_url, booking_flow, status, bookings_enabled, staff_bookable_id')
-      .eq('org_id', orgId)
-      .eq('status', 'ACTIVE')
-      .neq('bookings_enabled', false)
-      .order('sort_order')
-      .order('name'),
-    // TODO public-path: activity_modes read — anonymous embed page; /api/v1 seam is the authed path
-    (db.from as any)('activity_modes')
-      .select('id, name, activity_id, category, period_price, period_unit, sort_order')
-      .order('sort_order').order('name'),
-  ])
+  const booker = await publicApi.booker(orgId).catch(() => null)
+  if (!booker) { loading.value = false; return }
   // Merge org theme over defaults so a partial jsonb (e.g. only
   // `primary` set) still ends up with sane canvas / on_primary values.
-  const t = (orgRow?.booker_theme ?? {}) as Partial<BookerTheme>
+  const t = (booker.org.bookerTheme ?? {}) as Partial<BookerTheme>
   theme.value = {
     canvas: t.canvas || '#F5F8FA',
     primary: t.primary || '#1E2157',
     on_primary: t.on_primary || '#FFFFFF',
   }
-  activities.value = (data ?? []) as Activity[]
-  // Stitch each mode to its activity for the "By service" view. Modes
-  // outside this org are filtered out via the activities list.
+  // Map the camelCase public shape back to the snake_case fields this page reads.
+  activities.value = booker.activities.map((a): Activity => ({
+    id: a.id,
+    name: a.name,
+    description: a.description,
+    color: a.color,
+    icon: a.icon,
+    image_url: a.imageUrl,
+    booking_flow: a.bookingFlow as Activity['booking_flow'],
+    status: a.status,
+    bookings_enabled: a.bookingsEnabled,
+    staff_bookable_id: a.staffBookableId,
+  }))
+  // Stitch each mode to its activity for the "By service" view. Modes come nested
+  // per activity from the seam; flatten + map to the snake_case shape the view uses.
   const byId: Record<string, any> = {}
   for (const a of activities.value) byId[a.id] = a
-  allModes.value = (modes ?? [])
-    .filter((m: any) => byId[m.activity_id])
-    .map((m: any) => ({ ...m, activity: byId[m.activity_id] }))
+  allModes.value = booker.activities
+    .flatMap((a) => a.modes)
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      activity_id: m.activityId,
+      category: m.category,
+      period_price: m.periodPrice,
+      period_unit: m.periodUnit,
+      activity: byId[m.activityId],
+    }))
+    .filter((m: any) => m.activity)
 
   // Honour ?activityId= so the embed can deep-link straight into one
   // activity's flow (e.g. a "Book Tennis" button on the marketing site).
