@@ -17,7 +17,7 @@ import { useToast } from 'primevue/usetoast'
 
 const { orgId } = useOrg()
 const toast = useToast()
-const db = useDb()
+const orgsApi = useOrganisationsApi()
 const { loadForBody, decide, approveAndSeed } = useAffiliations()
 
 const rows = ref<AffiliationRow[]>([])
@@ -35,9 +35,9 @@ const ended = computed(() => rows.value.filter(r => r.affiliation_status === 're
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const { data: o } = await (db.from as any)('organisations').select('name, org_level').eq('id', orgId.value).maybeSingle()
-  org.value = o ?? null
-  rows.value = isGoverningBody(o?.org_level) ? await loadForBody(orgId.value) : []
+  const o = await orgsApi.get(orgId.value)
+  org.value = o ? { name: o.name, org_level: o.orgLevel } : null
+  rows.value = isGoverningBody(o?.orgLevel) ? await loadForBody(orgId.value) : []
   loading.value = false
 }
 

@@ -34,16 +34,47 @@ export type OrgSport = z.infer<typeof orgSportSchema>
 
 export const orgSportListSchema = z.array(orgSportSchema)
 
+// A read variant carrying the joined org NAMES — the affiliation register screens
+// (a body's queue, a club's own list) show "Club X wants to affiliate to Body Y".
+// clubName = organisations(org_id).name, bodyName = organisations(nso_org_id).name.
+export const orgSportWithNamesSchema = orgSportSchema.extend({
+  clubName: z.string().nullable(),
+  bodyName: z.string().nullable(),
+})
+export type OrgSportWithNames = z.infer<typeof orgSportWithNamesSchema>
+export const orgSportWithNamesListSchema = z.array(orgSportWithNamesSchema)
+
 // WRITE contracts. Create omits server-owned fields (id + the requested/decided
 // timestamps the repo owns); sport is required, the rest default in the repo. Patch
-// is a partial.
+// is a partial — and additionally lets the affiliation flow reset the handshake
+// timestamps: picking/changing a body RE-REQUESTS (requestedAt=now, decidedAt/decidedBy
+// cleared), and a body's approve/decline STAMPS the decision (decidedAt + decidedBy).
+// These aren't on create (a new row's requestedAt defaults in the DB) but a patch is
+// how `decide`/`request` express those transitions without a bespoke endpoint.
 export const orgSportCreateSchema = orgSportSchema
   .omit({ id: true, requestedAt: true, decidedAt: true })
   .partial({ displayName: true, nsoOrgId: true, isPrimary: true, sortOrder: true, affiliationStatus: true, terminology: true })
 export type OrgSportCreate = z.infer<typeof orgSportCreateSchema>
 
-export const orgSportPatchSchema = orgSportCreateSchema.partial()
+export const orgSportPatchSchema = orgSportCreateSchema.partial().extend({
+  requestedAt: z.string().nullable().optional(),
+  decidedAt: z.string().nullable().optional(),
+  decidedBy: z.string().nullable().optional(),
+})
 export type OrgSportPatch = z.infer<typeof orgSportPatchSchema>
+
+// A governing body the club can affiliate to — the picker options on the club's
+// Sports editor. `defaultSportName` seeds the canonical sport when a body is chosen.
+// (This is an organisations read served here because it's affiliation-editor chrome;
+// the picker filters to governing levels client-side via isGoverningBody.)
+export const governingBodySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  orgLevel: z.string(),
+  defaultSportName: z.string().nullable(),
+})
+export type GoverningBody = z.infer<typeof governingBodySchema>
+export const governingBodyListSchema = z.array(governingBodySchema)
 
 // Cross-club authority granted to a person at a governing org. `targetOrgId` null =
 // the whole subtree beneath the granting org; set = a specific club override.
@@ -54,10 +85,30 @@ export const orgManagerGrantSchema = z.object({
   personId: z.string(),
   targetOrgId: z.string().nullable(),
   capabilities: z.array(z.string()),
+  // The granted person's name, joined for the assignments list. Null when the
+  // person row is missing.
+  personName: z.string().nullable().optional(),
 })
 export type OrgManagerGrant = z.infer<typeof orgManagerGrantSchema>
 
 export const orgManagerGrantListSchema = z.array(orgManagerGrantSchema)
+
+// WRITE: replace a person's grants at a governing org (delete-then-insert). One row
+// per target: targetOrgId null = the whole subtree, set = a specific club.
+export const orgManagerGrantSaveSchema = z.object({
+  orgId: z.string().min(1),
+  personId: z.string().min(1),
+  grants: z.array(z.object({
+    targetOrgId: z.string().nullable(),
+    capabilities: z.array(z.string()),
+  })),
+})
+export type OrgManagerGrantSave = z.infer<typeof orgManagerGrantSaveSchema>
+
+export const orgManagerGrantRemoveSchema = z.object({
+  orgId: z.string().min(1),
+  personId: z.string().min(1),
+})
 
 // An operational SITE a club runs (HBC, Albany, …) — deliberately NOT a booking
 // venue. Classes attach to one; staff hold roles at one or more.
@@ -93,7 +144,33 @@ export const locationStaffSchema = z.object({
   personId: z.string(),
   roleKey: z.string(),
   sportId: z.string().nullable(),
+  // The assigned person, joined for the Locations screen (avatar + name + email).
+  // Null when the person row is missing.
+  person: z.object({
+    id: z.string(),
+    firstName: z.string().nullable(),
+    lastName: z.string().nullable(),
+    email: z.string().nullable(),
+  }).nullable().optional(),
 })
 export type LocationStaff = z.infer<typeof locationStaffSchema>
 
 export const locationStaffListSchema = z.array(locationStaffSchema)
+
+// WRITE contracts. Create requires orgId + personId; locationId null = a club-wide
+// grant, sportId null = all sports; roleKey defaults in the repo. Patch tweaks the
+// role or the sport scope of an existing row.
+export const locationStaffCreateSchema = z.object({
+  orgId: z.string().min(1),
+  personId: z.string().min(1),
+  locationId: z.string().nullable().optional(),
+  roleKey: z.string().optional(),
+  sportId: z.string().nullable().optional(),
+})
+export type LocationStaffCreate = z.infer<typeof locationStaffCreateSchema>
+
+export const locationStaffPatchSchema = z.object({
+  roleKey: z.string().optional(),
+  sportId: z.string().nullable().optional(),
+})
+export type LocationStaffPatch = z.infer<typeof locationStaffPatchSchema>

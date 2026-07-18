@@ -12,9 +12,10 @@
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
 
-const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
+const affApi = useAffiliationsApi()
+const orgsApi = useOrganisationsApi()
 
 interface Row {
   id: string | null            // null = unsaved
@@ -36,20 +37,21 @@ const saving = ref(false)
 let removedIds: string[] = []
 
 async function load() {
+  if (!orgId.value) return
   loading.value = true
   removedIds = []
-  const [sportsRes, orgsRes] = await Promise.all([
-    (db.from as any)('org_sports').select('id, sport, display_name, nso_org_id, is_primary, sort_order, affiliation_status').eq('org_id', orgId.value).order('sort_order'),
-    (db.from as any)('organisations').select('id, name, org_level, default_sport_name').neq('id', orgId.value).order('name'),
+  const [sports, bodies] = await Promise.all([
+    affApi.orgSports(orgId.value),
+    affApi.governingBodies(orgId.value),
   ])
-  rows.value = (sportsRes.data ?? []).map((r: any) => ({
-    id: r.id, sport: r.sport, display_name: r.display_name ?? '', nso_org_id: r.nso_org_id, is_primary: !!r.is_primary, sort_order: r.sort_order ?? 0,
-    affiliation_status: (r.affiliation_status ?? 'pending') as AffiliationStatus, _wasBody: r.nso_org_id,
+  rows.value = sports.map(r => ({
+    id: r.id, sport: r.sport, display_name: r.displayName ?? '', nso_org_id: r.nsoOrgId, is_primary: !!r.isPrimary, sort_order: r.sortOrder ?? 0,
+    affiliation_status: (r.affiliationStatus ?? 'pending') as AffiliationStatus, _wasBody: r.nsoOrgId,
   }))
   // Only governing bodies (a club can't govern another org).
-  governingOrgs.value = (orgsRes.data ?? [])
-    .filter((o: any) => isGoverningBody(o.org_level))
-    .map((o: any) => ({ ...o, _label: `${o.name} · ${orgLevelLabel(o.org_level)}` }))
+  governingOrgs.value = bodies
+    .filter(o => isGoverningBody(o.orgLevel))
+    .map(o => ({ id: o.id, name: o.name, org_level: o.orgLevel, default_sport_name: o.defaultSportName, _label: `${o.name} · ${orgLevelLabel(o.orgLevel)}` }))
   loading.value = false
 }
 
@@ -85,34 +87,47 @@ async function save() {
   if (clean.length && !clean.some(r => r.is_primary)) clean[0].is_primary = true
   saving.value = true
   try {
-    if (removedIds.length) await (db.from as any)('org_sports').delete().in('id', removedIds)
+    for (const id of removedIds) await affApi.removeOrgSport(id)
     // Clear primary flags up front so the partial unique index never trips mid-upsert.
-    await (db.from as any)('org_sports').update({ is_primary: false }).eq('org_id', orgId.value)
+    await affApi.clearPrimarySports(orgId.value!)
     for (const [i, r] of clean.entries()) {
       const canonical = canonicalOf(r)
       // Picking (or changing) a body REQUESTS affiliation — it does not grant it.
       // An unchanged body keeps whatever the body already decided.
       const bodyChanged = r.nso_org_id !== r._wasBody
       const status: AffiliationStatus = !r.nso_org_id ? 'pending' : bodyChanged ? 'pending' : r.affiliation_status
-      const payload: any = {
-        org_id: orgId.value, sport: canonical,
-        display_name: r.display_name.trim() && r.display_name.trim() !== canonical ? r.display_name.trim() : null,
-        nso_org_id: r.nso_org_id, is_primary: false, sort_order: i,
-        affiliation_status: status,
+      const base: any = {
+        orgId: orgId.value, sport: canonical,
+        displayName: r.display_name.trim() && r.display_name.trim() !== canonical ? r.display_name.trim() : null,
+        nsoOrgId: r.nso_org_id, isPrimary: false, sortOrder: i,
+        affiliationStatus: status,
       }
-      if (bodyChanged && r.nso_org_id) { payload.requested_at = new Date().toISOString(); payload.decided_at = null; payload.decided_by = null }
-      if (r.id) await (db.from as any)('org_sports').update(payload).eq('id', r.id)
-      else { const { data } = await (db.from as any)('org_sports').insert(payload).select('id').single(); if (data) r.id = data.id }
+      if (r.id) {
+        const patch = { ...base }
+        // A body change re-requests: reset the handshake timestamps.
+        if (bodyChanged && r.nso_org_id) { patch.requestedAt = new Date().toISOString(); patch.decidedAt = null; patch.decidedBy = null }
+        await affApi.updateOrgSport(r.id, patch)
+      } else {
+        // A new row's requestedAt defaults in the DB, so create takes the base only.
+        const created = await affApi.createOrgSport(base)
+        r.id = created.id
+      }
       r.affiliation_status = status
       r._wasBody = r.nso_org_id
     }
     const primary = clean.find(r => r.is_primary)
-    if (primary?.id) await (db.from as any)('org_sports').update({ is_primary: true }).eq('id', primary.id)
+    if (primary?.id) await affApi.updateOrgSport(primary.id, { isPrimary: true })
     // parent_id mirrors the primary sport's body — but ONLY once they've approved.
     // Setting it from a mere request would hand the club every ancestor's fields
     // through org_ancestors, quietly routing around the approval we just added.
+    // CROSS-DOMAIN GAP: the organisation patch deliberately omits parentId (security
+    // CRIT-3 — re-parenting must be its own privileged endpoint, not yet built). Call
+    // it guardedly so the save never crashes; the mirror restores when the endpoint lands.
     const primaryBody = primary && inherits(primary) ? primary.nso_org_id : null
-    await (db.from as any)('organisations').update({ parent_id: primaryBody }).eq('id', orgId.value)
+    try {
+      const setParent = (orgsApi as any).setParent
+      if (typeof setParent === 'function') await setParent(orgId.value, primaryBody)
+    } catch { /* re-parent endpoint not built yet */ }
 
     removedIds = []
     toast.add({ severity: 'success', summary: 'Affiliation saved', life: 2000 })

@@ -32,13 +32,15 @@ export interface ManagerAssignment {
 }
 
 export function useOrgManagers() {
-  const db = useDb()
   const user = useSupabaseUser()
+  const api = useAffiliationsApi()
+  const orgsApi = useOrganisationsApi()
+  const peopleApi = usePeopleApi()
 
   /** Every org row (id/name/level/parent) — used to walk the subtree client-side. */
   async function loadAllOrgs(): Promise<{ id: string; name: string; org_level: string; parent_id: string | null }[]> {
-    const { data } = await (db.from as any)('organisations').select('id, name, org_level, parent_id')
-    return data ?? []
+    const orgs = await orgsApi.list()
+    return orgs.map(o => ({ id: o.id, name: o.name, org_level: o.orgLevel, parent_id: o.parentId }))
   }
 
   /** Descendant CLUB orgs of a governing org (BFS down parent_id). */
@@ -63,35 +65,32 @@ export function useOrgManagers() {
 
   /** All grants defined at a governing org, grouped into per-person assignments. */
   async function loadAssignments(orgId: string): Promise<ManagerAssignment[]> {
-    const { data } = await (db.from as any)('org_manager_grants')
-      .select('id, person_id, target_org_id, capabilities, persons(first_name, last_name)')
-      .eq('org_id', orgId)
+    const grants = await api.managerGrants(orgId)
     const byPerson = new Map<string, ManagerAssignment>()
-    for (const g of (data ?? [])) {
-      const name = [g.persons?.first_name, g.persons?.last_name].filter(Boolean).join(' ') || '—'
-      let a = byPerson.get(g.person_id)
-      if (!a) { a = { personId: g.person_id, personName: name, scope: 'clubs', clubIds: [], capabilities: [] }; byPerson.set(g.person_id, a) }
+    for (const g of grants) {
+      const name = g.personName || '—'
+      let a = byPerson.get(g.personId)
+      if (!a) { a = { personId: g.personId, personName: name, scope: 'clubs', clubIds: [], capabilities: [] }; byPerson.set(g.personId, a) }
       // Union capabilities across the person's rows.
       a.capabilities = [...new Set([...a.capabilities, ...(g.capabilities ?? [])])]
-      if (g.target_org_id === null) a.scope = 'subtree'
-      else a.clubIds.push(g.target_org_id)
+      if (g.targetOrgId === null) a.scope = 'subtree'
+      else a.clubIds.push(g.targetOrgId)
     }
     return [...byPerson.values()]
   }
 
   /** Replace a person's grants at a governing org (delete-then-insert). */
   async function saveAssignment(orgId: string, a: ManagerAssignment): Promise<void> {
-    await (db.from as any)('org_manager_grants').delete().eq('org_id', orgId).eq('person_id', a.personId)
     const caps = a.capabilities
     const rows = a.scope === 'subtree'
-      ? [{ org_id: orgId, person_id: a.personId, target_org_id: null, capabilities: caps }]
-      : a.clubIds.map(cid => ({ org_id: orgId, person_id: a.personId, target_org_id: cid, capabilities: caps }))
-    if (rows.length) await (db.from as any)('org_manager_grants').insert(rows)
+      ? [{ targetOrgId: null, capabilities: caps }]
+      : a.clubIds.map(cid => ({ targetOrgId: cid, capabilities: caps }))
+    await api.saveManagerGrants(orgId, a.personId, rows)
   }
 
   /** Remove a person as a manager entirely. */
   async function removeAssignment(orgId: string, personId: string): Promise<void> {
-    await (db.from as any)('org_manager_grants').delete().eq('org_id', orgId).eq('person_id', personId)
+    await api.removeManagerGrants(orgId, personId)
   }
 
   /**
@@ -103,24 +102,25 @@ export function useOrgManagers() {
   async function myManagedClubs(orgId: string, capability?: string): Promise<{ clubs: { id: string; name: string }[]; capabilities: string[] }> {
     const email = user.value?.email
     if (!email || !orgId) return { clubs: [], capabilities: [] }
-    const { data: person } = await (db.from as any)('persons')
-      .select('id').eq('org_id', orgId).ilike('email', email).limit(1).maybeSingle()
+    // Resolve the signed-in user → person at this org by email (case-insensitive).
+    const people = await peopleApi.list(orgId, { q: email })
+    const lc = email.toLowerCase()
+    const person = people.find(p => (p.email ?? '').toLowerCase() === lc)
     if (!person?.id) return { clubs: [], capabilities: [] }
-    const { data: grants } = await (db.from as any)('org_manager_grants')
-      .select('target_org_id, capabilities').eq('org_id', orgId).eq('person_id', person.id)
-    if (!grants?.length) return { clubs: [], capabilities: [] }
-    const caps = [...new Set(grants.flatMap((g: any) => g.capabilities ?? []))]
-    if (capability && !caps.includes(capability)) return { clubs: [], capabilities: caps as string[] }
+    const grants = (await api.managerGrants(orgId)).filter(g => g.personId === person.id)
+    if (!grants.length) return { clubs: [], capabilities: [] }
+    const caps = [...new Set(grants.flatMap(g => g.capabilities ?? []))]
+    if (capability && !caps.includes(capability)) return { clubs: [], capabilities: caps }
     const allOrgs = await loadAllOrgs()
     const nameById = new Map(allOrgs.map(o => [o.id, o.name]))
-    const hasSubtree = grants.some((g: any) => g.target_org_id === null)
+    const hasSubtree = grants.some(g => g.targetOrgId === null)
     let clubs: { id: string; name: string }[]
     if (hasSubtree) {
       clubs = descendantClubs(orgId, allOrgs).map(o => ({ id: o.id, name: (o as any).name }))
     } else {
-      clubs = grants.filter((g: any) => g.target_org_id).map((g: any) => ({ id: g.target_org_id, name: nameById.get(g.target_org_id) ?? '—' }))
+      clubs = grants.filter(g => g.targetOrgId).map(g => ({ id: g.targetOrgId as string, name: nameById.get(g.targetOrgId as string) ?? '—' }))
     }
-    return { clubs, capabilities: caps as string[] }
+    return { clubs, capabilities: caps }
   }
 
   return { MANAGER_CAPABILITIES, loadAllOrgs, descendantClubs, loadAssignments, saveAssignment, removeAssignment, myManagedClubs }

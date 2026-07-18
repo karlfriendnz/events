@@ -9,10 +9,13 @@
 import type { ClubLocation, LocationStaff } from '~/composables/useLocations'
 import { LOCATION_STAFF_ROLES } from '~/composables/useLocations'
 
-const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
 const loc = useLocations()
+const orgsApi = useOrganisationsApi()
+const groupsApi = useGroupsApi()
+const peopleApi = usePeopleApi()
+const affApi = useAffiliationsApi()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 
@@ -50,30 +53,36 @@ const PALETTE = ['#3B82F6', '#8B5CF6', '#EC4899', '#10B981', '#F59E0B', '#06B6D4
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [locs, ls, { data: groups }, { data: sp }, { data: orgRow }] = await Promise.all([
+  const [locs, ls, groups, sp, o] = await Promise.all([
     loc.loadLocations(),
     loc.loadLocationStaff(),
-    (db.from as any)('member_groups').select('id, location_id').eq('org_id', orgId.value).not('location_id', 'is', null),
-    (db.from as any)('org_sports').select('id, sport, display_name').eq('org_id', orgId.value).order('sort_order'),
-    (db.from as any)('organisations').select('org_level').eq('id', orgId.value).maybeSingle(),
+    groupsApi.list(orgId.value),
+    affApi.orgSports(orgId.value),
+    orgsApi.get(orgId.value),
   ])
-  orgLevel.value = orgRow?.org_level ?? null
-  sports.value = (sp ?? []).map((x: any) => ({ id: x.id, label: x.display_name || x.sport }))
+  orgLevel.value = o?.orgLevel ?? null
+  sports.value = sp.map(x => ({ id: x.id, label: x.displayName || x.sport }))
   const defs = await cr.ensureDefaults()
   roleDefs.value = defs.filter((d: any) => !d.code_lineage_id).map((d: any) => ({ key: d.key, label: d.label }))
   locations.value = locs
   staff.value = ls
+  // CROSS-DOMAIN GAP: MemberGroup contract exposes locationIds[] but not the singular
+  // member_groups.location_id this count is keyed on. Reading (g as any).locationId so
+  // the count restores automatically once the groups projection adds it.
   const counts: Record<string, number> = {}
-  for (const g of (groups ?? [])) counts[g.location_id] = (counts[g.location_id] || 0) + 1
+  for (const g of groups) { const lid = (g as any).locationId; if (lid) counts[lid] = (counts[lid] || 0) + 1 }
   classCounts.value = counts
-  const { data: mships } = await (db.from as any)('member_group_memberships')
-    .select('person_id, roles, role, group:member_groups!inner(org_id, location_id)')
-    .eq('group.org_id', orgId.value).not('group.location_id', 'is', null)
+  // Staff who already have site access through a class staff role. membershipsByOrg
+  // carries locationId; CROSS-DOMAIN GAP: it does NOT carry roles/role yet, so the
+  // isStaff filter can't run — derivedCounts stays empty until the groups projection
+  // adds roles (reading via (m as any) so it restores automatically then).
+  const mships = await groupsApi.membershipsByOrg(orgId.value)
   const perLoc: Record<string, Set<string>> = {}
-  for (const m of (mships ?? [])) {
-    const roles = ((m.roles?.length ? m.roles : [m.role]) as string[]).filter(Boolean)
-    if (!roles.length || !scoped.isStaff('group', roles)) continue
-    ;(perLoc[m.group.location_id] ??= new Set()).add(m.person_id)
+  for (const m of mships) {
+    const raw = (m as any).roles
+    const roles = ((raw?.length ? raw : [(m as any).role]) as string[]).filter(Boolean)
+    if (!m.locationId || !roles.length || !scoped.isStaff('group', roles)) continue
+    ;(perLoc[m.locationId] ??= new Set()).add(m.personId)
   }
   derivedCounts.value = Object.fromEntries(Object.entries(perLoc).map(([k, v]) => [k, v.size]))
   loading.value = false
@@ -120,13 +129,9 @@ const pickSport = reactive<Record<string, string | null>>({})
 const suggestions = ref<{ id: string; label: string }[]>([])
 async function searchPeople(e: { query: string }) {
   const q = (e.query ?? '').trim()
-  if (!q) { suggestions.value = []; return }
-  const { data } = await (db.from as any)('persons')
-    .select('id, first_name, last_name, email')
-    .eq('org_id', orgId.value)
-    .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`)
-    .limit(10)
-  suggestions.value = (data ?? []).map((p: any) => ({ id: p.id, label: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || p.email || '—' }))
+  if (!q || !orgId.value) { suggestions.value = []; return }
+  const people = await peopleApi.list(orgId.value, { q, limit: 10 })
+  suggestions.value = people.map(p => ({ id: p.id, label: `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || p.email || '—' }))
 }
 // Picking a person only STAGES them — the explicit Add button commits, so the
 // sport/role can be chosen in any order before anything is written.

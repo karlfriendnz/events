@@ -7,10 +7,13 @@
      (subtree by default, or specific clubs) + which capabilities.
 -->
 <script setup lang="ts">
-const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
 const user = useSupabaseUser()
+const orgsApi = useOrganisationsApi()
+const peopleApi = usePeopleApi()
+const eventsApi = useEventsApi()
+const groupsApi = useGroupsApi()
 const { can, load: loadPerms } = useCan()
 const { MANAGER_CAPABILITIES, loadAllOrgs, descendantClubs, loadAssignments, saveAssignment, removeAssignment, myManagedClubs } = useOrgManagers()
 
@@ -46,15 +49,19 @@ async function loadReport() {
   }
   const ids = clubs.map(c => c.id)
   if (!ids.length) { reportRows.value = []; loadingReport.value = false; return }
-  const [{ data: persons }, { data: events }, { data: groups }] = await Promise.all([
-    (db.from as any)('persons').select('org_id').in('org_id', ids),
-    (db.from as any)('events').select('org_id').in('org_id', ids),
-    (db.from as any)('member_groups').select('org_id').in('org_id', ids),
-  ])
-  const countBy = (rows: any[]) => rows.reduce((m: Record<string, number>, r: any) => (m[r.org_id] = (m[r.org_id] ?? 0) + 1, m), {})
-  const pc = countBy(persons ?? []), ec = countBy(events ?? []), gc = countBy(groups ?? [])
+  // Per-club counts via the seam (members / events / classes). One wave per club —
+  // a report page run on demand, admin-scoped, so the fan-out is acceptable.
+  const counted = await Promise.all(ids.map(async (id) => {
+    const [people, events, groups] = await Promise.all([
+      peopleApi.list(id),
+      eventsApi.list(id),
+      groupsApi.list(id),
+    ])
+    return { id, members: people.length, events: events.length, groups: groups.length }
+  }))
+  const byId = new Map(counted.map(c => [c.id, c]))
   reportRows.value = clubs
-    .map(c => ({ id: c.id, name: c.name, members: pc[c.id] ?? 0, events: ec[c.id] ?? 0, groups: gc[c.id] ?? 0 }))
+    .map(c => ({ id: c.id, name: c.name, members: byId.get(c.id)?.members ?? 0, events: byId.get(c.id)?.events ?? 0, groups: byId.get(c.id)?.groups ?? 0 }))
     .sort((a, b) => b.members - a.members || a.name.localeCompare(b.name))
   loadingReport.value = false
 }
@@ -76,14 +83,11 @@ const personResults = ref<{ id: string; name: string }[]>([])
 async function searchPersons() {
   const q = personQuery.value.trim()
   if (!orgId.value || q.length < 1) { personResults.value = []; return }
-  const { data } = await (db.from as any)('persons')
-    .select('id, first_name, last_name, email')
-    .eq('org_id', orgId.value)
-    .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`).limit(8)
+  const people = await peopleApi.list(orgId.value, { q, limit: 8 })
   const taken = new Set(assignments.value.map(a => a.personId))
-  personResults.value = (data ?? [])
-    .filter((p: any) => !taken.has(p.id))
-    .map((p: any) => ({ id: p.id, name: [p.first_name, p.last_name].filter(Boolean).join(' ') || p.email || '—' }))
+  personResults.value = people
+    .filter(p => !taken.has(p.id))
+    .map(p => ({ id: p.id, name: [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email || '—' }))
 }
 function openNew() {
   editing.value = { personId: '', personName: '', scope: 'subtree', clubIds: [], capabilities: ['report'] }
@@ -125,8 +129,8 @@ const capLabel = (k: string) => MANAGER_CAPABILITIES.find(c => c.key === k)?.lab
 async function boot() {
   if (!orgId.value) return
   await loadPerms()
-  const { data } = await (db.from as any)('organisations').select('org_level, name').eq('id', orgId.value).single()
-  org.value = data ?? null
+  const o = await orgsApi.get(orgId.value)
+  org.value = o ? { org_level: o.orgLevel, name: o.name } : null
   if (!isGoverning.value) return
   const allOrgs = await loadAllOrgs()
   subtreeClubs.value = descendantClubs(orgId.value, allOrgs).map((o: any) => ({ id: o.id, name: o.name })).sort((a, b) => a.name.localeCompare(b.name))

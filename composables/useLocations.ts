@@ -27,48 +27,49 @@ export const LOCATION_STAFF_ROLES = [
 ]
 
 export function useLocations() {
-  const db = useDb()
   const { orgId } = useOrg()
+  const api = useAffiliationsApi()
 
   async function loadLocations(org = orgId.value): Promise<ClubLocation[]> {
     if (!org) return []
-    const { data } = await (db.from as any)('locations')
-      .select('id, org_id, name, address, color, sort_order')
-      .eq('org_id', org)
-      .order('sort_order', { ascending: true, nullsFirst: false })
-      .order('name')
-    return (data ?? []) as ClubLocation[]
+    const rows = await api.locations(org)
+    // Seam returns camelCase; this screen speaks snake_case.
+    return rows.map(r => ({ id: r.id, org_id: r.orgId, name: r.name, address: r.address, color: r.color, sort_order: r.sortOrder }))
   }
 
   async function createLocation(patch: Partial<ClubLocation>): Promise<ClubLocation | null> {
-    const { data } = await (db.from as any)('locations')
-      .insert({ org_id: orgId.value, name: patch.name ?? 'New location', address: patch.address ?? null, color: patch.color ?? null, sort_order: patch.sort_order ?? 0 })
-      .select('id, org_id, name, address, color, sort_order').single()
-    return (data ?? null) as ClubLocation | null
+    if (!orgId.value) return null
+    const r = await api.createLocation({ orgId: orgId.value, name: patch.name ?? 'New location', address: patch.address ?? null, color: patch.color ?? null, sortOrder: patch.sort_order ?? 0 })
+    return { id: r.id, org_id: r.orgId, name: r.name, address: r.address, color: r.color, sort_order: r.sortOrder }
   }
 
   async function updateLocation(id: string, patch: Partial<ClubLocation>): Promise<void> {
-    await (db.from as any)('locations').update(patch).eq('id', id)
+    await api.updateLocation(id, { name: patch.name, address: patch.address, color: patch.color, sortOrder: patch.sort_order })
   }
 
   /** Classes fall back to "no location" (FK is on delete set null). */
   async function deleteLocation(id: string): Promise<void> {
-    await (db.from as any)('locations').delete().eq('id', id)
+    await api.removeLocation(id)
   }
 
   // ── Staff assignments: a person can be at many locations ──
   async function loadLocationStaff(org = orgId.value): Promise<LocationStaff[]> {
     if (!org) return []
-    const { data } = await (db.from as any)('location_staff')
-      .select('id, location_id, sport_id, person_id, role_key, person:persons(id, first_name, last_name, email)')
-      .eq('org_id', org)
-    return (data ?? []) as LocationStaff[]
+    const rows = await api.locationStaffByOrg(org)
+    return rows.map(r => ({
+      id: r.id,
+      location_id: r.locationId,
+      sport_id: r.sportId,
+      person_id: r.personId,
+      role_key: r.roleKey,
+      person: r.person ? { id: r.person.id, first_name: r.person.firstName, last_name: r.person.lastName, email: r.person.email } : undefined,
+    }))
   }
 
   async function assignStaff(locationId: string | null, personId: string, roleKey = 'staff', sportId: string | null = null): Promise<void> {
+    if (!orgId.value) return
     // Scope-tuple grant: null location = all locations, null sport = all sports.
-    await (db.from as any)('location_staff')
-      .insert({ org_id: orgId.value, location_id: locationId, person_id: personId, role_key: roleKey, sport_id: sportId })
+    await api.createLocationStaff({ orgId: orgId.value, locationId, personId, roleKey, sportId })
   }
 
   /** Does this person's grant set cover (location, sport)? Nulls in a grant are
@@ -82,11 +83,11 @@ export function useLocations() {
   }
 
   async function updateStaff(id: string, patch: Partial<Pick<LocationStaff, 'sport_id' | 'role_key'>>): Promise<void> {
-    await (db.from as any)('location_staff').update(patch).eq('id', id)
+    await api.updateLocationStaff(id, { roleKey: patch.role_key, sportId: patch.sport_id })
   }
 
   async function removeStaff(id: string): Promise<void> {
-    await (db.from as any)('location_staff').delete().eq('id', id)
+    await api.removeLocationStaff(id)
   }
 
   /** All location ids a person holds any role at (multi-location staff). */
