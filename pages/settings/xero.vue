@@ -12,8 +12,7 @@
   this page selects only status/mapping columns.
 -->
 <script setup lang="ts">
-const db = useDb()  // retained for the saveSetup WRITE only — see SEAM GAP note there
-const { xeroConnection } = useFinancesApi()
+const { xeroConnection, updateXeroMapping } = useFinancesApi()
 const route = useRoute()
 const { orgId } = useOrg()
 const user = useSupabaseUser()
@@ -123,22 +122,22 @@ async function saveSetup() {
   saving.value = true
   justSaved.value = false
   const bank = bankAccounts.value.find(b => b.code === bankAccount.value)
-  // SEAM GAP (finances): xero_connections has a READ route (useFinancesApi.xeroConnection)
-  // but no mapping-UPDATE route. This saveSetup write needs a finances
-  // updateXeroConnection(orgId, { bankAccountCode, bankAccountName, taxType,
-  // salesAccountCode, feeAccounts }) endpoint. Left on useDb until finances adds it.
-  const { error } = await (db.from as any)('xero_connections').update({
-    bank_account_code: bankAccount.value,
-    bank_account_name: bank?.name ?? null,
-    tax_type: taxType.value,
-    sales_account_code: feeAccounts.value.find(a => a.default)?.code ?? null,
-    fee_accounts: feeAccounts.value,
-    updated_at: new Date().toISOString(),
-  }).eq('org_id', orgId.value)
-  saving.value = false
-  if (error) { toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 4000 }); return }
-  justSaved.value = true
-  setTimeout(() => { justSaved.value = false }, 2500)
+  try {
+    await updateXeroMapping({
+      orgId: orgId.value,
+      bankAccountCode: bankAccount.value,
+      bankAccountName: bank?.name ?? null,
+      taxType: taxType.value,
+      salesAccountCode: feeAccounts.value.find(a => a.default)?.code ?? null,
+      feeAccounts: feeAccounts.value,
+    })
+    justSaved.value = true
+    setTimeout(() => { justSaved.value = false }, 2500)
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Save failed', detail: e?.message, life: 4000 })
+  } finally {
+    saving.value = false
+  }
 }
 
 function addFeeAccount() {

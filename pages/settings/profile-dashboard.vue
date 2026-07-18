@@ -33,10 +33,10 @@
 import { useToast } from 'primevue/usetoast'
 
 const { orgId } = useOrg()
-const db = useDb()  // retained for the per-TYPE profile_dashboard write only — see SEAM GAP note in saveConfig
 const toast = useToast()
 const { loadFieldCatalogue } = usePersonFields()
 const { getDashboardMeta, setProfileDashboard } = useOrganisationsApi()
+const { updateType } = usePersonTypesApi()
 const { loadOrgTypes } = useOrgFieldPolicy()
 
 const loading = ref(true)
@@ -85,6 +85,7 @@ const DEMO_BUNDLE = reactive({
 const route = useRoute()
 const typeKey = computed(() => (route.query.type as string) || null)
 const typeLabel = ref<string | null>(null)
+const typeId = ref<string | null>(null)
 
 async function load() {
   if (!orgId.value) return
@@ -97,6 +98,7 @@ async function load() {
   // loadOrgTypes rows carry the type's label + its own profile_dashboard layout.
   const typeRow = typeKey.value ? (orgTypes as any[]).find(t => t.key === typeKey.value) : null
   typeLabel.value = typeRow?.label ?? null
+  typeId.value = typeRow?.id ?? null
   fields.value = cat
   // give the demo person plausible custom-field values so pickers preview something
   for (const f of cat) {
@@ -111,12 +113,8 @@ async function load() {
 
 async function saveConfig(next: any[]) {
   if (typeKey.value) {
-    // SEAM GAP (person-types): updateType's PersonTypePatch contract has no
-    // profileDashboard field (nor landingPath/menuItems) — gap D5. The per-TYPE
-    // profile_dashboard write stays on useDb until person-types adds a setter (by
-    // org_id + key, or via updateType widened). The READ already goes through
-    // loadOrgTypes above.
-    await (db.from as any)('person_target_types').update({ profile_dashboard: next }).eq('org_id', orgId.value).eq('key', typeKey.value)
+    if (!typeId.value) return
+    await updateType(typeId.value, { profileDashboard: next })
     toast.add({ severity: 'success', summary: `${typeLabel.value ?? 'Type'} profile dashboard saved`, life: 2000 })
   } else {
     await setProfileDashboard(orgId.value as string, next)

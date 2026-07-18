@@ -10,18 +10,16 @@
   roster (person_target_types.member_slots).
 -->
 <script setup lang="ts">
-// db retained for the person-type columns NOT in PersonTypePatch (landing_path,
-// menu_items, profile_dashboard — SEAM GAP D5), dashboard_templates delete, and the
-// full-fidelity duplicate insert — see the notes at each. Everything else goes
-// through the person-types + organisations + admin seam.
-const db = useDb()
+// Fully on the seam: person-type config (landing/menu/profile-dashboard/min-max) via
+// the widened person-types patch/create, dashboard_templates delete via admin, and
+// full-fidelity duplicate via the org-type-full read.
 const { orgId } = useOrg()
 const toast = useToast()
 const { loadOrgTypes, resolveFields, fieldAppliesTo, loadTypeLinks, loadLinkableTypes, linkType, unlinkType } = useOrgFieldPolicy()
 const { CORE_SECTIONS, coreStatus, loadConfig } = useCoreFields()
-const { createType, updateType, removeType: apiRemoveType, createField, updateField, getProfileForm, saveProfileForm } = usePersonTypesApi()
+const { createType, updateType, removeType: apiRemoveType, createField, updateField, getProfileForm, saveProfileForm, orgTypeFull } = usePersonTypesApi()
 const { getSettings } = useOrganisationsApi()
-const { dashboardTemplates } = useAdminApi()
+const { dashboardTemplates, removeDashboardTemplate } = useAdminApi()
 
 const STANDARD = [
   { key: 'member', label: 'Member', is_access: false },
@@ -166,9 +164,7 @@ const LANDING_OPTIONS = [
 async function saveLanding(path: string | null) {
   if (!selected.value) return
   selected.value.landing_path = path
-  // SEAM GAP (person-types D5): PersonTypePatch has no landingPath — updateType can't
-  // write it. Left on useDb until person-types widens the patch (or adds a setter).
-  await (db.from as any)('person_target_types').update({ landing_path: path }).eq('id', selected.value.id)
+  await updateType(selected.value.id, { landingPath: path })
 }
 
 // ── Menu Items: which left-menu items THIS type sees (mig 254) ────────────────
@@ -180,9 +176,7 @@ const menuCustomised = computed(() => Array.isArray(selected.value?.menu_items))
 async function persistMenuItems(v: string[] | null) {
   if (!selected.value) return
   selected.value.menu_items = v
-  // SEAM GAP (person-types D5): PersonTypePatch has no menuItems — updateType can't
-  // write it. Left on useDb until person-types widens the patch (or adds a setter).
-  await (db.from as any)('person_target_types').update({ menu_items: v }).eq('id', selected.value.id)
+  await updateType(selected.value.id, { menuItems: v })
 }
 function menuItemOn(href: string): boolean {
   const mi = selected.value?.menu_items
@@ -205,17 +199,13 @@ watch([selected, tab], async () => {
 })
 async function resetTypeDashboard() {
   if (!selected.value) return
-  // SEAM GAP (dashboards/admin): dashboard_templates has a READ (useAdminApi.
-  // dashboardTemplates) but no DELETE route. Left on useDb until admin adds one.
-  await (db.from as any)('dashboard_templates').delete().eq('org_id', orgId.value).eq('user_type', selected.value.key)
+  await removeDashboardTemplate(orgId.value as string, selected.value.key)
   typeDashTemplate.value = false
 }
 async function resetTypeProfileDashboard() {
   if (!selected.value) return
   selected.value.profile_dashboard = null
-  // SEAM GAP (person-types D5): PersonTypePatch has no profileDashboard — updateType
-  // can't clear it. Left on useDb until person-types widens the patch.
-  await (db.from as any)('person_target_types').update({ profile_dashboard: null }).eq('id', selected.value.id)
+  await updateType(selected.value.id, { profileDashboard: null })
 }
 
 async function load() {
@@ -310,23 +300,25 @@ async function duplicateType(t: any) {
   const base = slugify(t.label + ' copy') || 'type_copy'
   let key = base, n = 2
   while (existing.has(key)) key = `${base}_${n++}`
-  // SEAM GAP (person-types D5): a full-fidelity duplicate copies landing_path,
-  // profile_dashboard + min/max_count, none of which are in PersonTypeCreate — so the
-  // type row is read + inserted via useDb to preserve them. The FIELD sharing and the
-  // form-LAYOUT copy below go through the seam.
-  const { data: src } = await (db.from as any)('person_target_types')
-    .select('label, kind, is_access, permissions, member_slots, min_count, max_count, landing_path, profile_dashboard')
-    .eq('id', t.id).maybeSingle()
-  const s = src ?? t
-  const count = allTypes.value.filter(x => (x.kind ?? 'person') === (s.kind ?? 'person')).length
-  const { error } = await (db.from as any)('person_target_types').insert({
-    org_id: orgId.value, key, label: `${s.label} (copy)`, kind: s.kind ?? 'person',
-    is_access: !!s.is_access, permissions: s.permissions ?? {}, member_slots: s.member_slots ?? [],
-    min_count: s.min_count ?? 0, max_count: s.max_count ?? null,
-    landing_path: s.landing_path ?? null, profile_dashboard: s.profile_dashboard ?? null,
-    sort_order: count,
-  })
-  if (error) { toast.add({ severity: 'error', summary: 'Could not duplicate', detail: error.message, life: 4000 }); return }
+  // Read the source type's FULL config (landing / profile dashboard / min-max, which
+  // the lean list read omits) so the copy preserves everything.
+  let s: any = t
+  try { s = await orgTypeFull(t.id) } catch { s = t }
+  const kind = s.kind ?? t.kind ?? 'person'
+  const count = allTypes.value.filter(x => (x.kind ?? 'person') === kind).length
+  try {
+    await createType({
+      orgId: orgId.value, key, label: `${s.label} (copy)`, kind,
+      isAccess: !!(s.isAccess ?? s.is_access),
+      permissions: s.permissions ?? {},
+      memberSlots: s.memberSlots ?? s.member_slots ?? [],
+      minCount: s.minCount ?? s.min_count ?? 0,
+      maxCount: s.maxCount ?? s.max_count ?? null,
+      landingPath: s.landingPath ?? s.landing_path ?? null,
+      profileDashboard: s.profileDashboard ?? s.profile_dashboard ?? null,
+      sortOrder: count,
+    })
+  } catch (e: any) { toast.add({ severity: 'error', summary: 'Could not duplicate', detail: e?.message, life: 4000 }); return }
   // Share the source type's OWN fields with the copy (inherited/NSO fields flow in on their own).
   const own = fields.value.filter((f: any) => !f.inherited && fieldAppliesTo(f, t.key))
   for (const f of own) {

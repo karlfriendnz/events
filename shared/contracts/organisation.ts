@@ -46,3 +46,34 @@ export type OrganisationPatch = z.infer<typeof organisationPatchSchema>
 export const orgTreeNodeSchema = organisationSchema.extend({ depth: z.number().int() })
 export type OrgTreeNode = z.infer<typeof orgTreeNodeSchema>
 export const orgTreeListSchema = z.array(orgTreeNodeSchema)
+
+// ── Focused fills for small consumers (branding theme, member-pull, positions,
+// onboarding, privileged re-parenting) — kept off the base Organisation shape. ──
+
+// The resolved brand theme for an org: the CONNECTED platform brand's colour (via
+// brand_id → brands.color; null when no brand connected) + the level, so the theme
+// composable can fall back to the governing-body blue. One call, no admin round-trip.
+export const orgBrandThemeSchema = z.object({
+  brandColor: z.string().nullable(),
+  orgLevel: z.string(),
+})
+export type OrgBrandTheme = z.infer<typeof orgBrandThemeSchema>
+
+// The privileged re-parent body (its own endpoint — see the patch note above).
+export const orgSetParentSchema = z.object({ parentId: z.string().nullable() })
+
+// member_pull_mode: null/'reference' (point at the club's row) | 'copy' (mirror).
+export const orgMemberPullModeSchema = z.object({
+  memberPullMode: z.enum(['reference', 'copy']).nullable(),
+})
+
+// Org-wide default member positions (Captain/Wing/…) — a plain label list.
+export const defaultMemberPositionsSchema = z.array(z.string())
+export const setDefaultMemberPositionsSchema = z.object({ positions: defaultMemberPositionsSchema })
+
+// The new-club onboarding checklist state (organisations.onboarding jsonb).
+export const onboardingStateSchema = z.object({
+  dismissed: z.boolean().optional(),
+  completed_at: z.string().nullable().optional(),
+})
+export type OnboardingState = z.infer<typeof onboardingStateSchema>

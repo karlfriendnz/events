@@ -2803,15 +2803,11 @@ async function saveBilling() {
     // history and rollover). Keep member_group_terms in sync (one row) so the
     // enrol picker + read-side card keep working.
     await groupsApi.update(gid, { termId, termFee: fee, currentTerm: termName })
-    // SEAM GAP: member_group_terms / member_group_plans writes (per-term fee link +
-    // plan connections) — no groups-seam route yet; keep useDb for these two tables.
-    await (db.from as any)('member_group_terms').delete().eq('group_id', gid)
-    await (db.from as any)('member_group_plans').delete().eq('group_id', gid)
-    if (termId) await (db.from as any)('member_group_terms').insert({ group_id: gid, term_id: termId, fee })
-    const planRows = orgPlans.value
-      .filter(p => planDraft.value[p.id])
-      .map(p => ({ group_id: gid, plan_id: p.id }))
-    if (planRows.length) await (db.from as any)('member_group_plans').insert(planRows)
+    // Per-term fee link (member_group_terms) + plan connections (member_group_plans),
+    // delete-then-insert via the groups seam.
+    const planIds = orgPlans.value.filter(p => planDraft.value[p.id]).map(p => p.id)
+    await groupsApi.saveBilling(gid, { termId, fee, planIds })
+    const planRows = planIds.map(id => ({ group_id: gid, plan_id: id }))
     // Reflect locally so the INFO card / term badge / filter update immediately.
     if (group.value) { group.value.term_id = termId; group.value.term_fee = fee; group.value.current_term = termName }
     groupTermLinks.value = termId ? [{ term_id: termId, fee }] : []
@@ -2943,13 +2939,17 @@ async function load() {
   // since it needs both the event list and the resolved roster.
   const [gRow, membersRes, , scheds, bookableRows, orgProfile, , codesList, codeDefs, codeStaffList] = await Promise.all([
     groupsApi.get(id).then(toRow).catch(() => null),
-    // SEAM GAP: the groups seam has no memberships-with-person projection carrying
-    // custom_fields/person_types — the discipline-requirement flags need both. dob/
-    // gender/custom_fields are for the flags; without them there is nothing to check
-    // a person against.
-    (db.from as any)('member_group_memberships')
-      .select('roles, role, positions, sub_group_id, person:persons!inner(id, first_name, last_name, email, phone, dob, gender, custom_fields, person_types, person_type)')
-      .eq('group_id', id),
+    // Roster with the full person projection the discipline-flag evaluator needs
+    // (custom_fields/person_types + dob/gender). Mapped back to the snake_case shape
+    // the rest of load() consumes.
+    groupsApi.rosterWithPerson([id]).then(rows => (rows ?? []).map((r: any) => ({
+      roles: r.roles, role: r.role, positions: r.positions, sub_group_id: r.subGroupId,
+      person: r.person ? {
+        id: r.person.id, first_name: r.person.firstName, last_name: r.person.lastName,
+        email: r.person.email, phone: r.person.phone, dob: r.person.dob, gender: r.person.gender,
+        custom_fields: r.person.customFields, person_types: r.person.personTypes, person_type: r.person.personType,
+      } : null,
+    }))).catch(() => [] as any[]),
     loadEvents(id),
     groupsApi.schedules(id).catch(() => [] as any[]),
     bookingsApi.bookables(orgId.value).catch(() => [] as any[]),
@@ -2984,7 +2984,7 @@ async function load() {
   // Members + coaches — both are member_group_memberships rows. A person can
   // hold multiple roles; anyone with a 'staff' role (Coach/Manager/Assistant)
   // shows in the COACHES & MANAGERS card, everyone else in MEMBERS.
-  const rows = membersRes?.data
+  const rows = membersRes
   const mapped = (rows ?? [])
     .map((r: any) => ({ roles: normalizeGroupRoles(r.roles, r.role), positions: Array.isArray(r.positions) ? r.positions : [], subGroupId: r.sub_group_id ?? null, p: r.person }))
     .filter((x: any) => x.p)
@@ -3399,56 +3399,24 @@ async function saveSchedules() {
   savingSchedules.value = true
   const gid = group.value.id
   const draft = draftSchedules.value.filter(r => r.start_time && r.end_time)
-  const existing = draft.filter(r => !r.id.startsWith('new-'))
-  const fresh = draft.filter(r => r.id.startsWith('new-'))
 
-  // SEAM GAP: the groups seam's saveSchedules is delete-then-insert with fresh ids,
-  // which would ORPHAN every events.member_group_schedule_id link. This flow must
-  // update existing rows IN PLACE (below) to keep training events attached — so it
-  // stays on useDb until an id-preserving schedule-save route exists.
-  // Delete rows the user removed from the draft. Existing rows are
-  // updated in place so that events linked via
-  // member_group_schedule_id stay attached.
-  const keepIds = existing.map(r => r.id)
-  let delQ: any = (db.from as any)('member_group_schedules').delete().eq('group_id', gid)
-  if (keepIds.length) delQ = delQ.not('id', 'in', `(${keepIds.join(',')})`)
-  await delQ
-
-  for (let i = 0; i < existing.length; i++) {
-    const r = existing[i]
-    await (db.from as any)('member_group_schedules').update({
-      name: r.name?.trim() || null,
-      day_of_week: r.day_of_week,
-      start_time: r.start_time,
-      end_time: r.end_time,
-      location: r.location,
-      sort_order: i,
-    }).eq('id', r.id)
-  }
-
-  if (fresh.length) {
-    await (db.from as any)('member_group_schedules').insert(
-      fresh.map((r, i) => ({
-        org_id: orgId.value,
-        group_id: gid,
-        name: r.name?.trim() || null,
-        day_of_week: r.day_of_week,
-        start_time: r.start_time,
-        end_time: r.end_time,
-        location: r.location,
-        sort_order: existing.length + i,
-      }))
-    )
-  }
-
-  const { data: scheds } = await (db.from as any)('member_group_schedules')
-    .select('id, name, day_of_week, start_time, end_time, location, sort_order')
-    .eq('group_id', gid)
-    .order('day_of_week')
-    .order('start_time')
+  // ID-PRESERVING save via the groups seam: existing rows (a real id) are updated in
+  // place so events linked via member_group_schedule_id stay attached; rows with a
+  // 'new-' placeholder id are inserted (id → null); dropped rows are deleted.
+  const rows = draft.map((r, i) => ({
+    id: r.id.startsWith('new-') ? null : r.id,
+    name: r.name?.trim() || null,
+    dayOfWeek: r.day_of_week,
+    startTime: r.start_time,
+    endTime: r.end_time,
+    location: r.location,
+    sortOrder: i,
+  }))
+  const scheds = await groupsApi.syncSchedules(gid, orgId.value, rows)
   schedules.value = (scheds ?? []).map((s: any) => ({
-    ...s,
-    location: normalizeLocation(s.location),
+    id: s.id, name: s.name ?? null,
+    day_of_week: s.dayOfWeek, start_time: s.startTime, end_time: s.endTime,
+    location: normalizeLocation(s.location), sort_order: s.sortOrder,
   })) as Schedule[]
   await loadEvents()
   await loadAttendance()

@@ -9,11 +9,14 @@
 // `asArray`/`asObj` normalise either into a real JS value (and never throw), so the
 // domain always sees a string[] / plain object.
 import { randomUUID } from 'node:crypto'
-import { asc, eq, isNull, or } from 'drizzle-orm'
+import { and, asc, eq, isNull, or } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   ScopedRoleDef,
   PermissionGroup,
+  PermissionGroupCreate,
+  PermissionGroupPatch,
+  PermissionGroupMember,
   CodeRoleDef,
   CodeStaff,
   ScopedRoleDefCreate,
@@ -69,6 +72,7 @@ function toPermissionGroup(r: typeof schema.permissionGroups.$inferSelect): Perm
     id: r.id,
     orgId: r.orgId ?? null,
     name: r.name,
+    description: r.description ?? null,
     isCore: !!r.isCore,
     sourceGroupId: r.sourceGroupId ?? null,
     // domain `grants` is stored in the `permissions` column.
@@ -194,4 +198,95 @@ export async function listPermissionGroupMemberPersonIds(orgId: string): Promise
     .innerJoin(schema.permissionGroups, eq(schema.permissionGroupMembers.groupId, schema.permissionGroups.id))
     .where(eq(schema.permissionGroups.orgId, orgId))
   return [...new Set(rows.map((r) => r.personId))]
+}
+
+// ── Org permission-group writes (the club's own groups + overrides) ──
+// Core templates (org_id null, is_core) are NEVER writable through these — every
+// write is org-scoped in the WHERE, so a club can only touch its own rows.
+
+async function getPermissionGroupById(id: string): Promise<PermissionGroup | null> {
+  const [r] = await db.select().from(schema.permissionGroups).where(eq(schema.permissionGroups.id, id)).limit(1)
+  return r ? toPermissionGroup(r) : null
+}
+
+/** Create one of the club's own permission groups (is_core false). `sourceGroupId`
+ *  set = an override of a core template. sort_order appends after existing rows. */
+export async function createPermissionGroup(input: PermissionGroupCreate): Promise<PermissionGroup> {
+  const existing = await db
+    .select({ id: schema.permissionGroups.id })
+    .from(schema.permissionGroups)
+    .where(eq(schema.permissionGroups.orgId, input.orgId))
+  const id = randomUUID()
+  await db.insert(schema.permissionGroups).values({
+    id,
+    orgId: input.orgId,
+    name: input.name,
+    description: input.description ?? null,
+    // domain `grants` → the `permissions` json column (raw JS value, no stringify).
+    permissions: input.grants ?? {},
+    isSystem: false,
+    isCore: false,
+    sourceGroupId: input.sourceGroupId ?? null,
+    sortOrder: existing.length,
+  } as any)
+  return (await getPermissionGroupById(id))!
+}
+
+/** Patch one of the club's own groups. Tenant-scoped (id AND org_id) so a core
+ *  template can never be updated through here. */
+export async function updatePermissionGroup(id: string, patch: PermissionGroupPatch): Promise<PermissionGroup | null> {
+  const set: Record<string, any> = {}
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.description !== undefined) set.description = patch.description
+  if (patch.grants !== undefined) set.permissions = patch.grants
+  if (Object.keys(set).length) {
+    set.updatedAt = new Date()
+    await db
+      .update(schema.permissionGroups)
+      .set(set as any)
+      .where(and(eq(schema.permissionGroups.id, id), eq(schema.permissionGroups.orgId, patch.orgId)))
+  }
+  return getPermissionGroupById(id)
+}
+
+/** Delete one of the club's own groups (tenant-scoped). Its members cascade via the
+ *  set below being wiped first, then the group row. */
+export async function deletePermissionGroup(id: string, orgId: string): Promise<void> {
+  // Only proceed if the group belongs to this org (core templates are org_id null).
+  const [owned] = await db
+    .select({ id: schema.permissionGroups.id })
+    .from(schema.permissionGroups)
+    .where(and(eq(schema.permissionGroups.id, id), eq(schema.permissionGroups.orgId, orgId)))
+    .limit(1)
+  if (!owned) return
+  await db.delete(schema.permissionGroupMembers).where(eq(schema.permissionGroupMembers.groupId, id))
+  await db.delete(schema.permissionGroups).where(eq(schema.permissionGroups.id, id))
+}
+
+/** Every membership edge for the org's own groups (group → person). Core-template
+ *  memberships aren't returned (the editor never assigns to a read-only core group).
+ *  permission_group_members has no org_id, so it's scoped by joining to the group. */
+export async function listPermissionGroupMembersByOrg(orgId: string): Promise<PermissionGroupMember[]> {
+  const rows = await db
+    .select({ groupId: schema.permissionGroupMembers.groupId, personId: schema.permissionGroupMembers.personId })
+    .from(schema.permissionGroupMembers)
+    .innerJoin(schema.permissionGroups, eq(schema.permissionGroupMembers.groupId, schema.permissionGroups.id))
+    .where(eq(schema.permissionGroups.orgId, orgId))
+  return rows.map((r) => ({ groupId: r.groupId, personId: r.personId }))
+}
+
+/** Replace a group's whole membership (delete-then-insert). Refuses unless the group
+ *  belongs to `orgId` (tenant safety — the group id alone is never trusted). */
+export async function setPermissionGroupMembers(groupId: string, orgId: string, personIds: string[]): Promise<void> {
+  const [owned] = await db
+    .select({ id: schema.permissionGroups.id })
+    .from(schema.permissionGroups)
+    .where(and(eq(schema.permissionGroups.id, groupId), eq(schema.permissionGroups.orgId, orgId)))
+    .limit(1)
+  if (!owned) return
+  await db.delete(schema.permissionGroupMembers).where(eq(schema.permissionGroupMembers.groupId, groupId))
+  const ids = [...new Set(personIds)]
+  if (ids.length) {
+    await db.insert(schema.permissionGroupMembers).values(ids.map((pid) => ({ groupId, personId: pid })) as any)
+  }
 }

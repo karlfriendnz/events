@@ -42,35 +42,31 @@ export interface CodeRoleDef {
 }
 
 export function useCodeRoles() {
-  // SEAM GAP (roles domain): code_role_defs + code_staff live in the ROLES seam
-  // (server/db/repositories/roles.ts + shared/contracts/role.ts + useRolesApi), which
-  // this composable must NOT extend (rule #1 — cross-domain ownership). What the roles
-  // domain still needs before this composable can drop useDb:
-  //   • useRolesApi.codeRoleDefs(orgId)                          (repo listCodeRoleDefs exists, not exposed)
-  //   • useRolesApi.saveCodeRoleDefsForScope(orgId, lineage|null, roles[])  — delete-then-insert per scope
-  //   • useRolesApi.codeStaff() to include a person projection {id,firstName,lastName,email}
-  //   • useRolesApi.assignCodeStaff(orgId, lineage, personId, roleKey) + removeCodeStaff(id)
-  // Until those land, the DB calls below stay on useDb. Reported to the team lead.
-  const db = useDb()
+  // Converted to the /api/v1 seam (server/db/repositories/groups.ts, which is already
+  // the writer of code_role_defs + code_staff via deleteCode). No useDb: every call is
+  // a typed $fetch to a /api/v1/code-roles route. The seam returns camelCase; we map
+  // back to the snake_case CodeRoleDef/CodeStaff shapes the code pages read, unchanged.
   const { orgId } = useOrg()
+
+  const toDef = (d: any): CodeRoleDef => ({
+    id: d.id, org_id: d.orgId, code_lineage_id: d.codeLineageId ?? null,
+    key: d.key, label: d.label, capabilities: d.capabilities ?? [], sort_order: d.sortOrder ?? 0,
+  })
 
   async function loadRoleDefs(): Promise<CodeRoleDef[]> {
     if (!orgId.value) return []
-    const { data } = await (db.from as any)('code_role_defs')
-      .select('id, org_id, code_lineage_id, key, label, capabilities, sort_order')
-      .eq('org_id', orgId.value)
-      .order('sort_order', { ascending: true, nullsFirst: false })
-    return (data ?? []) as CodeRoleDef[]
+    const rows = await $fetch<any[]>('/api/v1/code-roles', { query: { orgId: orgId.value } })
+    return (rows ?? []).map(toDef)
   }
 
   // Seed the org-wide default roles if none exist yet. Returns the (re)loaded defs.
-  async function ensureDefaults(existing?: CodeRoleDef[]): Promise<CodeRoleDef[]> {
-    const defs = existing ?? await loadRoleDefs()
-    if (defs.some(d => d.code_lineage_id == null)) return defs
-    await (db.from as any)('code_role_defs').insert(
-      DEFAULT_CODE_ROLES.map((r, i) => ({ org_id: orgId.value, code_lineage_id: null, key: r.key, label: r.label, capabilities: r.capabilities, sort_order: i })),
-    )
-    return loadRoleDefs()
+  async function ensureDefaults(_existing?: CodeRoleDef[]): Promise<CodeRoleDef[]> {
+    if (!orgId.value) return []
+    const rows = await $fetch<any[]>('/api/v1/code-roles/ensure-defaults', {
+      method: 'POST',
+      body: { orgId: orgId.value, defaults: DEFAULT_CODE_ROLES },
+    })
+    return (rows ?? []).map(toDef)
   }
 
   // The lineage chain for a code: its own lineage + every ancestor code's lineage.
@@ -101,20 +97,14 @@ export function useCodeRoles() {
   // Save the roles for one scope (a code lineage, or null for defaults) —
   // delete-then-insert scoped so it never clobbers other scopes.
   async function saveRolesForScope(codeLineageId: string | null, roles: CodeRoleDef[]): Promise<void> {
-    let del: any = (db.from as any)('code_role_defs').delete().eq('org_id', orgId.value)
-    del = codeLineageId == null ? del.is('code_lineage_id', null) : del.eq('code_lineage_id', codeLineageId)
-    await del
-    if (!roles.length) return
-    await (db.from as any)('code_role_defs').insert(
-      roles.map((r, i) => ({
-        org_id: orgId.value,
-        code_lineage_id: codeLineageId,
-        key: r.key || slug(r.label),
-        label: r.label.trim(),
-        capabilities: r.capabilities ?? [],
-        sort_order: i,
-      })),
-    )
+    await $fetch('/api/v1/code-roles/save-scope', {
+      method: 'POST',
+      body: {
+        orgId: orgId.value,
+        codeLineageId,
+        roles: roles.map(r => ({ key: r.key || slug(r.label), label: r.label.trim(), capabilities: r.capabilities ?? [] })),
+      },
+    })
   }
 
   function slug(label: string) {
@@ -124,17 +114,21 @@ export function useCodeRoles() {
   // ── Staff assignments (who holds each role on a code) ──
   async function loadStaff(): Promise<CodeStaff[]> {
     if (!orgId.value) return []
-    const { data } = await (db.from as any)('code_staff')
-      .select('id, code_lineage_id, person_id, role_key, person:persons(id, first_name, last_name, email)')
-      .eq('org_id', orgId.value)
-    return (data ?? []) as CodeStaff[]
+    const rows = await $fetch<any[]>('/api/v1/code-roles/staff', { query: { orgId: orgId.value } })
+    return (rows ?? []).map((s): CodeStaff => ({
+      id: s.id, code_lineage_id: s.codeLineageId, person_id: s.personId, role_key: s.roleKey,
+      person: s.person
+        ? { id: s.person.id, first_name: s.person.firstName ?? null, last_name: s.person.lastName ?? null, email: s.person.email ?? null }
+        : undefined,
+    }))
   }
   async function assignStaff(codeLineageId: string, personId: string, roleKey: string): Promise<void> {
-    await (db.from as any)('code_staff')
-      .upsert({ org_id: orgId.value, code_lineage_id: codeLineageId, person_id: personId, role_key: roleKey }, { onConflict: 'code_lineage_id,person_id,role_key' })
+    await $fetch('/api/v1/code-roles/assign-staff', {
+      method: 'POST', body: { orgId: orgId.value, codeLineageId, personId, roleKey },
+    })
   }
   async function removeStaff(id: string): Promise<void> {
-    await (db.from as any)('code_staff').delete().eq('id', id)
+    await $fetch('/api/v1/code-roles/remove-staff', { method: 'POST', body: { id } })
   }
   // Staff on a code = assignments on its lineage + ancestor lineages. Each carries
   // `scope` ('own' | 'inherited') + the ancestor label when inherited.

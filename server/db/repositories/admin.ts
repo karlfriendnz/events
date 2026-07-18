@@ -21,6 +21,8 @@ import type {
   ClubType,
   SportCategory,
   HelpArticle,
+  HelpArticleCreate,
+  HelpArticlePatch,
   DashboardTemplate,
   PageReviewer,
   BrandCreate,
@@ -111,6 +113,7 @@ function toHelpArticle(r: typeof schema.helpArticles.$inferSelect): HelpArticle 
     module: r.module ?? null,
     resource: r.resource ?? null,
     route: r.route ?? null,
+    sortOrder: r.sortOrder,
     status: r.status,
   }
 }
@@ -598,4 +601,58 @@ export async function applyClubTypeDefaults(
       .map(([userType, config]) => ({ orgId, userType, config }))
     if (dashRows.length) await db.insert(schema.dashboardTemplates).values(dashRows as any)
   }
+}
+
+/** Delete a per-role dashboard template (reverts that role to the standard layout).
+ *  Keyed by the (org, userType) composite pk. */
+export async function deleteDashboardTemplate(orgId: string, userType: string): Promise<void> {
+  await db
+    .delete(schema.dashboardTemplates)
+    .where(and(eq(schema.dashboardTemplates.orgId, orgId), eq(schema.dashboardTemplates.userType, userType)))
+}
+
+// ── Help-article writes (/admin/help editor) ──
+async function getHelpArticle(id: string): Promise<HelpArticle | null> {
+  const [r] = await db.select().from(schema.helpArticles).where(eq(schema.helpArticles.id, id)).limit(1)
+  return r ? toHelpArticle(r) : null
+}
+
+/** Create a help article. json `steps` takes the raw JS value. */
+export async function createHelpArticle(input: HelpArticleCreate): Promise<HelpArticle> {
+  const id = randomUUID()
+  await db.insert(schema.helpArticles).values({
+    id,
+    key: input.key,
+    title: input.title,
+    explanation: input.explanation ?? '',
+    steps: input.steps ?? [],
+    module: input.module ?? null,
+    resource: input.resource ?? null,
+    route: input.route ?? null,
+    sortOrder: input.sortOrder ?? 0,
+    status: input.status ?? 'draft',
+  } as any)
+  return (await getHelpArticle(id))!
+}
+
+export async function updateHelpArticle(id: string, patch: HelpArticlePatch): Promise<HelpArticle | null> {
+  const set: Record<string, any> = {}
+  if (patch.key !== undefined) set.key = patch.key
+  if (patch.title !== undefined) set.title = patch.title
+  if (patch.explanation !== undefined) set.explanation = patch.explanation
+  if (patch.steps !== undefined) set.steps = patch.steps
+  if (patch.module !== undefined) set.module = patch.module
+  if (patch.resource !== undefined) set.resource = patch.resource
+  if (patch.route !== undefined) set.route = patch.route
+  if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
+  if (patch.status !== undefined) set.status = patch.status
+  if (Object.keys(set).length) {
+    set.updatedAt = new Date()
+    await db.update(schema.helpArticles).set(set as any).where(eq(schema.helpArticles.id, id))
+  }
+  return getHelpArticle(id)
+}
+
+export async function deleteHelpArticle(id: string): Promise<void> {
+  await db.delete(schema.helpArticles).where(eq(schema.helpArticles.id, id))
 }

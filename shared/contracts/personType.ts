@@ -47,6 +47,13 @@ export const personTypeCreateSchema = personTypeSchema
   .extend({
     key: z.string().min(1),
     label: z.string().min(1),
+    // Extra per-type config not on the lean read shape (landing page, custom left
+    // menu, per-type profile-dashboard layout, roster min/max). All optional.
+    minCount: z.number().int().nullable().optional(),
+    maxCount: z.number().int().nullable().optional(),
+    landingPath: z.string().nullable().optional(),
+    menuItems: z.any().nullable().optional(),
+    profileDashboard: z.any().nullable().optional(),
   })
 export type PersonTypeCreate = z.infer<typeof personTypeCreateSchema>
 
@@ -167,6 +174,9 @@ export const orgTypeFullSchema = z.object({
   landingPath: z.string().nullable(),
   profileDashboard: z.any().nullable(),
   menuItems: z.any().nullable(),
+  // Roster counts — carried so a full-fidelity duplicate preserves them.
+  minCount: z.number().int().nullable(),
+  maxCount: z.number().int().nullable(),
 })
 export type OrgTypeFull = z.infer<typeof orgTypeFullSchema>
 export const orgTypeFullListSchema = z.array(orgTypeFullSchema)

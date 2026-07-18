@@ -799,7 +799,7 @@ import { rruleToSummary } from '~/composables/useRepeatOptions'
 const props = defineProps<{ bookableId: string; readonly?: boolean }>()
 const emit = defineEmits<{ saved: [] }>()
 
-const db = useDb() // retained for cross-domain (member_groups, bookings/events) + seam-gap (availability_rules granular writes, by-bookable activity joins)
+const db = useDb() // retained only for cross-domain member_groups (owned by groups); all bookings-domain reads/writes now go through the seam
 const api = useBookingsApi()
 const toast = useToast()
 
@@ -855,9 +855,7 @@ async function persistRuleOrder(orderedIds: string[]) {
     const ruleId = orderedIds[i]
     const local = rules.value.find(r => r.id === ruleId)
     if (local) local.sort_order = i
-    // TODO seam-gap: availability_rules per-rule sort_order update — the seam only
-    // offers whole-set replaceAvailabilityRules, which can't express a granular reorder. Still via useDb.
-    await (db.from as any)('availability_rules').update({ sort_order: i }).eq('id', ruleId)
+    await api.updateAvailabilityRule(ruleId, { sortOrder: i })
   }
 }
 
@@ -1267,30 +1265,34 @@ const PRICE_TYPES = [
 
 async function load() {
   loading.value = true
-  const [{ data: r }, { data: g }, mSeam, { data: ab }] = await Promise.all([
-    // TODO seam-gap: availability_rules list stays on useDb alongside its granular/history-preserving writes (seam only offers whole-set replaceAvailabilityRules).
-    (db.from as any)('availability_rules').select('*').eq('bookable_id', props.bookableId).order('sort_order').order('created_at'),
+  const [rulesSeam, { data: g }, mSeam, abIds] = await Promise.all([
+    // Availability rules via the seam (granular writes below match this read).
+    api.availabilityRules(props.bookableId),
     // TODO cross-domain: member_groups still via useDb (owned by groups)
     db.from('member_groups').select('id, name, color, parent_id').eq('org_id', orgId.value).order('sort_order').order('name'),
     api.bookableModes(props.bookableId),
-    // TODO seam-gap: activity_bookables by-bookable read (seam only offers by-activity)
-    (db.from as any)('activity_bookables').select('activity_id').eq('bookable_id', props.bookableId),
+    // activity_bookables (by-bookable) via the seam.
+    api.bookableActivityIds(props.bookableId),
   ])
-  rules.value = r ?? []
+  // The seam returns camelCase; the template + write payloads use snake_case — map once here.
+  rules.value = (rulesSeam ?? []).map(toSnakeRule)
   memberGroups.value = g ?? []
   // BookableMode camelCase id/name/color are the same keys the template reads; sort by name to keep prior order.
   bookableModes.value = (mSeam ?? []).slice().sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''))
-  const activityIds = (ab ?? []).map((row: any) => row.activity_id)
+  const activityIds = abIds ?? []
   if (activityIds.length) {
-    // TODO seam-gap: activity_modes multi-activity read (seam only offers activityModes per single activity)
-    const [actsAll, { data: am }] = await Promise.all([
+    // One org-wide modes read (avoids the per-activity fan-out), filtered to the linked activities.
+    const [actsAll, allModes] = await Promise.all([
       api.activities(orgId.value),
-      (db.from as any)('activity_modes').select('id, name, color, activity_id').in('activity_id', activityIds).order('name'),
+      api.activityModesForOrg(orgId.value),
     ])
     linkedActivities.value = (actsAll ?? [])
       .filter((a: any) => activityIds.includes(a.id))
       .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''))
-    activityModes.value = am ?? []
+    activityModes.value = allModes
+      .filter((m: any) => activityIds.includes(m.activityId))
+      .map((m: any) => ({ id: m.id, name: m.name, color: m.color, activity_id: m.activityId }))
+      .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''))
   } else {
     linkedActivities.value = []
     activityModes.value = []
@@ -1789,27 +1791,54 @@ async function save() {
   await persistRule(payload)
 }
 
-// TODO seam-gap: every availability_rules write below (persistRule / resolveConflict /
-// toggleRule / deleteRule / cloneRule) is a granular, history-preserving op (single-row
-// update/insert/delete, supersede via replaced_by_rule_id, restore, clone). The seam's
-// only write is whole-set replaceAvailabilityRules, which would destroy id stability +
-// the replaced_by history — so these stay on useDb until a granular rules seam lands.
+// Availability rules are read snake_case (see toSnakeRule) but the seam speaks camelCase.
+// toRulePatch converts a snake_case write payload (built in save()) into the seam's
+// AvailabilityRulePatch. The granular writes below (persistRule / resolveConflict /
+// toggleRule / deleteRule / cloneRule) are single-row, id-stable, history-preserving ops
+// (supersede via replacedByRuleId, restore, clone) — the seam exposes each one, so id
+// stability + the replaced_by history are preserved.
+const RULE_KEY_MAP: Record<string, string> = {
+  bookable_id: 'bookableId', name: 'name', rule_type: 'ruleType', days_of_week: 'daysOfWeek',
+  time_from: 'timeFrom', time_to: 'timeTo', time_slots: 'timeSlots', rrule: 'rrule',
+  week_interval: 'weekInterval', week_anchor: 'weekAnchor', month_week: 'monthWeek',
+  eligibility: 'eligibility', membership_types: 'membershipTypes', group_ids: 'groupIds',
+  capacity_used: 'capacityUsed', color: 'color', price_tiers: 'priceTiers', sort_order: 'sortOrder',
+  bookable_mode_id: 'bookableModeId', activity_mode_ids: 'activityModeIds', max_concurrent: 'maxConcurrent',
+  valid_from: 'validFrom', valid_until: 'validUntil', invitee_modes: 'inviteeModes',
+  invitee_groups: 'inviteeGroups', is_active: 'isActive', replaced_by_rule_id: 'replacedByRuleId',
+}
+function toRulePatch(p: any): any {
+  const out: any = {}
+  for (const k of Object.keys(p)) if (RULE_KEY_MAP[k] && p[k] !== undefined) out[RULE_KEY_MAP[k]] = p[k]
+  return out
+}
+function toSnakeRule(r: any): any {
+  return {
+    id: r.id, bookable_id: r.bookableId, name: r.name, rule_type: r.ruleType,
+    days_of_week: r.daysOfWeek, time_from: r.timeFrom, time_to: r.timeTo, eligibility: r.eligibility,
+    membership_types: r.membershipTypes, group_ids: r.groupIds, sort_order: r.sortOrder,
+    is_active: r.isActive, capacity_used: r.capacityUsed, color: r.color, price_tiers: r.priceTiers,
+    time_slots: r.timeSlots, week_interval: r.weekInterval, week_anchor: r.weekAnchor,
+    month_week: r.monthWeek, rrule: r.rrule, bookable_mode_id: r.bookableModeId,
+    activity_mode_ids: r.activityModeIds, max_concurrent: r.maxConcurrent,
+    valid_from: r.validFrom, valid_until: r.validUntil, replaced_by_rule_id: r.replacedByRuleId,
+    invitee_modes: r.inviteeModes, invitee_groups: r.inviteeGroups,
+  }
+}
 async function persistRule(payload: any, opts: { replacedRuleIds?: string[] } = {}) {
   if (editing.value) {
-    await (db.from as any)('availability_rules').update(payload).eq('id', editing.value.id)
+    await api.updateAvailabilityRule(editing.value.id, toRulePatch(payload))
     if (opts.replacedRuleIds?.length) {
-      await (db.from as any)('availability_rules')
-        .update({ is_active: false, replaced_by_rule_id: editing.value.id })
-        .in('id', opts.replacedRuleIds)
+      for (const rid of opts.replacedRuleIds) {
+        await api.updateAvailabilityRule(rid, { isActive: false, replacedByRuleId: editing.value.id })
+      }
     }
   } else {
-    const { data } = await (db.from as any)('availability_rules')
-      .insert({ ...payload, is_active: true })
-      .select('id').single()
-    if (opts.replacedRuleIds?.length && data?.id) {
-      await (db.from as any)('availability_rules')
-        .update({ is_active: false, replaced_by_rule_id: data.id })
-        .in('id', opts.replacedRuleIds)
+    const created = await api.createAvailabilityRule(toRulePatch({ ...payload, is_active: true }))
+    if (opts.replacedRuleIds?.length && created?.id) {
+      for (const rid of opts.replacedRuleIds) {
+        await api.updateAvailabilityRule(rid, { isActive: false, replacedByRuleId: created.id })
+      }
     }
   }
   await load()
@@ -1842,7 +1871,7 @@ async function resolveConflict(action: 'replace' | 'higher' | 'lower' | 'cancel'
     for (const r of toBump) {
       const newOrder = (r.sort_order ?? 0) + 1
       r.sort_order = newOrder
-      await (db.from as any)('availability_rules').update({ sort_order: newOrder }).eq('id', r.id)
+      await api.updateAvailabilityRule(r.id, { sortOrder: newOrder })
     }
     payload.sort_order = minConflictOrder
     await persistRule(payload)
@@ -1852,21 +1881,17 @@ async function resolveConflict(action: 'replace' | 'higher' | 'lower' | 'cancel'
 }
 
 async function toggleRule(rule: any) {
-  await (db.from as any)('availability_rules').update({ is_active: !rule.is_active }).eq('id', rule.id)
+  await api.updateAvailabilityRule(rule.id, { isActive: !rule.is_active })
   rule.is_active = !rule.is_active
 }
 
 async function deleteRule(rule: any) {
   if (!confirm(`Delete "${rule.name}"?`)) return
   // Find any rules this one had replaced (auto-restore them)
-  const { data: replaced } = await (db.from as any)('availability_rules')
-    .select('id, name')
-    .eq('replaced_by_rule_id', rule.id)
-  await (db.from as any)('availability_rules').delete().eq('id', rule.id)
+  const replaced = await api.availabilityRulesReplacedBy(rule.id)
+  await api.removeAvailabilityRule(rule.id)
   if (replaced?.length) {
-    await (db.from as any)('availability_rules')
-      .update({ is_active: true, replaced_by_rule_id: null })
-      .in('id', replaced.map((r: any) => r.id))
+    for (const r of replaced) await api.updateAvailabilityRule(r.id, { isActive: true, replacedByRuleId: null })
     toast.add({ severity: 'info', summary: 'Restored hidden rule(s)',
       detail: `${replaced.map((r: any) => `"${r.name}"`).join(', ')} reactivated.`, life: 4000 })
   }
@@ -1876,14 +1901,14 @@ async function deleteRule(rule: any) {
 
 async function cloneRule(rule: any) {
   const { id: _, created_at: __, updated_at: ___, ...rest } = rule
-  const { data } = await (db.from as any)('availability_rules').insert({
+  const data = await api.createAvailabilityRule(toRulePatch({
     ...rest,
     name: `${rule.name} (copy)`,
     sort_order: rules.value.length,
     is_active: true,
-  }).select().single()
+  }))
   await load()
-  if (data) openPanel(data)
+  if (data) openPanel(toSnakeRule(data))
 }
 
 function toggleDay(day: number) {
@@ -2005,15 +2030,10 @@ async function loadBookingsForView() {
     start = new Date(year, month, 1, 0, 0, 0, 0)
     end = new Date(year, month + 1, 0, 23, 59, 59, 999)
   }
-  // TODO seam-gap: bookings read is by bookable_id + date-range + status — the seam only
-  // offers an org-scoped bookings list (no bookable/date filter). Still via useDb.
-  const { data } = await (db.from as any)('bookings')
-    .select('id, start_at, end_at, status')
-    .eq('bookable_id', props.bookableId)
-    .neq('status', 'CANCELLED')
-    .gte('start_at', start.toISOString())
-    .lte('start_at', end.toISOString())
-  bookings.value = data ?? []
+  const rows = await api.bookingsForBookables([props.bookableId], {
+    from: start.toISOString(), to: end.toISOString(), excludeCancelled: true,
+  })
+  bookings.value = rows.map(b => ({ id: b.id, start_at: b.startAt, end_at: b.endAt, status: b.status }))
 }
 
 watch([calDate, calView], () => {

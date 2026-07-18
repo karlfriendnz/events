@@ -453,7 +453,8 @@
 
 <script setup lang="ts">
 const { orgId } = useOrg()
-const db = useDb()
+const db = useDb() // SEAM GAP: public path — this calendar also renders on the anonymous embed (pages/embed/calendar.vue), so its READS stay on the RLS client until public read routes exist
+const api = useBookingsApi()
 
 const props = defineProps<{
   bookableId?: string
@@ -664,8 +665,9 @@ async function onGridDrop(day: Date, event: DragEvent) {
     return
   }
 
-  // TODO seam-gap: no api method to reschedule a booking's start_at/end_at (seam only exposes setBookingStatus/removeBooking)
-  await db.from('bookings').update({ start_at: newStart.toISOString(), end_at: newEnd.toISOString() }).eq('id', booking.id)
+  // Reschedule via the seam. This drag path is authed-only (the embed calendar is
+  // read-only), so it can move off the RLS client even though the reads can't yet.
+  await api.updateBooking(booking.id, { startAt: newStart.toISOString(), endAt: newEnd.toISOString() })
   draggingBooking.value = null
   dropPreview.visible = false
   await loadBookings()
@@ -1229,8 +1231,9 @@ async function loadBookings() {
   // (e.g. the parent venue) or descendants (e.g. its sub-courts) consume the
   // slot too, so include them in the query.
   const treeIds = await resolveBookableTree(props.bookableId)
-  // TODO seam-gap + public-path: bookings read needs bookable_id-IN-tree filter, date window and
-  // event/activity_mode joins (none on api.bookings); also renders on the anonymous embed/scheduler.
+  // SEAM GAP: public path — the by-tree + date-window + event/mode-joined bookings read
+  // (api.bookingsForBookablesDetailed covers it) stays on the RLS client because this
+  // calendar renders on the anonymous embed; repoint once public read routes land.
   const { data } = await (db.from as any)('bookings')
     .select('id, type, start_at, end_at, status, notes, contact_name, contact_email, contact_phone, attendee_count, custom_fields, activity_id, activity_mode_id, bookable_id, event:events(id, title), activity_mode:activity_modes(id, name, color)')
     .in('bookable_id', treeIds)
@@ -1252,7 +1255,7 @@ async function resolveBookableTree(rootId: string): Promise<string[]> {
   // Ancestors
   let cursor: string | null = rootId
   while (cursor) {
-    // TODO public-path: bookables tree walk — shared with anonymous embed/scheduler; kept on RLS client
+    // SEAM GAP: public path — bookables tree walk shared with the anonymous embed; kept on the RLS client
     const { data } = await (db.from as any)('bookables').select('parent_id').eq('id', cursor).maybeSingle()
     const next = data?.parent_id as string | null | undefined
     if (!next || set.has(next)) break
@@ -1263,7 +1266,7 @@ async function resolveBookableTree(rootId: string): Promise<string[]> {
   const queue: string[] = [rootId]
   while (queue.length) {
     const id = queue.shift()!
-    // TODO seam-gap: no children-of-bookable read on the seam (and public-path: shared with anonymous embed/scheduler)
+    // SEAM GAP: public path — children-of-bookable read (api.bookableChildren covers it) stays on the RLS client, shared with the anonymous embed
     const { data } = await (db.from as any)('bookables').select('id').eq('parent_id', id)
     for (const row of (data ?? []) as { id: string }[]) {
       if (!set.has(row.id)) { set.add(row.id); queue.push(row.id) }
@@ -1279,7 +1282,7 @@ async function loadRules() {
   // Linked children (master_id set) inherit rules from their master — same
   // model as pages/bookables/[id].vue's propagation. Resolve which bookable
   // owns the rules first, then fetch from there.
-  // TODO public-path: bookables + availability_rules reads — shared with anonymous embed/scheduler; kept on RLS client
+  // SEAM GAP: public path — bookables + availability_rules reads shared with the anonymous embed; kept on the RLS client
   const { data: bk } = await (db.from as any)('bookables')
     .select('id, master_id')
     .eq('id', props.bookableId)

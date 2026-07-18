@@ -25,13 +25,8 @@ function rgba(hex: string, alpha: number): string {
 const GOVERNING_PRIMARY = '#2494D3'
 
 export function useBrandTheme() {
-  // SEAM GAP: needs organisations.brand_id (the CONNECTED platform brand, distinct
-  // from the org's own brand_color which getProfile does expose) + brands.color-by-id.
-  // Neither the single-org get(id) nor a brand-by-id read is on the seam yet
-  // (org get(id) is itself a listed cross-domain gap; useAdminApi.brands() lists all
-  // brands but the brand_id linkage isn't surfaced). Left on useDb until admin/settings
-  // expose org.brandId. Purely presentational (rail colour) — degrades to defaults.
-  const db = useDb()
+  // Resolves the active org's connected brand colour + level in one seam call.
+  const orgsApi = useOrganisationsApi()
   const { orgId } = useOrg()
 
   function apply(color: string | null) {
@@ -56,15 +51,12 @@ export function useBrandTheme() {
   async function load(id: string | null) {
     if (!import.meta.client) return
     if (!id) { apply(null); return }
-    const { data: org } = await (db.from as any)('organisations').select('brand_id, org_level').eq('id', id).maybeSingle()
-    const brandId = org?.brand_id ?? null
-    if (brandId) {
-      const { data: brand } = await (db.from as any)('brands').select('color').eq('id', brandId).maybeSingle()
-      if (brand?.color) { apply(brand.color); return }
-    }
+    let theme: { brandColor: string | null; orgLevel: string } | null = null
+    try { theme = await orgsApi.getBrandTheme(id) } catch { theme = null }
+    if (theme?.brandColor) { apply(theme.brandColor); return }
     // No connected brand: a governing body gets the national blue, everyone else
     // the :root FM navy.
-    apply(isGoverningBody(org?.org_level) ? GOVERNING_PRIMARY : null)
+    apply(isGoverningBody(theme?.orgLevel) ? GOVERNING_PRIMARY : null)
   }
 
   watch(orgId, id => load(id), { immediate: true })

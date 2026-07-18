@@ -60,10 +60,29 @@ export const helpArticleSchema = z.object({
   module: z.string().nullable(),
   resource: z.string().nullable(),
   route: z.string().nullable(),
+  sortOrder: z.number().int(),
   status: z.string(),
 })
 export type HelpArticle = z.infer<typeof helpArticleSchema>
 export const helpArticleListSchema = z.array(helpArticleSchema)
+
+// WRITE contracts for the /admin/help editor. Create needs key + title; everything
+// else defaults in the repo. steps is a free json array.
+export const helpArticleCreateSchema = z.object({
+  key: z.string().min(1),
+  title: z.string().min(1),
+  explanation: z.string().optional(),
+  steps: z.any().optional(),
+  module: z.string().nullable().optional(),
+  resource: z.string().nullable().optional(),
+  route: z.string().nullable().optional(),
+  sortOrder: z.number().int().optional(),
+  status: z.string().optional(),
+})
+export type HelpArticleCreate = z.infer<typeof helpArticleCreateSchema>
+
+export const helpArticlePatchSchema = helpArticleCreateSchema.partial().extend({ key: z.string().min(1).optional() })
+export type HelpArticlePatch = z.infer<typeof helpArticlePatchSchema>
 
 // A per-role club-dashboard default template. userType = a permission group id or
 // '_default'; config is the widget-layout payload.

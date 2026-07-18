@@ -5,7 +5,7 @@
 //
 // This is the template every migrated screen follows: a use<Thing>Api() composable
 // wrapping typed $fetch to /api/v1/*.
-import type { Organisation, OrgTreeNode, OrganisationCreate, OrganisationPatch } from '../shared/contracts/organisation'
+import type { Organisation, OrgTreeNode, OrganisationCreate, OrganisationPatch, OrgBrandTheme, OnboardingState } from '../shared/contracts/organisation'
 import type { OrgSettings } from '../shared/contracts/orgSettings'
 import type { OrgDashboardMeta } from '../shared/contracts/orgDashboard'
 import type { OrgProfile, OrgProfilePatch } from '../shared/contracts/orgProfile'
@@ -13,6 +13,10 @@ import type { OrgProfile, OrgProfilePatch } from '../shared/contracts/orgProfile
 export function useOrganisationsApi() {
   async function list(): Promise<Organisation[]> {
     return await $fetch<Organisation[]>('/api/v1/organisations')
+  }
+  /** A single organisation (identity/tree slice). */
+  async function get(id: string): Promise<Organisation> {
+    return await $fetch<Organisation>(`/api/v1/organisations/${id}`)
   }
   async function create(input: OrganisationCreate): Promise<Organisation> {
     return await $fetch<Organisation>('/api/v1/organisations', { method: 'POST', body: input })
@@ -64,5 +68,34 @@ export function useOrganisationsApi() {
   async function updateProfile(orgId: string, patch: OrgProfilePatch): Promise<OrgProfile> {
     return await $fetch<OrgProfile>(`/api/v1/organisations/${orgId}/profile`, { method: 'PATCH', body: patch })
   }
-  return { list, create, update, remove, ancestors, descendants, getSettings, setPeopleColumns, getDashboardMeta, setDashboardBanner, setProfileDashboard, getProfile, updateProfile }
+  /** Privileged re-parent — move an org under a different governing body (its own
+   *  endpoint, not the general patch; security audit CRIT-3). */
+  async function setParent(orgId: string, parentId: string | null): Promise<void> {
+    await $fetch(`/api/v1/organisations/${orgId}/parent`, { method: 'POST', body: { parentId } })
+  }
+  /** Set the cross-club member-pull policy. */
+  async function setMemberPullMode(orgId: string, mode: 'reference' | 'copy' | null): Promise<void> {
+    await $fetch(`/api/v1/organisations/${orgId}/member-pull-mode`, { method: 'PATCH', body: { memberPullMode: mode } })
+  }
+  /** The resolved brand theme (connected brand colour + level) for the theme composable. */
+  async function getBrandTheme(orgId: string): Promise<OrgBrandTheme> {
+    return await $fetch<OrgBrandTheme>(`/api/v1/organisations/${orgId}/brand-theme`)
+  }
+  /** The org-wide default member positions (Captain/Wing/…). */
+  async function getDefaultPositions(orgId: string): Promise<string[]> {
+    return await $fetch<string[]>(`/api/v1/organisations/${orgId}/default-positions`)
+  }
+  /** Replace the org-wide default member positions. */
+  async function setDefaultPositions(orgId: string, positions: string[]): Promise<void> {
+    await $fetch(`/api/v1/organisations/${orgId}/default-positions`, { method: 'PATCH', body: { positions } })
+  }
+  /** The new-club onboarding checklist state. */
+  async function getOnboarding(orgId: string): Promise<OnboardingState> {
+    return await $fetch<OnboardingState>(`/api/v1/organisations/${orgId}/onboarding`)
+  }
+  /** Save the onboarding checklist state. */
+  async function setOnboarding(orgId: string, state: OnboardingState): Promise<void> {
+    await $fetch(`/api/v1/organisations/${orgId}/onboarding`, { method: 'PATCH', body: state })
+  }
+  return { list, get, create, update, remove, ancestors, descendants, getSettings, setPeopleColumns, getDashboardMeta, setDashboardBanner, setProfileDashboard, getProfile, updateProfile, setParent, setMemberPullMode, getBrandTheme, getDefaultPositions, setDefaultPositions, getOnboarding, setOnboarding }
 }

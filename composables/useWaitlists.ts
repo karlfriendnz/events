@@ -55,110 +55,114 @@ export const WAITLIST_STATUSES = [
 ]
 
 export function useWaitlists() {
-  const db = useDb()
+  // Converted to the /api/v1 seam (server/db/repositories/groups.ts + waitlists.ts).
+  // No useDb: every call is a typed $fetch to a route. The seam returns camelCase; we
+  // map back to the snake_case shapes the waitlists page reads so the UI is unchanged.
   const { orgId } = useOrg()
+
+  const toWaitlist = (w: any): Waitlist => ({
+    id: w.id, org_id: w.orgId, name: w.name,
+    order_mode: w.orderMode, term_id: w.termId ?? null, lineage_id: w.lineageId ?? null,
+  })
 
   async function loadWaitlists(): Promise<Waitlist[]> {
     if (!orgId.value) return []
-    const { data } = await (db.from as any)('waitlists')
-      .select('id, org_id, name, notes, order_mode, term_id, lineage_id, created_at').eq('org_id', orgId.value).order('name')
-    return data ?? []
+    const rows = await $fetch<any[]>('/api/v1/waitlists', { query: { orgId: orgId.value } })
+    return (rows ?? []).map(toWaitlist)
   }
 
   async function createWaitlist(name: string, termId?: string | null): Promise<Waitlist | null> {
-    const { data, error } = await (db.from as any)('waitlists')
-      .insert({ org_id: orgId.value, name: name.trim(), term_id: termId ?? null }).select('*').single()
-    return error ? null : data
+    try {
+      const w = await $fetch<any>('/api/v1/waitlists', {
+        method: 'POST', body: { orgId: orgId.value, name: name.trim(), termId: termId ?? null },
+      })
+      return w ? toWaitlist(w) : null
+    } catch {
+      return null
+    }
   }
   async function updateWaitlist(id: string, patch: Partial<Pick<Waitlist, 'name' | 'notes' | 'order_mode' | 'term_id'>>): Promise<void> {
-    await (db.from as any)('waitlists').update(patch).eq('id', id)
+    const body: Record<string, any> = {}
+    if (patch.name !== undefined) body.name = patch.name
+    if (patch.order_mode !== undefined) body.orderMode = patch.order_mode
+    if (patch.term_id !== undefined) body.termId = patch.term_id
+    await $fetch(`/api/v1/waitlists/${id}`, { method: 'PATCH', body })
   }
   async function deleteWaitlist(id: string): Promise<void> {
     // Entries cascade; groups' waitlist_id nulls out (FK on delete set null).
-    await (db.from as any)('waitlists').delete().eq('id', id)
+    await $fetch(`/api/v1/waitlists/${id}`, { method: 'DELETE' })
   }
 
   // Which groups are connected to each waitlist (member_groups.waitlist_id).
   async function loadGroupLinks(): Promise<Record<string, { id: string; name: string; color: string | null }[]>> {
     if (!orgId.value) return {}
-    const { data } = await (db.from as any)('member_groups')
-      .select('id, name, color, waitlist_id').eq('org_id', orgId.value).not('waitlist_id', 'is', null)
+    const rows = await $fetch<any[]>('/api/v1/waitlists/group-links', { query: { orgId: orgId.value } })
     const out: Record<string, { id: string; name: string; color: string | null }[]> = {}
-    for (const g of data ?? []) (out[g.waitlist_id] ??= []).push({ id: g.id, name: g.name, color: g.color })
+    for (const g of rows ?? []) (out[g.waitlistId] ??= []).push({ id: g.id, name: g.name, color: g.color })
     return out
   }
   // Set the groups connected to a waitlist (adds/removes to match the given set).
   async function setGroupsForWaitlist(waitlistId: string, groupIds: string[]): Promise<void> {
-    // Connect the chosen groups...
-    if (groupIds.length) {
-      await (db.from as any)('member_groups').update({ waitlist_id: waitlistId }).in('id', groupIds)
-    }
-    // ...and disconnect any group currently on this waitlist that's no longer chosen.
-    const { data: current } = await (db.from as any)('member_groups')
-      .select('id').eq('waitlist_id', waitlistId)
-    const drop = (current ?? []).map((g: any) => g.id).filter((id: string) => !groupIds.includes(id))
-    if (drop.length) await (db.from as any)('member_groups').update({ waitlist_id: null }).in('id', drop)
+    await $fetch('/api/v1/waitlists/set-groups', { method: 'POST', body: { waitlistId, groupIds } })
   }
   async function connectGroup(groupId: string, waitlistId: string | null): Promise<void> {
-    await (db.from as any)('member_groups').update({ waitlist_id: waitlistId }).eq('id', groupId)
+    await $fetch('/api/v1/waitlists/connect-group', { method: 'POST', body: { groupId, waitlistId } })
   }
 
   // Entries on a waitlist (with person), in queue order.
   async function loadEntries(waitlistId: string): Promise<WaitlistEntry[]> {
-    const { data } = await (db.from as any)('waitlist_entries')
-      .select('id, waitlist_id, person_id, status, notes, sort_order, priority, created_at')
-      .eq('waitlist_id', waitlistId).order('sort_order').order('created_at')
-    const rows: WaitlistEntry[] = data ?? []
-    const ids = rows.map(r => r.person_id)
-    if (ids.length) {
-      const { data: people } = await (db.from as any)('persons')
-        .select('id, first_name, last_name, email, phone, dob').in('id', ids)
-      const byId: Record<string, any> = {}
-      for (const p of people ?? []) byId[p.id] = p
-      for (const r of rows) r.person = byId[r.person_id]
-    }
-    return rows
+    const rows = await $fetch<any[]>(`/api/v1/waitlists/${waitlistId}/entries`)
+    return (rows ?? []).map((r): WaitlistEntry => ({
+      id: r.id, waitlist_id: r.waitlistId, person_id: r.personId, status: r.status,
+      notes: r.notes ?? null, sort_order: r.sortOrder, priority: r.priority, created_at: r.createdAt ?? undefined,
+      person: r.person
+        ? { id: r.person.id, first_name: r.person.firstName, last_name: r.person.lastName, email: r.person.email, phone: r.person.phone, dob: r.person.dob }
+        : undefined,
+    }))
   }
   async function entryCounts(): Promise<Record<string, number>> {
     if (!orgId.value) return {}
-    const { data } = await (db.from as any)('waitlist_entries')
-      .select('waitlist_id, status').eq('org_id', orgId.value)
-    const out: Record<string, number> = {}
-    for (const e of data ?? []) if (e.status === 'waiting' || e.status === 'contacted') out[e.waitlist_id] = (out[e.waitlist_id] ?? 0) + 1
-    return out
+    return await $fetch<Record<string, number>>('/api/v1/waitlists/entry-counts', { query: { orgId: orgId.value } })
   }
   async function addEntry(waitlistId: string, personId: string, sortOrder = 0, notes?: string): Promise<{ ok: boolean; error?: string }> {
-    const { error } = await (db.from as any)('waitlist_entries')
-      .insert({ org_id: orgId.value, waitlist_id: waitlistId, person_id: personId, sort_order: sortOrder, notes: notes || null })
-    if (error) return { ok: false, error: error.message }
-    return { ok: true }
+    try {
+      await $fetch('/api/v1/waitlists/add-entry', {
+        method: 'POST', body: { orgId: orgId.value, waitlistId, personId, sortOrder, notes: notes || null },
+      })
+      return { ok: true }
+    } catch (e: any) {
+      return { ok: false, error: e?.data?.statusMessage || e?.message }
+    }
   }
   async function updateEntry(id: string, patch: Partial<Pick<WaitlistEntry, 'status' | 'notes' | 'sort_order' | 'priority'>>): Promise<void> {
-    await (db.from as any)('waitlist_entries').update(patch).eq('id', id)
+    const body: Record<string, any> = {}
+    if (patch.status !== undefined) body.status = patch.status
+    if (patch.notes !== undefined) body.notes = patch.notes
+    if (patch.sort_order !== undefined) body.sortOrder = patch.sort_order
+    if (patch.priority !== undefined) body.priority = patch.priority
+    await $fetch('/api/v1/waitlists/update-entry', { method: 'POST', body: { id, patch: body } })
   }
   async function removeEntry(id: string): Promise<void> {
-    await (db.from as any)('waitlist_entries').delete().eq('id', id)
+    await $fetch('/api/v1/waitlists/remove-entry', { method: 'POST', body: { id } })
   }
   // How many groups each of these people is currently a member of.
   async function enrolledCounts(personIds: string[]): Promise<Record<string, number>> {
     if (!personIds.length) return {}
-    const { data } = await (db.from as any)('member_group_memberships').select('person_id').in('person_id', personIds)
-    const out: Record<string, number> = {}
-    for (const m of data ?? []) out[m.person_id] = (out[m.person_id] ?? 0) + 1
-    return out
+    return await $fetch<Record<string, number>>('/api/v1/waitlists/enrolled-counts', { query: { personIds: personIds.join(',') } })
   }
   // Enrol a waitlisted person INTO a group (get them off the waitlist): insert the
-  // membership then delete the waitlist entry. Idempotent membership upsert.
+  // membership (skip-if-exists) then delete the waitlist entry.
   async function enrolFromWaitlist(entryId: string, groupId: string, personId: string, positions: string[] = []): Promise<{ ok: boolean; error?: string }> {
-    const { error } = await (db.from as any)('member_group_memberships')
-      .upsert({ group_id: groupId, person_id: personId, roles: [], role: null, positions }, { onConflict: 'group_id,person_id' })
-    if (error) return { ok: false, error: error.message }
-    await removeEntry(entryId)
-    return { ok: true }
+    try {
+      await $fetch('/api/v1/waitlists/enrol', { method: 'POST', body: { entryId, groupId, personId, positions } })
+      return { ok: true }
+    } catch (e: any) {
+      return { ok: false, error: e?.data?.statusMessage || e?.message }
+    }
   }
   // Persist a re-ordered list (sort_order = index).
   async function reorderEntries(ids: string[]): Promise<void> {
-    await Promise.all(ids.map((id, i) => (db.from as any)('waitlist_entries').update({ sort_order: i }).eq('id', id)))
+    await $fetch('/api/v1/waitlists/reorder-entries', { method: 'POST', body: { ids } })
   }
 
   return {

@@ -10,16 +10,17 @@
 // door/light catalogue.
 import type {
   Bookable, BookableCreate, BookablePatch,
-  BookableMode,
+  BookableMode, BookableModeInput,
   Activity, ActivityCreate, ActivityPatch,
   ActivityMode, ActivityModeCreate, ActivityModePatch,
-  AvailabilityRule, AvailabilityRuleCreate,
+  AvailabilityRule, AvailabilityRuleCreate, AvailabilityRulePatch,
   BookableConfigurationFull,
   Door, DoorCreate, DoorPatch,
   LightZone, LightZoneCreate, LightZonePatch,
   BookingDiscount,
   ActivityModeBookable, ActivityModeResource, ActivityModeRequiredItem, ActivityBookable,
-  Booking, BookingCreate,
+  Booking, BookingCreate, BookingPatch, BookingDetail,
+  BookingWindow, BookingWindowCreate, BookingWindowPatch,
 } from '../shared/contracts/booking'
 
 export function useBookingsApi() {
@@ -41,19 +42,71 @@ export function useBookingsApi() {
   async function removeBookable(id: string): Promise<void> {
     await $fetch(`/api/v1/bookables/${id}`, { method: 'DELETE' })
   }
+  /** The direct children of a bookable (parent_id = id) — calendar tree walk + child lists. */
+  async function bookableChildren(id: string): Promise<Bookable[]> {
+    return await $fetch<Bookable[]>(`/api/v1/bookables/${id}/children`)
+  }
 
   // ── Bookable modes ──
   async function bookableModes(bookableId: string): Promise<BookableMode[]> {
     return await $fetch<BookableMode[]>(`/api/v1/bookables/${bookableId}/modes`)
+  }
+  /** Replace a bookable's whole mode set (delete-then-insert; venue-editor Modes tab). */
+  async function setBookableModes(bookableId: string, modes: BookableModeInput[]): Promise<void> {
+    await $fetch(`/api/v1/bookables/${bookableId}/modes`, { method: 'POST', body: { modes } })
+  }
+  /** The activity ids linked to a bookable (by-bookable side of activity_bookables). */
+  async function bookableActivityIds(bookableId: string): Promise<string[]> {
+    return await $fetch<string[]>(`/api/v1/bookables/${bookableId}/activity-links`)
+  }
+  /** Set a bookable's linked activities (delete-then-insert scoped to the bookable). */
+  async function setBookableActivityIds(bookableId: string, activityIds: string[]): Promise<void> {
+    await $fetch(`/api/v1/bookables/${bookableId}/activity-links`, { method: 'POST', body: { activityIds } })
+  }
+
+  // ── Booking windows (+ fixed slots) ──
+  async function bookingWindows(bookableId: string): Promise<BookingWindow[]> {
+    return await $fetch<BookingWindow[]>(`/api/v1/bookables/${bookableId}/booking-windows`)
+  }
+  async function createBookingWindow(input: BookingWindowCreate): Promise<BookingWindow> {
+    return await $fetch<BookingWindow>('/api/v1/booking-windows', { method: 'POST', body: input })
+  }
+  async function updateBookingWindow(id: string, patch: BookingWindowPatch): Promise<BookingWindow> {
+    return await $fetch<BookingWindow>(`/api/v1/booking-windows/${id}`, { method: 'PATCH', body: patch })
+  }
+  async function removeBookingWindow(id: string): Promise<void> {
+    await $fetch(`/api/v1/booking-windows/${id}`, { method: 'DELETE' })
   }
 
   // ── Availability rules ──
   async function availabilityRules(bookableId: string): Promise<AvailabilityRule[]> {
     return await $fetch<AvailabilityRule[]>(`/api/v1/bookables/${bookableId}/availability`)
   }
+  /** Availability rules across a SET of bookables (child ids + their masters). */
+  async function availabilityRulesForBookables(bookableIds: string[], opts?: { activeOnly?: boolean }): Promise<AvailabilityRule[]> {
+    if (!bookableIds.length) return []
+    return await $fetch<AvailabilityRule[]>('/api/v1/availability-rules', {
+      query: { bookableIds: bookableIds.join(','), ...(opts?.activeOnly ? { activeOnly: '1' } : {}) },
+    })
+  }
+  /** The rules a given rule superseded (auto-restored on its delete). */
+  async function availabilityRulesReplacedBy(ruleId: string): Promise<AvailabilityRule[]> {
+    return await $fetch<AvailabilityRule[]>('/api/v1/availability-rules', { query: { replacedBy: ruleId } })
+  }
   /** Replace a bookable's whole availability rule set (delete-then-insert). */
   async function replaceAvailabilityRules(bookableId: string, rules: AvailabilityRuleCreate[]): Promise<AvailabilityRule[]> {
     return await $fetch<AvailabilityRule[]>(`/api/v1/bookables/${bookableId}/availability`, { method: 'POST', body: rules })
+  }
+  /** Create ONE availability rule (granular, id-stable, history-preserving). */
+  async function createAvailabilityRule(input: AvailabilityRuleCreate): Promise<AvailabilityRule> {
+    return await $fetch<AvailabilityRule>('/api/v1/availability-rules', { method: 'POST', body: input })
+  }
+  /** Update ONE availability rule (reorder / toggle / supersede / restore). */
+  async function updateAvailabilityRule(id: string, patch: AvailabilityRulePatch): Promise<AvailabilityRule> {
+    return await $fetch<AvailabilityRule>(`/api/v1/availability-rules/${id}`, { method: 'PATCH', body: patch })
+  }
+  async function removeAvailabilityRule(id: string): Promise<void> {
+    await $fetch(`/api/v1/availability-rules/${id}`, { method: 'DELETE' })
   }
 
   // ── Configurations ──
@@ -159,6 +212,10 @@ export function useBookingsApi() {
   async function activityModes(activityId: string): Promise<ActivityMode[]> {
     return await $fetch<ActivityMode[]>(`/api/v1/activities/${activityId}/modes`)
   }
+  /** Every activity mode across an org's activities, in one query (avoids N+1 fan-out). */
+  async function activityModesForOrg(orgId: string): Promise<ActivityMode[]> {
+    return await $fetch<ActivityMode[]>('/api/v1/activity-modes', { query: { orgId } })
+  }
   async function activityMode(id: string): Promise<ActivityMode> {
     return await $fetch<ActivityMode>(`/api/v1/activity-modes/${id}`)
   }
@@ -223,6 +280,66 @@ export function useBookingsApi() {
       },
     })
   }
+  /** One booking by id, WITH its display joins (bookable / activity / mode / event). */
+  async function booking(id: string): Promise<BookingDetail> {
+    return await $fetch<BookingDetail>(`/api/v1/bookings/${id}`)
+  }
+  /** An org's bookings WITH display joins, newest first (the pending queue). */
+  async function bookingsDetailed(
+    orgId: string,
+    opts?: { status?: string; from?: string; to?: string; bookableIds?: string[] },
+  ): Promise<BookingDetail[]> {
+    return await $fetch<BookingDetail[]>('/api/v1/bookings/detailed', {
+      query: {
+        orgId,
+        ...(opts?.status ? { status: opts.status } : {}),
+        ...(opts?.from ? { from: opts.from } : {}),
+        ...(opts?.to ? { to: opts.to } : {}),
+        ...(opts?.bookableIds?.length ? { bookableIds: opts.bookableIds.join(',') } : {}),
+      },
+    })
+  }
+  /**
+   * Flat bookings on a SET of bookables — the overlap/clash pre-flights + by-bookable
+   * calendar windows. overlapStart/overlapEnd = TRUE interval overlap; from/to = a
+   * start_at window; excludeCancelled drops CANCELLED rows.
+   */
+  async function bookingsForBookables(
+    bookableIds: string[],
+    opts?: { overlapStart?: string; overlapEnd?: string; from?: string; to?: string; excludeCancelled?: boolean; status?: string },
+  ): Promise<Booking[]> {
+    if (!bookableIds.length) return []
+    return await $fetch<Booking[]>('/api/v1/bookings/for-bookables', {
+      query: {
+        bookableIds: bookableIds.join(','),
+        ...(opts?.overlapStart ? { overlapStart: opts.overlapStart } : {}),
+        ...(opts?.overlapEnd ? { overlapEnd: opts.overlapEnd } : {}),
+        ...(opts?.from ? { from: opts.from } : {}),
+        ...(opts?.to ? { to: opts.to } : {}),
+        ...(opts?.excludeCancelled ? { excludeCancelled: '1' } : {}),
+        ...(opts?.status ? { status: opts.status } : {}),
+      },
+    })
+  }
+  /** Detailed (joined) bookings on a SET of bookables — the sub-venue scheduler, which
+   * needs the event title per child column and has no org context. */
+  async function bookingsForBookablesDetailed(
+    bookableIds: string[],
+    opts?: { overlapStart?: string; overlapEnd?: string; from?: string; to?: string; excludeCancelled?: boolean; status?: string },
+  ): Promise<BookingDetail[]> {
+    if (!bookableIds.length) return []
+    return await $fetch<BookingDetail[]>('/api/v1/bookings/for-bookables-detailed', {
+      query: {
+        bookableIds: bookableIds.join(','),
+        ...(opts?.overlapStart ? { overlapStart: opts.overlapStart } : {}),
+        ...(opts?.overlapEnd ? { overlapEnd: opts.overlapEnd } : {}),
+        ...(opts?.from ? { from: opts.from } : {}),
+        ...(opts?.to ? { to: opts.to } : {}),
+        ...(opts?.excludeCancelled ? { excludeCancelled: '1' } : {}),
+        ...(opts?.status ? { status: opts.status } : {}),
+      },
+    })
+  }
   async function createBooking(input: BookingCreate): Promise<Booking> {
     return await $fetch<Booking>('/api/v1/bookings', { method: 'POST', body: input })
   }
@@ -232,24 +349,31 @@ export function useBookingsApi() {
   async function setBookingStatus(id: string, status: string): Promise<void> {
     await $fetch(`/api/v1/bookings/${id}`, { method: 'PATCH', body: { status } })
   }
+  /** Full-field booking update (calendar drag = { startAt, endAt }; edit dialog = the rest). */
+  async function updateBooking(id: string, patch: BookingPatch): Promise<Booking> {
+    return await $fetch<Booking>(`/api/v1/bookings/${id}`, { method: 'PATCH', body: patch })
+  }
   async function removeBooking(id: string): Promise<void> {
     await $fetch(`/api/v1/bookings/${id}`, { method: 'DELETE' })
   }
 
   return {
-    bookables, bookable, createBookable, updateBookable, removeBookable,
-    bookableModes,
-    availabilityRules, replaceAvailabilityRules,
+    bookables, bookable, createBookable, updateBookable, removeBookable, bookableChildren,
+    bookableModes, setBookableModes, bookableActivityIds, setBookableActivityIds,
+    bookingWindows, createBookingWindow, updateBookingWindow, removeBookingWindow,
+    availabilityRules, availabilityRulesForBookables, availabilityRulesReplacedBy,
+    replaceAvailabilityRules, createAvailabilityRule, updateAvailabilityRule, removeAvailabilityRule,
     configurations, saveConfiguration, deleteConfiguration,
     bookableDoors, setBookableDoors, bookableLightZones, setBookableLightZones,
     doors, createDoor, updateDoor, removeDoor,
     lightZones, createLightZone, updateLightZone, removeLightZone,
     activities, activity, createActivity, updateActivity, removeActivity,
     activityBookables, bookableActivities, setActivityBookables, addActivityBookables, activityGroups, setActivityGroups,
-    activityModes, activityMode, createActivityMode, updateActivityMode, removeActivityMode,
+    activityModes, activityModesForOrg, activityMode, createActivityMode, updateActivityMode, removeActivityMode,
     modeBookables, setModeBookables, modeResources, setModeResources,
     modeRequiredItems, setModeRequiredItems,
     bookingDiscounts, saveBookingDiscount, removeBookingDiscount,
-    bookings, createBooking, createBookings, setBookingStatus, removeBooking,
+    bookings, booking, bookingsDetailed, bookingsForBookables, bookingsForBookablesDetailed,
+    createBooking, createBookings, setBookingStatus, updateBooking, removeBooking,
   }
 }

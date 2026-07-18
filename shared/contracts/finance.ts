@@ -263,3 +263,43 @@ export const reportPersonSchema = z.object({
 export type ReportPerson = z.infer<typeof reportPersonSchema>
 export const reportPersonListSchema = z.array(reportPersonSchema)
 export const reportPositionsSchema = z.array(z.string())
+
+// ── Xero connection mapping update (Settings → Xero "Finish setup") ──
+// Patch of just the mapping columns (never tokens). orgId scopes the one-per-org row.
+export const xeroConnectionMappingPatchSchema = z.object({
+  orgId: z.string(),
+  bankAccountCode: z.string().nullable().optional(),
+  bankAccountName: z.string().nullable().optional(),
+  taxType: z.string().nullable().optional(),
+  salesAccountCode: z.string().nullable().optional(),
+  feeAccounts: z.any().nullable().optional(),
+})
+export type XeroConnectionMappingPatch = z.infer<typeof xeroConnectionMappingPatchSchema>
+
+// ── Bank accounts (Settings payment defaults) ──
+export const bankAccountSchema = z.object({
+  id: z.string(),
+  orgId: z.string(),
+  name: z.string(),
+  details: z.string().nullable(),
+  isDefault: z.boolean(),
+  sortOrder: z.number().int(),
+})
+export type BankAccount = z.infer<typeof bankAccountSchema>
+export const bankAccountListSchema = z.array(bankAccountSchema)
+
+export const bankAccountCreateSchema = z.object({
+  orgId: z.string(),
+  name: z.string().min(1),
+  details: z.string().nullable().optional(),
+  isDefault: z.boolean().optional(),
+})
+export type BankAccountCreate = z.infer<typeof bankAccountCreateSchema>
+
+export const bankAccountPatchSchema = z.object({
+  orgId: z.string(),
+  name: z.string().min(1).optional(),
+  details: z.string().nullable().optional(),
+  isDefault: z.boolean().optional(),
+})
+export type BankAccountPatch = z.infer<typeof bankAccountPatchSchema>

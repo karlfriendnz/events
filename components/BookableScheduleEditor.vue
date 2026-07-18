@@ -162,9 +162,23 @@
 const props = defineProps<{ bookableId: string; readonly?: boolean }>()
 const emit = defineEmits<{ saved: [] }>()
 
-// TODO seam-gap: booking_windows + booking_window_slots have no /api/v1 seam methods
-// yet — this whole editor stays on useDb until the booking-windows seam lands.
-const db = useDb()
+// Booking windows + their fixed slots via the seam. The editor speaks snake_case;
+// toSnakeWindow maps the seam's camelCase read, and the save handlers build camelCase
+// write bodies.
+const api = useBookingsApi()
+
+function toSnakeWindow(w: any): any {
+  return {
+    id: w.id, bookable_id: w.bookableId, name: w.name, window_type: w.windowType,
+    days_of_week: w.daysOfWeek, start_time: w.startTime, end_time: w.endTime,
+    slot_duration_mins: w.slotDurationMins, buffer_mins: w.bufferMins, capacity: w.capacity,
+    sort_order: w.sortOrder, is_active: w.isActive,
+    slots: (w.slots ?? []).map((s: any) => ({
+      id: s.id, window_id: s.windowId, slot_start: s.slotStart, slot_end: s.slotEnd,
+      capacity: s.capacity, label: s.label, sort_order: s.sortOrder,
+    })),
+  }
+}
 const windows = ref<any[]>([])
 const loading = ref(true)
 const saving = ref(false)
@@ -266,21 +280,21 @@ function openEdit(win: any) {
 async function saveWindow() {
   saving.value = true
   const payload = {
-    bookable_id: props.bookableId,
+    bookableId: props.bookableId,
     name: winForm.value.name,
-    window_type: winForm.value.window_type,
-    days_of_week: winForm.value.days_of_week,
-    start_time: winForm.value.start_time,
-    end_time: winForm.value.end_time,
-    slot_duration_mins: winForm.value.window_type !== 'FIXED' ? winForm.value.slot_duration_mins : null,
-    buffer_mins: winForm.value.buffer_mins,
+    windowType: winForm.value.window_type,
+    daysOfWeek: winForm.value.days_of_week,
+    startTime: winForm.value.start_time,
+    endTime: winForm.value.end_time,
+    slotDurationMins: winForm.value.window_type !== 'FIXED' ? winForm.value.slot_duration_mins : null,
+    bufferMins: winForm.value.buffer_mins,
     capacity: winForm.value.capacity,
-    sort_order: editTarget.value?.sort_order ?? windows.value.length,
+    sortOrder: editTarget.value?.sort_order ?? windows.value.length,
   }
   if (editTarget.value?.id) {
-    await (db.from as any)('booking_windows').update(payload).eq('id', editTarget.value.id)
+    await api.updateBookingWindow(editTarget.value.id, payload)
   } else {
-    await (db.from as any)('booking_windows').insert(payload)
+    await api.createBookingWindow(payload)
   }
   saving.value = false
   showWindowDialog.value = false
@@ -289,14 +303,14 @@ async function saveWindow() {
 }
 
 async function toggleWindow(win: any) {
-  await (db.from as any)('booking_windows').update({ is_active: !win.is_active }).eq('id', win.id)
+  await api.updateBookingWindow(win.id, { isActive: !win.is_active })
   await load()
   emit('saved')
 }
 
 async function deleteWindow(win: any) {
   if (!confirm(`Delete window "${win.name}"?`)) return
-  await (db.from as any)('booking_windows').delete().eq('id', win.id)
+  await api.removeBookingWindow(win.id)
   await load()
   emit('saved')
 }
@@ -318,16 +332,16 @@ function openSlots(win: any) {
 async function saveSlots() {
   if (!slotWindow.value) return
   saving.value = true
-  await (db.from as any)('booking_window_slots').delete().eq('window_id', slotWindow.value.id)
-  const rows = slotForms.value.map((s, i) => ({
-    window_id: slotWindow.value.id,
-    slot_start: s.slot_start,
-    slot_end: s.slot_end,
-    label: s.label || null,
-    capacity: s.capacity ?? 1,
-    sort_order: i,
-  }))
-  if (rows.length) await (db.from as any)('booking_window_slots').insert(rows)
+  // A slots array on the window PATCH replaces the window's fixed slots (delete-then-insert).
+  await api.updateBookingWindow(slotWindow.value.id, {
+    slots: slotForms.value.map((s, i) => ({
+      slotStart: s.slot_start,
+      slotEnd: s.slot_end,
+      label: s.label || null,
+      capacity: s.capacity ?? 1,
+      sortOrder: i,
+    })),
+  })
   saving.value = false
   showSlotsDialog.value = false
   await load()
@@ -336,14 +350,8 @@ async function saveSlots() {
 
 async function load() {
   loading.value = true
-  const { data: wData } = await (db.from as any)('booking_windows')
-    .select('*, slots:booking_window_slots(*)')
-    .eq('bookable_id', props.bookableId)
-    .order('sort_order')
-  windows.value = (wData ?? []).map((w: any) => ({
-    ...w,
-    slots: (w.slots ?? []).sort((a: any, b: any) => a.sort_order - b.sort_order),
-  }))
+  const wins = await api.bookingWindows(props.bookableId)
+  windows.value = wins.map(toSnakeWindow)
   loading.value = false
 }
 

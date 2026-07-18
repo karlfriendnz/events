@@ -10,6 +10,8 @@ import type {
   ClubType,
   SportCategory,
   HelpArticle,
+  HelpArticleCreate,
+  HelpArticlePatch,
   DashboardTemplate,
   PageReviewer,
   BrandCreate,
@@ -42,9 +44,22 @@ export function useAdminApi() {
   async function helpArticles(): Promise<HelpArticle[]> {
     return await $fetch<HelpArticle[]>('/api/v1/help-articles')
   }
+  async function createHelpArticle(input: HelpArticleCreate): Promise<HelpArticle> {
+    return await $fetch<HelpArticle>('/api/v1/help-articles', { method: 'POST', body: input })
+  }
+  async function updateHelpArticle(id: string, patch: HelpArticlePatch): Promise<HelpArticle> {
+    return await $fetch<HelpArticle>(`/api/v1/help-articles/${id}`, { method: 'PATCH', body: patch })
+  }
+  async function removeHelpArticle(id: string): Promise<void> {
+    await $fetch(`/api/v1/help-articles/${id}`, { method: 'DELETE' })
+  }
   /** The per-role dashboard default templates for one org. */
   async function dashboardTemplates(orgId: string): Promise<DashboardTemplate[]> {
     return await $fetch<DashboardTemplate[]>('/api/v1/dashboard-templates', { query: { orgId } })
+  }
+  /** Delete a per-role dashboard template (reverts that role to the standard layout). */
+  async function removeDashboardTemplate(orgId: string, userType: string): Promise<void> {
+    await $fetch('/api/v1/dashboard-templates', { method: 'DELETE', query: { orgId, userType } })
   }
   /** The named reviewers for one org. */
   async function pageReviewers(orgId: string): Promise<PageReviewer[]> {
@@ -155,7 +170,7 @@ export function useAdminApi() {
   }
 
   return {
-    brands, clubTypes, sportCategories, helpArticles, dashboardTemplates, pageReviewers,
+    brands, clubTypes, sportCategories, helpArticles, createHelpArticle, updateHelpArticle, removeHelpArticle, dashboardTemplates, removeDashboardTemplate, pageReviewers,
     createBrand, updateBrand, deleteBrand,
     getClubType, createClubType, updateClubType, deleteClubType, saveClubTypeDefaults, overallDefaultClubTypeId,
     corePermissionGroups, createCorePermissionGroup, updateCorePermissionGroup, deleteCorePermissionGroup, reorderCorePermissionGroups,

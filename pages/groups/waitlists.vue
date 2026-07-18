@@ -12,6 +12,12 @@ const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
 const wl = useWaitlists()
+const groupsApi = useGroupsApi()
+// member_groups → the snake shape this page's group picker reads.
+const toGroupRow = (g: any) => ({
+  id: g.id, name: g.name, color: g.color, waitlist_id: g.waitlistId,
+  code_id: g.codeId, capacity: g.capacity, location_id: g.locationId,
+})
 const tm = useTermsMemberships()
 const finder = useClassFinder()
 const { ensureTerms, t } = useTerms()
@@ -70,16 +76,16 @@ const newName = ref('')
 
 async function load() {
   loading.value = true
-  const [wls, links, cts, { data: groups }, loadedTerms, loadedCodes] = await Promise.all([
+  const [wls, links, cts, groups, loadedTerms, loadedCodes] = await Promise.all([
     wl.loadWaitlists(), wl.loadGroupLinks(), wl.entryCounts(),
-    (db.from as any)('member_groups').select('id, name, color, waitlist_id, code_id, capacity, location_id').eq('org_id', orgId.value).order('name'),
+    groupsApi.list(orgId.value).catch(() => [] as any[]),
     tm.loadTerms(),
     gc.loadCodes(),
   ])
   waitlists.value = wls
   groupLinks.value = links
   counts.value = cts
-  allGroups.value = groups ?? []
+  allGroups.value = (groups ?? []).map(toGroupRow)
   terms.value = loadedTerms ?? []
   codes.value = loadedCodes ?? []
   if (!selected.value && waitlists.value.length) selectedId.value = waitlists.value[0].id
@@ -99,9 +105,9 @@ async function loadConnectedCounts() {
   connectedCounts.value = {}
   const ids = connectedGroups.value.map(g => g.id)
   if (!ids.length) return
-  const { data } = await (db.from as any)('member_group_memberships').select('group_id').in('group_id', ids)
+  const roster = await groupsApi.roster(ids)
   const c: Record<string, number> = {}
-  for (const m of data ?? []) c[m.group_id] = (c[m.group_id] ?? 0) + 1
+  for (const m of roster ?? []) c[m.groupId] = (c[m.groupId] ?? 0) + 1
   connectedCounts.value = c
 }
 // Connected groups that still have room (for the enrol action).
@@ -191,9 +197,8 @@ async function disconnectGroup(groupId: string) {
 // a waitlist shows if ANY of its connected classes is in the lens (or it has none).
 const { activeLocationId: wlLens, inActiveLocation: wlInLens } = useActiveLocation()
 async function reloadGroups() {
-  const { data } = await (db.from as any)('member_groups')
-    .select('id, name, color, waitlist_id, code_id, capacity, location_id').eq('org_id', orgId.value).order('name')
-  allGroups.value = data ?? []
+  const groups = await groupsApi.list(orgId.value).catch(() => [] as any[])
+  allGroups.value = (groups ?? []).map(toGroupRow)
 }
 
 // add a person to the waitlist
@@ -202,6 +207,7 @@ const personResults = ref<any[]>([])
 async function searchPersons(e: { query: string }) {
   const q = (e.query || '').trim()
   if (!q) { personResults.value = []; return }
+  // SEAM GAP (people domain): no person-search seam method yet — kept on useDb.
   const { data } = await (db.from as any)('persons')
     .select('id, first_name, last_name, email')
     .eq('org_id', orgId.value)

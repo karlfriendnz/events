@@ -127,21 +127,27 @@ function formatWhen(startIso: string, endIso: string): string {
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  // bookings has no org_id — scope through the bookable.
-  // TODO seam-gap: bookings list read needs bookable/activity/activity_mode joins (name/location/color)
-  // not exposed by api.bookings() (flat Booking rows only) — left via useDb to preserve display data.
-  const { data } = await (db.from as any)('bookings')
-    .select(`
-      id, status, start_at, end_at, contact_name, contact_email, contact_phone, attendee_count,
-      notes, custom_fields, bookable_id, created_at,
-      bookable:bookables!inner(id, name, location, org_id),
-      activity:activities(name),
-      activity_mode:activity_modes(id, name, color)
-    `)
-    .eq('bookable.org_id', orgId.value)
-    .eq('status', 'PENDING')
-    .order('created_at', { ascending: false })
-  rows.value = data ?? []
+  // The seam scopes bookings through the bookable (no org_id column) and folds in the
+  // display joins (bookable / activity / mode) the pending queue shows. Map its camelCase
+  // BookingDetail back to the snake_case shape this template + the approve/decline
+  // handlers already read.
+  const detailed = await api.bookingsDetailed(orgId.value, { status: 'PENDING' })
+  rows.value = detailed.map(b => ({
+    id: b.id,
+    status: b.status,
+    start_at: b.startAt,
+    end_at: b.endAt,
+    contact_name: b.contactName,
+    contact_email: b.contactEmail,
+    contact_phone: b.contactPhone,
+    attendee_count: b.attendeeCount,
+    notes: b.notes,
+    custom_fields: b.customFields,
+    bookable_id: b.bookableId,
+    bookable: b.bookable ? { id: b.bookable.id, name: b.bookable.name, location: b.bookable.location } : null,
+    activity: b.activity ? { name: b.activity.name } : null,
+    activity_mode: b.activityMode ? { id: b.activityMode.id, name: b.activityMode.name, color: b.activityMode.color } : null,
+  }))
   loading.value = false
 }
 

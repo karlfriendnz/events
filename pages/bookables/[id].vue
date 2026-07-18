@@ -1112,6 +1112,27 @@ async function toggleSectionInheritance(section: string) {
   venue.value = { ...venue.value, customized_sections: next }
 }
 
+// Copy a source bookable's booking windows (+ their fixed slots) onto each target,
+// wiping the target's existing windows first. Via the seam — createBookingWindow takes
+// the slots inline, so one call recreates a window and its slots.
+async function copyBookingWindows(sourceId: string, targetIds: string[]) {
+  const wins = await api.bookingWindows(sourceId)
+  for (const tid of targetIds) {
+    const existing = await api.bookingWindows(tid)
+    for (const w of existing) await api.removeBookingWindow(w.id)
+    for (const w of wins) {
+      await api.createBookingWindow({
+        bookableId: tid, name: w.name, windowType: w.windowType, daysOfWeek: w.daysOfWeek,
+        startTime: w.startTime, endTime: w.endTime, slotDurationMins: w.slotDurationMins,
+        bufferMins: w.bufferMins, capacity: w.capacity, sortOrder: w.sortOrder, isActive: w.isActive,
+        slots: w.slots.map(s => ({
+          slotStart: s.slotStart, slotEnd: s.slotEnd, capacity: s.capacity, label: s.label, sortOrder: s.sortOrder,
+        })),
+      })
+    }
+  }
+}
+
 async function pullSectionFromMaster(section: string) {
   if (!venue.value?.master_id) return
   const masterId = venue.value.master_id
@@ -1125,23 +1146,9 @@ async function pullSectionFromMaster(section: string) {
   }
 
   if (section === 'schedule') {
-    // TODO seam-gap: booking_windows/booking_window_slots — no seam method yet
-    const { data: wins } = await (db.from as any)('booking_windows').select('*, booking_window_slots(*)').eq('bookable_id', masterId)
-    await (db.from as any)('booking_windows').delete().eq('bookable_id', id)
-    if (wins?.length) {
-      const { data: newWins } = await (db.from as any)('booking_windows')
-        .insert(wins.map(({ id: _, bookable_id: __, created_at: ___, booking_window_slots: ____, ...rest }: any) => ({ ...rest, bookable_id: id })))
-        .select()
-      if (newWins) {
-        const slotRows: any[] = []
-        newWins.forEach((nw: any, i: number) => {
-          ;(wins[i].booking_window_slots ?? []).forEach((s: any) => {
-            slotRows.push({ window_id: nw.id, slot_start: s.slot_start, slot_end: s.slot_end, capacity: s.capacity, label: s.label, sort_order: s.sort_order })
-          })
-        })
-        if (slotRows.length) await (db.from as any)('booking_window_slots').insert(slotRows)
-      }
-    }
+    // Copy the master's booking windows (+ their fixed slots) onto this venue via the
+    // seam: wipe this venue's windows, then recreate each master window (slots inline).
+    await copyBookingWindows(masterId, [id])
   }
 
   if (section === 'sub-venues') {
@@ -1191,25 +1198,8 @@ async function propagateSection(section: string, targetIds: string[]) {
   if (!targetIds.length) return
 
   if (section === 'schedule') {
-    // TODO seam-gap: booking_windows/booking_window_slots — no seam method yet
-    const { data: wins } = await (db.from as any)('booking_windows').select('*, booking_window_slots(*)').eq('bookable_id', id)
-    for (const tid of targetIds) {
-      await (db.from as any)('booking_windows').delete().eq('bookable_id', tid)
-      if (wins?.length) {
-        const { data: newWins } = await (db.from as any)('booking_windows')
-          .insert(wins.map(({ id: _, bookable_id: __, created_at: ___, booking_window_slots: ____, ...rest }: any) => ({ ...rest, bookable_id: tid })))
-          .select()
-        if (newWins) {
-          const slotRows: any[] = []
-          newWins.forEach((nw: any, i: number) => {
-            ;(wins[i].booking_window_slots ?? []).forEach((s: any) => {
-              slotRows.push({ window_id: nw.id, slot_start: s.slot_start, slot_end: s.slot_end, capacity: s.capacity, label: s.label, sort_order: s.sort_order })
-            })
-          })
-          if (slotRows.length) await (db.from as any)('booking_window_slots').insert(slotRows)
-        }
-      }
-    }
+    // Copy this master's booking windows (+ slots) onto every linked target via the seam.
+    await copyBookingWindows(id, targetIds)
   }
 
   if (section === 'sub-venues') {
@@ -1633,9 +1623,10 @@ async function loadEditBookingOptions() {
   venueActivities.value = acts
     .filter(a => a.status === 'ACTIVE')
     .sort((a, b) => a.name.localeCompare(b.name))
-  // The seam reads modes per-activity (no org-wide bulk method) — fan out.
-  const modeArrays = await Promise.all(acts.map(a => api.activityModes(a.id)))
-  venueActivityModes.value = modeArrays.flat().map((m: any) => ({
+  // One org-wide modes read (no per-activity fan-out) so a booking on an inactive
+  // activity still resolves its mode name/colour.
+  const allModes = await api.activityModesForOrg(orgId.value)
+  venueActivityModes.value = allModes.map((m: any) => ({
     id: m.id, activity_id: m.activityId, name: m.name, color: m.color,
     form_id: m.formId, custom_fields: m.customFields ?? [],
   }))
@@ -1673,22 +1664,20 @@ async function saveEditBooking() {
   if (!editingBooking.value?.id) return
   savingEdit.value = true
   try {
-    // TODO seam-gap: full-field booking update — the seam only exposes
-    // setBookingStatus(id, status); no PATCH for start/end/contacts/activity/etc.
-    await db.from('bookings').update({
+    await api.updateBooking(editingBooking.value.id, {
       status: editForm.status,
-      start_at: editForm.start_at?.toISOString(),
-      end_at: editForm.end_at?.toISOString(),
+      startAt: editForm.start_at?.toISOString(),
+      endAt: editForm.end_at?.toISOString(),
       notes: editForm.notes || null,
-      contact_name:  editForm.contact_name  || null,
-      contact_email: editForm.contact_email || null,
-      contact_phone: editForm.contact_phone || null,
-      attendee_count: editForm.attendee_count ?? null,
-      activity_id: editForm.activity_id ?? null,
-      activity_mode_id: editForm.activity_mode_id ?? null,
-      bookable_id: editForm.bookable_id ?? id,
-      custom_fields: editForm.custom_fields ?? {},
-    }).eq('id', editingBooking.value.id)
+      contactName:  editForm.contact_name  || null,
+      contactEmail: editForm.contact_email || null,
+      contactPhone: editForm.contact_phone || null,
+      attendeeCount: editForm.attendee_count ?? null,
+      activityId: editForm.activity_id ?? null,
+      activityModeId: editForm.activity_mode_id ?? null,
+      bookableId: editForm.bookable_id ?? id,
+      customFields: editForm.custom_fields ?? {},
+    })
     showEditDialog.value = false
     await loadBookings()
     toast.add({ severity: 'success', summary: 'Booking updated', life: 2000 })
@@ -2219,20 +2208,18 @@ onMounted(async () => {
   // fetch that booking and pop the edit modal automatically.
   const bookingId = route.query.booking as string | undefined
   if (bookingId) {
-    // TODO seam-gap: single booking by id WITH joins (event / activity_mode /
-    // bookable) — the seam has bookings(orgId) list + status/delete only, no
-    // by-id read and no joined shape the edit dialog needs.
-    const { data } = await (db.from as any)('bookings')
-      .select(`
-        id, status, start_at, end_at, contact_name, contact_email, contact_phone,
-        attendee_count, notes, custom_fields, bookable_id, activity_id, activity_mode_id, type,
-        event:events(id, title),
-        activity_mode:activity_modes(id, name, color),
-        bookable:bookables(id, name, location)
-      `)
-      .eq('id', bookingId)
-      .maybeSingle()
-    if (data) openEditBooking(data)
+    // Single booking by id WITH its display joins, via the seam; map camelCase → the
+    // snake_case shape openEditBooking reads.
+    const b = await api.booking(bookingId).catch(() => null)
+    if (b) openEditBooking({
+      id: b.id, status: b.status, start_at: b.startAt, end_at: b.endAt,
+      contact_name: b.contactName, contact_email: b.contactEmail, contact_phone: b.contactPhone,
+      attendee_count: b.attendeeCount, notes: b.notes, custom_fields: b.customFields,
+      bookable_id: b.bookableId, activity_id: b.activityId, activity_mode_id: b.activityModeId, type: b.type,
+      event: b.event ? { id: b.event.id, title: b.event.title } : null,
+      activity_mode: b.activityMode ? { id: b.activityMode.id, name: b.activityMode.name, color: b.activityMode.color } : null,
+      bookable: b.bookable ? { id: b.bookable.id, name: b.bookable.name, location: b.bookable.location } : null,
+    })
   }
 })
 

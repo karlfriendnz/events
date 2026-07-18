@@ -20,8 +20,6 @@ export interface ClubPerson {
 }
 
 export function useCrossClubMembers() {
-  // useDb retained for ONE write only — savePullMode (see the CROSS-DOMAIN GAP note there).
-  const db = useDb()
   const { loadAllOrgs, descendantClubs } = useOrgManagers()
   const peopleApi = usePeopleApi()
   const groupsApi = useGroupsApi()
@@ -32,11 +30,7 @@ export function useCrossClubMembers() {
     return s?.memberPullMode === 'copy' ? 'copy' : 'reference'
   }
   async function savePullMode(orgId: string, mode: PullMode): Promise<void> {
-    // CROSS-DOMAIN GAP (organisations): no seam route writes organisations.member_pull_mode
-    // — organisationPatch omits it. Left on useDb until the organisations domain exposes a
-    // setMemberPullMode (or widens the patch). The READ side is already on the seam
-    // (getSettings().memberPullMode), so only this one write remains.
-    await (db.from as any)('organisations').update({ member_pull_mode: mode }).eq('id', orgId)
+    await orgsApi.setMemberPullMode(orgId, mode)
   }
 
   /** Descendant CLUB orgs of a governing org (id + name). */

@@ -10,7 +10,7 @@
 const { orgId } = useOrg()
 const toast = useToast()
 const { resolveFields, resolvePersonTypes, fieldAppliesTo } = useOrgFieldPolicy()
-const { createField, updateField } = usePersonTypesApi()
+const { createField: apiCreateField, updateField } = usePersonTypesApi()
 
 const loading = ref(true)
 const fields = ref<any[]>([])
@@ -34,7 +34,7 @@ async function createField() {
   creating.value = true
   const opts = draft.field_type === 'select' ? draft.options.split('\n').map(o => o.trim()).filter(Boolean) : []
   try {
-    await createField({
+    await apiCreateField({
       orgId: orgId.value, label: draft.label.trim(), fieldType: draft.field_type,
       target: draft.targets[0], targets: draft.targets, isRequired: false, options: opts,
       meta: { col_span: 1 }, rules: [], sortOrder: fields.value.length,

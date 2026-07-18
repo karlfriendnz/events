@@ -10,7 +10,7 @@
 // `asArray` / `asObj` / `asJson` helpers normalise either form (and never throw), so
 // the domain always sees a real JS array / object / value.
 import { randomUUID } from 'node:crypto'
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   MemberGroup,
@@ -1245,4 +1245,509 @@ export async function moveMembership(input: {
         eq(schema.memberGroupMemberships.personId, input.personId),
       ),
     )
+}
+
+// ── Schedules: id-preserving sync ──
+// Unlike saveSchedules (delete-then-insert with FRESH ids, which orphans every
+// events.member_group_schedule_id link), this UPDATES existing rows in place by id,
+// INSERTS the rows with no id, and DELETES only the rows the caller dropped — so a
+// training event linked to a schedule stays attached across a time/location edit.
+// A row with an id is treated as existing; a row with a null/absent id is fresh.
+// location is a RAW json LocationEntry. Returns the group's schedules ordered by
+// day then start time (matching the group page's re-read).
+export interface ScheduleSyncRow {
+  id?: string | null
+  name?: string | null
+  dayOfWeek: number
+  startTime: string
+  endTime: string
+  location?: any
+  sortOrder?: number | null
+}
+export async function syncSchedules(
+  orgId: string,
+  groupId: string,
+  rows: ScheduleSyncRow[],
+): Promise<MemberGroupSchedule[]> {
+  const existing = rows.filter((r) => r.id)
+  const fresh = rows.filter((r) => !r.id)
+  const keepIds = existing.map((r) => r.id!) as string[]
+  // Delete rows the caller removed. When nothing is kept, clear the group's rows.
+  if (keepIds.length) {
+    const all = await db
+      .select({ id: schema.memberGroupSchedules.id })
+      .from(schema.memberGroupSchedules)
+      .where(eq(schema.memberGroupSchedules.groupId, groupId))
+    const drop = all.map((r) => r.id).filter((id) => !keepIds.includes(id))
+    for (const id of drop)
+      await db.delete(schema.memberGroupSchedules).where(eq(schema.memberGroupSchedules.id, id))
+  } else {
+    await db.delete(schema.memberGroupSchedules).where(eq(schema.memberGroupSchedules.groupId, groupId))
+  }
+  // Update existing rows in place — the id is preserved, so linked events stay attached.
+  for (let i = 0; i < existing.length; i++) {
+    const r = existing[i]
+    await db
+      .update(schema.memberGroupSchedules)
+      .set({
+        name: r.name?.trim() || null,
+        dayOfWeek: r.dayOfWeek,
+        startTime: r.startTime,
+        endTime: r.endTime,
+        location: r.location ?? {},
+        sortOrder: r.sortOrder ?? i,
+      })
+      .where(eq(schema.memberGroupSchedules.id, r.id!))
+  }
+  // Insert fresh rows with a repo-owned id.
+  for (let i = 0; i < fresh.length; i++) {
+    const r = fresh[i]
+    await db.insert(schema.memberGroupSchedules).values({
+      id: randomUUID(),
+      orgId,
+      groupId,
+      name: r.name?.trim() || null,
+      dayOfWeek: r.dayOfWeek,
+      startTime: r.startTime,
+      endTime: r.endTime,
+      location: r.location ?? {},
+      sortOrder: r.sortOrder ?? existing.length + i,
+    } as any)
+  }
+  const out = await db
+    .select()
+    .from(schema.memberGroupSchedules)
+    .where(eq(schema.memberGroupSchedules.groupId, groupId))
+    .orderBy(asc(schema.memberGroupSchedules.dayOfWeek), asc(schema.memberGroupSchedules.startTime))
+  return out.map(toSchedule)
+}
+
+// The roster of a set of groups with the FULL person projection the discipline-flag
+// evaluator needs: dob/gender + custom_fields + person_types + the legacy singular
+// person_type. Distinct from listMembershipsWithPersonForGroups (allocator; no custom
+// fields). member_group_memberships has no org_id; the caller passes trusted group ids.
+export interface RosterMembershipWithPerson {
+  roles: string[]
+  role: string | null
+  positions: string[]
+  subGroupId: string | null
+  person: {
+    id: string
+    firstName: string | null
+    lastName: string | null
+    email: string | null
+    phone: string | null
+    dob: string | null
+    gender: string | null
+    customFields: Record<string, any>
+    personTypes: string[]
+    personType: string | null
+  } | null
+}
+export async function listMembershipsRosterWithPerson(
+  groupIds: string[],
+): Promise<RosterMembershipWithPerson[]> {
+  if (groupIds.length === 0) return []
+  const rows = await db
+    .select({
+      roles: schema.memberGroupMemberships.roles,
+      role: schema.memberGroupMemberships.role,
+      positions: schema.memberGroupMemberships.positions,
+      subGroupId: schema.memberGroupMemberships.subGroupId,
+      pid: schema.persons.id,
+      firstName: schema.persons.firstName,
+      lastName: schema.persons.lastName,
+      email: schema.persons.email,
+      phone: schema.persons.phone,
+      dob: schema.persons.dob,
+      gender: schema.persons.gender,
+      customFields: schema.persons.customFields,
+      personTypes: schema.persons.personTypes,
+      personType: schema.persons.personType,
+    })
+    .from(schema.memberGroupMemberships)
+    .innerJoin(schema.persons, eq(schema.memberGroupMemberships.personId, schema.persons.id))
+    .where(inArray(schema.memberGroupMemberships.groupId, groupIds))
+  return rows.map((r) => ({
+    roles: asArray(r.roles),
+    role: r.role ?? null,
+    positions: asArray(r.positions),
+    subGroupId: r.subGroupId ?? null,
+    person: {
+      id: r.pid,
+      firstName: r.firstName ?? null,
+      lastName: r.lastName ?? null,
+      email: r.email ?? null,
+      phone: r.phone ?? null,
+      dob: r.dob ? String(r.dob).slice(0, 10) : null,
+      gender: r.gender ?? null,
+      customFields: asObj(r.customFields),
+      personTypes: asArray(r.personTypes),
+      personType: r.personType ?? null,
+    },
+  }))
+}
+
+// Per-term fee link + membership-plan connections for a group (member_group_terms +
+// member_group_plans), delete-then-insert. The group's own term_id/term_fee live on
+// member_groups (written via updateGroup) — this keeps the two link tables in sync so
+// the enrol picker + read-side card keep working.
+export async function saveGroupBilling(
+  groupId: string,
+  input: { termId: string | null; fee: string | number | null; planIds: string[] },
+): Promise<void> {
+  await db.delete(schema.memberGroupTerms).where(eq(schema.memberGroupTerms.groupId, groupId))
+  await db.delete(schema.memberGroupPlans).where(eq(schema.memberGroupPlans.groupId, groupId))
+  if (input.termId) {
+    await db.insert(schema.memberGroupTerms).values({
+      id: randomUUID(),
+      groupId,
+      termId: input.termId,
+      fee: input.fee ?? null,
+    } as any)
+  }
+  for (const planId of input.planIds ?? []) {
+    await db.insert(schema.memberGroupPlans).values({ id: randomUUID(), groupId, planId } as any)
+  }
+}
+
+// ── Code staff roles (mig 213) ──
+// code_role_defs (role definitions per code lineage; a null lineage = an org-wide
+// default) + code_staff (who holds each role). groups.ts is already the writer of
+// these two tables (see deleteCode, which cleans a deleted code's lineage config), so
+// their CRUD lives here. The output shape (camelCase, plus a person projection on
+// staff) is what the useCodeRoles composable consumes. NB the roles seam also exposes
+// READ-ONLY listCodeRoleDefs/listCodeStaff for its own screens — these are the
+// groups-owned write surface + a person-hydrated staff read.
+export interface CodeRoleDefRow {
+  id: string
+  orgId: string
+  codeLineageId: string | null
+  key: string
+  label: string
+  capabilities: string[]
+  sortOrder: number | null
+}
+function toCodeRoleDefRow(r: typeof schema.codeRoleDefs.$inferSelect): CodeRoleDefRow {
+  return {
+    id: r.id,
+    orgId: r.orgId,
+    codeLineageId: r.codeLineageId ?? null,
+    key: r.key,
+    label: r.label,
+    capabilities: asArray(r.capabilities),
+    sortOrder: r.sortOrder ?? null,
+  }
+}
+export async function listCodeRoleDefs(orgId: string): Promise<CodeRoleDefRow[]> {
+  const rows = await db
+    .select()
+    .from(schema.codeRoleDefs)
+    .where(eq(schema.codeRoleDefs.orgId, orgId))
+    .orderBy(asc(schema.codeRoleDefs.sortOrder))
+  return rows.map(toCodeRoleDefRow)
+}
+// Seed the org-wide default roles (code_lineage_id null) once — only when none exist.
+// Returns the (re)loaded defs so the caller has their ids.
+export interface CodeRoleSeed {
+  key: string
+  label: string
+  capabilities: string[]
+}
+export async function ensureDefaultCodeRoles(
+  orgId: string,
+  defaults: CodeRoleSeed[],
+): Promise<CodeRoleDefRow[]> {
+  const defs = await listCodeRoleDefs(orgId)
+  if (defs.some((d) => d.codeLineageId == null)) return defs
+  for (let i = 0; i < defaults.length; i++) {
+    const r = defaults[i]
+    await db.insert(schema.codeRoleDefs).values({
+      id: randomUUID(),
+      orgId,
+      codeLineageId: null,
+      key: r.key,
+      label: r.label,
+      capabilities: r.capabilities ?? [],
+      sortOrder: i,
+    } as any)
+  }
+  return listCodeRoleDefs(orgId)
+}
+// Replace the roles of ONE scope (a code lineage, or null for the org defaults) —
+// delete-then-insert scoped so it never clobbers another scope. org-scoped WHERE.
+export interface CodeRoleInput {
+  key: string
+  label: string
+  capabilities: string[]
+}
+export async function saveCodeRoleDefsForScope(
+  orgId: string,
+  codeLineageId: string | null,
+  roles: CodeRoleInput[],
+): Promise<void> {
+  const where =
+    codeLineageId == null
+      ? and(eq(schema.codeRoleDefs.orgId, orgId), isNull(schema.codeRoleDefs.codeLineageId))
+      : and(eq(schema.codeRoleDefs.orgId, orgId), eq(schema.codeRoleDefs.codeLineageId, codeLineageId))
+  await db.delete(schema.codeRoleDefs).where(where)
+  for (let i = 0; i < roles.length; i++) {
+    const r = roles[i]
+    await db.insert(schema.codeRoleDefs).values({
+      id: randomUUID(),
+      orgId,
+      codeLineageId,
+      key: r.key,
+      label: r.label,
+      capabilities: r.capabilities ?? [],
+      sortOrder: i,
+    } as any)
+  }
+}
+export interface CodeStaffWithPerson {
+  id: string
+  codeLineageId: string
+  personId: string
+  roleKey: string
+  person: { id: string; firstName: string | null; lastName: string | null; email: string | null } | null
+}
+export async function listCodeStaffWithPerson(orgId: string): Promise<CodeStaffWithPerson[]> {
+  const rows = await db
+    .select({
+      id: schema.codeStaff.id,
+      codeLineageId: schema.codeStaff.codeLineageId,
+      personId: schema.codeStaff.personId,
+      roleKey: schema.codeStaff.roleKey,
+      pid: schema.persons.id,
+      firstName: schema.persons.firstName,
+      lastName: schema.persons.lastName,
+      email: schema.persons.email,
+    })
+    .from(schema.codeStaff)
+    .innerJoin(schema.persons, eq(schema.codeStaff.personId, schema.persons.id))
+    .where(eq(schema.codeStaff.orgId, orgId))
+  return rows.map((r) => ({
+    id: r.id,
+    codeLineageId: r.codeLineageId,
+    personId: r.personId,
+    roleKey: r.roleKey,
+    person: { id: r.pid, firstName: r.firstName ?? null, lastName: r.lastName ?? null, email: r.email ?? null },
+  }))
+}
+// Assign a person to a code-lineage role — idempotent on the (lineage, person, role)
+// triple, so re-assigning never writes a duplicate row.
+export async function assignCodeStaff(
+  orgId: string,
+  codeLineageId: string,
+  personId: string,
+  roleKey: string,
+): Promise<void> {
+  const [dup] = await db
+    .select({ id: schema.codeStaff.id })
+    .from(schema.codeStaff)
+    .where(
+      and(
+        eq(schema.codeStaff.codeLineageId, codeLineageId),
+        eq(schema.codeStaff.personId, personId),
+        eq(schema.codeStaff.roleKey, roleKey),
+      ),
+    )
+    .limit(1)
+  if (dup) return
+  await db.insert(schema.codeStaff).values({ id: randomUUID(), orgId, codeLineageId, personId, roleKey } as any)
+}
+export async function removeCodeStaff(id: string): Promise<void> {
+  await db.delete(schema.codeStaff).where(eq(schema.codeStaff.id, id))
+}
+
+// ── Waitlists: entries + group links (mig 221) ──
+// groups.ts already writes the waitlist tables (see rollOverWaitlistsFor); the entry
+// CRUD, the member_groups.waitlist_id link management and the enrol-off-the-waitlist
+// action live here alongside the group memberships they touch. The waitlists seam owns
+// the waitlist ROW read/CRUD; these are the pieces that cross into groups/persons.
+export interface WaitlistEntryWithPerson {
+  id: string
+  waitlistId: string
+  personId: string
+  status: string
+  notes: string | null
+  sortOrder: number
+  priority: number
+  createdAt: string | null
+  person: {
+    id: string
+    firstName: string | null
+    lastName: string | null
+    email: string | null
+    phone: string | null
+    dob: string | null
+  } | null
+}
+export async function listWaitlistEntriesWithPerson(waitlistId: string): Promise<WaitlistEntryWithPerson[]> {
+  const rows = await db
+    .select({
+      id: schema.waitlistEntries.id,
+      waitlistId: schema.waitlistEntries.waitlistId,
+      personId: schema.waitlistEntries.personId,
+      status: schema.waitlistEntries.status,
+      notes: schema.waitlistEntries.notes,
+      sortOrder: schema.waitlistEntries.sortOrder,
+      priority: schema.waitlistEntries.priority,
+      createdAt: schema.waitlistEntries.createdAt,
+      pid: schema.persons.id,
+      firstName: schema.persons.firstName,
+      lastName: schema.persons.lastName,
+      email: schema.persons.email,
+      phone: schema.persons.phone,
+      dob: schema.persons.dob,
+    })
+    .from(schema.waitlistEntries)
+    .innerJoin(schema.persons, eq(schema.waitlistEntries.personId, schema.persons.id))
+    .where(eq(schema.waitlistEntries.waitlistId, waitlistId))
+    .orderBy(asc(schema.waitlistEntries.sortOrder), asc(schema.waitlistEntries.createdAt))
+  return rows.map((r) => ({
+    id: r.id,
+    waitlistId: r.waitlistId,
+    personId: r.personId,
+    status: r.status,
+    notes: r.notes ?? null,
+    sortOrder: r.sortOrder,
+    priority: r.priority,
+    createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : (r.createdAt ?? null),
+    person: {
+      id: r.pid,
+      firstName: r.firstName ?? null,
+      lastName: r.lastName ?? null,
+      email: r.email ?? null,
+      phone: r.phone ?? null,
+      dob: r.dob ? String(r.dob).slice(0, 10) : null,
+    },
+  }))
+}
+// Waiting+contacted counts per waitlist for the org (the board's "N waiting" badge).
+export async function waitlistEntryCounts(orgId: string): Promise<Record<string, number>> {
+  const rows = await db
+    .select({ waitlistId: schema.waitlistEntries.waitlistId, status: schema.waitlistEntries.status })
+    .from(schema.waitlistEntries)
+    .where(eq(schema.waitlistEntries.orgId, orgId))
+  const out: Record<string, number> = {}
+  for (const e of rows)
+    if (e.status === 'waiting' || e.status === 'contacted') out[e.waitlistId] = (out[e.waitlistId] ?? 0) + 1
+  return out
+}
+export async function addWaitlistEntry(
+  orgId: string,
+  waitlistId: string,
+  personId: string,
+  sortOrder = 0,
+  notes?: string | null,
+): Promise<void> {
+  await db.insert(schema.waitlistEntries).values({
+    id: randomUUID(),
+    orgId,
+    waitlistId,
+    personId,
+    status: 'waiting',
+    priority: 2,
+    sortOrder,
+    notes: notes || null,
+  } as any)
+}
+export interface WaitlistEntryPatch {
+  status?: string
+  notes?: string | null
+  sortOrder?: number
+  priority?: number
+}
+export async function updateWaitlistEntry(id: string, patch: WaitlistEntryPatch): Promise<void> {
+  const set: Record<string, any> = {}
+  if (patch.status !== undefined) set.status = patch.status
+  if (patch.notes !== undefined) set.notes = patch.notes
+  if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
+  if (patch.priority !== undefined) set.priority = patch.priority
+  if (Object.keys(set).length)
+    await db.update(schema.waitlistEntries).set(set).where(eq(schema.waitlistEntries.id, id))
+}
+export async function removeWaitlistEntry(id: string): Promise<void> {
+  await db.delete(schema.waitlistEntries).where(eq(schema.waitlistEntries.id, id))
+}
+export async function reorderWaitlistEntries(ids: string[]): Promise<void> {
+  for (let i = 0; i < ids.length; i++)
+    await db.update(schema.waitlistEntries).set({ sortOrder: i }).where(eq(schema.waitlistEntries.id, ids[i]))
+}
+// How many groups each of these people is currently a member of (waitlist screen).
+export async function enrolledGroupCounts(personIds: string[]): Promise<Record<string, number>> {
+  if (!personIds.length) return {}
+  const rows = await db
+    .select({ personId: schema.memberGroupMemberships.personId })
+    .from(schema.memberGroupMemberships)
+    .where(inArray(schema.memberGroupMemberships.personId, personIds))
+  const out: Record<string, number> = {}
+  for (const m of rows) out[m.personId] = (out[m.personId] ?? 0) + 1
+  return out
+}
+// Enrol a waitlisted person INTO a group (get them off the queue): insert the
+// membership (SKIP if one exists — never overwrite) then delete the waitlist entry.
+export async function enrolFromWaitlist(
+  entryId: string,
+  groupId: string,
+  personId: string,
+  positions: string[] = [],
+): Promise<void> {
+  const [existing] = await db
+    .select({ personId: schema.memberGroupMemberships.personId })
+    .from(schema.memberGroupMemberships)
+    .where(
+      and(
+        eq(schema.memberGroupMemberships.groupId, groupId),
+        eq(schema.memberGroupMemberships.personId, personId),
+      ),
+    )
+    .limit(1)
+  if (!existing) {
+    await db.insert(schema.memberGroupMemberships).values({
+      groupId,
+      personId,
+      role: null,
+      roles: [],
+      positions,
+    } as any)
+  }
+  await db.delete(schema.waitlistEntries).where(eq(schema.waitlistEntries.id, entryId))
+}
+// Which groups are connected to each waitlist (member_groups.waitlist_id), for the org.
+export interface WaitlistGroupLink {
+  id: string
+  name: string
+  color: string | null
+  waitlistId: string
+}
+export async function listWaitlistGroupLinks(orgId: string): Promise<WaitlistGroupLink[]> {
+  const rows = await db
+    .select({
+      id: schema.memberGroups.id,
+      name: schema.memberGroups.name,
+      color: schema.memberGroups.color,
+      waitlistId: schema.memberGroups.waitlistId,
+    })
+    .from(schema.memberGroups)
+    .where(eq(schema.memberGroups.orgId, orgId))
+  return rows
+    .filter((r) => r.waitlistId)
+    .map((r) => ({ id: r.id, name: r.name, color: r.color ?? null, waitlistId: r.waitlistId! }))
+}
+// Set exactly which groups a waitlist holds: connect the chosen, disconnect the rest.
+export async function setWaitlistGroups(waitlistId: string, groupIds: string[]): Promise<void> {
+  if (groupIds.length)
+    await db.update(schema.memberGroups).set({ waitlistId }).where(inArray(schema.memberGroups.id, groupIds))
+  const current = await db
+    .select({ id: schema.memberGroups.id })
+    .from(schema.memberGroups)
+    .where(eq(schema.memberGroups.waitlistId, waitlistId))
+  const drop = current.map((g) => g.id).filter((id) => !groupIds.includes(id))
+  if (drop.length)
+    await db.update(schema.memberGroups).set({ waitlistId: null }).where(inArray(schema.memberGroups.id, drop))
+}
+export async function connectGroupToWaitlist(groupId: string, waitlistId: string | null): Promise<void> {
+  await db.update(schema.memberGroups).set({ waitlistId }).where(eq(schema.memberGroups.id, groupId))
 }

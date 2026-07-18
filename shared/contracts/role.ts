@@ -46,6 +46,7 @@ export const permissionGroupSchema = z.object({
   id: z.string(),
   orgId: z.string().nullable(),
   name: z.string(),
+  description: z.string().nullable(),
   isCore: z.boolean(),
   sourceGroupId: z.string().nullable(),
   grants: z.record(z.string(), z.any()),
@@ -54,6 +55,42 @@ export const permissionGroupSchema = z.object({
 export type PermissionGroup = z.infer<typeof permissionGroupSchema>
 
 export const permissionGroupListSchema = z.array(permissionGroupSchema)
+
+// A club creates its OWN permission groups (is_core false). `sourceGroupId` set = an
+// override of a core template; unset = a pure-local group. `grants` is the access map.
+export const permissionGroupCreateSchema = z.object({
+  orgId: z.string(),
+  name: z.string().min(1),
+  description: z.string().nullable().optional(),
+  grants: z.record(z.string(), z.any()).optional(),
+  sourceGroupId: z.string().nullable().optional(),
+})
+export type PermissionGroupCreate = z.infer<typeof permissionGroupCreateSchema>
+
+// Partial update of a club group. orgId tenant-scopes the WHERE (a core template,
+// org_id null, can never be hit).
+export const permissionGroupPatchSchema = z.object({
+  orgId: z.string(),
+  name: z.string().min(1).optional(),
+  description: z.string().nullable().optional(),
+  grants: z.record(z.string(), z.any()).optional(),
+})
+export type PermissionGroupPatch = z.infer<typeof permissionGroupPatchSchema>
+
+// A single membership edge (group → person), for the per-group roster read.
+export const permissionGroupMemberSchema = z.object({
+  groupId: z.string(),
+  personId: z.string(),
+})
+export type PermissionGroupMember = z.infer<typeof permissionGroupMemberSchema>
+export const permissionGroupMemberListSchema = z.array(permissionGroupMemberSchema)
+
+// Replace a group's whole membership. orgId tenant-scopes which group can be written.
+export const permissionGroupMembersSetSchema = z.object({
+  orgId: z.string(),
+  personIds: z.array(z.string()),
+})
+export type PermissionGroupMembersSet = z.infer<typeof permissionGroupMembersSetSchema>
 
 // A staff-role definition scoped to a group CODE's lineage (survives rename + term
 // rollover). `codeLineageId` null = an org-wide default role; `orgId` scopes the

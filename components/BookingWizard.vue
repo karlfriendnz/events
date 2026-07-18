@@ -1274,14 +1274,8 @@ async function resolveModeVenue(): Promise<string | null | '__NONE_AVAILABLE__'>
   const endIso = booking.endAt.toISOString()
   // Pull every overlapping booking on the candidate venues in one query
   // and resolve locally — cheaper than N queries for a small candidate set.
-  // TODO seam-gap: needs a bookable_id-IN + start/end window server filter (api.bookings has none) — kept on the supabase client
-  const { data } = await (db.from as any)('bookings')
-    .select('bookable_id')
-    .in('bookable_id', candidates)
-    .lt('start_at', endIso)
-    .gt('end_at', startIso)
-    .neq('status', 'CANCELLED')
-  const taken = new Set((data ?? []).map((r: any) => r.bookable_id))
+  const overlapping = await api.bookingsForBookables(candidates, { overlapStart: startIso, overlapEnd: endIso, excludeCancelled: true })
+  const taken = new Set(overlapping.map(r => r.bookableId))
   const free = candidates.find(id => !taken.has(id))
   return free ?? '__NONE_AVAILABLE__'
 }
@@ -2232,14 +2226,8 @@ async function checkCapacityViolation(): Promise<string | null> {
   const rulesRaw = await api.availabilityRules(booking.bookableId)
   const capRules = (rulesRaw ?? []).filter((r: any) => r.maxConcurrent != null && r.maxConcurrent > 0)
   if (!capRules.length) return null
-  // TODO seam-gap: overlap count needs a bookable_id + start/end window server filter (api.bookings has none) — kept on the supabase client
-  const { data: overlaps } = await (db.from as any)('bookings')
-    .select('id')
-    .eq('bookable_id', booking.bookableId)
-    .neq('status', 'CANCELLED')
-    .lt('start_at', endIso)
-    .gt('end_at', startIso)
-  const count = overlaps?.length ?? 0
+  const overlaps = await api.bookingsForBookables([booking.bookableId], { overlapStart: startIso, overlapEnd: endIso, excludeCancelled: true })
+  const count = overlaps.length
   for (const rule of capRules) {
     if (count >= rule.maxConcurrent) {
       return `This slot is at capacity (${count}/${rule.maxConcurrent} bookings). Choose a different time.`

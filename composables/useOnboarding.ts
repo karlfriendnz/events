@@ -47,14 +47,13 @@ export const ONBOARDING_STEPS: OnboardingStepDef[] = [
 ]
 
 export function useOnboarding() {
-  // SEAM GAP: loadState/saveState read+write organisations.onboarding (jsonb) — the
-  // organisations repo (SETTINGS domain) owns that column and doesn't yet expose an
-  // onboarding get/set route. detect() additionally COUNTS across seven other domains'
-  // tables (person_target_types, org_terms, group_codes, member_groups, group_fee_options,
-  // registration_forms, persons) — a cross-domain aggregate with no single owner. Left on
-  // useDb until settings adds an onboarding route + a counts endpoint (or each domain
-  // exposes a count). Guarded: a null org / failed read just shows the checklist un-ticked.
+  // The onboarding STATE (organisations.onboarding jsonb) is on the seam. detect()
+  // still uses useDb: it COUNTS across seven other domains' tables (person_target_types,
+  // org_terms, group_codes, member_groups, group_fee_options, registration_forms,
+  // persons) — a cross-domain aggregate with no single owner, awaiting a counts
+  // endpoint. Guarded: a null org / failed read just shows the checklist un-ticked.
   const db = useDb()
+  const orgsApi = useOrganisationsApi()
   const { orgId } = useOrg()
 
   function resolve(raw: any): OnboardingState {
@@ -63,12 +62,11 @@ export function useOnboarding() {
   }
   async function loadState(org = orgId.value): Promise<OnboardingState> {
     if (!org) return {}
-    const { data } = await (db.from as any)('organisations').select('onboarding').eq('id', org).maybeSingle()
-    return resolve(data?.onboarding)
+    return await orgsApi.getOnboarding(org)
   }
   async function saveState(state: OnboardingState, org = orgId.value): Promise<void> {
     if (!org) return
-    await (db.from as any)('organisations').update({ onboarding: state }).eq('id', org)
+    await orgsApi.setOnboarding(org, state)
   }
 
   /** DETECT which steps are complete from real data. Returns a { key: bool } map. */

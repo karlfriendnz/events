@@ -120,14 +120,10 @@ async function save() {
     // parent_id mirrors the primary sport's body — but ONLY once they've approved.
     // Setting it from a mere request would hand the club every ancestor's fields
     // through org_ancestors, quietly routing around the approval we just added.
-    // CROSS-DOMAIN GAP: the organisation patch deliberately omits parentId (security
-    // CRIT-3 — re-parenting must be its own privileged endpoint, not yet built). Call
-    // it guardedly so the save never crashes; the mirror restores when the endpoint lands.
+    // Re-parenting is a privileged, tenant-crossing op (security CRIT-3), so it has
+    // its own endpoint (not the general org patch).
     const primaryBody = primary && inherits(primary) ? primary.nso_org_id : null
-    try {
-      const setParent = (orgsApi as any).setParent
-      if (typeof setParent === 'function') await setParent(orgId.value, primaryBody)
-    } catch { /* re-parent endpoint not built yet */ }
+    await orgsApi.setParent(orgId.value, primaryBody)
 
     removedIds = []
     toast.add({ severity: 'success', summary: 'Affiliation saved', life: 2000 })

@@ -8,8 +8,11 @@ import type {
   FMEvent,
   Session,
   Invitee,
+  InviteeWithPerson,
   Registration,
   InviteeForPerson,
+  TicketOrder,
+  SeriesEvent,
   FMEventCreate,
   FMEventPatch,
   SessionCreate,
@@ -49,13 +52,26 @@ export function useEventsApi() {
   async function get(id: string): Promise<FMEvent> {
     return await $fetch<FMEvent>(`/api/v1/events/${id}`)
   }
-  /** The sessions (occurrences) of an event. */
-  async function sessions(eventId: string): Promise<Session[]> {
-    return await $fetch<Session[]>(`/api/v1/events/${eventId}/sessions`)
+  /**
+   * The sessions (occurrences) of an event. Default = every session; pass
+   * `{ masters: true }` for only top-level sessions, or `{ parentSessionId }` for one
+   * parent's sub-sessions.
+   */
+  async function sessions(
+    eventId: string,
+    opts: { masters?: boolean; parentSessionId?: string } = {},
+  ): Promise<Session[]> {
+    return await $fetch<Session[]>(`/api/v1/events/${eventId}/sessions`, {
+      query: { masters: opts.masters ? '1' : undefined, parentSessionId: opts.parentSessionId },
+    })
   }
   /** The invitees of an event. */
   async function invitees(eventId: string): Promise<Invitee[]> {
     return await $fetch<Invitee[]>(`/api/v1/events/${eventId}/invitees`)
+  }
+  /** The invitees of an event joined to their persons row (name/email/dob). */
+  async function inviteesWithPerson(eventId: string): Promise<InviteeWithPerson[]> {
+    return await $fetch<InviteeWithPerson[]>(`/api/v1/events/${eventId}/invitees-with-person`)
   }
   /** The registrations of an event. */
   async function registrations(eventId: string): Promise<Registration[]> {
@@ -95,6 +111,14 @@ export function useEventsApi() {
   async function removeSession(id: string): Promise<void> {
     await $fetch(`/api/v1/sessions/${id}`, { method: 'DELETE' })
   }
+  /** Replace ALL fee lines on ONE session (delete-then-insert; keyed by session_id). */
+  async function replaceSessionFees(sessionId: string, items: FeeComponentCreate[]): Promise<FeeComponent[]> {
+    return await $fetch<FeeComponent[]>(`/api/v1/sessions/${sessionId}/fees`, { method: 'POST', body: { items } })
+  }
+  /** Push a master session's shared fields onto every linked session (scoped to event+master). */
+  async function propagateSessionMaster(masterId: string, eventId: string, patch: SessionPatch): Promise<void> {
+    await $fetch('/api/v1/sessions/propagate', { method: 'POST', body: { masterId, eventId, patch } })
+  }
 
   // ── Invitee writes ──
   /** Invite a person to an event. */
@@ -104,9 +128,10 @@ export function useEventsApi() {
   }): Promise<Invitee> {
     return await $fetch<Invitee>(`/api/v1/events/${eventId}/invitees`, { method: 'POST', body })
   }
-  /** Update an invitee (RSVP status, roles, attendance). */
+  /** Update an invitee (RSVP status, roles, attendance, sign-out, sub-group). */
   async function updateInvitee(id: string, patch: {
     status?: string; roles?: string[]; role?: string | null; attended?: boolean
+    signedOut?: boolean; subGroupId?: string | null
     respondedAt?: string | null; personId?: string | null
   }): Promise<Invitee> {
     return await $fetch<Invitee>(`/api/v1/invitees/${id}`, { method: 'PATCH', body: patch })
@@ -145,6 +170,35 @@ export function useEventsApi() {
     return await $fetch<RegistrationSession>(`/api/v1/registrations/${registrationId}/sessions`, {
       method: 'POST', body: { sessionId, status },
     })
+  }
+
+  /** Ticket-order registrations for an event (registrations with a ticket_id + items). */
+  async function ticketOrders(eventId: string): Promise<TicketOrder[]> {
+    return await $fetch<TicketOrder[]>(`/api/v1/events/${eventId}/ticket-orders`)
+  }
+
+  // ── Recurrence series ──
+  /** How many child occurrences a master currently has. */
+  async function seriesCount(masterId: string): Promise<number> {
+    const r = await $fetch<{ count: number }>(`/api/v1/events/${masterId}/series-count`)
+    return r.count
+  }
+  /** The whole series (master + children) as { id, startAt, status } rows. */
+  async function series(masterId: string): Promise<SeriesEvent[]> {
+    return await $fetch<SeriesEvent[]>(`/api/v1/events/${masterId}/series`)
+  }
+  /** Regenerate a master's child occurrences from a list of { startAt, endAt }. */
+  async function generateSeries(masterId: string, occurrences: { startAt: string; endAt: string | null }[]): Promise<number> {
+    const r = await $fetch<{ count: number }>(`/api/v1/events/${masterId}/series`, { method: 'POST', body: { occurrences } })
+    return r.count
+  }
+  /** Delete every child occurrence of a master. */
+  async function deleteSeries(masterId: string): Promise<void> {
+    await $fetch(`/api/v1/events/${masterId}/series`, { method: 'DELETE' })
+  }
+  /** Bulk-set the status of a set of events (org-scoped; series archive). */
+  async function setEventsStatus(orgId: string, ids: string[], status: string): Promise<void> {
+    await $fetch('/api/v1/events/set-status', { method: 'POST', body: { orgId, ids, status } })
   }
 
   // ── Fee components (event- and session-level fees) ──
@@ -253,9 +307,11 @@ export function useEventsApi() {
   }
 
   return {
-    list, get, sessions, invitees, registrations, inviteesForPerson, inviteeCountsByOrg,
+    list, get, sessions, invitees, inviteesWithPerson, registrations, inviteesForPerson, inviteeCountsByOrg,
+    ticketOrders,
+    seriesCount, series, generateSeries, deleteSeries, setEventsStatus,
     create, update, remove,
-    createSession, updateSession, removeSession,
+    createSession, updateSession, removeSession, replaceSessionFees, propagateSessionMaster,
     addInvitee, updateInvitee, removeInvitee,
     createRegistration, updateRegistration, removeRegistration,
     registrationSessions, registrationSessionsBySessions, addRegistrationSession,

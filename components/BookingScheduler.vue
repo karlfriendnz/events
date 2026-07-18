@@ -1110,14 +1110,10 @@ async function submit() {
     if (allMemberIds.size && selectedSlots.value.length) {
       const earliest = selectedSlots.value.reduce((min, s) => s.start < min ? s.start : min, selectedSlots.value[0].start)
       const latest = selectedSlots.value.reduce((max, s) => s.end > max ? s.end : max, selectedSlots.value[0].end)
-      // TODO seam-gap: cross-block pre-flight needs a bookable_id-IN + start/end window server filter (api.bookings has none) — kept on useDb for correctness
-      const { data: clashes } = await (db.from as any)('bookings')
-        .select('id, bookable_id, start_at, end_at, status')
-        .in('bookable_id', Array.from(allMemberIds))
-        .lt('start_at', latest.toISOString())
-        .gt('end_at', earliest.toISOString())
-        .neq('status', 'CANCELLED')
-      const conflicts = (clashes ?? []) as { bookable_id: string; start_at: string; end_at: string }[]
+      const clashes = await api.bookingsForBookables(Array.from(allMemberIds), {
+        overlapStart: earliest.toISOString(), overlapEnd: latest.toISOString(), excludeCancelled: true,
+      })
+      const conflicts = clashes.map(c => ({ bookable_id: c.bookableId, start_at: c.startAt, end_at: c.endAt }))
       if (conflicts.length) {
         const overlapping = selectedSlots.value.filter(s => {
           const members = membersFor(s)

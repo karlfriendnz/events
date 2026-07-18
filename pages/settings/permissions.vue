@@ -6,17 +6,11 @@
   Plus the club's own local groups. Assign people on any editable group.
 -->
 <script setup lang="ts">
-// SEAM GAP (roles/permissions domain — owned elsewhere): this page's entire WRITE
-// path is unbuilt on the seam. /api/v1/permission-groups + /permission-group-members
-// are READ-ONLY (index.get only) — there is no org permission_groups create/update/
-// delete route, no permission_group_members create/delete route, and useRolesApi's
-// permissionGroupMemberPersonIds returns a FLAT person-id list (can't map members to
-// their groups, which this editor needs). Reads are partially available (core groups:
-// useAdminApi.corePermissionGroups; org groups: useRolesApi.permissionGroups; persons:
-// usePeopleApi.list), but converting reads alone would half-break the save path, so the
-// whole page stays on useDb until roles/perms adds: org permissionGroup CRUD +
-// permissionGroupMembers get-by-group + set-members. Degrades gracefully.
-const db = useDb()
+// Permission-group editor, fully on the seam: reads the org's groups (core templates
+// merged in) + persons + the per-group membership edges, and writes create/override/
+// update/delete + set-members through useRolesApi.
+const roles = useRolesApi()
+const peopleApi = usePeopleApi()
 const { orgId } = useOrg()
 const toast = useToast()
 
@@ -41,29 +35,33 @@ const saving = ref(false)
 
 async function load() {
   loading.value = true
-  const [{ data: core }, { data: local }, { data: people }, { data: members }] = await Promise.all([
-    (db.from as any)('permission_groups').select('*').eq('is_core', true).order('sort_order'),
-    (db.from as any)('permission_groups').select('*').eq('org_id', orgId.value).order('sort_order'),
-    (db.from as any)('persons').select('id, first_name, last_name').eq('org_id', orgId.value).order('last_name'),
-    (db.from as any)('permission_group_members').select('group_id, person_id'),
+  const [groups, people, members] = await Promise.all([
+    roles.permissionGroups(orgId.value),
+    peopleApi.list(orgId.value),
+    roles.permissionGroupMembers(orgId.value),
   ])
   const memberBy: Record<string, string[]> = {}
-  for (const m of members ?? []) (memberBy[m.group_id] ??= []).push(m.person_id)
-  const overrideByCore: Record<string, any> = {}
-  const pureLocal: any[] = []
-  for (const g of local ?? []) { if (g.source_group_id) overrideByCore[g.source_group_id] = g; else pureLocal.push(g) }
+  for (const m of members) (memberBy[m.groupId] ??= []).push(m.personId)
+  // The merged list carries both the core templates (isCore, orgId null) and this
+  // club's own rows (orgId = ours: an override when sourceGroupId is set, else local).
+  const core = groups.filter(g => g.isCore)
+  const overrideByCore: Record<string, typeof groups[number]> = {}
+  const pureLocal: typeof groups = []
+  for (const g of groups.filter(g => !g.isCore && g.orgId === orgId.value)) {
+    if (g.sourceGroupId) overrideByCore[g.sourceGroupId] = g; else pureLocal.push(g)
+  }
 
   const list: Item[] = []
-  for (const c of core ?? []) {
+  for (const c of core) {
     const ov = overrideByCore[c.id]
-    if (ov) list.push({ key: 'core:' + c.id, kind: 'override', name: ov.name, description: ov.description, permissions: ov.permissions ?? {}, coreId: c.id, localId: ov.id, _memberIds: memberBy[ov.id] ?? [] })
-    else list.push({ key: 'core:' + c.id, kind: 'core', name: c.name, description: c.description, permissions: c.permissions ?? {}, coreId: c.id, _memberIds: [] })
+    if (ov) list.push({ key: 'core:' + c.id, kind: 'override', name: ov.name, description: ov.description, permissions: ov.grants ?? {}, coreId: c.id, localId: ov.id, _memberIds: memberBy[ov.id] ?? [] })
+    else list.push({ key: 'core:' + c.id, kind: 'core', name: c.name, description: c.description, permissions: c.grants ?? {}, coreId: c.id, _memberIds: [] })
   }
-  for (const g of pureLocal) list.push({ key: 'local:' + g.id, kind: 'local', name: g.name, description: g.description, permissions: g.permissions ?? {}, localId: g.id, _memberIds: memberBy[g.id] ?? [] })
+  for (const g of pureLocal) list.push({ key: 'local:' + g.id, kind: 'local', name: g.name, description: g.description, permissions: g.grants ?? {}, localId: g.id, _memberIds: memberBy[g.id] ?? [] })
   items.value = list
-  persons.value = (people ?? []).map((p: any) => ({ id: p.id, name: `${p.first_name} ${p.last_name}` }))
+  persons.value = people.map(p => ({ id: p.id, name: `${p.firstName} ${p.lastName}` }))
   if (!selected.value && list.length) selectedKey.value = list[0].key
-  persons.value && (loading.value = false)
+  loading.value = false
 }
 
 function newGroup() {
@@ -73,16 +71,19 @@ function newGroup() {
 
 async function override(it: Item) {
   // create an editable local copy of the core template
-  const { data, error } = await (db.from as any)('permission_groups').insert({
-    org_id: orgId.value, is_core: false, source_group_id: it.coreId,
-    name: it.name, description: it.description, permissions: JSON.parse(JSON.stringify(it.permissions || {})),
-  }).select('id').single()
-  if (error) { toast.add({ severity: 'error', summary: 'Override failed', detail: error.message, life: 4000 }); return }
-  toast.add({ severity: 'success', summary: 'Override created — now editable', life: 2500 })
-  await load(); selectedKey.value = 'core:' + it.coreId
+  try {
+    await roles.createPermissionGroup({
+      orgId: orgId.value, sourceGroupId: it.coreId,
+      name: it.name, description: it.description, grants: JSON.parse(JSON.stringify(it.permissions || {})),
+    })
+    toast.add({ severity: 'success', summary: 'Override created — now editable', life: 2500 })
+    await load(); selectedKey.value = 'core:' + it.coreId
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Override failed', detail: e?.message, life: 4000 })
+  }
 }
 async function resetToCore(it: Item) {
-  if (it.localId) await (db.from as any)('permission_groups').delete().eq('id', it.localId)
+  if (it.localId) await roles.removePermissionGroup(it.localId, orgId.value)
   toast.add({ severity: 'success', summary: 'Reset to core template', life: 2500 })
   await load(); selectedKey.value = 'core:' + it.coreId
 }
@@ -90,22 +91,26 @@ async function resetToCore(it: Item) {
 async function save() {
   const g = selected.value; if (!g || g.kind === 'core' || !g.name.trim()) return
   saving.value = true
-  let gid = g.localId
-  if (g._new || !gid) {
-    const { data, error } = await (db.from as any)('permission_groups').insert({
-      org_id: orgId.value, is_core: false, name: g.name, description: g.description, permissions: g.permissions,
-    }).select('id').single()
-    if (error) { toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 4000 }); saving.value = false; return }
-    gid = data.id
-  } else {
-    await (db.from as any)('permission_groups').update({ name: g.name, description: g.description, permissions: g.permissions, updated_at: new Date().toISOString() }).eq('id', gid)
+  try {
+    let gid = g.localId
+    if (g._new || !gid) {
+      const created = await roles.createPermissionGroup({
+        orgId: orgId.value, name: g.name, description: g.description, grants: g.permissions,
+      })
+      gid = created.id
+    } else {
+      await roles.updatePermissionGroup(gid, { orgId: orgId.value, name: g.name, description: g.description, grants: g.permissions })
+    }
+    await roles.setPermissionGroupMembers(gid!, orgId.value, g._memberIds)
+    toast.add({ severity: 'success', summary: 'Saved', life: 2000 }); await load()
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Save failed', detail: e?.message, life: 4000 })
+  } finally {
+    saving.value = false
   }
-  await (db.from as any)('permission_group_members').delete().eq('group_id', gid)
-  if (g._memberIds.length) await (db.from as any)('permission_group_members').insert(g._memberIds.map(pid => ({ group_id: gid, person_id: pid })))
-  toast.add({ severity: 'success', summary: 'Saved', life: 2000 }); saving.value = false; await load()
 }
 async function removeLocal(it: Item) {
-  if (it.localId) await (db.from as any)('permission_groups').delete().eq('id', it.localId)
+  if (it.localId) await roles.removePermissionGroup(it.localId, orgId.value)
   items.value = items.value.filter(x => x.key !== it.key); selectedKey.value = items.value[0]?.key ?? null
   if (it.localId) await load()
 }

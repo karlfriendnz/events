@@ -150,8 +150,13 @@ export async function createPersonType(input: PersonTypeCreate): Promise<PersonT
     permissions: input.permissions ?? {},
     memberSlots: input.memberSlots ?? [],
     sortOrder: input.sortOrder ?? 0,
-    // notNull columns absent from the contract — supplied with sensible defaults.
-    minCount: 0,
+    // Extra per-type config (optional on the contract; nullable/defaulted columns).
+    minCount: input.minCount ?? 0,
+    maxCount: input.maxCount ?? null,
+    landingPath: input.landingPath ?? null,
+    menuItems: input.menuItems ?? null,
+    profileDashboard: input.profileDashboard ?? null,
+    // notNull column absent from the contract — supplied with a sensible default.
     isGlobal: false,
   } as any)
   return (await getPersonType(id))!
@@ -168,6 +173,11 @@ export async function updatePersonType(id: string, patch: PersonTypePatch): Prom
   if (patch.permissions !== undefined) set.permissions = patch.permissions
   if (patch.memberSlots !== undefined) set.memberSlots = patch.memberSlots
   if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
+  if (patch.minCount !== undefined) set.minCount = patch.minCount
+  if (patch.maxCount !== undefined) set.maxCount = patch.maxCount
+  if (patch.landingPath !== undefined) set.landingPath = patch.landingPath
+  if (patch.menuItems !== undefined) set.menuItems = patch.menuItems
+  if (patch.profileDashboard !== undefined) set.profileDashboard = patch.profileDashboard
   if (Object.keys(set).length)
     await db.update(schema.personTargetTypes).set(set).where(eq(schema.personTargetTypes.id, id))
   return getPersonType(id)
@@ -305,7 +315,33 @@ export async function listOrgTypesFull(orgId: string): Promise<OrgTypeFull[]> {
     landingPath: r.landingPath ?? null,
     profileDashboard: r.profileDashboard ?? null,
     menuItems: r.menuItems ?? null,
+    minCount: r.minCount ?? null,
+    maxCount: r.maxCount ?? null,
   }))
+}
+
+/** One org type with its full per-type config (roster min/max, landing, menu,
+ *  profile dashboard) — for a full-fidelity duplicate. Null when not found. */
+export async function getOrgTypeFull(id: string): Promise<OrgTypeFull | null> {
+  const [r] = await db.select().from(schema.personTargetTypes).where(eq(schema.personTargetTypes.id, id)).limit(1)
+  if (!r) return null
+  return {
+    id: r.id,
+    orgId: r.orgId ?? null,
+    key: r.key,
+    label: r.label,
+    kind: r.kind ?? 'person',
+    isAccess: !!r.isAccess,
+    isPublished: !!r.isPublished,
+    permissions: asObj(r.permissions),
+    memberSlots: asArray(r.memberSlots),
+    sortOrder: r.sortOrder,
+    landingPath: r.landingPath ?? null,
+    profileDashboard: r.profileDashboard ?? null,
+    menuItems: r.menuItems ?? null,
+    minCount: r.minCount ?? null,
+    maxCount: r.maxCount ?? null,
+  }
 }
 
 // The label + member-slot roster def of the type matching a key across [org +

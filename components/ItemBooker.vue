@@ -205,7 +205,6 @@ const emit = defineEmits<{
   (e: 'done', payload: { bookingId: string }): void
 }>()
 
-const db = useDb()
 const api = useBookingsApi()
 const { orgId } = useOrg()
 const toast = useToast()
@@ -442,14 +441,8 @@ async function loadBookingsForWindow() {
   if (!ids.length) return
   const winStart = new Date(startAt.value); winStart.setHours(0, 0, 0, 0)
   const winEnd = new Date(endAt.value); winEnd.setDate(winEnd.getDate() + 1)
-  // TODO seam-gap: overlap check needs a bookable_id-IN + start/end window server filter (api.bookings has none) — kept on useDb for correctness
-  const { data } = await (db.from as any)('bookings')
-    .select('id, bookable_id, start_at, end_at, status')
-    .in('bookable_id', ids)
-    .lt('start_at', winEnd.toISOString())
-    .gt('end_at', winStart.toISOString())
-    .neq('status', 'CANCELLED')
-  existingBookings.value = data ?? []
+  const rows = await api.bookingsForBookables(ids, { overlapStart: winStart.toISOString(), overlapEnd: winEnd.toISOString(), excludeCancelled: true })
+  existingBookings.value = rows.map(b => ({ bookable_id: b.bookableId, start_at: b.startAt, end_at: b.endAt }))
 }
 
 watch([startAt, endAt], () => { loadBookingsForWindow() })

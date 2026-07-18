@@ -12,14 +12,17 @@
 // timestamps: MySQL returns Date objects; `toIso` serialises to ISO 8601 and lets
 // null pass through, so a nullable start/end date stays null in the contract.
 import { randomUUID } from 'node:crypto'
-import { and, asc, desc, eq, inArray, or } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNull, or } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   FMEvent,
   Session,
   Invitee,
+  InviteeWithPerson,
   Registration,
   InviteeForPerson,
+  TicketOrder,
+  SeriesEvent,
   FMEventCreate,
   FMEventPatch,
   SessionCreate,
@@ -145,22 +148,36 @@ function toSession(r: typeof schema.sessions.$inferSelect): Session {
   return {
     id: r.id,
     eventId: r.eventId,
+    parentSessionId: r.parentSessionId ?? null,
     title: r.title,
+    description: r.description ?? null,
     startAt: toIso(r.startAt),
     endAt: toIso(r.endAt),
     // No `status` column on sessions — exposed for contract stability, always null.
     status: null,
+    capacityMin: r.capacityMin ?? null,
     capacityMax: r.capacityMax ?? null,
     locationType: r.locationType,
+    bookableId: r.bookableId ?? null,
     address: r.address ?? null,
     meetingLink: r.meetingLink ?? null,
     isRequired: r.isRequired,
     displayOnForm: r.displayOnForm,
     isPublic: r.isPublic,
+    isAllDay: r.isAllDay,
+    hasWaitlist: r.hasWaitlist,
+    showAttendeeList: r.showAttendeeList,
+    showAsSeparateEvent: r.showAsSeparateEvent,
+    sessionKind: r.sessionKind,
     sortOrder: r.sortOrder,
     isMaster: r.isMaster,
     masterId: r.masterId ?? null,
+    inviteeModes: asObj(r.inviteeModes),
+    inviteeGroups: asObj(r.inviteeGroups),
+    eligibility: asObj(r.eligibility),
+    admins: asArray(r.admins),
     addons: asArray(r.addons),
+    exdates: asArray(r.exdates).map(String),
   }
 }
 
@@ -168,10 +185,15 @@ function toInvitee(r: typeof schema.invitees.$inferSelect): Invitee {
   return {
     id: r.id,
     eventId: r.eventId,
+    sessionId: r.sessionId ?? null,
     personId: r.personId ?? null,
     status: r.status,
     roles: asArray(r.roles).map(String),
+    role: r.role ?? null,
     attended: r.attended,
+    signedOut: r.signedOut,
+    subGroupId: r.subGroupId ?? null,
+    invitedAt: toIso(r.invitedAt),
     respondedAt: toIso(r.respondedAt),
   }
 }
@@ -181,11 +203,15 @@ function toRegistration(r: typeof schema.registrations.$inferSelect): Registrati
     id: r.id,
     eventId: r.eventId,
     personId: r.personId ?? null,
+    guestName: r.guestName ?? null,
+    guestEmail: r.guestEmail ?? null,
     status: r.status,
+    ticketId: r.ticketId ?? null,
     totalAmount: r.totalAmount,
     paidAmount: r.paidAmount,
     formAnswers: asObj(r.formAnswers),
     checkedInAt: toIso(r.checkedInAt),
+    createdAt: toIso(r.createdAt),
   }
 }
 
@@ -348,12 +374,23 @@ export async function deleteEvent(id: string): Promise<void> {
   await db.delete(schema.events).where(eq(schema.events.id, id))
 }
 
-/** The sessions of an event, in author order. */
-export async function listSessions(eventId: string): Promise<Session[]> {
+/**
+ * The sessions of an event, in author order. By default returns EVERY session (masters
+ * + sub-sessions); the session editor splits them by parentSessionId in JS. Optional
+ * filter: `masters: true` → only top-level sessions (parent_session_id IS NULL);
+ * `parentSessionId: <id>` → only the sub-sessions of that parent.
+ */
+export async function listSessions(
+  eventId: string,
+  opts: { masters?: boolean; parentSessionId?: string } = {},
+): Promise<Session[]> {
+  const preds: any[] = [eq(schema.sessions.eventId, eventId)]
+  if (opts.masters) preds.push(isNull(schema.sessions.parentSessionId))
+  else if (opts.parentSessionId) preds.push(eq(schema.sessions.parentSessionId, opts.parentSessionId))
   const rows = await db
     .select()
     .from(schema.sessions)
-    .where(eq(schema.sessions.eventId, eventId))
+    .where(and(...preds))
     .orderBy(asc(schema.sessions.sortOrder))
   return rows.map(toSession)
 }
@@ -374,43 +411,96 @@ export async function createSession(input: SessionCreate): Promise<Session> {
   await db.insert(schema.sessions).values({
     id,
     eventId: input.eventId,
+    parentSessionId: input.parentSessionId ?? null,
     title: input.title,
+    description: input.description ?? null,
     startAt: input.startAt ? new Date(input.startAt) : null,
     endAt: input.endAt ? new Date(input.endAt) : null,
+    capacityMin: input.capacityMin ?? null,
     capacityMax: input.capacityMax ?? null,
     locationType: input.locationType ?? 'ADDRESS',
+    bookableId: input.bookableId ?? null,
     address: input.address ?? null,
     meetingLink: input.meetingLink ?? null,
     isRequired: input.isRequired ?? false,
     displayOnForm: input.displayOnForm ?? true,
     isPublic: input.isPublic ?? false,
+    isAllDay: input.isAllDay ?? false,
+    hasWaitlist: input.hasWaitlist ?? false,
+    showAttendeeList: input.showAttendeeList ?? false,
+    showAsSeparateEvent: input.showAsSeparateEvent ?? false,
+    // session_kind is NOT NULL with no DB default; the editor writes 'regular'.
+    sessionKind: input.sessionKind ?? 'regular',
     sortOrder: input.sortOrder ?? 0,
     isMaster: input.isMaster ?? false,
     masterId: input.masterId ?? null,
+    inviteeModes: input.inviteeModes ?? null,
+    inviteeGroups: input.inviteeGroups ?? null,
+    eligibility: input.eligibility ?? null,
+    admins: input.admins ?? [],
     addons: input.addons ?? [],
+    exdates: input.exdates ?? [],
   } as any)
   return (await getSession(id))!
 }
 
-export async function updateSession(id: string, patch: SessionPatch): Promise<Session | null> {
+// Builds the Drizzle `set` object shared by updateSession + updateSessionsByMaster.
+function sessionPatchToSet(patch: SessionPatch): Record<string, any> {
   const set: Record<string, any> = {}
   if (patch.eventId !== undefined) set.eventId = patch.eventId
+  if (patch.parentSessionId !== undefined) set.parentSessionId = patch.parentSessionId
   if (patch.title !== undefined) set.title = patch.title
+  if (patch.description !== undefined) set.description = patch.description
   if (patch.startAt !== undefined) set.startAt = patch.startAt ? new Date(patch.startAt) : null
   if (patch.endAt !== undefined) set.endAt = patch.endAt ? new Date(patch.endAt) : null
+  if (patch.capacityMin !== undefined) set.capacityMin = patch.capacityMin
   if (patch.capacityMax !== undefined) set.capacityMax = patch.capacityMax
   if (patch.locationType !== undefined) set.locationType = patch.locationType
+  if (patch.bookableId !== undefined) set.bookableId = patch.bookableId
   if (patch.address !== undefined) set.address = patch.address
   if (patch.meetingLink !== undefined) set.meetingLink = patch.meetingLink
   if (patch.isRequired !== undefined) set.isRequired = patch.isRequired
   if (patch.displayOnForm !== undefined) set.displayOnForm = patch.displayOnForm
   if (patch.isPublic !== undefined) set.isPublic = patch.isPublic
+  if (patch.isAllDay !== undefined) set.isAllDay = patch.isAllDay
+  if (patch.hasWaitlist !== undefined) set.hasWaitlist = patch.hasWaitlist
+  if (patch.showAttendeeList !== undefined) set.showAttendeeList = patch.showAttendeeList
+  if (patch.showAsSeparateEvent !== undefined) set.showAsSeparateEvent = patch.showAsSeparateEvent
+  if (patch.sessionKind !== undefined) set.sessionKind = patch.sessionKind
   if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
   if (patch.isMaster !== undefined) set.isMaster = patch.isMaster
   if (patch.masterId !== undefined) set.masterId = patch.masterId
+  if (patch.inviteeModes !== undefined) set.inviteeModes = patch.inviteeModes ?? null
+  if (patch.inviteeGroups !== undefined) set.inviteeGroups = patch.inviteeGroups ?? null
+  if (patch.eligibility !== undefined) set.eligibility = patch.eligibility ?? null
+  if (patch.admins !== undefined) set.admins = patch.admins ?? []
   if (patch.addons !== undefined) set.addons = patch.addons ?? []
+  if (patch.exdates !== undefined) set.exdates = patch.exdates ?? []
+  return set
+}
+
+export async function updateSession(id: string, patch: SessionPatch): Promise<Session | null> {
+  const set = sessionPatchToSet(patch)
   if (Object.keys(set).length) await db.update(schema.sessions).set(set).where(eq(schema.sessions.id, id))
   return getSession(id)
+}
+
+/**
+ * Bulk-update every LINKED session of a master (master→linked field inheritance). Scoped
+ * to (event, master) so it never reaches another event's rows — replaces the page's
+ * `.update(...).eq('master_id', masterId).eq('event_id', eventId)` in one call.
+ */
+export async function updateSessionsByMaster(
+  masterId: string,
+  eventId: string,
+  patch: SessionPatch,
+): Promise<void> {
+  const set = sessionPatchToSet(patch)
+  if (!Object.keys(set).length) return
+  await db
+    .update(schema.sessions)
+    .set(set)
+    .where(and(eq(schema.sessions.masterId, masterId), eq(schema.sessions.eventId, eventId)))
 }
 
 export async function deleteSession(id: string): Promise<void> {
@@ -435,6 +525,51 @@ export async function listRegistrations(eventId: string): Promise<Registration[]
     .where(eq(schema.registrations.eventId, eventId))
     .orderBy(desc(schema.registrations.createdAt))
   return rows.map(toRegistration)
+}
+
+/**
+ * Ticket-order registrations for an event: registrations with a ticket_id, each with
+ * its nested ticket line-items (registration_ticket_items) carrying the ticket-type's
+ * name (a ticket_types join). Two queries (orders, then items joined to ticket_types),
+ * stitched in JS. Newest order first. (gap — the tickets-tab orders read.)
+ */
+export async function listTicketOrders(eventId: string): Promise<TicketOrder[]> {
+  const regs = await db
+    .select()
+    .from(schema.registrations)
+    .where(eq(schema.registrations.eventId, eventId))
+    .orderBy(desc(schema.registrations.createdAt))
+  const orders = regs.filter((r) => r.ticketId != null)
+  if (!orders.length) return []
+  const orderIds = orders.map((r) => r.id)
+  const itemRows = await db
+    .select({
+      item: schema.registrationTicketItems,
+      ticketTypeName: schema.ticketTypes.name,
+    })
+    .from(schema.registrationTicketItems)
+    .leftJoin(schema.ticketTypes, eq(schema.registrationTicketItems.ticketTypeId, schema.ticketTypes.id))
+    .where(inArray(schema.registrationTicketItems.registrationId, orderIds))
+  const itemsByReg: Record<string, TicketOrder['items']> = {}
+  for (const r of itemRows) {
+    ;(itemsByReg[r.item.registrationId] ||= []).push({
+      id: r.item.id,
+      quantity: r.item.quantity,
+      unitPrice: r.item.unitPrice,
+      subtotal: r.item.subtotal,
+      ticketTypeName: r.ticketTypeName ?? '—',
+    })
+  }
+  return orders.map((r) => ({
+    id: r.id,
+    guestName: r.guestName ?? null,
+    guestEmail: r.guestEmail ?? null,
+    status: r.status,
+    ticketId: r.ticketId ?? null,
+    totalAmount: r.totalAmount,
+    checkedInAt: toIso(r.checkedInAt),
+    items: itemsByReg[r.id] ?? [],
+  }))
 }
 
 /**
@@ -508,6 +643,7 @@ export async function createInvitee(input: {
 
 export async function updateInvitee(id: string, patch: {
   status?: string; roles?: string[]; role?: string | null; attended?: boolean
+  signedOut?: boolean; subGroupId?: string | null
   respondedAt?: string | null; personId?: string | null
 }): Promise<Invitee | null> {
   const set: Record<string, any> = {}
@@ -515,11 +651,47 @@ export async function updateInvitee(id: string, patch: {
   if (patch.roles !== undefined) set.roles = patch.roles
   if (patch.role !== undefined) set.role = patch.role
   if (patch.attended !== undefined) set.attended = patch.attended
+  if (patch.signedOut !== undefined) set.signedOut = patch.signedOut
+  if (patch.subGroupId !== undefined) set.subGroupId = patch.subGroupId
   if (patch.respondedAt !== undefined) set.respondedAt = patch.respondedAt ? new Date(patch.respondedAt) : null
   if (patch.personId !== undefined) set.personId = patch.personId
   if (Object.keys(set).length) await db.update(schema.invitees).set(set).where(eq(schema.invitees.id, id))
   const [r] = await db.select().from(schema.invitees).where(eq(schema.invitees.id, id)).limit(1)
   return r ? toInvitee(r) : null
+}
+
+/**
+ * The invitees of an event JOINED to their persons row — the shape the Invitees +
+ * Attendance tabs actually render (name search, sub-groups, sign-out). Left-joins
+ * persons so a guest invitee (null person_id) still comes back with person=null. Oldest
+ * invite first. (NEW gap — the mega-file invitees/attendance read.)
+ */
+export async function inviteesForEvent(eventId: string): Promise<InviteeWithPerson[]> {
+  const rows = await db
+    .select({
+      inv: schema.invitees,
+      pid: schema.persons.id,
+      firstName: schema.persons.firstName,
+      lastName: schema.persons.lastName,
+      email: schema.persons.email,
+      dob: schema.persons.dob,
+    })
+    .from(schema.invitees)
+    .leftJoin(schema.persons, eq(schema.invitees.personId, schema.persons.id))
+    .where(eq(schema.invitees.eventId, eventId))
+    .orderBy(asc(schema.invitees.invitedAt))
+  return rows.map((r) => ({
+    ...toInvitee(r.inv),
+    person: r.pid
+      ? {
+          id: r.pid,
+          firstName: r.firstName ?? null,
+          lastName: r.lastName ?? null,
+          email: r.email ?? null,
+          dateOfBirth: toDateStr(r.dob),
+        }
+      : null,
+  }))
 }
 
 export async function deleteInvitee(id: string): Promise<void> {
@@ -533,6 +705,9 @@ export async function createRegistration(input: RegistrationCreate): Promise<Reg
     id,
     eventId: input.eventId,
     personId: input.personId ?? null,
+    guestName: input.guestName ?? null,
+    guestEmail: input.guestEmail ?? null,
+    ticketId: input.ticketId ?? null,
     status: input.status ?? 'CONFIRMED',
     totalAmount: (input.totalAmount as any) ?? 0,
     paidAmount: (input.paidAmount as any) ?? 0,
@@ -672,6 +847,19 @@ export async function replaceEventFeeComponents(eventId: string, items: FeeCompo
     await createFeeComponent({ ...items[i], eventId, sortOrder: items[i].sortOrder ?? i })
   }
   return listFeeComponents({ eventId })
+}
+
+/**
+ * Replace every fee line for one SESSION (delete-then-insert). Session fees are keyed by
+ * session_id (never event_id) — the session editor's saveSessionFees + the master→linked
+ * fee propagation both do exactly this. Keeps author order.
+ */
+export async function replaceSessionFeeComponents(sessionId: string, items: FeeComponentCreate[]): Promise<FeeComponent[]> {
+  await db.delete(schema.feeComponents).where(eq(schema.feeComponents.sessionId, sessionId))
+  for (let i = 0; i < items.length; i++) {
+    await createFeeComponent({ ...items[i], sessionId, sortOrder: items[i].sortOrder ?? i })
+  }
+  return listFeeComponents({ sessionIds: [sessionId] })
 }
 
 // ── Event notes ──
@@ -872,6 +1060,80 @@ export async function setConnectionGroupEvents(groupId: string, eventIds: string
 export async function deleteConnectionGroup(id: string): Promise<void> {
   await db.delete(schema.connectionGroupEvents).where(eq(schema.connectionGroupEvents.groupId, id))
   await db.delete(schema.connectionGroups).where(eq(schema.connectionGroups.id, id))
+}
+
+// ── Recurrence series (events linked by recurrence_parent_id) ──
+// A recurring event = one master row + N child rows whose recurrence_parent_id points
+// at the master. These power the "Generate series" + series-archive (this/following/all)
+// flows in the event editor.
+
+/** How many child occurrences a master currently has. */
+export async function countSeries(masterId: string): Promise<number> {
+  const rows = await db
+    .select({ id: schema.events.id })
+    .from(schema.events)
+    .where(eq(schema.events.recurrenceParentId, masterId))
+  return rows.length
+}
+
+/**
+ * The whole series as lightweight rows — the master (id = parentId) PLUS every child
+ * (recurrence_parent_id = parentId), id + start date + status. The archive flow filters
+ * these by start date (following) or takes them all (all).
+ */
+export async function listSeries(parentId: string): Promise<SeriesEvent[]> {
+  const rows = await db
+    .select({ id: schema.events.id, startAt: schema.events.startAt, status: schema.events.status })
+    .from(schema.events)
+    .where(or(eq(schema.events.id, parentId), eq(schema.events.recurrenceParentId, parentId)))
+  return rows.map((r) => ({ id: r.id, startAt: toIso(r.startAt), status: r.status }))
+}
+
+/** Delete every child occurrence of a master (used before regenerating a series). */
+export async function deleteSeriesChildren(masterId: string): Promise<void> {
+  await db.delete(schema.events).where(eq(schema.events.recurrenceParentId, masterId))
+}
+
+/**
+ * Regenerate a master's child occurrences. Clones the master row server-side (so the
+ * client never has to ship the whole event shape), stripping id/timestamps/recurrence
+ * fields, then delete-then-inserts one child per supplied {startAt,endAt}. Returns the
+ * new child count.
+ */
+export async function generateSeriesOccurrences(
+  masterId: string,
+  occurrences: { startAt: string; endAt: string | null }[],
+): Promise<number> {
+  const [master] = await db.select().from(schema.events).where(eq(schema.events.id, masterId)).limit(1)
+  if (!master) throw new Error('master event not found')
+  // Everything worth cloning except the row identity, timestamps, and the recurrence
+  // fields (children are single occurrences: no rule, no exdates, own parent).
+  const { id: _id, createdAt: _c, updatedAt: _u, recurrenceRule: _rr, recurrenceParentId: _rp, exdates: _ex, ...cloneable } = master as any
+  await deleteSeriesChildren(masterId)
+  for (const occ of occurrences) {
+    await db.insert(schema.events).values({
+      ...cloneable,
+      id: randomUUID(),
+      recurrenceParentId: masterId,
+      recurrenceRule: null,
+      exdates: [],
+      startAt: occ.startAt ? new Date(occ.startAt) : null,
+      endAt: occ.endAt ? new Date(occ.endAt) : null,
+    } as any)
+  }
+  return occurrences.length
+}
+
+/**
+ * Bulk-set the status of a SET of events — org-scoped in the WHERE (tenant safety), so
+ * a stray id can never touch another org's rows. Backs series archive (this/following/all).
+ */
+export async function setEventsStatus(orgId: string, ids: string[], status: string): Promise<void> {
+  if (!ids.length) return
+  await db
+    .update(schema.events)
+    .set({ status })
+    .where(and(eq(schema.events.orgId, orgId), inArray(schema.events.id, ids)))
 }
 
 // ── Event disciplines (link table for DisciplineLinker) ──

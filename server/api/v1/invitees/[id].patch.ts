@@ -8,6 +8,8 @@ const patchSchema = z.object({
   roles: z.array(z.string()).optional(),
   role: z.string().nullable().optional(),
   attended: z.boolean().optional(),
+  signedOut: z.boolean().optional(),
+  subGroupId: z.string().nullable().optional(),
   respondedAt: z.string().nullable().optional(),
   personId: z.string().nullable().optional(),
 })

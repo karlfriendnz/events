@@ -7,14 +7,10 @@
 <script setup lang="ts">
 import { EVENT_TOKENS, DEFAULT_INVITATION } from '~/composables/useEventTokens'
 
-// SEAM GAP (communications domain — owned elsewhere): this whole page reads/writes
-// email_templates (migration 259: read subject/body + upsert by org+key) and
-// communication_topics (core+org merged read [gap Fo5] + insert/update/delete). The
-// seam has NO surface for either — /api/v1/communications is a read-only log route,
-// there is no comms composable, and no repo functions exist. Left entirely on useDb
-// until the communications domain adds emailTemplate get/upsert + communicationTopics
-// list(core+org)/create/update/remove. Degrades gracefully (unconverted, still works).
-const db = useDb()
+// Reads/writes email_templates (migration 259: get subject/body + upsert by
+// org+key) and communication_topics (core+org merged read + create/update/delete)
+// through the communications seam — no direct DB access.
+const api = useCommunicationsApi()
 const { orgId } = useOrg()
 const toast = useToast()
 
@@ -26,8 +22,7 @@ const inviteBodyEl = ref<any>(null)
 const savingInvite = ref(false)
 
 async function loadInvite() {
-  const { data } = await (db.from as any)('email_templates')
-    .select('subject, body').eq('org_id', orgId.value).eq('key', 'event_invitation').maybeSingle()
+  const data = await api.getEmailTemplate(orgId.value, 'event_invitation')
   if (data) { invite.subject = data.subject; invite.body = data.body }
 }
 
@@ -49,14 +44,16 @@ function resetInvite() {
 
 async function saveInvite() {
   savingInvite.value = true
-  const { error } = await (db.from as any)('email_templates').upsert({
-    org_id: orgId.value, key: 'event_invitation',
-    subject: invite.subject, body: invite.body, updated_at: new Date().toISOString(),
-  }, { onConflict: 'org_id,key' })
-  savingInvite.value = false
-  toast.add(error
-    ? { severity: 'error', summary: 'Could not save', detail: error.message, life: 4000 }
-    : { severity: 'success', summary: 'Default invitation saved', life: 3000 })
+  try {
+    await api.upsertEmailTemplate({
+      orgId: orgId.value, key: 'event_invitation', subject: invite.subject, body: invite.body,
+    })
+    toast.add({ severity: 'success', summary: 'Default invitation saved', life: 3000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not save', detail: e?.message, life: 4000 })
+  } finally {
+    savingInvite.value = false
+  }
 }
 
 watch(orgId, v => { if (v) loadInvite() }, { immediate: true })
@@ -80,13 +77,16 @@ const saving = ref(false)
 
 async function load() {
   loading.value = true
-  const [{ data: core }, { data: own }] = await Promise.all([
-    (db.from as any)('communication_topics').select('*').eq('is_core', true).order('sort_order'),
-    (db.from as any)('communication_topics').select('*').eq('org_id', orgId.value).order('sort_order'),
-  ])
-  const list: Topic[] = []
-  for (const c of core ?? []) list.push({ key: 'core:' + c.id, kind: 'core', id: c.id, name: c.name, description: c.description, channels: c.channels ?? [], is_active: c.is_active })
-  for (const g of own ?? []) list.push({ key: 'local:' + g.id, kind: 'local', id: g.id, name: g.name, description: g.description, channels: g.channels ?? [], is_active: g.is_active })
+  const topics = await api.listTopics(orgId.value)
+  const list: Topic[] = topics.map(t => ({
+    key: (t.isCore ? 'core:' : 'local:') + t.id,
+    kind: t.isCore ? 'core' : 'local',
+    id: t.id,
+    name: t.name,
+    description: t.description,
+    channels: t.channels ?? [],
+    is_active: t.isActive,
+  }))
   items.value = list
   if (!selected.value && list.length) selectedKey.value = list[0].key
   loading.value = false
@@ -104,18 +104,22 @@ function toggleChannel(it: Topic, ch: string) {
 async function save() {
   const t = selected.value; if (!t || t.kind === 'core' || !t.name.trim()) return
   saving.value = true
-  const payload = { org_id: orgId.value, is_core: false, name: t.name.trim(), description: t.description, channels: t.channels, is_active: t.is_active }
-  if (t._new || !t.id) {
-    const { error } = await (db.from as any)('communication_topics').insert(payload)
-    if (error) { toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 4000 }); saving.value = false; return }
-  } else {
-    await (db.from as any)('communication_topics').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', t.id)
+  try {
+    if (t._new || !t.id) {
+      await api.createTopic({ orgId: orgId.value, name: t.name.trim(), description: t.description, channels: t.channels, isActive: t.is_active })
+    } else {
+      await api.updateTopic(t.id, { orgId: orgId.value, name: t.name.trim(), description: t.description, channels: t.channels, isActive: t.is_active })
+    }
+    toast.add({ severity: 'success', summary: 'Saved', life: 2000 }); await load()
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Save failed', detail: e?.message, life: 4000 })
+  } finally {
+    saving.value = false
   }
-  toast.add({ severity: 'success', summary: 'Saved', life: 2000 }); saving.value = false; await load()
 }
 
 async function removeTopic(it: Topic) {
-  if (it.id) await (db.from as any)('communication_topics').delete().eq('id', it.id)
+  if (it.id) await api.removeTopic(it.id, orgId.value)
   items.value = items.value.filter(x => x.key !== it.key); selectedKey.value = items.value[0]?.key ?? null
 }
 

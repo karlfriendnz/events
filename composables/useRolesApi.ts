@@ -7,6 +7,9 @@ import type {
   ScopedRoleDefCreate,
   ScopedRoleDefPatch,
   PermissionGroup,
+  PermissionGroupCreate,
+  PermissionGroupPatch,
+  PermissionGroupMember,
   CodeStaff,
 } from '../shared/contracts/role'
 
@@ -28,6 +31,28 @@ export function useRolesApi() {
   async function permissionGroups(orgId: string): Promise<PermissionGroup[]> {
     return await $fetch<PermissionGroup[]>('/api/v1/permission-groups', { query: { orgId } })
   }
+  /** Create one of the club's own permission groups (or override a core template via
+   *  `sourceGroupId`). */
+  async function createPermissionGroup(input: PermissionGroupCreate): Promise<PermissionGroup> {
+    return await $fetch<PermissionGroup>('/api/v1/permission-groups', { method: 'POST', body: input })
+  }
+  /** Patch one of the club's own groups. */
+  async function updatePermissionGroup(id: string, patch: PermissionGroupPatch): Promise<PermissionGroup> {
+    return await $fetch<PermissionGroup>(`/api/v1/permission-groups/${id}`, { method: 'PATCH', body: patch })
+  }
+  /** Delete one of the club's own groups (orgId tenant-scopes the delete). */
+  async function removePermissionGroup(id: string, orgId: string): Promise<void> {
+    await $fetch(`/api/v1/permission-groups/${id}`, { method: 'DELETE', query: { orgId } })
+  }
+  /** The full membership edges (group → person) for the org's own groups — lets the
+   *  editor map members to their groups. */
+  async function permissionGroupMembers(orgId: string): Promise<PermissionGroupMember[]> {
+    return await $fetch<PermissionGroupMember[]>('/api/v1/permission-group-members', { query: { orgId, byGroup: 1 } })
+  }
+  /** Replace a group's whole membership. */
+  async function setPermissionGroupMembers(groupId: string, orgId: string, personIds: string[]): Promise<void> {
+    await $fetch(`/api/v1/permission-group-members/${groupId}`, { method: 'PUT', body: { orgId, personIds } })
+  }
   /** Code-level staff assignments for the org. */
   async function codeStaff(orgId: string): Promise<CodeStaff[]> {
     return await $fetch<CodeStaff[]>('/api/v1/code-staff', { query: { orgId } })
@@ -43,6 +68,11 @@ export function useRolesApi() {
     updateScopedRole,
     removeScopedRole,
     permissionGroups,
+    createPermissionGroup,
+    updatePermissionGroup,
+    removePermissionGroup,
+    permissionGroupMembers,
+    setPermissionGroupMembers,
     codeStaff,
     permissionGroupMemberPersonIds,
   }

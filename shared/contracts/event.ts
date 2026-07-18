@@ -117,17 +117,30 @@ export type FMEventPatch = z.infer<typeof fmEventPatchSchema>
 // One occurrence of an event. NB: the `sessions` table has no `status` column
 // (session lifecycle is carried elsewhere) — status is exposed as nullable for
 // contract stability and mapped to null. start/end are nullable in the schema.
+//
+// This is the FULL session-editor surface. Beyond the forms-builder subset the read
+// shape also carries every column /events/:id?tab=sessions reads AND writes:
+// parentSessionId (sub-sessions), description, bookableId, capacityMin, isAllDay,
+// hasWaitlist, showAttendeeList, showAsSeparateEvent, the invitee/eligibility/admins
+// json blobs, and exdates. Routing session writes through createSession/updateSession
+// without these would silently DROP them (Zod strips unknown keys) and break
+// sub-sessions + master→linked inheritance. (NEW gap — the mega-file sessions editor.)
 export const sessionSchema = z.object({
   id: z.string(),
   eventId: z.string(),
+  // null = a top-level session (master or standalone); set = a sub-session under it.
+  parentSessionId: z.string().nullable(),
   // The session's own name — a required DB column; now surfaced on the read shape so
   // the forms builder / programme date table can label each occurrence. (gap Fo8)
   title: z.string(),
+  description: z.string().nullable(),
   startAt: z.string().nullable(),
   endAt: z.string().nullable(),
   status: z.string().nullable(),
+  capacityMin: z.number().int().nullable(),
   capacityMax: z.number().int().nullable(),
   locationType: z.string(),
+  bookableId: z.string().nullable(),
   address: z.string().nullable(),
   meetingLink: z.string().nullable(),
   // Whether this session is mandatory + whether it appears on the registration form,
@@ -135,11 +148,23 @@ export const sessionSchema = z.object({
   isRequired: z.boolean(),
   displayOnForm: z.boolean(),
   isPublic: z.boolean(),
+  isAllDay: z.boolean(),
+  hasWaitlist: z.boolean(),
+  showAttendeeList: z.boolean(),
+  showAsSeparateEvent: z.boolean(),
+  // 'regular' | 'pre_event' | 'post_event' — a required DB column (default 'regular').
+  sessionKind: z.string(),
   sortOrder: z.number().int(),
   isMaster: z.boolean(),
   masterId: z.string().nullable(),
-  // json array of add-on definitions.
+  // json blobs — passthrough at the boundary (the editor mutates them in memory).
+  inviteeModes: z.any().nullable(),
+  inviteeGroups: z.any().nullable(),
+  eligibility: z.any().nullable(),
+  admins: z.array(z.any()),
+  // json array of add-on definitions + json array of YYYY-MM-DD skip-dates.
   addons: z.array(z.any()),
+  exdates: z.array(z.string()),
 })
 export type Session = z.infer<typeof sessionSchema>
 
@@ -151,9 +176,13 @@ export const sessionListSchema = z.array(sessionSchema)
 export const sessionCreateSchema = sessionSchema
   .omit({ id: true, status: true })
   .partial({
-    startAt: true, endAt: true, capacityMax: true, locationType: true,
+    parentSessionId: true, description: true, startAt: true, endAt: true,
+    capacityMin: true, capacityMax: true, locationType: true, bookableId: true,
     address: true, meetingLink: true, isRequired: true, displayOnForm: true,
-    isPublic: true, sortOrder: true, isMaster: true, masterId: true, addons: true,
+    isPublic: true, isAllDay: true, hasWaitlist: true, showAttendeeList: true,
+    showAsSeparateEvent: true, sessionKind: true, sortOrder: true, isMaster: true,
+    masterId: true, inviteeModes: true, inviteeGroups: true, eligibility: true,
+    admins: true, addons: true, exdates: true,
   })
   .extend({ title: z.string().min(1) })
 export type SessionCreate = z.infer<typeof sessionCreateSchema>
@@ -163,35 +192,88 @@ export type SessionPatch = z.infer<typeof sessionPatchSchema>
 
 // An invited person on an event — the answer to "are you coming" lives in `status`
 // (CONFIRMED/DECLINED/INVITED…). `roles` is a json array of scoped-role keys.
+// subGroupId (attendance sub-group assignment), signedOut (attendance sign-out) and
+// invitedAt (invite order) are all read + written by the Invitees + Attendance UI.
 export const inviteeSchema = z.object({
   id: z.string(),
   eventId: z.string(),
+  sessionId: z.string().nullable(),
   personId: z.string().nullable(),
   status: z.string(),
   roles: z.array(z.string()),
+  role: z.string().nullable(),
   attended: z.boolean(),
+  signedOut: z.boolean(),
+  subGroupId: z.string().nullable(),
+  invitedAt: z.string().nullable(),
   respondedAt: z.string().nullable(),
 })
 export type Invitee = z.infer<typeof inviteeSchema>
 
 export const inviteeListSchema = z.array(inviteeSchema)
 
+// An invitee row enriched with the joined person (first/last/email/dob) — the shape
+// the Invitees + Attendance tabs actually render (name search, sub-groups, ages).
+// The person block is nullable because an invitee can be a guest without a persons row.
+export const inviteeWithPersonSchema = inviteeSchema.extend({
+  person: z
+    .object({
+      id: z.string(),
+      firstName: z.string().nullable(),
+      lastName: z.string().nullable(),
+      email: z.string().nullable(),
+      dateOfBirth: z.string().nullable(),
+    })
+    .nullable(),
+})
+export type InviteeWithPerson = z.infer<typeof inviteeWithPersonSchema>
+export const inviteeWithPersonListSchema = z.array(inviteeWithPersonSchema)
+
 // A registration against an event. Money columns are MySQL decimals → strings from
-// the driver, so amounts accept string | number at the boundary.
+// the driver, so amounts accept string | number at the boundary. guestName/guestEmail
+// (a registrant with no persons row) + createdAt are read by the reporting tab
+// (recent-registrations sort/display). ticketId flags a ticket-order registration.
 export const registrationSchema = z.object({
   id: z.string(),
   eventId: z.string(),
   personId: z.string().nullable(),
+  guestName: z.string().nullable(),
+  guestEmail: z.string().nullable(),
   status: z.string(),
+  ticketId: z.string().nullable(),
   totalAmount: z.union([z.string(), z.number()]),
   paidAmount: z.union([z.string(), z.number()]),
   // json payload — the full normalised answer set; passthrough at the boundary.
   formAnswers: z.any().nullable(),
   checkedInAt: z.string().nullable(),
+  createdAt: z.string().nullable(),
 })
 export type Registration = z.infer<typeof registrationSchema>
 
 export const registrationListSchema = z.array(registrationSchema)
+
+// A ticket-order registration: the registration + its nested ticket line-items, each
+// carrying the ticket-type's name (a registration_ticket_items → ticket_types join).
+// The tickets tab's "orders" read. Amounts are decimals → string|number.
+export const ticketOrderItemSchema = z.object({
+  id: z.string(),
+  quantity: z.number().int(),
+  unitPrice: z.union([z.string(), z.number()]),
+  subtotal: z.union([z.string(), z.number()]),
+  ticketTypeName: z.string(),
+})
+export const ticketOrderSchema = z.object({
+  id: z.string(),
+  guestName: z.string().nullable(),
+  guestEmail: z.string().nullable(),
+  status: z.string(),
+  ticketId: z.string().nullable(),
+  totalAmount: z.union([z.string(), z.number()]),
+  checkedInAt: z.string().nullable(),
+  items: z.array(ticketOrderItemSchema),
+})
+export type TicketOrder = z.infer<typeof ticketOrderSchema>
+export const ticketOrderListSchema = z.array(ticketOrderSchema)
 
 // An invitee row read BY PERSON (across events) for the profile activity feed. A bare
 // invitee list is useless without event context, so this joins the event's title +
@@ -330,13 +412,27 @@ export type RegistrationSession = z.infer<typeof registrationSessionSchema>
 export const registrationSessionListSchema = z.array(registrationSessionSchema)
 
 // WRITE contract for a registration (event-context materialisation on the client).
-export const registrationCreateSchema = registrationSchema.omit({ id: true }).partial({
-  personId: true, status: true, totalAmount: true, paidAmount: true,
+// createdAt is server-owned (omit); the rest default in the repo/DB.
+export const registrationCreateSchema = registrationSchema.omit({ id: true, createdAt: true }).partial({
+  personId: true, guestName: true, guestEmail: true, ticketId: true,
+  status: true, totalAmount: true, paidAmount: true,
   formAnswers: true, checkedInAt: true,
 })
 export type RegistrationCreate = z.infer<typeof registrationCreateSchema>
 export const registrationPatchSchema = registrationCreateSchema.partial()
 export type RegistrationPatch = z.infer<typeof registrationPatchSchema>
+
+// ── Recurrence series ──
+// A lightweight row for a recurring master + its children — id + start date, enough
+// for the series-archive scope logic (this / following / all). generateOccurrences
+// clones the master server-side, so the child-insert payload isn't modelled here.
+export const seriesEventSchema = z.object({
+  id: z.string(),
+  startAt: z.string().nullable(),
+  status: z.string(),
+})
+export type SeriesEvent = z.infer<typeof seriesEventSchema>
+export const seriesEventListSchema = z.array(seriesEventSchema)
 
 // ── Connection groups (saved invitee sets) + their event links ──
 export const connectionGroupSchema = z.object({

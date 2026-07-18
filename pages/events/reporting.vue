@@ -166,9 +166,7 @@ const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 const events = useEventsApi()
-// CROSS-DOMAIN GAP: `attendance` has no seam yet — the sessions→attendance rollup
-// below still reads via useDb() until an attendance domain seam lands.
-const db = useDb()
+const attendance = useAttendanceApi()
 
 // ── Filters ──────────────────────────────────────────────────────────
 const selectedCategoryId = ref<string | null | undefined>(undefined)
@@ -221,19 +219,6 @@ async function load() {
   const eventIds = evts.map((e: any) => e.id)
   if (!eventIds.length) { loading.value = false; return }
 
-  // Chunk helper to avoid URL length limits (attendance path only — cross-domain gap)
-  async function queryInChunks<T>(table: string, column: string, ids: string[], extraQuery?: (q: any) => any): Promise<T[]> {
-    const CHUNK = 100
-    const results: T[] = []
-    for (let i = 0; i < ids.length; i += CHUNK) {
-      let q = db.from(table).select('*').in(column, ids.slice(i, i + CHUNK))
-      if (extraQuery) q = extraQuery(q)
-      const { data } = await q
-      if (data) results.push(...data)
-    }
-    return results
-  }
-
   // Per-event invitee totals via the seam (one org-level query).
   const iMap: Record<string, { total: number; confirmed: number }> = {}
   for (const c of await events.inviteeCountsByOrg(orgId.value)) {
@@ -241,23 +226,13 @@ async function load() {
   }
   inviteesByEvent.value = iMap
 
-  // Load sessions to get session IDs per event, then load attendance
-  const sessions = await queryInChunks<any>('sessions', 'event_id', eventIds, q => q.select('id, event_id'))
-  const sessionToEvent: Record<string, string> = {}
-  for (const s of sessions) sessionToEvent[s.id] = s.event_id
-  const sessionIds = sessions.map((s: any) => s.id)
-
-  const aMap: Record<string, Set<string>> = {}
-  if (sessionIds.length) {
-    const attendanceRows = await queryInChunks<any>('attendance', 'session_id', sessionIds, q => q.select('person_id, session_id, event_id').eq('attended', true))
-    for (const row of attendanceRows) {
-      const evtId = row.event_id ?? sessionToEvent[row.session_id]
-      if (!evtId) continue
-      if (!aMap[evtId]) aMap[evtId] = new Set()
-      aMap[evtId].add(row.person_id)
-    }
+  // Per-event distinct-attendee counts via the attendance seam (one org-level query —
+  // the seam joins attendance → events and dedupes persons per event server-side).
+  const aMap: Record<string, number> = {}
+  for (const c of await attendance.countsByOrg(orgId.value)) {
+    aMap[c.eventId] = c.count
   }
-  attendedByEvent.value = Object.fromEntries(Object.entries(aMap).map(([k, v]) => [k, v.size]))
+  attendedByEvent.value = aMap
 
   loading.value = false
 }

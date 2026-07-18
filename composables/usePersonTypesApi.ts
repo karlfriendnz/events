@@ -79,6 +79,11 @@ export function usePersonTypesApi() {
   async function listOrgTypes(orgId: string): Promise<OrgTypeFull[]> {
     return await $fetch<OrgTypeFull[]>('/api/v1/person-types/org-types', { query: { orgId } })
   }
+  /** One org type's full config (roster min/max, landing, menu, profile dashboard) —
+   *  for a full-fidelity duplicate. */
+  async function orgTypeFull(id: string): Promise<OrgTypeFull> {
+    return await $fetch<OrgTypeFull>(`/api/v1/person-types/${id}/full`)
+  }
   /** The label + member-slots of the type matching a key across [org + ancestors]. */
   async function typeByKey(orgIds: string[], key: string): Promise<TypeByKey> {
     return await $fetch<TypeByKey>('/api/v1/person-types/by-key', { query: { orgIds: orgIds.join(','), key } })
@@ -94,6 +99,12 @@ export function usePersonTypesApi() {
   /** Idempotently link a club type to a governing body's type. */
   async function linkType(orgId: string, typeId: string, sourceTypeId: string): Promise<void> {
     await $fetch('/api/v1/person-type-links', { method: 'POST', body: { orgId, typeId, sourceTypeId } })
+  }
+  /** Object-shaped alias for linkType — the name + arg shape affiliations'
+   *  approveAndSeed calls (createLink({ orgId, typeId, sourceTypeId })). Same route,
+   *  so pre-linking on approval actually fires. */
+  async function createLink(input: { orgId: string; typeId: string; sourceTypeId: string }): Promise<void> {
+    await linkType(input.orgId, input.typeId, input.sourceTypeId)
   }
   /** Remove an inheritance link. */
   async function unlinkType(linkId: string): Promise<void> {
@@ -139,8 +150,8 @@ export function usePersonTypesApi() {
     listTypes, createType, updateType, removeType,
     listFields, createField, updateField, removeField,
     listLinks,
-    resolveFields, resolvePersonTypes, listOrgTypes, typeByKey, linkableTypes,
-    typeLinksHydrated, linkType, unlinkType,
+    resolveFields, resolvePersonTypes, listOrgTypes, orgTypeFull, typeByKey, linkableTypes,
+    typeLinksHydrated, linkType, createLink, unlinkType,
     getProfileForm, saveProfileForm,
     getCoreFields, saveCoreFields, terminologyForOrgs, sportTerminology,
     saveOrgTerminology, saveSportTerminology,

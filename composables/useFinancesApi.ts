@@ -8,6 +8,10 @@ import type {
   DiscountPatch,
   BookingDiscount,
   XeroConnection,
+  XeroConnectionMappingPatch,
+  BankAccount,
+  BankAccountCreate,
+  BankAccountPatch,
   FeeComponent,
   Addon,
   AddonCreate,
@@ -36,6 +40,23 @@ export function useFinancesApi() {
   /** An org's Xero connection — null when Xero isn't connected. */
   async function xeroConnection(orgId: string): Promise<XeroConnection | null> {
     return await $fetch<XeroConnection | null>('/api/v1/xero-connection', { query: { orgId } })
+  }
+  /** Update the org's Xero mapping (bank/tax/sales accounts + fee-account shortlist). */
+  async function updateXeroMapping(patch: XeroConnectionMappingPatch): Promise<XeroConnection> {
+    return await $fetch<XeroConnection>('/api/v1/xero-connection', { method: 'PATCH', body: patch })
+  }
+  /** The org's bank accounts (Settings payment defaults). */
+  async function bankAccounts(orgId: string): Promise<BankAccount[]> {
+    return await $fetch<BankAccount[]>('/api/v1/finances/bank-accounts', { query: { orgId } })
+  }
+  async function createBankAccount(input: BankAccountCreate): Promise<BankAccount> {
+    return await $fetch<BankAccount>('/api/v1/finances/bank-accounts', { method: 'POST', body: input })
+  }
+  async function updateBankAccount(id: string, patch: BankAccountPatch): Promise<BankAccount> {
+    return await $fetch<BankAccount>(`/api/v1/finances/bank-accounts/${id}`, { method: 'PATCH', body: patch })
+  }
+  async function removeBankAccount(id: string, orgId: string): Promise<void> {
+    await $fetch(`/api/v1/finances/bank-accounts/${id}`, { method: 'DELETE', query: { orgId } })
   }
   /** Every fee component for an org (read-only on the finances screen). */
   async function feeComponents(orgId: string): Promise<FeeComponent[]> {
@@ -73,6 +94,11 @@ export function useFinancesApi() {
     removeDiscount,
     bookingDiscounts,
     xeroConnection,
+    updateXeroMapping,
+    bankAccounts,
+    createBankAccount,
+    updateBankAccount,
+    removeBankAccount,
     feeComponents,
     addons,
     createAddon,

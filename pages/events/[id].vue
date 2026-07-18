@@ -2761,14 +2761,15 @@ const { ensureTerms, t } = useTerms()
 void ensureTerms()
 import { useToast } from 'primevue/usetoast'
 
-// `db` is retained ONLY for cross-domain / SEAM-GAP tables (discounts, attendance,
-// bookings, communications, person_notes, member_group_memberships, bookables,
-// sessions, invitees, recurrence series). Every events-domain table (events,
+// `db` is retained ONLY for cross-domain / SEAM-GAP tables (discounts, bookings,
+// communications, person_notes, member_group_memberships, bookables). Every
+// events-domain table (events, sessions, invitees, recurrence series, attendance,
 // event_notes, event_tasks, ticket_types, categories, fee_components, registrations)
 // goes through the typed seam below. Each remaining `db.from(...)` carries a
 // `// SEAM GAP:` comment explaining why it can't move yet.
 const db = useDb()
 const eventsApi = useEventsApi()
+const attendanceApi = useAttendanceApi()
 const peopleApi = usePeopleApi()
 
 // camelCase ↔ snake_case bridge for the events seam. The seam returns camelCase
@@ -3530,22 +3531,23 @@ async function loadTicketTypes() {
 
 async function loadTicketOrders() {
   const id = route.params.id as string
-  // SEAM GAP: registrations read carries guest_name/guest_email/ticket_id + a nested
-  // registration_ticket_items→ticket_types(name) join that the Registration contract
-  // doesn't model (contract = id/eventId/personId/status/totalAmount/paidAmount/
-  // formAnswers/checkedInAt). Needs a ticket-orders read on the events seam.
-  const { data } = await db
-    .from('registrations')
-    .select(`id, guest_name, guest_email, status, total_amount, ticket_id, checked_in_at,
-      registration_ticket_items(id, quantity, unit_price, subtotal, ticket_types(name))`)
-    .eq('event_id', id)
-    .not('ticket_id', 'is', null)
-    .order('created_at', { ascending: false })
-  ticketOrders.value = (data ?? []).map((r: any) => ({
-    ...r,
-    items: (r.registration_ticket_items ?? []).map((i: any) => ({
-      ...i,
-      ticket_type_name: i.ticket_types?.name ?? '—',
+  // Ticket-order registrations (registrations with a ticket_id) + their nested items,
+  // from the events seam (camelCase → the snake shape the template reads). total_amount
+  // is coerced to a number (MySQL decimals arrive as strings; the template .toFixed()s it).
+  ticketOrders.value = (await eventsApi.ticketOrders(id)).map((r: any) => ({
+    id: r.id,
+    guest_name: r.guestName,
+    guest_email: r.guestEmail,
+    status: r.status,
+    ticket_id: r.ticketId,
+    total_amount: r.totalAmount != null ? Number(r.totalAmount) : null,
+    checked_in_at: r.checkedInAt,
+    items: (r.items ?? []).map((i: any) => ({
+      id: i.id,
+      quantity: i.quantity,
+      unit_price: i.unitPrice != null ? Number(i.unitPrice) : null,
+      subtotal: i.subtotal != null ? Number(i.subtotal) : null,
+      ticket_type_name: i.ticketTypeName ?? '—',
     })),
   }))
 }
@@ -3682,15 +3684,9 @@ async function loadReporting() {
   reportingLoading.value = true
   const eventId = route.params.id as string
   try {
-    // SEAM GAP: reporting needs registration columns the Registration contract omits
-    // — guest_name/guest_email + created_at (recent-registrations sort/display). The
-    // adjacent registration_sessions read below stays on useDb with it so the report
-    // stays one coherent block until the events seam grows a reporting read.
-    const { data: regs } = await db
-      .from('registrations')
-      .select('id, status, total_amount, paid_amount, checked_in_at, created_at, guest_name, guest_email, person_id')
-      .eq('event_id', eventId)
-    const rows = regs ?? []
+    // Registrations from the events seam (widened with guest_name/guest_email/created_at)
+    // → mapped to the snake shape this report reads.
+    const rows = (await eventsApi.registrations(eventId)).map(snakeRow)
     reportingStats.value = {
       total: rows.length,
       confirmed: rows.filter((r: any) => r.status === 'CONFIRMED').length,
@@ -3706,12 +3702,10 @@ async function loadReporting() {
       .slice(0, 10)
 
     if (sessions.value.length) {
-      // SEAM GAP (coherent with the registrations read above): kept on useDb.
-      const { data: regSessions } = await db
-        .from('registration_sessions')
-        .select('session_id, status, registration_id')
-        .in('session_id', sessions.value.map((s: any) => s.id ?? s._savedId).filter(Boolean))
-      const rsRows = regSessions ?? []
+      // Registration-session rows for the report's sessions (per-session booking counts).
+      const rsRows = (await eventsApi.registrationSessionsBySessions(
+        sessions.value.map((s: any) => s.id ?? s._savedId).filter(Boolean),
+      )).map(snakeRow)
       reportingSessionRows.value = sessions.value
         .filter((s: any) => s.id)
         .map((s: any) => ({
@@ -4053,14 +4047,11 @@ async function selectAttendanceSession(sessionId: string) {
     // uses `attended` rather than the legacy `invitee_id`/`is_present`
     // columns the migration file shows. We index the local map by
     // invitee.id (still the row we render) but match rows back via
-    // their person_id.
-    // SEAM GAP: `attendance` has no seam (repo/routes) — reporting + the events/groups
-    // attendance tabs read/write it directly. Whole per-session attendance surface
-    // (this read + the delete/insert below in toggleSessionAttendance/markSelectedIn)
-    // stays on useDb until an attendance domain lands.
-    const { data } = await db.from('attendance').select('*').eq('session_id', sessionId).eq('attended', true)
+    // their person_id. Seam returns camelCase; we keep a snake `person_id`
+    // alias on each stored row so the existing lookup/delete logic is unchanged.
+    const rows = (await attendanceApi.bySession(sessionId)).map(r => ({ ...r, person_id: r.personId }))
     const personIdToRow: Record<string, any> = {}
-    for (const row of (data ?? [])) personIdToRow[row.person_id] = row
+    for (const row of rows) personIdToRow[row.person_id] = row
     const map: Record<string, any> = {}
     for (const inv of invitees.value) {
       if (inv.person_id && personIdToRow[inv.person_id]) {
@@ -4078,7 +4069,7 @@ async function toggleSessionAttendance(inv: any, sessionId: string) {
   }
   const map = sessionAttendanceData.value[sessionId] ?? {}
   if (map[inv.id]) {
-    await db.from('attendance').delete().eq('id', map[inv.id].id)
+    await attendanceApi.remove(map[inv.id].id)
     const updated = { ...map }
     delete updated[inv.id]
     sessionAttendanceData.value = { ...sessionAttendanceData.value, [sessionId]: updated }
@@ -4086,14 +4077,10 @@ async function toggleSessionAttendance(inv: any, sessionId: string) {
     // Live schema: (person_id, session_id, event_id, attended). The
     // table has no unique constraint we can ON CONFLICT against, so we
     // do a plain insert. The earlier delete branch keeps duplicates
-    // from accumulating.
-    const { data } = await db.from('attendance').insert({
-      person_id: inv.person_id,
-      session_id: sessionId,
-      event_id: id,
-      attended: true,
-    } as any).select().single()
-    if (data) sessionAttendanceData.value = { ...sessionAttendanceData.value, [sessionId]: { ...map, [inv.id]: data } }
+    // from accumulating. Store a snake person_id alias for the lookup logic.
+    const created = await attendanceApi.create({ personId: inv.person_id, sessionId, eventId: id, attended: true })
+    const row = { ...created, person_id: created.personId }
+    sessionAttendanceData.value = { ...sessionAttendanceData.value, [sessionId]: { ...map, [inv.id]: row } }
   }
 }
 
@@ -4134,10 +4121,7 @@ const addToSubGroupPeople = computed(() =>
 async function executeAddToSubGroup() {
   for (const invId of attendanceSelected.value) {
     inviteeGroupMap.value[invId] = addToSubGroupTarget.value
-    // SEAM GAP: Invitee contract has no subGroupId (nor signedOut/invitedAt, nor the
-    // joined person). The invitees READ (loadInvitees) and these sub_group/signed_out
-    // writes stay on useDb until the Invitee contract is widened.
-    await db.from('invitees').update({ sub_group_id: addToSubGroupTarget.value }).eq('id', invId)
+    await eventsApi.updateInvitee(invId, { subGroupId: addToSubGroupTarget.value })
   }
   attendanceSelected.value = []
   attendanceSelectAll.value = false
@@ -4165,8 +4149,7 @@ async function toggleSignOut(inv: any) {
     return
   }
   const newVal = !inv.signed_out
-  // SEAM GAP: Invitee contract has no signedOut column. Stays on useDb.
-  await db.from('invitees').update({ signed_out: newVal } as any).eq('id', inv.id)
+  await eventsApi.updateInvitee(inv.id, { signedOut: newVal })
   inv.signed_out = newVal
 }
 
@@ -4187,18 +4170,14 @@ async function markSelectedIn() {
       .map(id => inviteesById[id])
       .filter((inv: any) => inv?.person_id)
     if (toInsert.length) {
-      const { data } = await db.from('attendance').insert(
-        toInsert.map((inv: any) => ({
-          person_id: inv.person_id,
-          session_id: sid,
-          event_id: id,
-          attended: true,
-        })),
-      ).select()
+      const created = await attendanceApi.createMany(
+        toInsert.map((inv: any) => ({ personId: inv.person_id, sessionId: sid, eventId: id, attended: true })),
+      )
+      const data = created.map(r => ({ ...r, person_id: r.personId }))
       const next = { ...map }
       const personIdToInviteeId: Record<string, string> = {}
       for (const inv of invitees.value) if (inv.person_id) personIdToInviteeId[inv.person_id] = inv.id
-      for (const row of (data ?? [])) {
+      for (const row of data) {
         const invId = personIdToInviteeId[row.person_id]
         if (invId) next[invId] = row
       }
@@ -4348,8 +4327,7 @@ async function onDropOnGroup(groupId: string | null) {
       inviteeGroupMap.value[id] = groupId
     }
     // Persist to DB
-    // SEAM GAP: Invitee contract has no subGroupId. Stays on useDb.
-    await db.from('invitees').update({ sub_group_id: groupId }).eq('id', id)
+    await eventsApi.updateInvitee(id, { subGroupId: groupId })
   }
   if (draggingMultiple.value) {
     attendanceSelected.value = []
@@ -4539,19 +4517,11 @@ function bulkBuildDatetime(day: Date, timePicker: Date | null, fallbackHour = 0)
   return d.toISOString()
 }
 
-// SEAM GAP (sessions editor — the entire session read/write surface stays on useDb):
-// The Session contract exposes id/title/start/end/status/capacityMax/locationType/
-// address/meetingLink/isRequired/displayOnForm/isPublic/sortOrder/isMaster/masterId/
-// addons — but the editor also reads AND writes ~12 columns the contract omits:
-// parent_session_id (sub-sessions), is_all_day, has_waitlist, show_attendee_list,
-// show_as_separate_event, invitee_modes, invitee_groups, eligibility, admins,
-// description, recurrence_rule, exdates. Routing session writes through
-// createSession/updateSession would silently DROP those columns (Zod strips them) and
-// break sub-sessions + master→linked inheritance. It also filters by parent_session_id
-// (null=master / not-null=child), which the read shape can't express. So loadSessions,
-// createBulkSessions, saveSession, propagateMasterToLinked, saveSessionFees and the
-// session-level fee_components (keyed by session_id) all stay on useDb until the
-// Session contract + createSession/updateSession are widened. (NEW reported gap.)
+// The sessions editor reads + writes through the events seam (widened Session
+// contract). buildSessionPayload / baseSession still produce the snake shape the editor
+// works in; `toEventPatch` renames the top-level keys to the camelCase the seam expects
+// (json blob VALUES — invitee_modes, eligibility, admins, addons, exdates — pass
+// through untouched). Session-level fees are keyed by session_id via replaceSessionFees.
 async function createBulkSessions() {
   if (!bulkCanCreate.value || !event.value?.id) return
   savingBulk.value = true
@@ -4571,46 +4541,44 @@ async function createBulkSessions() {
         is_public: event.value.is_public ?? true,
         display_on_form: true,
       }
-      const { data: master, error: masterErr } = await db.from('sessions').insert({
+      const master = await eventsApi.createSession(toEventPatch({
         ...baseSession,
         start_at: bulkBuildDatetime(days[0], tpl.startTime, 9),
         end_at: bulkBuildDatetime(days[0], tpl.endTime, 17),
         is_master: true,
         master_id: null,
         sort_order: sortOrder++,
-      }).select('id').single()
-      if (masterErr || !master?.id) throw masterErr ?? new Error('Failed to create master session')
+      }))
+      if (!master?.id) throw new Error('Failed to create master session')
 
-      let linkedIds: string[] = []
+      const linkedIds: string[] = []
       if (days.length > 1) {
-        const linked = days.slice(1).map(day => ({
-          ...baseSession,
-          start_at: bulkBuildDatetime(day, tpl.startTime, 9),
-          end_at: bulkBuildDatetime(day, tpl.endTime, 17),
-          is_master: false,
-          master_id: master.id,
-          sort_order: sortOrder++,
-        }))
-        const { data: linkedData, error: linkedErr } = await db.from('sessions').insert(linked).select('id')
-        if (linkedErr) throw linkedErr
-        linkedIds = (linkedData ?? []).map((r: any) => r.id)
+        for (const day of days.slice(1)) {
+          const linked = await eventsApi.createSession(toEventPatch({
+            ...baseSession,
+            start_at: bulkBuildDatetime(day, tpl.startTime, 9),
+            end_at: bulkBuildDatetime(day, tpl.endTime, 17),
+            is_master: false,
+            master_id: master.id,
+            sort_order: sortOrder++,
+          }))
+          linkedIds.push(linked.id)
+        }
       }
 
-      // If a cost is set, create a fee_components row for every session in this template
+      // If a cost is set, create a fee line for every session in this template
       if (tpl.cost && tpl.cost > 0) {
         const allSessionIds = [master.id, ...linkedIds]
-        const feeRows = allSessionIds.map((sessionId, i) => {
+        for (let i = 0; i < allSessionIds.length; i++) {
           const sessionDate = new Date(i === 0 ? bulkBuildDatetime(days[0], tpl.startTime, 9) : bulkBuildDatetime(days[i], tpl.startTime, 9))
           const dateLabel = sessionDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
-          return {
-            session_id: sessionId,
+          await eventsApi.createFeeComponent({
+            sessionId: allSessionIds[i],
             name: `${dateLabel} — ${tpl.name.trim()}`,
             amount: tpl.cost,
-            sort_order: 0,
-          }
-        })
-        const { error: feeErr } = await db.from('fee_components').insert(feeRows)
-        if (feeErr) throw feeErr
+            sortOrder: 0,
+          })
+        }
       }
     }
 
@@ -4739,7 +4707,7 @@ async function deleteSelectedSessions() {
     viewingSession.value = sessions.value.length ? sessions.value[0] : null
   }
   const dbIds = toRemove.filter(s => s._savedId || (!s._tempId)).map(s => s._savedId ?? s.id)
-  if (dbIds.length) await db.from('sessions').delete().in('id', dbIds)
+  for (const dbId of dbIds) await eventsApi.removeSession(dbId)
   toast.add({ severity: 'success', summary: `${ids.length} session${ids.length !== 1 ? 's' : ''} deleted`, life: 3000 })
 }
 
@@ -4852,15 +4820,15 @@ function onSubDrop(session: any, toIdx: number) {
 function onSubDragEnd() { draggingSubKey.value = null; dragOverSubKey.value = null }
 
 async function loadSessions() {
-  // SEAM GAP: sessions editor surface stays on useDb — see the note on createBulkSessions.
-  const { data } = await db.from('sessions').select('*').eq('event_id', id).is('parent_session_id', null).order('sort_order')
+  // Every session (masters + sub-sessions) comes back from the events seam in ONE call
+  // (camelCase → mapped to the snake shape the editor works in); split by
+  // parent_session_id here. Session fees keyed by session_id come via feeComponents.
+  const all = (await eventsApi.sessions(id)).map(snakeRow)
+  const data = all.filter((s: any) => s.parent_session_id == null).sort((a: any, b: any) => a.sort_order - b.sort_order)
+  const subs = all.filter((s: any) => s.parent_session_id != null)
   if (data && data.length) {
-    // Load sub-sessions and session-level fees in parallel
-    const sessionIds = data.map(s => s.id)
-    const [{ data: subs }, { data: sessionFees }] = await Promise.all([
-      db.from('sessions').select('*').eq('event_id', id).not('parent_session_id', 'is', null),
-      db.from('fee_components').select('*').in('session_id', sessionIds).order('sort_order'),
-    ])
+    const sessionIds = data.map((s: any) => s.id)
+    const sessionFees = (await eventsApi.feeComponents({ sessionIds })).map(snakeRow)
     // Group fees by session_id
     const feesBySession: Record<string, any[]> = {}
     for (const fee of sessionFees ?? []) {
@@ -4893,7 +4861,7 @@ async function loadSessions() {
         return {
           is_charged: true,
           all_charged_equally: true,
-          base_fees: fees.map((f: any) => ({ id: f.id, name: f.name, xero_code: f.xero_code ?? '', amount: f.amount })),
+          base_fees: fees.map((f: any) => ({ id: f.id, name: f.name, xero_code: f.xero_code ?? '', amount: f.amount != null ? Number(f.amount) : f.amount })),
           groups: [],
         }
       })(),
@@ -4968,8 +4936,8 @@ const MASTER_INHERIT_DB_FIELDS = [
 async function propagateMasterToLinked(masterId: string, payload: Record<string, any>) {
   const inheritPayload: Record<string, any> = {}
   for (const f of MASTER_INHERIT_DB_FIELDS) inheritPayload[f] = payload[f] ?? null
-  // Update DB for all linked sessions
-  await db.from('sessions').update(inheritPayload).eq('master_id', masterId).eq('event_id', id)
+  // Update DB for all linked sessions (scoped to event + master server-side).
+  await eventsApi.propagateSessionMaster(masterId, id, toEventPatch(inheritPayload))
   // Sync in-memory linked sessions — suppress auto-save so mutating viewingSession doesn't schedule a spurious save
   _suppressAutoSave = true
   const master = sessions.value.find((s: any) => (s._savedId ?? s.id) === masterId)
@@ -4999,19 +4967,16 @@ async function propagateMasterToLinked(masterId: string, payload: Record<string,
     for (const linked of linkedSessions) {
       const linkedId = linked._savedId ?? linked.id
       if (!linkedId) continue
-      await db.from('fee_components').delete().eq('session_id', linkedId)
       const namedFees = masterFees.filter((f: any) => f.name?.trim())
-      if (namedFees.length && master._feesConfig?.is_charged) {
-        await db.from('fee_components').insert(
-          namedFees.map((f: any, i: number) => ({
-            session_id: linkedId,
+      const items = (namedFees.length && master._feesConfig?.is_charged)
+        ? namedFees.map((f: any, i: number) => ({
             name: f.name.trim(),
-            xero_code: f.xero_code ?? null,
+            xeroCode: f.xero_code ?? null,
             amount: f.amount ?? 0,
-            sort_order: i,
+            sortOrder: i,
           }))
-        )
-      }
+        : []
+      await eventsApi.replaceSessionFees(linkedId, items)
     }
   }
 }
@@ -5020,30 +4985,28 @@ async function saveSession(s: any) {
   const idx = sessions.value.indexOf(s)
   const payload = buildSessionPayload(s, idx >= 0 ? idx : 0)
   if (s._isNew || !s._savedId) {
-    const { data, error: insertError } = await db.from('sessions').insert(payload).select('id').single()
-    if (insertError) throw new Error(insertError.message)
-    if (data) {
-      s._savedId = data.id
+    const created = await eventsApi.createSession(toEventPatch(payload))
+    if (created) {
+      s._savedId = created.id
       s._isNew = false
       for (let j = 0; j < (s.sub_sessions ?? []).length; j++) {
         const sub = s.sub_sessions[j]
-        await db.from('sessions').insert({
-          event_id: id,
-          parent_session_id: data.id,
+        await eventsApi.createSession({
+          eventId: id,
+          parentSessionId: created.id,
           title: sub.title || `Sub-session ${j + 1}`,
-          start_at: sub._date && sub._startTime ? (() => { const d = new Date(sub._date); const t = new Date(sub._startTime); d.setHours(t.getHours(), t.getMinutes()); return d.toISOString() })() : null,
-          end_at: sub._date && sub._endTime ? (() => { const d = new Date(sub._date); const t = new Date(sub._endTime); d.setHours(t.getHours(), t.getMinutes()); return d.toISOString() })() : null,
-          location_type: 'ADDRESS',
+          startAt: sub._date && sub._startTime ? (() => { const d = new Date(sub._date); const t = new Date(sub._startTime); d.setHours(t.getHours(), t.getMinutes()); return d.toISOString() })() : null,
+          endAt: sub._date && sub._endTime ? (() => { const d = new Date(sub._date); const t = new Date(sub._endTime); d.setHours(t.getHours(), t.getMinutes()); return d.toISOString() })() : null,
+          locationType: 'ADDRESS',
           address: sub.address || null,
-          sort_order: j,
-          is_required: true,
+          sortOrder: j,
+          isRequired: true,
         })
       }
     }
   } else {
     const sessionId = s._savedId ?? s.id
-    const { error } = await db.from('sessions').update(payload).eq('id', sessionId)
-    if (error) throw new Error(error.message)
+    await eventsApi.updateSession(sessionId, toEventPatch(payload))
     // Save fee_components for this session
     await saveSessionFees(sessionId, s._feesConfig)
     // If this is a master session, propagate shared fields to all linked sessions
@@ -5054,20 +5017,18 @@ async function saveSession(s: any) {
 }
 
 async function saveSessionFees(sessionId: string, feesConfig: any) {
-  await db.from('fee_components').delete().eq('session_id', sessionId)
   const fees: any[] = (feesConfig?.base_fees ?? []).filter((f: any) => f.name?.trim())
-  if (feesConfig?.is_charged && fees.length) {
-    const { error } = await db.from('fee_components').insert(
-      fees.map((f: any, i: number) => ({
-        session_id: sessionId,
+  // replaceSessionFees = delete-then-insert of ALL session fee lines. An empty list
+  // clears them (the not-charged / no-fee case).
+  const items = (feesConfig?.is_charged && fees.length)
+    ? fees.map((f: any, i: number) => ({
         name: f.name.trim(),
-        xero_code: f.xero_code ?? null,
+        xeroCode: f.xero_code ?? null,
         amount: f.amount ?? 0,
-        sort_order: i,
+        sortOrder: i,
       }))
-    )
-    if (error) throw new Error(error.message)
-  }
+    : []
+  await eventsApi.replaceSessionFees(sessionId, items)
 }
 
 async function saveSessions() {
@@ -5238,17 +5199,19 @@ async function loadEvent() {
 
 async function loadInvitees() {
   inviteesLoading.value = true
-  // SEAM GAP: the Invitee contract (id/eventId/personId/status/roles/attended/
-  // respondedAt) can't serve this read — it needs the joined person (first/last/email,
-  // used everywhere in the Invitees + Attendance UI), sub_group_id, signed_out and
-  // invited_at ordering. So the invitees READ stays on useDb (and the sub_group/
-  // signed_out writes with it) until the Invitee contract is widened. (NEW gap.)
-  const { data } = await db
-    .from('invitees')
-    .select('*, person:persons(id, first_name, last_name, email)')
-    .eq('event_id', id)
-    .order('invited_at')
-  invitees.value = data ?? []
+  // The invitees + joined person come from the events seam (camelCase). This page reads
+  // the Supabase snake shape everywhere (inv.person_id, inv.sub_group_id, inv.signed_out,
+  // inv.person.first_name…), so map the seam rows back to that shape at the boundary.
+  // (person carries id/first_name/last_name/email only — dob was never selected here.)
+  invitees.value = (await eventsApi.inviteesWithPerson(id)).map((inv: any) => ({
+    ...inv,
+    person_id: inv.personId,
+    sub_group_id: inv.subGroupId,
+    signed_out: inv.signedOut,
+    person: inv.person
+      ? { id: inv.person.id, first_name: inv.person.firstName, last_name: inv.person.lastName, email: inv.person.email }
+      : null,
+  }))
   memberGroupsForInvitees.value = []
   // Restore sub-group assignments from DB
   const map: Record<string, string> = {}
@@ -5407,14 +5370,7 @@ const seriesArchiveOpen = ref(false)
 const seriesArchiveScope = ref<'this' | 'following' | 'all'>('this')
 
 async function loadSeriesChildrenCount() {
-  // SEAM GAP: recurrence series — no seam read/count filtered by recurrence_parent_id
-  // (nor a delete/insert-by-parent for series generation). generateOccurrences (clone
-  // master → child rows), performSeriesArchive's "following"/"all" sibling queries and
-  // this count all stay on useDb until an events recurrence-series read/write lands.
-  const { count } = await (db.from as any)('events')
-    .select('id', { count: 'exact', head: true })
-    .eq('recurrence_parent_id', id)
-  seriesChildrenCount.value = count ?? 0
+  seriesChildrenCount.value = await eventsApi.seriesCount(id)
 }
 
 async function generateOccurrences() {
@@ -5441,14 +5397,9 @@ async function generateOccurrences() {
     const exdateSet = new Set(editForm.value.exdates ?? [])
     const masterKey = dateKey(startDt)
 
-    // Fetch master event row to clone
-    const { data: master } = await db.from('events').select('*').eq('id', id).single()
-    if (!master) throw new Error('Could not load master event')
-
-    // Strip fields that should not be cloned
-    const { id: _id, created_at, updated_at, recurrence_rule, recurrence_parent_id, exdates, ...cloneable } = master as any
-
-    const childRows = occurrences
+    // Build the occurrence windows; the seam clones the master server-side and
+    // delete-then-inserts one child per window (no need to ship the whole event shape).
+    const occ = occurrences
       .filter(d => {
         const key = dateKey(d)
         if (key === masterKey) return false
@@ -5459,27 +5410,15 @@ async function generateOccurrences() {
         const childStart = new Date(d)
         childStart.setHours(startDt.getHours(), startDt.getMinutes(), 0, 0)
         const childEnd = new Date(childStart.getTime() + duration)
-        return {
-          ...cloneable,
-          recurrence_parent_id: id,
-          recurrence_rule: null,
-          exdates: [],
-          start_at: childStart.toISOString(),
-          end_at: childEnd.toISOString(),
-        }
+        return { startAt: childStart.toISOString(), endAt: childEnd.toISOString() }
       })
 
-    // Replace any existing children
-    await db.from('events').delete().eq('recurrence_parent_id', id)
-    if (childRows.length) {
-      const { error } = await db.from('events').insert(childRows)
-      if (error) throw error
-    }
+    const created = await eventsApi.generateSeries(id, occ)
     await loadSeriesChildrenCount()
     toast.add({
       severity: 'success',
       summary: 'Series generated',
-      detail: `${childRows.length} occurrence${childRows.length === 1 ? '' : 's'} created.`,
+      detail: `${created} occurrence${created === 1 ? '' : 's'} created.`,
       life: 3000,
     })
   } catch (e: any) {
@@ -5512,20 +5451,18 @@ async function performSeriesArchive() {
     await eventsApi.update(id, { status: 'ARCHIVED' })
   } else if (scope === 'following') {
     if (thisStart) {
-      // Archive this and any siblings (or children) starting on/after this event
-      // SEAM GAP: recurrence series — sibling read (.or id/recurrence_parent_id + .gte
-      // start_at) and the bulk archive-by-ids have no seam. Stays on useDb.
+      // Archive this and any siblings (or children) starting on/after this event. The
+      // seam returns the whole series (master + children); filter by start date in JS,
+      // then bulk-archive (org-scoped server-side).
       const ids = new Set<string>([id])
-      const { data: siblings } = await db.from('events')
-        .select('id, start_at')
-        .or(`id.eq.${parentId},recurrence_parent_id.eq.${parentId}`)
-        .gte('start_at', thisStart)
-      for (const s of siblings ?? []) ids.add(s.id)
-      await db.from('events').update({ status: 'ARCHIVED' }).in('id', [...ids])
+      for (const s of await eventsApi.series(parentId)) {
+        if (s.startAt && s.startAt >= thisStart) ids.add(s.id)
+      }
+      await eventsApi.setEventsStatus(orgId.value, [...ids], 'ARCHIVED')
     }
   } else if (scope === 'all') {
-    await db.from('events').update({ status: 'ARCHIVED' })
-      .or(`id.eq.${parentId},recurrence_parent_id.eq.${parentId}`)
+    const ids = (await eventsApi.series(parentId)).map(s => s.id)
+    await eventsApi.setEventsStatus(orgId.value, ids, 'ARCHIVED')
   }
 
   seriesArchiveOpen.value = false

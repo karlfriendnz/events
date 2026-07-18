@@ -409,3 +409,84 @@ export const bookingCreateSchema = bookingSchema
   .partial()
   .required({ bookableId: true, startAt: true, endAt: true })
 export type BookingCreate = z.infer<typeof bookingCreateSchema>
+
+// PATCH contract — a full-field booking update (the calendar/venue edit dialog writes
+// start/end/contacts/activity/mode/bookable/custom_fields; the calendar drag writes just
+// start/end). Everything optional; orgId + id are not patchable.
+export const bookingPatchSchema = bookingSchema.omit({ id: true, orgId: true }).partial()
+export type BookingPatch = z.infer<typeof bookingPatchSchema>
+
+// A booking with the small display joins the pending-queue + edit-dialog need folded
+// in: its bookable (name/location), its activity (name), its mode (name/colour) and the
+// event it belongs to (title). These are READ-only convenience joins — the repository
+// resolves them; nothing writes through this shape. Every join is nullable (a booking
+// may have no activity/mode/event).
+export const bookingDetailSchema = bookingSchema.extend({
+  bookable: z.object({ id: z.string(), name: z.string(), location: z.string().nullable() }).nullable(),
+  activity: z.object({ id: z.string(), name: z.string() }).nullable(),
+  activityMode: z.object({ id: z.string(), name: z.string(), color: z.string().nullable() }).nullable(),
+  event: z.object({ id: z.string(), title: z.string() }).nullable(),
+})
+export type BookingDetail = z.infer<typeof bookingDetailSchema>
+export const bookingDetailListSchema = z.array(bookingDetailSchema)
+
+// A booking window (booking_windows) + its fixed slots (booking_window_slots) folded
+// in. Times are HH:MM:SS strings; daysOfWeek is a json int[]. The schedule editor owns
+// the whole set per bookable; the venue page copies a master's windows onto linked
+// venues. slots come back sorted by sortOrder.
+export const bookingWindowSlotSchema = z.object({
+  id: z.string(),
+  windowId: z.string(),
+  slotStart: z.string(),
+  slotEnd: z.string(),
+  capacity: z.number().int(),
+  label: z.string().nullable(),
+  sortOrder: z.number().int(),
+})
+export type BookingWindowSlot = z.infer<typeof bookingWindowSlotSchema>
+
+export const bookingWindowSchema = z.object({
+  id: z.string(),
+  bookableId: z.string(),
+  name: z.string(),
+  windowType: z.string(),
+  daysOfWeek: jsonArr,
+  startTime: z.string(),
+  endTime: z.string(),
+  slotDurationMins: z.number().int().nullable(),
+  bufferMins: z.number().int(),
+  capacity: z.number().int(),
+  sortOrder: z.number().int(),
+  isActive: z.boolean(),
+  slots: z.array(bookingWindowSlotSchema),
+})
+export type BookingWindow = z.infer<typeof bookingWindowSchema>
+export const bookingWindowListSchema = z.array(bookingWindowSchema)
+
+// WRITE contracts. A slot input omits id/windowId (the repo supplies them). A window
+// create carries its slots inline (the editor saves both together); update is a partial
+// with optional slots (present = replace the slot set, absent = leave slots untouched).
+export const bookingWindowSlotInputSchema = bookingWindowSlotSchema.omit({ id: true, windowId: true }).partial().extend({
+  slotStart: z.string(), slotEnd: z.string(),
+})
+export type BookingWindowSlotInput = z.infer<typeof bookingWindowSlotInputSchema>
+
+export const bookingWindowCreateSchema = bookingWindowSchema
+  .omit({ id: true, slots: true })
+  .partial()
+  .required({ bookableId: true })
+  .extend({ slots: z.array(bookingWindowSlotInputSchema).optional() })
+export type BookingWindowCreate = z.infer<typeof bookingWindowCreateSchema>
+
+export const bookingWindowPatchSchema = bookingWindowSchema
+  .omit({ id: true, slots: true })
+  .partial()
+  .extend({ slots: z.array(bookingWindowSlotInputSchema).optional() })
+export type BookingWindowPatch = z.infer<typeof bookingWindowPatchSchema>
+
+// A bookable_modes write input (the venue-editor Modes tab owns the whole set for a
+// bookable — delete-then-insert). id/bookableId/sortOrder are supplied by the repo.
+export const bookableModeInputSchema = bookableModeSchema.omit({ id: true, bookableId: true, sortOrder: true }).partial().extend({
+  name: z.string().min(1),
+})
+export type BookableModeInput = z.infer<typeof bookableModeInputSchema>

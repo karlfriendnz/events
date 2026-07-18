@@ -68,31 +68,11 @@ export function renderHelpTokens(text: string, termMap: Record<string, { singula
 }
 
 export function useHelp() {
-  const db = useDb()
   const admin = useAdminApi()
   const modules = useOrgModules()
   const { can, load: loadCan, loaded: canLoaded } = useCan()
 
-  function normalise(row: any): HelpArticle {
-    return {
-      id: row.id,
-      key: row.key,
-      title: row.title ?? '',
-      explanation: row.explanation ?? '',
-      steps: Array.isArray(row.steps) ? row.steps : [],
-      module: row.module ?? null,
-      resource: row.resource ?? null,
-      route: row.route ?? null,
-      sort_order: row.sort_order ?? 0,
-      status: row.status === 'published' ? 'published' : 'draft',
-      updated_at: row.updated_at,
-      created_at: row.created_at,
-    }
-  }
-
-  // The seam returns the catalogue in camelCase, already sorted by sort_order.
-  // (sort_order / updated_at / created_at aren't on the contract — only the admin
-  // editor needs those, and it writes via the useDb path below.)
+  // The seam returns the catalogue in camelCase, already sorted by sortOrder.
   function fromApi(a: any): HelpArticle {
     return {
       id: a.id,
@@ -103,7 +83,7 @@ export function useHelp() {
       module: a.module ?? null,
       resource: a.resource ?? null,
       route: a.route ?? null,
-      sort_order: 0,
+      sort_order: a.sortOrder ?? 0,
       status: a.status === 'published' ? 'published' : 'draft',
     }
   }
@@ -127,13 +107,9 @@ export function useHelp() {
       .filter(a => modules.isEnabled(a.module) && (!a.resource || can(a.resource, 'read')))
   }
 
-  // ── Admin CRUD ──
-  // SEAM GAP: help-article WRITES belong to the admin master-data domain (admin.ts
-  // owns help_articles alongside brands/club_types and already exposes listHelpArticles;
-  // create/update/delete + the sort_order/updated_at fields the /admin/help editor uses
-  // are not yet on that seam). Left on useDb until admin adds them. Read path is converted.
+  // ── Admin CRUD (through the admin seam) ──
   async function saveHelpArticle(article: Partial<HelpArticle> & { key: string; title: string }): Promise<HelpArticle | null> {
-    const payload: any = {
+    const payload = {
       key: article.key.trim(),
       title: article.title ?? '',
       explanation: article.explanation ?? '',
@@ -141,20 +117,17 @@ export function useHelp() {
       module: article.module || null,
       resource: article.resource || null,
       route: article.route?.trim() || null,
-      sort_order: article.sort_order ?? 0,
+      sortOrder: article.sort_order ?? 0,
       status: article.status === 'published' ? 'published' : 'draft',
-      updated_at: new Date().toISOString(),
     }
-    if (article.id) {
-      const { data } = await (db.from as any)('help_articles').update(payload).eq('id', article.id).select('*').maybeSingle()
-      return data ? normalise(data) : null
-    }
-    const { data } = await (db.from as any)('help_articles').insert(payload).select('*').maybeSingle()
-    return data ? normalise(data) : null
+    const saved = article.id
+      ? await admin.updateHelpArticle(article.id, payload)
+      : await admin.createHelpArticle(payload)
+    return saved ? fromApi(saved) : null
   }
 
   async function deleteHelpArticle(id: string) {
-    await (db.from as any)('help_articles').delete().eq('id', id)
+    await admin.removeHelpArticle(id)
   }
 
   return { loadHelpArticles, saveHelpArticle, deleteHelpArticle, renderHelpTokens }

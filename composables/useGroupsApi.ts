@@ -206,6 +206,54 @@ export function useGroupsApi() {
       body: { orgId, rows },
     })
   }
+  /** ID-PRESERVING schedule save: updates existing rows in place by id (so training
+   *  events linked via member_group_schedule_id stay attached), inserts rows with no
+   *  id, deletes the rest. Each row: { id?: string|null, name, dayOfWeek, startTime,
+   *  endTime, location, sortOrder }. */
+  async function syncSchedules(
+    groupId: string,
+    orgId: string,
+    rows: any[],
+  ): Promise<MemberGroupSchedule[]> {
+    return await $fetch<MemberGroupSchedule[]>(`/api/v1/groups/${groupId}/schedules-sync`, {
+      method: 'POST',
+      body: { orgId, rows },
+    })
+  }
+  /** The roster of a set of groups with the full person projection the discipline-flag
+   *  evaluator needs (custom_fields + person_types + dob/gender). */
+  async function rosterWithPerson(groupIds: string[]): Promise<
+    {
+      roles: string[]
+      role: string | null
+      positions: string[]
+      subGroupId: string | null
+      person: {
+        id: string
+        firstName: string | null
+        lastName: string | null
+        email: string | null
+        phone: string | null
+        dob: string | null
+        gender: string | null
+        customFields: any
+        personTypes: string[]
+        personType: string | null
+      } | null
+    }[]
+  > {
+    if (groupIds.length === 0) return []
+    return await $fetch('/api/v1/groups/roster-with-person', { query: { groupIds: groupIds.join(',') } })
+  }
+  /** Save a group's per-term fee link + membership-plan connections (member_group_terms
+   *  + member_group_plans, delete-then-insert). The group's own term_id/term_fee are
+   *  written separately via update(). */
+  async function saveBilling(
+    groupId: string,
+    input: { termId: string | null; fee: string | number | null; planIds: string[] },
+  ): Promise<void> {
+    await $fetch(`/api/v1/groups/${groupId}/billing`, { method: 'POST', body: input })
+  }
   /** Create a group. */
   async function create(input: MemberGroupCreate): Promise<MemberGroup> {
     return await $fetch<MemberGroup>('/api/v1/groups', { method: 'POST', body: input })
@@ -252,7 +300,8 @@ export function useGroupsApi() {
     upsertMembership, removeMembership, membershipsWithPersonForGroups,
     membershipsForRetention, moveMembership, roster, rollover,
     schedules, schedulesForGroups, codes, feeOptions,
-    saveFeeOptions, addFeeOptionToGroups, saveSchedules,
+    saveFeeOptions, addFeeOptionToGroups, saveSchedules, syncSchedules,
+    rosterWithPerson, saveBilling,
     create, update, remove, createCode, updateCode, removeCode,
     views, view, createView, updateView, removeView,
   }

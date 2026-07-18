@@ -36,6 +36,10 @@ import type {
   CustomReportCreate,
   CustomReportPatch,
   ReportPerson,
+  XeroConnectionMappingPatch,
+  BankAccount,
+  BankAccountCreate,
+  BankAccountPatch,
 } from '../../../shared/contracts/finance'
 
 // Coerce a json column into its parsed value, leaving non-string payloads as-is.
@@ -547,4 +551,89 @@ export async function reportPositions(orgId: string): Promise<string[]> {
   const set = new Set<string>()
   for (const m of mships) for (const p of asArr(m.positions)) if (p) set.add(p)
   return [...set].sort()
+}
+
+// ── Xero connection mapping update ──
+// Patch just the mapping columns on the org's single xero_connections row (never
+// tokens). json feeAccounts takes the raw JS value (no JSON.stringify).
+export async function updateXeroConnectionMapping(patch: XeroConnectionMappingPatch): Promise<XeroConnection | null> {
+  const set: Record<string, any> = { updatedAt: new Date() }
+  if (patch.bankAccountCode !== undefined) set.bankAccountCode = patch.bankAccountCode
+  if (patch.bankAccountName !== undefined) set.bankAccountName = patch.bankAccountName
+  if (patch.taxType !== undefined) set.taxType = patch.taxType
+  if (patch.salesAccountCode !== undefined) set.salesAccountCode = patch.salesAccountCode
+  if (patch.feeAccounts !== undefined) set.feeAccounts = patch.feeAccounts
+  await db.update(schema.xeroConnections).set(set as any).where(eq(schema.xeroConnections.orgId, patch.orgId))
+  return getXeroConnection(patch.orgId)
+}
+
+// ── Bank accounts (Settings payment defaults) ──
+function toBankAccount(r: typeof schema.bankAccounts.$inferSelect): BankAccount {
+  return {
+    id: r.id,
+    orgId: r.orgId,
+    name: r.name,
+    details: r.details ?? null,
+    isDefault: r.isDefault === true || (r.isDefault as any) === 1,
+    sortOrder: r.sortOrder,
+  }
+}
+
+/** The org's bank accounts, in sort order. */
+export async function listBankAccounts(orgId: string): Promise<BankAccount[]> {
+  const rows = await db
+    .select()
+    .from(schema.bankAccounts)
+    .where(eq(schema.bankAccounts.orgId, orgId))
+    .orderBy(asc(schema.bankAccounts.sortOrder))
+  return rows.map(toBankAccount)
+}
+
+async function getBankAccount(id: string): Promise<BankAccount | null> {
+  const [r] = await db.select().from(schema.bankAccounts).where(eq(schema.bankAccounts.id, id)).limit(1)
+  return r ? toBankAccount(r) : null
+}
+
+// Only ONE account can be the default per org — clear the others when one is set.
+async function clearDefault(orgId: string): Promise<void> {
+  await db.update(schema.bankAccounts).set({ isDefault: false } as any).where(eq(schema.bankAccounts.orgId, orgId))
+}
+
+export async function createBankAccount(input: BankAccountCreate): Promise<BankAccount> {
+  const existing = await db
+    .select({ id: schema.bankAccounts.id })
+    .from(schema.bankAccounts)
+    .where(eq(schema.bankAccounts.orgId, input.orgId))
+  if (input.isDefault) await clearDefault(input.orgId)
+  const id = randomUUID()
+  await db.insert(schema.bankAccounts).values({
+    id,
+    orgId: input.orgId,
+    name: input.name,
+    details: input.details ?? null,
+    isDefault: input.isDefault ?? false,
+    sortOrder: existing.length,
+  } as any)
+  return (await getBankAccount(id))!
+}
+
+/** Patch a bank account. Tenant-scoped (id AND org_id). Setting isDefault true clears
+ *  the org's other defaults first. */
+export async function updateBankAccount(id: string, patch: BankAccountPatch): Promise<BankAccount | null> {
+  if (patch.isDefault) await clearDefault(patch.orgId)
+  const set: Record<string, any> = {}
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.details !== undefined) set.details = patch.details
+  if (patch.isDefault !== undefined) set.isDefault = patch.isDefault
+  if (Object.keys(set).length) {
+    await db
+      .update(schema.bankAccounts)
+      .set(set as any)
+      .where(and(eq(schema.bankAccounts.id, id), eq(schema.bankAccounts.orgId, patch.orgId)))
+  }
+  return getBankAccount(id)
+}
+
+export async function deleteBankAccount(id: string, orgId: string): Promise<void> {
+  await db.delete(schema.bankAccounts).where(and(eq(schema.bankAccounts.id, id), eq(schema.bankAccounts.orgId, orgId)))
 }

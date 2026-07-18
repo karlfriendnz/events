@@ -529,7 +529,7 @@ const emit = defineEmits<{
   'navigate-tab': [tab: string]
 }>()
 
-const db = useDb() // retained for cross-domain (organisations) + seam-gap (bookable_modes write, activity_bookables by-bookable) reads/writes
+const db = useDb() // retained only for cross-domain organisations (owned by admin); all bookings-domain reads/writes now go through the seam
 const api = useBookingsApi()
 
 const orgCurrency = ref('NZD')
@@ -655,22 +655,19 @@ async function saveModes() {
   if (!props.bookable?.id) return
   savingModes.value = true
   try {
-    // TODO seam-gap: bookable_modes has no seam write (only a read). Still via useDb.
-    await (db.from as any)('bookable_modes').delete().eq('bookable_id', props.bookable.id)
-    const rows = modes.value.filter(m => m.name.trim()).map((m, i) => ({
-      bookable_id: props.bookable!.id,
+    // Replace the bookable's whole mode set via the seam (delete-then-insert; the repo
+    // assigns ids + sort_order). Map this editor's snake_case rows to the seam's input.
+    await api.setBookableModes(props.bookable.id, modes.value.filter(m => m.name.trim()).map(m => ({
       name: m.name.trim(),
       description: m.description?.trim() || null,
       color: m.color,
-      min_players: m.min_players,
-      max_players: m.max_players,
-      price_per_hour: m.price_per_hour,
-      price_per_slot: m.price_per_slot,
-      flat_fee: m.flat_fee,
-      price_per_person: m.price_per_person,
-      sort_order: i,
-    }))
-    if (rows.length) await (db.from as any)('bookable_modes').insert(rows)
+      minPlayers: m.min_players,
+      maxPlayers: m.max_players,
+      pricePerHour: m.price_per_hour,
+      pricePerSlot: m.price_per_slot,
+      flatFee: m.flat_fee,
+      pricePerPerson: m.price_per_person,
+    })))
     await loadModes()
   } finally {
     savingModes.value = false
@@ -799,27 +796,22 @@ const linkedActivities = computed(() => allActivities.value.filter(a => linkedAc
 
 async function loadActivities() {
   if (!props.bookable?.id) return
-  // TODO seam-gap: activity_bookables by-bookable read (seam only offers by-activity). Still via useDb.
-  const [acts, { data: links }] = await Promise.all([
+  const [acts, links] = await Promise.all([
     api.activities(orgId.value),
-    (db.from as any)('activity_bookables').select('activity_id').eq('bookable_id', props.bookable.id),
+    api.bookableActivityIds(props.bookable.id),
   ])
   // Seam returns all activities (camelCase id/name/color = same keys); keep only ACTIVE, name-ordered.
   allActivities.value = (acts ?? [])
     .filter((a: any) => a.status === 'ACTIVE')
     .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''))
-  linkedActivityIds.value = (links ?? []).map((l: any) => l.activity_id)
+  linkedActivityIds.value = links ?? []
 }
 
 async function saveActivityLinks() {
   if (!props.bookable?.id) return
-  // TODO seam-gap: activity_bookables by-bookable write (seam only offers setActivityBookables by-activity, which would clobber other bookables). Still via useDb.
-  await (db.from as any)('activity_bookables').delete().eq('bookable_id', props.bookable.id)
-  if (linkedActivityIds.value.length) {
-    await (db.from as any)('activity_bookables').insert(
-      linkedActivityIds.value.map(aid => ({ activity_id: aid, bookable_id: props.bookable!.id }))
-    )
-  }
+  // Set this bookable's linked activities via the seam (delete-then-insert scoped to the
+  // bookable, so it never touches another bookable's links).
+  await api.setBookableActivityIds(props.bookable.id, linkedActivityIds.value)
 }
 
 async function unlinkActivity(activityId: string) {

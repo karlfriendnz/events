@@ -288,3 +288,64 @@ export async function getDescendants(id: string): Promise<OrgTreeNode[]> {
   `)
   return rowsOf(result).map(toTreeNode)
 }
+
+// ── Focused fills for small consumers ──
+
+// json array column (default_member_positions) → string[]; tolerate raw string.
+function asStrArr(v: unknown): string[] {
+  if (Array.isArray(v)) return v as string[]
+  if (typeof v === 'string') {
+    try { const p = JSON.parse(v); return Array.isArray(p) ? p : [] } catch { return [] }
+  }
+  return []
+}
+
+/** The resolved brand theme for an org: the connected platform brand's colour (via
+ *  brand_id → brands.color) + the level for the governing-body fallback. Null org →
+ *  null. */
+export async function getOrgBrandTheme(id: string): Promise<{ brandColor: string | null; orgLevel: string } | null> {
+  const [r] = await db.select().from(schema.organisations).where(eq(schema.organisations.id, id)).limit(1)
+  if (!r) return null
+  let brandColor: string | null = null
+  if (r.brandId) {
+    const [b] = await db.select({ color: schema.brands.color }).from(schema.brands).where(eq(schema.brands.id, r.brandId)).limit(1)
+    brandColor = b?.color ?? null
+  }
+  return { brandColor, orgLevel: r.orgLevel }
+}
+
+/** Privileged re-parent: move an org under a different governing body. Its own
+ *  operation (not the general patch) — the security model gates this endpoint. */
+export async function setOrgParent(id: string, parentId: string | null): Promise<void> {
+  await db.update(schema.organisations).set({ parentId } as any).where(eq(schema.organisations.id, id))
+}
+
+/** Set the cross-club member-pull policy (null/'reference' = reference the club's
+ *  row, 'copy' = mirror into a governing-owned row). */
+export async function setMemberPullMode(id: string, mode: 'reference' | 'copy' | null): Promise<void> {
+  await db.update(schema.organisations).set({ memberPullMode: mode } as any).where(eq(schema.organisations.id, id))
+}
+
+/** The org-wide default member positions (Captain/Wing/…). */
+export async function getDefaultMemberPositions(id: string): Promise<string[]> {
+  const [r] = await db.select({ p: schema.organisations.defaultMemberPositions }).from(schema.organisations).where(eq(schema.organisations.id, id)).limit(1)
+  return r ? asStrArr(r.p) : []
+}
+
+// json column takes the raw JS value (no JSON.stringify — that would double-encode).
+export async function setDefaultMemberPositions(id: string, positions: string[]): Promise<void> {
+  await db.update(schema.organisations).set({ defaultMemberPositions: positions } as any).where(eq(schema.organisations.id, id))
+}
+
+/** The new-club onboarding checklist state (organisations.onboarding jsonb). Null
+ *  org / never-saved → {}. */
+export async function getOnboarding(id: string): Promise<{ dismissed?: boolean; completed_at?: string | null }> {
+  const [r] = await db.select({ o: schema.organisations.onboarding }).from(schema.organisations).where(eq(schema.organisations.id, id)).limit(1)
+  const raw: any = r?.o
+  if (!raw || typeof raw !== 'object') return {}
+  return { dismissed: !!raw.dismissed, completed_at: raw.completed_at ?? null }
+}
+
+export async function setOnboarding(id: string, state: { dismissed?: boolean; completed_at?: string | null }): Promise<void> {
+  await db.update(schema.organisations).set({ onboarding: state } as any).where(eq(schema.organisations.id, id))
+}

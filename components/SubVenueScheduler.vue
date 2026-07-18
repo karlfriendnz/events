@@ -147,7 +147,7 @@ const emit = defineEmits<{
   'disabled-dates': [dates: Date[]]
 }>()
 
-const db = useDb()
+const api = useBookingsApi()
 
 // Default fallback window when no rules + no bookings exist for the day —
 // keeps the grid from collapsing to nothing on a blank schedule.
@@ -303,15 +303,16 @@ async function loadBookings() {
   // the entire field) render as blocked across every child column.
   const parentIds = Array.from(new Set(props.children.map((c: any) => c.parent_id).filter(Boolean) as string[]))
   parentBookableIds.value = new Set(parentIds)
-  // TODO seam-gap: bookings read is by bookable_id set + date range + joins events —
-  // the seam only offers an org-scoped bookings list (no bookable/date filter, no event join). Still via useDb (events join also cross-domain).
-  const { data } = await db.from('bookings')
-    .select('*, event:events(id, title)')
-    .in('bookable_id', [...childIds, ...parentIds])
-    .gte('start_at', dayStart.toISOString())
-    .lte('start_at', dayEnd.toISOString())
-    .order('start_at')
-  bookings.value = data ?? []
+  // Bookings on the child + parent ids for the day, with the event join, via the seam's
+  // by-bookable detailed read (no org context needed — bookable ids are org-owned).
+  const rows = await api.bookingsForBookablesDetailed([...childIds, ...parentIds], {
+    from: dayStart.toISOString(), to: dayEnd.toISOString(),
+  })
+  bookings.value = rows.map(b => ({
+    id: b.id, status: b.status, start_at: b.startAt, end_at: b.endAt, bookable_id: b.bookableId,
+    notes: b.notes, contact_name: b.contactName,
+    event: b.event ? { id: b.event.id, title: b.event.title } : null,
+  }))
   loading.value = false
 }
 
@@ -330,13 +331,16 @@ async function loadRules() {
     .map((c: any) => c.master_id)
     .filter((id: string | null | undefined): id is string => !!id)
   const ids = Array.from(new Set([...childIds, ...masterIds]))
-  // TODO seam-gap: availability_rules read spans MANY bookable ids at once — the seam
-  // only exposes availabilityRules(bookableId) per single bookable. Still via useDb.
-  const { data } = await (db.from as any)('availability_rules')
-    .select('id, bookable_id, name, rule_type, days_of_week, time_slots, time_from, time_to, activity_mode_ids, is_active, color, valid_from, valid_until, rrule')
-    .in('bookable_id', ids)
-    .eq('is_active', true)
-  rules.value = data ?? []
+  // Active availability rules across MANY bookable ids at once (child ids + their
+  // masters) via the seam; map the camelCase result to the snake_case fields this
+  // component's slot logic reads.
+  const seamRules = await api.availabilityRulesForBookables(ids, { activeOnly: true })
+  rules.value = seamRules.map(r => ({
+    id: r.id, bookable_id: r.bookableId, name: r.name, rule_type: r.ruleType,
+    days_of_week: r.daysOfWeek, time_slots: r.timeSlots, time_from: r.timeFrom, time_to: r.timeTo,
+    activity_mode_ids: r.activityModeIds, is_active: r.isActive, color: r.color,
+    valid_from: r.validFrom, valid_until: r.validUntil, rrule: r.rrule,
+  }))
 }
 
 // Does any visible child have an applicable rule with at least one slot on

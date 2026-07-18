@@ -13,20 +13,21 @@
 // the domain always sees a real JS value. On WRITE, json columns take RAW JS values
 // (never JSON.stringify — Drizzle json() double-encodes).
 import { randomUUID } from 'node:crypto'
-import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, lt, lte, ne } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   Bookable, BookableCreate, BookablePatch,
   Activity, ActivityCreate, ActivityPatch,
   ActivityMode, ActivityModeCreate, ActivityModePatch,
-  BookableMode,
+  BookableMode, BookableModeInput,
   AvailabilityRule, AvailabilityRuleCreate, AvailabilityRulePatch,
   BookableConfigurationFull,
   Door, DoorCreate, DoorPatch,
   LightZone, LightZoneCreate, LightZonePatch,
   BookingDiscount,
   ActivityModeBookable, ActivityModeResource, ActivityModeRequiredItem, ActivityBookable,
-  Booking, BookingCreate,
+  Booking, BookingCreate, BookingPatch, BookingDetail,
+  BookingWindow, BookingWindowCreate, BookingWindowPatch, BookingWindowSlotInput,
 } from '../../../shared/contracts/booking'
 
 // ── json / value coercion ──
@@ -377,11 +378,23 @@ export async function listAvailabilityRules(bookableId: string): Promise<Availab
 
 // Every availability rule across a set of bookables (the scheduler loads a whole
 // venue tree at once). Returns them keyed nowhere — the caller buckets by bookableId.
-export async function listAvailabilityRulesForBookables(bookableIds: string[]): Promise<AvailabilityRule[]> {
+// `activeOnly` drops superseded/disabled rules (the sub-venue scheduler wants live ones).
+export async function listAvailabilityRulesForBookables(bookableIds: string[], opts?: { activeOnly?: boolean }): Promise<AvailabilityRule[]> {
   if (!bookableIds.length) return []
+  const where = opts?.activeOnly
+    ? and(inArray(schema.availabilityRules.bookableId, bookableIds), eq(schema.availabilityRules.isActive, true))
+    : inArray(schema.availabilityRules.bookableId, bookableIds)
   const rows = await db.select().from(schema.availabilityRules)
-    .where(inArray(schema.availabilityRules.bookableId, bookableIds))
+    .where(where)
     .orderBy(asc(schema.availabilityRules.sortOrder))
+  return rows.map(toAvailabilityRule)
+}
+
+// The rules a booking editor supersedes (replaced_by_rule_id = ruleId) — auto-restored
+// on delete. Small helper the granular availability routes use.
+export async function listAvailabilityRulesReplacedBy(ruleId: string): Promise<AvailabilityRule[]> {
+  const rows = await db.select().from(schema.availabilityRules)
+    .where(eq(schema.availabilityRules.replacedByRuleId, ruleId))
   return rows.map(toAvailabilityRule)
 }
 
@@ -848,17 +861,127 @@ export async function listBookings(
   return rows.map((r) => toBooking(r.b, r.orgId))
 }
 
-// Bookings for a set of bookables (a venue calendar loads one venue tree). Scoped by
-// the bookable ids, which are themselves org-owned.
-export async function listBookingsForBookables(bookableIds: string[]): Promise<Booking[]> {
+// Bookings for a set of bookables (a venue calendar loads one venue tree; a booker
+// pre-flight loads the candidate units). Scoped by the bookable ids, which are
+// themselves org-owned. Optional filters:
+//   overlapStart/overlapEnd — TRUE interval overlap (start_at < overlapEnd AND
+//     end_at > overlapStart): the clash/capacity pre-flight the wizard/scheduler/item
+//     booker run before writing.
+//   from/to — a window against start_at (the calendar's visible range).
+//   excludeCancelled — drop CANCELLED rows (every overlap check wants this).
+//   status — keep only this status.
+// All ISO 8601 strings. Ordered by start_at ascending.
+export async function listBookingsForBookables(
+  bookableIds: string[],
+  opts?: { overlapStart?: string; overlapEnd?: string; from?: string; to?: string; excludeCancelled?: boolean; status?: string },
+): Promise<Booking[]> {
   if (!bookableIds.length) return []
+  const conds: any[] = [inArray(schema.bookings.bookableId, bookableIds)]
+  if (opts?.overlapStart != null) conds.push(gt(schema.bookings.endAt, new Date(opts.overlapStart)))
+  if (opts?.overlapEnd != null) conds.push(lt(schema.bookings.startAt, new Date(opts.overlapEnd)))
+  if (opts?.from != null) conds.push(gte(schema.bookings.startAt, new Date(opts.from)))
+  if (opts?.to != null) conds.push(lte(schema.bookings.startAt, new Date(opts.to)))
+  if (opts?.excludeCancelled) conds.push(ne(schema.bookings.status, 'CANCELLED'))
+  if (opts?.status) conds.push(eq(schema.bookings.status, opts.status))
   const rows = await db
     .select({ b: schema.bookings, orgId: schema.bookables.orgId })
     .from(schema.bookings)
     .innerJoin(schema.bookables, eq(schema.bookings.bookableId, schema.bookables.id))
-    .where(inArray(schema.bookings.bookableId, bookableIds))
-    .orderBy(desc(schema.bookings.startAt))
+    .where(and(...conds))
+    .orderBy(asc(schema.bookings.startAt))
   return rows.map((r) => toBooking(r.b, r.orgId))
+}
+
+// A booking's small display joins (bookable / activity / mode / event) folded in — for
+// the pending queue + the venue edit dialog, which show more than the flat booking row.
+function toBookingDetail(
+  r: typeof schema.bookings.$inferSelect,
+  orgId: string,
+  joins: {
+    bookableName: string | null; bookableLocation: string | null;
+    activityName: string | null;
+    modeId: string | null; modeName: string | null; modeColor: string | null;
+    eventId: string | null; eventTitle: string | null;
+  },
+): BookingDetail {
+  return {
+    ...toBooking(r, orgId),
+    bookable: joins.bookableName != null ? { id: r.bookableId, name: joins.bookableName, location: joins.bookableLocation ?? null } : null,
+    activity: joins.activityName != null && r.activityId ? { id: r.activityId, name: joins.activityName } : null,
+    activityMode: joins.modeId != null ? { id: joins.modeId, name: joins.modeName ?? '', color: joins.modeColor ?? null } : null,
+    event: joins.eventId != null ? { id: joins.eventId, title: joins.eventTitle ?? '' } : null,
+  }
+}
+
+const bookingDetailSelect = {
+  b: schema.bookings,
+  orgId: schema.bookables.orgId,
+  bookableName: schema.bookables.name,
+  bookableLocation: schema.bookables.location,
+  activityName: schema.activities.name,
+  modeId: schema.activityModes.id,
+  modeName: schema.activityModes.name,
+  modeColor: schema.activityModes.color,
+  eventId: schema.events.id,
+  eventTitle: schema.events.title,
+}
+function bookingDetailFrom() {
+  return db
+    .select(bookingDetailSelect)
+    .from(schema.bookings)
+    .innerJoin(schema.bookables, eq(schema.bookings.bookableId, schema.bookables.id))
+    .leftJoin(schema.activities, eq(schema.bookings.activityId, schema.activities.id))
+    .leftJoin(schema.activityModes, eq(schema.bookings.activityModeId, schema.activityModes.id))
+    .leftJoin(schema.events, eq(schema.bookings.eventId, schema.events.id))
+}
+function mapDetailRow(r: any): BookingDetail {
+  return toBookingDetail(r.b, r.orgId, {
+    bookableName: r.bookableName, bookableLocation: r.bookableLocation,
+    activityName: r.activityName, modeId: r.modeId, modeName: r.modeName, modeColor: r.modeColor,
+    eventId: r.eventId, eventTitle: r.eventTitle,
+  })
+}
+
+// An org's bookings WITH display joins, newest first. Same org scoping (join to the
+// bookable) + the same optional filters as listBookings — used by the pending queue.
+export async function listBookingsDetailed(
+  orgId: string,
+  opts?: { status?: string; bookableIds?: string[]; from?: string; to?: string },
+): Promise<BookingDetail[]> {
+  const conds: any[] = [eq(schema.bookables.orgId, orgId)]
+  if (opts?.status) conds.push(eq(schema.bookings.status, opts.status))
+  if (opts?.bookableIds?.length) conds.push(inArray(schema.bookings.bookableId, opts.bookableIds))
+  if (opts?.from != null) conds.push(gte(schema.bookings.startAt, new Date(opts.from)))
+  if (opts?.to != null) conds.push(lte(schema.bookings.startAt, new Date(opts.to)))
+  const rows = await bookingDetailFrom().where(and(...conds)).orderBy(desc(schema.bookings.createdAt))
+  return rows.map(mapDetailRow)
+}
+
+// One booking by id, WITH its display joins (the venue page's ?booking=<id> deep-link
+// pops the edit dialog, which needs the mode/event/bookable names).
+export async function getBookingDetailed(id: string): Promise<BookingDetail | null> {
+  const [r] = await bookingDetailFrom().where(eq(schema.bookings.id, id)).limit(1)
+  return r ? mapDetailRow(r) : null
+}
+
+// Bookings on a SET of bookables WITH display joins (the sub-venue scheduler renders the
+// event title in each child column). Scoped by the bookable ids (org-owned), so no orgId
+// is needed — which matters because the scheduler runs without an org context. Same
+// optional window/overlap filters as the flat for-bookables read.
+export async function listBookingsDetailedForBookables(
+  bookableIds: string[],
+  opts?: { overlapStart?: string; overlapEnd?: string; from?: string; to?: string; excludeCancelled?: boolean; status?: string },
+): Promise<BookingDetail[]> {
+  if (!bookableIds.length) return []
+  const conds: any[] = [inArray(schema.bookings.bookableId, bookableIds)]
+  if (opts?.overlapStart != null) conds.push(gt(schema.bookings.endAt, new Date(opts.overlapStart)))
+  if (opts?.overlapEnd != null) conds.push(lt(schema.bookings.startAt, new Date(opts.overlapEnd)))
+  if (opts?.from != null) conds.push(gte(schema.bookings.startAt, new Date(opts.from)))
+  if (opts?.to != null) conds.push(lte(schema.bookings.startAt, new Date(opts.to)))
+  if (opts?.excludeCancelled) conds.push(ne(schema.bookings.status, 'CANCELLED'))
+  if (opts?.status) conds.push(eq(schema.bookings.status, opts.status))
+  const rows = await bookingDetailFrom().where(and(...conds)).orderBy(asc(schema.bookings.startAt))
+  return rows.map(mapDetailRow)
 }
 
 function bookingSet(input: Partial<BookingCreate>): Record<string, any> {
@@ -905,6 +1028,160 @@ export async function updateBookingStatus(id: string, status: string): Promise<v
   await db.update(schema.bookings).set({ status }).where(eq(schema.bookings.id, id))
 }
 
+// Full-field booking update (the calendar drag writes start/end; the venue edit dialog
+// writes contacts/activity/mode/bookable/custom_fields/status). Only provided fields are
+// touched. Returns the updated booking (with org derived from its bookable).
+export async function updateBooking(id: string, patch: BookingPatch): Promise<Booking | null> {
+  const s = bookingSet(patch)
+  if (Object.keys(s).length) await db.update(schema.bookings).set(s).where(eq(schema.bookings.id, id))
+  const [r] = await db
+    .select({ b: schema.bookings, orgId: schema.bookables.orgId })
+    .from(schema.bookings)
+    .innerJoin(schema.bookables, eq(schema.bookings.bookableId, schema.bookables.id))
+    .where(eq(schema.bookings.id, id)).limit(1)
+  return r ? toBooking(r.b, r.orgId) : null
+}
+
 export async function deleteBooking(id: string): Promise<void> {
   await db.delete(schema.bookings).where(eq(schema.bookings.id, id))
+}
+
+// ══ Children-of-bookable read ══
+// The direct children of a bookable (parent_id = id) — the calendar's mutual-exclusion
+// tree walk, and the venue page's child/item lists. Returns full Bookable rows so the
+// caller reuses the same shape it reads elsewhere. Ordered by sort_order.
+export async function listBookableChildren(parentId: string): Promise<Bookable[]> {
+  const rows = await db.select().from(schema.bookables)
+    .where(eq(schema.bookables.parentId, parentId))
+    .orderBy(asc(schema.bookables.sortOrder))
+  return rows.map(toBookable)
+}
+
+// ══ Org-wide activity modes ══
+// Every activity mode across an org's activities, in one query — replaces the N+1
+// per-activity fan-out the venue edit dialog + availability editor used. Joins
+// activity_modes → activities for the org filter; ordered by mode name.
+export async function listActivityModesForOrg(orgId: string): Promise<ActivityMode[]> {
+  const rows = await db
+    .select({ m: schema.activityModes })
+    .from(schema.activityModes)
+    .innerJoin(schema.activities, eq(schema.activityModes.activityId, schema.activities.id))
+    .where(eq(schema.activities.orgId, orgId))
+    .orderBy(asc(schema.activityModes.name))
+  return rows.map((r) => toActivityMode(r.m))
+}
+
+// ══ Booking windows (+ fixed slots) ══
+function toBookingWindow(w: typeof schema.bookingWindows.$inferSelect, slots: (typeof schema.bookingWindowSlots.$inferSelect)[]): BookingWindow {
+  return {
+    id: w.id,
+    bookableId: w.bookableId,
+    name: w.name,
+    windowType: w.windowType,
+    daysOfWeek: asArray(w.daysOfWeek),
+    startTime: String(w.startTime),
+    endTime: String(w.endTime),
+    slotDurationMins: w.slotDurationMins ?? null,
+    bufferMins: w.bufferMins,
+    capacity: w.capacity,
+    sortOrder: w.sortOrder,
+    isActive: w.isActive,
+    slots: slots
+      .filter((s) => s.windowId === w.id)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((s) => ({
+        id: s.id, windowId: s.windowId, slotStart: String(s.slotStart), slotEnd: String(s.slotEnd),
+        capacity: s.capacity, label: s.label ?? null, sortOrder: s.sortOrder,
+      })),
+  }
+}
+
+export async function listBookingWindows(bookableId: string): Promise<BookingWindow[]> {
+  const wins = await db.select().from(schema.bookingWindows)
+    .where(eq(schema.bookingWindows.bookableId, bookableId))
+    .orderBy(asc(schema.bookingWindows.sortOrder))
+  if (!wins.length) return []
+  const slots = await db.select().from(schema.bookingWindowSlots)
+    .where(inArray(schema.bookingWindowSlots.windowId, wins.map((w) => w.id)))
+  return wins.map((w) => toBookingWindow(w, slots))
+}
+
+function windowSet(patch: BookingWindowPatch): Record<string, any> {
+  const s: Record<string, any> = {}
+  const keys: (keyof BookingWindowPatch)[] = [
+    'bookableId', 'name', 'windowType', 'daysOfWeek', 'startTime', 'endTime',
+    'slotDurationMins', 'bufferMins', 'capacity', 'sortOrder', 'isActive',
+  ]
+  for (const k of keys) if (patch[k] !== undefined) s[k] = patch[k]
+  return s
+}
+
+// Replace a window's fixed slots (delete-then-insert). Called on create-with-slots and
+// on a patch that carries a slots array.
+async function replaceWindowSlots(windowId: string, slots: BookingWindowSlotInput[]): Promise<void> {
+  await db.delete(schema.bookingWindowSlots).where(eq(schema.bookingWindowSlots.windowId, windowId))
+  if (slots.length) {
+    await db.insert(schema.bookingWindowSlots).values(slots.map((s, i) => ({
+      id: randomUUID(), windowId, slotStart: s.slotStart, slotEnd: s.slotEnd,
+      capacity: s.capacity ?? 1, label: s.label ?? null, sortOrder: s.sortOrder ?? i,
+    })) as any)
+  }
+}
+
+export async function createBookingWindow(input: BookingWindowCreate): Promise<BookingWindow> {
+  const id = randomUUID()
+  const { slots, ...rest } = input
+  await db.insert(schema.bookingWindows).values({
+    id,
+    name: '', windowType: 'OPEN', daysOfWeek: [], startTime: '09:00:00', endTime: '17:00:00',
+    bufferMins: 0, capacity: 1, sortOrder: 0, isActive: true,
+    ...windowSet(rest as BookingWindowPatch),
+  } as any)
+  if (slots) await replaceWindowSlots(id, slots)
+  const [w] = await db.select().from(schema.bookingWindows).where(eq(schema.bookingWindows.id, id)).limit(1)
+  const slotRows = await db.select().from(schema.bookingWindowSlots).where(eq(schema.bookingWindowSlots.windowId, id))
+  return toBookingWindow(w, slotRows)
+}
+
+export async function updateBookingWindow(id: string, patch: BookingWindowPatch): Promise<BookingWindow | null> {
+  const s = windowSet(patch)
+  if (Object.keys(s).length) await db.update(schema.bookingWindows).set(s).where(eq(schema.bookingWindows.id, id))
+  if (patch.slots !== undefined) await replaceWindowSlots(id, patch.slots)
+  const [w] = await db.select().from(schema.bookingWindows).where(eq(schema.bookingWindows.id, id)).limit(1)
+  if (!w) return null
+  const slotRows = await db.select().from(schema.bookingWindowSlots).where(eq(schema.bookingWindowSlots.windowId, id))
+  return toBookingWindow(w, slotRows)
+}
+
+export async function deleteBookingWindow(id: string): Promise<void> {
+  await db.delete(schema.bookingWindowSlots).where(eq(schema.bookingWindowSlots.windowId, id))
+  await db.delete(schema.bookingWindows).where(eq(schema.bookingWindows.id, id))
+}
+
+// ══ Bookable modes (write) ══
+// Replace a bookable's whole mode set (the venue-editor Modes tab owns it —
+// delete-then-insert). Empty-named rows are dropped by the caller before sending.
+export async function setBookableModes(bookableId: string, modes: BookableModeInput[]): Promise<void> {
+  await db.delete(schema.bookableModes).where(eq(schema.bookableModes.bookableId, bookableId))
+  if (modes.length) {
+    await db.insert(schema.bookableModes).values(modes.map((m, i) => ({
+      id: randomUUID(), bookableId, name: m.name, description: m.description ?? null, color: m.color ?? null,
+      minPlayers: m.minPlayers ?? null, maxPlayers: m.maxPlayers ?? null,
+      pricePerHour: m.pricePerHour ?? null, pricePerSlot: m.pricePerSlot ?? null,
+      flatFee: m.flatFee ?? null, pricePerPerson: m.pricePerPerson ?? null, sortOrder: i,
+    })) as any)
+  }
+}
+
+// ══ Activity ↔ bookable links, keyed BY bookable ══
+// The venue editor's "linked activities" list is the by-bookable side of
+// activity_bookables (the by-activity setter would clobber a bookable's OTHER links).
+export async function listBookableActivityIds(bookableId: string): Promise<string[]> {
+  const rows = await db.select({ activityId: schema.activityBookables.activityId }).from(schema.activityBookables)
+    .where(eq(schema.activityBookables.bookableId, bookableId))
+  return rows.map((r) => r.activityId)
+}
+export async function setBookableActivityIds(bookableId: string, activityIds: string[]): Promise<void> {
+  await db.delete(schema.activityBookables).where(eq(schema.activityBookables.bookableId, bookableId))
+  if (activityIds.length) await db.insert(schema.activityBookables).values(activityIds.map((activityId) => ({ id: randomUUID(), activityId, bookableId })) as any)
 }
