@@ -70,7 +70,10 @@
 
 <script setup lang="ts">
 const { orgId } = useOrg()
-const db = useDb()
+// bookables live in the bookings domain. <BookableEditor>/<BookableTreeNode> read
+// SNAKE_CASE rows (bookings-seam kept their input shape), so the camelCase seam
+// result is mapped back to the columns this page + those components consume.
+const { bookables: listBookables, updateBookable } = useBookingsApi()
 
 const allBookables = ref<any[]>([])
 const loading = ref(true)
@@ -87,14 +90,18 @@ const editingParent = computed(() =>
 
 async function load() {
   loading.value = true
-  const { data } = await db.from('bookables')
-    .select('id, name, internal_name, description, location, sports, features, max_concurrent, rules, status, is_public, show_location, parent_id, sort_order, type, default_booking_view, show_in_menu')
-    .eq('org_id', orgId.value)
-    .eq('type', 'VENUE')
-    .neq('status', 'DELETED')
-    .order('sort_order')
-    .order('name')
-  allBookables.value = data ?? []
+  const list = await listBookables(orgId.value)
+  allBookables.value = list
+    .filter(b => b.type === 'VENUE' && b.status !== 'DELETED')
+    .sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name))
+    .map(b => ({
+      id: b.id, name: b.name, internal_name: b.internalName, description: b.description,
+      location: b.location, sports: b.sports, features: b.features, max_concurrent: b.maxConcurrent,
+      rules: b.rules, status: b.status, is_public: b.isPublic, show_location: b.showLocation,
+      parent_id: b.parentId, sort_order: b.sortOrder, type: b.type,
+      default_booking_view: b.defaultBookingView, show_in_menu: b.showInMenu,
+      is_master: b.isMaster, master_id: b.masterId,
+    }))
   loading.value = false
 }
 
@@ -136,7 +143,7 @@ async function onDelete() {
   if (!editingBookable.value?.id) return
   const ok = confirm(`Delete "${editingBookable.value.name}"? This cannot be undone.`)
   if (!ok) return
-  await db.from('bookables').update({ status: 'DELETED' }).eq('id', editingBookable.value.id)
+  await updateBookable(editingBookable.value.id, { status: 'DELETED' })
   allBookables.value = allBookables.value.filter(b => b.id !== editingBookable.value.id)
   showEditor.value = false
   selectedId.value = null

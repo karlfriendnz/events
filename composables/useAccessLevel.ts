@@ -11,6 +11,13 @@
 // in a club where you DO have a record (see useMyClubs / login routing), so this
 // only bites truly unrecognised sessions. Cached per org.
 export function useAccessLevel() {
+  // SEAM GAP: this is the Admin-vs-Person resolver, and every read is cross-domain —
+  // persons-by-email (people), person_target_types.is_access by key (person-types),
+  // permission_group_members by person (roles: personPermissionGroupIds gap),
+  // member_group_memberships.roles + invitees.roles by person (scoped-roles resolver
+  // gaps: membershipRolesByPerson / inviteeRolesByPerson). None are on the seam yet.
+  // Left on useDb until those land. Guarded: an unresolved session fails to the least
+  // privilege (member portal), never locks anyone out.
   const db = useDb()
   const { orgId } = useOrg()
   const user = useSupabaseUser()

@@ -6,6 +6,16 @@
   Plus the club's own local groups. Assign people on any editable group.
 -->
 <script setup lang="ts">
+// SEAM GAP (roles/permissions domain — owned elsewhere): this page's entire WRITE
+// path is unbuilt on the seam. /api/v1/permission-groups + /permission-group-members
+// are READ-ONLY (index.get only) — there is no org permission_groups create/update/
+// delete route, no permission_group_members create/delete route, and useRolesApi's
+// permissionGroupMemberPersonIds returns a FLAT person-id list (can't map members to
+// their groups, which this editor needs). Reads are partially available (core groups:
+// useAdminApi.corePermissionGroups; org groups: useRolesApi.permissionGroups; persons:
+// usePeopleApi.list), but converting reads alone would half-break the save path, so the
+// whole page stays on useDb until roles/perms adds: org permissionGroup CRUD +
+// permissionGroupMembers get-by-group + set-members. Degrades gracefully.
 const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()

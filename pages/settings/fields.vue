@@ -10,11 +10,18 @@
   roster (person_target_types.member_slots).
 -->
 <script setup lang="ts">
+// db retained for the person-type columns NOT in PersonTypePatch (landing_path,
+// menu_items, profile_dashboard — SEAM GAP D5), dashboard_templates delete, and the
+// full-fidelity duplicate insert — see the notes at each. Everything else goes
+// through the person-types + organisations + admin seam.
 const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
 const { loadOrgTypes, resolveFields, fieldAppliesTo, loadTypeLinks, loadLinkableTypes, linkType, unlinkType } = useOrgFieldPolicy()
 const { CORE_SECTIONS, coreStatus, loadConfig } = useCoreFields()
+const { createType, updateType, removeType: apiRemoveType, createField, updateField, getProfileForm, saveProfileForm } = usePersonTypesApi()
+const { getSettings } = useOrganisationsApi()
+const { dashboardTemplates } = useAdminApi()
 
 const STANDARD = [
   { key: 'member', label: 'Member', is_access: false },
@@ -98,8 +105,8 @@ const visibleEditorTabs = computed<string[]>(() => {
 })
 async function setPublished(t: any, v: boolean) {
   t.is_published = v
-  const { error } = await (db.from as any)('person_target_types').update({ is_published: v }).eq('id', t.id)
-  if (error) { t.is_published = !v; toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
+  try { await updateType(t.id, { isPublished: v }) }
+  catch (e: any) { t.is_published = !v; toast.add({ severity: 'error', summary: 'Failed', detail: e?.data?.message || e?.message, life: 4000 }); return }
   // A standard has no layout/permissions/menu of its own — don't strand the user
   // on a tab that just vanished.
   if (v && !(PUBLISHED_TABS as readonly string[]).includes(tab.value)) tab.value = 'fields'
@@ -139,7 +146,7 @@ async function onTypeDrop(target: any) {
   const at = list.indexOf(target) + (pos === 'after' ? 1 : 0)
   list.splice(at, 0, g)
   await Promise.all(list.map((row, idx) =>
-    row.sort_order === idx ? null : (db.from as any)('person_target_types').update({ sort_order: idx }).eq('id', row.id).then(() => { row.sort_order = idx })
+    row.sort_order === idx ? null : updateType(row.id, { sortOrder: idx }).then(() => { row.sort_order = idx })
   ))
   const others = allTypes.value.filter(x => !((x.kind ?? 'person') === gKind && !!x.is_access === !!g.is_access))
   allTypes.value = [...others, ...list].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
@@ -159,6 +166,8 @@ const LANDING_OPTIONS = [
 async function saveLanding(path: string | null) {
   if (!selected.value) return
   selected.value.landing_path = path
+  // SEAM GAP (person-types D5): PersonTypePatch has no landingPath — updateType can't
+  // write it. Left on useDb until person-types widens the patch (or adds a setter).
   await (db.from as any)('person_target_types').update({ landing_path: path }).eq('id', selected.value.id)
 }
 
@@ -171,6 +180,8 @@ const menuCustomised = computed(() => Array.isArray(selected.value?.menu_items))
 async function persistMenuItems(v: string[] | null) {
   if (!selected.value) return
   selected.value.menu_items = v
+  // SEAM GAP (person-types D5): PersonTypePatch has no menuItems — updateType can't
+  // write it. Left on useDb until person-types widens the patch (or adds a setter).
   await (db.from as any)('person_target_types').update({ menu_items: v }).eq('id', selected.value.id)
 }
 function menuItemOn(href: string): boolean {
@@ -189,18 +200,21 @@ const typeDashTemplate = ref<boolean | null>(null) // null = loading
 watch([selected, tab], async () => {
   if (!selected.value || tab.value !== 'dashboard') return
   typeDashTemplate.value = null
-  const { data } = await (db.from as any)('dashboard_templates')
-    .select('user_type').eq('org_id', orgId.value).eq('user_type', selected.value.key).maybeSingle()
-  typeDashTemplate.value = !!data
+  const rows = await dashboardTemplates(orgId.value as string)
+  typeDashTemplate.value = rows.some(d => d.userType === selected.value!.key)
 })
 async function resetTypeDashboard() {
   if (!selected.value) return
+  // SEAM GAP (dashboards/admin): dashboard_templates has a READ (useAdminApi.
+  // dashboardTemplates) but no DELETE route. Left on useDb until admin adds one.
   await (db.from as any)('dashboard_templates').delete().eq('org_id', orgId.value).eq('user_type', selected.value.key)
   typeDashTemplate.value = false
 }
 async function resetTypeProfileDashboard() {
   if (!selected.value) return
   selected.value.profile_dashboard = null
+  // SEAM GAP (person-types D5): PersonTypePatch has no profileDashboard — updateType
+  // can't clear it. Left on useDb until person-types widens the patch.
   await (db.from as any)('person_target_types').update({ profile_dashboard: null }).eq('id', selected.value.id)
 }
 
@@ -218,8 +232,8 @@ async function load() {
   fields.value = flds
   typeLinks.value = links
   linkableTypes.value = linkable ?? []
-  const { data: o } = await (db.from as any)('organisations').select('org_level').eq('id', id).maybeSingle()
-  isGoverningOrg.value = isGoverningBody(o?.org_level)
+  const settings = await getSettings(id)
+  isGoverningOrg.value = isGoverningBody(settings.orgLevel)
   loading.value = false
 }
 
@@ -252,15 +266,17 @@ async function removeLink(linkId: string) {
 
 async function seedStandard() {
   const existing = new Set(personTypes.value.map(t => t.key))
-  const rows = STANDARD.filter(s => !existing.has(s.key)).map((s, i) => ({
-    org_id: orgId.value, key: s.key, label: s.label, kind: 'person',
-    is_access: s.is_access, min_count: 0, max_count: null, sort_order: personTypes.value.length + i,
-    permissions: defaultPermissionsFor(s.key), // sensible starting permissions
-  }))
-  if (rows.length) {
-    const { error } = await (db.from as any)('person_target_types').insert(rows)
-    if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
-  }
+  const rows = STANDARD.filter(s => !existing.has(s.key))
+  try {
+    for (let i = 0; i < rows.length; i++) {
+      const s = rows[i]
+      await createType({
+        orgId: orgId.value, key: s.key, label: s.label, kind: 'person',
+        isAccess: s.is_access, sortOrder: personTypes.value.length + i,
+        permissions: defaultPermissionsFor(s.key), // sensible starting permissions
+      })
+    }
+  } catch (e: any) { toast.add({ severity: 'error', summary: 'Failed', detail: e?.data?.message || e?.message, life: 4000 }); return }
   await load()
   toast.add({ severity: 'success', summary: 'Standard types added', life: 2000 })
 }
@@ -270,17 +286,18 @@ async function addType(sec: any) {
   const label = (newLabels[sec.id] ?? '').trim()
   if (!label || !orgId.value) return
   const count = allTypes.value.filter(x => (x.kind ?? 'person') === sec.kind && !!x.is_access === !!sec.access).length
-  const { error } = await (db.from as any)('person_target_types').insert({
-    org_id: orgId.value, key: slugify(label) || 'type_' + Date.now(), label,
-    kind: sec.kind, is_access: !!sec.access, min_count: 0, max_count: null, sort_order: count,
-  })
-  if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
+  try {
+    await createType({
+      orgId: orgId.value, key: slugify(label) || 'type_' + Date.now(), label,
+      kind: sec.kind, isAccess: !!sec.access, sortOrder: count,
+    })
+  } catch (e: any) { toast.add({ severity: 'error', summary: 'Failed', detail: e?.data?.message || e?.message, life: 4000 }); return }
   newLabels[sec.id] = ''; adding.value = false
   await load(); openEditor(slugify(label), 'layout')
 }
 async function removeType(t: any) {
   if (!confirm(`Delete the "${t.label}" type?`)) return
-  await (db.from as any)('person_target_types').delete().eq('id', t.id)
+  await apiRemoveType(t.id)
   editingKey.value = null; await load()
 }
 
@@ -293,6 +310,10 @@ async function duplicateType(t: any) {
   const base = slugify(t.label + ' copy') || 'type_copy'
   let key = base, n = 2
   while (existing.has(key)) key = `${base}_${n++}`
+  // SEAM GAP (person-types D5): a full-fidelity duplicate copies landing_path,
+  // profile_dashboard + min/max_count, none of which are in PersonTypeCreate — so the
+  // type row is read + inserted via useDb to preserve them. The FIELD sharing and the
+  // form-LAYOUT copy below go through the seam.
   const { data: src } = await (db.from as any)('person_target_types')
     .select('label, kind, is_access, permissions, member_slots, min_count, max_count, landing_path, profile_dashboard')
     .eq('id', t.id).maybeSingle()
@@ -310,24 +331,25 @@ async function duplicateType(t: any) {
   const own = fields.value.filter((f: any) => !f.inherited && fieldAppliesTo(f, t.key))
   for (const f of own) {
     const targets = Array.from(new Set([...(Array.isArray(f.targets) && f.targets.length ? f.targets : (f.target ? [f.target] : [])), key]))
-    await (db.from as any)('field_definitions').update({ targets }).eq('id', f.id)
+    await updateField(f.id, { targets })
   }
   // Copy the form layout if the source type has a designed one.
-  const { data: pf } = await (db.from as any)('profile_forms').select('config').eq('org_id', orgId.value).eq('type_key', t.key).maybeSingle()
-  if (pf?.config) await (db.from as any)('profile_forms').insert({ org_id: orgId.value, type_key: key, config: pf.config })
+  const pf = await getProfileForm(orgId.value, t.key)
+  if (pf?.config) await saveProfileForm(orgId.value, key, pf.config)
   await load(); openEditor(key, 'layout')
   toast.add({ severity: 'success', summary: `Duplicated "${t.label}"`, life: 2200 })
 }
 
 async function addField(p: any) {
-  const { error } = await (db.from as any)('field_definitions').insert({
-    org_id: orgId.value, label: p.label, field_type: p.type, is_required: p.required,
-    options: p.options, help_text: p.placeholder || null,
-    targets: (p.targets?.length ? p.targets : [selected.value?.key]),
-    target: (p.targets?.length ? p.targets[0] : selected.value?.key),
-    rules: [], sort_order: fields.value.length,
-  })
-  if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
+  try {
+    await createField({
+      orgId: orgId.value, label: p.label, fieldType: p.type, isRequired: p.required,
+      options: p.options, helpText: p.placeholder || null,
+      targets: (p.targets?.length ? p.targets : [selected.value?.key]),
+      target: (p.targets?.length ? p.targets[0] : selected.value?.key),
+      rules: [], sortOrder: fields.value.length,
+    })
+  } catch (e: any) { toast.add({ severity: 'error', summary: 'Failed', detail: e?.data?.message || e?.message, life: 4000 }); return }
   toast.add({ severity: 'success', summary: `Field "${p.label}" added`, life: 2000 })
   fields.value = await resolveFields(orgId.value!)
 }
@@ -338,7 +360,7 @@ async function savePermissions() {
   const t = selected.value
   if (!t) return
   saving.value = true
-  await (db.from as any)('person_target_types').update({ permissions: t.permissions, is_access: !!t.is_access }).eq('id', t.id)
+  await updateType(t.id, { permissions: t.permissions, isAccess: !!t.is_access })
   saving.value = false
   toast.add({ severity: 'success', summary: 'Saved', life: 2000 })
 }
@@ -352,7 +374,7 @@ async function saveMembers() {
   const t = selected.value
   if (!t) return
   saving.value = true
-  await (db.from as any)('person_target_types').update({ member_slots: t.member_slots }).eq('id', t.id)
+  await updateType(t.id, { memberSlots: t.member_slots })
   saving.value = false
   toast.add({ severity: 'success', summary: 'Members saved', life: 2000 })
 }

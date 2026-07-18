@@ -47,6 +47,13 @@ export const ONBOARDING_STEPS: OnboardingStepDef[] = [
 ]
 
 export function useOnboarding() {
+  // SEAM GAP: loadState/saveState read+write organisations.onboarding (jsonb) — the
+  // organisations repo (SETTINGS domain) owns that column and doesn't yet expose an
+  // onboarding get/set route. detect() additionally COUNTS across seven other domains'
+  // tables (person_target_types, org_terms, group_codes, member_groups, group_fee_options,
+  // registration_forms, persons) — a cross-domain aggregate with no single owner. Left on
+  // useDb until settings adds an onboarding route + a counts endpoint (or each domain
+  // exposes a count). Guarded: a null org / failed read just shows the checklist un-ticked.
   const db = useDb()
   const { orgId } = useOrg()
 

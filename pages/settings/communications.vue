@@ -7,6 +7,13 @@
 <script setup lang="ts">
 import { EVENT_TOKENS, DEFAULT_INVITATION } from '~/composables/useEventTokens'
 
+// SEAM GAP (communications domain — owned elsewhere): this whole page reads/writes
+// email_templates (migration 259: read subject/body + upsert by org+key) and
+// communication_topics (core+org merged read [gap Fo5] + insert/update/delete). The
+// seam has NO surface for either — /api/v1/communications is a read-only log route,
+// there is no comms composable, and no repo functions exist. Left entirely on useDb
+// until the communications domain adds emailTemplate get/upsert + communicationTopics
+// list(core+org)/create/update/remove. Degrades gracefully (unconverted, still works).
 const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()

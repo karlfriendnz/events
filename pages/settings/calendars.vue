@@ -180,7 +180,15 @@ const { orgId } = useOrg()
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 
+// SEAM GAPs on this page:
+//  • loadCategories needs a per-category EVENT COUNT (`_eventCount`) which the seam's
+//    EventCategory read does not carry — kept on useDb until events adds category
+//    counts. Category WRITES (create/update/remove) DO go through useEventsApi.
+//  • the whole Calendars section (calendars + calendar_categories: read join + create/
+//    update/delete + category links) is the reported calendar-WRITES cross-domain gap
+//    (waitlists owns `calendars` read-only). Left entirely on useDb.
 const db = useDb()
+const { createCategory, updateCategory, removeCategory } = useEventsApi()
 const toast = useToast()
 const confirm = useConfirm()
 
@@ -235,14 +243,11 @@ function openCatEdit(cat: any) {
 async function saveCat() {
   catSaving.value = true
   try {
-    const payload = { org_id: orgId.value, name: catForm.name.trim(), color: catForm.color, icon: `pi-${catForm.icon}` }
     if (editingCat.value) {
-      const { error } = await db.from('categories').update(payload).eq('id', editingCat.value.id)
-      if (error) throw error
+      await updateCategory(editingCat.value.id, { name: catForm.name.trim(), color: catForm.color, icon: `pi-${catForm.icon}` })
       toast.add({ severity: 'success', summary: 'Category updated', life: 3000 })
     } else {
-      const { error } = await db.from('categories').insert(payload)
-      if (error) throw error
+      await createCategory({ orgId: orgId.value, name: catForm.name.trim(), color: catForm.color, icon: `pi-${catForm.icon}` })
       toast.add({ severity: 'success', summary: 'Category created', life: 3000 })
     }
     showCatDialog.value = false
@@ -260,7 +265,7 @@ function deleteCategory(cat: any) {
     icon: 'pi pi-exclamation-triangle',
     acceptClass: 'p-button-danger',
     accept: async () => {
-      await db.from('categories').delete().eq('id', cat.id).eq('org_id', orgId.value)
+      await removeCategory(cat.id)
       toast.add({ severity: 'success', summary: 'Category deleted', life: 3000 })
       await loadCategories()
     },

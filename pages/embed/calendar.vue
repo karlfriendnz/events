@@ -56,6 +56,11 @@
 definePageMeta({ layout: 'embed' })
 
 const route = useRoute()
+// SEAM GAP: public path. This is the PUBLIC website-embed calendar (layout `embed`,
+// allow-listed for anonymous access) — it reads organisations.brand_color + PUBLISHED
+// events with no session. The authed /api/v1 seam can't serve an anonymous request, so
+// this stays on the RLS client until public read routes exist (same call as the public
+// booker). Deliberately left.
 const db = useDb()
 
 const orgId = computed(() => (route.query.org as string) ?? '')

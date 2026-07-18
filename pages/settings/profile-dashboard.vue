@@ -33,9 +33,11 @@
 import { useToast } from 'primevue/usetoast'
 
 const { orgId } = useOrg()
-const db = useDb()
+const db = useDb()  // retained for the per-TYPE profile_dashboard write only — see SEAM GAP note in saveConfig
 const toast = useToast()
 const { loadFieldCatalogue } = usePersonFields()
+const { getDashboardMeta, setProfileDashboard } = useOrganisationsApi()
+const { loadOrgTypes } = useOrgFieldPolicy()
 
 const loading = ref(true)
 const config = ref<any[]>([])
@@ -87,14 +89,14 @@ const typeLabel = ref<string | null>(null)
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [{ data: orgRow }, cat, typeRow] = await Promise.all([
-    (db.from as any)('organisations').select('profile_dashboard').eq('id', orgId.value).maybeSingle(),
+  const [meta, cat, orgTypes] = await Promise.all([
+    getDashboardMeta(orgId.value as string),
     loadFieldCatalogue(orgId.value as string),
-    typeKey.value
-      ? (db.from as any)('person_target_types').select('label, profile_dashboard').eq('org_id', orgId.value).eq('key', typeKey.value).maybeSingle()
-      : Promise.resolve({ data: null }),
+    typeKey.value ? loadOrgTypes(orgId.value as string) : Promise.resolve([] as any[]),
   ])
-  typeLabel.value = typeRow?.data?.label ?? null
+  // loadOrgTypes rows carry the type's label + its own profile_dashboard layout.
+  const typeRow = typeKey.value ? (orgTypes as any[]).find(t => t.key === typeKey.value) : null
+  typeLabel.value = typeRow?.label ?? null
   fields.value = cat
   // give the demo person plausible custom-field values so pickers preview something
   for (const f of cat) {
@@ -103,16 +105,21 @@ async function load() {
     }
   }
   // Type mode seeds from the type's own layout, falling back to the org default.
-  config.value = (typeKey.value ? ((await (db.from as any)('person_target_types').select('profile_dashboard').eq('org_id', orgId.value).eq('key', typeKey.value).maybeSingle())?.data?.profile_dashboard ?? orgRow?.profile_dashboard) : orgRow?.profile_dashboard) ?? null
+  config.value = (typeKey.value ? (typeRow?.profile_dashboard ?? meta.profileDashboard) : meta.profileDashboard) ?? null
   loading.value = false
 }
 
 async function saveConfig(next: any[]) {
   if (typeKey.value) {
+    // SEAM GAP (person-types): updateType's PersonTypePatch contract has no
+    // profileDashboard field (nor landingPath/menuItems) — gap D5. The per-TYPE
+    // profile_dashboard write stays on useDb until person-types adds a setter (by
+    // org_id + key, or via updateType widened). The READ already goes through
+    // loadOrgTypes above.
     await (db.from as any)('person_target_types').update({ profile_dashboard: next }).eq('org_id', orgId.value).eq('key', typeKey.value)
     toast.add({ severity: 'success', summary: `${typeLabel.value ?? 'Type'} profile dashboard saved`, life: 2000 })
   } else {
-    await (db.from as any)('organisations').update({ profile_dashboard: next }).eq('id', orgId.value)
+    await setProfileDashboard(orgId.value as string, next)
     toast.add({ severity: 'success', summary: 'Profile dashboard saved', life: 2000 })
   }
 }

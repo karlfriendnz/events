@@ -7,10 +7,10 @@
   the profile Layout builder (People & Entities) — this page is the catalogue.
 -->
 <script setup lang="ts">
-const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
 const { resolveFields, resolvePersonTypes, fieldAppliesTo } = useOrgFieldPolicy()
+const { createField, updateField } = usePersonTypesApi()
 
 const loading = ref(true)
 const fields = ref<any[]>([])
@@ -33,13 +33,17 @@ async function createField() {
   if (!draft.label.trim() || !draft.targets.length) return
   creating.value = true
   const opts = draft.field_type === 'select' ? draft.options.split('\n').map(o => o.trim()).filter(Boolean) : []
-  const { error } = await (db.from as any)('field_definitions').insert({
-    org_id: orgId.value, label: draft.label.trim(), field_type: draft.field_type,
-    target: draft.targets[0], targets: draft.targets, is_required: false, options: opts,
-    meta: { col_span: 1 }, rules: [], sort_order: fields.value.length,
-  })
+  try {
+    await createField({
+      orgId: orgId.value, label: draft.label.trim(), fieldType: draft.field_type,
+      target: draft.targets[0], targets: draft.targets, isRequired: false, options: opts,
+      meta: { col_span: 1 }, rules: [], sortOrder: fields.value.length,
+    })
+  } catch (e: any) {
+    creating.value = false
+    toast.add({ severity: 'error', summary: 'Failed', detail: e?.data?.message || e?.message, life: 4000 }); return
+  }
   creating.value = false
-  if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
   addOpen.value = false
   toast.add({ severity: 'success', summary: 'Field added', life: 2000 })
   await load()
@@ -75,7 +79,11 @@ async function toggle(f: any, typeKey: string) {
   const k = typeKey.toLowerCase()
   const next = current.includes(k) ? current.filter(x => x !== k) : [...current, k]
   savingKey.value = f.id
-  await (db.from as any)('field_definitions').update({ targets: next, target: next[0] ?? null }).eq('id', f.id)
+  // NOTE: the field-definition patch contract types `target` as a non-nullable
+  // string, so when the last type is unticked (next=[]) we can't clear target to
+  // null as the raw write did — we leave the legacy anchor unchanged. Minor: a
+  // fully-disconnected field keeps its old single-target fallback until re-edited.
+  await updateField(f.id, { targets: next, target: next[0] ?? undefined })
   savingKey.value = null
   f.targets = next; f.target = next[0] ?? f.target
   toast.add({ severity: 'success', summary: 'Updated', life: 1200 })

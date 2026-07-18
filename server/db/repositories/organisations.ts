@@ -9,6 +9,7 @@ import { db, schema } from '../client'
 import type { Organisation, OrgTreeNode, OrganisationCreate, OrganisationPatch } from '../../../shared/contracts/organisation'
 import type { OrgSettings } from '../../../shared/contracts/orgSettings'
 import type { OrgDashboardMeta } from '../../../shared/contracts/orgDashboard'
+import type { OrgProfile, OrgProfilePatch } from '../../../shared/contracts/orgProfile'
 
 // people_columns is a json column — mysql2 usually hands it back parsed, but a
 // driver/config can return the raw string. Normalise to an object keyed by tab, or
@@ -125,6 +126,109 @@ export async function getOrgDashboardMeta(id: string): Promise<OrgDashboardMeta 
 // Set (or clear, with null) the dashboard hero banner URL.
 export async function setDashboardBanner(id: string, url: string | null): Promise<void> {
   await db.update(schema.organisations).set({ dashboardBannerUrl: url } as any).where(eq(schema.organisations.id, id))
+}
+
+// Save the club-default member-profile dashboard layout (Settings → Profile dashboard).
+// json column takes the raw JS value (no JSON.stringify). null clears the layout.
+export async function setProfileDashboard(id: string, config: any[] | null): Promise<void> {
+  await db.update(schema.organisations).set({ profileDashboard: config } as any).where(eq(schema.organisations.id, id))
+}
+
+// ── General settings (Settings → General tab) ──
+// A focused read/write of the identity/branding/season/contact/defaults columns the
+// General tab owns. Kept off getOrgSettings (People slice) and getOrgDashboardMeta
+// (dashboard slice) so no shared contract carries screen-specific columns.
+
+// date columns arrive as a Date from the driver, or a yyyy-mm-dd string. Keep as an
+// ISO date (no time) — never invent a timezone-shifted timestamp.
+function toDateStr(v: unknown): string | null {
+  if (v == null) return null
+  if (v instanceof Date) return v.toISOString().slice(0, 10)
+  return String(v).slice(0, 10)
+}
+
+// json columns — mysql2 usually hands them back parsed, but a driver/config can
+// return the raw string. Normalise to an object (or null), tolerating both.
+function asJsonObj(v: unknown): Record<string, any> | null {
+  if (v == null) return null
+  if (typeof v === 'object' && !Array.isArray(v)) return v as Record<string, any>
+  if (typeof v === 'string') {
+    try {
+      const parsed = JSON.parse(v)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
+function asStrArray(v: unknown): string[] {
+  if (Array.isArray(v)) return v as string[]
+  if (typeof v === 'string') {
+    try {
+      const parsed = JSON.parse(v)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+export async function getOrgProfile(id: string): Promise<OrgProfile | null> {
+  const [r] = await db.select().from(schema.organisations).where(eq(schema.organisations.id, id)).limit(1)
+  if (!r) return null
+  return {
+    name: r.name,
+    currency: r.currency,
+    locale: r.locale,
+    seasonStart: toDateStr(r.seasonStart),
+    seasonEnd: toDateStr(r.seasonEnd),
+    parentId: r.parentId ?? null,
+    orgLevel: r.orgLevel as OrgProfile['orgLevel'],
+    defaultSportName: r.defaultSportName ?? null,
+    clubTypeIds: asStrArray(r.clubTypeIds),
+    logoUrl: r.logoUrl ?? null,
+    iconUrl: r.iconUrl ?? null,
+    brandColor: r.brandColor ?? null,
+    brandTextColor: r.brandTextColor ?? null,
+    defaultFormId: r.defaultFormId ?? null,
+    defaultPaymentMethod: r.defaultPaymentMethod ?? null,
+    defaultBankAccountId: r.defaultBankAccountId ?? null,
+    eventsDefaultPaymentMethod: r.eventsDefaultPaymentMethod ?? null,
+    eventsDefaultBankAccountId: r.eventsDefaultBankAccountId ?? null,
+    shortName: r.shortName ?? null,
+    address: r.address ?? null,
+    country: r.country ?? null,
+    timezone: r.timezone ?? null,
+    email: r.email ?? null,
+    phone: r.phone ?? null,
+    website: r.website ?? null,
+    defaultPaymentOptions: asJsonObj(r.defaultPaymentOptions),
+    eventsDefaultPaymentOptions: asJsonObj(r.eventsDefaultPaymentOptions),
+    bookerTheme: asJsonObj(r.bookerTheme),
+  }
+}
+
+// Patch any subset of the writable General-tab columns. json columns take the raw JS
+// value (no JSON.stringify — that would double-encode). parentId is NOT accepted here
+// (privileged re-parenting, CRIT-3) — the contract already omits it.
+export async function updateOrgProfile(id: string, patch: OrgProfilePatch): Promise<OrgProfile | null> {
+  const set: Record<string, any> = {}
+  const cols: Array<keyof OrgProfilePatch> = [
+    'name', 'currency', 'locale', 'seasonStart', 'seasonEnd', 'orgLevel',
+    'defaultSportName', 'clubTypeIds', 'logoUrl', 'iconUrl', 'brandColor', 'brandTextColor',
+    'defaultFormId', 'defaultPaymentMethod', 'defaultBankAccountId',
+    'eventsDefaultPaymentMethod', 'eventsDefaultBankAccountId',
+    'shortName', 'address', 'country', 'timezone', 'email', 'phone', 'website',
+    'defaultPaymentOptions', 'eventsDefaultPaymentOptions', 'bookerTheme',
+  ]
+  for (const c of cols) {
+    if (patch[c] !== undefined) set[c] = patch[c]
+  }
+  if (Object.keys(set).length) await db.update(schema.organisations).set(set as any).where(eq(schema.organisations.id, id))
+  return getOrgProfile(id)
 }
 
 // Raw SQL returns snake_case columns (the DB names), unlike a Drizzle select which

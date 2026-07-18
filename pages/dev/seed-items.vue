@@ -99,6 +99,10 @@
 </template>
 
 <script setup lang="ts">
+// SEAM GAP: dev seeder. ~40 direct writes across a dozen domains' tables (bookables,
+// activities, modes, resources, persons, member_groups, circles…) to build a full demo
+// club in one click. Converting it would need create-composables from every one of those
+// domains; it's a dev-only tool, so it's low priority and left on useDb deliberately.
 const db = useDb()
 const { orgId } = useOrg()
 

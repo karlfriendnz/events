@@ -12,7 +12,8 @@
   this page selects only status/mapping columns.
 -->
 <script setup lang="ts">
-const db = useDb()
+const db = useDb()  // retained for the saveSetup WRITE only — see SEAM GAP note there
+const { xeroConnection } = useFinancesApi()
 const route = useRoute()
 const { orgId } = useOrg()
 const user = useSupabaseUser()
@@ -68,17 +69,16 @@ const setupComplete = computed(() => !!bankAccount.value && !!taxType.value && h
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const { data } = await (db.from as any)('xero_connections')
-    .select('id, tenant_name, status, connected_at, sales_account_code, bank_account_code, bank_account_name, tax_type, fee_accounts')
-    .eq('org_id', orgId.value).maybeSingle()
-  conn.value = data ?? null
+  const data = await xeroConnection(orgId.value)
+  // Template reads conn.status + conn.tenant_name (snake) — expose the alias.
+  conn.value = data ? { ...data, tenant_name: data.tenantName } : null
   if (data) {
-    bankAccount.value = data.bank_account_code
-    taxType.value = data.tax_type
-    const list: FeeAccount[] = Array.isArray(data.fee_accounts) ? data.fee_accounts : []
+    bankAccount.value = data.bankAccountCode
+    taxType.value = data.taxType
+    const list: FeeAccount[] = Array.isArray(data.feeAccounts) ? data.feeAccounts : []
     // Older rows may lack the default flag — infer it from the saved sales account.
     const flagged = list.some(a => a.default)
-    feeAccounts.value = flagged ? list : list.map(a => ({ ...a, default: a.code === data.sales_account_code }))
+    feeAccounts.value = flagged ? list : list.map(a => ({ ...a, default: a.code === data.salesAccountCode }))
     loadOptions()
   }
   loading.value = false
@@ -123,6 +123,10 @@ async function saveSetup() {
   saving.value = true
   justSaved.value = false
   const bank = bankAccounts.value.find(b => b.code === bankAccount.value)
+  // SEAM GAP (finances): xero_connections has a READ route (useFinancesApi.xeroConnection)
+  // but no mapping-UPDATE route. This saveSetup write needs a finances
+  // updateXeroConnection(orgId, { bankAccountCode, bankAccountName, taxType,
+  // salesAccountCode, feeAccounts }) endpoint. Left on useDb until finances adds it.
   const { error } = await (db.from as any)('xero_connections').update({
     bank_account_code: bankAccount.value,
     bank_account_name: bank?.name ?? null,

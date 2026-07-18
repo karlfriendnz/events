@@ -6,6 +6,13 @@
 -->
 <script setup lang="ts">
 definePageMeta({ layout: 'portal' })
+// SEAM GAP: this is the member-portal build of the profile Dashboard bundle, and
+// every read below is another domain's — persons (people), member_group_memberships
+// + group (groups), registrations (finances/events), invitees + events (events D9),
+// person_notes (circles D8; writes owned by people.ts), organisations.profile_dashboard
+// (settings) + person_target_types.profile_dashboard (person-types D5). It maps 1:1 to
+// the dashboard-domain's still-gap-blocked D-series cross-domain seam. Left on useDb as
+// a whole until that bundle exists — converting piecemeal would half-wire the page.
 const db = useDb()
 const { orgId } = useOrg()
 const user = useSupabaseUser()

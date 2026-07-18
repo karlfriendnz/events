@@ -82,6 +82,11 @@ function switchMode(m: 'login' | 'register') {
 
 const { orgId, orgReady } = useOrg()
 
+// SEAM GAP: login bootstrap. `db` here is the Supabase AUTH client (signInWithPassword /
+// signUp — NOT the data seam, left untouched by design). prefetchOrg additionally does
+// login-TIME active-org resolution against organisations / org_members / persons (org_members
+// is an auth-adjacent table with no /api/v1 owner). Deliberately left on the RLS client — the
+// seam is authed and can't run before a session exists.
 async function prefetchOrg(u: any) {
   // Super-admins aren't bound to one org via org_members — resolve their active
   // org the same way plugins/auth.client.ts does (persisted choice, else top org).

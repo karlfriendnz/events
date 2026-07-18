@@ -5,8 +5,8 @@
   slot in as more cards — status is read live where the connection exists.
 -->
 <script setup lang="ts">
-const db = useDb()
 const { orgId } = useOrg()
+const { xeroConnection } = useFinancesApi()
 
 const loading = ref(true)
 const xeroStatus = ref<'connected' | 'offline' | null>(null)
@@ -15,9 +15,8 @@ const xeroTenant = ref<string | null>(null)
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const { data } = await (db.from as any)('xero_connections')
-    .select('tenant_name, status').eq('org_id', orgId.value).maybeSingle()
-  if (data) { xeroStatus.value = data.status === 'offline' ? 'offline' : 'connected'; xeroTenant.value = data.tenant_name ?? null }
+  const data = await xeroConnection(orgId.value)
+  if (data) { xeroStatus.value = data.status === 'offline' ? 'offline' : 'connected'; xeroTenant.value = data.tenantName ?? null }
   else { xeroStatus.value = null; xeroTenant.value = null }
   loading.value = false
 }

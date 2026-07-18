@@ -8,6 +8,7 @@
 import type { Organisation, OrgTreeNode, OrganisationCreate, OrganisationPatch } from '../shared/contracts/organisation'
 import type { OrgSettings } from '../shared/contracts/orgSettings'
 import type { OrgDashboardMeta } from '../shared/contracts/orgDashboard'
+import type { OrgProfile, OrgProfilePatch } from '../shared/contracts/orgProfile'
 
 export function useOrganisationsApi() {
   async function list(): Promise<Organisation[]> {
@@ -48,5 +49,20 @@ export function useOrganisationsApi() {
   async function setDashboardBanner(orgId: string, url: string | null): Promise<void> {
     await $fetch(`/api/v1/organisations/${orgId}/dashboard-banner`, { method: 'PATCH', body: { dashboardBannerUrl: url } })
   }
-  return { list, create, update, remove, ancestors, descendants, getSettings, setPeopleColumns, getDashboardMeta, setDashboardBanner }
+  /** Save (or clear with null) the club-default member-profile dashboard layout. */
+  async function setProfileDashboard(orgId: string, config: any[] | null): Promise<void> {
+    await $fetch(`/api/v1/organisations/${orgId}/profile-dashboard`, { method: 'PATCH', body: { profileDashboard: config } })
+  }
+  /** The Settings → General tab's view of the org (identity, branding, season,
+   *  contact, club-level payment/booker defaults) — a focused slice, not the base
+   *  organisation contract. */
+  async function getProfile(orgId: string): Promise<OrgProfile> {
+    return await $fetch<OrgProfile>(`/api/v1/organisations/${orgId}/profile`)
+  }
+  /** Save any subset of the General-tab columns; returns the updated profile.
+   *  parentId is NOT writable here (privileged re-parenting, CRIT-3). */
+  async function updateProfile(orgId: string, patch: OrgProfilePatch): Promise<OrgProfile> {
+    return await $fetch<OrgProfile>(`/api/v1/organisations/${orgId}/profile`, { method: 'PATCH', body: patch })
+  }
+  return { list, create, update, remove, ancestors, descendants, getSettings, setPeopleColumns, getDashboardMeta, setDashboardBanner, setProfileDashboard, getProfile, updateProfile }
 }

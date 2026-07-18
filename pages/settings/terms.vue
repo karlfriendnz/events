@@ -13,13 +13,18 @@
   <OrgSportsEditor>.
 -->
 <script setup lang="ts">
+// db retained ONLY for the membership_plan_options WRITE (see SEAM GAP in savePlans);
+// every term/plan/read now goes through the memberships + organisations seam.
 const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 useBreadcrumbs([{ label: () => t('group', true), to: '/groups' }, { label: () => t('term', true) }])
-const { toIso, periodLabel, loadTermSets, createTermSet, renameTermSet, setTermSetSport, setTermSetLocations, deleteTermSet } = useTermsMemberships()
+const { toIso, periodLabel, loadTerms, loadPlans, loadTermSets, createTermSet, renameTermSet, setTermSetSport, setTermSetLocations, deleteTermSet } = useTermsMemberships()
+const { createTerm, updateTerm, removeTerm: apiRemoveTerm, createPlan, updatePlan, removePlan: apiRemovePlan } = useMembershipsApi()
+const { getProfile } = useOrganisationsApi()
+const { orgSports } = useAffiliationsApi()
 import type { TermSet } from '~/composables/useTermsMemberships'
 
 const currency = ref('NZD')
@@ -119,27 +124,24 @@ async function saveTerms() {
   savingTerms.value = true
   try {
     if (removedTermIds.length) {
-      await (db.from as any)('org_terms').delete().in('id', removedTermIds)
+      for (const id of removedTermIds) await apiRemoveTerm(id)
       removedTermIds = []
     }
     for (let i = 0; i < terms.value.length; i++) {
       const r = terms.value[i]
       if (!r.name.trim() || !r.start_date || !r.end_date) continue
       const payload = {
-        org_id: orgId.value,
+        orgId: orgId.value,
         name: r.name.trim(),
-        start_date: toIso(r.start_date),
-        end_date: toIso(r.end_date),
-        signup_open: r.signup_open ? toIso(r.signup_open) : null,
-        signup_close: r.signup_close ? toIso(r.signup_close) : null,
-        set_id: r.set_id,
-        sort_order: i,
+        startDate: toIso(r.start_date),
+        endDate: toIso(r.end_date),
+        signupOpen: r.signup_open ? toIso(r.signup_open) : null,
+        signupClose: r.signup_close ? toIso(r.signup_close) : null,
+        setId: r.set_id,
+        sortOrder: i,
       }
-      if (r.id) await (db.from as any)('org_terms').update(payload).eq('id', r.id)
-      else {
-        const { data } = await (db.from as any)('org_terms').insert(payload).select('id').single()
-        if (data) r.id = data.id
-      }
+      if (r.id) await updateTerm(r.id, payload)
+      else { const created = await createTerm(payload); r.id = created.id }
     }
     toast.add({ severity: 'success', summary: `${t('term', true)} saved`, life: 2500 })
   } catch (e: any) {
@@ -236,26 +238,29 @@ function removeOption(p: PlanRow, i: number) {
 async function savePlans() {
   savingPlans.value = true
   try {
+    // Plan BASE rows go through the memberships seam (createPlan/updatePlan/removePlan).
     if (removedPlanIds.length) {
-      await (db.from as any)('membership_plans').delete().in('id', removedPlanIds)
+      for (const id of removedPlanIds) await apiRemovePlan(id)
       removedPlanIds = []
     }
     for (let i = 0; i < plans.value.length; i++) {
       const p = plans.value[i]
       if (!p.name.trim()) continue
       const planPayload = {
-        org_id: orgId.value,
+        orgId: orgId.value,
         name: p.name.trim(),
         description: p.description?.trim() || null,
         color: p.color || null,
-        sort_order: i,
+        sortOrder: i,
       }
-      if (p.id) await (db.from as any)('membership_plans').update(planPayload).eq('id', p.id)
-      else {
-        const { data } = await (db.from as any)('membership_plans').insert(planPayload).select('id').single()
-        if (data) p.id = data.id
-      }
+      if (p.id) await updatePlan(p.id, planPayload)
+      else { const created = await createPlan(planPayload); p.id = created.id }
       if (!p.id) continue
+      // SEAM GAP (memberships): membership_plan_options CRUD is NOT on the seam —
+      // useMembershipsApi has plan base-row CRUD but the plan's duration OPTIONS are
+      // "managed separately" (contract note) with no create/update/delete route. Left
+      // on useDb until memberships adds planOption create/update/remove (or nests
+      // options in the plan write).
       if (p._removedOptionIds.length) {
         await (db.from as any)('membership_plan_options').delete().in('id', p._removedOptionIds)
         p._removedOptionIds = []
@@ -290,19 +295,18 @@ async function savePlans() {
 async function load() {
   loading.value = true
   if (!orgId.value) { loading.value = false; return }
-  const { data: org } = await (db.from as any)('organisations').select('currency').eq('id', orgId.value).maybeSingle()
-  if (org?.currency) currency.value = org.currency
+  const profile = await getProfile(orgId.value)
+  if (profile?.currency) currency.value = profile.currency
 
   sets.value = await loadTermSets()
-  const { data: sp } = await (db.from as any)('org_sports')
-    .select('id, sport, display_name').eq('org_id', orgId.value).order('sort_order')
-  sports.value = (sp ?? []).map((s: any) => ({ id: s.id, label: s.display_name || s.sport }))
+  const sp = await orgSports(orgId.value)
+  sports.value = (sp ?? []).map((s: any) => ({ id: s.id, label: s.displayName || s.sport }))
 
-  const { data: t } = await (db.from as any)('org_terms')
-    .select('id, name, start_date, end_date, signup_open, signup_close, set_id, sort_order')
-    .eq('org_id', orgId.value)
-    .order('sort_order', { ascending: true, nullsFirst: false }).order('start_date')
-  terms.value = (t || []).map((r: any) => ({
+  // loadTerms returns snake-cased OrgTerms; re-order to match the old query
+  // (sort_order asc, then start_date) and wrap the ISO date strings as Dates.
+  const t = (await loadTerms(orgId.value)).slice()
+    .sort((a, b) => (a.sort_order - b.sort_order) || (a.start_date || '').localeCompare(b.start_date || ''))
+  terms.value = t.map((r: any) => ({
     id: r.id, uid: r.id, name: r.name,
     start_date: r.start_date ? new Date(r.start_date + 'T00:00:00') : null,
     end_date: r.end_date ? new Date(r.end_date + 'T00:00:00') : null,
@@ -312,26 +316,18 @@ async function load() {
     sort_order: r.sort_order ?? 0,
   }))
 
-  const { data: pl } = await (db.from as any)('membership_plans')
-    .select('id, name, description, color, sort_order')
-    .eq('org_id', orgId.value)
-    .order('sort_order', { ascending: true, nullsFirst: false }).order('name')
-  const planList = (pl || []) as any[]
-  let optsByPlan: Record<string, any[]> = {}
-  if (planList.length) {
-    const { data: opts } = await (db.from as any)('membership_plan_options')
-      .select('id, plan_id, name, period_unit, period_count, price, auto_renew, sort_order')
-      .in('plan_id', planList.map(p => p.id))
-      .order('sort_order', { ascending: true, nullsFirst: false })
-    for (const o of (opts || [])) (optsByPlan[o.plan_id] ||= []).push(o)
-  }
+  // loadPlans returns snake-cased plans hydrated with their (snake) options.
+  const planList = (await loadPlans(orgId.value)).slice()
+    .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name))
   plans.value = planList.map((p: any) => ({
     id: p.id, name: p.name, description: p.description || '', color: p.color || '#1E2157',
     _removedOptionIds: [],
-    options: (optsByPlan[p.id] || []).map((o: any) => ({
-      id: o.id, name: o.name || '', period_unit: o.period_unit, period_count: o.period_count,
-      price: o.price, auto_renew: o.auto_renew,
-    })),
+    options: (p.options || []).slice()
+      .sort((a: any, b: any) => (a.sort_order - b.sort_order))
+      .map((o: any) => ({
+        id: o.id, name: o.name || '', period_unit: o.period_unit, period_count: o.period_count,
+        price: o.price, auto_renew: o.auto_renew,
+      })),
   }))
   loading.value = false
 }

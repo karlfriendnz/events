@@ -25,6 +25,12 @@ function rgba(hex: string, alpha: number): string {
 const GOVERNING_PRIMARY = '#2494D3'
 
 export function useBrandTheme() {
+  // SEAM GAP: needs organisations.brand_id (the CONNECTED platform brand, distinct
+  // from the org's own brand_color which getProfile does expose) + brands.color-by-id.
+  // Neither the single-org get(id) nor a brand-by-id read is on the seam yet
+  // (org get(id) is itself a listed cross-domain gap; useAdminApi.brands() lists all
+  // brands but the brand_id linkage isn't surfaced). Left on useDb until admin/settings
+  // expose org.brandId. Purely presentational (rail colour) — degrades to defaults.
   const db = useDb()
   const { orgId } = useOrg()
 

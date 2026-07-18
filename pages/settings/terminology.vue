@@ -5,11 +5,16 @@
   Ported from the legacy Settings → Terminology page.
 -->
 <script setup lang="ts">
-const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
 const { TERM_DEFS, saveTerminology } = useTerminology()
-const { ancestors } = useOrgHierarchy()
+// terminology is a json column on organisations / org_sports, but it's a
+// fields/labels-domain concept — its seam accessors live in usePersonTypesApi
+// (terminologyForOrgs) + useAffiliationsApi (orgSports). Ancestors + their names
+// come from the organisations seam.
+const typesApi = usePersonTypesApi()
+const affiliationsApi = useAffiliationsApi()
+const { ancestors } = useOrganisationsApi()
 
 const overrides = reactive<Record<string, { singular: string; plural: string }>>({})
 const inherited = reactive<Record<string, { singular?: string; plural?: string; from?: string }>>({})
@@ -44,12 +49,12 @@ async function load() {
   Object.keys(inherited).forEach(k => delete inherited[k])
   const id = orgId.value
   if (id) {
-    const [{ data: me }, { data: sp }] = await Promise.all([
-      (db.from as any)('organisations').select('terminology').eq('id', id).single(),
-      (db.from as any)('org_sports').select('id, sport, display_name, terminology, is_primary').eq('org_id', id).order('sort_order'),
+    const [ownRows, sp] = await Promise.all([
+      typesApi.terminologyForOrgs([id]),
+      affiliationsApi.orgSports(id),
     ])
-    sports.value = (sp ?? []).map((s: any) => ({ id: s.id, label: s.display_name || s.sport, terminology: s.terminology || {}, is_primary: !!s.is_primary }))
-    const own = me?.terminology || {}
+    sports.value = (sp ?? []).map((s: any) => ({ id: s.id, label: s.displayName || s.sport, terminology: s.terminology || {}, is_primary: !!s.isPrimary }))
+    const own = ownRows.find(r => r.orgId === id)?.terminology || {}
     const activeSport = activeSportId.value ? sports.value.find(s => s.id === activeSportId.value) : null
     const editing = activeSport ? activeSport.terminology : own
     TERM_DEFS.forEach(t => { overrides[t.key] = { singular: editing[t.key]?.singular || '', plural: editing[t.key]?.plural || '' } })
@@ -57,13 +62,14 @@ async function load() {
     // a sport — the club's own org-level values too.
     const anc = await ancestors(id)
     if (anc.length) {
-      const { data: rows } = await (db.from as any)('organisations').select('id, name, terminology').in('id', anc.map(a => a.id))
+      const rows = await typesApi.terminologyForOrgs(anc.map(a => a.id))
+      const nameById = Object.fromEntries(anc.map(a => [a.id, a.name]))
+      const termById: Record<string, any> = Object.fromEntries(rows.map(r => [r.orgId, r.terminology || {}]))
       for (const a of [...anc].reverse()) {
-        const row = (rows || []).find((r: any) => r.id === a.id)
-        const t = row?.terminology || {}
+        const t = termById[a.id] || {}
         for (const [k, v] of Object.entries(t as Record<string, any>)) {
-          if (v?.singular) inherited[k] = { ...(inherited[k] || {}), singular: v.singular, from: row.name }
-          if (v?.plural) inherited[k] = { ...(inherited[k] || {}), plural: v.plural, from: row.name }
+          if (v?.singular) inherited[k] = { ...(inherited[k] || {}), singular: v.singular, from: nameById[a.id] }
+          if (v?.plural) inherited[k] = { ...(inherited[k] || {}), plural: v.plural, from: nameById[a.id] }
         }
       }
     }

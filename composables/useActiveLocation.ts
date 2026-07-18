@@ -56,6 +56,12 @@ export function useActiveLocation() {
     myGrants.value = []
     grantsRestrict.value = false
     try {
+      // SEAM GAP: resolving the signed-in person's location ACCESS GRANTS is
+      // cross-domain — persons-by-email (people), location_staff BY PERSON
+      // (affiliations D6 gap: only locationStaffByOrg exists), member_group_memberships
+      // by person with the group join (groups membershipsForPerson gap), and
+      // permission_group_members count by person (roles gap). Left on useDb until
+      // those land. Guarded: any failure fails OPEN (unrestricted — never locks out).
       const db = useDb()
       const user = useSupabaseUser()
       let u = user.value

@@ -428,7 +428,13 @@
 const { orgId } = useOrg()
 import { useToast } from 'primevue/usetoast'
 
+// db is retained ONLY for the two cross-domain dev utilities below (seedDemoEvents /
+// resetDatabase) and the bank-accounts CRUD — see the SEAM GAP notes at each. Every
+// org-settings read/write goes through the seam composables.
 const db = useDb()
+const orgApi = useOrganisationsApi()
+const eventsApi = useEventsApi()
+const formsApi = useFormsApi()
 const toast = useToast()
 
 // Active panel is driven by ?tab= so the shared <SettingsNav> tab bar controls it.
@@ -517,6 +523,10 @@ function cancelBankAccounts() {
   bankAccounts.value = JSON.parse(JSON.stringify(bankAccountsBackup))
   showBankAccounts.value = false
 }
+// SEAM GAP (finances): bank_accounts CRUD is not on the seam — useFinancesApi exposes
+// discounts/addons/fee-components/xero but no bank_accounts read/write, and this agent
+// doesn't own the finances domain. Left on useDb (loadBankAccounts/saveBankAccounts)
+// until finances adds bankAccounts(orgId) + create/update/delete. Degrades gracefully.
 async function loadBankAccounts() {
   const { data } = await (db.from as any)('bank_accounts')
     .select('id, name, details')
@@ -562,9 +572,7 @@ const allForms = ref<{ id: string; name: string }[]>([])
 const formOptions = computed(() => allForms.value.map(f => ({ value: f.id, label: f.name })))
 async function saveDefaultForm() {
   savingDefaultForm.value = true
-  await (db.from as any)('organisations')
-    .update({ default_form_id: org.value.default_form_id || null })
-    .eq('id', orgId.value)
+  await orgApi.updateProfile(orgId.value, { defaultFormId: org.value.default_form_id || null })
   toast.add({ severity: 'success', summary: 'Default form saved', life: 2500 })
   savingDefaultForm.value = false
 }
@@ -580,33 +588,27 @@ const bookerTheme = ref<BookerTheme>({ canvas: '#F5F8FA', primary: '#1E2157', on
 const savingTheme = ref(false)
 async function saveBookerTheme() {
   savingTheme.value = true
-  await (db.from as any)('organisations')
-    .update({ booker_theme: { ...bookerTheme.value } })
-    .eq('id', orgId.value)
+  await orgApi.updateProfile(orgId.value, { bookerTheme: { ...bookerTheme.value } })
   toast.add({ severity: 'success', summary: 'Booker theme saved', life: 2500 })
   savingTheme.value = false
 }
 async function saveDefaultPayments() {
   savingPayments.value = true
-  await (db.from as any)('organisations')
-    .update({
-      default_payment_options: { ...defaultPaymentOptions.value },
-      default_payment_method: org.value.default_payment_method || null,
-      default_bank_account_id: org.value.default_bank_account_id || null,
-    })
-    .eq('id', orgId.value)
+  await orgApi.updateProfile(orgId.value, {
+    defaultPaymentOptions: { ...defaultPaymentOptions.value },
+    defaultPaymentMethod: org.value.default_payment_method || null,
+    defaultBankAccountId: org.value.default_bank_account_id || null,
+  })
   toast.add({ severity: 'success', summary: 'Booking payments saved', life: 2500 })
   savingPayments.value = false
 }
 async function saveEventsPayments() {
   savingEventsPayments.value = true
-  await (db.from as any)('organisations')
-    .update({
-      events_default_payment_options: { ...eventsPaymentOptions.value },
-      events_default_payment_method: org.value.events_default_payment_method || null,
-      events_default_bank_account_id: org.value.events_default_bank_account_id || null,
-    })
-    .eq('id', orgId.value)
+  await orgApi.updateProfile(orgId.value, {
+    eventsDefaultPaymentOptions: { ...eventsPaymentOptions.value },
+    eventsDefaultPaymentMethod: org.value.events_default_payment_method || null,
+    eventsDefaultBankAccountId: org.value.events_default_bank_account_id || null,
+  })
   toast.add({ severity: 'success', summary: 'Event payments saved', life: 2500 })
   savingEventsPayments.value = false
 }
@@ -616,58 +618,61 @@ const clubTypes = ref<{ id: string; name: string }[]>([])
 const { resolveInherited: resolveInheritedClubTypes } = useClubTypes()
 const inheritedClubTypes = ref<{ id: string; name: string; from: string }[]>([])
 
+const { loadCatalog: loadClubTypeCatalog } = useClubTypes()
 async function loadClubTypes() {
-  const { data } = await (db.from as any)('club_types').select('id, name').order('sort_order').order('name')
-  clubTypes.value = data ?? []
+  clubTypes.value = await loadClubTypeCatalog()
   inheritedClubTypes.value = orgId.value ? await resolveInheritedClubTypes(orgId.value, clubTypes.value) : []
 }
 
 async function load() {
-  const [{ data: orgData }, { data: catData }, { data: forms }, { data: orgsData }] = await Promise.all([
-    db.from('organisations').select('*').eq('id', orgId.value).single(),
-    db.from('categories').select('*').eq('org_id', orgId.value).order('name'),
-    (db.from as any)('registration_forms').select('id, name').eq('org_id', orgId.value).order('name'),
-    (db.from as any)('organisations').select('id, name, org_level, parent_id').order('name'),
+  // The org GENERAL profile, event categories, the org's forms, and the full org
+  // list (for the parent-candidate hierarchy) — all via the seam.
+  const [profile, cats, forms, orgs] = await Promise.all([
+    orgApi.getProfile(orgId.value),
+    eventsApi.categories(orgId.value),
+    formsApi.list(orgId.value),
+    orgApi.list(),
   ])
-  allOrgs.value = (orgsData ?? []) as OrgNode[]
+  // allOrgs feeds parentCandidates/orgChain, which read snake_case OrgNode fields.
+  allOrgs.value = orgs.map(o => ({ id: o.id, name: o.name, org_level: o.orgLevel, parent_id: o.parentId })) as OrgNode[]
   loadClubTypes()
-  if (orgData) {
+  if (profile) {
     org.value = {
-      name: orgData.name,
-      currency: orgData.currency,
-      locale: orgData.locale,
-      season_start: orgData.season_start ? new Date(orgData.season_start) : null,
-      season_end: orgData.season_end ? new Date(orgData.season_end) : null,
-      parent_id: orgData.parent_id ?? null,
-      org_level: (orgData.org_level ?? 'CLUB') as 'CLUB' | 'REGIONAL' | 'ASSOCIATION' | 'NATIONAL' | 'RST',
-      default_sport_name: orgData.default_sport_name ?? null,
-      club_type_ids: orgData.club_type_ids ?? [],
-      logo_url: orgData.logo_url ?? null,
-      icon_url: orgData.icon_url ?? null,
-      brand_color: orgData.brand_color ?? null,
-      brand_text_color: orgData.brand_text_color ?? null,
-      default_form_id: orgData.default_form_id ?? null,
-      default_payment_method: orgData.default_payment_method ?? null,
-      default_bank_account_id: orgData.default_bank_account_id ?? null,
-      events_default_payment_method: orgData.events_default_payment_method ?? null,
-      events_default_bank_account_id: orgData.events_default_bank_account_id ?? null,
-      short_name: orgData.short_name ?? null,
-      address: orgData.address ?? null,
-      country: orgData.country ?? null,
-      timezone: orgData.timezone ?? null,
-      email: orgData.email ?? null,
-      phone: orgData.phone ?? null,
-      website: orgData.website ?? null,
+      name: profile.name,
+      currency: profile.currency,
+      locale: profile.locale,
+      season_start: profile.seasonStart ? new Date(profile.seasonStart) : null,
+      season_end: profile.seasonEnd ? new Date(profile.seasonEnd) : null,
+      parent_id: profile.parentId ?? null,
+      org_level: (profile.orgLevel ?? 'CLUB') as 'CLUB' | 'REGIONAL' | 'ASSOCIATION' | 'NATIONAL' | 'RST',
+      default_sport_name: profile.defaultSportName ?? null,
+      club_type_ids: profile.clubTypeIds ?? [],
+      logo_url: profile.logoUrl ?? null,
+      icon_url: profile.iconUrl ?? null,
+      brand_color: profile.brandColor ?? null,
+      brand_text_color: profile.brandTextColor ?? null,
+      default_form_id: profile.defaultFormId ?? null,
+      default_payment_method: profile.defaultPaymentMethod ?? null,
+      default_bank_account_id: profile.defaultBankAccountId ?? null,
+      events_default_payment_method: profile.eventsDefaultPaymentMethod ?? null,
+      events_default_bank_account_id: profile.eventsDefaultBankAccountId ?? null,
+      short_name: profile.shortName ?? null,
+      address: profile.address ?? null,
+      country: profile.country ?? null,
+      timezone: profile.timezone ?? null,
+      email: profile.email ?? null,
+      phone: profile.phone ?? null,
+      website: profile.website ?? null,
     }
     defaultPaymentOptions.value = {
       invoice: false, credit_card: false, payment_plan: false, coupon: false,
-      ...(orgData.default_payment_options ?? {}),
+      ...(profile.defaultPaymentOptions ?? {}),
     }
     eventsPaymentOptions.value = {
       invoice: false, credit_card: false, payment_plan: false, coupon: false,
-      ...(orgData.events_default_payment_options ?? {}),
+      ...(profile.eventsDefaultPaymentOptions ?? {}),
     }
-    const t = (orgData.booker_theme ?? {}) as Partial<BookerTheme>
+    const t = (profile.bookerTheme ?? {}) as Partial<BookerTheme>
     bookerTheme.value = {
       canvas: t.canvas || '#F5F8FA',
       primary: t.primary || '#1E2157',
@@ -675,8 +680,8 @@ async function load() {
     }
   }
   await loadBankAccounts()
-  allForms.value = (forms ?? []) as any[]
-  categories.value = catData ?? []
+  allForms.value = forms.map(f => ({ id: f.id, name: f.name }))
+  categories.value = cats
 }
 
 function toIsoDate(d: Date | null): string | null {
@@ -695,7 +700,7 @@ async function onOrgImage(kind: 'logo' | 'icon', e: Event) {
   try {
     const url = await uploadFile(file)
     if (kind === 'logo') org.value.logo_url = url; else org.value.icon_url = url
-    await (db.from as any)('organisations').update(kind === 'logo' ? { logo_url: url } : { icon_url: url }).eq('id', orgId.value)
+    await orgApi.updateProfile(orgId.value, kind === 'logo' ? { logoUrl: url } : { iconUrl: url })
     toast.add({ severity: 'success', summary: `${kind === 'logo' ? 'Logo' : 'Icon'} uploaded`, life: 1500 })
   } catch (err: any) {
     toast.add({ severity: 'error', summary: 'Upload failed', detail: err?.message, life: 4000 })
@@ -703,33 +708,36 @@ async function onOrgImage(kind: 'logo' | 'icon', e: Event) {
 }
 async function clearOrgImage(kind: 'logo' | 'icon') {
   if (kind === 'logo') org.value.logo_url = null; else org.value.icon_url = null
-  await (db.from as any)('organisations').update(kind === 'logo' ? { logo_url: null } : { icon_url: null }).eq('id', orgId.value)
+  await orgApi.updateProfile(orgId.value, kind === 'logo' ? { logoUrl: null } : { iconUrl: null })
 }
 
 async function saveOrg() {
   savingOrg.value = true
-  await db.from('organisations').update({
+  // SEAM GAP (organisations, CRIT-3 / gap A4): parent_id is NOT writable through the
+  // general profile patch — re-parenting an org is a privileged, tenant-crossing act
+  // that needs its own permission-checked setParent(orgId, parentId) route (currently a
+  // documented done-domain fill). The parent select still updates org.value locally.
+  await orgApi.updateProfile(orgId.value, {
     name: org.value.name,
     currency: org.value.currency,
     locale: org.value.locale,
-    parent_id: org.value.parent_id,
-    org_level: org.value.org_level,
-    default_sport_name: org.value.default_sport_name?.trim() || null,
-    club_type_ids: org.value.club_type_ids ?? [],
-    logo_url: org.value.logo_url,
-    icon_url: org.value.icon_url,
-    brand_color: org.value.brand_color,
-    brand_text_color: org.value.brand_text_color,
-    season_start: toIsoDate(org.value.season_start),
-    season_end: toIsoDate(org.value.season_end),
-    short_name: org.value.short_name?.trim() || null,
+    orgLevel: org.value.org_level,
+    defaultSportName: org.value.default_sport_name?.trim() || null,
+    clubTypeIds: org.value.club_type_ids ?? [],
+    logoUrl: org.value.logo_url,
+    iconUrl: org.value.icon_url,
+    brandColor: org.value.brand_color,
+    brandTextColor: org.value.brand_text_color,
+    seasonStart: toIsoDate(org.value.season_start),
+    seasonEnd: toIsoDate(org.value.season_end),
+    shortName: org.value.short_name?.trim() || null,
     address: org.value.address?.trim() || null,
     country: org.value.country?.trim() || null,
     timezone: org.value.timezone || null,
     email: org.value.email?.trim() || null,
     phone: org.value.phone?.trim() || null,
     website: org.value.website?.trim() || null,
-  }).eq('id', orgId.value)
+  })
   toast.add({ severity: 'success', summary: 'Organisation saved', life: 3000 })
   savingOrg.value = false
 }
@@ -737,6 +745,14 @@ async function saveOrg() {
 
 const seedingEvents = ref(false)
 
+// SEAM GAP (cross-domain DEV utility — architectural decision needed): seedDemoEvents()
+// and resetDatabase() below are demo-data tooling that write/delete across essentially
+// EVERY domain (bookables, events, sessions, activities, activity_modes, calendars,
+// availability_rules, bookings, discounts, forms, registrations, invitees, categories…).
+// Porting them onto the seam would mean fabricating a giant cross-domain seed/reset API
+// that no single domain owns — out of scope for the settings conversion and a product
+// call (mirrors the registration/index.vue flat-editor decision in cross-domain-gaps).
+// Left entirely on useDb; reported to the main session as a standalone decision.
 async function seedDemoEvents() {
   seedingEvents.value = true
 
