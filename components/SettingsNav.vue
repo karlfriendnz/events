@@ -5,7 +5,7 @@
 -->
 <script setup lang="ts">
 const route = useRoute()
-const db = useDb()
+const orgApi = useOrganisationsApi()
 const { orgId } = useOrg()
 
 // Disciplines are a governing-body (NSO/Regional/Association) concept — show that
@@ -16,8 +16,8 @@ const isGoverning = ref(false)
 const pendingAffiliations = ref(0)
 watch(orgId, async () => {
   if (!orgId.value) { isGoverning.value = false; pendingAffiliations.value = 0; return }
-  const { data } = await (db.from as any)('organisations').select('org_level').eq('id', orgId.value).single()
-  isGoverning.value = !!data?.org_level && data.org_level !== 'CLUB'
+  const profile = await orgApi.getProfile(orgId.value)
+  isGoverning.value = !!profile?.orgLevel && profile.orgLevel !== 'CLUB'
   pendingAffiliations.value = isGoverning.value ? await useAffiliations().pendingCountForBody(orgId.value) : 0
 }, { immediate: true })
 

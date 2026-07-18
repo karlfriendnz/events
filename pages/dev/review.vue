@@ -89,7 +89,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 
-const db = useDb()
+const reviewsApi = useReviewsApi()
 const router = useRouter()
 const user = useSupabaseUser()
 const { orgId } = useOrg()
@@ -124,17 +124,7 @@ const meReviewer = computed(() => {
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [{ data: revs }, { data: pageRevs }, { data: cs }, { data: sos }] = await Promise.all([
-    (db.from as any)('page_reviewers')
-      .select('*').eq('org_id', orgId.value)
-      .order('sort_order').order('name'),
-    (db.from as any)('page_reviews')
-      .select('path, stage').eq('org_id', orgId.value),
-    (db.from as any)('page_comments')
-      .select('path, resolved').eq('org_id', orgId.value),
-    (db.from as any)('page_signoffs')
-      .select('path, reviewer_id, signed_at').eq('org_id', orgId.value),
-  ])
+  const { reviewers: revs, reviews: pageRevs, comments: cs, signoffs: sos } = await reviewsApi.report(orgId.value)
   reviewers.value = revs ?? []
 
   // Gate: only Karl gets the report. Bounce everyone else away.

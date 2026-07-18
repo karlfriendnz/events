@@ -534,7 +534,7 @@
 
 <script setup lang="ts">
 const route = useRoute()
-const db = useDb()
+const reviews = useReviewsApi()
 const user = useSupabaseUser()
 const { orgId } = useOrg()
 const { isDeveloper } = useDeveloperGate()
@@ -708,18 +708,12 @@ function authorLabelFor(c: any): string {
 // ── Reviewers — load + auto-seed on first use ────────────────────────
 async function loadReviewers() {
   if (!orgId.value) return
-  const { data } = await (db.from as any)('page_reviewers')
-    .select('*')
-    .eq('org_id', orgId.value)
-    .order('sort_order').order('name')
-  if (!data || data.length === 0) {
-    const rows = DEFAULT_REVIEWERS.map(r => ({ ...r, org_id: orgId.value }))
-    const { data: inserted } = await (db.from as any)('page_reviewers')
-      .insert(rows).select()
-    reviewers.value = inserted ?? []
-  } else {
-    reviewers.value = data
-  }
+  // Seeds the DEFAULT set server-side the first time (idempotent) and returns
+  // the resolved list either way.
+  reviewers.value = await reviews.ensureReviewers(
+    orgId.value,
+    DEFAULT_REVIEWERS.map(r => ({ name: r.name, role: r.role, color: r.color, sortOrder: r.sort_order })),
+  )
 }
 
 // Create a reviewer profile for the signed-in user so they can comment / sign off.
@@ -733,11 +727,11 @@ async function createMyReviewer() {
   const local = email.split('@')[0]
   const name = local.charAt(0).toUpperCase() + local.slice(1)
   const colors = ['#1E2157', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316']
-  await (db.from as any)('page_reviewers').insert({
-    org_id: orgId.value, name, role: 'Admin',
-    color: colors[reviewers.value.length % colors.length],
-    sort_order: reviewers.value.length,
-  })
+  await reviews.createReviewer(
+    orgId.value, name, 'Admin',
+    colors[reviewers.value.length % colors.length],
+    reviewers.value.length,
+  )
   await loadReviewers()
   creatingReviewer.value = false
 }
@@ -746,22 +740,10 @@ async function createMyReviewer() {
 async function load() {
   if (!orgId.value) return
   const key = pageKey.value
-  const [{ data: r }, { data: cs }, { data: ss }] = await Promise.all([
-    (db.from as any)('page_reviews')
-      .select('*')
-      .eq('org_id', orgId.value).eq('path', key)
-      .maybeSingle(),
-    (db.from as any)('page_comments')
-      .select('*')
-      .eq('org_id', orgId.value).eq('path', key)
-      .order('created_at', { ascending: true }),
-    (db.from as any)('page_signoffs')
-      .select('*')
-      .eq('org_id', orgId.value).eq('path', key),
-  ])
-  review.value = r
-  comments.value = cs ?? []
-  signoffsForPage.value = ss ?? []
+  const bundle = await reviews.pageBundle(orgId.value, key)
+  review.value = bundle.review
+  comments.value = bundle.comments
+  signoffsForPage.value = bundle.signoffs
 }
 watch([orgId, pageKey], load, { immediate: true })
 watch(orgId, loadReviewers, { immediate: true })
@@ -773,25 +755,8 @@ watch(orgId, loadReviewers, { immediate: true })
 // internal flows — the auto path is always allowed.
 async function setStage(stage: string) {
   if (!orgId.value) return
-  const key = pageKey.value
-  const patch: any = { stage, updated_at: new Date().toISOString() }
-  if (stage === 'approved') {
-    patch.approved_by = user.value?.id ?? null
-    patch.approved_at = new Date().toISOString()
-  } else {
-    patch.approved_by = null
-    patch.approved_at = null
-  }
-  if (review.value) {
-    const { data } = await (db.from as any)('page_reviews')
-      .update(patch).eq('id', review.value.id).select().single()
-    review.value = data
-  } else {
-    const { data } = await (db.from as any)('page_reviews')
-      .insert({ org_id: orgId.value, path: key, ...patch })
-      .select().single()
-    review.value = data
-  }
+  // The repo upserts by (org, path) and owns the approved_by/at bookkeeping.
+  review.value = await reviews.setStage(orgId.value, pageKey.value, stage, user.value?.id ?? null)
 }
 
 // ── Sign-offs (per reviewer) ─────────────────────────────────────────
@@ -800,13 +765,7 @@ async function signOff(r: any) {
   // Defence-in-depth: the only sign-off button rendered is the one for
   // the logged-in user. Reject any other case anyway.
   if (!meReviewer.value || r.id !== meReviewer.value.id) return
-  const payload = {
-    org_id: orgId.value,
-    path: pageKey.value,
-    reviewer_id: r.id,
-    signed_by_user_id: user.value?.id ?? null,
-  }
-  const { data } = await (db.from as any)('page_signoffs').insert(payload).select().single()
+  const data = await reviews.createSignoff(orgId.value, pageKey.value, r.id, user.value?.id ?? null)
   if (data) signoffsForPage.value.push(data)
   // Auto-promote stage when all reviewers have signed.
   if (signoffsForPage.value.length === reviewers.value.length && reviewers.value.length > 0) {
@@ -816,7 +775,7 @@ async function signOff(r: any) {
 async function revokeSignoff(r: any) {
   const existing = signoffsByReviewer.value[r.id]
   if (!existing) return
-  await (db.from as any)('page_signoffs').delete().eq('id', existing.id)
+  await reviews.deleteSignoff(existing.id)
   signoffsForPage.value = signoffsForPage.value.filter(s => s.id !== existing.id)
   // If the page had been auto-approved, drop it back to in_review.
   if ((review.value?.stage || 'draft') === 'approved') await setStage('in_review')
@@ -1022,18 +981,17 @@ function onPagePinClick(e: MouseEvent) {
 async function commitPin() {
   if (!orgId.value || !composeCoords.value || !composeBody.value.trim()) return
   if (!canPost.value) return
-  const payload = {
-    org_id: orgId.value,
+  const data = await reviews.createComment({
+    orgId: orgId.value,
     path: pageKey.value,
     body: composeBody.value.trim(),
-    author_id: user.value?.id ?? null,
-    author_name: authorName.value ?? null,
-    reviewer_id: activeReviewerId.value,
+    authorId: user.value?.id ?? null,
+    authorName: authorName.value ?? null,
+    reviewerId: activeReviewerId.value,
     x: composeCoords.value.x,
     y: composeCoords.value.y,
-    anchor_selector: composeCoords.value.anchorSelector,
-  }
-  const { data } = await (db.from as any)('page_comments').insert(payload).select().single()
+    anchorSelector: composeCoords.value.anchorSelector,
+  })
   if (data) comments.value.push(data)
   if ((review.value?.stage || 'draft') === 'draft') await setStage('in_review')
   composeOpen.value = false
@@ -1051,16 +1009,15 @@ const newGeneralBody = ref('')
 async function postGeneral() {
   if (!orgId.value || !newGeneralBody.value.trim()) return
   if (!canPost.value) return
-  const payload = {
-    org_id: orgId.value,
+  const data = await reviews.createComment({
+    orgId: orgId.value,
     path: pageKey.value,
     body: newGeneralBody.value.trim(),
-    author_id: user.value?.id ?? null,
-    author_name: authorName.value ?? null,
-    reviewer_id: activeReviewerId.value,
+    authorId: user.value?.id ?? null,
+    authorName: authorName.value ?? null,
+    reviewerId: activeReviewerId.value,
     x: null, y: null,
-  }
-  const { data } = await (db.from as any)('page_comments').insert(payload).select().single()
+  })
   if (data) comments.value.push(data)
   newGeneralBody.value = ''
   if ((review.value?.stage || 'draft') === 'draft') await setStage('in_review')
@@ -1080,17 +1037,16 @@ function cancelReply() {
 async function commitReply(parent: any) {
   if (!orgId.value || !replyBody.value.trim()) return
   if (!canPost.value) return
-  const payload = {
-    org_id: orgId.value,
+  const data = await reviews.createComment({
+    orgId: orgId.value,
     path: pageKey.value,
-    parent_id: parent.id,
+    parentId: parent.id,
     body: replyBody.value.trim(),
-    author_id: user.value?.id ?? null,
-    author_name: authorName.value ?? null,
-    reviewer_id: activeReviewerId.value,
+    authorId: user.value?.id ?? null,
+    authorName: authorName.value ?? null,
+    reviewerId: activeReviewerId.value,
     x: null, y: null,
-  }
-  const { data } = await (db.from as any)('page_comments').insert(payload).select().single()
+  })
   if (data) comments.value.push(data)
   replyOpenFor.value = null
   replyBody.value = ''
@@ -1106,10 +1062,7 @@ function openComment(c: any) {
   viewOpen.value = true
 }
 async function resolveComment(c: any) {
-  const stamp = new Date().toISOString()
-  const { data } = await (db.from as any)('page_comments')
-    .update({ resolved: true, resolved_by: user.value?.id ?? null, resolved_at: stamp })
-    .eq('id', c.id).select().single()
+  const data = await reviews.setCommentResolved(c.id, true, user.value?.id ?? null)
   if (data) {
     const i = comments.value.findIndex(x => x.id === c.id)
     if (i >= 0) comments.value[i] = data
@@ -1117,9 +1070,7 @@ async function resolveComment(c: any) {
   }
 }
 async function reopenComment(c: any) {
-  const { data } = await (db.from as any)('page_comments')
-    .update({ resolved: false, resolved_by: null, resolved_at: null })
-    .eq('id', c.id).select().single()
+  const data = await reviews.setCommentResolved(c.id, false, null)
   if (data) {
     const i = comments.value.findIndex(x => x.id === c.id)
     if (i >= 0) comments.value[i] = data
@@ -1140,7 +1091,7 @@ async function reopenAndClose() {
 async function deleteComment(c: any) {
   if (!isDeveloper.value) return
   if (!confirm('Delete this comment? This cannot be undone.')) return
-  await (db.from as any)('page_comments').delete().or(`id.eq.${c.id},parent_id.eq.${c.id}`)
+  await reviews.deleteComment(c.id)
   comments.value = comments.value.filter(x => x.id !== c.id && x.parent_id !== c.id)
   if (viewing.value?.id === c.id) viewOpen.value = false
 }

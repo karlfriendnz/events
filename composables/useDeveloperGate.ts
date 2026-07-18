@@ -11,7 +11,7 @@
 
 export function useDeveloperGate() {
   const route = useRoute()
-  const db = useDb()
+  const reviewsApi = useReviewsApi()
   const user = useSupabaseUser()
   const { orgId } = useOrg()
 
@@ -36,12 +36,7 @@ export function useDeveloperGate() {
       return
     }
     loaded.value = false
-    const { data } = await (db.from as any)('page_reviews')
-      .select('stage')
-      .eq('org_id', orgId.value)
-      .eq('path', pageKey.value)
-      .maybeSingle()
-    stage.value = data?.stage ?? null
+    stage.value = await reviewsApi.stage(orgId.value, pageKey.value)
     loaded.value = true
   }
   watch([orgId, pageKey, isDeveloper], loadCurrent, { immediate: true })
@@ -54,17 +49,14 @@ export function useDeveloperGate() {
   const approvedNavigable = ref<{ path: string; tab: string | null }[]>([])
   async function loadApprovedNavigable() {
     if (!isDeveloper.value || !orgId.value) return
-    const { data } = await (db.from as any)('page_reviews')
-      .select('path, stage')
-      .eq('org_id', orgId.value)
-      .eq('stage', 'approved')
-    approvedNavigable.value = (data ?? [])
-      .filter((r: any) => !r.path.includes(':'))
-      .map((r: any) => {
-        const m = r.path.match(/^([^?]+)(?:\?tab=(.+))?$/)
-        return { path: m?.[1] ?? r.path, tab: m?.[2] ?? null }
+    const paths = await reviewsApi.approvedPaths(orgId.value)
+    approvedNavigable.value = paths
+      .filter((p: string) => !p.includes(':'))
+      .map((p: string) => {
+        const m = p.match(/^([^?]+)(?:\?tab=(.+))?$/)
+        return { path: m?.[1] ?? p, tab: m?.[2] ?? null }
       })
-      .sort((a: any, b: any) => a.path.localeCompare(b.path))
+      .sort((a, b) => a.path.localeCompare(b.path))
   }
 
   return {

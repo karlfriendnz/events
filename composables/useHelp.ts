@@ -69,6 +69,7 @@ export function renderHelpTokens(text: string, termMap: Record<string, { singula
 
 export function useHelp() {
   const db = useDb()
+  const admin = useAdminApi()
   const modules = useOrgModules()
   const { can, load: loadCan, loaded: canLoaded } = useCan()
 
@@ -89,16 +90,31 @@ export function useHelp() {
     }
   }
 
+  // The seam returns the catalogue in camelCase, already sorted by sort_order.
+  // (sort_order / updated_at / created_at aren't on the contract — only the admin
+  // editor needs those, and it writes via the useDb path below.)
+  function fromApi(a: any): HelpArticle {
+    return {
+      id: a.id,
+      key: a.key,
+      title: a.title ?? '',
+      explanation: a.explanation ?? '',
+      steps: Array.isArray(a.steps) ? a.steps : [],
+      module: a.module ?? null,
+      resource: a.resource ?? null,
+      route: a.route ?? null,
+      sort_order: 0,
+      status: a.status === 'published' ? 'published' : 'draft',
+    }
+  }
+
   /**
    * Load help articles. `all` (admin) returns everything; otherwise returns only
    * PUBLISHED articles the current club + user can see, filtered client-side by
-   * module-enabled AND role-read-access.
+   * module-enabled AND role-read-access. Reads the global catalogue off the seam.
    */
   async function loadHelpArticles(opts?: { all?: boolean }): Promise<HelpArticle[]> {
-    let q = (db.from as any)('help_articles').select('*').order('sort_order').order('title')
-    if (!opts?.all) q = q.eq('status', 'published')
-    const { data } = await q
-    const rows: HelpArticle[] = (data ?? []).map(normalise)
+    const rows: HelpArticle[] = (await admin.helpArticles()).map(fromApi)
     if (opts?.all) return rows
 
     // Ensure the club's module config + the user's effective permissions are ready.
@@ -106,10 +122,16 @@ export function useHelp() {
       modules.loadModules(),
       canLoaded.value ? Promise.resolve() : loadCan(),
     ])
-    return rows.filter(a => modules.isEnabled(a.module) && (!a.resource || can(a.resource, 'read')))
+    return rows
+      .filter(a => a.status === 'published')
+      .filter(a => modules.isEnabled(a.module) && (!a.resource || can(a.resource, 'read')))
   }
 
   // ── Admin CRUD ──
+  // SEAM GAP: help-article WRITES belong to the admin master-data domain (admin.ts
+  // owns help_articles alongside brands/club_types and already exposes listHelpArticles;
+  // create/update/delete + the sort_order/updated_at fields the /admin/help editor uses
+  // are not yet on that seam). Left on useDb until admin adds them. Read path is converted.
   async function saveHelpArticle(article: Partial<HelpArticle> & { key: string; title: string }): Promise<HelpArticle | null> {
     const payload: any = {
       key: article.key.trim(),
