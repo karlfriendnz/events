@@ -1776,6 +1776,13 @@ import { isMembershipGroup, resolveMembershipSettings } from '~/composables/useM
 // Memberships live at their own URL (no "groups" in the path) — same page, two routes.
 definePageMeta({ alias: ['/memberships/:id()'] })
 const db = useDb()
+// Seam composables — the groups domain is fully on /api/v1; cross-domain reads use
+// their own domain Api where one exists, else a `// SEAM GAP:` note keeps useDb.
+const groupsApi = useGroupsApi()
+const peopleApi = usePeopleApi()
+const orgApi = useOrganisationsApi()
+const bookingsApi = useBookingsApi()
+const formsApi = useFormsApi()
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
@@ -1898,6 +1905,8 @@ const groupDisciplineNames = ref<string[]>([])
 const groupDisciplineIds = ref<string[]>([])
 async function loadGroupDisciplines(gid = group.value?.id ?? (route.params.id as string)) {
   if (!gid) { groupDisciplineNames.value = []; groupDisciplineIds.value = []; return }
+  // SEAM GAP: member_group_disciplines read (+ disciplines join) — disciplines
+  // domain seam not built.
   const { data } = await (db.from as any)('member_group_disciplines')
     .select('discipline_id, disciplines(id, name)').eq('group_id', gid)
   groupDisciplineNames.value = (data ?? []).map((r: any) => r.disciplines?.name).filter(Boolean)
@@ -2146,7 +2155,7 @@ const SUBGROUP_PALETTE = ['#3B82F6', '#8B5CF6', '#EC4899', '#EF4444', '#F59E0B',
 const newSubGroupColor = ref(SUBGROUP_PALETTE[0])
 async function persistSubGroups() {
   if (!group.value) return
-  await (db.from as any)('member_groups').update({ sub_groups: subGroups.value }).eq('id', group.value.id)
+  await groupsApi.update(group.value.id, { subGroups: subGroups.value })
 }
 async function addSubGroup() {
   const name = newSubGroupName.value.trim(); if (!name) return
@@ -2164,16 +2173,18 @@ async function removeSubGroupDef(sgId: string) {
   subGroups.value = subGroups.value.filter(s => s.id !== sgId)
   await persistSubGroups()
   if (group.value) {
-    await (db.from as any)('member_group_memberships').update({ sub_group_id: null })
-      .eq('group_id', group.value.id).eq('sub_group_id', sgId)
+    // Clear the sub-group off every roster member who was in it. The upsert merges
+    // (only sub_group_id is set), so roles/positions are untouched.
+    const affected = [...coaches.value, ...members.value].filter(p => p.subGroupId === sgId)
+    await Promise.all(affected.map(p =>
+      groupsApi.upsertMembership({ groupId: group.value!.id, personId: p.id, subGroupId: null })))
   }
   const clear = (arr: any[]) => arr.forEach(p => { if (p.subGroupId === sgId) p.subGroupId = null })
   clear(coaches.value); clear(members.value)
 }
 async function assignSubGroup(personId: string, sgId: string | null) {
   if (!group.value) return
-  await (db.from as any)('member_group_memberships').update({ sub_group_id: sgId })
-    .eq('group_id', group.value.id).eq('person_id', personId)
+  await groupsApi.upsertMembership({ groupId: group.value.id, personId, subGroupId: sgId })
   const set = (arr: any[]) => { const r = arr.find(p => p.id === personId); if (r) r.subGroupId = sgId }
   set(coaches.value); set(members.value)
 }
@@ -2341,6 +2352,8 @@ async function loadEntitlements() {
   entHydrating.value = true
   const [rows, { data: evs }] = await Promise.all([
     ms.loadEntitlements(group.value.id),
+    // SEAM GAP: events read with a linked_group.location_id join (entitlement event
+    // scoping by the membership's locations) — not in the events seam.
     (db.from as any)('events').select('id, title, start_at, linked_group:member_groups(location_id)').eq('org_id', orgId.value)
       .is('recurrence_parent_id', null).neq('status', 'ARCHIVED').neq('status', 'CANCELLED')
       .order('start_at', { ascending: false }).limit(200),
@@ -2356,8 +2369,8 @@ async function loadEntitlements() {
   entSelectionKeys.value = keys
   entEventIds.value = evIds
   entBenefits.value = bens
-  const { data: gNames } = await (db.from as any)('member_groups').select('id, name').eq('org_id', orgId.value)
-  entGroupNames.value = Object.fromEntries((gNames ?? []).map((g: any) => [g.id, g.name]))
+  const gNames = await groupsApi.list(orgId.value)
+  entGroupNames.value = Object.fromEntries(gNames.map((g: any) => [g.id, g.name]))
   // Events scope to the membership's locations via their linked class (an
   // event with no class link has no site — always offered).
   const scope = msLocationIds.value
@@ -2402,9 +2415,11 @@ watch(() => group.value?.id, async () => {
   if (!isMembershipKind.value) return
   msHydrating.value = true
   msSettings.value = resolveMembershipSettings((group.value as any)?.membership_settings)
-  const { data: others } = await (db.from as any)('member_groups')
-    .select('id, name').eq('org_id', orgId.value).eq('kind', 'membership').neq('id', group.value!.id).order('name')
-  otherMembershipOptions.value = (others ?? []).map((g: any) => ({ label: g.name, value: g.id }))
+  const others = await groupsApi.list(orgId.value)
+  otherMembershipOptions.value = others
+    .filter((g: any) => g.kind === 'membership' && g.id !== group.value!.id)
+    .map((g: any) => ({ label: g.name, value: g.id }))
+    .sort((a, b) => a.label.localeCompare(b.label))
   await nextTick()
   msHydrating.value = false
 }, { immediate: true })
@@ -2413,7 +2428,7 @@ watch(msSettings, () => {
   clearTimeout(msTimer)
   msTimer = setTimeout(async () => {
     msSaving.value = true
-    await (db.from as any)('member_groups').update({ membership_settings: msSettings.value }).eq('id', group.value!.id)
+    await groupsApi.update(group.value!.id, { membershipSettings: msSettings.value })
     msSaving.value = false
     msSaved.value = true
     setTimeout(() => { msSaved.value = false }, 2000)
@@ -2427,7 +2442,7 @@ watch(() => group.value?.id, () => {
 async function saveMsLocations(ids: string[]) {
   msLocationIds.value = ids
   if (!group.value) return
-  await (db.from as any)('member_groups').update({ location_ids: ids.length ? ids : null }).eq('id', group.value.id)
+  await groupsApi.update(group.value.id, { locationIds: ids.length ? ids : [] })
   ;(group.value as any).location_ids = ids.length ? ids : null
   if (activeTab.value === 'includes') void loadEntitlements() // pickers follow the scope
 }
@@ -2499,10 +2514,10 @@ const personTypeLabels = ref<Record<string, string>>({})
 const groupMemberType = computed(() => group.value ? gc.effectiveMemberType(group.value, codesById.value) : null)
 const groupMemberTypeLabel = computed(() => groupMemberType.value ? (personTypeLabels.value[groupMemberType.value] || groupMemberType.value) : null)
 async function ensurePersonType(personId: string, typeKey: string) {
-  const { data: person } = await (db.from as any)('persons').select('person_types, person_type').eq('id', personId).maybeSingle()
-  const current: string[] = Array.isArray(person?.person_types) ? person!.person_types : (person?.person_type ? [person.person_type] : [])
+  const person = await peopleApi.get(personId).catch(() => null)
+  const current: string[] = Array.isArray(person?.personTypes) ? person!.personTypes : (person?.personType ? [person.personType] : [])
   if (current.includes(typeKey)) return
-  await (db.from as any)('persons').update({ person_types: [...current, typeKey], person_type: person?.person_type || typeKey }).eq('id', personId)
+  await peopleApi.update(personId, { personTypes: [...current, typeKey], personType: person?.personType || typeKey })
 }
 
 // ── The discipline's CAST (migs 276 + 272) ──
@@ -2643,11 +2658,12 @@ const publicRegLink = computed(() =>
 async function openRegDialog() {
   regOpen.value = true
   regQr.value = ''
-  const { data } = await (db.from as any)('registration_forms')
-    .select('id, name, config').eq('org_id', orgId.value).order('name')
+  const data = await formsApi.list(orgId.value)
   // `designer` = built in the per-subject designer (config.groups shape) →
   // edited at /groups/:id/form; otherwise it's a /forms/:id (<FormBuilder>) form.
-  regForms.value = (data ?? []).map((f: any) => ({ id: f.id, name: f.name, designer: Array.isArray(f.config?.groups) }))
+  regForms.value = data
+    .map((f: any) => ({ id: f.id, name: f.name, designer: Array.isArray(f.config?.groups) }))
+    .sort((a, b) => a.name.localeCompare(b.name))
   if (group.value?.form_id) renderRegQr()
 }
 // Where the connected form gets edited, by its shape.
@@ -2670,7 +2686,7 @@ function copyRegLink() {
 }
 async function setGroupForm(formId: string | null) {
   if (!group.value) return
-  await (db.from as any)('member_groups').update({ form_id: formId }).eq('id', group.value.id)
+  await groupsApi.update(group.value.id, { formId })
   group.value.form_id = formId
   if (formId) renderRegQr()
   else regQr.value = ''
@@ -2691,18 +2707,17 @@ async function createDefaultRegForm() {
       'Gender': { col_span: 1 },
     }
     const config = { description: null, terms: [], settings: { formHeading: 'Fill in the form to register' }, profiles: [], fieldMeta }
-    const { data: f, error } = await (db.from as any)('registration_forms')
-      .insert({ org_id: orgId.value, name, config }).select('id').single()
-    if (error) throw error
-    const rows = [
-      { field_type: 'SHORT_TEXT', label: 'First Name', is_required: true },
-      { field_type: 'SHORT_TEXT', label: 'Last Name', is_required: true },
-      { field_type: 'SHORT_TEXT', label: 'Email Address', is_required: true },
-      { field_type: 'SHORT_TEXT', label: 'Phone Number', is_required: false },
-      { field_type: 'DATE', label: 'Date of Birth', is_required: true },
-      { field_type: 'SINGLE_SELECT', label: 'Gender', is_required: false, options: JSON.stringify(['Male', 'Female', 'Non-binary', 'Prefer not to say']) },
-    ].map((r, idx) => ({ form_id: f.id, page_number: 1, sort_order: idx, options: null, ...r }))
-    await (db.from as any)('form_fields').insert(rows)
+    const f = await formsApi.create({ orgId: orgId.value as string, name, config })
+    // json `options` takes the raw array — never JSON.stringify (the repo double-encodes).
+    const fields = [
+      { fieldType: 'SHORT_TEXT', label: 'First Name', isRequired: true },
+      { fieldType: 'SHORT_TEXT', label: 'Last Name', isRequired: true },
+      { fieldType: 'SHORT_TEXT', label: 'Email Address', isRequired: true },
+      { fieldType: 'SHORT_TEXT', label: 'Phone Number', isRequired: false },
+      { fieldType: 'DATE', label: 'Date of Birth', isRequired: true },
+      { fieldType: 'SINGLE_SELECT', label: 'Gender', isRequired: false, options: ['Male', 'Female', 'Non-binary', 'Prefer not to say'] },
+    ].map((r, idx) => ({ pageNumber: 1, sortOrder: idx, options: null as string[] | null, ...r }))
+    await formsApi.saveFields(f.id, fields)
     await setGroupForm(f.id)
     regForms.value.push({ id: f.id, name })
     toast.add({ severity: 'success', summary: 'Registration form created', life: 2500 })
@@ -2787,9 +2802,9 @@ async function saveBilling() {
     // The group's single term lives on member_groups (drives the term filter,
     // history and rollover). Keep member_group_terms in sync (one row) so the
     // enrol picker + read-side card keep working.
-    await (db.from as any)('member_groups')
-      .update({ term_id: termId, term_fee: fee, current_term: termName })
-      .eq('id', gid)
+    await groupsApi.update(gid, { termId, termFee: fee, currentTerm: termName })
+    // SEAM GAP: member_group_terms / member_group_plans writes (per-term fee link +
+    // plan connections) — no groups-seam route yet; keep useDb for these two tables.
     await (db.from as any)('member_group_terms').delete().eq('group_id', gid)
     await (db.from as any)('member_group_plans').delete().eq('group_id', gid)
     if (termId) await (db.from as any)('member_group_terms').insert({ group_id: gid, term_id: termId, fee })
@@ -2888,10 +2903,31 @@ const noteInThisGroup = (n: any) => Array.isArray(n.links) && n.links.some((l: a
 async function loadNoteCounts() {
   const ids = [...coaches.value, ...members.value].map(p => p.id)
   if (!group.value || !ids.length) { noteCounts.value = {}; return }
+  // SEAM GAP: person_notes READ by person ids (people-domain note reads not yet on
+  // the seam — addNote/removeNote are, the list read is not).
   const { data } = await (db.from as any)('person_notes').select('person_id, links').in('person_id', ids)
   const counts: Record<string, number> = {}
   for (const n of (data ?? [])) if (noteInThisGroup(n)) counts[n.person_id] = (counts[n.person_id] || 0) + 1
   noteCounts.value = counts
+}
+
+// Bridge the seam's camelCase MemberGroup back to the snake_case shape this page
+// (and its many template refs + direct mutations) reads. Returns a plain mutable
+// object so `group.value.form_id = …` style updates keep working.
+function toRow(g: any): Group | null {
+  if (!g) return null
+  return {
+    id: g.id, name: g.name, color: g.color ?? null, code: g.code ?? null,
+    code_id: g.codeId ?? null, age_range: g.ageRange ?? null, capacity: g.capacity ?? null,
+    current_term: g.currentTerm ?? null,
+    term_fee: g.termFee == null ? null : Number(g.termFee),
+    sub_groups: g.subGroups ?? [], term_id: g.termId ?? null, lineage_id: g.lineageId ?? null,
+    rolled_from_group_id: g.rolledFromGroupId ?? null, gender_restriction: g.genderRestriction ?? null,
+    image_url: g.imageUrl ?? null, head_person_id: g.headPersonId ?? null,
+    waitlist_id: g.waitlistId ?? null, form_id: g.formId ?? null, location_id: g.locationId ?? null,
+    kind: g.kind ?? null, membership_settings: g.membershipSettings ?? null,
+    location_ids: g.locationIds ?? [],
+  } as any
 }
 
 async function load() {
@@ -2905,31 +2941,19 @@ async function load() {
   // load as ONE parallel wave instead of gating the batch behind the group fetch.
   // loadEvents/loadBilling populate their own refs; attendance runs afterwards
   // since it needs both the event list and the resolved roster.
-  const [gRes, membersRes, , schedsRes, bkblsRes, orgRes, , codesList, codeDefs, codeStaffList] = await Promise.all([
-    (db.from as any)('member_groups')
-      .select('id, name, color, code, code_id, age_range, capacity, current_term, term_fee, sub_groups, term_id, lineage_id, rolled_from_group_id, gender_restriction, image_url, head_person_id, waitlist_id, form_id, location_id, kind, membership_settings, location_ids')
-      .eq('id', id)
-      .eq('org_id', orgId.value)
-      .maybeSingle(),
-    // dob/gender/custom_fields are for the discipline-requirement flags — without
-    // them there is nothing to check a person against.
+  const [gRow, membersRes, , scheds, bookableRows, orgProfile, , codesList, codeDefs, codeStaffList] = await Promise.all([
+    groupsApi.get(id).then(toRow).catch(() => null),
+    // SEAM GAP: the groups seam has no memberships-with-person projection carrying
+    // custom_fields/person_types — the discipline-requirement flags need both. dob/
+    // gender/custom_fields are for the flags; without them there is nothing to check
+    // a person against.
     (db.from as any)('member_group_memberships')
       .select('roles, role, positions, sub_group_id, person:persons!inner(id, first_name, last_name, email, phone, dob, gender, custom_fields, person_types, person_type)')
       .eq('group_id', id),
     loadEvents(id),
-    (db.from as any)('member_group_schedules')
-      .select('id, name, day_of_week, start_time, end_time, location, sort_order')
-      .eq('group_id', id)
-      .order('day_of_week')
-      .order('start_time'),
-    (db.from as any)('bookables')
-      .select('id, name')
-      .eq('org_id', orgId.value)
-      .eq('type', 'VENUE'),
-    (db.from as any)('organisations')
-      .select('season_start, season_end, currency')
-      .eq('id', orgId.value)
-      .maybeSingle(),
+    groupsApi.schedules(id).catch(() => [] as any[]),
+    bookingsApi.bookables(orgId.value).catch(() => [] as any[]),
+    orgApi.getProfile(orgId.value).catch(() => null),
     loadBilling(id),
     gc.loadCodes(),
     cr.ensureDefaults(),
@@ -2943,7 +2967,7 @@ async function load() {
     const types = await policy.resolvePersonTypes(orgId.value)
     personTypeLabels.value = Object.fromEntries((types ?? []).map((t: any) => [t.key, t.label]))
   }
-  const g = gRes?.data
+  const g = gRow
   group.value = g ?? null
   // Keep the URL honest: memberships at /memberships/:id, classes at /groups/:id.
   // (The two paths are ALIASES of one route, so the router treats a swap as a
@@ -2977,20 +3001,21 @@ async function load() {
     .map((x: any) => ({ id: x.p.id, name: named(x), email: x.p.email ?? null, phone: x.p.phone ?? null, roles: staffRolesOf(x.roles), allRoles: x.roles, positions: x.positions, subGroupId: x.subGroupId, person: x.p }))
     .sort((a: Coach, b: Coach) => a.name.localeCompare(b.name))
 
-  // Weekly training schedules for this group.
-  schedules.value = ((schedsRes?.data) ?? []).map((s: any) => ({
-    ...s,
-    location: normalizeLocation(s.location),
+  // Weekly training schedules for this group (seam → snake shape for the template).
+  schedules.value = ((scheds as any[]) ?? []).map((s: any) => ({
+    id: s.id, name: s.name ?? null,
+    day_of_week: s.dayOfWeek, start_time: s.startTime, end_time: s.endTime,
+    location: normalizeLocation(s.location), sort_order: s.sortOrder,
   })) as Schedule[]
 
-  // Bookable names for the read-only summary line in the panel.
-  bookableNameById.value = Object.fromEntries(((bkblsRes?.data) ?? []).map((b: any) => [b.id, b.name]))
+  // Bookable names for the read-only summary line in the panel (VENUE bookables only).
+  bookableNameById.value = Object.fromEntries(((bookableRows as any[]) ?? [])
+    .filter((b: any) => b.type === 'VENUE').map((b: any) => [b.id, b.name]))
 
-  // Org-level season range (set in /settings General tab).
-  const orgRow = orgRes?.data
-  seasonStart.value = orgRow?.season_start ?? null
-  seasonEnd.value = orgRow?.season_end ?? null
-  orgCurrency.value = orgRow?.currency || 'NZD'
+  // Org-level season range + currency (set in /settings General tab).
+  seasonStart.value = orgProfile?.seasonStart ?? null
+  seasonEnd.value = orgProfile?.seasonEnd ?? null
+  orgCurrency.value = orgProfile?.currency || 'NZD'
 
   // Attendance needs both the event list (loadEvents) and the resolved roster.
   await loadAttendance()
@@ -3029,6 +3054,8 @@ async function loadEvents(gid = group.value?.id) {
     trainingSessions.value = []
     return
   }
+  // SEAM GAP: events read filtered by member_group_id (training occurrences, with
+  // locations + member_group_schedule_id projection) — not in the events seam.
   const { data } = await (db.from as any)('events')
     .select('id, title, start_at, end_at, locations, member_group_schedule_id')
     .eq('member_group_id', gid)
@@ -3101,12 +3128,15 @@ const visitorPeople = ref<Array<{ id: string; name: string; roles: string[] }>>(
 async function loadAttendance() {
   const ids = trainingSessions.value.map(s => s.id)
   if (!ids.length) { attendanceRows.value = []; visitorPeople.value = []; return }
+  // SEAM GAP: attendance domain has no seam (repo/routes) — reporting reads too.
   const { data } = await (db.from as any)('attendance')
     .select('person_id, event_id').in('event_id', ids).eq('attended', true)
   attendanceRows.value = data ?? []
   const onRoster = new Set([...members.value, ...coaches.value].map(p => p.id))
   const visitorIds = [...new Set(attendanceRows.value.map(r => r.person_id))].filter(pid => !onRoster.has(pid))
   if (!visitorIds.length) { visitorPeople.value = []; return }
+  // SEAM GAP: people read-by-ids (usePeopleApi has list(orgId,{q}) + get(id), no
+  // bulk by-ids projection) — visitor names for the attendance report.
   const { data: vp } = await (db.from as any)('persons')
     .select('id, first_name, last_name, email, phone').in('id', visitorIds)
   visitorPeople.value = (vp ?? []).map((p: any) => ({
@@ -3372,6 +3402,10 @@ async function saveSchedules() {
   const existing = draft.filter(r => !r.id.startsWith('new-'))
   const fresh = draft.filter(r => r.id.startsWith('new-'))
 
+  // SEAM GAP: the groups seam's saveSchedules is delete-then-insert with fresh ids,
+  // which would ORPHAN every events.member_group_schedule_id link. This flow must
+  // update existing rows IN PLACE (below) to keep training events attached — so it
+  // stays on useDb until an id-preserving schedule-save route exists.
   // Delete rows the user removed from the draft. Existing rows are
   // updated in place so that events linked via
   // member_group_schedule_id stay attached.
@@ -3430,12 +3464,9 @@ async function removeMember(m: Member) {
     : `Remove ${m.name} from ${group.value.name}?`
   if (!window.confirm(msg)) return
   if (keep.length) {
-    await (db.from as any)('member_group_memberships')
-      .update({ roles: keep, role: keep[0] })
-      .eq('group_id', group.value.id).eq('person_id', m.id)
+    await groupsApi.upsertMembership({ groupId: group.value.id, personId: m.id, roles: keep, role: keep[0] })
   } else {
-    await (db.from as any)('member_group_memberships')
-      .delete().eq('group_id', group.value.id).eq('person_id', m.id)
+    await groupsApi.removeMembership(group.value.id, m.id)
   }
   members.value = members.value.filter(x => x.id !== m.id)
   const c = coaches.value.find(x => x.id === m.id); if (c) { c.allRoles = keep; c.roles = staffRolesOf(keep) }
@@ -3444,7 +3475,7 @@ async function removeMember(m: Member) {
 async function removePerson(p: any) {
   if (!group.value) return
   if (!window.confirm(`Remove ${p.name} from ${group.value.name}?`)) return
-  await (db.from as any)('member_group_memberships').delete().eq('group_id', group.value.id).eq('person_id', p.id)
+  await groupsApi.removeMembership(group.value.id, p.id)
   coaches.value = coaches.value.filter(x => x.id !== p.id)
   members.value = members.value.filter(x => x.id !== p.id)
   peopleSelection.value = peopleSelection.value.filter((x: any) => x.id !== p.id)
@@ -3507,9 +3538,16 @@ async function saveGroup() {
     image_url: groupDraft.image_url || null, head_person_id: groupDraft.head_person_id || null,
     location_id: groupDraft.location_id || null,
   }
-  const { error } = await (db.from as any)('member_groups').update(patch).eq('id', group.value.id)
+  let ok = true
+  try {
+    await groupsApi.update(group.value.id, {
+      name: patch.name, color: patch.color, codeId: patch.code_id, ageRange: patch.age_range,
+      capacity: patch.capacity, genderRestriction: patch.gender_restriction, imageUrl: patch.image_url,
+      headPersonId: patch.head_person_id, locationId: patch.location_id,
+    })
+  } catch { ok = false }
   savingGroup.value = false
-  if (!error) { Object.assign(group.value, patch); groupEditOpen.value = false }
+  if (ok) { Object.assign(group.value, patch); groupEditOpen.value = false }
 }
 
 // ── Inline-edit the stat fields (Age / Gender / Capacity) — click a value to edit it in place ──
@@ -3551,8 +3589,17 @@ async function saveStat() {
   else if (field === 'code') patch.code_id = statDraft.value || null
   else patch.capacity = (statDraft.value === '' || statDraft.value == null) ? null : Number(statDraft.value)
   editingStat.value = null
-  const { error } = await (db.from as any)('member_groups').update(patch).eq('id', group.value.id)
-  if (!error) Object.assign(group.value, patch)
+  // One key is set per edit; map the snake patch to the seam's camelCase field.
+  const camel: any = {}
+  if ('age_range' in patch) camel.ageRange = patch.age_range
+  if ('gender_restriction' in patch) camel.genderRestriction = patch.gender_restriction
+  if ('head_person_id' in patch) camel.headPersonId = patch.head_person_id
+  if ('term_id' in patch) camel.termId = patch.term_id
+  if ('code_id' in patch) camel.codeId = patch.code_id
+  if ('capacity' in patch) camel.capacity = patch.capacity
+  let ok = true
+  try { await groupsApi.update(group.value.id, camel) } catch { ok = false }
+  if (ok) Object.assign(group.value, patch)
 }
 
 // ── Add a person to the group with one or more roles ──
@@ -3581,9 +3628,9 @@ const governingClubs = ref<{ id: string; name: string }[]>([])
 const groupPullMode = ref<'reference' | 'copy'>('reference')
 async function loadGoverningContext() {
   if (!orgId.value) return
-  const { data } = await (db.from as any)('organisations').select('org_level, member_pull_mode').eq('id', orgId.value).maybeSingle()
-  orgIsGoverning.value = !!data?.org_level && data.org_level !== 'CLUB'
-  groupPullMode.value = data?.member_pull_mode === 'copy' ? 'copy' : 'reference'
+  const s = await orgApi.getSettings(orgId.value).catch(() => null)
+  orgIsGoverning.value = !!s?.orgLevel && s.orgLevel !== 'CLUB'
+  groupPullMode.value = s?.memberPullMode === 'copy' ? 'copy' : 'reference'
   if (orgIsGoverning.value && !governingClubs.value.length) governingClubs.value = await clubsBeneath(orgId.value)
 }
 // Create-a-new-person inline (instead of searching an existing one).
@@ -3647,15 +3694,15 @@ async function loadWaitlistSiblings() {
   waitlistSiblings.value = []
   const wid = group.value?.waitlist_id
   if (!wid) return
-  const { data: sibs } = await (db.from as any)('member_groups')
-    .select('id, name, capacity').eq('waitlist_id', wid).neq('id', group.value!.id)
-  if (!sibs?.length) return
+  const all = await groupsApi.list(orgId.value as string)
+  const sibs = all.filter((s: any) => s.waitlistId === wid && s.id !== group.value!.id)
+  if (!sibs.length) return
   const ids = sibs.map((s: any) => s.id)
-  const { data: mems } = await (db.from as any)('member_group_memberships').select('group_id, role, roles').in('group_id', ids)
+  const mems = await groupsApi.roster(ids)
   const counts: Record<string, number> = {}
-  for (const m of mems ?? []) {
+  for (const m of mems) {
     const roleKeys = scoped.normalizeRoles('group', m.roles, m.role)
-    if (!scoped.isStaff('group', roleKeys)) counts[m.group_id] = (counts[m.group_id] ?? 0) + 1
+    if (!scoped.isStaff('group', roleKeys)) counts[m.groupId] = (counts[m.groupId] ?? 0) + 1
   }
   waitlistSiblings.value = sibs.map((s: any) => ({ id: s.id, name: s.name, capacity: s.capacity ?? null, count: counts[s.id] ?? 0 }))
 }
@@ -3677,12 +3724,13 @@ async function addToSiblingGroup(s: { id: string; name: string }) {
   const p = pendingPerson.value
   if (!p?.id) return
   const positions = [...addPositions.value]
-  const { error } = await (db.from as any)('member_group_memberships')
-    .upsert({ group_id: s.id, person_id: p.id, roles: [], role: null, positions }, { onConflict: 'group_id,person_id' })
-  toast.add(error
-    ? { severity: 'error', summary: 'Could not add', detail: error.message, life: 4000 }
+  let ok = true; let errMsg = ''
+  try { await groupsApi.upsertMembership({ groupId: s.id, personId: p.id, roles: [], role: null, positions }) }
+  catch (e: any) { ok = false; errMsg = e?.message }
+  toast.add(!ok
+    ? { severity: 'error', summary: 'Could not add', detail: errMsg, life: 4000 }
     : { severity: 'success', summary: `Added to ${s.name}`, life: 2500 })
-  if (!error) { pendingPerson.value = null; personQuery.value = ''; personResults.value = []; addOpen.value = false }
+  if (ok) { pendingPerson.value = null; personQuery.value = ''; personResults.value = []; addOpen.value = false }
 }
 async function addNewPosition() {
   const n = newAddPosition.value.trim()
@@ -3750,19 +3798,19 @@ async function searchPersons(e: { query: string }) {
     return
   }
   // Existing members CAN be picked again — adding a role merges into their
-  // membership (e.g. give a coach the Player role so they're both).
-  let query = (db.from as any)('persons')
-    // dob/custom_fields/person_types come along so the dialog can say what this
-    // person fails BEFORE you add them — checking after the fact is a worse moment.
-    .select('id, first_name, last_name, email, phone, gender, dob, custom_fields, person_types, person_type')
-    .eq('org_id', orgId.value).order('last_name').limit(25)
-  if (q) query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`)
-  const { data } = await query
-  personResults.value = (data ?? [])
-    .map((p: any) => {
-      const inGroup = members.value.some(m => m.id === p.id) || coaches.value.some(c => c.id === p.id)
-      return { ...p, label: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() + (inGroup ? ' · in group' : '') }
-    })
+  // membership (e.g. give a coach the Player role so they're both). dob/
+  // custom_fields/person_types come along so the dialog can say what this person
+  // fails BEFORE you add them — the seam → snake mapping keeps the flag machinery
+  // (which reads person.custom_fields / person_types) working unchanged.
+  const rows = await peopleApi.list(orgId.value as string, { q: q || undefined, limit: 25 })
+  personResults.value = rows.map((pr: any) => {
+    const p = {
+      id: pr.id, first_name: pr.firstName, last_name: pr.lastName, email: pr.email, phone: pr.phone,
+      gender: pr.gender, dob: pr.dob, custom_fields: pr.customFields, person_types: pr.personTypes, person_type: pr.personType,
+    }
+    const inGroup = members.value.some(m => m.id === p.id) || coaches.value.some(c => c.id === p.id)
+    return { ...p, label: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() + (inGroup ? ' · in group' : '') }
+  })
 }
 function onPickPerson(e: { value: any }) { pendingPerson.value = e.value }
 async function addPerson() {
@@ -3773,6 +3821,9 @@ async function addPerson() {
   if (showNewPerson.value && !p?.id) {
     const fn = newPerson.first_name.trim(), ln = newPerson.last_name.trim()
     if (!fn && !ln) return
+    // SEAM GAP: this inline add permits a person with ONLY a last name (first_name
+    // null), which PersonCreate (firstName min(1)) can't express — kept on useDb so
+    // the only-last-name path stays valid.
     const { data: created, error: cErr } = await (db.from as any)('persons')
       .insert({ org_id: orgId.value, first_name: fn || null, last_name: ln || null, email: newPerson.email.trim() || null, phone: newPerson.phone.trim() || null })
       .select('id, first_name, last_name, email, phone, gender').single()
@@ -3806,10 +3857,19 @@ async function addPerson() {
   const prevPositions = coaches.value.find(x => x.id === p.id)?.positions
     ?? members.value.find(x => x.id === p.id)?.positions ?? []
   const positions = Array.from(new Set([...prevPositions, ...addPositions.value]))
-  const { error } = await (db.from as any)('member_group_memberships')
-    .upsert({ group_id: group.value.id, person_id: p.id, roles: merged, role: merged[0] ?? null, positions, ...(enrol ?? {}) },
-      { onConflict: 'group_id,person_id' })
-  if (!error) {
+  // enrolPatch() is snake — map it to the seam's camelCase membership fields.
+  const enrolCamel = enrol ? {
+    feeOptionId: enrol.fee_option_id ?? null,
+    termId: enrol.term_id ?? null,
+    startDate: enrol.start_date ?? null,
+    endDate: enrol.end_date ?? null,
+    membershipStatus: enrol.membership_status ?? null,
+  } : {}
+  let ok = true
+  try {
+    await groupsApi.upsertMembership({ groupId: group.value.id, personId: p.id, roles: merged, role: merged[0] ?? null, positions, ...enrolCamel })
+  } catch { ok = false }
+  if (ok) {
     // Stamp the person's TYPE so they pick up its fields — and so a governing
     // body's rule scoped "for Coaches" can actually find them (applies_to reads
     // persons.person_types, not the roster role). An explicit cast pick wins;
@@ -3846,12 +3906,9 @@ async function removeCoach(c: Coach) {
     : `Remove ${c.name} as a ${t('coach', false, true)} of ${group.value.name}?`
   if (!window.confirm(msg)) return
   if (keep.length) {
-    await (db.from as any)('member_group_memberships')
-      .update({ roles: keep, role: keep[0] ?? null })
-      .eq('group_id', group.value.id).eq('person_id', c.id)
+    await groupsApi.upsertMembership({ groupId: group.value.id, personId: c.id, roles: keep, role: keep[0] ?? null })
   } else {
-    await (db.from as any)('member_group_memberships')
-      .delete().eq('group_id', group.value.id).eq('person_id', c.id)
+    await groupsApi.removeMembership(group.value.id, c.id)
   }
   coaches.value = coaches.value.filter(x => x.id !== c.id)
   const m = members.value.find(x => x.id === c.id); if (m) { m.allRoles = keep; m.roles = memberRolesOf(keep) }
@@ -3903,6 +3960,9 @@ async function createAttendanceEvent() {
         status: 'DRAFT',
       }
 
+      // SEAM GAP: training-event generation writes to events (recurrence master +
+      // weekly children) and invitees — the events/attendance domains have no seam
+      // route for this master+children+invitees pattern yet; kept on useDb.
       const { data: master } = await (db.from as any)('events').insert({
         ...sharedFields,
         start_at: masterStart.toISOString(),

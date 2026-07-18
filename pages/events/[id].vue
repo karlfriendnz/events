@@ -2761,7 +2761,28 @@ const { ensureTerms, t } = useTerms()
 void ensureTerms()
 import { useToast } from 'primevue/usetoast'
 
+// `db` is retained ONLY for cross-domain / SEAM-GAP tables (discounts, attendance,
+// bookings, communications, person_notes, member_group_memberships, bookables,
+// sessions, invitees, recurrence series). Every events-domain table (events,
+// event_notes, event_tasks, ticket_types, categories, fee_components, registrations)
+// goes through the typed seam below. Each remaining `db.from(...)` carries a
+// `// SEAM GAP:` comment explaining why it can't move yet.
 const db = useDb()
+const eventsApi = useEventsApi()
+const peopleApi = usePeopleApi()
+
+// camelCase ↔ snake_case bridge for the events seam. The seam returns camelCase
+// domain objects; this page reads snake_case (Supabase's shape). These SHALLOW key
+// mappers rename only top-level keys — json blob VALUES (locations, sub_groups,
+// automation, addons, exdates…) pass straight through untouched.
+const _camelToSnake = (k: string) => k.replace(/[A-Z]/g, m => '_' + m.toLowerCase())
+const _snakeToCamel = (k: string) => k.replace(/_([a-z])/g, (_m, c) => c.toUpperCase())
+const snakeRow = (o: Record<string, any>): any =>
+  Object.fromEntries(Object.entries(o ?? {}).map(([k, v]) => [_camelToSnake(k), v]))
+// Map a snake-keyed patch to the camelCase the seam's Zod contract expects.
+const toEventPatch = (o: Record<string, any>): any =>
+  Object.fromEntries(Object.entries(o ?? {}).map(([k, v]) => [_snakeToCamel(k), v]))
+
 const toast = useToast()
 const route = useRoute()
 const router = useRouter()
@@ -2878,8 +2899,7 @@ const editingNoteContent = ref('')
 const savingNote = ref(false)
 
 async function loadEventNotes() {
-  const { data } = await db.from('event_notes').select('*').eq('event_id', id).order('created_at')
-  eventNotes.value = data ?? []
+  eventNotes.value = (await eventsApi.notes(id)).map(snakeRow)
 }
 
 function startNewNote() {
@@ -2896,11 +2916,10 @@ function cancelNoteEdit() {
 
 async function saveNewNote() {
   savingNote.value = true
-  const { data } = await db.from('event_notes').insert({
-    event_id: id,
+  const data = snakeRow(await eventsApi.createNote(id, {
     title: editingNoteTitle.value.trim() || null,
     content: editingNoteContent.value,
-  }).select('*').single()
+  }))
   if (data) eventNotes.value.push(data)
   newNoteMode.value = false
   savingNote.value = false
@@ -2916,12 +2935,10 @@ function startEditNote(note: any) {
 async function saveNoteEdit() {
   if (!editingNoteId.value) return
   savingNote.value = true
-  const updated_at = new Date().toISOString()
-  await db.from('event_notes').update({
+  await eventsApi.updateNote(editingNoteId.value, {
     title: editingNoteTitle.value.trim() || null,
     content: editingNoteContent.value,
-    updated_at,
-  }).eq('id', editingNoteId.value)
+  })
   const note = eventNotes.value.find(n => n.id === editingNoteId.value)
   if (note) { note.title = editingNoteTitle.value.trim() || null; note.content = editingNoteContent.value }
   editingNoteId.value = null
@@ -2929,7 +2946,7 @@ async function saveNoteEdit() {
 }
 
 async function deleteEventNote(noteId: string) {
-  await db.from('event_notes').delete().eq('id', noteId)
+  await eventsApi.removeNote(noteId)
   eventNotes.value = eventNotes.value.filter(n => n.id !== noteId)
 }
 
@@ -2961,27 +2978,28 @@ function personName(personId: string) {
 async function loadOrgPersons() {
   if (orgPersonsLoaded.value || !orgId.value) return
   orgPersonsLoaded.value = true
-  const { data } = await db.from('persons').select('id, first_name, last_name').eq('org_id', orgId.value).order('first_name')
-  orgPersons.value = data ?? []
+  orgPersons.value = (await peopleApi.list(orgId.value))
+    .map(p => ({ id: p.id, first_name: p.firstName, last_name: p.lastName }))
+    .sort((a, b) => a.first_name.localeCompare(b.first_name))
 }
 
 async function loadTasks() {
-  const { data } = await db.from('event_tasks').select('*').eq('event_id', id).order('created_at')
-  eventTasks.value = (data ?? []).map(t => ({ ...t, assignee_ids: t.assignee_ids ?? [], is_role: t.is_role ?? false, role_capacity: t.role_capacity ?? 1 }))
+  const data = (await eventsApi.tasks(id)).map(snakeRow)
+  eventTasks.value = data.map(t => ({ ...t, assignee_ids: t.assignee_ids ?? [], is_role: t.is_role ?? false, role_capacity: t.role_capacity ?? 1 }))
   loadOrgPersons()
 }
 
 async function addTask() {
   const text = newTaskText.value.trim()
   if (!text) return
-  const { data } = await db.from('event_tasks').insert({ event_id: id, text, done: false, assignee_ids: [], is_role: false, role_capacity: 1 }).select('*').single()
+  const data = snakeRow(await eventsApi.createTask(id, { text, done: false, assigneeIds: [], isRole: false, roleCapacity: 1 }))
   if (data) eventTasks.value.push({ ...data, assignee_ids: data.assignee_ids ?? [], is_role: false, role_capacity: 1 })
   newTaskText.value = ''
 }
 
 async function toggleTask(task: any) {
   const done = !task.done
-  await db.from('event_tasks').update({ done }).eq('id', task.id)
+  await eventsApi.updateTask(task.id, { done })
   task.done = done
 }
 
@@ -2993,13 +3011,13 @@ function startEditTask(task: any) {
 async function saveTaskEdit(task: any) {
   const text = editingTaskText.value.trim()
   if (!text) { editingTaskId.value = null; return }
-  await db.from('event_tasks').update({ text }).eq('id', task.id)
+  await eventsApi.updateTask(task.id, { text })
   task.text = text
   editingTaskId.value = null
 }
 
 async function deleteTask(taskId: string) {
-  await db.from('event_tasks').delete().eq('id', taskId)
+  await eventsApi.removeTask(taskId)
   eventTasks.value = eventTasks.value.filter(t => t.id !== taskId)
 }
 
@@ -3010,7 +3028,7 @@ function formatTaskDate(date: string) {
 async function toggleTaskAssignee(task: any, personId: string) {
   const ids: string[] = task.assignee_ids ?? []
   const newIds = ids.includes(personId) ? ids.filter((id: string) => id !== personId) : [...ids, personId]
-  await db.from('event_tasks').update({ assignee_ids: newIds }).eq('id', task.id)
+  await eventsApi.updateTask(task.id, { assigneeIds: newIds })
   task.assignee_ids = newIds
 }
 
@@ -3030,13 +3048,13 @@ function closeTaskPersonPicker() {
 
 async function toggleTaskRole(task: any) {
   const is_role = !task.is_role
-  await db.from('event_tasks').update({ is_role }).eq('id', task.id)
+  await eventsApi.updateTask(task.id, { isRole: is_role })
   task.is_role = is_role
 }
 
 async function updateTaskCapacity(task: any, delta: number) {
   const newCap = Math.max(1, (task.role_capacity ?? 1) + delta)
-  await db.from('event_tasks').update({ role_capacity: newCap }).eq('id', task.id)
+  await eventsApi.updateTask(task.id, { roleCapacity: newCap })
   task.role_capacity = newCap
 }
 
@@ -3173,7 +3191,7 @@ async function saveField(field: string) {
     update.hold_spot_enabled = editForm.value.hold_spot_enabled
     update.has_waitlist = editForm.value.has_waitlist
   }
-  const { error } = await db.from('events').update(update).eq('id', id)
+  const error = await eventsApi.update(id, toEventPatch(update)).then(() => null).catch((e: any) => e)
   if (error) {
     toast.add({ severity: 'error', summary: 'Error saving', detail: error.message, life: 4000 })
   } else {
@@ -3201,6 +3219,10 @@ async function syncVenueBookings() {
     .filter((l: any) => l.type === 'BOOKABLE')
     .flatMap((l: any) => l.bookable_ids ?? [])
 
+  // SEAM GAP: bookings domain — event-driven venue bookings need a
+  // bookable_id/event_id-filtered read + insert/update-by-event on useBookingsApi.
+  // The bookings seam has no event_id-scoped read or delete/replace-by-event route
+  // yet (reported wave-2 gap: "delete/replace event-driven bookings by event_id").
   const { data: existing } = await db.from('bookings')
     .select('id, bookable_id, status')
     .eq('event_id', id)
@@ -3241,6 +3263,7 @@ async function updateVenueBookingTimes() {
   const startAt = event.value?.start_at ?? null
   const endAt = event.value?.end_at ?? null
   if (!startAt || !endAt) return
+  // SEAM GAP: bookings domain — update EVENT_DRIVEN bookings by event_id (no route).
   await db.from('bookings')
     .update({ start_at: startAt, end_at: endAt, is_all_day: event.value?.is_all_day ?? false })
     .eq('event_id', id)
@@ -3273,6 +3296,9 @@ const attNoteCounts = ref<Record<string, number>>({})
 async function loadAttNoteCounts() {
   const personIds = invitees.value.map((inv: any) => inv.person_id).filter(Boolean)
   if (!personIds.length) { attNoteCounts.value = {}; return }
+  // SEAM GAP: person_notes — a person_notes read filtered by person-id set + links
+  // lives in the people/circles domain (reported gap D8: widen PersonNote + note READ
+  // off useDb). usePeopleApi has no notes-by-person-links read yet.
   const { data } = await (db.from as any)('person_notes').select('person_id, links').in('person_id', personIds)
   const counts: Record<string, number> = {}
   for (const n of (data ?? [])) if (Array.isArray(n.links) && n.links.some((l: any) => l.type === 'event' && l.id === id)) counts[n.person_id] = (counts[n.person_id] || 0) + 1
@@ -3458,7 +3484,7 @@ function ticketSessionDateLabel(sess: any) {
 
 async function saveHasTickets(val: boolean) {
   const id = route.params.id as string
-  await db.from('events').update({ has_tickets: val }).eq('id', id)
+  await eventsApi.update(id, { hasTickets: val })
 }
 
 function openTicketDialog(tt: any | null, sessionId: string | null) {
@@ -3472,21 +3498,20 @@ function openTicketDialog(tt: any | null, sessionId: string | null) {
 async function saveTicketType(tt: any) {
   if (!tt?.name) return
   const id = route.params.id as string
-  const payload = {
-    event_id: id,
-    session_id: tt.session_id ?? null,
+  const body = {
+    sessionId: tt.session_id ?? null,
     name: tt.name,
     description: tt.description || null,
     price: tt.price ?? 0,
     capacity: tt.capacity ?? null,
-    sales_open_at: tt.sales_open_at ?? null,
-    sales_close_at: tt.sales_close_at ?? null,
-    is_active: tt.is_active ?? true,
+    salesOpenAt: tt.sales_open_at ?? null,
+    salesCloseAt: tt.sales_close_at ?? null,
+    isActive: tt.is_active ?? true,
   }
   if (tt.id) {
-    await db.from('ticket_types').update(payload).eq('id', tt.id)
+    await eventsApi.updateTicket(tt.id, body)
   } else {
-    const { data } = await db.from('ticket_types').insert(payload).select('id').single()
+    const data = await eventsApi.createTicket(id, body)
     if (data?.id) tt.id = data.id
   }
   showTicketDialog.value = false
@@ -3494,18 +3519,21 @@ async function saveTicketType(tt: any) {
 }
 
 async function deleteTicketType(id: string) {
-  await db.from('ticket_types').delete().eq('id', id)
+  await eventsApi.removeTicket(id)
   await loadTicketTypes()
 }
 
 async function loadTicketTypes() {
   const id = route.params.id as string
-  const { data } = await db.from('ticket_types').select('*').eq('event_id', id).order('sort_order').order('created_at')
-  ticketTypes.value = data ?? []
+  ticketTypes.value = (await eventsApi.tickets(id)).map(snakeRow)
 }
 
 async function loadTicketOrders() {
   const id = route.params.id as string
+  // SEAM GAP: registrations read carries guest_name/guest_email/ticket_id + a nested
+  // registration_ticket_items→ticket_types(name) join that the Registration contract
+  // doesn't model (contract = id/eventId/personId/status/totalAmount/paidAmount/
+  // formAnswers/checkedInAt). Needs a ticket-orders read on the events seam.
   const { data } = await db
     .from('registrations')
     .select(`id, guest_name, guest_email, status, total_amount, ticket_id, checked_in_at,
@@ -3528,7 +3556,7 @@ function showQr(order: any) {
 }
 
 async function checkInOrder(registrationId: string) {
-  await db.from('registrations').update({ checked_in_at: new Date().toISOString() }).eq('id', registrationId)
+  await eventsApi.updateRegistration(registrationId, { checkedInAt: new Date().toISOString() })
   await loadTicketOrders()
 }
 
@@ -3537,6 +3565,11 @@ const eventDiscounts = ref<any[]>([])
 const evtDiscountSettings = reactive({ one_discount_only: true })
 
 async function loadDiscounts() {
+  // SEAM GAP: the whole event-discounts surface (this read, onDiscountSave insert/
+  // update, deleteDiscount, and the two inline is_active toggles in the template)
+  // stays on useDb. `discounts` is a finances-domain table; the finances seam exposes
+  // no event-scoped discount read/write yet (reported gap Fo10: formText/modifierType/
+  // modifierValue/isActive + eventId scoping). useEventDiscounts is pure (no DB).
   const { data } = await db.from('discounts').select('*').eq('event_id', id).order('created_at')
   if (data) eventDiscounts.value = data
 }
@@ -3615,7 +3648,7 @@ const automationSaving = ref(false)
 
 async function saveAutomation() {
   automationSaving.value = true
-  const { error } = await db.from('events').update({ automation: { ...evtAutomation } }).eq('id', id)
+  const error = await eventsApi.update(id, { automation: { ...evtAutomation } }).then(() => null).catch((e: any) => e)
   if (error) toast.add({ severity: 'error', summary: 'Failed to save', detail: error.message, life: 4000 })
   else toast.add({ severity: 'success', summary: 'Automation saved', life: 3000 })
   automationSaving.value = false
@@ -3649,6 +3682,10 @@ async function loadReporting() {
   reportingLoading.value = true
   const eventId = route.params.id as string
   try {
+    // SEAM GAP: reporting needs registration columns the Registration contract omits
+    // — guest_name/guest_email + created_at (recent-registrations sort/display). The
+    // adjacent registration_sessions read below stays on useDb with it so the report
+    // stays one coherent block until the events seam grows a reporting read.
     const { data: regs } = await db
       .from('registrations')
       .select('id, status, total_amount, paid_amount, checked_in_at, created_at, guest_name, guest_email, person_id')
@@ -3669,6 +3706,7 @@ async function loadReporting() {
       .slice(0, 10)
 
     if (sessions.value.length) {
+      // SEAM GAP (coherent with the registrations read above): kept on useDb.
       const { data: regSessions } = await db
         .from('registration_sessions')
         .select('session_id, status, registration_id')
@@ -3799,7 +3837,8 @@ function toggleSelectAll() {
 async function bulkDelete() {
   if (!bulkSelected.value.length) return
   bulkDeleting.value = true
-  const { error } = await db.from('invitees').delete().in('id', bulkSelected.value)
+  const error = await Promise.all(bulkSelected.value.map(iid => eventsApi.removeInvitee(iid)))
+    .then(() => null).catch((e: any) => e)
   if (error) {
     toast.add({ severity: 'error', summary: 'Error', detail: error.message, life: 4000 })
   } else {
@@ -3965,6 +4004,10 @@ async function setAttendanceViewMode(mode: 'all' | 'sub_groups' | 'member_groups
   if (mode === 'member_groups' && !memberGroupsForInvitees.value.length) {
     const personIds = invitees.value.map((inv: any) => inv.person_id).filter(Boolean)
     if (personIds.length) {
+      // SEAM GAP: groups domain — "member_group_memberships by person-id set, joined to
+      // member_groups(id,name,color)". useGroupsApi.membershipsByOrg is org-wide and
+      // carries a different projection; no membershipsForPerson-with-group read yet
+      // (reported gap D3/Fi2). Stays on useDb.
       const { data } = await db.from('member_group_memberships')
         .select('person_id, member_groups!inner(id, name, color)')
         .in('person_id', personIds)
@@ -4011,6 +4054,10 @@ async function selectAttendanceSession(sessionId: string) {
     // columns the migration file shows. We index the local map by
     // invitee.id (still the row we render) but match rows back via
     // their person_id.
+    // SEAM GAP: `attendance` has no seam (repo/routes) — reporting + the events/groups
+    // attendance tabs read/write it directly. Whole per-session attendance surface
+    // (this read + the delete/insert below in toggleSessionAttendance/markSelectedIn)
+    // stays on useDb until an attendance domain lands.
     const { data } = await db.from('attendance').select('*').eq('session_id', sessionId).eq('attended', true)
     const personIdToRow: Record<string, any> = {}
     for (const row of (data ?? [])) personIdToRow[row.person_id] = row
@@ -4087,6 +4134,9 @@ const addToSubGroupPeople = computed(() =>
 async function executeAddToSubGroup() {
   for (const invId of attendanceSelected.value) {
     inviteeGroupMap.value[invId] = addToSubGroupTarget.value
+    // SEAM GAP: Invitee contract has no subGroupId (nor signedOut/invitedAt, nor the
+    // joined person). The invitees READ (loadInvitees) and these sub_group/signed_out
+    // writes stay on useDb until the Invitee contract is widened.
     await db.from('invitees').update({ sub_group_id: addToSubGroupTarget.value }).eq('id', invId)
   }
   attendanceSelected.value = []
@@ -4115,6 +4165,7 @@ async function toggleSignOut(inv: any) {
     return
   }
   const newVal = !inv.signed_out
+  // SEAM GAP: Invitee contract has no signedOut column. Stays on useDb.
   await db.from('invitees').update({ signed_out: newVal } as any).eq('id', inv.id)
   inv.signed_out = newVal
 }
@@ -4155,7 +4206,7 @@ async function markSelectedIn() {
     }
   } else {
     await Promise.all(
-      attendanceSelected.value.map(invId => db.from('invitees').update({ attended: true }).eq('id', invId))
+      attendanceSelected.value.map(invId => eventsApi.updateInvitee(invId, { attended: true }))
     )
     invitees.value.forEach(i => { if (attendanceSelected.value.includes(i.id)) i.attended = true })
   }
@@ -4274,7 +4325,7 @@ function removeSubGroupManager(groupId: string, personId: string) {
 const savingSubGroups = ref(false)
 async function saveSubGroups() {
   savingSubGroups.value = true
-  const { error } = await db.from('events').update({ sub_groups: subGroups.value }).eq('id', id)
+  const error = await eventsApi.update(id, { subGroups: subGroups.value }).then(() => null).catch((e: any) => e)
   if (error) toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 3000 })
   savingSubGroups.value = false
   showSubGroupsDialog.value = false
@@ -4297,6 +4348,7 @@ async function onDropOnGroup(groupId: string | null) {
       inviteeGroupMap.value[id] = groupId
     }
     // Persist to DB
+    // SEAM GAP: Invitee contract has no subGroupId. Stays on useDb.
     await db.from('invitees').update({ sub_group_id: groupId }).eq('id', id)
   }
   if (draggingMultiple.value) {
@@ -4487,6 +4539,19 @@ function bulkBuildDatetime(day: Date, timePicker: Date | null, fallbackHour = 0)
   return d.toISOString()
 }
 
+// SEAM GAP (sessions editor — the entire session read/write surface stays on useDb):
+// The Session contract exposes id/title/start/end/status/capacityMax/locationType/
+// address/meetingLink/isRequired/displayOnForm/isPublic/sortOrder/isMaster/masterId/
+// addons — but the editor also reads AND writes ~12 columns the contract omits:
+// parent_session_id (sub-sessions), is_all_day, has_waitlist, show_attendee_list,
+// show_as_separate_event, invitee_modes, invitee_groups, eligibility, admins,
+// description, recurrence_rule, exdates. Routing session writes through
+// createSession/updateSession would silently DROP those columns (Zod strips them) and
+// break sub-sessions + master→linked inheritance. It also filters by parent_session_id
+// (null=master / not-null=child), which the read shape can't express. So loadSessions,
+// createBulkSessions, saveSession, propagateMasterToLinked, saveSessionFees and the
+// session-level fee_components (keyed by session_id) all stay on useDb until the
+// Session contract + createSession/updateSession are widened. (NEW reported gap.)
 async function createBulkSessions() {
   if (!bulkCanCreate.value || !event.value?.id) return
   savingBulk.value = true
@@ -4787,6 +4852,7 @@ function onSubDrop(session: any, toIdx: number) {
 function onSubDragEnd() { draggingSubKey.value = null; dragOverSubKey.value = null }
 
 async function loadSessions() {
+  // SEAM GAP: sessions editor surface stays on useDb — see the note on createBulkSessions.
   const { data } = await db.from('sessions').select('*').eq('event_id', id).is('parent_session_id', null).order('sort_order')
   if (data && data.length) {
     // Load sub-sessions and session-level fees in parallel
@@ -5032,7 +5098,7 @@ const uploadingBanner = ref(false)
 
 async function toggleHideBanner() {
   editForm.value.hide_banner = !editForm.value.hide_banner
-  await db.from('events').update({ hide_banner: editForm.value.hide_banner }).eq('id', id)
+  await eventsApi.update(id, { hideBanner: editForm.value.hide_banner })
   if (event.value) event.value.hide_banner = editForm.value.hide_banner
 }
 
@@ -5044,7 +5110,7 @@ async function handleBannerUpload(e: Event) {
     const url = await uploadFile(file)
     editForm.value.banner_url = url
     if (event.value) event.value.banner_url = url
-    await db.from('events').update({ banner_url: url }).eq('id', id)
+    await eventsApi.update(id, { bannerUrl: url })
   } finally {
     uploadingBanner.value = false
     if (bannerInput.value) bannerInput.value.value = ''
@@ -5054,7 +5120,7 @@ async function handleBannerUpload(e: Event) {
 async function saveBannerTitle() {
   const title = editForm.value.title.trim()
   if (!title || title === event.value?.title) return
-  await db.from('events').update({ title }).eq('id', id)
+  await eventsApi.update(id, { title })
   if (event.value) event.value.title = title
 }
 
@@ -5071,9 +5137,10 @@ const categoryColorPalette = [
 async function createCategory() {
   if (!newCategoryName.value.trim()) return
   savingCategory.value = true
-  const { data, error } = await db.from('categories').insert({
-    org_id: orgId.value, name: newCategoryName.value.trim(), color: newCategoryColor.value,
-  }).select('id, name, color').single()
+  let data: any = null, error: any = null
+  try {
+    data = snakeRow(await eventsApi.createCategory({ orgId: orgId.value, name: newCategoryName.value.trim(), color: newCategoryColor.value }))
+  } catch (e) { error = e }
   if (!error && data) {
     allCategories.value.push(data)
     editForm.value.category_ids.push(data.id)
@@ -5113,11 +5180,9 @@ function inviteeSeverity(s: string) {
 // ---- Load event ----
 async function loadEvent() {
   loading.value = true
-  const { data } = await db
-    .from('events')
-    .select('*, category:categories!category_id(id, name, color, icon), secondary_category:categories!secondary_category_id(id, name, color)')
-    .eq('id', id)
-    .single()
+  // The old join hydrated `category`/`secondary_category` objects that the template
+  // never reads (only category_id/secondary_category_id are used), so get(id) suffices.
+  const data = await eventsApi.get(id).then(snakeRow).catch(() => null)
   event.value = data
   if (data) {
     hasTickets.value = data.has_tickets ?? false
@@ -5173,6 +5238,11 @@ async function loadEvent() {
 
 async function loadInvitees() {
   inviteesLoading.value = true
+  // SEAM GAP: the Invitee contract (id/eventId/personId/status/roles/attended/
+  // respondedAt) can't serve this read — it needs the joined person (first/last/email,
+  // used everywhere in the Invitees + Attendance UI), sub_group_id, signed_out and
+  // invited_at ordering. So the invitees READ stays on useDb (and the sub_group/
+  // signed_out writes with it) until the Invitee contract is widened. (NEW gap.)
   const { data } = await db
     .from('invitees')
     .select('*, person:persons(id, first_name, last_name, email)')
@@ -5207,14 +5277,17 @@ async function cleanupLegacyEventLevelAttendance() {
   if (!attendanceInSessionMode.value) return
   const stale = invitees.value.filter((i: any) => i.attended)
   if (!stale.length) return
-  await db.from('invitees').update({ attended: false } as any).in('id', stale.map((i: any) => i.id))
+  await Promise.all(stale.map((i: any) => eventsApi.updateInvitee(i.id, { attended: false })))
   for (const i of stale) i.attended = false
 }
 
 async function loadFees() {
   feesLoading.value = true
-  const { data } = await db.from('fee_components').select('*').eq('event_id', id).is('session_id', null).order('sort_order')
-  feeLineItems.value = (data ?? []).map((f: any) => ({ id: f.id, name: f.name, xero_code: f.xero_code ?? '', amount: f.amount }))
+  const data = await eventsApi.feeComponents({ eventId: id })
+  feeLineItems.value = data
+    .filter((f: any) => !f.sessionId)
+    .sort((a: any, b: any) => a.sortOrder - b.sortOrder)
+    .map((f: any) => ({ id: f.id, name: f.name, xero_code: f.xeroCode ?? '', amount: f.amount }))
   feesLoading.value = false
 }
 
@@ -5223,23 +5296,21 @@ function syncFees(items: import('~/composables/useFeeGroups').FeeLineItem[]) {
   feeLineItems.value = items
   if (syncFeesTimer) clearTimeout(syncFeesTimer)
   syncFeesTimer = setTimeout(async () => {
-    const existing = feeLineItems.value.map(f => f.id)
-    if (existing.length) {
-      await db.from('fee_components').delete().eq('event_id', id).is('session_id', null).not('id', 'in', `(${existing.join(',')})`)
-    } else {
-      await db.from('fee_components').delete().eq('event_id', id).is('session_id', null)
-    }
-    for (let i = 0; i < feeLineItems.value.length; i++) {
-      const f = feeLineItems.value[i]
-      await db.from('fee_components').upsert({
-        id: f.id, event_id: id, name: f.name, xero_code: f.xero_code || null, amount: f.amount ?? 0, sort_order: i, session_id: null,
-      })
-    }
+    // replaceEventFees = delete-then-insert of ALL event-level fee lines — the same
+    // net result as the prior delete-not-in + per-row upsert (server regenerates ids;
+    // the UI keeps its client-side ids until the next loadFees, and nothing keys on
+    // stable ids across a save).
+    await eventsApi.replaceEventFees(id, feeLineItems.value.map((f, i) => ({
+      name: f.name, amount: f.amount ?? 0, xeroCode: f.xero_code || null, sortOrder: i,
+    })))
   }, 600)
 }
 
 async function loadComms() {
   commsLoading.value = true
+  // SEAM GAP: communications — /api/v1/communications is a read-only LOG with no
+  // event_id-scoped read, and there is no communications WRITE route (handleSendComms
+  // insert below also stays on useDb). Reported wave-2 gap: communications WRITES.
   const { data } = await db.from('communications').select('*').eq('event_id', id).order('sent_at', { ascending: false })
   if (data && data.length) {
     communications.value = data
@@ -5258,15 +5329,17 @@ async function loadComms() {
 
 async function loadPersons() {
   const existingIds = new Set(invitees.value.map(i => i.person_id))
-  const { data } = await db.from('persons').select('id, first_name, last_name, email').eq('org_id', orgId.value)
-  availablePersons.value = (data ?? [])
+  const data = (await peopleApi.list(orgId.value))
+    .map(p => ({ id: p.id, first_name: p.firstName, last_name: p.lastName, email: p.email }))
+  availablePersons.value = data
     .filter(p => !existingIds.has(p.id))
     .map(p => ({ ...p, full_name: `${p.first_name} ${p.last_name}` }))
 }
 
 async function loadCategories() {
-  const { data } = await db.from('categories').select('id, name, color').eq('org_id', orgId.value).order('name')
-  allCategories.value = data ?? []
+  allCategories.value = (await eventsApi.categories(orgId.value))
+    .map(snakeRow)
+    .sort((a: any, b: any) => (a.name ?? '').localeCompare(b.name ?? ''))
 }
 
 // ---- Actions ----
@@ -5281,8 +5354,7 @@ const publishInviteeCount = ref<number | null>(null)
 
 async function onPublishDialogOpen() {
   publishInviteeCount.value = null
-  const { count } = await db.from('invitees').select('id', { count: 'exact', head: true }).eq('event_id', id)
-  publishInviteeCount.value = count ?? 0
+  publishInviteeCount.value = (await eventsApi.invitees(id)).length
 }
 
 async function confirmPublish() {
@@ -5306,7 +5378,7 @@ async function confirmPublish() {
     if (!publishScheduled.value) {
       update.status = 'PUBLISHED'
     }
-    await db.from('events').update(update).eq('id', id)
+    await eventsApi.update(id, toEventPatch(update))
 
     if (publishScheduled.value && publishAt) {
       toast.add({ severity: 'success', summary: 'Publish scheduled', detail: `Will go live on ${new Date(publishAt).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}`, life: 5000 })
@@ -5323,7 +5395,7 @@ async function confirmPublish() {
 }
 
 async function unpublishEvent() {
-  await db.from('events').update({ status: 'DRAFT' }).eq('id', id)
+  await eventsApi.update(id, { status: 'DRAFT' })
   toast.add({ severity: 'success', summary: 'Event unpublished', detail: 'Reverted to draft.', life: 3000 })
   loadEvent()
 }
@@ -5335,6 +5407,10 @@ const seriesArchiveOpen = ref(false)
 const seriesArchiveScope = ref<'this' | 'following' | 'all'>('this')
 
 async function loadSeriesChildrenCount() {
+  // SEAM GAP: recurrence series — no seam read/count filtered by recurrence_parent_id
+  // (nor a delete/insert-by-parent for series generation). generateOccurrences (clone
+  // master → child rows), performSeriesArchive's "following"/"all" sibling queries and
+  // this count all stay on useDb until an events recurrence-series read/write lands.
   const { count } = await (db.from as any)('events')
     .select('id', { count: 'exact', head: true })
     .eq('recurrence_parent_id', id)
@@ -5422,7 +5498,7 @@ async function archiveEvent() {
     seriesArchiveOpen.value = true
     return
   }
-  await db.from('events').update({ status: 'ARCHIVED' }).eq('id', id)
+  await eventsApi.update(id, { status: 'ARCHIVED' })
   toast.add({ severity: 'success', summary: 'Event archived', life: 3000 })
   navigateTo('/events')
 }
@@ -5433,10 +5509,12 @@ async function performSeriesArchive() {
   const thisStart = event.value?.start_at
 
   if (scope === 'this') {
-    await db.from('events').update({ status: 'ARCHIVED' }).eq('id', id)
+    await eventsApi.update(id, { status: 'ARCHIVED' })
   } else if (scope === 'following') {
     if (thisStart) {
       // Archive this and any siblings (or children) starting on/after this event
+      // SEAM GAP: recurrence series — sibling read (.or id/recurrence_parent_id + .gte
+      // start_at) and the bulk archive-by-ids have no seam. Stays on useDb.
       const ids = new Set<string>([id])
       const { data: siblings } = await db.from('events')
         .select('id, start_at')
@@ -5481,7 +5559,7 @@ function cancelOverviewEdit() {
 
 async function saveEdit() {
   saving.value = true
-  const { error } = await db.from('events').update({
+  const error = await eventsApi.update(id, toEventPatch({
     title: editForm.value.title,
     description: editForm.value.description || null,
     banner_url: editForm.value.banner_url || null,
@@ -5515,7 +5593,7 @@ async function saveEdit() {
       ? JSON.stringify(editForm.value.custom_terms.filter((t: string) => t.trim()))
       : null,
     sub_groups: subGroups.value,
-  }).eq('id', id)
+  })).then(() => null).catch((e: any) => e)
   if (error) {
     toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 3000 })
   } else {
@@ -5528,13 +5606,11 @@ async function saveEdit() {
 async function handleAddInvitee() {
   if (!newInviteePerson.value) return
   addingInvitee.value = true
-  const { error } = await db.from('invitees').insert({
-    event_id: id,
-    person_id: newInviteePerson.value,
-    status: 'INVITED',
-  })
+  const error = await eventsApi.addInvitee(id, { personId: newInviteePerson.value, status: 'INVITED' })
+    .then(() => null).catch((e: any) => e)
   if (error) {
-    const msg = error.code === '23505' ? 'This person is already invited.' : error.message
+    const detail = error?.data?.message || error?.message || ''
+    const msg = /duplicate|unique|already/i.test(detail) ? 'This person is already invited.' : (detail || 'Please try again.')
     toast.add({ severity: 'error', summary: 'Could not add invitee', detail: msg, life: 4000 })
   } else {
     toast.add({ severity: 'success', summary: 'Invitee added', life: 3000 })
@@ -5546,13 +5622,13 @@ async function handleAddInvitee() {
 }
 
 async function removeInvitee(inviteeId: string) {
-  await db.from('invitees').delete().eq('id', inviteeId)
+  await eventsApi.removeInvitee(inviteeId)
   toast.add({ severity: 'success', summary: 'Invitee removed', life: 3000 })
   loadInvitees()
 }
 
 async function setInviteeStatus(inviteeId: string, status: string) {
-  await db.from('invitees').update({ status }).eq('id', inviteeId)
+  await eventsApi.updateInvitee(inviteeId, { status })
   loadInvitees()
 }
 
@@ -5570,7 +5646,7 @@ async function toggleAttendance(inv: any) {
     }
   }
   const newVal = !inv.attended
-  await db.from('invitees').update({ attended: newVal }).eq('id', inv.id)
+  await eventsApi.updateInvitee(inv.id, { attended: newVal })
   inv.attended = newVal
 }
 
@@ -5581,6 +5657,7 @@ async function handleSendComms() {
   const audienceCount = newComms.value.audience === 'ALL'
     ? invitees.value.length
     : invitees.value.filter(i => i.status === newComms.value.audience).length
+  // SEAM GAP: communications WRITE — no communications insert route (read-only log seam).
   const { error } = await db.from('communications').insert({
     event_id: id, channel: newComms.value.channel, subject: newComms.value.subject,
     body: newComms.value.body, recipient_count: audienceCount, status: 'SENT', sent_at: new Date().toISOString(),
@@ -5672,11 +5749,13 @@ onMounted(async () => {
   // Kick off all independent queries in parallel with the main event load
   const [, bookablesResult, categoriesResult] = await Promise.all([
     loadEvent(),
+    // SEAM GAP: bookables — the VENUE list is a bookings-domain read (useBookingsApi);
+    // kept on useDb until a bookables list route is consumed here.
     db.from('bookables').select('id, name, parent_id').eq('org_id', orgId.value).eq('type', 'VENUE').eq('status', 'ACTIVE'),
-    db.from('categories').select('id, name, color').eq('org_id', orgId.value).order('name'),
+    eventsApi.categories(orgId.value),
   ])
   allBookables.value = bookablesResult.data ?? []
-  allCategories.value = categoriesResult.data ?? []
+  allCategories.value = categoriesResult.map(snakeRow).sort((a: any, b: any) => (a.name ?? '').localeCompare(b.name ?? ''))
 
   // Fire remaining loads without blocking (they populate as they arrive)
   loadInvitees()
@@ -5718,7 +5797,7 @@ onMounted(async () => {
     // Persist immediately so dates survive navigation
     const startAt = isAllDay ? `${startStr}T00:00:00.000Z` : start.toISOString()
     const endAt = isAllDay ? `${(endStr ?? startStr)}T00:00:00.000Z` : end.toISOString()
-    await db.from('events').update({ start_at: startAt, end_at: endAt, is_all_day: isAllDay }).eq('id', id)
+    await eventsApi.update(id, { startAt, endAt, isAllDay })
     if (event.value) { event.value.start_at = startAt; event.value.end_at = endAt; event.value.is_all_day = isAllDay }
   }
 
@@ -5739,14 +5818,14 @@ onMounted(async () => {
         if (p.venue_name) editForm.value.locations[0].venue_name = p.venue_name
         if (p.address) editForm.value.locations[0].address = p.address
         // Save the prefilled data to the DB immediately
-        await db.from('events').update({
+        await eventsApi.update(id, {
           title: editForm.value.title,
           description: editForm.value.description,
-          is_all_day: editForm.value.is_all_day,
-          start_at: editForm.value.start_date ? editForm.value.start_date.toISOString() : null,
-          end_at: editForm.value.end_date ? editForm.value.end_date.toISOString() : null,
-          recurrence_rule: editForm.value.repeat || null,
-        }).eq('id', id)
+          isAllDay: editForm.value.is_all_day,
+          startAt: editForm.value.start_date ? editForm.value.start_date.toISOString() : null,
+          endAt: editForm.value.end_date ? editForm.value.end_date.toISOString() : null,
+          recurrenceRule: editForm.value.repeat || null,
+        })
         await loadEvent()
       } catch (e) { console.warn('AI prefill failed:', e) }
     }
