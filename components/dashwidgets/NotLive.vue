@@ -1,6 +1,6 @@
 <!-- Dashboard widget: classes that can't take public sign-ups yet (no registration form) -->
 <script setup lang="ts">
-const db = useDb()
+const groups = useGroupsApi()
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
@@ -11,11 +11,13 @@ const rows = ref<any[]>([])
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const { data } = await (db.from as any)('member_groups')
-    .select('id, name, color, location_id')
-    .eq('org_id', orgId.value).neq('kind', 'membership').is('form_id', null)
-    .order('name').limit(50)
-  rows.value = data ?? []
+  // Seam read: all groups, then keep non-membership classes with no reg form.
+  const all = await groups.list(orgId.value)
+  rows.value = all
+    .filter(g => g.kind !== 'membership' && !g.formId)
+    .map(g => ({ id: g.id, name: g.name, color: g.color, location_id: g.locationId }))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    .slice(0, 50)
   loading.value = false
 }
 onMounted(load)

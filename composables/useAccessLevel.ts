@@ -11,17 +11,20 @@
 // in a club where you DO have a record (see useMyClubs / login routing), so this
 // only bites truly unrecognised sessions. Cached per org.
 export function useAccessLevel() {
-  // SEAM GAP: this is the Admin-vs-Person resolver, and every read is cross-domain —
-  // persons-by-email (people), person_target_types.is_access by key (person-types),
-  // permission_group_members by person (roles: personPermissionGroupIds gap),
-  // member_group_memberships.roles + invitees.roles by person (scoped-roles resolver
-  // gaps: membershipRolesByPerson / inviteeRolesByPerson). None are on the seam yet.
-  // Left on useDb until those land. Guarded: an unresolved session fails to the least
-  // privilege (member portal), never locks anyone out.
+  // The Admin-vs-Person resolver reads cross-domain, now through the typed seam:
+  // person-by-email (people), the org's own types + their is_access (person-types),
+  // a person's legacy permission groups (roles), and their class-membership roles
+  // (groups). ONLY the invitees (event) roles read stays on useDb — the events domain
+  // has no invitee-roles-by-person seam function yet (SEAM GAP below). Guarded: an
+  // unresolved session fails to the least privilege (member portal), never locks out.
   const db = useDb()
   const { orgId } = useOrg()
   const user = useSupabaseUser()
   const scoped = useScopedRoles()
+  const { findByEmail } = usePeopleApi()
+  const { listOrgTypes } = usePersonTypesApi()
+  const { permissionGroupsForPerson } = useRolesApi()
+  const { membershipsForPerson } = useGroupsApi()
 
   const isAdmin = useState<boolean>('fm_is_admin', () => true)
   const myPersonId = useState<string | null>('fm_my_person_id', () => null)
@@ -36,39 +39,39 @@ export function useAccessLevel() {
     // Preview-as-type: reflect that type's admin/member status.
     const { previewKey } = usePreviewType()
     if (previewKey.value && orgId.value) {
-      const { data: pt } = await (db.from as any)('person_target_types').select('is_access').eq('org_id', orgId.value).eq('key', previewKey.value).maybeSingle()
-      isAdmin.value = !!pt?.is_access; myPersonId.value = null; return isAdmin.value
+      const pt = (await listOrgTypes(orgId.value)).find((t) => t.key === previewKey.value)
+      isAdmin.value = !!pt?.isAccess; myPersonId.value = null; return isAdmin.value
     }
     const isSuper = ((user.value as any)?.app_metadata?.role) === 'super_admin'
     if (isSuper) { isAdmin.value = true; return true }
     const email = user.value?.email
     if (!email || !orgId.value) { isAdmin.value = true; return true } // never lock out
 
-    const { data: person } = await (db.from as any)('persons')
-      .select('id, person_types, person_type').eq('org_id', orgId.value).ilike('email', email).limit(1).maybeSingle()
+    const person = await findByEmail(orgId.value, email)
     if (!person) { isAdmin.value = false; myPersonId.value = null; return false } // not a member of THIS club → least privilege (portal)
     myPersonId.value = person.id
 
     // 1) Access-granting person type?
-    const typeKeys: string[] = Array.isArray(person.person_types) && person.person_types.length
-      ? person.person_types : (person.person_type ? [person.person_type] : [])
+    const typeKeys: string[] = person.personTypes.length
+      ? person.personTypes : (person.personType ? [person.personType] : [])
     if (typeKeys.length) {
-      const { data: types } = await (db.from as any)('person_target_types')
-        .select('is_access').eq('org_id', orgId.value).in('key', typeKeys)
-      if ((types ?? []).some((t: any) => t.is_access)) { isAdmin.value = true; return true }
+      const orgTypes = await listOrgTypes(orgId.value)
+      if (orgTypes.some((t) => typeKeys.includes(t.key) && t.isAccess)) { isAdmin.value = true; return true }
     }
 
     // 2) Legacy permission group?
-    const { data: pg } = await (db.from as any)('permission_group_members').select('group_id').eq('person_id', person.id).limit(1)
-    if ((pg ?? []).length) { isAdmin.value = true; return true }
+    if ((await permissionGroupsForPerson(person.id)).length) { isAdmin.value = true; return true }
 
     // 3) Any STAFF role on a class or event?
     await scoped.loadRoleDefs()
-    const { data: gm } = await (db.from as any)('member_group_memberships').select('roles, role').eq('person_id', person.id)
-    for (const m of (gm ?? [])) {
-      const roles = (m.roles?.length ? m.roles : [m.role]).filter(Boolean)
+    const gm = await membershipsForPerson(orgId.value, person.id)
+    for (const m of gm) {
+      const roles = (m.roles?.length ? m.roles : [m.role]).filter(Boolean) as string[]
       if (roles.length && scoped.isStaff('group', roles)) { isAdmin.value = true; return true }
     }
+    // SEAM GAP (events): no invitee-roles-by-person seam function yet — the invitees
+    // read stays on useDb. Guarded: worst case a staff-only-via-event login reads as a
+    // member (least privilege), never locked out.
     const { data: iv } = await (db.from as any)('invitees').select('roles, role').eq('person_id', person.id)
     for (const m of (iv ?? [])) {
       const roles = (m.roles?.length ? m.roles : [m.role]).filter(Boolean)

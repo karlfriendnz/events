@@ -1,6 +1,6 @@
 <!-- Dashboard widget: the club's locations side by side (multi-site only) -->
 <script setup lang="ts">
-const db = useDb()
+const groupsApi = useGroupsApi()
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
@@ -12,15 +12,18 @@ async function load() {
   if (!orgId.value) return
   loading.value = true
   await ensureLocations()
-  const [{ data: gs }, { data: mems }] = await Promise.all([
-    (db.from as any)('member_groups').select('id, capacity, location_id').eq('org_id', orgId.value).neq('kind', 'membership').not('location_id', 'is', null),
-    (db.from as any)('member_group_memberships').select('person_id, group_id, group:member_groups!inner(org_id, location_id)').eq('group.org_id', orgId.value).not('group.location_id', 'is', null),
+  // Seam reads: located classes + all org memberships (each carrying its group's location).
+  const [allGs, mems] = await Promise.all([
+    groupsApi.list(orgId.value),
+    groupsApi.membershipsByOrg(orgId.value),
   ])
+  const gs = allGs.filter(g => g.kind !== 'membership' && g.locationId)
+    .map(g => ({ id: g.id, capacity: g.capacity, location_id: g.locationId }))
   const counts: Record<string, number> = {}
-  for (const m of (mems ?? [])) counts[m.group_id] = (counts[m.group_id] || 0) + 1
+  for (const m of mems) counts[m.groupId] = (counts[m.groupId] || 0) + 1
   rows.value = locations.value.map(l => {
-    const classes = (gs ?? []).filter((g: any) => g.location_id === l.id)
-    const people = new Set((mems ?? []).filter((m: any) => m.group?.location_id === l.id).map((m: any) => m.person_id))
+    const classes = gs.filter((g: any) => g.location_id === l.id)
+    const people = new Set(mems.filter((m: any) => m.locationId === l.id).map((m: any) => m.personId))
     const capped = classes.filter((g: any) => g.capacity)
     const cap = capped.reduce((a: number, g: any) => a + g.capacity, 0)
     const filled = capped.reduce((a: number, g: any) => a + Math.min(counts[g.id] ?? 0, g.capacity), 0)

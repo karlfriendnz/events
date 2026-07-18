@@ -1185,3 +1185,72 @@ export async function setBookableActivityIds(bookableId: string, activityIds: st
   await db.delete(schema.activityBookables).where(eq(schema.activityBookables.bookableId, bookableId))
   if (activityIds.length) await db.insert(schema.activityBookables).values(activityIds.map((activityId) => ({ id: randomUUID(), activityId, bookableId })) as any)
 }
+
+// ── Booking items (equipment bundled with a booking) ──
+// The list rows for a set of item bookables (the wizard's Equipment section reads all
+// items an org offers; this is the reserved-quantity side). booking_items itself has no
+// time — the window comes from the parent bookings row, so we join and let the caller
+// (or bookingItemUsage) resolve overlap.
+export async function listBookingItemsForBookables(bookableIds: string[]): Promise<{ bookableId: string; quantity: number; bookingStartAt: string; bookingEndAt: string; bookingStatus: string }[]> {
+  if (!bookableIds.length) return []
+  const rows = await db
+    .select({
+      bookableId: schema.bookingItems.bookableId,
+      quantity: schema.bookingItems.quantity,
+      startAt: schema.bookings.startAt,
+      endAt: schema.bookings.endAt,
+      status: schema.bookings.status,
+    })
+    .from(schema.bookingItems)
+    .innerJoin(schema.bookings, eq(schema.bookingItems.bookingId, schema.bookings.id))
+    .where(inArray(schema.bookingItems.bookableId, bookableIds))
+  return rows.map((r) => ({
+    bookableId: r.bookableId,
+    quantity: r.quantity ?? 0,
+    bookingStartAt: toIso(r.startAt),
+    bookingEndAt: toIso(r.endAt),
+    bookingStatus: r.status,
+  }))
+}
+
+// Summed item usage for the equipment-availability pre-flight: for each item bookable,
+// how much is already reserved by non-cancelled bookings overlapping the proposed
+// window (start_at < overlapEnd AND end_at > overlapStart). Returns a { bookableId ->
+// used quantity } map; an id with no usage is simply absent (caller treats as 0).
+export async function bookingItemUsage(
+  bookableIds: string[],
+  opts?: { overlapStart?: string; overlapEnd?: string },
+): Promise<Record<string, number>> {
+  if (!bookableIds.length) return {}
+  const conds: any[] = [
+    inArray(schema.bookingItems.bookableId, bookableIds),
+    ne(schema.bookings.status, 'CANCELLED'),
+  ]
+  if (opts?.overlapEnd != null) conds.push(lt(schema.bookings.startAt, new Date(opts.overlapEnd)))
+  if (opts?.overlapStart != null) conds.push(gt(schema.bookings.endAt, new Date(opts.overlapStart)))
+  const rows = await db
+    .select({ bookableId: schema.bookingItems.bookableId, quantity: schema.bookingItems.quantity })
+    .from(schema.bookingItems)
+    .innerJoin(schema.bookings, eq(schema.bookingItems.bookingId, schema.bookings.id))
+    .where(and(...conds))
+  const used: Record<string, number> = {}
+  for (const r of rows) used[r.bookableId] = (used[r.bookableId] ?? 0) + (r.quantity ?? 0)
+  return used
+}
+
+// Insert the equipment rows for a booking (one row per item type + quantity). sortOrder
+// defaults to insert order when the caller omits it.
+export async function createBookingItems(
+  items: { bookingId: string; bookableId: string; quantity: number; sortOrder?: number }[],
+): Promise<void> {
+  if (!items.length) return
+  await db.insert(schema.bookingItems).values(
+    items.map((it, i) => ({
+      id: randomUUID(),
+      bookingId: it.bookingId,
+      bookableId: it.bookableId,
+      quantity: it.quantity,
+      sortOrder: it.sortOrder ?? i,
+    })) as any,
+  )
+}

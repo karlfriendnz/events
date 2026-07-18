@@ -11,6 +11,8 @@ import type {
   CommunicationTopic,
   EmailTemplate,
   Calendar,
+  CalendarCreate,
+  CalendarPatch,
 } from '../shared/contracts/waitlist'
 
 export function useWaitlistsApi() {
@@ -41,15 +43,46 @@ export function useWaitlistsApi() {
       query: { orgId, resource: 'topics' },
     })
   }
+  /** The ACTIVE comms topics for a form/preview: the platform core topics merged with
+   *  the org's own, inactive ones dropped. */
+  async function activeTopics(orgId: string): Promise<CommunicationTopic[]> {
+    return await $fetch<CommunicationTopic[]>('/api/v1/communications', {
+      query: { orgId, resource: 'active-topics' },
+    })
+  }
   /** The club's email templates. */
   async function emailTemplates(orgId: string): Promise<EmailTemplate[]> {
     return await $fetch<EmailTemplate[]>('/api/v1/communications', {
       query: { orgId, resource: 'templates' },
     })
   }
-  /** The club's named calendars. */
+  /** The club's named calendars, each with its linked category ids. */
   async function calendars(orgId: string): Promise<Calendar[]> {
     return await $fetch<Calendar[]>('/api/v1/calendars', { query: { orgId } })
+  }
+  /** Create a named calendar (optionally seeding its category links). */
+  async function createCalendar(input: CalendarCreate): Promise<Calendar> {
+    return await $fetch<Calendar>('/api/v1/calendars', { method: 'POST', body: input })
+  }
+  /** Update a calendar's name / colour / icon / pin / settings. */
+  async function updateCalendar(id: string, patch: CalendarPatch): Promise<Calendar> {
+    return await $fetch<Calendar>(`/api/v1/calendars/${id}`, { method: 'PATCH', body: patch })
+  }
+  /** Delete a calendar (and its category links). orgId tenant-scopes the delete. */
+  async function removeCalendar(orgId: string, id: string): Promise<void> {
+    await $fetch(`/api/v1/calendars/${id}`, { method: 'DELETE', query: { orgId } })
+  }
+  /** Replace the set of categories a calendar shows. Returns the new category ids. */
+  async function setCalendarCategories(
+    orgId: string,
+    calendarId: string,
+    categoryIds: string[],
+  ): Promise<string[]> {
+    const res = await $fetch<{ categoryIds: string[] }>('/api/v1/calendar-categories', {
+      method: 'POST',
+      body: { orgId, calendarId, categoryIds },
+    })
+    return res.categoryIds
   }
   return {
     waitlists,
@@ -59,7 +92,12 @@ export function useWaitlistsApi() {
     entries,
     communications,
     topics,
+    activeTopics,
     emailTemplates,
     calendars,
+    createCalendar,
+    updateCalendar,
+    removeCalendar,
+    setCalendarCategories,
   }
 }

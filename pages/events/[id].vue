@@ -320,7 +320,7 @@
             </div>
             <div class="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
               <div class="flex items-center gap-2">
-                <ToggleSwitch v-model="disc.is_active" @change="disc.id && db.from('discounts').update({ is_active: disc.is_active }).eq('id', disc.id)" />
+                <ToggleSwitch v-model="disc.is_active" @change="toggleDiscountActive(disc)" />
                 <span class="text-xs text-gray-500">{{ disc.is_active ? 'Active' : 'Off' }} · {{ disc.redeem_count ?? 0 }} used</span>
               </div>
               <div class="flex items-center gap-1">
@@ -377,7 +377,7 @@
                 </td>
                 <td class="px-4 py-3 text-center text-gray-600 tabular-nums">{{ disc.redeem_count ?? 0 }}</td>
                 <td class="px-4 py-3 text-center">
-                  <ToggleSwitch v-model="disc.is_active" size="small" @change="disc.id && db.from('discounts').update({ is_active: disc.is_active }).eq('id', disc.id)" />
+                  <ToggleSwitch v-model="disc.is_active" size="small" @change="toggleDiscountActive(disc)" />
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
@@ -2771,6 +2771,8 @@ const db = useDb()
 const eventsApi = useEventsApi()
 const attendanceApi = useAttendanceApi()
 const peopleApi = usePeopleApi()
+const financesApi = useFinancesApi()
+const bookingsApi = useBookingsApi()
 
 // camelCase ↔ snake_case bridge for the events seam. The seam returns camelCase
 // domain objects; this page reads snake_case (Supabase's shape). These SHALLOW key
@@ -3567,13 +3569,18 @@ const eventDiscounts = ref<any[]>([])
 const evtDiscountSettings = reactive({ one_discount_only: true })
 
 async function loadDiscounts() {
-  // SEAM GAP: the whole event-discounts surface (this read, onDiscountSave insert/
-  // update, deleteDiscount, and the two inline is_active toggles in the template)
-  // stays on useDb. `discounts` is a finances-domain table; the finances seam exposes
-  // no event-scoped discount read/write yet (reported gap Fo10: formText/modifierType/
-  // modifierValue/isActive + eventId scoping). useEventDiscounts is pure (no DB).
-  const { data } = await db.from('discounts').select('*').eq('event_id', id).order('created_at')
-  if (data) eventDiscounts.value = data
+  // Event discounts via the finances seam. The seam read is org-scoped (discounts has
+  // no event_id-only route), so filter to THIS event client-side; the Discount contract
+  // carries eventId. Map camelCase → the snake shape the template + rowToDiscountDraft
+  // read. (redeem_count isn't a discounts column — stays undefined → shows 0.)
+  const all = await financesApi.discounts(orgId.value)
+  eventDiscounts.value = all
+    .filter(d => d.eventId === id)
+    .map(d => ({
+      id: d.id, name: d.name, form_text: d.formText, is_active: d.isActive,
+      modifier_value: d.modifierValue, modifier_type: d.modifierType, apply_to: d.applyTo,
+      conditions: d.conditions ?? [], expires_at: d.expiresAt,
+    }))
 }
 const showDiscountFlow = ref(false)
 const editingDiscountIdx = ref<number | null>(null)
@@ -3606,23 +3613,27 @@ function editDiscount(idx: number) {
 }
 
 async function onDiscountSave(draft: DiscountDraft) {
+  // camelCase payload for the finances seam (create/update). The event scopes the org.
+  const expiresAt = draft.expires_type === 'custom'
+    ? (draft.expires_at instanceof Date ? draft.expires_at.toISOString() : draft.expires_at)
+    : null
   const payload = {
-    event_id: id,
-    type: 'CODE' as const,
+    eventId: id,
+    type: 'CODE',
     name: draft.name,
-    form_text: draft.form_text,
-    is_active: draft.is_active,
-    modifier_value: draft.modifier_value ?? 0,
-    modifier_type: draft.modifier_type,
-    apply_to: draft.apply_to,
+    formText: draft.form_text,
+    isActive: draft.is_active,
+    modifierValue: draft.modifier_value ?? 0,
+    modifierType: draft.modifier_type,
+    applyTo: draft.apply_to,
     conditions: JSON.parse(JSON.stringify(draft.conditions)),
-    expires_at: draft.expires_type === 'custom' ? draft.expires_at : null,
+    expiresAt,
   }
   const existing = editingDiscountIdx.value !== null ? eventDiscounts.value[editingDiscountIdx.value] : null
   if (existing?.id) {
-    await db.from('discounts').update(payload).eq('id', existing.id)
+    await financesApi.updateDiscount(existing.id, payload)
   } else {
-    await db.from('discounts').insert(payload)
+    await financesApi.createDiscount(payload as any)
   }
   await loadDiscounts()
   editingDiscountIdx.value = null
@@ -3631,8 +3642,13 @@ async function onDiscountSave(draft: DiscountDraft) {
 
 async function deleteDiscount(idx: number) {
   const disc = eventDiscounts.value[idx]
-  if (disc?.id) await db.from('discounts').delete().eq('id', disc.id)
+  if (disc?.id) await financesApi.removeDiscount(disc.id)
   eventDiscounts.value.splice(idx, 1)
+}
+
+// Inline is_active toggle in the discount list/table → finances seam patch.
+function toggleDiscountActive(disc: any) {
+  if (disc?.id) financesApi.updateDiscount(disc.id, { isActive: disc.is_active })
 }
 
 // ---- Automation tab ----
@@ -5271,12 +5287,15 @@ function syncFees(items: import('~/composables/useFeeGroups').FeeLineItem[]) {
 
 async function loadComms() {
   commsLoading.value = true
-  // SEAM GAP: communications — /api/v1/communications is a read-only LOG with no
-  // event_id-scoped read, and there is no communications WRITE route (handleSendComms
-  // insert below also stays on useDb). Reported wave-2 gap: communications WRITES.
-  const { data } = await db.from('communications').select('*').eq('event_id', id).order('sent_at', { ascending: false })
-  if (data && data.length) {
-    communications.value = data
+  // Event send-log via the events seam. Map camelCase → the snake shape the tab reads;
+  // the MySQL communications table has no channel/scheduled_at columns (demo-only UI
+  // fields), so real sent rows carry neither.
+  const rows = (await eventsApi.communications(id)).map(c => ({
+    id: c.id, subject: c.subject, body: c.body,
+    recipient_count: c.recipientCount, sent_at: c.sentAt, channel: null, scheduled_at: null,
+  }))
+  if (rows.length) {
+    communications.value = rows
   } else {
     // Demo data
     communications.value = [
@@ -5594,16 +5613,21 @@ async function handleSendComms() {
   const audienceCount = newComms.value.audience === 'ALL'
     ? invitees.value.length
     : invitees.value.filter(i => i.status === newComms.value.audience).length
-  // SEAM GAP: communications WRITE — no communications insert route (read-only log seam).
-  const { error } = await db.from('communications').insert({
-    event_id: id, channel: newComms.value.channel, subject: newComms.value.subject,
-    body: newComms.value.body, recipient_count: audienceCount, status: 'SENT', sent_at: new Date().toISOString(),
-  })
-  if (!error) {
+  // Record the send via the events seam (honest row: real recipientCount, status SENT).
+  // The channel is captured in the audienceFilter blob — the log table has no channel
+  // column of its own.
+  try {
+    await eventsApi.sendCommunication(id, {
+      subject: newComms.value.subject, body: newComms.value.body,
+      recipientCount: audienceCount,
+      audienceFilter: { channel: newComms.value.channel, audience: newComms.value.audience },
+    })
     toast.add({ severity: 'success', summary: 'Message sent', life: 3000 })
     showSendComms.value = false
     newComms.value = { channel: 'EMAIL', audience: 'ALL', subject: '', body: '' }
     loadComms()
+  } catch {
+    // leave the composer open on failure
   }
   sendingComms.value = false
 }
@@ -5686,12 +5710,14 @@ onMounted(async () => {
   // Kick off all independent queries in parallel with the main event load
   const [, bookablesResult, categoriesResult] = await Promise.all([
     loadEvent(),
-    // SEAM GAP: bookables — the VENUE list is a bookings-domain read (useBookingsApi);
-    // kept on useDb until a bookables list route is consumed here.
-    db.from('bookables').select('id, name, parent_id').eq('org_id', orgId.value).eq('type', 'VENUE').eq('status', 'ACTIVE'),
+    // The VENUE list via the bookings seam; filter to active venues + map to the
+    // {id,name,parent_id} shape this page's picker reads.
+    bookingsApi.bookables(orgId.value),
     eventsApi.categories(orgId.value),
   ])
-  allBookables.value = bookablesResult.data ?? []
+  allBookables.value = bookablesResult
+    .filter((b: any) => b.type === 'VENUE' && b.status === 'ACTIVE')
+    .map((b: any) => ({ id: b.id, name: b.name, parent_id: b.parentId }))
   allCategories.value = categoriesResult.map(snakeRow).sort((a: any, b: any) => (a.name ?? '').localeCompare(b.name ?? ''))
 
   // Fire remaining loads without blocking (they populate as they arrive)

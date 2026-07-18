@@ -86,7 +86,7 @@ import { useToast } from 'primevue/usetoast'
 
 definePageMeta({ layout: 'default' })
 
-const db = useDb()
+const db = useDb() // retained only for the notifications inserts (SEAM GAP: comms send path, owned by comms)
 const api = useBookingsApi()
 const { orgId } = useOrg()
 const toast = useToast()
@@ -161,7 +161,7 @@ async function approve(b: any) {
   busyId.value = b.id
   try {
     await api.setBookingStatus(b.id, 'CONFIRMED')
-    // TODO cross-domain: notifications still via useDb (owned by comms)
+    // SEAM GAP: notifications insert (comms send path, owned by comms) — no seam yet.
     await (db.from as any)('notifications').insert({
       org_id: orgId.value,
       type: 'booking.approved',
@@ -186,7 +186,7 @@ async function decline(b: any) {
   busyId.value = b.id
   try {
     await api.setBookingStatus(b.id, 'CANCELLED')
-    // TODO cross-domain: notifications still via useDb (owned by comms)
+    // SEAM GAP: notifications insert (comms send path, owned by comms) — no seam yet.
     await (db.from as any)('notifications').insert({
       org_id: orgId.value,
       type: 'booking.declined',

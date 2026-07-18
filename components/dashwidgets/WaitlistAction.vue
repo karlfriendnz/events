@@ -1,6 +1,7 @@
 <!-- Dashboard widget: waitlist pressure — who could be enrolled TODAY -->
 <script setup lang="ts">
-const db = useDb()
+const waitlistsApi = useWaitlistsApi()
+const groupsApi = useGroupsApi()
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
@@ -10,17 +11,20 @@ const lists = ref<{ id: string; name: string; waiting: number; space: number }[]
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [{ data: wls }, { data: entries }, { data: gs }, { data: mems }] = await Promise.all([
-    (db.from as any)('waitlists').select('id, name').eq('org_id', orgId.value),
-    (db.from as any)('waitlist_entries').select('waitlist_id, status').eq('org_id', orgId.value),
-    (db.from as any)('member_groups').select('id, waitlist_id, capacity').eq('org_id', orgId.value).not('waitlist_id', 'is', null),
-    (db.from as any)('member_group_memberships').select('group_id, group:member_groups!inner(org_id)').eq('group.org_id', orgId.value),
+  // Seam reads: waitlists + connected groups (with capacity) + org membership counts.
+  const [wls, allGs, mems] = await Promise.all([
+    waitlistsApi.waitlists(orgId.value),
+    groupsApi.list(orgId.value),
+    groupsApi.membershipsByOrg(orgId.value),
   ])
+  const gs = allGs.filter(g => g.waitlistId).map(g => ({ id: g.id, waitlist_id: g.waitlistId, capacity: g.capacity }))
   const counts: Record<string, number> = {}
-  for (const m of (mems ?? [])) counts[m.group_id] = (counts[m.group_id] || 0) + 1
-  lists.value = (wls ?? []).map((w: any) => {
-    const waiting = (entries ?? []).filter((e: any) => e.waitlist_id === w.id && ['waiting', 'contacted'].includes(e.status)).length
-    const space = (gs ?? []).filter((g: any) => g.waitlist_id === w.id)
+  for (const m of mems) counts[m.groupId] = (counts[m.groupId] || 0) + 1
+  // Per-waitlist waiting count needs its queue (no org-wide entries read — one per list).
+  const entriesByList = await Promise.all(wls.map(w => waitlistsApi.entries(w.id)))
+  lists.value = wls.map((w: any, i: number) => {
+    const waiting = entriesByList[i].filter((e: any) => ['waiting', 'contacted'].includes(e.status)).length
+    const space = gs.filter((g: any) => g.waitlist_id === w.id)
       .reduce((a: number, g: any) => a + (g.capacity ? Math.max(0, g.capacity - (counts[g.id] ?? 0)) : 99), 0)
     return { id: w.id, name: w.name, waiting, space }
   }).filter(w => w.waiting > 0).sort((a, b) => b.waiting - a.waiting)

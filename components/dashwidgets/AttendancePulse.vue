@@ -1,6 +1,7 @@
 <!-- Dashboard widget: today's sessions + yesterday's unmarked rolls -->
 <script setup lang="ts">
-const db = useDb()
+const finances = useFinancesApi()
+const attendance = useAttendanceApi()
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
@@ -16,20 +17,22 @@ async function load() {
   const d0 = new Date(); d0.setHours(0, 0, 0, 0)
   const d1 = new Date(d0); d1.setDate(d1.getDate() + 1)
   const y0 = new Date(d0); y0.setDate(y0.getDate() - 1)
-  const [{ data: te }, { data: ye }] = await Promise.all([
-    (db.from as any)('events').select('id, title, start_at, member_group:member_groups(id, name, color, location_id)')
-      .eq('org_id', orgId.value).not('member_group_id', 'is', null)
-      .gte('start_at', d0.toISOString()).lt('start_at', d1.toISOString()).order('start_at'),
-    (db.from as any)('events').select('id')
-      .eq('org_id', orgId.value).not('member_group_id', 'is', null)
-      .gte('start_at', y0.toISOString()).lt('start_at', d0.toISOString()),
+  // Seam reads: group-linked training occurrences in the today + yesterday windows.
+  const [te, ye] = await Promise.all([
+    finances.attendanceSessions(orgId.value, d0.toISOString(), d1.toISOString()),
+    finances.attendanceSessions(orgId.value, y0.toISOString(), d0.toISOString()),
   ])
-  today.value = (te ?? []).filter((e: any) => inActiveLocation(e.member_group?.location_id))
-  const yids = (ye ?? []).map((e: any) => e.id)
+  // Map to the shape the template reads (member_group.{name,color,location_id}).
+  today.value = te
+    .filter(s => inActiveLocation(s.locationId))
+    .map(s => ({ id: s.eventId, start_at: s.startAt, member_group: { name: s.groupName, color: s.groupColor, location_id: s.locationId } }))
+  const yids = ye.map(s => s.eventId)
   if (yids.length) {
-    const { data: att } = await (db.from as any)('attendance').select('event_id').in('event_id', yids)
-    const markedIds = new Set((att ?? []).map((a: any) => a.event_id))
-    yesterdayMarked.value = { marked: markedIds.size, total: yids.length }
+    // Which of yesterday's events have ≥1 attendance record marked (org rollup).
+    const counts = await attendance.countsByOrg(orgId.value)
+    const markedIds = new Set(counts.filter(c => c.count > 0).map(c => c.eventId))
+    const marked = yids.filter(id => markedIds.has(id)).length
+    yesterdayMarked.value = { marked, total: yids.length }
   } else yesterdayMarked.value = null
   loading.value = false
 }

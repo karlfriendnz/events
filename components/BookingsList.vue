@@ -328,7 +328,7 @@
 import { useToast } from 'primevue/usetoast'
 const { orgId } = useOrg()
 
-const db = useDb() // retained only for the cross-domain events read in load()
+const eventsApi = useEventsApi() // cross-domain events read in load()
 const api = useBookingsApi()
 
 // Seam bookings are flat + camelCase; this table reads snake_case and nested
@@ -634,17 +634,18 @@ const rowsForTable = computed(() => {
 // ── Data load ────────────────────────────────────────────────
 async function load() {
   loading.value = true
-  const [allBookings, bookableList, acts, eventRes] = await Promise.all([
+  const [allBookings, bookableList, acts, eventList] = await Promise.all([
     api.bookings(orgId.value!),
     api.bookables(orgId.value!),
     api.activities(orgId.value!),
-    // TODO cross-domain: events still via useDb (owned by events)
-    db.from('events').select('id,title').eq('org_id', orgId.value).neq('status', 'ARCHIVED').order('title'),
+    eventsApi.list(orgId.value!),
   ])
 
   // Hydrate the nested bookable/event/mode objects the row template reads.
   const bookablesById = new Map(bookableList.map(b => [b.id, b]))
-  const eventsById = new Map(((eventRes.data ?? []) as any[]).map(e => [e.id, e]))
+  const eventsById = new Map(
+    eventList.filter(e => e.status !== 'ARCHIVED').map(e => [e.id, { id: e.id, title: e.title }]),
+  )
   const modeLists = await Promise.all(acts.map(a => api.activityModes(a.id)))
   const modesById = new Map(modeLists.flat().map(m => [m.id, m]))
 

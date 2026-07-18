@@ -523,9 +523,7 @@ import { codeLineage } from '~/composables/useGroupCodes'
 import type { GroupCode } from '~/composables/useGroupCodes'
 import type { CodeStaff } from '~/composables/useCodeRoles'
 
-// SEAM GAP: `db` is kept ONLY for reading organisations.currency (the org seam
-// doesn't expose currency yet). Every other data access goes through the seam.
-const db = useDb()
+const financesApi = useFinancesApi()
 const { orgId } = useOrg()
 const tm = useTermsMemberships()
 const rollover = useTermRollover()
@@ -999,16 +997,15 @@ function fmtMoney(n: number) { return gf.fmtMoney(n, orgCurrency.value) }
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [loadedTerms, allGroups, org, tmap] = await Promise.all([
+  const [loadedTerms, allGroups, currency, tmap] = await Promise.all([
     tm.loadTerms(),
     groupsApi.list(orgId.value),
-    // SEAM GAP: organisations.currency — no org-seam getter yet.
-    (db.from as any)('organisations').select('currency').eq('id', orgId.value).maybeSingle().then((r: any) => r.data),
+    financesApi.orgCurrency(orgId.value).catch(() => null),
     terminology.resolveTerminology(orgId.value),
   ])
   terms.value = loadedTerms
   termMap.value = tmap
-  if (org?.currency) orgCurrency.value = org.currency
+  if (currency) orgCurrency.value = currency
   // Only groups that belong to a term count towards the per-term totals.
   const groups = allGroups.filter(g => g.termId)
   const counts: Record<string, number> = {}

@@ -799,7 +799,7 @@ import { rruleToSummary } from '~/composables/useRepeatOptions'
 const props = defineProps<{ bookableId: string; readonly?: boolean }>()
 const emit = defineEmits<{ saved: [] }>()
 
-const db = useDb() // retained only for cross-domain member_groups (owned by groups); all bookings-domain reads/writes now go through the seam
+const groupsApi = useGroupsApi() // cross-domain member_groups (owned by groups); all bookings-domain reads/writes go through the seam
 const api = useBookingsApi()
 const toast = useToast()
 
@@ -1265,18 +1265,19 @@ const PRICE_TYPES = [
 
 async function load() {
   loading.value = true
-  const [rulesSeam, { data: g }, mSeam, abIds] = await Promise.all([
+  const [rulesSeam, grps, mSeam, abIds] = await Promise.all([
     // Availability rules via the seam (granular writes below match this read).
     api.availabilityRules(props.bookableId),
-    // TODO cross-domain: member_groups still via useDb (owned by groups)
-    db.from('member_groups').select('id, name, color, parent_id').eq('org_id', orgId.value).order('sort_order').order('name'),
+    groupsApi.list(orgId.value),
     api.bookableModes(props.bookableId),
     // activity_bookables (by-bookable) via the seam.
     api.bookableActivityIds(props.bookableId),
   ])
   // The seam returns camelCase; the template + write payloads use snake_case — map once here.
   rules.value = (rulesSeam ?? []).map(toSnakeRule)
-  memberGroups.value = g ?? []
+  // parent_id is retired (migration 206 flattened group nesting → null); the eligibility
+  // tree treats every group as top-level, matching post-migration data.
+  memberGroups.value = grps.map(g => ({ id: g.id, name: g.name, color: g.color, parent_id: null }))
   // BookableMode camelCase id/name/color are the same keys the template reads; sort by name to keep prior order.
   bookableModes.value = (mSeam ?? []).slice().sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''))
   const activityIds = abIds ?? []

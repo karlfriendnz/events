@@ -10,7 +10,7 @@
 // so the domain always sees a real JS value. Timestamps → ISO via `asIso`; the
 // driver may return 1/0 for booleans, so `asBool` coerces.
 import { randomUUID } from 'node:crypto'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   Waitlist,
@@ -19,6 +19,8 @@ import type {
   CommunicationTopic,
   EmailTemplate,
   Calendar,
+  CalendarCreate,
+  CalendarPatch,
   WaitlistCreate,
   WaitlistPatch,
 } from '../../../shared/contracts/waitlist'
@@ -106,7 +108,9 @@ function toEmailTemplate(r: typeof schema.emailTemplates.$inferSelect): EmailTem
   }
 }
 
-function toCalendar(r: typeof schema.calendars.$inferSelect): Calendar {
+// `categoryIds` is hydrated separately (from the calendar_categories join) and passed
+// in — the base column mapper defaults it to [].
+function toCalendar(r: typeof schema.calendars.$inferSelect, categoryIds: string[] = []): Calendar {
   return {
     id: r.id,
     orgId: r.orgId,
@@ -115,6 +119,7 @@ function toCalendar(r: typeof schema.calendars.$inferSelect): Calendar {
     icon: r.icon ?? null,
     pinToNav: asBool(r.pinToNav),
     settings: asJson(r.settings),
+    categoryIds,
   }
 }
 
@@ -207,6 +212,25 @@ export async function listCommunicationTopics(orgId: string): Promise<Communicat
   return rows.map(toTopic)
 }
 
+/** The ACTIVE comms topics a form/preview should offer: the platform CORE topics
+ *  (org_id null, is_core) then this org's own, each block in sort order, dropping any
+ *  inactive topic. Core topics never carry an orgId, so the two blocks never overlap. */
+export async function listActiveCommunicationTopics(orgId: string): Promise<CommunicationTopic[]> {
+  const [core, own] = await Promise.all([
+    db
+      .select()
+      .from(schema.communicationTopics)
+      .where(eq(schema.communicationTopics.isCore, true))
+      .orderBy(asc(schema.communicationTopics.sortOrder)),
+    db
+      .select()
+      .from(schema.communicationTopics)
+      .where(eq(schema.communicationTopics.orgId, orgId))
+      .orderBy(asc(schema.communicationTopics.sortOrder)),
+  ])
+  return [...core, ...own].filter((t) => asBool(t.isActive)).map(toTopic)
+}
+
 /** The club's email templates. */
 export async function listEmailTemplates(orgId: string): Promise<EmailTemplate[]> {
   const rows = await db
@@ -217,12 +241,106 @@ export async function listEmailTemplates(orgId: string): Promise<EmailTemplate[]
   return rows.map(toEmailTemplate)
 }
 
-/** The club's named calendars, in sort order. */
+// Read all the calendar_categories links for a set of calendar ids, grouped by
+// calendar. One query for the whole org's calendars (avoids an N+1 per calendar).
+async function categoryIdsByCalendar(calendarIds: string[]): Promise<Map<string, string[]>> {
+  const map = new Map<string, string[]>()
+  if (calendarIds.length === 0) return map
+  const links = await db
+    .select()
+    .from(schema.calendarCategories)
+    .where(inArray(schema.calendarCategories.calendarId, calendarIds))
+  for (const l of links) {
+    const list = map.get(l.calendarId) ?? []
+    list.push(l.categoryId)
+    map.set(l.calendarId, list)
+  }
+  return map
+}
+
+/** The club's named calendars, in sort order, each with its linked category ids. */
 export async function listCalendars(orgId: string): Promise<Calendar[]> {
   const rows = await db
     .select()
     .from(schema.calendars)
     .where(eq(schema.calendars.orgId, orgId))
     .orderBy(asc(schema.calendars.sortOrder))
-  return rows.map(toCalendar)
+  const links = await categoryIdsByCalendar(rows.map((r) => r.id))
+  return rows.map((r) => toCalendar(r, links.get(r.id) ?? []))
+}
+
+/** One calendar by id (with its category ids), or null. */
+export async function getCalendar(id: string): Promise<Calendar | null> {
+  const [r] = await db.select().from(schema.calendars).where(eq(schema.calendars.id, id)).limit(1)
+  if (!r) return null
+  const links = await categoryIdsByCalendar([id])
+  return toCalendar(r, links.get(id) ?? [])
+}
+
+// ── Calendar writes ──
+// The repo owns the id (MySQL can't default a uuid). sort_order + pin_to_nav are
+// notNull with no DB default, so they're always written; settings is a json column —
+// RAW value, never JSON.stringify (Drizzle double-encodes). categoryIds, when given,
+// seeds the join in the same call.
+export async function createCalendar(input: CalendarCreate): Promise<Calendar> {
+  const id = randomUUID()
+  // Append after the org's existing calendars.
+  const existing = await db
+    .select({ id: schema.calendars.id })
+    .from(schema.calendars)
+    .where(eq(schema.calendars.orgId, input.orgId))
+  await db.insert(schema.calendars).values({
+    id,
+    orgId: input.orgId,
+    name: input.name,
+    sortOrder: existing.length,
+    pinToNav: input.pinToNav ?? false,
+    icon: input.icon ?? null,
+    color: input.color ?? null,
+    settings: input.settings ?? null,
+  } as any)
+  if (input.categoryIds && input.categoryIds.length) {
+    await setCalendarCategories(input.orgId, id, input.categoryIds)
+  }
+  return (await getCalendar(id))!
+}
+
+export async function updateCalendar(id: string, patch: CalendarPatch): Promise<Calendar | null> {
+  const set: Record<string, any> = {}
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.color !== undefined) set.color = patch.color
+  if (patch.icon !== undefined) set.icon = patch.icon
+  if (patch.pinToNav !== undefined) set.pinToNav = patch.pinToNav
+  if (patch.settings !== undefined) set.settings = patch.settings
+  if (Object.keys(set).length) await db.update(schema.calendars).set(set).where(eq(schema.calendars.id, id))
+  return getCalendar(id)
+}
+
+// Org-scoped delete (the join rows have no org_id — cascade is by calendar_id).
+export async function deleteCalendar(orgId: string, id: string): Promise<void> {
+  await db.delete(schema.calendarCategories).where(eq(schema.calendarCategories.calendarId, id))
+  await db
+    .delete(schema.calendars)
+    .where(and(eq(schema.calendars.id, id), eq(schema.calendars.orgId, orgId)))
+}
+
+// Replace the set of categories a calendar shows (delete-then-insert the join). The
+// calendar is verified to belong to orgId first (tenant safety) — a mismatch is a
+// no-op returning []. Returns the calendar's new category ids.
+export async function setCalendarCategories(
+  orgId: string,
+  calendarId: string,
+  categoryIds: string[],
+): Promise<string[]> {
+  const [cal] = await db
+    .select({ id: schema.calendars.id })
+    .from(schema.calendars)
+    .where(and(eq(schema.calendars.id, calendarId), eq(schema.calendars.orgId, orgId)))
+    .limit(1)
+  if (!cal) return []
+  await db.delete(schema.calendarCategories).where(eq(schema.calendarCategories.calendarId, calendarId))
+  for (const categoryId of categoryIds) {
+    await db.insert(schema.calendarCategories).values({ calendarId, categoryId } as any)
+  }
+  return categoryIds
 }

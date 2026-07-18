@@ -9,6 +9,9 @@ import type {
   MembershipEntitlement,
   MembershipEntitlementInput,
   MembershipPlan,
+  MembershipPlanOption,
+  MembershipPlanOptionCreate,
+  MembershipPlanOptionPatch,
   MembershipPlanWithOptions,
   MembershipPlanCreate,
   MembershipPlanPatch,
@@ -110,9 +113,22 @@ export function useMembershipsApi() {
   async function removePlan(id: string): Promise<void> {
     await $fetch(`/api/v1/memberships/plans/${id}`, { method: 'DELETE' })
   }
+  /** Create a plan's duration option. */
+  async function createPlanOption(input: MembershipPlanOptionCreate): Promise<MembershipPlanOption> {
+    return await $fetch<MembershipPlanOption>('/api/v1/membership-plan-options', { method: 'POST', body: input })
+  }
+  /** Update a plan's duration option. */
+  async function updatePlanOption(id: string, patch: MembershipPlanOptionPatch): Promise<MembershipPlanOption> {
+    return await $fetch<MembershipPlanOption>(`/api/v1/membership-plan-options/${id}`, { method: 'PATCH', body: patch })
+  }
+  /** Bulk-delete a plan's duration options by id (scoped by planId). */
+  async function removePlanOptions(planId: string, ids: string[]): Promise<void> {
+    await $fetch('/api/v1/membership-plan-options/delete', { method: 'POST', body: { planId, ids } })
+  }
   return {
     plans, entitlements, entitlementsByOrg, saveEntitlements, groupBilling, saveGroupBilling,
     terms, termSets, createTermSet, updateTermSet, removeTermSet,
     createTerm, updateTerm, removeTerm, createPlan, updatePlan, removePlan,
+    createPlanOption, updatePlanOption, removePlanOptions,
   }
 }

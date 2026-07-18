@@ -9,7 +9,7 @@
 -->
 <script setup lang="ts">
 const route = useRoute()
-const db = useDb()
+const groupsApi = useGroupsApi()
 const { orgId } = useOrg()
 
 const id = route.params.id as string
@@ -22,8 +22,11 @@ useBreadcrumbs([
 ] as any)
 
 onMounted(async () => {
-  const { data } = await (db.from as any)('member_groups').select('id, name').eq('id', id).maybeSingle()
-  group.value = data ?? null
+  try {
+    group.value = await groupsApi.get(id)
+  } catch {
+    group.value = null
+  }
 })
 </script>
 

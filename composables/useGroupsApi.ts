@@ -100,6 +100,10 @@ export function useGroupsApi() {
   async function feeOptions(groupId: string): Promise<GroupFeeOption[]> {
     return await $fetch<GroupFeeOption[]>(`/api/v1/groups/${groupId}/fee-options`)
   }
+  /** Every group's fee options across an org (Fees overview / Classes board). */
+  async function feeOptionsByOrg(orgId: string): Promise<GroupFeeOption[]> {
+    return await $fetch<GroupFeeOption[]>('/api/v1/group-fees', { query: { orgId } })
+  }
   /** Replace a group's fee options (delete-then-insert, incl. line items). */
   async function saveFeeOptions(
     groupId: string,
@@ -299,7 +303,7 @@ export function useGroupsApi() {
     list, get, memberships, membershipsByOrg, membershipsForPerson, groupsByCodeIds,
     upsertMembership, removeMembership, membershipsWithPersonForGroups,
     membershipsForRetention, moveMembership, roster, rollover,
-    schedules, schedulesForGroups, codes, feeOptions,
+    schedules, schedulesForGroups, codes, feeOptions, feeOptionsByOrg,
     saveFeeOptions, addFeeOptionToGroups, saveSchedules, syncSchedules,
     rosterWithPerson, saveBilling,
     create, update, remove, createCode, updateCode, removeCode,

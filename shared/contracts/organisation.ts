@@ -55,6 +55,9 @@ export const orgTreeListSchema = z.array(orgTreeNodeSchema)
 // composable can fall back to the governing-body blue. One call, no admin round-trip.
 export const orgBrandThemeSchema = z.object({
   brandColor: z.string().nullable(),
+  // The connected platform brand's NAME (via brand_id → brands.name), for
+  // white-labelled labels like "{Brand} Invoices". Null when no brand is set.
+  brandName: z.string().nullable(),
   orgLevel: z.string(),
 })
 export type OrgBrandTheme = z.infer<typeof orgBrandThemeSchema>

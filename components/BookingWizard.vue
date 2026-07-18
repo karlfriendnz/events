@@ -1032,8 +1032,11 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
-const db = useSupabaseClient() // kept for auth (signIn*) + cross-domain reads (events/booking_items/forms/notifications)
+const db = useSupabaseClient() // kept for auth (signIn*) + the notifications insert (SEAM GAP: comms send path, owned by comms)
 const api = useBookingsApi()
+const formsApi = useFormsApi()
+const orgsApi = useOrganisationsApi()
+const eventsApi = useEventsApi()
 const { orgId: staffOrgId } = useOrg()
 const toast = useToast()
 
@@ -1288,20 +1291,10 @@ async function checkItemAvailability(rows: { id: string; qty: number; item: any 
   if (!ids.length) return null
   const startIso = booking.startAt.toISOString()
   const endIso = booking.endAt.toISOString()
-  // booking_items isn't time-aware on its own — the time window comes
-  // from the parent bookings row. Join via an inner select.
-  // TODO cross-domain: booking_items still via the supabase client (not a booking-domain seam table)
-  const { data } = await (db.from as any)('booking_items')
-    .select('bookable_id, quantity, booking:bookings!inner(start_at, end_at, status)')
-    .in('bookable_id', ids)
-  const usedByItem: Record<string, number> = {}
-  for (const r of (data ?? []) as any[]) {
-    const bk = r.booking
-    if (!bk || bk.status === 'CANCELLED') continue
-    if (new Date(bk.start_at) >= new Date(endIso)) continue
-    if (new Date(bk.end_at) <= new Date(startIso)) continue
-    usedByItem[r.bookable_id] = (usedByItem[r.bookable_id] ?? 0) + (r.quantity ?? 0)
-  }
+  // booking_items isn't time-aware on its own — the reservation window comes from the
+  // parent bookings row. The seam joins bookings + resolves overlap server-side and
+  // returns { bookableId -> reserved quantity } for the proposed window.
+  const usedByItem = await api.bookingItemUsage(ids, { overlapStart: startIso, overlapEnd: endIso })
   for (const r of rows) {
     const cap = r.item?.max_concurrent ?? null
     if (cap == null) continue // unlimited
@@ -1418,21 +1411,33 @@ watch(effectiveFormId, async (formId) => {
   modeFormTerms.value = []
   for (const k of Object.keys(termsAgreed)) delete termsAgreed[Number(k)]
   if (!formId) return
-  const [{ data: ff }, { data: rf }] = await Promise.all([
-    // TODO cross-domain: form_fields still via the supabase client (owned by forms)
-    (db.from as any)('form_fields').select('*').eq('form_id', formId).order('sort_order'),
-    // TODO cross-domain: registration_forms still via the supabase client (owned by forms)
-    (db.from as any)('registration_forms').select('config').eq('id', formId).single(),
+  const [ff, rf] = await Promise.all([
+    // form_fields + the form's config via the forms seam (owned by forms).
+    formsApi.fields(formId),
+    formsApi.get(formId),
   ])
   const cfg = (rf?.config as any) ?? {}
   const fieldMeta = cfg.fieldMeta ?? {}
-  modeFormFields.value = (ff ?? []).map((f: any) => {
-    let opts: string[] = []
-    try { opts = JSON.parse(f.options || '[]') } catch { opts = [] }
+  modeFormFields.value = (ff ?? [])
+    .slice()
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    .map((f) => {
+    // Seam is camelCase + options already an array; remap to the snake shape the
+    // wizard's field render reads (field_type / is_required / placeholder …).
+    const opts: string[] = f.options ?? []
     const meta = fieldMeta[f.label] ?? {}
     const core = meta.core ?? CORE_BY_LABEL[f.label] ?? null
     return {
-      ...f,
+      id: f.id,
+      form_id: f.formId,
+      field_type: f.fieldType,
+      label: f.label,
+      placeholder: f.placeholder,
+      help_text: f.helpText,
+      is_required: f.isRequired,
+      options: f.options,
+      sort_order: f.sortOrder,
+      page_number: f.pageNumber,
       _options: opts,
       _core: core,
       _col_span: meta.col_span ?? 2,
@@ -2090,13 +2095,9 @@ async function load() {
   loadingBookables.value = true
 
   // Org-level defaults (used as the fallback for modes that haven't set their own).
-  // TODO cross-domain: organisations still via the supabase client (owned by admin/org)
-  const { data: orgData } = await (db.from as any)('organisations')
-    .select('default_payment_options, default_form_id')
-    .eq('id', queryOrgId.value)
-    .single()
-  orgDefaultPayments.value = (orgData?.default_payment_options as Record<string, boolean>) ?? {}
-  orgDefaultFormId.value = orgData?.default_form_id ?? null
+  const orgProfile = await orgsApi.getProfile(queryOrgId.value)
+  orgDefaultPayments.value = (orgProfile?.defaultPaymentOptions as Record<string, boolean>) ?? {}
+  orgDefaultFormId.value = orgProfile?.defaultFormId ?? null
 
   // Seam returns camelCase; the template reads snake_case, so map at the boundary.
   const [aRaw, allOrgBk] = await Promise.all([
@@ -2123,12 +2124,8 @@ async function load() {
 
   // Staff: load org events for the link-to-event selector.
   if (props.staff) {
-    // TODO cross-domain: events still via the supabase client (owned by events)
-    const { data: eData } = await (db.from as any)('events')
-      .select('id, title')
-      .eq('org_id', queryOrgId.value)
-      .order('start_at', { ascending: false })
-    events.value = eData ?? []
+    const eList = await eventsApi.list(queryOrgId.value)
+    events.value = eList.map(e => ({ id: e.id, title: e.title }))
   }
   loadingActivities.value = false
 
@@ -2333,19 +2330,18 @@ async function handleSubmit() {
 
       // Equipment rows. Fungible — one row per item type with a quantity.
       if (itemRowsToInsert.length && bookingRow?.id) {
-        // TODO cross-domain: booking_items still via the supabase client (not a booking-domain seam table)
-        await (db.from as any)('booking_items').insert(
+        await api.createBookingItems(
           itemRowsToInsert.map((r, i) => ({
-            booking_id: bookingRow.id,
-            bookable_id: r.id,
+            bookingId: bookingRow.id,
+            bookableId: r.id,
             quantity: r.qty,
-            sort_order: i,
+            sortOrder: i,
           })),
         )
       }
       // Mirror the public-booking notification path.
       const isPending = currentActivityMode.value?.approval_mode === 'REQUIRES_APPROVAL'
-      // TODO cross-domain: notifications still via the supabase client (owned by comms)
+      // SEAM GAP: notifications insert (comms send path, owned by comms) — no seam yet.
       const { data: notif } = await (db.from as any)('notifications').insert({
         org_id: queryOrgId.value,
         type: isPending ? 'booking.pending' : 'booking.created',

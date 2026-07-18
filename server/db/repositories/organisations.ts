@@ -303,15 +303,23 @@ function asStrArr(v: unknown): string[] {
 /** The resolved brand theme for an org: the connected platform brand's colour (via
  *  brand_id → brands.color) + the level for the governing-body fallback. Null org →
  *  null. */
-export async function getOrgBrandTheme(id: string): Promise<{ brandColor: string | null; orgLevel: string } | null> {
+export async function getOrgBrandTheme(
+  id: string,
+): Promise<{ brandColor: string | null; brandName: string | null; orgLevel: string } | null> {
   const [r] = await db.select().from(schema.organisations).where(eq(schema.organisations.id, id)).limit(1)
   if (!r) return null
   let brandColor: string | null = null
+  let brandName: string | null = null
   if (r.brandId) {
-    const [b] = await db.select({ color: schema.brands.color }).from(schema.brands).where(eq(schema.brands.id, r.brandId)).limit(1)
+    const [b] = await db
+      .select({ color: schema.brands.color, name: schema.brands.name })
+      .from(schema.brands)
+      .where(eq(schema.brands.id, r.brandId))
+      .limit(1)
     brandColor = b?.color ?? null
+    brandName = b?.name?.trim() || null
   }
-  return { brandColor, orgLevel: r.orgLevel }
+  return { brandColor, brandName, orgLevel: r.orgLevel }
 }
 
 /** Privileged re-parent: move an org under a different governing body. Its own

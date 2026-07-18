@@ -1,6 +1,6 @@
 <!-- Dashboard widget: spots filled vs capacity across classes (lens-aware) -->
 <script setup lang="ts">
-const db = useDb()
+const groupsApi = useGroupsApi()
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
@@ -12,13 +12,14 @@ const counts = ref<Record<string, number>>({})
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [{ data: gs }, { data: mems }] = await Promise.all([
-    (db.from as any)('member_groups').select('id, capacity, location_id').eq('org_id', orgId.value).neq('kind', 'membership'),
-    (db.from as any)('member_group_memberships').select('group_id, group:member_groups!inner(org_id, kind)').eq('group.org_id', orgId.value).neq('group.kind', 'membership'),
+  // Seam reads: all groups (keep classes) + all org memberships for the roster counts.
+  const [gs, mems] = await Promise.all([
+    groupsApi.list(orgId.value),
+    groupsApi.membershipsByOrg(orgId.value),
   ])
-  groups.value = gs ?? []
+  groups.value = gs.filter(g => g.kind !== 'membership').map(g => ({ id: g.id, capacity: g.capacity, location_id: g.locationId }))
   const c: Record<string, number> = {}
-  for (const m of (mems ?? [])) c[m.group_id] = (c[m.group_id] || 0) + 1
+  for (const m of mems) c[m.groupId] = (c[m.groupId] || 0) + 1
   counts.value = c
   loading.value = false
 }

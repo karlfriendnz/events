@@ -62,6 +62,11 @@ export function useRolesApi() {
   async function permissionGroupMemberPersonIds(orgId: string): Promise<string[]> {
     return await $fetch<string[]>('/api/v1/permission-group-members', { query: { orgId } })
   }
+  /** The permission groups ONE person is directly assigned to, each with its grid —
+   *  backs the access resolvers (useCan union + useAccessLevel legacy-group check). */
+  async function permissionGroupsForPerson(personId: string): Promise<PermissionGroup[]> {
+    return await $fetch<PermissionGroup[]>('/api/v1/permission-groups/for-person', { query: { personId } })
+  }
   return {
     scopedRoles,
     createScopedRole,
@@ -75,5 +80,6 @@ export function useRolesApi() {
     setPermissionGroupMembers,
     codeStaff,
     permissionGroupMemberPersonIds,
+    permissionGroupsForPerson,
   }
 }

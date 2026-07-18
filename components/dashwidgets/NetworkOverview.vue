@@ -5,7 +5,8 @@
   Empty/hint state for a club (no descendants).
 -->
 <script setup lang="ts">
-const db = useDb()
+const orgsApi = useOrganisationsApi()
+const admin = useAdminApi()
 const { orgId } = useOrg()
 const { descendants } = useOrgHierarchy()
 
@@ -18,22 +19,22 @@ const byLevel = ref<{ label: string; count: number }[]>([])
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [{ data: org }, desc] = await Promise.all([
-    (db.from as any)('organisations').select('org_level').eq('id', orgId.value).maybeSingle(),
+  const [org, desc] = await Promise.all([
+    orgsApi.get(orgId.value),
     descendants(orgId.value),
   ])
-  orgLevel.value = org?.org_level ?? null
+  orgLevel.value = org?.orgLevel ?? null
   const clubs = (desc ?? []).filter((o: any) => o.org_level === 'CLUB')
   clubCount.value = clubs.length
   // per-level breakdown of the whole subtree
   const levels: Record<string, number> = {}
   for (const o of (desc ?? [])) levels[o.org_level] = (levels[o.org_level] || 0) + 1
   byLevel.value = ['REGIONAL', 'ASSOCIATION', 'CLUB', 'RST'].filter(l => levels[l]).map(l => ({ label: orgLevelLabel(l), count: levels[l] }))
-  // aggregate members across descendant clubs
-  const clubIds = clubs.map((c: any) => c.id)
-  if (clubIds.length) {
-    const { count } = await (db.from as any)('persons').select('id', { count: 'exact', head: true }).in('org_id', clubIds)
-    totalMembers.value = count ?? 0
+  // aggregate members across descendant clubs (admin cross-org rollup).
+  const clubIds = new Set(clubs.map((c: any) => c.id))
+  if (clubIds.size) {
+    const rows = await admin.orgsWithCounts()
+    totalMembers.value = rows.filter(o => clubIds.has(o.id)).reduce((a, o) => a + o.members, 0)
   } else totalMembers.value = 0
   loading.value = false
 }

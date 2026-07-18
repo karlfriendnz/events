@@ -529,15 +529,15 @@ const emit = defineEmits<{
   'navigate-tab': [tab: string]
 }>()
 
-const db = useDb() // retained only for cross-domain organisations (owned by admin); all bookings-domain reads/writes now go through the seam
 const api = useBookingsApi()
+const orgsApi = useOrganisationsApi()
 
 const orgCurrency = ref('NZD')
 onMounted(() => {
   if (!orgId.value) return
-  // TODO cross-domain: organisations still via useDb (owned by admin)
-  ;(db.from as any)('organisations').select('currency').eq('id', orgId.value).single()
-    .then(({ data }: any) => { orgCurrency.value = data?.currency || 'NZD' })
+  orgsApi.getProfile(orgId.value)
+    .then((p) => { orgCurrency.value = p?.currency || 'NZD' })
+    .catch(() => {})
 })
 
 const tabs = [

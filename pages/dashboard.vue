@@ -478,8 +478,8 @@ async function load() {
   let base: any = null
   if (clubTypeId.value) {
     // MASTER: editing a club-type template's per-type starting dashboard.
-    const { data: ct } = await (db.from as any)('club_types').select('name, default_person_types').eq('id', clubTypeId.value).maybeSingle()
-    const entry = (ct?.default_person_types ?? []).find((p: any) => p.key === templateType.value)
+    const ct = await useAdminApi().getClubType(clubTypeId.value).catch(() => null)
+    const entry = ((ct?.defaultPersonTypes as any[]) ?? []).find((p: any) => p.key === templateType.value)
     templateLabel.value = `${entry?.label ?? templateType.value} · ${ct?.name ?? 'template'}`
     templateIsAccess.value = entry ? !!entry.is_access : true
     base = entry?.dashboard ?? defaultDashboardFor(templateType.value!) ?? (templateIsAccess.value === false ? [] : null)
@@ -533,13 +533,17 @@ async function load() {
   // members = distinct people in in-lens classes + that site's staff.
   const lensId = useActiveLocation().activeLocationId.value
   if (lensId) {
-    const [{ count: lensGroups }, { data: lensMships }, { data: lensStaff }] = await Promise.all([
-      (db.from as any)('member_groups').select('id', { count: 'exact', head: true }).eq('org_id', orgId.value).neq('kind', 'membership').eq('location_id', lensId),
-      (db.from as any)('member_group_memberships').select('person_id, group:member_groups!inner(location_id)').eq('group.location_id', lensId),
-      (db.from as any)('location_staff').select('person_id').eq('location_id', lensId),
+    // Seam reads: groupsList (already loaded) narrowed to the lens; org memberships +
+    // location staff for the distinct-people count at this site.
+    const [lensMships, lensStaff] = await Promise.all([
+      useGroupsApi().membershipsByOrg(orgId.value as string),
+      useAffiliationsApi().locationStaffByOrg(orgId.value as string),
     ])
-    stats.groups = lensGroups ?? 0
-    stats.members = new Set([...(lensMships ?? []).map((m: any) => m.person_id), ...(lensStaff ?? []).map((s2: any) => s2.person_id)]).size
+    stats.groups = groupsList.filter(g => g.kind !== 'membership' && g.locationId === lensId).length
+    stats.members = new Set([
+      ...lensMships.filter((m: any) => m.locationId === lensId).map((m: any) => m.personId),
+      ...lensStaff.filter((s2: any) => s2.locationId === lensId).map((s2: any) => s2.personId),
+    ]).size
   }
 
   const typeCounts: Record<string, number> = {}
@@ -597,25 +601,24 @@ async function load() {
   stats.upcomingBookings = orgBookings.filter(b => b.startAt && b.startAt >= nowIso.value).length
 
   // ── Activities + their booking numbers / next bookings (Activity cards) ──
-  const { data: acts } = await (db.from as any)('activities')
-    .select('id, name, color, icon, image_url').eq('org_id', orgId.value).order('name')
-  activities.value = acts ?? []
-  const actIds = activities.value.map(a => a.id)
+  // Seam reads: activities (mapped to the snake shape the cards read) + reuse the
+  // org bookings already fetched above for per-activity stats (no second query).
+  const acts = await useBookingsApi().activities(orgId.value as string)
+  activities.value = acts
+    .map(a => ({ id: a.id, name: a.name, color: a.color, icon: a.icon, image_url: a.imageUrl }))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
   const counts: Record<string, { total: number; upcoming: number }> = {}
   const upcomingByActivity: Record<string, { id: string; bookable_id: string | null; start_at: string; status: string; contact_name: string | null }[]> = {}
-  if (actIds.length) {
-    const { data: bks } = await (db.from as any)('bookings')
-      .select('id, bookable_id, activity_id, start_at, status, contact_name').in('activity_id', actIds).order('start_at')
-    for (const b of bks ?? []) {
-      if (!b.activity_id) continue
-      const c = (counts[b.activity_id] ??= { total: 0, upcoming: 0 })
-      c.total++
-      if (b.start_at && b.start_at >= nowIso.value && b.status !== 'CANCELLED') {
-        c.upcoming++
-        // bks is start_at-ascending → the first 10 we hit are the next 10.
-        const list = (upcomingByActivity[b.activity_id] ??= [])
-        if (list.length < 10) list.push(b)
-      }
+  // start_at-ascending so the first 10 upcoming we hit per activity are the next 10.
+  const bks = [...orgBookings].sort((a, b) => (a.startAt || '').localeCompare(b.startAt || ''))
+  for (const b of bks) {
+    if (!b.activityId) continue
+    const c = (counts[b.activityId] ??= { total: 0, upcoming: 0 })
+    c.total++
+    if (b.startAt && b.startAt >= nowIso.value && b.status !== 'CANCELLED') {
+      c.upcoming++
+      const list = (upcomingByActivity[b.activityId] ??= [])
+      if (list.length < 10) list.push({ id: b.id, bookable_id: b.bookableId, start_at: b.startAt, status: b.status, contact_name: b.contactName })
     }
   }
   activityStats.value = counts
@@ -802,11 +805,16 @@ async function saveLayout() {
   config.value = next
   if (clubTypeId.value) {
     // MASTER: write the dashboard back onto the club-type template's person type.
-    const { data: ct } = await (db.from as any)('club_types').select('default_person_types').eq('id', clubTypeId.value).maybeSingle()
-    const list = [...(ct?.default_person_types ?? [])]
+    const ct = await useAdminApi().getClubType(clubTypeId.value)
+    const list = [...((ct?.defaultPersonTypes as any[]) ?? [])]
     const idx = list.findIndex((p: any) => p.key === templateType.value)
     if (idx >= 0) list[idx] = { ...list[idx], dashboard: next }
-    await (db.from as any)('club_types').update({ default_person_types: list }).eq('id', clubTypeId.value)
+    // Round-trip all three defaults (the route sets each column) so we don't wipe them.
+    await useAdminApi().saveClubTypeDefaults(clubTypeId.value, {
+      defaultModules: ct?.defaultModules ?? null,
+      defaultPersonTypes: list,
+      defaultTerminology: ct?.defaultTerminology ?? null,
+    })
     saving.value = false
     toast.add({ severity: 'success', summary: `Template dashboard saved`, life: 2200 })
     restoreOrgAndLeave()
@@ -814,6 +822,8 @@ async function saveLayout() {
   }
   if (templateMode.value) {
     // Save the role's default template, then return to Settings.
+    // SEAM GAP (admin domain): useAdminApi has dashboardTemplates READ + removeDashboardTemplate
+    // (DELETE) but no UPSERT/save route. Left on useDb until a save route exists.
     await (db.from as any)('dashboard_templates').upsert(
       { org_id: orgId.value, user_type: templateType.value, config: next, updated_at: new Date().toISOString() },
       { onConflict: 'org_id,user_type' },

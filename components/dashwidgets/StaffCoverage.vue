@@ -1,6 +1,6 @@
 <!-- Dashboard widget: staff shortfalls — role minimums + classes with no staff -->
 <script setup lang="ts">
-const db = useDb()
+const groupsApi = useGroupsApi()
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
@@ -15,20 +15,22 @@ async function load() {
   if (!orgId.value) return
   loading.value = true
   await scoped.loadRoleDefs()
-  const [codes, { data: gs }, { data: mems }] = await Promise.all([
+  // Seam reads: all groups (keep classes) + all org memberships (carrying role/roles).
+  const [codes, allGs, mems] = await Promise.all([
     gc.loadCodes(),
-    (db.from as any)('member_groups').select('id, code_id').eq('org_id', orgId.value).neq('kind', 'membership'),
-    (db.from as any)('member_group_memberships').select('group_id, roles, role, group:member_groups!inner(org_id)').eq('group.org_id', orgId.value),
+    groupsApi.list(orgId.value),
+    groupsApi.membershipsByOrg(orgId.value),
   ])
+  const gs = allGs.filter(g => g.kind !== 'membership').map(g => ({ id: g.id, code_id: g.codeId }))
   const codesById: Record<string, any> = Object.fromEntries((codes ?? []).map((c: any) => [c.id, c]))
   const staffByGroup: Record<string, string[]> = {}
-  for (const m of (mems ?? [])) {
+  for (const m of mems) {
     const roles = ((m.roles?.length ? m.roles : [m.role]) as string[]).filter(Boolean).map(r => r.toLowerCase())
-    if (roles.length && scoped.isStaff('group', roles)) (staffByGroup[m.group_id] ??= []).push(...roles)
+    if (roles.length && scoped.isStaff('group', roles)) (staffByGroup[m.groupId] ??= []).push(...roles)
   }
   const short: Record<string, number> = {}
   let none = 0
-  for (const g of (gs ?? [])) {
+  for (const g of gs) {
     const mins = gc.effectiveRoleMins(g, codesById)
     const have = staffByGroup[g.id] ?? []
     if (!have.length && Object.keys(mins).length) none++

@@ -1,6 +1,6 @@
 <!-- Dashboard widget: memberships by umbrella/tier + new this month -->
 <script setup lang="ts">
-const db = useDb()
+const groupsApi = useGroupsApi()
 const { orgId } = useOrg()
 const gc = useGroupCodes()
 
@@ -12,24 +12,29 @@ const newThisMonth = ref(0)
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [codes, { data: gs }, { data: mems }] = await Promise.all([
+  // Seam reads: codes + all groups (keep membership-kind); memberships (with start_date)
+  // come via the retention projection, which carries startDate + groupId.
+  const [codes, allGs] = await Promise.all([
     gc.loadCodes(),
-    (db.from as any)('member_groups').select('id, name, color, code_id').eq('org_id', orgId.value).eq('kind', 'membership').order('sort_order'),
-    (db.from as any)('member_group_memberships').select('group_id, start_date, group:member_groups!inner(org_id, kind)').eq('group.org_id', orgId.value).eq('group.kind', 'membership'),
+    groupsApi.list(orgId.value),
   ])
+  const gs = allGs.filter(g => g.kind === 'membership')
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    .map(g => ({ id: g.id, name: g.name, color: g.color, code_id: g.codeId }))
+  const mems = await groupsApi.membershipsForRetention(gs.map(g => g.id))
   const codesById: Record<string, any> = Object.fromEntries((codes ?? []).map((c: any) => [c.id, c]))
   const counts: Record<string, number> = {}
   const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
   let fresh = 0
-  for (const m of (mems ?? [])) {
-    counts[m.group_id] = (counts[m.group_id] || 0) + 1
-    if (m.start_date && new Date(m.start_date) >= monthStart) fresh++
+  for (const m of mems) {
+    counts[m.groupId] = (counts[m.groupId] || 0) + 1
+    if (m.startDate && new Date(m.startDate) >= monthStart) fresh++
   }
-  total.value = (mems ?? []).length
+  total.value = mems.length
   newThisMonth.value = fresh
   const byCode: Record<string, any[]> = {}
   const loose: any[] = []
-  for (const g of (gs ?? [])) (g.code_id ? (byCode[g.code_id] ??= []).push(g) : loose.push(g))
+  for (const g of gs) (g.code_id ? (byCode[g.code_id] ??= []).push(g) : loose.push(g))
   const out: typeof umbrellas.value = Object.entries(byCode).map(([cid, list]) => ({
     name: codesById[cid]?.name ?? 'Programme', color: codesById[cid]?.color ?? null,
     tiers: list.map(g => ({ id: g.id, name: g.name, n: counts[g.id] ?? 0 })),

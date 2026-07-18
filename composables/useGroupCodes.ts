@@ -37,12 +37,9 @@ export interface GroupCode {
 export const codeLineage = (c: { id: string; lineage_id?: string | null }) => c.lineage_id ?? c.id
 
 export function useGroupCodes() {
-  // SEAM GAP: default_member_positions lives on the organisations row and the org
-  // seam (useOrganisationsApi/orgSettings) doesn't expose it yet — the two default-
-  // position functions below still use useDb until the org domain adds get/set.
-  const db = useDb()
   const { orgId } = useOrg()
   const api = useGroupsApi()
+  const orgsApi = useOrganisationsApi()
 
   // camelCase contract → this composable's snake_case GroupCode shape.
   function toSnake(c: any): GroupCode {
@@ -69,18 +66,14 @@ export function useGroupCodes() {
   async function loadDefaultPositions(force = false): Promise<string[]> {
     if (defaultPositionsLoaded.value && !force) return defaultPositions.value
     if (!orgId.value) return []
-    // SEAM GAP: organisations.default_member_positions — no org-seam getter yet.
-    const { data } = await (db.from as any)('organisations')
-      .select('default_member_positions').eq('id', orgId.value).maybeSingle()
-    defaultPositions.value = Array.isArray(data?.default_member_positions) ? data.default_member_positions : []
+    defaultPositions.value = await orgsApi.getDefaultPositions(orgId.value)
     defaultPositionsLoaded.value = true
     return defaultPositions.value
   }
   async function saveDefaultPositions(list: string[]): Promise<void> {
     if (!orgId.value) return
     const clean = list.map(p => p.trim()).filter(Boolean)
-    // SEAM GAP: organisations.default_member_positions — no org-seam setter yet.
-    await (db.from as any)('organisations').update({ default_member_positions: clean }).eq('id', orgId.value)
+    await orgsApi.setDefaultPositions(orgId.value, clean)
     defaultPositions.value = clean
     defaultPositionsLoaded.value = true
   }

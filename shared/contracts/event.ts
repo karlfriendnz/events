@@ -207,6 +207,9 @@ export const inviteeSchema = z.object({
   subGroupId: z.string().nullable(),
   invitedAt: z.string().nullable(),
   respondedAt: z.string().nullable(),
+  // When the invitation email was actually SENT (distinct from invitedAt = merely
+  // ADDED) — the invitation dialog counts already-emailed invitees off this.
+  inviteSentAt: z.string().nullable(),
 })
 export type Invitee = z.infer<typeof inviteeSchema>
 
@@ -442,3 +445,58 @@ export const connectionGroupSchema = z.object({
 })
 export type ConnectionGroup = z.infer<typeof connectionGroupSchema>
 export const connectionGroupListSchema = z.array(connectionGroupSchema)
+
+// ── Training-event generation (attendance seam write) ──
+// A group's weekly training schedules become one recurrence master + N weekly child
+// events, with every member pre-invited so the attendance tab opens with the roster.
+// Both consumers (useTermRollover.generateTrainingEvents + the group page's
+// createAttendanceEvent) share this exact pattern; the recurrence math + the
+// events/invitees writes live server-side, so the client passes only a compact input.
+// Idempotent: a schedule already linked to an event (member_group_schedule_id) is
+// skipped. `membersByGroup` is the CLIENT's staff-filtered invitee list per group
+// (staff-vs-member detection is scoped-role logic that stays on the client); omit it
+// and events are created without invitees. `window` bounds the series (YYYY-MM-DD).
+export const generateTrainingInputSchema = z.object({
+  orgId: z.string(),
+  groupIds: z.array(z.string()).min(1),
+  window: z.object({ start: z.string(), end: z.string() }),
+  // groupId → the group's staff-filtered invitee person-ids (string keys).
+  membersByGroup: z.record(z.array(z.string())).optional(),
+})
+export type GenerateTrainingInput = z.infer<typeof generateTrainingInputSchema>
+
+// events = total event rows created (masters + children); classes = distinct groups
+// that produced at least one event (the "N classes" in the toast).
+export const generateTrainingResultSchema = z.object({
+  events: z.number().int(),
+  classes: z.number().int(),
+})
+export type GenerateTrainingResult = z.infer<typeof generateTrainingResultSchema>
+
+// ── Event communications (the SEND log) ──
+// A message sent to an event's audience. The MySQL `communications` table is keyed by
+// event with no status column (a stored row is 'SENT') and no channel/scheduled_at
+// columns — those were demo-only UI fields, so a real sent row simply carries no
+// channel badge. `sentAt` serialises from the row's timestamp.
+export const eventCommunicationSchema = z.object({
+  id: z.string(),
+  eventId: z.string(),
+  subject: z.string(),
+  body: z.string(),
+  recipientCount: z.number().int(),
+  status: z.string(),
+  sentAt: z.string().nullable(),
+})
+export type EventCommunication = z.infer<typeof eventCommunicationSchema>
+export const eventCommunicationListSchema = z.array(eventCommunicationSchema)
+
+// The SEND write. eventId comes from the route param; the client supplies the message
+// + the resolved recipient count (audienceFilter is an optional json record of who).
+export const eventCommunicationCreateSchema = z.object({
+  subject: z.string().min(1),
+  body: z.string().min(1),
+  recipientCount: z.number().int().optional(),
+  audienceFilter: z.any().nullable().optional(),
+  sentBy: z.string().nullable().optional(),
+})
+export type EventCommunicationCreate = z.infer<typeof eventCommunicationCreateSchema>

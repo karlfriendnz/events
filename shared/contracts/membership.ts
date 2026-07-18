@@ -64,6 +64,25 @@ export const membershipPlanOptionSchema = z.object({
 export type MembershipPlanOption = z.infer<typeof membershipPlanOptionSchema>
 export const membershipPlanOptionListSchema = z.array(membershipPlanOptionSchema)
 
+// WRITE contracts for a plan's duration option. planId + periodUnit required; the rest
+// (name/price/autoRenew/sortOrder) default in the repo. Patch is a partial.
+export const membershipPlanOptionCreateSchema = membershipPlanOptionSchema.omit({ id: true }).partial().extend({
+  planId: z.string(),
+  periodUnit: z.string().min(1),
+})
+export type MembershipPlanOptionCreate = z.infer<typeof membershipPlanOptionCreateSchema>
+
+export const membershipPlanOptionPatchSchema = membershipPlanOptionCreateSchema.partial()
+export type MembershipPlanOptionPatch = z.infer<typeof membershipPlanOptionPatchSchema>
+
+// Bulk-delete a plan's options by id. planId scopes the WHERE (tenant safety — the
+// option rows have no org_id; they belong to a plan the caller owns).
+export const membershipPlanOptionDeleteSchema = z.object({
+  planId: z.string(),
+  ids: z.array(z.string()),
+})
+export type MembershipPlanOptionDelete = z.infer<typeof membershipPlanOptionDeleteSchema>
+
 // A plan hydrated with its options — the shape listPlans returns.
 export const membershipPlanWithOptionsSchema = membershipPlanSchema.extend({
   options: membershipPlanOptionListSchema,

@@ -1783,6 +1783,8 @@ const peopleApi = usePeopleApi()
 const orgApi = useOrganisationsApi()
 const bookingsApi = useBookingsApi()
 const formsApi = useFormsApi()
+const eventsApi = useEventsApi()
+const disciplinesApi = useDisciplinesApi()
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
@@ -1905,12 +1907,9 @@ const groupDisciplineNames = ref<string[]>([])
 const groupDisciplineIds = ref<string[]>([])
 async function loadGroupDisciplines(gid = group.value?.id ?? (route.params.id as string)) {
   if (!gid) { groupDisciplineNames.value = []; groupDisciplineIds.value = []; return }
-  // SEAM GAP: member_group_disciplines read (+ disciplines join) — disciplines
-  // domain seam not built.
-  const { data } = await (db.from as any)('member_group_disciplines')
-    .select('discipline_id, disciplines(id, name)').eq('group_id', gid)
-  groupDisciplineNames.value = (data ?? []).map((r: any) => r.disciplines?.name).filter(Boolean)
-  groupDisciplineIds.value = (data ?? []).map((r: any) => r.discipline_id).filter(Boolean)
+  const linked = await disciplinesApi.forGroup(gid).catch(() => [] as any[])
+  groupDisciplineNames.value = (linked ?? []).map((d: any) => d.name).filter(Boolean)
+  groupDisciplineIds.value = (linked ?? []).map((d: any) => d.id).filter(Boolean)
   await loadDisciplineFlags()
 }
 
@@ -2350,13 +2349,10 @@ let entTimer: any = null
 async function loadEntitlements() {
   if (!group.value || !isMembershipKind.value) return
   entHydrating.value = true
-  const [rows, { data: evs }] = await Promise.all([
+  const [rows, evs, gNames] = await Promise.all([
     ms.loadEntitlements(group.value.id),
-    // SEAM GAP: events read with a linked_group.location_id join (entitlement event
-    // scoping by the membership's locations) — not in the events seam.
-    (db.from as any)('events').select('id, title, start_at, linked_group:member_groups(location_id)').eq('org_id', orgId.value)
-      .is('recurrence_parent_id', null).neq('status', 'ARCHIVED').neq('status', 'CANCELLED')
-      .order('start_at', { ascending: false }).limit(200),
+    eventsApi.list(orgId.value),
+    groupsApi.list(orgId.value),
   ])
   const keys: Record<string, { checked: boolean }> = {}
   const evIds: string[] = []
@@ -2369,13 +2365,18 @@ async function loadEntitlements() {
   entSelectionKeys.value = keys
   entEventIds.value = evIds
   entBenefits.value = bens
-  const gNames = await groupsApi.list(orgId.value)
   entGroupNames.value = Object.fromEntries(gNames.map((g: any) => [g.id, g.name]))
-  // Events scope to the membership's locations via their linked class (an
-  // event with no class link has no site — always offered).
+  // Each event's site = its linked class's location (an event with no class link
+  // has no site — always offered). Resolve via the group list rather than a join.
+  const groupLoc: Record<string, string | null> = Object.fromEntries(gNames.map((g: any) => [g.id, g.locationId ?? null]))
   const scope = msLocationIds.value
   entEventOptions.value = (evs ?? [])
-    .filter((e: any) => !scope.length || !e.linked_group?.location_id || scope.includes(e.linked_group.location_id))
+    .filter((e: any) => !e.recurrenceParentId && e.status !== 'ARCHIVED' && e.status !== 'CANCELLED')
+    .filter((e: any) => {
+      const loc = e.memberGroupId ? (groupLoc[e.memberGroupId] ?? null) : null
+      return !scope.length || !loc || scope.includes(loc)
+    })
+    .sort((a: any, b: any) => (b.startAt ?? '').localeCompare(a.startAt ?? ''))
     .map((e: any) => ({ label: e.title, value: e.id }))
   // Keep the guard up until the tree has mounted + normalised (its load-time
   // emits must not count as edits).
@@ -2899,8 +2900,11 @@ const noteInThisGroup = (n: any) => Array.isArray(n.links) && n.links.some((l: a
 async function loadNoteCounts() {
   const ids = [...coaches.value, ...members.value].map(p => p.id)
   if (!group.value || !ids.length) { noteCounts.value = {}; return }
-  // SEAM GAP: person_notes READ by person ids (people-domain note reads not yet on
-  // the seam — addNote/removeNote are, the list read is not).
+  // SEAM GAP (circles domain): person_notes READ by a LIST of person ids. The seam
+  // has useCirclesApi().notes(personId) per person only; a batch reader (and the
+  // widened PersonNote read) is a documented circles-domain follow-up. Fanning out
+  // one call per roster member would be N round-trips, so this stays on useDb until
+  // circles adds notesForPeople(ids).
   const { data } = await (db.from as any)('person_notes').select('person_id, links').in('person_id', ids)
   const counts: Record<string, number> = {}
   for (const n of (data ?? [])) if (noteInThisGroup(n)) counts[n.person_id] = (counts[n.person_id] || 0) + 1
@@ -3054,8 +3058,10 @@ async function loadEvents(gid = group.value?.id) {
     trainingSessions.value = []
     return
   }
-  // SEAM GAP: events read filtered by member_group_id (training occurrences, with
-  // locations + member_group_schedule_id projection) — not in the events seam.
+  // SEAM GAP (events domain): events read filtered by member_group_id (this group's
+  // training occurrences). useEventsApi.list is org-wide only — filtering it client-
+  // side would pull every event in the club on each group-page load. Needs an events
+  // reader `byMemberGroup(groupId)`. Kept on useDb until then.
   const { data } = await (db.from as any)('events')
     .select('id, title, start_at, end_at, locations, member_group_schedule_id')
     .eq('member_group_id', gid)
@@ -3128,7 +3134,9 @@ const visitorPeople = ref<Array<{ id: string; name: string; roles: string[] }>>(
 async function loadAttendance() {
   const ids = trainingSessions.value.map(s => s.id)
   if (!ids.length) { attendanceRows.value = []; visitorPeople.value = []; return }
-  // SEAM GAP: attendance domain has no seam (repo/routes) — reporting reads too.
+  // SEAM GAP (attendance domain): these training rows are EVENT-level (event_id set,
+  // session_id null). useAttendanceApi only reads bySession(s) — needs a byEvents(ids)
+  // reader. Kept on useDb until the attendance seam adds it.
   const { data } = await (db.from as any)('attendance')
     .select('person_id, event_id').in('event_id', ids).eq('attended', true)
   attendanceRows.value = data ?? []
@@ -3928,9 +3936,10 @@ async function createAttendanceEvent() {
         status: 'DRAFT',
       }
 
-      // SEAM GAP: training-event generation writes to events (recurrence master +
-      // weekly children) and invitees — the events/attendance domains have no seam
-      // route for this master+children+invitees pattern yet; kept on useDb.
+      // SEAM GAP: events training-gen route — this writes a recurrence master +
+      // weekly children + invitees, the same pattern as useTermRollover
+      // .generateTrainingEvents. Both wait on useEventsApi().generateTrainingEvents(…),
+      // which the events cleanup owns; kept on useDb until that route lands.
       const { data: master } = await (db.from as any)('events').insert({
         ...sharedFields,
         start_at: masterStart.toISOString(),

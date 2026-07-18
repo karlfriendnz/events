@@ -17,26 +17,32 @@ export type NoteParent = { id: string; name: string; role?: string | null }
 export const parentLabel = (p: NoteParent) => p.role ? `${p.name} · ${p.role}` : p.name
 
 export function useNoteAudiences() {
-  const db = useDb()
+  const { orgId } = useOrg()
+  const { circlesForOrg } = useCirclesApi()
 
   // The subject's parents/contacts — the guardian members of their family circles,
-  // carrying each one's relationship/role (Mum / Dad / Guardian…).
+  // carrying each one's relationship/role (Mum / Dad / Guardian…). Reads the org's
+  // hydrated circles through the seam and filters to the families this person is in.
   async function loadParents(personId: string): Promise<NoteParent[]> {
-    const { data: mine } = await (db.from as any)('circle_members')
-      .select('circle_id, circle:circles!inner(kind)').eq('person_id', personId)
-    const famIds = (mine ?? []).filter((r: any) => r.circle?.kind === 'family').map((r: any) => r.circle_id)
-    if (!famIds.length) return []
-    const { data: mem } = await (db.from as any)('circle_members')
-      .select('person_id, role, relationship, person:persons(id, first_name, last_name)')
-      .in('circle_id', famIds).neq('person_id', personId)
+    if (!orgId.value) return []
+    const all = await circlesForOrg(orgId.value)
+    const fams = all.filter((c) => c.kind === 'family' && c.members.some((m) => m.personId === personId))
     const seen = new Set<string>()
-    return (mem ?? [])
-      .filter((m: any) => (m.role || '').toLowerCase().includes('guardian') && m.person && !seen.has(m.person.id) && seen.add(m.person.id))
-      .map((m: any) => ({
-        id: m.person.id,
-        name: `${m.person.first_name ?? ''} ${m.person.last_name ?? ''}`.trim() || 'Parent',
-        role: m.relationship || 'Guardian',
-      }))
+    const out: NoteParent[] = []
+    for (const c of fams) {
+      for (const m of c.members) {
+        if (m.personId === personId) continue
+        if (!(m.role || '').toLowerCase().includes('guardian')) continue
+        if (!m.person || seen.has(m.person.id)) continue
+        seen.add(m.person.id)
+        out.push({
+          id: m.person.id,
+          name: `${m.person.firstName ?? ''} ${m.person.lastName ?? ''}`.trim() || 'Parent',
+          role: m.relationship || 'Guardian',
+        })
+      }
+    }
+    return out
   }
 
   // Grouped MultiSelect options: the base audiences, then a "Parents" group

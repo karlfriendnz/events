@@ -9,7 +9,7 @@
   than as a standalone header control.
 -->
 <script setup lang="ts">
-const db = useDb()
+const orgsApi = useOrganisationsApi()
 const { orgId } = useOrg()
 const user = useSupabaseUser()
 
@@ -26,10 +26,11 @@ const filtered = computed(() => {
 
 onMounted(async () => {
   if (!isSuper.value) return
-  const { data } = await (db.from as any)('organisations')
-    .select('id, name, org_level')
-    .order('name')
-  orgs.value = data ?? []
+  // Seam read: every organisation; map to the snake shape the list renders.
+  const data = await orgsApi.list()
+  orgs.value = data
+    .map(o => ({ id: o.id, name: o.name, org_level: o.orgLevel }))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
 })
 
 function switchOrg(id: string) {

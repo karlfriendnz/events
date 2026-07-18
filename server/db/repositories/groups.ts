@@ -267,6 +267,32 @@ export async function listFeeOptions(groupId: string): Promise<GroupFeeOption[]>
   return optionRows.map((o) => toFeeOption(o, itemsByOption.get(o.id) ?? []))
 }
 
+// Every group's fee options across an org, each with its line items — for the
+// Fees overview + Classes board (which show every group's price at once). One
+// options query + one items query (inArray), grouped in memory.
+export async function listFeeOptionsByOrg(orgId: string): Promise<GroupFeeOption[]> {
+  const optionRows = await db
+    .select()
+    .from(schema.groupFeeOptions)
+    .where(eq(schema.groupFeeOptions.orgId, orgId))
+    .orderBy(asc(schema.groupFeeOptions.sortOrder))
+  if (optionRows.length === 0) return []
+
+  const itemRows = await db
+    .select()
+    .from(schema.groupFeeOptionItems)
+    .where(inArray(schema.groupFeeOptionItems.optionId, optionRows.map((o) => o.id)))
+    .orderBy(asc(schema.groupFeeOptionItems.sortOrder))
+  const itemsByOption = new Map<string, GroupFeeOptionItem[]>()
+  for (const it of itemRows) {
+    const list = itemsByOption.get(it.optionId) ?? []
+    list.push(toFeeItem(it))
+    itemsByOption.set(it.optionId, list)
+  }
+
+  return optionRows.map((o) => toFeeOption(o, itemsByOption.get(o.id) ?? []))
+}
+
 // One code by id, or null — used to re-read a code after a write and map it through
 // the same toCode as the list reads (there's no public getCode in the read API).
 async function loadCode(id: string): Promise<GroupCode | null> {

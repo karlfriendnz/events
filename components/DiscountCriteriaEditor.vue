@@ -225,7 +225,7 @@ function toggleCodeGroup(cond: DiscountCondition, group: { items: { id: string }
 // ── Member-group options ───────────────────────────────────────────────────
 // Classes grouped under their code heading. The condition value stays a plain
 // list of group ids — exactly what useBookingDiscounts().qualifies() matches on.
-const db = useDb()
+const groupsApi = useGroupsApi()
 const { orgId } = useOrg()
 const gc = useGroupCodes()
 
@@ -235,12 +235,12 @@ const allCodes = ref<any[]>([])
 onMounted(loadGroupTreeData)
 async function loadGroupTreeData() {
   if (!orgId.value || allGroups.value.length) return
-  const [codes, { data }] = await Promise.all([
+  const [codes, grps] = await Promise.all([
     gc.loadCodes(),
-    (db.from as any)('member_groups').select('id, name, code_id').eq('org_id', orgId.value),
+    groupsApi.list(orgId.value),
   ])
   allCodes.value = codes ?? []
-  allGroups.value = data ?? []
+  allGroups.value = grps.map(g => ({ id: g.id, name: g.name, code_id: g.codeId }))
 }
 
 // TEMP: the alternative — classes nested under their code heading (the

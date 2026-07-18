@@ -811,8 +811,9 @@ import { useOrg } from '~/composables/useOrg'
 const { orgId, orgReady } = useOrg()
 const router = useRouter()
 
-const db = useDb()
+const db = useDb() // retained only for the notifications inserts (SEAM GAP: comms send path, owned by comms)
 const api = useBookingsApi()
+const formsApi = useFormsApi()
 const toast = useToast()
 const route = useRoute()
 const id = route.params.id as string
@@ -1547,23 +1548,34 @@ async function loadModeFormFields(formId: string | null) {
   if (!formId) return
   modeFormLoading.value = true
   try {
-    // TODO cross-domain: form_fields / registration_forms still via useDb (owned by forms)
-    const [{ data: ff }, { data: rf }] = await Promise.all([
-      (db.from as any)('form_fields').select('*').eq('form_id', formId).order('sort_order'),
-      (db.from as any)('registration_forms').select('config').eq('id', formId).maybeSingle(),
+    // form_fields + the form's config via the forms seam (owned by forms).
+    const [ff, rf] = await Promise.all([
+      formsApi.fields(formId),
+      formsApi.get(formId),
     ])
     const fieldMeta = (rf?.config as any)?.fieldMeta ?? {}
-    modeFormFields.value = (ff ?? []).map((f: any) => {
-      let opts: string[] = []
-      try { opts = JSON.parse(f.options || '[]') } catch { opts = [] }
-      const meta = fieldMeta[f.label] ?? {}
-      return {
-        ...f,
-        _options: opts,
-        _core: meta.core ?? CORE_BY_LABEL[f.label] ?? null,
-        _col_span: meta.col_span ?? 2,
-      }
-    })
+    modeFormFields.value = (ff ?? [])
+      .slice()
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .map((f) => {
+        // Seam is camelCase + options already an array; remap to the snake shape the
+        // preview reads (field_type / is_required …).
+        const meta = fieldMeta[f.label] ?? {}
+        return {
+          id: f.id,
+          form_id: f.formId,
+          field_type: f.fieldType,
+          label: f.label,
+          placeholder: f.placeholder,
+          help_text: f.helpText,
+          is_required: f.isRequired,
+          options: f.options,
+          sort_order: f.sortOrder,
+          _options: f.options ?? [],
+          _core: meta.core ?? CORE_BY_LABEL[f.label] ?? null,
+          _col_span: meta.col_span ?? 2,
+        }
+      })
   } finally {
     modeFormLoading.value = false
   }
@@ -1694,7 +1706,7 @@ async function approveBooking() {
     await api.setBookingStatus(editingBooking.value.id, 'CONFIRMED')
     editForm.status = 'CONFIRMED'
     if (editingBooking.value) editingBooking.value.status = 'CONFIRMED'
-    // TODO cross-domain: notifications still via useDb (owned by comms)
+    // SEAM GAP: notifications insert (comms send path, owned by comms) — no seam yet.
     const { data: n } = await (db.from as any)('notifications').insert({
       org_id: orgId.value,
       type: 'booking.approved',
@@ -1721,7 +1733,7 @@ async function declineBooking() {
     await api.setBookingStatus(editingBooking.value.id, 'CANCELLED')
     editForm.status = 'CANCELLED'
     if (editingBooking.value) editingBooking.value.status = 'CANCELLED'
-    // TODO cross-domain: notifications still via useDb (owned by comms)
+    // SEAM GAP: notifications insert (comms send path, owned by comms) — no seam yet.
     const { data: n } = await (db.from as any)('notifications').insert({
       org_id: orgId.value,
       type: 'booking.declined',

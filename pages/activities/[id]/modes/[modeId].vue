@@ -437,8 +437,10 @@
 
 <script setup lang="ts">
 const route = useRoute()
-const db = useDb() // retained for cross-domain reads: member_groups, organisations, registration_forms, form_fields
 const api = useBookingsApi()
+const groupsApi = useGroupsApi()
+const orgsApi = useOrganisationsApi()
+const formsApi = useFormsApi()
 const { orgId } = useOrg()
 
 const COLORS = ['#6366F1','#EF4444','#F59E0B','#10B981','#3B82F6','#EC4899','#8B5CF6','#F97316','#14B8A6','#84CC16']
@@ -677,13 +679,12 @@ const selectedFormRuleCount  = computed(() => form.form_id ? (formRuleCounts.val
 async function loadForms() {
   if (!orgId.value) return
   // Pull `config` so we can count visibility/financial rules per form via fieldMeta.
-  const { data: forms } = await (db.from as any)('registration_forms').select('id, name, config').eq('org_id', orgId.value).order('name')
-  allForms.value = forms ?? []
-  // Field counts (form_fields rows).
-  if (forms?.length) {
-    const { data: fields } = await (db.from as any)('form_fields').select('form_id').in('form_id', forms.map((f: any) => f.id))
+  const forms = await formsApi.list(orgId.value)
+  allForms.value = forms.map(f => ({ id: f.id, name: f.name, config: f.config }))
+  // Field counts (form_fields rows) — per form via the forms seam.
+  if (forms.length) {
     const counts: Record<string, number> = {}
-    for (const f of fields ?? []) counts[f.form_id] = (counts[f.form_id] ?? 0) + 1
+    await Promise.all(forms.map(async (f) => { counts[f.id] = (await formsApi.fields(f.id)).length }))
     formFieldCounts.value = counts
   }
   // Rule counts (sum of has_visibility + has_financial flags across the form's fieldMeta).
@@ -710,17 +711,15 @@ async function load() {
     const [act, orgBookables, groupsRes, orgRowRes, actBookableLinks] = await Promise.all([
       api.activity(route.params.id as string),
       api.bookables(orgId.value!),
-      // TODO cross-domain: member_groups still via useDb (owned by groups)
-      (db.from as any)('member_groups').select('id, name, color').eq('org_id', orgId.value).order('name'),
-      // TODO cross-domain: organisations.default_payment_options still via useDb (owned by settings/admin)
-      (db.from as any)('organisations').select('default_payment_options').eq('id', orgId.value).single(),
+      groupsApi.list(orgId.value!),
+      orgsApi.getProfile(orgId.value!),
       api.activityBookables(route.params.id as string),
     ])
     activityName.value = act?.name ?? ''
     isStaffOwned.value = !!act?.staffBookableId
     ownerStaffBookableId.value = act?.staffBookableId ?? null
-    allGroups.value = groupsRes.data ?? []
-    orgDefaultPaymentOptions.value = (orgRowRes.data?.default_payment_options as Record<string, boolean>) ?? {}
+    allGroups.value = groupsRes.map(g => ({ id: g.id, name: g.name, color: g.color }))
+    orgDefaultPaymentOptions.value = (orgRowRes?.defaultPaymentOptions as Record<string, boolean>) ?? {}
     // Resolve the parent activity's linked bookables from the org list.
     const byId = new Map(orgBookables.map(b => [b.id, b]))
     activityBookables.value = actBookableLinks

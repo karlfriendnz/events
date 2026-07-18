@@ -13,12 +13,30 @@ definePageMeta({ layout: 'portal' })
 // (settings) + person_target_types.profile_dashboard (person-types D5). It maps 1:1 to
 // the dashboard-domain's still-gap-blocked D-series cross-domain seam. Left on useDb as
 // a whole until that bundle exists — converting piecemeal would half-wire the page.
+// useDb retained for ONE read only — registrations-by-person (see the SEAM GAP in
+// load()). Every other read/write below is on the seam.
 const db = useDb()
 const { orgId } = useOrg()
 const user = useSupabaseUser()
 const { myPersonId, resolveAccessLevel } = useAccessLevel()
 const { CORE_FIELDS } = usePersonFields()
 const { resolveFields, fieldAppliesTo } = useOrgFieldPolicy()
+const peopleApi = usePeopleApi()
+const groupsApi = useGroupsApi()
+const eventsApi = useEventsApi()
+const circlesApi = useCirclesApi()
+const orgsApi = useOrganisationsApi()
+const personTypesApi = usePersonTypesApi()
+
+// Map a seam PersonNote (camelCase) to the snake shape <ProfileDashboard> reads.
+function toNoteRow(n: any) {
+  return {
+    id: n.id, org_id: n.orgId, person_id: n.personId, body: n.body, tags: n.tags,
+    channel: n.channel, author_id: n.authorId, author_name: n.authorName, links: n.links,
+    visibility: n.visibility, visible_to: n.visibleTo, is_important: n.isImportant,
+    due_date: n.dueDate, created_at: n.createdAt,
+  }
+}
 
 const loading = ref(true)
 const me = ref<any>(null)
@@ -51,29 +69,46 @@ async function load() {
   await resolveAccessLevel()
   const pid = myPersonId.value
   if (!pid) { me.value = null; loading.value = false; return }
-  const typeKeyForDash = ref<string | null>(null)
-  const [{ data: person }, { data: mships }, { data: regs }, { data: inv }, { data: notesData }, { data: orgRow }, defs] = await Promise.all([
-    (db.from as any)('persons').select('id, first_name, last_name, email, phone, photo_url, membership_type, person_type, person_types, dob, gender, custom_fields').eq('id', pid).maybeSingle(),
-    (db.from as any)('member_group_memberships').select('role, group:member_groups(id, name, color)').eq('person_id', pid),
-    (db.from as any)('registrations').select('id, total_amount, paid_amount, status').eq('person_id', pid),
-    (db.from as any)('invitees').select('event_id, status, events(title, start_at, status)').eq('person_id', pid),
-    (db.from as any)('person_notes').select('*').eq('person_id', pid).order('created_at', { ascending: false }),
-    (db.from as any)('organisations').select('profile_dashboard').eq('id', orgId.value).maybeSingle(),
+  // Seam reads: person, this person's memberships, their event invitees, their notes,
+  // the club-default profile dashboard + the field catalogue. registrations stays on
+  // useDb (no per-person read — see gap below).
+  const [personDomain, mships, groupList, inv, notesDomain, orgMeta, defs, { data: regs }] = await Promise.all([
+    peopleApi.get(pid).catch(() => null),
+    groupsApi.membershipsForPerson(orgId.value as string, pid),
+    groupsApi.list(orgId.value as string),
+    eventsApi.inviteesForPerson(pid),
+    circlesApi.notes(pid),
+    orgsApi.getDashboardMeta(orgId.value as string).catch(() => null),
     resolveFields(orgId.value),
+    // SEAM GAP (finances/events domain): no registrations-by-person read. The financials
+    // widget sums (total − paid) across this person's registrations. Left on useDb.
+    (db.from as any)('registrations').select('id, total_amount, paid_amount, status').eq('person_id', pid),
   ])
+  const person = personDomain ? {
+    id: personDomain.id, first_name: personDomain.firstName, last_name: personDomain.lastName,
+    email: personDomain.email, phone: personDomain.phone, photo_url: personDomain.photoUrl,
+    membership_type: personDomain.membershipType, person_type: personDomain.personType,
+    person_types: personDomain.personTypes, dob: personDomain.dob, gender: personDomain.gender,
+    custom_fields: personDomain.customFields,
+  } : null
   me.value = person
-  memberships.value = (mships ?? []).map((m: any) => ({ id: m.group?.id, group: m.group?.name || 'Class', color: m.group?.color, role: m.role || '', expiry: '' }))
+  const groupById: Record<string, any> = Object.fromEntries(groupList.map(g => [g.id, g]))
+  memberships.value = mships.map((m: any) => {
+    const g = groupById[m.groupId]
+    return { id: m.groupId, group: g?.name || 'Class', color: g?.color, role: m.role || '', expiry: '' }
+  })
   financials.value = (regs ?? []).map((r: any) => ({ id: r.id, amount: r.total_amount, paid: r.paid_amount, status: r.status, outstanding: (Number(r.total_amount) || 0) - (Number(r.paid_amount) || 0) }))
-  communications.value = (inv ?? []).filter((r: any) => r.events).map((r: any) => ({ id: r.event_id, title: r.events.title, date: r.events.start_at, status: r.status }))
-  activity.value = (inv ?? []).filter((r: any) => r.events).map((r: any) => ({ id: r.event_id, title: r.events.title, date: r.events.start_at }))
-  notes.value = notesData ?? []
+  communications.value = inv.map((r: any) => ({ id: r.eventId, title: r.eventTitle, date: r.eventStartAt, status: r.status }))
+  activity.value = inv.map((r: any) => ({ id: r.eventId, title: r.eventTitle, date: r.eventStartAt }))
+  notes.value = notesDomain.map(toNoteRow)
   // custom fields that apply to this member + the profile-dashboard layout for their type
   const ptypes = (person?.person_types?.length ? person.person_types : [person?.person_type]).filter(Boolean)
   customFields.value = (defs ?? []).filter((f: any) => ptypes.some((t: string) => fieldAppliesTo(f, t)))
-  let cfg = orgRow?.profile_dashboard ?? null
+  let cfg = orgMeta?.profileDashboard ?? null
   if (ptypes[0]) {
-    const { data: typeRow } = await (db.from as any)('person_target_types').select('profile_dashboard').eq('org_id', orgId.value).eq('key', ptypes[0]).maybeSingle()
-    cfg = typeRow?.profile_dashboard ?? cfg
+    const types = await personTypesApi.listTypes(orgId.value).catch(() => [])
+    const tt = types.find((t: any) => t.key === ptypes[0])
+    cfg = tt?.profileDashboard ?? cfg
   }
   dashConfig.value = cfg
   loading.value = false
@@ -88,11 +123,11 @@ async function createNote(payload: any) {
   const pid = myPersonId.value; if (!pid) return
   const body = typeof payload === 'string' ? payload : payload?.body
   if (!body?.trim()) return
-  const { data } = await (db.from as any)('person_notes').insert({ org_id: orgId.value, person_id: pid, body: body.trim(), links: payload?.links ?? [] }).select('*').maybeSingle()
-  if (data) notes.value = [data, ...notes.value]
+  const created = await peopleApi.addNote({ orgId: orgId.value as string, personId: pid, body: body.trim(), links: payload?.links ?? [] })
+  if (created) notes.value = [toNoteRow(created), ...notes.value]
 }
 async function removeNote(id: string) {
-  await (db.from as any)('person_notes').delete().eq('id', id)
+  await peopleApi.removeNote(id)
   notes.value = notes.value.filter(n => n.id !== id)
 }
 </script>

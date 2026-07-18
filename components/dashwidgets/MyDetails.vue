@@ -8,7 +8,7 @@
 const props = defineProps<{ opts: any; editable?: boolean }>()
 const emit = defineEmits<{ (e: 'update:opts', v: any): void }>()
 
-const db = useDb()
+const people = usePeopleApi()
 const { orgId } = useOrg()
 const user = useSupabaseUser()
 const { loadFieldCatalogue } = usePersonFields()
@@ -19,13 +19,13 @@ async function onPhoto(e: Event) {
   if (!f || !me.value?.id) return
   uploadingPhoto.value = true
   const { url } = await uploadFile(f)
-  await (db.from as any)('persons').update({ photo_url: url }).eq('id', me.value.id)
+  await people.update(me.value.id, { photoUrl: url })
   me.value = { ...me.value, photo_url: url }
   uploadingPhoto.value = false
 }
 async function removePhoto() {
   if (!me.value?.id) return
-  await (db.from as any)('persons').update({ photo_url: null }).eq('id', me.value.id)
+  await people.update(me.value.id, { photoUrl: null })
   me.value = { ...me.value, photo_url: null }
 }
 
@@ -49,10 +49,13 @@ const me = ref<any>(null)
 async function loadMe() {
   const email = user.value?.email
   if (!email || !orgId.value) { me.value = null; return }
-  const { data } = await (db.from as any)('persons')
-    .select('id, first_name, last_name, photo_url, phone, email, person_type, person_types, membership_type, custom_fields')
-    .eq('org_id', orgId.value).ilike('email', email).maybeSingle()
-  me.value = data ?? null
+  // Seam read: resolve my person row by login email; map to the snake shape the card reads.
+  const p = await people.findByEmail(orgId.value, email)
+  me.value = p ? {
+    id: p.id, first_name: p.firstName, last_name: p.lastName, photo_url: p.photoUrl,
+    phone: p.phone, email: p.email, person_type: p.personType, person_types: p.personTypes,
+    membership_type: p.membershipType, custom_fields: p.customFields,
+  } : null
 }
 onMounted(async () => {
   if (orgId.value) customFields.value = (await loadFieldCatalogue(orgId.value)).filter((f: any) => f.source === 'custom').map((f: any) => ({ key: f.key, label: f.label }))

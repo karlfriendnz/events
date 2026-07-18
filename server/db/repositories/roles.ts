@@ -200,6 +200,20 @@ export async function listPermissionGroupMemberPersonIds(orgId: string): Promise
   return [...new Set(rows.map((r) => r.personId))]
 }
 
+// The permission GROUPS one person is directly assigned to (permission_group_members
+// → permission_groups), each with its full grid. Backs the effective-permission union
+// (useCan) AND the "has a legacy group?" admin check (useAccessLevel). NOT org-scoped:
+// a person may be assigned to a core template (org_id null), and the original resolver
+// fetched groups by id with no org filter — the caller already trusts the personId.
+export async function listPermissionGroupsForPerson(personId: string): Promise<PermissionGroup[]> {
+  const rows = await db
+    .select({ g: schema.permissionGroups })
+    .from(schema.permissionGroupMembers)
+    .innerJoin(schema.permissionGroups, eq(schema.permissionGroupMembers.groupId, schema.permissionGroups.id))
+    .where(eq(schema.permissionGroupMembers.personId, personId))
+  return rows.map((r) => toPermissionGroup(r.g))
+}
+
 // ── Org permission-group writes (the club's own groups + overrides) ──
 // Core templates (org_id null, is_core) are NEVER writable through these — every
 // write is org-scoped in the WHERE, so a club can only touch its own rows.

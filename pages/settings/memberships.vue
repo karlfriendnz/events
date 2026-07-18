@@ -13,16 +13,19 @@
   <OrgSportsEditor>.
 -->
 <script setup lang="ts">
-// db retained ONLY for the membership_plan_options WRITE (see SEAM GAP in savePlans);
-// every term/plan/read now goes through the memberships + organisations seam.
-const db = useDb()
+// Every term/plan/plan-option read + write now goes through the memberships +
+// organisations seam — no direct DB access on this page.
 const { orgId } = useOrg()
 const toast = useToast()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 useBreadcrumbs([{ label: 'Memberships' }])
 const { toIso, periodLabel, loadTerms, loadPlans, loadTermSets, createTermSet, renameTermSet, setTermSetSport, setTermSetLocations, deleteTermSet } = useTermsMemberships()
-const { createTerm, updateTerm, removeTerm: apiRemoveTerm, createPlan, updatePlan, removePlan: apiRemovePlan } = useMembershipsApi()
+const {
+  createTerm, updateTerm, removeTerm: apiRemoveTerm,
+  createPlan, updatePlan, removePlan: apiRemovePlan,
+  createPlanOption, updatePlanOption, removePlanOptions,
+} = useMembershipsApi()
 const { getProfile } = useOrganisationsApi()
 const { orgSports } = useAffiliationsApi()
 import type { TermSet } from '~/composables/useTermsMemberships'
@@ -249,31 +252,25 @@ async function savePlans() {
       if (p.id) await updatePlan(p.id, planPayload)
       else { const created = await createPlan(planPayload); p.id = created.id }
       if (!p.id) continue
-      // SEAM GAP (memberships): membership_plan_options CRUD is NOT on the seam —
-      // useMembershipsApi has plan base-row CRUD but the plan's duration OPTIONS are
-      // "managed separately" (contract note) with no create/update/delete route. Left
-      // on useDb until memberships adds planOption create/update/remove (or nests
-      // options in the plan write).
+      // A plan's duration options go through the memberships seam (create/update/
+      // bulk-delete). The seam takes camelCase; the DECIMAL price passes through.
       if (p._removedOptionIds.length) {
-        await (db.from as any)('membership_plan_options').delete().in('id', p._removedOptionIds)
+        await removePlanOptions(p.id, p._removedOptionIds)
         p._removedOptionIds = []
       }
       for (let j = 0; j < p.options.length; j++) {
         const o = p.options[j]
         const optPayload = {
-          plan_id: p.id,
+          planId: p.id,
           name: o.name?.trim() || null,
-          period_unit: o.period_unit,
-          period_count: Number(o.period_count) || 1,
+          periodUnit: o.period_unit,
+          periodCount: Number(o.period_count) || 1,
           price: o.price,
-          auto_renew: !!o.auto_renew,
-          sort_order: j,
+          autoRenew: !!o.auto_renew,
+          sortOrder: j,
         }
-        if (o.id) await (db.from as any)('membership_plan_options').update(optPayload).eq('id', o.id)
-        else {
-          const { data } = await (db.from as any)('membership_plan_options').insert(optPayload).select('id').single()
-          if (data) o.id = data.id
-        }
+        if (o.id) await updatePlanOption(o.id, optPayload)
+        else { const created = await createPlanOption(optPayload); o.id = created.id }
       }
     }
     toast.add({ severity: 'success', summary: 'Memberships saved', life: 2500 })

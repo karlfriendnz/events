@@ -11,13 +11,15 @@
 // benefit_value) come back as strings — the contract accepts string|number, so they
 // pass through untouched. A null `sort_order` coalesces to 0 so the contract parses.
 import { randomUUID } from 'node:crypto'
-import { asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   MembershipEntitlement,
   MembershipEntitlementInput,
   MembershipPlan,
   MembershipPlanOption,
+  MembershipPlanOptionCreate,
+  MembershipPlanOptionPatch,
   MembershipPlanWithOptions,
   MembershipPlanCreate,
   MembershipPlanPatch,
@@ -279,6 +281,60 @@ export async function updatePlan(id: string, patch: MembershipPlanPatch): Promis
 
 export async function deletePlan(id: string): Promise<void> {
   await db.delete(schema.membershipPlans).where(eq(schema.membershipPlans.id, id))
+}
+
+// ── Plan duration options (writes) ──
+// The base plan row is written above; these manage the plan's duration options
+// (1/3/6 month, still the same plan). The repo owns the id; price is a DECIMAL column
+// (raw string|number passes straight through); auto_renew is notNull with no default,
+// so it's always written. Re-read after write through the same mapper as listPlans.
+async function loadPlanOption(id: string): Promise<MembershipPlanOption | null> {
+  const [r] = await db
+    .select()
+    .from(schema.membershipPlanOptions)
+    .where(eq(schema.membershipPlanOptions.id, id))
+    .limit(1)
+  return r ? toPlanOption(r) : null
+}
+
+export async function createPlanOption(input: MembershipPlanOptionCreate): Promise<MembershipPlanOption> {
+  const id = randomUUID()
+  await db.insert(schema.membershipPlanOptions).values({
+    id,
+    planId: input.planId,
+    name: input.name ?? null,
+    periodUnit: input.periodUnit,
+    periodCount: input.periodCount ?? 1,
+    price: input.price ?? null,
+    autoRenew: input.autoRenew ?? false,
+    sortOrder: input.sortOrder ?? 0,
+  } as any)
+  return (await loadPlanOption(id))!
+}
+
+export async function updatePlanOption(
+  id: string,
+  patch: MembershipPlanOptionPatch,
+): Promise<MembershipPlanOption | null> {
+  const set: Record<string, any> = {}
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.periodUnit !== undefined) set.periodUnit = patch.periodUnit
+  if (patch.periodCount !== undefined) set.periodCount = patch.periodCount
+  if (patch.price !== undefined) set.price = patch.price
+  if (patch.autoRenew !== undefined) set.autoRenew = patch.autoRenew
+  if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
+  if (Object.keys(set).length)
+    await db.update(schema.membershipPlanOptions).set(set).where(eq(schema.membershipPlanOptions.id, id))
+  return loadPlanOption(id)
+}
+
+// Bulk-delete a plan's options by id, scoped by planId (tenant safety — the option
+// rows have no org_id; they belong to a plan the caller owns).
+export async function deletePlanOptions(planId: string, ids: string[]): Promise<void> {
+  if (ids.length === 0) return
+  await db
+    .delete(schema.membershipPlanOptions)
+    .where(and(eq(schema.membershipPlanOptions.planId, planId), inArray(schema.membershipPlanOptions.id, ids)))
 }
 
 // ── Term sets (writes) ──

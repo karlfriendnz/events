@@ -4,7 +4,7 @@
   For a governing body; empty/hint state for a club.
 -->
 <script setup lang="ts">
-const db = useDb()
+const admin = useAdminApi()
 const { orgId } = useOrg()
 const { descendants } = useOrgHierarchy()
 
@@ -19,10 +19,12 @@ async function load() {
   const clubs = (desc ?? []).filter((o: any) => o.org_level === 'CLUB')
   hasClubs.value = clubs.length > 0
   if (!clubs.length) { rows.value = []; loading.value = false; return }
-  const clubIds = clubs.map((c: any) => c.id)
-  const { data: people } = await (db.from as any)('persons').select('org_id').in('org_id', clubIds)
+  // Seam read: cross-org member counts (admin rollup), then filter to our clubs.
+  const clubIds = new Set(clubs.map((c: any) => c.id))
   const counts: Record<string, number> = {}
-  for (const p of (people ?? [])) counts[p.org_id] = (counts[p.org_id] || 0) + 1
+  for (const o of await admin.orgsWithCounts()) {
+    if (clubIds.has(o.id)) counts[o.id] = o.members
+  }
   rows.value = clubs.map((c: any) => ({ id: c.id, name: c.name, count: counts[c.id] || 0 }))
     .sort((a: any, b: any) => b.count - a.count)
   loading.value = false

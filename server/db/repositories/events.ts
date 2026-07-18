@@ -12,7 +12,7 @@
 // timestamps: MySQL returns Date objects; `toIso` serialises to ISO 8601 and lets
 // null pass through, so a nullable start/end date stays null in the contract.
 import { randomUUID } from 'node:crypto'
-import { and, asc, desc, eq, inArray, isNull, or } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   FMEvent,
@@ -46,6 +46,10 @@ import type {
   RegistrationCreate,
   RegistrationPatch,
   ConnectionGroup,
+  GenerateTrainingInput,
+  GenerateTrainingResult,
+  EventCommunication,
+  EventCommunicationCreate,
 } from '../../../shared/contracts/event'
 
 // Coerce a json column into an array: already an array → use it; a string → parse;
@@ -195,6 +199,7 @@ function toInvitee(r: typeof schema.invitees.$inferSelect): Invitee {
     subGroupId: r.subGroupId ?? null,
     invitedAt: toIso(r.invitedAt),
     respondedAt: toIso(r.respondedAt),
+    inviteSentAt: toIso(r.inviteSentAt),
   }
 }
 
@@ -1134,6 +1139,183 @@ export async function setEventsStatus(orgId: string, ids: string[], status: stri
     .update(schema.events)
     .set({ status })
     .where(and(eq(schema.events.orgId, orgId), inArray(schema.events.id, ids)))
+}
+
+// ── Training-event generation (attendance seam write) ──
+// Turn a set of groups' weekly training schedules into recurrence master + child
+// events, pre-inviting each group's members. Reads the schedules / group names / the
+// already-linked schedule ids itself (idempotency: a schedule with a master event is
+// skipped) — cross-table reads within a repo are the established pattern (this file
+// already joins persons + ticket_types). The recurrence is weekly-only by
+// construction, so it's expanded inline (no general rrule engine needed). Consumed by
+// useTermRollover.generateTrainingEvents + the group page's createAttendanceEvent.
+export async function generateTrainingEvents(input: GenerateTrainingInput): Promise<GenerateTrainingResult> {
+  const { orgId, groupIds, window } = input
+  if (!groupIds.length || !window.start || !window.end) return { events: 0, classes: 0 }
+  const membersByGroup = input.membersByGroup ?? {}
+
+  const scheds = await db
+    .select()
+    .from(schema.memberGroupSchedules)
+    .where(inArray(schema.memberGroupSchedules.groupId, groupIds))
+    .orderBy(asc(schema.memberGroupSchedules.sortOrder))
+  // Schedules already turned into an event (member_group_schedule_id lives ONLY on the
+  // master) — skip them so a re-run never double-creates.
+  const linkedRows = await db
+    .select({ sid: schema.events.memberGroupScheduleId })
+    .from(schema.events)
+    .where(and(inArray(schema.events.memberGroupId, groupIds), isNotNull(schema.events.memberGroupScheduleId)))
+  const alreadyLinked = new Set(linkedRows.map((r) => r.sid).filter(Boolean) as string[])
+  const groupRows = await db
+    .select({ id: schema.memberGroups.id, name: schema.memberGroups.name })
+    .from(schema.memberGroups)
+    .where(inArray(schema.memberGroups.id, groupIds))
+  const nameById: Record<string, string> = Object.fromEntries(groupRows.map((g) => [g.id, g.name]))
+
+  const [sy, sm, sd] = window.start.split('-').map(Number)
+  const [ey, em, ed] = window.end.split('-').map(Number)
+  const winStart = new Date(sy!, (sm ?? 1) - 1, sd ?? 1)
+  const winEnd = new Date(ey!, (em ?? 1) - 1, ed ?? 1, 23, 59, 59)
+  const byDayCodes = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const untilStr = `${window.end.replace(/-/g, '')}T235959Z`
+
+  let eventCount = 0
+  const touched = new Set<string>()
+
+  for (const sched of scheds) {
+    if (alreadyLinked.has(sched.id)) continue
+    // First occurrence on/after the window start on the schedule's weekday.
+    const first = new Date(winStart)
+    while (first.getDay() !== sched.dayOfWeek) first.setDate(first.getDate() + 1)
+    if (first > winEnd) continue
+
+    const loc = asObj(sched.location) || {}
+    const [sh, smin] = String(sched.startTime || '0:0').split(':').map(Number)
+    const [eh, emin] = String(sched.endTime || '0:0').split(':').map(Number)
+    const masterStart = new Date(first.getFullYear(), first.getMonth(), first.getDate(), sh ?? 0, smin ?? 0)
+    const masterEnd = new Date(first.getFullYear(), first.getMonth(), first.getDate(), eh ?? 0, emin ?? 0)
+    const duration = masterEnd.getTime() - masterStart.getTime()
+    const rrule = `FREQ=WEEKLY;BYDAY=${byDayCodes[sched.dayOfWeek]};UNTIL=${untilStr}`
+    const groupName = nameById[sched.groupId] ?? 'Class'
+    const schedName = sched.name ? String(sched.name).trim() : ''
+
+    const shared = {
+      orgId,
+      title: schedName
+        ? `${groupName} — ${schedName}`
+        : `${groupName} — ${dayNames[sched.dayOfWeek]} Training`,
+      style: 'BASIC',
+      status: 'DRAFT',
+      memberGroupId: sched.groupId,
+      locationType: loc.type ?? 'ADDRESS',
+      bookableId: loc.type === 'BOOKABLE' ? (loc.bookable_ids?.[0] ?? null) : null,
+      address: loc.type === 'ADDRESS' ? ([loc.venue_name, loc.address].filter(Boolean).join(', ') || null) : null,
+      meetingLink: loc.type === 'ONLINE' ? (loc.meeting_link || null) : null,
+    } as const
+
+    // Master via createEvent so every notNull column gets its default; the schedule
+    // pointer lives on the master alone.
+    const master = await createEvent({
+      ...shared,
+      memberGroupScheduleId: sched.id,
+      startAt: masterStart.toISOString(),
+      endAt: masterEnd.toISOString(),
+      recurrenceRule: rrule,
+    } as any)
+
+    // Children: clone the persisted master row (already has every column filled),
+    // stripping identity/timestamps/recurrence + the schedule pointer (children don't
+    // carry it), and re-time each to its weekly occurrence. Batched insert.
+    const [masterRow] = await db.select().from(schema.events).where(eq(schema.events.id, master.id)).limit(1)
+    const { id: _id, createdAt: _c, updatedAt: _u, recurrenceRule: _rr, recurrenceParentId: _rp, memberGroupScheduleId: _ms, exdates: _ex, ...cloneable } = masterRow as any
+    const childValues: any[] = []
+    for (let d = new Date(masterStart); d <= winEnd; d.setDate(d.getDate() + 7)) {
+      // The master already IS the first occurrence — skip it.
+      if (d.getTime() === masterStart.getTime()) continue
+      const childStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), sh ?? 0, smin ?? 0)
+      childValues.push({
+        ...cloneable,
+        id: randomUUID(),
+        recurrenceParentId: master.id,
+        recurrenceRule: null,
+        memberGroupScheduleId: null,
+        exdates: [],
+        startAt: childStart,
+        endAt: new Date(childStart.getTime() + duration),
+      })
+    }
+    if (childValues.length) await db.insert(schema.events).values(childValues as any)
+    const eventIds = [master.id, ...childValues.map((c) => c.id)]
+
+    // Pre-invite every member to every occurrence (one batched insert). The client
+    // resolved the staff-filtered member list per group.
+    const people = membersByGroup[sched.groupId] ?? []
+    if (people.length) {
+      const inviteeRows: any[] = []
+      for (const eid of eventIds) {
+        for (const pid of people) {
+          inviteeRows.push({
+            id: randomUUID(),
+            eventId: eid,
+            personId: pid,
+            status: 'INVITED',
+            attended: false,
+            signedOut: false,
+            roles: [],
+          })
+        }
+      }
+      if (inviteeRows.length) await db.insert(schema.invitees).values(inviteeRows as any)
+    }
+    eventCount += eventIds.length
+    touched.add(sched.groupId)
+  }
+  return { events: eventCount, classes: touched.size }
+}
+
+// ── Event communications (the SEND log) ──
+// The `communications` table is keyed by event with no status column (a stored row is
+// 'SENT') and no channel/scheduled_at columns. Reads/creates the per-event message log
+// the event Communication tab shows + writes.
+function toEventCommunication(r: typeof schema.communications.$inferSelect): EventCommunication {
+  return {
+    id: r.id,
+    eventId: r.eventId,
+    subject: r.subject,
+    body: r.body,
+    recipientCount: r.recipientCount,
+    status: 'SENT',
+    sentAt: toIso(r.sentAt),
+  }
+}
+
+/** Every message sent for an event, newest first. */
+export async function listCommunicationsForEvent(eventId: string): Promise<EventCommunication[]> {
+  const rows = await db
+    .select()
+    .from(schema.communications)
+    .where(eq(schema.communications.eventId, eventId))
+    .orderBy(desc(schema.communications.sentAt))
+  return rows.map(toEventCommunication)
+}
+
+/** Record a sent message against an event (the honest send row: real recipientCount). */
+export async function createCommunication(
+  input: EventCommunicationCreate & { eventId: string },
+): Promise<EventCommunication> {
+  const id = randomUUID()
+  await db.insert(schema.communications).values({
+    id,
+    eventId: input.eventId,
+    subject: input.subject,
+    body: input.body,
+    recipientCount: input.recipientCount ?? 0,
+    audienceFilter: input.audienceFilter ?? null,
+    sentBy: input.sentBy ?? null,
+  } as any)
+  const [r] = await db.select().from(schema.communications).where(eq(schema.communications.id, id)).limit(1)
+  return toEventCommunication(r)
 }
 
 // ── Event disciplines (link table for DisciplineLinker) ──

@@ -100,10 +100,24 @@ export const calendarSchema = z.object({
   pinToNav: z.boolean(),
   // json blob of per-calendar prefs — passthrough at the boundary.
   settings: z.any().nullable(),
+  // The category ids linked through the `calendar_categories` join. Hydrated on read;
+  // default [] keeps existing consumers that don't read it tolerant.
+  categoryIds: z.array(z.string()).default([]),
 })
 export type Calendar = z.infer<typeof calendarSchema>
 
 export const calendarListSchema = z.array(calendarSchema)
+
+// WRITE contracts. Create omits the server-owned id; orgId + name required, the rest
+// (colour/icon/pin/settings/category links) default in the repo. Patch is a partial.
+export const calendarCreateSchema = calendarSchema
+  .omit({ id: true })
+  .partial({ color: true, icon: true, pinToNav: true, settings: true, categoryIds: true })
+  .extend({ name: z.string().min(1) })
+export type CalendarCreate = z.infer<typeof calendarCreateSchema>
+
+export const calendarPatchSchema = calendarCreateSchema.partial()
+export type CalendarPatch = z.infer<typeof calendarPatchSchema>
 
 // A category shown on a calendar. Contract shape only (no list route yet) — the
 // name/colour live on `categories`, linked through the `calendar_categories` join.
@@ -117,3 +131,13 @@ export const calendarCategorySchema = z.object({
 export type CalendarCategory = z.infer<typeof calendarCategorySchema>
 
 export const calendarCategoryListSchema = z.array(calendarCategorySchema)
+
+// WRITE contract for the calendar↔category links — replace the set of category ids a
+// calendar shows (delete-then-insert the `calendar_categories` join). orgId scopes the
+// calendar (tenant safety); the returned list is the calendar's new category ids.
+export const calendarCategoryLinksSchema = z.object({
+  orgId: z.string(),
+  calendarId: z.string(),
+  categoryIds: z.array(z.string()),
+})
+export type CalendarCategoryLinks = z.infer<typeof calendarCategoryLinksSchema>

@@ -13,6 +13,11 @@ export interface MyClub {
 }
 
 export function useMyClubs() {
+  // SEAM GAP (people): resolving one login to EVERY club they have a record in is a
+  // CROSS-ORG persons-by-email read joined to organisations (name/level) — the people
+  // seam's findByEmail is single-org-scoped, so there's no seam function for this yet
+  // (needs findAllByEmail(email) → persons across all orgs + org name/level). Left on
+  // useDb. Guarded: a failed read just yields no clubs (login routing falls back).
   const db = useDb()
   const user = useSupabaseUser()
   const clubs = useState<MyClub[]>('fm-my-clubs', () => [])

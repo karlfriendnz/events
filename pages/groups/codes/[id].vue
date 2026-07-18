@@ -13,7 +13,8 @@ import type { CodeRoleDef, CodeStaff } from '~/composables/useCodeRoles'
 const route = useRoute()
 const codeId = route.params.id as string
 const { orgId } = useOrg()
-const db = useDb()
+const affiliationsApi = useAffiliationsApi()
+const peopleApi = usePeopleApi()
 const gc = useGroupCodes()
 const cr = useCodeRoles()
 const tm = useTermsMemberships()
@@ -29,8 +30,9 @@ const detail = reactive<{ name: string; color: string; parent_id: string | null;
 // The club's sports (mig 238: a programme belongs to a sport; classes inherit it)
 const codeSports = ref<{ id: string; label: string }[]>([])
 void (async () => {
-  const { data } = await (useDb().from as any)('org_sports').select('id, sport, display_name').eq('org_id', useOrg().orgId.value).order('sort_order')
-  codeSports.value = (data ?? []).map((x: any) => ({ id: x.id, label: x.display_name || x.sport }))
+  if (!orgId.value) return
+  const rows = await affiliationsApi.orgSports(orgId.value).catch(() => [] as any[])
+  codeSports.value = (rows ?? []).map((x: any) => ({ id: x.id, label: x.displayName || x.sport }))
 })()
 const savingAll = ref(false)
 // Valid parents = every code except this one + its descendants (no cycles).
@@ -202,12 +204,11 @@ function openAssign(roleKey: string) { assignRoleKey.value = roleKey; personQuer
 async function searchPersons(e: { query: string }) {
   const q = (e.query || '').trim()
   if (!q || !orgId.value) { personResults.value = []; return }
-  const { data } = await (db.from as any)('persons')
-    .select('id, first_name, last_name, email')
-    .eq('org_id', orgId.value)
-    .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`)
-    .limit(20)
-  personResults.value = (data ?? []).map((p: any) => ({ ...p, label: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || p.email }))
+  const people = await peopleApi.list(orgId.value, { q, limit: 20 }).catch(() => [] as any[])
+  personResults.value = (people ?? []).map((p: any) => ({
+    id: p.id,
+    label: `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || p.email,
+  }))
 }
 async function pickPerson(p: any) {
   if (!p?.id || !lineage.value) return

@@ -10,9 +10,6 @@ import { useToast } from 'primevue/usetoast'
 const props = withDefaults(defineProps<{ eventId: string | null; groupId?: string | null; formId?: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean; embedded?: boolean; ageMin?: number | null; ageMax?: number | null }>(), { groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false, embedded: false, ageMin: null, ageMax: null })
 
 const emit = defineEmits<{ (e: 'building', v: boolean): void }>()
-// db is kept ONLY for the communication_topics read (no seam function merges the
-// core + org topics + the is_active filter this needs — see the comms-topics watcher).
-const db = useDb()
 const formsApi = useFormsApi()
 const groupsApi = useGroupsApi()
 const eventsApi = useEventsApi()
@@ -1434,18 +1431,11 @@ watch(orgId, async (id) => {
 const evtCommsTopics = ref<{ id: string; name: string; channels: string[] }[]>([])
 watch(orgId, async (id) => {
   if (!id) { evtCommsTopics.value = []; return }
-  // SEAM GAP: useWaitlistsApi().topics(orgId) returns ONLY the org's topics — it
-  // doesn't merge the core (org_id null) topics nor apply the is_active filter this
-  // read needs, so converting would drop core topics. Left on useDb until the
-  // waitlists-comms seam exposes a merged+active topic list.
+  // The waitlists-comms seam now returns the ACTIVE topics (platform core merged with
+  // the org's own, inactive dropped) — exactly this read.
   try {
-    const [core, own] = await Promise.all([
-      (db.from as any)('communication_topics').select('id, name, channels, sort_order, is_active').eq('is_core', true).order('sort_order'),
-      (db.from as any)('communication_topics').select('id, name, channels, sort_order, is_active').eq('org_id', id).order('sort_order'),
-    ])
-    evtCommsTopics.value = [...(core.data ?? []), ...(own.data ?? [])]
-      .filter((t: any) => t.is_active !== false)
-      .map((t: any) => ({ id: t.id, name: t.name, channels: t.channels ?? [] }))
+    const list = await useWaitlistsApi().activeTopics(id)
+    evtCommsTopics.value = list.map((t) => ({ id: t.id, name: t.name, channels: t.channels ?? [] }))
   } catch (e) { console.error('[evt comms topics]', e) }
 }, { immediate: true })
 // Per-person comms subscriptions for the preview: keyed "personId|topicId|channel"

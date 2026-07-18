@@ -304,7 +304,7 @@ const emit = defineEmits<{
   (e: 'back'): void
 }>()
 
-const db = useDb()
+const db = useDb() // retained only for the notifications insert (SEAM GAP: comms send path, owned by comms)
 const api = useBookingsApi()
 const route = useRoute()
 const { orgId: staffOrgId } = useOrg()
@@ -1180,7 +1180,7 @@ async function submit() {
 
       // Single notification covers the whole batch.
       const first = selectedSlots.value[0]
-      // TODO cross-domain: notifications still via useDb (owned by comms)
+      // SEAM GAP: notifications insert (comms send path, owned by comms) — no seam yet.
       const { data: notif } = await (db.from as any)('notifications').insert({
         org_id: orgId.value,
         type: isPending ? 'booking.pending' : 'booking.created',

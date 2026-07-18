@@ -56,20 +56,23 @@ export function useActiveLocation() {
     myGrants.value = []
     grantsRestrict.value = false
     try {
-      // SEAM GAP: resolving the signed-in person's location ACCESS GRANTS is
-      // cross-domain — persons-by-email (people), location_staff BY PERSON
-      // (affiliations D6 gap: only locationStaffByOrg exists), member_group_memberships
-      // by person with the group join (groups membershipsForPerson gap), and
-      // permission_group_members count by person (roles gap). Left on useDb until
-      // those land. Guarded: any failure fails OPEN (unrestricted — never locks out).
+      // Resolving the signed-in person's location ACCESS GRANTS is cross-domain.
+      // Converted to the seam: person-by-email (people) + the legacy-permission-group
+      // check (roles). STILL on useDb (SEAM GAPs, guarded — any failure fails OPEN /
+      // unrestricted, never locks out):
+      //  • location_staff BY PERSON — affiliations exposes only locationStaffByOrg, and
+      //    its camelCase shape differs from the snake_case LocationStaff this file's
+      //    grant math consumes downstream.
+      //  • member_group_memberships with the group join carrying code_id — the groups
+      //    membershipsForPerson projection omits code_id (needed for effectiveSportId).
       const db = useDb()
       const user = useSupabaseUser()
+      const { findByEmail } = usePeopleApi()
       let u = user.value
       if (!u) { const { data: { session } } = await db.auth.getSession(); u = session?.user ?? null }
       if (!u?.email) return
       if ((u as any).app_metadata?.role === 'super_admin') return   // supers unrestricted
-      const { data: me } = await (db.from as any)('persons')
-        .select('id').eq('org_id', orgId.value).ilike('email', u.email).maybeSingle()
+      const me = await findByEmail(orgId.value, u.email)
       if (!me) return
       const { data: grants } = await (db.from as any)('location_staff')
         .select('id, location_id, sport_id, person_id, role_key')
@@ -106,9 +109,8 @@ export function useActiveLocation() {
       myGrants.value = [...explicit, ...derived]
       let inPermGroup = false
       try {
-        const { count } = await (db.from as any)('permission_group_members')
-          .select('id', { count: 'exact', head: true }).eq('person_id', me.id)
-        inPermGroup = (count ?? 0) > 0
+        const { permissionGroupsForPerson } = useRolesApi()
+        inPermGroup = (await permissionGroupsForPerson(me.id)).length > 0
       } catch { /* fail open */ }
       grantsRestrict.value = explicit.length > 0 || (derived.length > 0 && !inPermGroup)
       // Restricted users can't sit on a lens they don't hold: snap to their first location.

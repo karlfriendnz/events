@@ -357,6 +357,33 @@ export function useBookingsApi() {
     await $fetch(`/api/v1/bookings/${id}`, { method: 'DELETE' })
   }
 
+  // ── Booking items (equipment bundled with a booking) ──
+  /**
+   * The quantity of each item bookable already reserved by non-cancelled bookings
+   * overlapping the proposed window — the wizard's equipment-availability check.
+   * Returns a { bookableId -> used quantity } map (an id with no usage is absent).
+   */
+  async function bookingItemUsage(
+    bookableIds: string[],
+    opts?: { overlapStart?: string; overlapEnd?: string },
+  ): Promise<Record<string, number>> {
+    if (!bookableIds.length) return {}
+    return await $fetch<Record<string, number>>('/api/v1/booking-items/usage', {
+      query: {
+        bookableIds: bookableIds.join(','),
+        ...(opts?.overlapStart ? { overlapStart: opts.overlapStart } : {}),
+        ...(opts?.overlapEnd ? { overlapEnd: opts.overlapEnd } : {}),
+      },
+    })
+  }
+  /** Insert the equipment rows bundled with a booking (one row per item type + qty). */
+  async function createBookingItems(
+    items: { bookingId: string; bookableId: string; quantity: number; sortOrder?: number }[],
+  ): Promise<void> {
+    if (!items.length) return
+    await $fetch('/api/v1/booking-items', { method: 'POST', body: items })
+  }
+
   return {
     bookables, bookable, createBookable, updateBookable, removeBookable, bookableChildren,
     bookableModes, setBookableModes, bookableActivityIds, setBookableActivityIds,
@@ -375,5 +402,6 @@ export function useBookingsApi() {
     bookingDiscounts, saveBookingDiscount, removeBookingDiscount,
     bookings, booking, bookingsDetailed, bookingsForBookables, bookingsForBookablesDetailed,
     createBooking, createBookings, setBookingStatus, updateBooking, removeBooking,
+    bookingItemUsage, createBookingItems,
   }
 }

@@ -48,7 +48,7 @@
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
 
-const db = useDb()
+const api = useBookingsApi()
 const toast = useToast()
 const { orgId } = useOrg()
 
@@ -62,22 +62,17 @@ async function load() {
   if (!orgId.value) return
   loading.value = true
   try {
-    const { data } = await (db.from as any)('bookables')
-      .select('id, name, type, location')
-      .eq('org_id', orgId.value)
-      .eq('status', 'ARCHIVED')
-      .order('name')
-    items.value = data ?? []
+    const all = await api.bookables(orgId.value)
+    items.value = all
+      .filter(b => b.status === 'ARCHIVED')
+      .map(b => ({ id: b.id, name: b.name, type: b.type, location: b.location }))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
 
     if (items.value.length) {
       const ids = items.value.map((b: any) => b.id)
-      const { data: bk } = await (db.from as any)('bookings')
-        .select('bookable_id')
-        .in('bookable_id', ids)
-        .gte('start_at', new Date().toISOString())
-        .neq('status', 'CANCELLED')
+      const bk = await api.bookingsForBookables(ids, { from: new Date().toISOString(), excludeCancelled: true })
       const counts: Record<string, number> = {}
-      for (const r of (bk ?? [])) counts[r.bookable_id] = (counts[r.bookable_id] ?? 0) + 1
+      for (const r of bk) counts[r.bookableId] = (counts[r.bookableId] ?? 0) + 1
       upcomingCounts.value = counts
     } else {
       upcomingCounts.value = {}
@@ -88,9 +83,10 @@ async function load() {
 }
 
 async function restore(item: any) {
-  const { error } = await (db.from as any)('bookables').update({ status: 'ACTIVE' }).eq('id', item.id)
-  if (error) {
-    toast.add({ severity: 'error', summary: 'Restore failed', detail: error.message, life: 4000 })
+  try {
+    await api.updateBookable(item.id, { status: 'ACTIVE' })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Restore failed', detail: e?.message, life: 4000 })
     return
   }
   toast.add({ severity: 'success', summary: 'Restored', detail: `${item.name} is active again.`, life: 2500 })
@@ -101,9 +97,10 @@ async function restore(item: any) {
 async function confirmDelete(item: any) {
   if (upcomingCounts.value[item.id]) return
   if (!confirm(`Permanently delete "${item.name}"? This cannot be undone.`)) return
-  const { error } = await (db.from as any)('bookables').update({ status: 'DELETED' }).eq('id', item.id)
-  if (error) {
-    toast.add({ severity: 'error', summary: 'Delete failed', detail: error.message, life: 4000 })
+  try {
+    await api.updateBookable(item.id, { status: 'DELETED' })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Delete failed', detail: e?.message, life: 4000 })
     return
   }
   toast.add({ severity: 'success', summary: 'Deleted', life: 2500 })

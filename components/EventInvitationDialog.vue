@@ -17,7 +17,9 @@ import { EVENT_TOKENS, DEFAULT_INVITATION, substituteEventTokens } from '~/compo
 const props = defineProps<{ eventId: string }>()
 const visible = defineModel<boolean>('visible', { default: false })
 
-const db = useDb()
+const eventsApi = useEventsApi()
+const orgsApi = useOrganisationsApi()
+const commsApi = useCommunicationsApi()
 const { orgId } = useOrg()
 const toast = useToast()
 
@@ -44,24 +46,25 @@ const wantsForm = computed(() => !!evt.value?.form_id)
 
 async function load() {
   loading.value = true
-  const [{ data: e }, { data: o }, { data: tpl }, { data: invs }] = await Promise.all([
-    (db.from as any)('events').select('id, title, start_at, form_id, invitation_email').eq('id', props.eventId).maybeSingle(),
-    (db.from as any)('organisations').select('name').eq('id', orgId.value).maybeSingle(),
-    (db.from as any)('email_templates').select('subject, body').eq('org_id', orgId.value).eq('key', 'event_invitation').maybeSingle(),
-    (db.from as any)('invitees').select('invite_sent_at, persons(email)').eq('event_id', props.eventId),
+  const [e, o, tpl, invs] = await Promise.all([
+    eventsApi.get(props.eventId),
+    orgsApi.get(orgId.value),
+    commsApi.getEmailTemplate(orgId.value, 'event_invitation'),
+    eventsApi.inviteesWithPerson(props.eventId),
   ])
-  evt.value = e
+  // Map the seam's camelCase back to the shape the template reads.
+  evt.value = { id: e.id, title: e.title, start_at: e.startAt, form_id: e.formId, invitation_email: e.invitationEmail }
   org.value = o
 
   const list = invs ?? []
   stats.value = {
     total: list.length,
-    withEmail: list.filter((i: any) => i.persons?.email).length,
-    alreadySent: list.filter((i: any) => i.persons?.email && i.invite_sent_at).length,
+    withEmail: list.filter((i) => i.person?.email).length,
+    alreadySent: list.filter((i) => i.person?.email && i.inviteSentAt).length,
   }
 
   // This event's wording → the club's default → the built-in one.
-  const own = (e?.invitation_email ?? {}) as { subject?: string; body?: string }
+  const own = (e?.invitationEmail ?? {}) as { subject?: string; body?: string }
   subject.value = own.subject ?? tpl?.subject ?? DEFAULT_INVITATION.subject
   body.value = own.body ?? tpl?.body ?? DEFAULT_INVITATION.body
   loading.value = false
@@ -93,16 +96,13 @@ const preview = computed(() => {
 })
 
 async function saveWording() {
-  await (db.from as any)('events')
-    .update({ invitation_email: { subject: subject.value, body: body.value } })
-    .eq('id', props.eventId)
+  await eventsApi.update(props.eventId, { invitationEmail: { subject: subject.value, body: body.value } })
 }
 
 async function saveAsClubDefault() {
-  await (db.from as any)('email_templates').upsert({
-    org_id: orgId.value, key: 'event_invitation',
-    subject: subject.value, body: body.value, updated_at: new Date().toISOString(),
-  }, { onConflict: 'org_id,key' })
+  await commsApi.upsertEmailTemplate({
+    orgId: orgId.value, key: 'event_invitation', subject: subject.value, body: body.value,
+  })
   toast.add({ severity: 'success', summary: 'Saved as your club default', life: 3000 })
 }
 

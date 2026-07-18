@@ -11,7 +11,7 @@
 <script setup lang="ts">
 import type { GroupCode } from '~/composables/useGroupCodes'
 
-const db = useDb()
+const groupsApi = useGroupsApi()
 const { orgId } = useOrg()
 const toast = useToast()
 const gc = useGroupCodes()
@@ -125,8 +125,8 @@ async function onDrop(c: GroupCode) {
   sibs.forEach((x, i) => { x.sort_order = i })
 
   await Promise.all([
-    (db.from as any)('group_codes').update({ parent_id: dragged.parent_id }).eq('id', dragged.id),
-    ...sibs.map(x => (db.from as any)('group_codes').update({ sort_order: x.sort_order }).eq('id', x.id)),
+    gc.updateCode(dragged.id, { parent_id: dragged.parent_id }),
+    ...sibs.map(x => gc.updateCode(x.id, { sort_order: x.sort_order })),
   ])
   toast.add({ severity: 'success', summary: 'Moved', life: 1200 })
 }
@@ -145,15 +145,15 @@ const parentOptions = computed(() => {
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [loaded, { data: gs }, loadedTerms, defs, staff] = await Promise.all([
+  const [loaded, gs, loadedTerms, defs, staff] = await Promise.all([
     gc.loadCodes(),
-    (db.from as any)('member_groups').select('id, code_id').eq('org_id', orgId.value),
+    groupsApi.list(orgId.value),
     tm.loadTerms(),
     cr.ensureDefaults(),
     cr.loadStaff(),
   ])
   codes.value = loaded
-  groups.value = gs ?? []
+  groups.value = (gs ?? []).map((g: any) => ({ id: g.id, code_id: g.codeId ?? null }))
   terms.value = loadedTerms ?? []
   roleDefs.value = defs ?? []
   codeStaff.value = staff ?? []

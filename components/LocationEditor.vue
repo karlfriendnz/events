@@ -166,30 +166,18 @@ const locationTypes = [
 ]
 
 // ---- Bookables ----
-const db = useDb()
+const api = useBookingsApi()
 const allBookables = ref<any[]>([])
 const bookablesLoading = ref(false)
 const expandedIds = reactive<Record<string, boolean>>({})
 
 async function loadBookables() {
   bookablesLoading.value = true
-  const { data, error } = await db.from('bookables')
-    .select('id, name, location, parent_id')
-    .eq('org_id', orgId.value)
-    .eq('type', 'VENUE')
-    .eq('status', 'ACTIVE')
-    .order('name')
-  if (error) {
-    const { data: fallback } = await db.from('bookables')
-      .select('id, name, location, parent_id')
-      .eq('org_id', orgId.value)
-      .eq('type', 'VENUE')
-      .eq('status', 'ACTIVE')
-      .order('name')
-    allBookables.value = fallback ?? []
-  } else {
-    allBookables.value = data ?? []
-  }
+  const all = await api.bookables(orgId.value)
+  allBookables.value = all
+    .filter(b => b.type === 'VENUE' && b.status === 'ACTIVE')
+    .map(b => ({ id: b.id, name: b.name, location: b.location, parent_id: b.parentId }))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
   bookablesLoading.value = false
   initExpanded()
   if (hasBookableLocation.value) fetchAvailability()
@@ -227,27 +215,32 @@ async function saveNewVenue() {
   savingVenue.value = true
   newVenueError.value = ''
   try {
-    const { data, error } = await (db.from as any)('bookables').insert({
-      org_id: orgId.value,
-      name,
-      type: 'VENUE',
-      status: 'ACTIVE',
-      is_public: true,
-      parent_id: newVenue.parent_id,
-    }).select('id, name, location, parent_id').single()
-
-    if (error || !data) {
-      newVenueError.value = error?.message ?? 'Could not create the venue.'
+    let created: any
+    try {
+      created = await api.createBookable({
+        orgId: orgId.value,
+        name,
+        type: 'VENUE',
+        status: 'ACTIVE',
+        isPublic: true,
+        parentId: newVenue.parent_id,
+      })
+    } catch (e: any) {
+      newVenueError.value = e?.message ?? 'Could not create the venue.'
+      return
+    }
+    if (!created) {
+      newVenueError.value = 'Could not create the venue.'
       return
     }
 
     await loadBookables()
     // Tick it straight away — they created it to use it.
     const idx = props.modelValue.findIndex(l => l.type === 'BOOKABLE')
-    if (idx !== -1 && !props.modelValue[idx].bookable_ids?.includes(data.id)) {
-      toggleVenue(idx, data.id)
+    if (idx !== -1 && !props.modelValue[idx].bookable_ids?.includes(created.id)) {
+      toggleVenue(idx, created.id)
     }
-    if (data.parent_id) expandedIds[data.parent_id] = true
+    if (created.parentId) expandedIds[created.parentId] = true
     createVenueOpen.value = false
   } finally {
     savingVenue.value = false
@@ -285,14 +278,15 @@ async function fetchAvailability() {
   if (!props.startAt || !props.endAt) return
   checkingAvailability.value = true
   try {
-    let q = db.from('bookings')
-      .select('bookable_id')
-      .eq('status', 'CONFIRMED')
-      .lt('start_at', props.endAt)
-      .gt('end_at', props.startAt)
-    if (props.excludeEventId) q = q.neq('event_id', props.excludeEventId)
-    const { data } = await q
-    const bookedIds = new Set((data ?? []).map((b: any) => b.bookable_id))
+    const rows = await api.bookingsForBookables(
+      allBookables.value.map(b => b.id),
+      { overlapStart: props.startAt, overlapEnd: props.endAt, status: 'CONFIRMED' },
+    )
+    const bookedIds = new Set(
+      rows
+        .filter(b => !props.excludeEventId || b.eventId !== props.excludeEventId)
+        .map(b => b.bookableId),
+    )
     const map: Record<string, 'available' | 'booked'> = {}
     for (const b of allBookables.value) {
       map[b.id] = bookedIds.has(b.id) ? 'booked' : 'available'

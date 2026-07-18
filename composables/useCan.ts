@@ -13,9 +13,14 @@
 //     Giving someone an access-granting type (or a group) is what scopes them.
 
 export function useCan() {
-  const db = useDb()
+  // Access reads go through the typed seam: person-by-email (people), the org's own
+  // person types with their grids (person-types), and a person's legacy permission
+  // groups (roles). No direct DB access.
   const { orgId } = useOrg()
   const user = useSupabaseUser()
+  const { findByEmail } = usePeopleApi()
+  const { listOrgTypes } = usePersonTypesApi()
+  const { permissionGroupsForPerson } = useRolesApi()
 
   const perms = useState<PermissionMap>('fm_eff_perms', () => ({}))
   const unrestricted = useState<boolean>('fm_perms_unrestricted', () => true)
@@ -37,7 +42,7 @@ export function useCan() {
     // Preview-as-type: resolve THAT type's grid (overrides real access, incl. super).
     const { previewKey } = usePreviewType()
     if (previewKey.value && orgId.value) {
-      const { data: pt } = await (db.from as any)('person_target_types').select('permissions').eq('org_id', orgId.value).eq('key', previewKey.value).maybeSingle()
+      const pt = (await listOrgTypes(orgId.value)).find((t) => t.key === previewKey.value)
       const m: PermissionMap = {}; mergeInto(m, pt?.permissions); perms.value = m; unrestricted.value = false; loaded.value = true; return
     }
     const isSuper = ((user.value as any)?.app_metadata?.role) === 'super_admin'
@@ -48,8 +53,7 @@ export function useCan() {
     // is ready — otherwise a member gets stuck 'unrestricted' (full admin menu).
     if (!orgId.value) { unrestricted.value = true; perms.value = {}; loaded.value = false; loadedOrg.value = null; return }
 
-    const { data: person } = await (db.from as any)('persons')
-      .select('id, person_types, person_type').eq('org_id', orgId.value).ilike('email', email).limit(1).maybeSingle()
+    const person = await findByEmail(orgId.value, email)
     if (!person) { unrestricted.value = true; loaded.value = true; return }
 
     const merged: PermissionMap = {}
@@ -59,13 +63,12 @@ export function useCan() {
     // Emergency contact…) are configurable too, so their grid drives their menu
     // and access (scoped to their own data on the pages; see useAccessLevel for
     // the admin/own distinction). is_access is no longer required to have a grid.
-    const typeKeys: string[] = Array.isArray(person.person_types) && person.person_types.length
-      ? person.person_types
-      : (person.person_type ? [person.person_type] : [])
+    const typeKeys: string[] = person.personTypes.length
+      ? person.personTypes
+      : (person.personType ? [person.personType] : [])
     if (typeKeys.length) {
-      const { data: types } = await (db.from as any)('person_target_types')
-        .select('key, permissions, is_access').eq('org_id', orgId.value).in('key', typeKeys)
-      for (const t of types ?? []) {
+      const orgTypes = await listOrgTypes(orgId.value)
+      for (const t of orgTypes.filter((t) => typeKeys.includes(t.key))) {
         // A person WITH a type is governed by their type(s)' grids — even an empty
         // grid means "minimal menu" (restricted), which is the member default.
         scoped = true
@@ -74,12 +77,8 @@ export function useCan() {
     }
 
     // LEGACY model — permission_groups the person is assigned to (transition).
-    const { data: mem } = await (db.from as any)('permission_group_members').select('group_id').eq('person_id', person.id)
-    const gids = (mem ?? []).map((m: any) => m.group_id)
-    if (gids.length) {
-      const { data: groups } = await (db.from as any)('permission_groups').select('permissions').in('id', gids)
-      for (const g of groups ?? []) { scoped = true; mergeInto(merged, g.permissions) }
-    }
+    const groups = await permissionGroupsForPerson(person.id)
+    for (const g of groups) { scoped = true; mergeInto(merged, g.grants) }
 
     if (!scoped) { unrestricted.value = true; perms.value = {}; loaded.value = true; return }
     perms.value = merged

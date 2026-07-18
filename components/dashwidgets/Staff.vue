@@ -10,9 +10,17 @@
 const props = defineProps<{ opts: any; editable?: boolean }>()
 const emit = defineEmits<{ (e: 'update:opts', v: any): void }>()
 
-const db = useDb()
+const peopleApi = usePeopleApi()
 const { orgId } = useOrg()
 const { loadFieldCatalogue } = usePersonFields()
+// Map a seam Person to the snake shape this card reads throughout.
+function toRow(p: any) {
+  return {
+    id: p.id, first_name: p.firstName, last_name: p.lastName, photo_url: p.photoUrl,
+    phone: p.phone, email: p.email, person_type: p.personType, person_types: p.personTypes,
+    membership_type: p.membershipType, custom_fields: p.customFields,
+  }
+}
 const { uploadFile } = useUpload()
 const uploadingId = ref<string | null>(null)
 async function onPersonPhoto(pe: any, e: Event) {
@@ -50,10 +58,10 @@ const people = ref<Record<string, any>>({})
 async function loadPeople() {
   const ids = (props.opts?.people ?? []).map((p: any) => p.id).filter(Boolean)
   if (!ids.length) { people.value = {}; return }
-  const { data } = await (db.from as any)('persons')
-    .select('id, first_name, last_name, photo_url, phone, email, person_type, person_types, membership_type, custom_fields')
-    .in('id', ids)
-  people.value = Object.fromEntries((data ?? []).map((p: any) => [p.id, p]))
+  // Seam reads: a curated handful of showcase people — one get() each (no read-by-ids
+  // projection on the seam yet). Missing rows are skipped.
+  const rows = await Promise.all(ids.map((id: string) => peopleApi.get(id).catch(() => null)))
+  people.value = Object.fromEntries(rows.filter(Boolean).map((p: any) => [p.id, toRow(p)]))
 }
 onMounted(async () => {
   if (orgId.value) customFields.value = (await loadFieldCatalogue(orgId.value)).filter((f: any) => f.source === 'custom').map((f: any) => ({ key: f.key, label: f.label }))
@@ -113,10 +121,12 @@ const suggestions = ref<any[]>([])
 const picked = ref<any>(null)
 async function searchPeople(e: { query: string }) {
   const q = (e.query ?? '').trim()
-  if (!q) { suggestions.value = []; return }
-  const { data } = await (db.from as any)('persons').select('id, first_name, last_name, email').eq('org_id', orgId.value)
-    .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`).limit(8)
-  suggestions.value = (data ?? []).map((p: any) => ({ ...p, _label: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || p.email }))
+  if (!q || !orgId.value) { suggestions.value = []; return }
+  const data = await peopleApi.list(orgId.value, { q, limit: 8 })
+  suggestions.value = data.map((p: any) => ({
+    id: p.id, first_name: p.firstName, last_name: p.lastName, email: p.email,
+    _label: `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || p.email,
+  }))
 }
 function onPick(e: any) {
   const p = e.value

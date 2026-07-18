@@ -1,6 +1,6 @@
 <!-- Dashboard widget: birthdays in the next 7 days -->
 <script setup lang="ts">
-const db = useDb()
+const people = usePeopleApi()
 const { orgId } = useOrg()
 
 const loading = ref(true)
@@ -9,12 +9,12 @@ const rows = ref<{ id: string; name: string; when: string; turning: number }[]>(
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const { data } = await (db.from as any)('persons')
-    .select('id, first_name, last_name, dob').eq('org_id', orgId.value).not('dob', 'is', null).limit(2000)
+  // Seam read: everyone in the org; filter to those with a DOB client-side.
+  const data = (await people.list(orgId.value, { limit: 2000 })).filter(p => p.dob)
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const out: typeof rows.value = []
-  for (const p of (data ?? [])) {
-    const dob = new Date(p.dob)
+  for (const p of data) {
+    const dob = new Date(p.dob as string)
     if (isNaN(dob.getTime())) continue
     const next = new Date(today.getFullYear(), dob.getMonth(), dob.getDate())
     if (next < today) next.setFullYear(next.getFullYear() + 1)
@@ -22,7 +22,7 @@ async function load() {
     if (days <= 7) {
       out.push({
         id: p.id,
-        name: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim(),
+        name: `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim(),
         when: days === 0 ? 'Today 🎂' : days === 1 ? 'Tomorrow' : next.toLocaleDateString('en-NZ', { weekday: 'long' }),
         turning: next.getFullYear() - dob.getFullYear(),
       })

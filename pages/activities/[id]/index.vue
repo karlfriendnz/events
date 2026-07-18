@@ -470,8 +470,8 @@ import { useToast } from 'primevue/usetoast'
 import type { ModePayload } from '~/components/ModeWizard.vue'
 
 const route = useRoute()
-const db = useDb() // retained only for the cross-domain member_groups read in load()
 const api = useBookingsApi()
+const groupsApi = useGroupsApi()
 
 // The seam returns camelCase; this page's template + form bind snake_case. Map an
 // activity / mode domain object back to the snake shape the page expects.
@@ -665,8 +665,7 @@ async function load() {
       api.activityBookables(id),
       api.activityGroups(id),
       api.activityModes(id),
-      // TODO cross-domain: member_groups still via useDb (owned by groups)
-      (db.from as any)('member_groups').select('id, name, color').eq('org_id', orgId.value).order('name'),
+      groupsApi.list(orgId.value!),
     ])
     const act = actRaw ? snakeActivity(actRaw) : null
 
@@ -675,7 +674,7 @@ async function load() {
       .filter(b => b.status !== 'DELETED')
       .map(b => ({ id: b.id, name: b.name, location: b.location, main_image: b.mainImage, sponsor_image: b.sponsorImage }))
     linkedBookableIds.value = venueLinks.map(l => l.bookableId)
-    allGroups.value = groupsRes.data ?? []
+    allGroups.value = groupsRes.map(g => ({ id: g.id, name: g.name, color: g.color }))
     linkedGroupIds.value = groupLinks
     modes.value = modeRaw.map(snakeMode)
 

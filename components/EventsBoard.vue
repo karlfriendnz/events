@@ -1244,25 +1244,24 @@ const activeCalendar = computed(() => {
 
 async function loadCalendars() {
   // CROSS-DOMAIN GAP: `calendars` + `calendar_categories` are owned by the waitlists
-  // domain seam, which exposes a READ-ONLY calendars list (no category-link embed).
-  // `bookables` belongs to the bookings domain. Both still read via useDb here until a
-  // calendars-with-categories read + calendar writes land in the waitlists seam.
-  const [{ data: cals }, cats, { data: books }] = await Promise.all([
+  // domain seam, which exposes a READ-ONLY calendars list (no category-link embed), so
+  // the calendars read stays on useDb until a calendars-with-categories read + calendar
+  // writes land there. `bookables` (the VENUE list) now comes through the bookings seam.
+  const [{ data: cals }, cats, books] = await Promise.all([
     (db.from as any)('calendars')
       .select('id, name, sort_order, pin_to_nav, icon, color, settings, calendar_categories(category_id)')
       .eq('org_id', orgId.value)
       .order('sort_order'),
     eventsApi.categories(orgId.value),
-    (db.from as any)('bookables')
-      .select('id, name, type, parent_id')   // parent_id: sub-venues nest under their venue
-      .eq('org_id', orgId.value)
-      .eq('type', 'VENUE')
-      .neq('status', 'ARCHIVED')
-      .neq('status', 'DELETED')
-      .order('name'),
+    bookingsApi.bookables(orgId.value),
   ])
   allCategories.value = cats ?? []
-  allBookables.value = books ?? []
+  // Active venues only (drop archived/deleted), mapped to the {id,name,type,parent_id}
+  // shape the venue picker reads; parent_id nests sub-venues under their venue.
+  allBookables.value = (books as any[])
+    .filter(b => b.type === 'VENUE' && b.status !== 'ARCHIVED' && b.status !== 'DELETED')
+    .map(b => ({ id: b.id, name: b.name, type: b.type, parent_id: b.parentId }))
+    .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
   namedCalendars.value = (cals ?? []).map((c: any) => ({
     ...c,
     categoryIds: c.calendar_categories?.map((cc: any) => cc.category_id) ?? [],
@@ -2007,10 +2006,11 @@ const filtered = computed(() => events.value.filter(e =>
 
 async function load() {
   loading.value = true
-  // SEAM GAP: the org-wide "separate sessions" query (sessions where
-  // show_as_separate_event=true across every event) has no seam method yet — the
-  // Session contract doesn't carry show_as_separate_event / parent_session_id — so it
-  // still reads via useDb. Everything else goes through the typed seam.
+  // SEAM GAP: the ORG-WIDE "separate sessions" query (sessions where
+  // show_as_separate_event=true across EVERY event, joined to their event) has no seam
+  // method — useEventsApi.sessions is per-event, and there's no org-wide
+  // sessions-with-event-join route — so it still reads via useDb. Everything else goes
+  // through the typed seam.
   const [evList, cats, { data: sessionData, error: sessionError }] = await Promise.all([
     eventsApi.list(orgId.value),
     eventsApi.categories(orgId.value),

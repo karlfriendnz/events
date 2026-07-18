@@ -95,11 +95,16 @@ export const SCOPED_ROLES: Record<ScopedResourceType, ScopedRoleDef[]> = {
 }
 
 export function useScopedRoles() {
+  // db retained ONLY for the invitees (event) roles read — the events domain has no
+  // invitee-roles-by-person seam function yet (SEAM GAP in load()). Person-by-email
+  // and class-membership roles now go through the seam.
   const db = useDb()
   const rolesApi = useRolesApi()
   const { orgId } = useOrg()
   const user = useSupabaseUser()
   const { can, load: loadCan, unrestricted, loaded: canLoaded } = useCan()
+  const { findByEmail } = usePeopleApi()
+  const { membershipsForPerson } = useGroupsApi()
 
   // Resolved once per (user, org): the current user's roles on every group/event.
   const groupRoles = useState<Record<string, string[]>>('fm_scoped_group_roles', () => ({}))
@@ -190,12 +195,10 @@ export function useScopedRoles() {
   const hasAnyScopedRole = computed(() =>
     Object.values(groupRoles.value).some(r => r.length) || Object.values(eventRoles.value).some(r => r.length))
 
-  // CROSS-DOMAIN GAP: this resolver reads persons (people domain, by email),
-  // member_group_memberships (groups) and invitees (events) — none of which are this
-  // domain's tables, and none of the people/groups/events seams expose a
-  // "for-this-person" read yet. It stays on useDb until those seam functions exist
-  // (needs: personByEmail(orgId,email), membershipRolesByPerson(personId),
-  // inviteeRolesByPerson(personId)). loadRoleDefs above IS converted.
+  // Resolves the current user's roles on every group/event. Person-by-email (people)
+  // and class-membership roles (groups) go through the seam; the invitees (event)
+  // roles read stays on useDb — SEAM GAP: the events domain has no
+  // invitee-roles-by-person seam function yet.
   async function load() {
     loaded.value = false
     if (!canLoaded.value) await loadCan()
@@ -203,17 +206,16 @@ export function useScopedRoles() {
     if (isSuper.value || !email || !orgId.value) {
       groupRoles.value = {}; eventRoles.value = {}; personId.value = null; loaded.value = true; return
     }
-    const { data: person } = await (db.from as any)('persons')
-      .select('id').eq('org_id', orgId.value).ilike('email', email).limit(1).maybeSingle()
+    const person = await findByEmail(orgId.value, email)
     personId.value = person?.id ?? null
     if (!person) { groupRoles.value = {}; eventRoles.value = {}; loaded.value = true; return }
 
-    const [{ data: gms }, { data: invs }] = await Promise.all([
-      (db.from as any)('member_group_memberships').select('group_id, roles, role').eq('person_id', person.id),
+    const [gms, { data: invs }] = await Promise.all([
+      membershipsForPerson(orgId.value, person.id),
       (db.from as any)('invitees').select('event_id, roles, role').eq('person_id', person.id),
     ])
     const g: Record<string, string[]> = {}
-    for (const m of gms ?? []) g[m.group_id] = normalizeRoles('group', m.roles, m.role)
+    for (const m of gms) g[m.groupId] = normalizeRoles('group', m.roles, m.role)
     groupRoles.value = g
     const e: Record<string, string[]> = {}
     for (const i of invs ?? []) e[i.event_id] = normalizeRoles('event', i.roles, i.role)

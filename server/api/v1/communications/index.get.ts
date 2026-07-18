@@ -6,6 +6,7 @@
 import {
   listCommunications,
   listCommunicationTopics,
+  listActiveCommunicationTopics,
   listEmailTemplates,
 } from '../../../db/repositories/waitlists'
 import {
@@ -22,6 +23,9 @@ export default defineEventHandler(async (event) => {
   const id = String(orgId)
   if (resource === 'topics') {
     return communicationTopicListSchema.parse(await listCommunicationTopics(id))
+  }
+  if (resource === 'active-topics') {
+    return communicationTopicListSchema.parse(await listActiveCommunicationTopics(id))
   }
   if (resource === 'templates') {
     return emailTemplateListSchema.parse(await listEmailTemplates(id))

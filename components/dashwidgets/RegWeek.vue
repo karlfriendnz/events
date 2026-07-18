@@ -1,6 +1,8 @@
 <!-- Dashboard widget: registrations this week (form_submissions feed + per-day bars) -->
 <script setup lang="ts">
-const db = useDb()
+const forms = useFormsApi()
+const groups = useGroupsApi()
+const events = useEventsApi()
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
@@ -14,21 +16,23 @@ async function load() {
   if (!orgId.value) return
   loading.value = true
   const since = new Date(); since.setDate(since.getDate() - 6); since.setHours(0, 0, 0, 0)
-  const { data } = await (db.from as any)('form_submissions')
-    .select('id, submitter_name, context_type, context_id, created_at')
-    .eq('org_id', orgId.value).gte('created_at', since.toISOString())
-    .order('created_at', { ascending: false }).limit(60)
-  subs.value = data ?? []
-  // resolve context names (classes + events)
-  const gids = [...new Set(subs.value.filter(s => s.context_type === 'group').map(s => s.context_id))]
-  const eids = [...new Set(subs.value.filter(s => s.context_type === 'event').map(s => s.context_id))]
+  // Seam read: recent submissions, then keep the last 7 days (the seam returns
+  // newest-first; date-windowing stays client-side). Map to the snake shape.
+  const all = await forms.submissions(orgId.value, { limit: 200 })
+  subs.value = all
+    .filter(s => new Date(s.createdAt) >= since)
+    .slice(0, 60)
+    .map(s => ({ id: s.id, submitter_name: s.submitterName, context_type: s.contextType, context_id: s.contextId, created_at: s.createdAt }))
+  // resolve context names (classes + events) via the owning domains' lists.
+  const gids = new Set(subs.value.filter(s => s.context_type === 'group').map(s => s.context_id))
+  const eids = new Set(subs.value.filter(s => s.context_type === 'event').map(s => s.context_id))
   const [g, e] = await Promise.all([
-    gids.length ? (db.from as any)('member_groups').select('id, name').in('id', gids) : { data: [] },
-    eids.length ? (db.from as any)('events').select('id, title').in('id', eids) : { data: [] },
+    gids.size ? groups.list(orgId.value) : Promise.resolve([]),
+    eids.size ? events.list(orgId.value) : Promise.resolve([]),
   ])
   const map: Record<string, string> = {}
-  for (const x of (g.data ?? [])) map[x.id] = x.name
-  for (const x of (e.data ?? [])) map[x.id] = x.title
+  for (const x of g) if (gids.has(x.id)) map[x.id] = x.name
+  for (const x of e) if (eids.has(x.id)) map[x.id] = x.title
   names.value = map
   // per-day bars (7 days)
   const buckets: { label: string; count: number }[] = []

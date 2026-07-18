@@ -218,8 +218,8 @@
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
 
-const db = useDb() // retained only for the cross-domain member_groups read below
 const api = useBookingsApi()
+const groupsApi = useGroupsApi()
 const toast = useToast()
 const { orgId } = useOrg()
 
@@ -563,18 +563,17 @@ async function load() {
   // Discounts (scope folded in) + activities come from the bookings seam. Modes are
   // fetched per-activity then flattened (the seam reads modes by activity), carrying
   // each mode's activity name for the picker. member_groups is cross-domain.
-  const [discRows, acts, grpRes] = await Promise.all([
+  const [discRows, acts, grps] = await Promise.all([
     api.bookingDiscounts(orgId.value!),
     api.activities(orgId.value!),
-    // TODO cross-domain: member_groups still via useDb (owned by groups)
-    (db.from as any)('member_groups').select('id, name').eq('org_id', orgId.value).order('name'),
+    groupsApi.list(orgId.value!),
   ])
   activities.value = acts.map(a => ({ id: a.id, name: a.name }))
   const modeLists = await Promise.all(acts.map(a => api.activityModes(a.id)))
   modes.value = acts.flatMap((a, i) => modeLists[i].map(m => ({
     id: m.id, name: m.name, activity_id: m.activityId, activity_name: a.name,
   })))
-  memberGroups.value = grpRes.data ?? []
+  memberGroups.value = grps.map(g => ({ id: g.id, name: g.name }))
   discounts.value = discRows.map((d): Discount => ({
     id: d.id,
     org_id: d.orgId,

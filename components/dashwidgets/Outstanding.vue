@@ -9,6 +9,9 @@ const owing = ref(0)
 async function load() {
   if (!orgId.value) return
   loading.value = true
+  // SEAM GAP (finances/events domain): no org-wide registrations-outstanding read exists.
+  // Needs a route summing (total_amount − paid_amount) across an org's registrations
+  // (registrations join events for org scope). Left on useDb until the seam provides it.
   const { data } = await (db.from as any)('registrations')
     .select('total_amount, paid_amount, event:events!inner(org_id)')
     .eq('event.org_id', orgId.value).limit(2000)

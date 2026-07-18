@@ -129,7 +129,8 @@ import type { OrgTerm } from '~/composables/useTermsMemberships'
 import type { GroupFeeOption } from '~/composables/useGroupFees'
 
 const { orgId } = useOrg()
-const db = useDb()
+const groupsApi = useGroupsApi()
+const financesApi = useFinancesApi()
 const tm = useTermsMemberships()
 const gf = useGroupFees()
 const route = useRoute()
@@ -170,27 +171,39 @@ const withFees = computed(() => rows.value.filter(r => r.options.length).length)
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [{ data: gr }, termList, { data: opts }, { data: org }] = await Promise.all([
-    (db.from as any)('member_groups').select('id, name, term_id, color, location_id, kind').eq('org_id', orgId.value).order('name'),
+  const [gr, termList, opts, currency] = await Promise.all([
+    groupsApi.list(orgId.value),
     tm.loadTerms(),
-    (db.from as any)('group_fee_options').select('*').eq('org_id', orgId.value)
-      .order('sort_order', { ascending: true, nullsFirst: false }).order('created_at'),
-    (db.from as any)('organisations').select('currency').eq('id', orgId.value).maybeSingle(),
+    groupsApi.feeOptionsByOrg(orgId.value),
+    financesApi.orgCurrency(orgId.value).catch(() => null),
   ])
-  groups.value = (gr || []) as GroupRow[]
+  // Seam returns camelCase; this page reads snake fields.
+  groups.value = (gr || []).map((g: any) => ({
+    id: g.id, name: g.name, term_id: g.termId ?? null, color: g.color ?? null,
+    location_id: g.locationId ?? null, kind: g.kind ?? null,
+  })).sort((a: any, b: any) => a.name.localeCompare(b.name)) as GroupRow[]
   terms.value = (termList || []) as OrgTerm[]
-  orgCurrency.value = org?.currency || 'NZD'
+  orgCurrency.value = currency || 'NZD'
 
-  const optList = (opts || []) as GroupFeeOption[]
-  const byOpt: Record<string, any[]> = {}
-  if (optList.length) {
-    const { data: items } = await (db.from as any)('group_fee_option_items')
-      .select('*').in('option_id', optList.map(o => o.id))
-      .order('sort_order', { ascending: true, nullsFirst: false })
-    for (const it of (items || [])) (byOpt[it.option_id] ??= []).push(it)
-  }
+  // The seam already nests each option's line items; map the camelCase contract
+  // to this page's snake GroupFeeOption shape (imported from useGroupFees).
   const byGroup: Record<string, GroupFeeOption[]> = {}
-  for (const o of optList) (byGroup[o.group_id!] ??= []).push({ ...o, items: byOpt[o.id] || [] })
+  for (const o of (opts || [])) {
+    const snake: GroupFeeOption = {
+      id: o.id, org_id: o.orgId, group_id: o.groupId, name: o.name,
+      fee_type: o.feeType, period_unit: o.periodUnit ?? null, period_count: o.periodCount ?? 1,
+      auto_renew: !!o.autoRenew, instalment_count: o.instalmentCount ?? null,
+      session_count: o.sessionCount ?? null, prorata: !!o.prorata,
+      due_date: o.dueDate ?? null,
+      deposit_percent: o.depositPercent != null ? Number(o.depositPercent) : null,
+      description: o.description ?? null, sort_order: o.sortOrder ?? 0, status: o.status ?? 'active',
+      items: (o.items || []).map((it: any) => ({
+        id: it.id, option_id: it.optionId, name: it.name,
+        amount: Number(it.amount) || 0, account: it.account ?? null, sort_order: it.sortOrder ?? 0,
+      })),
+    }
+    ;(byGroup[snake.group_id!] ??= []).push(snake)
+  }
   optionsByGroup.value = byGroup
 
   // default term filter: ?term= wins, else the active term, else All

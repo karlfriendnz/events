@@ -364,6 +364,35 @@ export const activityBookableSchema = z.object({
 })
 export type ActivityBookable = z.infer<typeof activityBookableSchema>
 
+// Fungible equipment bundled with a booking (footballs, cones, nets…). One row per
+// item type + quantity. booking_items has no time of its own — the reservation window
+// comes from the parent bookings row, so the capacity check joins bookings.
+export const bookingItemSchema = z.object({
+  id: z.string(),
+  bookingId: z.string(),
+  bookableId: z.string(),
+  quantity: z.number().int(),
+  sortOrder: z.number().int(),
+})
+export type BookingItem = z.infer<typeof bookingItemSchema>
+export const bookingItemListSchema = z.array(bookingItemSchema)
+
+// WRITE input for a bundled item (the wizard inserts N at once after the booking row
+// exists). id is server-owned; sortOrder defaults to insert order.
+export const bookingItemInputSchema = bookingItemSchema.omit({ id: true, sortOrder: true }).partial().extend({
+  bookingId: z.string(),
+  bookableId: z.string(),
+  quantity: z.number().int(),
+  sortOrder: z.number().int().optional(),
+})
+export type BookingItemInput = z.infer<typeof bookingItemInputSchema>
+
+// Item usage the equipment-availability pre-flight needs: for a set of item bookables,
+// the total quantity already reserved by non-cancelled bookings overlapping a window.
+// Keyed by bookable id (unlisted = 0 used). The overlap is resolved server-side.
+export const bookingItemUsageSchema = z.record(z.string(), z.number())
+export type BookingItemUsage = z.infer<typeof bookingItemUsageSchema>
+
 // A booking of a bookable. NB there is no org_id column on bookings — the repository
 // derives orgId by joining the bookable, so the domain object stays org-scoped like
 // everything else. Timestamps (startAt/endAt) cross the wire as ISO 8601. contactName

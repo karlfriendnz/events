@@ -312,8 +312,22 @@ import { COMMS_CATEGORIES } from '~/composables/usePeopleLinks'
 const route = useRoute()
 const router = useRouter()
 const { orgId } = useOrg()
+// useDb retained for the reads without a seam yet — profile_forms layout,
+// registrations + transactions, and per-event communications (all SEAM GAPs, marked
+// at their call sites). Every other read/write below is on the seam.
 const db = useDb()
 const toast = useToast()
+
+// Map a seam PersonNote (camelCase) to the snake shape <ProfileDashboard> + the Notes
+// feed read.
+function toNoteRow(n: any) {
+  return {
+    id: n.id, org_id: n.orgId, person_id: n.personId, body: n.body, tags: n.tags,
+    channel: n.channel, author_id: n.authorId, author_name: n.authorName, links: n.links,
+    visibility: n.visibility, visible_to: n.visibleTo, is_important: n.isImportant,
+    due_date: n.dueDate, created_at: n.createdAt,
+  }
+}
 
 // Location lens guard (same rule as the /people list): a person with location
 // connections (class memberships or staff assignments) that DON'T include the
@@ -321,14 +335,17 @@ const toast = useToast()
 const { activeLocationId: lensId, activeLocation: lensLoc } = useActiveLocation()
 const personLensLocations = ref<string[] | null>(null)
 async function loadPersonLocations() {
-  const pid = route.params.id
-  const [{ data: ms }, { data: ls }] = await Promise.all([
-    (db.from as any)('member_group_memberships').select('group:member_groups!inner(location_id)').eq('person_id', pid),
-    (db.from as any)('location_staff').select('location_id').eq('person_id', pid),
+  const pid = String(route.params.id)
+  if (!orgId.value) { personLensLocations.value = []; return }
+  // Seam reads: this person's memberships (each carrying its group's location) + the
+  // org's location-staff rows filtered to this person (no by-person staff read yet).
+  const [ms, ls] = await Promise.all([
+    useGroupsApi().membershipsForPerson(orgId.value as string, pid),
+    useAffiliationsApi().locationStaffByOrg(orgId.value as string),
   ])
   const locs = new Set<string>()
-  for (const m of (ms ?? [])) if (m.group?.location_id) locs.add(m.group.location_id)
-  for (const l of (ls ?? [])) locs.add(l.location_id)
+  for (const m of ms) if (m.locationId) locs.add(m.locationId)
+  for (const l of ls) if (l.personId === pid && l.locationId) locs.add(l.locationId)
   personLensLocations.value = [...locs]
 }
 void loadPersonLocations()
@@ -633,12 +650,12 @@ async function load() {
   // The seam returns a camelCase domain object; the template + hydration below read
   // snake_case, so map it back (mapper approach). `.catch(()=>null)` preserves the
   // old `.single()`-tolerates-missing behaviour (a missing person → p=null).
-  const [pDomain, groupsDomain, { data: memberships }, fields, { data: invites }] = await Promise.all([
+  const [pDomain, groupsDomain, memberships, fields, invites] = await Promise.all([
     usePeopleApi().get(String(route.params.id)).catch(() => null),
     useGroupsApi().list(orgId.value as string),
-    (db.from as any)('member_group_memberships').select('group_id, roles, role').eq('person_id', route.params.id),
+    useGroupsApi().membershipsForPerson(orgId.value as string, String(route.params.id)),
     resolveFields(orgId.value as string),
-    (db.from as any)('invitees').select('event_id, status, attended, events(title, start_at, status)').eq('person_id', route.params.id),
+    useEventsApi().inviteesForPerson(String(route.params.id)),
   ])
   const p = pDomain ? {
     id: pDomain.id, org_id: pDomain.orgId,
@@ -666,8 +683,8 @@ async function load() {
   const [clubTypes, links] = await Promise.all([loadOrgTypes(orgId.value as string), loadTypeLinks(orgId.value as string)])
   const chain = chainForPersonTypes(ptypes, clubTypes ?? [], links ?? [])
   customFields.value = (fields ?? []).filter((f: any) => chain.some(t => fieldAppliesTo(f, t)))
-  activity.value = (invites ?? [])
-    .map((i: any) => ({ event_id: i.event_id, status: i.status, attended: i.attended, title: i.events?.title ?? 'Event', start_at: i.events?.start_at }))
+  activity.value = invites
+    .map((i: any) => ({ event_id: i.eventId, status: i.status, attended: i.attended, title: i.eventTitle ?? 'Event', start_at: i.eventStartAt }))
     .sort((a: any, b: any) => (b.start_at || '').localeCompare(a.start_at || ''))
 
   if (p) {
@@ -682,8 +699,8 @@ async function load() {
     form.person_types = (p.person_types?.length ? p.person_types : (p.person_type ? [p.person_type] : [])) as string[]
     form.person_type = form.person_types[0] ?? null
     form.comms_topics = Array.isArray(p.comms_topics) ? p.comms_topics : []
-    form.group_ids = (memberships ?? []).map((m: any) => m.group_id)
-    form.group_roles = Object.fromEntries((memberships ?? []).map((m: any) => [m.group_id, scopedRoles.normalizeRoles('group', m.roles, m.role)]))
+    form.group_ids = memberships.map((m: any) => m.groupId)
+    form.group_roles = Object.fromEntries(memberships.map((m: any) => [m.groupId, scopedRoles.normalizeRoles('group', m.roles, m.role)]))
     initialGroupIds.value = [...form.group_ids]
     // hydrate custom field values (dates → Date objects)
     const raw = p.custom_fields ?? {}
@@ -699,26 +716,31 @@ async function load() {
 
   // ── Designed profile layout for this person's PRIMARY type (falls back to default list) ──
   const typeKey = (ptypes[0] || 'member')
+  // SEAM GAP (settings/forms domain): no read for a person type's designed form LAYOUT
+  // (profile_forms by org + type_key). Left on useDb until a seam exposes it.
   ;(db.from as any)('profile_forms').select('config').eq('org_id', orgId.value).eq('type_key', typeKey).maybeSingle()
     .then(({ data }: any) => { profileLayout.value = Array.isArray(data?.config?.fields) ? data.config.fields : null })
 
   // ── Dashboard bundle ──
-  const [orgMeta, { data: typeRow }, { data: regs }, { data: notesData }] = await Promise.all([
+  const [orgMeta, types, notesDomain, { data: regs }] = await Promise.all([
     useOrganisationsApi().getDashboardMeta(orgId.value as string).catch(() => null),
-    typeKey
-      ? (db.from as any)('person_target_types').select('profile_dashboard').eq('org_id', orgId.value).eq('key', typeKey).maybeSingle()
-      : Promise.resolve({ data: null }),
+    usePersonTypesApi().listTypes(orgId.value as string).catch(() => []),
+    useCirclesApi().notes(String(route.params.id)),
+    // SEAM GAP (finances/events domain): no registrations-by-person read (transactions
+    // read below is tied to it). Left on useDb.
     (db.from as any)('registrations').select('id, total_amount, paid_amount, status').eq('person_id', route.params.id),
-    (db.from as any)('person_notes').select('*').eq('person_id', route.params.id).order('created_at', { ascending: false }),
   ])
   // The person's TYPE layout (mig 245) wins over the club default.
-  dashConfig.value = typeRow?.profile_dashboard ?? orgMeta?.profileDashboard ?? null
-  notes.value = notesData ?? []
+  const typeRow = types.find((t: any) => t.key === typeKey)
+  dashConfig.value = typeRow?.profileDashboard ?? orgMeta?.profileDashboard ?? null
+  notes.value = notesDomain.map(toNoteRow)
 
   const regList = regs ?? []
   const regIds = regList.map((r: any) => r.id)
   let txns: any[] = []
   if (regIds.length) {
+    // SEAM GAP (finances domain): no transactions-by-registration read; tied to the
+    // registrations gap above. Left on useDb.
     const { data } = await (db.from as any)('transactions').select('registration_id, xero_invoice_id').in('registration_id', regIds)
     txns = data ?? []
   }
@@ -731,8 +753,11 @@ async function load() {
   }))
   outstandingBalance.value = regList.reduce((s: number, r: any) => s + Math.max(0, Number(r.total_amount || 0) - Number(r.paid_amount || 0)), 0)
 
-  const eventIds = (invites ?? []).map((i: any) => i.event_id).filter(Boolean)
+  const eventIds = invites.map((i: any) => i.eventId).filter(Boolean)
   if (eventIds.length) {
+    // SEAM GAP (communications domain): the Communication contract has no eventId/sentAt,
+    // and there's no by-event read — so per-event profile comms can't come off the seam
+    // yet. Left on useDb.
     const { data: comms } = await (db.from as any)('communications')
       .select('subject, status, sent_at, created_at, event_id').in('event_id', eventIds)
       .order('created_at', { ascending: false }).limit(12)
@@ -746,8 +771,8 @@ async function load() {
 }
 
 async function reloadNotes() {
-  const { data } = await (db.from as any)('person_notes').select('*').eq('person_id', route.params.id).order('created_at', { ascending: false })
-  notes.value = data ?? []
+  const data = await useCirclesApi().notes(String(route.params.id))
+  notes.value = data.map(toNoteRow)
 }
 async function createNote({ body, links, visibleTo, important, dueDate }: { body: string; links: any[]; visibleTo?: any[]; important?: boolean; dueDate?: string | null }) {
   try {
@@ -844,18 +869,14 @@ async function syncGroups() {
   const after = new Set(form.group_ids)
   const toAdd = form.group_ids.filter(id => !before.has(id))
   const toRemove = initialGroupIds.value.filter(id => !after.has(id))
-  if (toRemove.length) {
-    await (db.from as any)('member_group_memberships')
-      .delete().eq('person_id', route.params.id).in('group_id', toRemove)
-  }
-  // Upsert all current memberships so both new rows and edited roles persist.
-  // roles[] is the source of truth; role = roles[0] keeps the legacy anchor.
-  if (form.group_ids.length) {
-    await (db.from as any)('member_group_memberships')
-      .upsert(form.group_ids.map(group_id => {
-        const roles = form.group_roles[group_id] || []
-        return { group_id, person_id: route.params.id, roles, role: roles[0] || null }
-      }), { onConflict: 'group_id,person_id' })
+  const pid = String(route.params.id)
+  const groupsApi = useGroupsApi()
+  // Seam writes: remove dropped memberships, upsert current ones (roles[] is the source
+  // of truth; role = roles[0] keeps the legacy anchor). Per-row calls (few groups).
+  for (const groupId of toRemove) await groupsApi.removeMembership(groupId, pid)
+  for (const groupId of form.group_ids) {
+    const roles = form.group_roles[groupId] || []
+    await groupsApi.upsertMembership({ groupId, personId: pid, roles, role: roles[0] || null })
   }
 }
 

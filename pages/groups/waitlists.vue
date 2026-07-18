@@ -8,7 +8,7 @@
   groups + the people waiting.
 -->
 <script setup lang="ts">
-const db = useDb()
+const peopleApi = usePeopleApi()
 const { orgId } = useOrg()
 const toast = useToast()
 const wl = useWaitlists()
@@ -207,12 +207,11 @@ const personResults = ref<any[]>([])
 async function searchPersons(e: { query: string }) {
   const q = (e.query || '').trim()
   if (!q) { personResults.value = []; return }
-  // SEAM GAP (people domain): no person-search seam method yet — kept on useDb.
-  const { data } = await (db.from as any)('persons')
-    .select('id, first_name, last_name, email')
-    .eq('org_id', orgId.value)
-    .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`).limit(20)
-  personResults.value = (data ?? []).map((p: any) => ({ ...p, label: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || p.email }))
+  const people = await peopleApi.list(orgId.value, { q, limit: 20 }).catch(() => [] as any[])
+  personResults.value = (people ?? []).map((p: any) => ({
+    id: p.id,
+    label: `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || p.email,
+  }))
 }
 async function pickPerson(e: { value: any }) {
   const p = e.value

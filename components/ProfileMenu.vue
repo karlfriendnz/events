@@ -7,10 +7,14 @@
   the top bar, so here they just see their active org.
 -->
 <script setup lang="ts">
+// useDb retained for ONE read only — the non-super org_members-by-user membership
+// list (see the SEAM GAP note in loadMemberships).
 const db = useDb()
 const supa = useSupabaseClient()
 const user = useSupabaseUser()
 const { orgId } = useOrg()
+const peopleApi = usePeopleApi()
+const orgsApi = useOrganisationsApi()
 
 const open = ref(false)
 const isSuper = computed(() => ((user.value as any)?.app_metadata?.role) === 'super_admin')
@@ -34,10 +38,14 @@ async function loadMemberships() {
   if (!user.value?.id) { memberships.value = []; return }
   if (isSuper.value) {
     if (orgId.value) {
-      const { data } = await (db.from as any)('organisations').select('id, name, logo_url').eq('id', orgId.value).maybeSingle()
-      memberships.value = data ? [{ org_id: data.id, name: data.name, logo_url: data.logo_url }] : []
+      // Seam read: active-org name + logo (dashboard-meta carries both).
+      const meta = await orgsApi.getDashboardMeta(orgId.value).catch(() => null)
+      memberships.value = meta ? [{ org_id: orgId.value, name: meta.name, logo_url: meta.logoUrl ?? null }] : []
     } else memberships.value = []
   } else {
+    // SEAM GAP (organisations/auth domain): no read for "the orgs a user belongs to"
+    // (org_members joined to organisations). Left on useDb until a memberships-by-user
+    // route exists.
     const { data } = await (db.from as any)('org_members')
       .select('org_id, organisations(id, name, logo_url)').eq('user_id', user.value.id)
     memberships.value = (data ?? [])
@@ -48,8 +56,7 @@ async function loadMemberships() {
   const email = user.value?.email
   myPersonId.value = null
   if (email && orgId.value) {
-    const { data: p } = await (db.from as any)('persons')
-      .select('id').eq('org_id', orgId.value).ilike('email', email).limit(1).maybeSingle()
+    const p = await peopleApi.findByEmail(orgId.value, email)
     myPersonId.value = p?.id ?? null
   }
 }

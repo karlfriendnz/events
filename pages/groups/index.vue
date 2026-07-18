@@ -93,7 +93,7 @@
 import { useToast } from 'primevue/usetoast'
 import type { GroupCode } from '~/composables/useGroupCodes'
 
-const db = useDb()
+const groupsApi = useGroupsApi()
 const { orgId } = useOrg()
 const toast = useToast()
 const gc = useGroupCodes()
@@ -148,16 +148,16 @@ async function handleCreateGroup() {
   if (!newGroup.name.trim()) return
   creating.value = true
   const siblings = codes.value.length // rough; sort_order just needs to be monotone-ish
-  const { error } = await (db.from as any)('member_groups').insert({
-    org_id: orgId.value, name: newGroup.name.trim(), color: newGroup.color,
-    code_id: newGroup.code_id, parent_id: null, sort_order: siblings,
-  })
-  if (!error) {
+  try {
+    await groupsApi.create({
+      orgId: orgId.value, name: newGroup.name.trim(), color: newGroup.color,
+      codeId: newGroup.code_id, sortOrder: siblings,
+    })
     toast.add({ severity: 'success', summary: `${t('group')} created`, life: 2500 })
     createGroupOpen.value = false
     await refresh()
-  } else {
-    toast.add({ severity: 'error', summary: `Could not create ${t('group', false, true)}`, detail: error.message, life: 4000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: `Could not create ${t('group', false, true)}`, detail: e?.data?.message || e?.message, life: 4000 })
   }
   creating.value = false
 }

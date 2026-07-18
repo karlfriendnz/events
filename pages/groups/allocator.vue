@@ -140,7 +140,7 @@
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
 
-const db = useDb()
+const groupsApi = useGroupsApi()
 const { orgId } = useOrg()
 const toast = useToast()
 const tm = useTermsMemberships()
@@ -372,18 +372,22 @@ async function loadPeople() {
 
 async function load() {
   if (!orgId.value) return
-  const [termList, codeList, { data: gRows }] = await Promise.all([
+  const [termList, codeList, gRows] = await Promise.all([
     tm.loadTerms(),
     codes.loadCodes(),
-    (db.from as any)('member_groups')
-      .select('id, name, color, code_id, capacity, term_id, sort_order, location_id, kind')
-      .eq('org_id', orgId.value)
-      .order('sort_order', { ascending: true, nullsFirst: false })
-      .order('name'),
+    groupsApi.list(orgId.value),
   ])
   terms.value = termList ?? []
   codeRows.value = codeList ?? []
-  groupRows.value = (gRows ?? []) as AllocGroup[]
+  // Seam returns camelCase; this page reads snake fields. Map + sort locally.
+  groupRows.value = (gRows ?? [])
+    .map((g: any) => ({
+      id: g.id, name: g.name, color: g.color ?? null,
+      code_id: g.codeId ?? null, capacity: g.capacity ?? null,
+      term_id: g.termId ?? null, sort_order: g.sortOrder ?? null,
+      location_id: g.locationId ?? null, kind: g.kind ?? null,
+    }))
+    .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)) as AllocGroup[]
   // Default to the active term (spanning today) if it has groups, else all.
   const today = new Date().toISOString().slice(0, 10)
   const active = terms.value.find(tr => (tr.start_date ?? '') <= today && (tr.end_date ?? '') >= today)

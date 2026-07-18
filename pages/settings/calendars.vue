@@ -180,15 +180,21 @@ const { orgId } = useOrg()
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 
-// SEAM GAPs on this page:
+// SEAM GAP on this page:
 //  • loadCategories needs a per-category EVENT COUNT (`_eventCount`) which the seam's
 //    EventCategory read does not carry — kept on useDb until events adds category
 //    counts. Category WRITES (create/update/remove) DO go through useEventsApi.
-//  • the whole Calendars section (calendars + calendar_categories: read join + create/
-//    update/delete + category links) is the reported calendar-WRITES cross-domain gap
-//    (waitlists owns `calendars` read-only). Left entirely on useDb.
+// The Calendars section (calendars + calendar_categories: read join + create/update/
+// delete + category links) now goes through useWaitlistsApi (calendar WRITES seam).
 const db = useDb()
 const { createCategory, updateCategory, removeCategory } = useEventsApi()
+const {
+  calendars: apiCalendars,
+  createCalendar,
+  updateCalendar,
+  removeCalendar,
+  setCalendarCategories,
+} = useWaitlistsApi()
 const toast = useToast()
 const confirm = useConfirm()
 
@@ -282,14 +288,8 @@ const calForm = reactive({ name: '', categoryIds: [] as string[] })
 
 async function loadCalendars() {
   calsLoading.value = true
-  const { data } = await (db.from as any)('calendars')
-    .select('id, name, sort_order, calendar_categories(category_id)')
-    .eq('org_id', orgId.value)
-    .order('sort_order')
-  calendars.value = (data ?? []).map((c: any) => ({
-    ...c,
-    categoryIds: c.calendar_categories?.map((cc: any) => cc.category_id) ?? [],
-  }))
+  // The seam returns each calendar already hydrated with its linked category ids.
+  calendars.value = await apiCalendars(orgId.value)
   calsLoading.value = false
 }
 
@@ -311,25 +311,11 @@ async function saveCal() {
   calSaving.value = true
   try {
     if (editingCal.value) {
-      const { error } = await (db.from as any)('calendars').update({ name: calForm.name.trim() }).eq('id', editingCal.value.id)
-      if (error) throw error
-      await (db.from as any)('calendar_categories').delete().eq('calendar_id', editingCal.value.id)
-      if (calForm.categoryIds.length) {
-        await (db.from as any)('calendar_categories').insert(
-          calForm.categoryIds.map((cid: string) => ({ calendar_id: editingCal.value.id, category_id: cid }))
-        )
-      }
+      await updateCalendar(editingCal.value.id, { name: calForm.name.trim() })
+      await setCalendarCategories(orgId.value, editingCal.value.id, calForm.categoryIds)
       toast.add({ severity: 'success', summary: 'Calendar updated', life: 3000 })
     } else {
-      const { data, error } = await (db.from as any)('calendars')
-        .insert({ org_id: orgId.value, name: calForm.name.trim() })
-        .select('id').single()
-      if (error) throw error
-      if (data && calForm.categoryIds.length) {
-        await (db.from as any)('calendar_categories').insert(
-          calForm.categoryIds.map((cid: string) => ({ calendar_id: data.id, category_id: cid }))
-        )
-      }
+      await createCalendar({ orgId: orgId.value, name: calForm.name.trim(), categoryIds: calForm.categoryIds })
       toast.add({ severity: 'success', summary: 'Calendar created', life: 3000 })
     }
     showCalDialog.value = false
@@ -347,7 +333,7 @@ function deleteCalendar(cal: any) {
     icon: 'pi pi-exclamation-triangle',
     acceptClass: 'p-button-danger',
     accept: async () => {
-      await (db.from as any)('calendars').delete().eq('id', cal.id).eq('org_id', orgId.value)
+      await removeCalendar(orgId.value, cal.id)
       toast.add({ severity: 'success', summary: 'Calendar deleted', life: 3000 })
       await loadCalendars()
     },

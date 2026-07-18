@@ -36,6 +36,10 @@ import type {
   RegistrationCreate,
   RegistrationPatch,
   ConnectionGroup,
+  GenerateTrainingInput,
+  GenerateTrainingResult,
+  EventCommunication,
+  EventCommunicationCreate,
 } from '../shared/contracts/event'
 
 export function useEventsApi() {
@@ -298,6 +302,28 @@ export function useEventsApi() {
     await $fetch(`/api/v1/connection-groups/${id}`, { method: 'DELETE' })
   }
 
+  // ── Training-event generation (attendance seam write) ──
+  /**
+   * Materialise a set of groups' weekly training schedules into recurrence master +
+   * child events, pre-inviting each group's members. The recurrence + writes run
+   * server-side; pass a compact input (orgId, groupIds, YYYY-MM-DD window, and the
+   * client's staff-filtered membersByGroup). Idempotent — a schedule already linked to
+   * an event is skipped. Returns { events, classes } for the toast.
+   */
+  async function generateTrainingEvents(input: GenerateTrainingInput): Promise<GenerateTrainingResult> {
+    return await $fetch<GenerateTrainingResult>('/api/v1/events/generate-training', { method: 'POST', body: input })
+  }
+
+  // ── Event communications (the SEND log) ──
+  /** Every message sent for an event, newest first. */
+  async function communications(eventId: string): Promise<EventCommunication[]> {
+    return await $fetch<EventCommunication[]>(`/api/v1/events/${eventId}/communications`)
+  }
+  /** Record a sent message against an event (the honest send row). */
+  async function sendCommunication(eventId: string, body: EventCommunicationCreate): Promise<EventCommunication> {
+    return await $fetch<EventCommunication>(`/api/v1/events/${eventId}/communications`, { method: 'POST', body })
+  }
+
   // ── Event disciplines (link table for <DisciplineLinker>) ──
   async function eventDisciplineIds(eventId: string): Promise<string[]> {
     return await $fetch<string[]>(`/api/v1/events/${eventId}/disciplines`)
@@ -322,6 +348,7 @@ export function useEventsApi() {
     tickets, createTicket, updateTicket, removeTicket,
     connectionGroups, createConnectionGroup, connectionGroupEventIds,
     setConnectionGroupEvents, removeConnectionGroup,
+    generateTrainingEvents, communications, sendCommunication,
     eventDisciplineIds, setEventDisciplines,
   }
 }

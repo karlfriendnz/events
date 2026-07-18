@@ -21,7 +21,9 @@ const props = withDefaults(defineProps<{
   allowNewTab: false,
 })
 
-const db = useDb()
+const groupsApi = useGroupsApi()
+const eventsApi = useEventsApi()
+const affiliationsApi = useAffiliationsApi()
 const { orgId } = useOrg()
 const toast = useToast()
 const gc = useGroupCodes()
@@ -176,7 +178,7 @@ async function onTabDrop(tabKey: string) {
   const siblings = groups.value.filter(x => x.code_id === tabKey && x.id !== g.id).sort(bySavedOrder)
   g.code_id = tabKey
   ;(g as any).sortOrder = siblings.length
-  await (db.from as any)('member_groups').update({ code_id: tabKey, sort_order: siblings.length }).eq('id', g.id)
+  await groupsApi.update(g.id, { codeId: tabKey, sortOrder: siblings.length })
   groups.value = [...groups.value]
 }
 function onSectionHeaderDragOver(sec: Section) {
@@ -186,12 +188,12 @@ function onSectionHeaderDragOver(sec: Section) {
 }
 function resetDrag() { dragGroup.value = null; dropMark.value = null; dropSection.value = null; dropTab.value = null }
 async function persistSectionOrder(list: ClassGroup[], codeId: string | null, moved: ClassGroup) {
-  const updates: any[] = []
+  const updates: Promise<any>[] = []
   list.forEach((row, idx) => {
     const patch: Record<string, any> = {}
-    if ((row as any).sortOrder !== idx) { (row as any).sortOrder = idx; patch.sort_order = idx }
-    if (row.id === moved.id && (row.code_id ?? null) !== codeId) { row.code_id = codeId; patch.code_id = codeId }
-    if (Object.keys(patch).length) updates.push((db.from as any)('member_groups').update(patch).eq('id', row.id))
+    if ((row as any).sortOrder !== idx) { (row as any).sortOrder = idx; patch.sortOrder = idx }
+    if (row.id === moved.id && (row.code_id ?? null) !== codeId) { row.code_id = codeId; patch.codeId = codeId }
+    if (Object.keys(patch).length) updates.push(groupsApi.update(row.id, patch))
   })
   await Promise.all(updates)
   groups.value = [...groups.value]
@@ -221,61 +223,70 @@ async function load() {
   if (!orgId.value) return
   loading.value = true
   await scoped.loadRoleDefs()
-  const [loadedCodes, loadedTerms, loadedSets, { data: gs }, { data: mems }, { data: orgSports }, { data: feeOpts }, { data: evs }, wlCounts] = await Promise.all([
+  // First the group list (seam) — its ids drive the roster read below.
+  const gs = await groupsApi.list(orgId.value)
+  const groupIds = (gs ?? []).map((g: any) => g.id)
+  const [loadedCodes, loadedTerms, loadedSets, mems, orgSports, feeOpts, evs, wlCounts] = await Promise.all([
     gc.loadCodes(),
     tm.loadTerms(),
     tm.loadTermSets(),
-    (db.from as any)('member_groups').select('id, name, code_id, term_id, capacity, color, gender_restriction, age_range, waitlist_id, form_id, location_id, kind, sort_order').eq('org_id', orgId.value),
-    (db.from as any)('member_group_memberships').select('group_id, role, roles, person:persons!inner(first_name, last_name)'),
-    (db.from as any)('org_sports').select('id, sport, display_name').eq('org_id', orgId.value),
-    (db.from as any)('group_fee_options').select('id, group_id, name, fee_type, period_unit, period_count, instalment_count, session_count, prorata, items:group_fee_option_items(amount)').eq('org_id', orgId.value),
-    (db.from as any)('events').select('member_group_id').eq('org_id', orgId.value).not('member_group_id', 'is', null),
+    groupsApi.roster(groupIds),
+    affiliationsApi.orgSports(orgId.value),
+    groupsApi.feeOptionsByOrg(orgId.value),
+    eventsApi.list(orgId.value),
     wl.entryCounts(),
   ])
   codes.value = loadedCodes
   terms.value = (loadedTerms ?? []).map((t: any) => ({ id: t.id, name: t.name, start_date: t.start_date ?? null, end_date: t.end_date ?? null, set_id: t.set_id ?? null }))
   termSets.value = loadedSets ?? []
+  // Seam roster is camelCase + flat person fields; bucket by group.
   const memByGroup: Record<string, any[]> = {}
-  for (const m of mems ?? []) (memByGroup[m.group_id] ??= []).push(m)
+  for (const m of mems ?? []) (memByGroup[m.groupId] ??= []).push(m)
   // Sport: the class's programme chain (group_codes.sport_id → org_sports, mig 238),
   // shown under the club's own label for it. This is the same fact the access
   // grants gate on below — a real FK, not the free text that used to be read off
   // whichever discipline the class happened to be linked to first.
   const codesById: Record<string, any> = Object.fromEntries(loadedCodes.map((c: any) => [c.id, c]))
   const sportLabelById: Record<string, string> = {}
-  for (const s of orgSports ?? []) sportLabelById[s.id] = (s.display_name || s.sport || '').trim()
+  for (const s of orgSports ?? []) sportLabelById[s.id] = (s.displayName || s.sport || '').trim()
   const sportOf = (g: any): string | null => {
     const sportId = gc.effectiveSportId({ code_id: g.code_id ?? null }, codesById)
     return sportId ? (sportLabelById[sportId] || null) : null
   }
   // Term fee: group's fee options → single = its price label, multiple = "varies", none = ✗.
+  // Seam options are camelCase; map to the snake shape priceLabel expects.
   const feesByGroup: Record<string, any[]> = {}
-  for (const o of feeOpts ?? []) (feesByGroup[o.group_id] ??= []).push(o)
+  for (const o of feeOpts ?? []) (feesByGroup[o.groupId] ??= []).push({
+    fee_type: o.feeType, period_unit: o.periodUnit ?? null, period_count: o.periodCount ?? 1,
+    instalment_count: o.instalmentCount ?? null, session_count: o.sessionCount ?? null,
+    prorata: !!o.prorata, items: (o.items ?? []).map((it: any) => ({ amount: Number(it.amount) || 0 })),
+  })
   // Attendances: number of training events linked to the group (member_group_id set).
   const attByGroup: Record<string, number> = {}
-  for (const e of evs ?? []) attByGroup[e.member_group_id] = (attByGroup[e.member_group_id] || 0) + 1
+  for (const e of evs ?? []) if (e.memberGroupId) attByGroup[e.memberGroupId] = (attByGroup[e.memberGroupId] || 0) + 1
 
+  // Seam group list is camelCase; this component reads snake fields internally.
   groups.value = (gs ?? []).map((g: any): ClassGroup => {
     const rows = memByGroup[g.id] ?? []
-    let head: any = null, gymnasts = 0
+    let head: { firstName: string | null; lastName: string | null } | null = null, gymnasts = 0
     for (const m of rows) {
       const roleKeys = scoped.normalizeRoles('group', m.roles, m.role)
-      if (scoped.isStaff('group', roleKeys)) { if (!head) head = m.person }
+      if (scoped.isStaff('group', roleKeys)) { if (!head) head = { firstName: m.firstName, lastName: m.lastName } }
       else gymnasts++
     }
     const opts = feesByGroup[g.id] ?? []
     return {
-      id: g.id, name: g.name, code_id: g.code_id ?? null, term_id: g.term_id ?? null, capacity: g.capacity ?? null, color: g.color ?? null,
-      headName: head ? `${head.first_name ?? ''} ${head.last_name ?? ''}`.trim() || null : null,
-      gymnasts, waitlist: g.waitlist_id ? (wlCounts[g.waitlist_id] ?? 0) : null, sport: sportOf(g),
-      gender: g.gender_restriction ?? null,
-      ageRange: g.age_range ?? null,
+      id: g.id, name: g.name, code_id: g.codeId ?? null, term_id: g.termId ?? null, capacity: g.capacity ?? null, color: g.color ?? null,
+      headName: head ? `${head.firstName ?? ''} ${head.lastName ?? ''}`.trim() || null : null,
+      gymnasts, waitlist: g.waitlistId ? (wlCounts[g.waitlistId] ?? 0) : null, sport: sportOf(g),
+      gender: g.genderRestriction ?? null,
+      ageRange: g.ageRange ?? null,
       feeCount: opts.length,
-      formId: g.form_id ?? null,
-      locationId: g.location_id ?? null,
+      formId: g.formId ?? null,
+      locationId: g.locationId ?? null,
       kind: g.kind ?? 'class',
-      sortOrder: g.sort_order ?? 0,
-      feeLabel: opts.length === 1 ? gf.priceLabel({ ...opts[0], items: opts[0].items ?? [] } as any) : null,
+      sortOrder: g.sortOrder ?? 0,
+      feeLabel: opts.length === 1 ? gf.priceLabel(opts[0] as any) : null,
       attendances: attByGroup[g.id] || 0,
     }
   })
