@@ -67,3 +67,20 @@ domain converts in wave 2; a handful are "done-domain" fills the main session do
 - **attendance seam** — reporting + events/groups attendance tabs (no attendance repo/routes).
 - **governingOrgs seam** (`org_sport_ancestors` → govIds) — DisciplineLinker + useOrgFieldPolicy.
 - **communications WRITES** — event comms tab, booking notifications inserts.
+
+## Settings-domain gaps (discovered converting settings/**)
+- **finances**: bank_accounts CRUD (index.vue payment defaults); xero_connections UPDATE/mapping route (xero.vue saveSetup — read exists).
+- **memberships**: membership_plan_options CRUD (terms.vue/memberships.vue — plan BASE rows via createPlan/updatePlan/removePlan work; the per-plan OPTIONS have no route).
+- **person-types**: PersonTypePatch lacks landingPath/menuItems/profileDashboard; PersonTypeCreate lacks landing/profileDashboard/min/max (fields.vue saveLanding/persistMenuItems, profile-dashboard.vue per-type write, duplicateType).
+- **admin**: dashboard_templates DELETE (fields.vue resetTypeDashboard); help_articles WRITES (create/update/delete + sort_order/updated_at — /admin/help).
+- **communications**: NO seam for email_templates or communication_topics (read+write); /api/v1/communications is a read-only log. communications.vue entirely on useDb.
+- **roles/perms**: org permission_groups CRUD + permission_group_members get-by-group + set (only READ routes + a flat person-id list exist). permissions.vue entirely on useDb.
+- **events**: EventCategory read carries no per-category event COUNT (calendars.vue loadCategories).
+
+## Product decisions (not seam fills)
+- **seedDemoEvents() + resetDatabase()** in settings/index.vue (~1250 lines, writes/deletes across ~30 tables in every domain) — build a dedicated dev seed+reset endpoint OR retire from the UI. Left on useDb.
+- **registration/index.vue flat-form editor** — model form_fields+status+tc_content or retire (superseded by the designer-shape flow).
+- **/api/v1 anonymous-capability** — public embed booker (/book, embed/calendar) needs it or stays on the RLS client.
+
+## Latent bug to check
+- pages/bookables/[id].vue reads `data.parent_id` off `api.bookable()` which returns camelCase (`parentId`) — likely a camel/snake mismatch left by the bookings conversion.
