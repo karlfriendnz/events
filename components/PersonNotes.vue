@@ -38,9 +38,6 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ (e: 'count-change', v: number): void }>()
 
-// useDb retained for ONE write only — saveEdit / note UPDATE (see the CROSS-DOMAIN GAP
-// note there). Every other read/write is on the seam.
-const db = useDb()
 const { orgId } = useOrg()
 const user = useSupabaseUser()
 const peopleApi = usePeopleApi()
@@ -195,19 +192,16 @@ function cancelEdit() { editingId.value = null }
 async function saveEdit(n: any) {
   const body = editBody.value.trim()
   if (!body) return
-  const patch = {
-    body,
-    visible_to: aud.buildVisibleTo(editAudiences.value, parents.value),
-    visibility: editAudiences.value[0] || 'staff',
-    is_important: editImportant.value,
-    due_date: aud.toISODate(editDue.value),
-  }
-  // CROSS-DOMAIN GAP (people): person_notes WRITES live in people.ts (createNote /
-  // deleteNote) — there is no updateNote seam yet, so note editing stays on useDb until
-  // the people domain exposes PATCH /person-notes/:id. Reads + add + delete are already
-  // on the seam above.
-  const { error } = await (db.from as any)('person_notes').update(patch).eq('id', n.id)
-  if (!error) { Object.assign(n, patch); editingId.value = null }
+  const visibleTo = aud.buildVisibleTo(editAudiences.value, parents.value)
+  const visibility = editAudiences.value[0] || 'staff'
+  const isImportant = editImportant.value
+  const dueDate = aud.toISODate(editDue.value)
+  try {
+    await peopleApi.updateNote(n.id, { body, visibleTo, visibility, isImportant, dueDate })
+    // Keep the local row's snake_case shape the template reads.
+    Object.assign(n, { body, visible_to: visibleTo, visibility, is_important: isImportant, due_date: dueDate })
+    editingId.value = null
+  } catch {}
 }
 
 function fmtDate(iso: string) {

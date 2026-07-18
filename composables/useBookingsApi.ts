@@ -147,6 +147,10 @@ export function useBookingsApi() {
   async function doors(orgId: string): Promise<Door[]> {
     return await $fetch<Door[]>('/api/v1/doors', { query: { orgId } })
   }
+  /** Per-door / per-zone connected-venue counts ({ doors:{id:n}, zones:{id:n} }). */
+  async function accessConnectionCounts(orgId: string): Promise<{ doors: Record<string, number>; zones: Record<string, number> }> {
+    return await $fetch('/api/v1/doors/connection-counts', { query: { orgId } })
+  }
   async function createDoor(input: DoorCreate): Promise<Door> {
     return await $fetch<Door>('/api/v1/doors', { method: 'POST', body: input })
   }
@@ -356,6 +360,18 @@ export function useBookingsApi() {
   async function removeBooking(id: string): Promise<void> {
     await $fetch(`/api/v1/bookings/${id}`, { method: 'DELETE' })
   }
+  /** Clear an event's EVENT_DRIVEN venue-calendar bookings (before re-materialising them). */
+  async function removeEventDrivenBookings(eventId: string): Promise<void> {
+    await $fetch('/api/v1/bookings/event-driven', { method: 'DELETE', query: { eventId } })
+  }
+  /** The EVENT_DRIVEN venue bookings an event has materialised (id + bookable + status). */
+  async function eventDrivenBookings(eventId: string): Promise<{ id: string; bookableId: string; status: string }[]> {
+    return await $fetch('/api/v1/bookings/event-driven', { query: { eventId } })
+  }
+  /** Re-time an event's active EVENT_DRIVEN venue bookings when the event's time moves. */
+  async function updateEventDrivenBookingTimes(eventId: string, times: { startAt: string; endAt: string; isAllDay: boolean }): Promise<void> {
+    await $fetch('/api/v1/bookings/event-driven', { method: 'PATCH', query: { eventId }, body: times })
+  }
 
   // ── Booking items (equipment bundled with a booking) ──
   /**
@@ -392,7 +408,7 @@ export function useBookingsApi() {
     replaceAvailabilityRules, createAvailabilityRule, updateAvailabilityRule, removeAvailabilityRule,
     configurations, saveConfiguration, deleteConfiguration,
     bookableDoors, setBookableDoors, bookableLightZones, setBookableLightZones,
-    doors, createDoor, updateDoor, removeDoor,
+    doors, accessConnectionCounts, createDoor, updateDoor, removeDoor,
     lightZones, createLightZone, updateLightZone, removeLightZone,
     activities, activity, createActivity, updateActivity, removeActivity,
     activityBookables, bookableActivities, setActivityBookables, addActivityBookables, activityGroups, setActivityGroups,
@@ -402,6 +418,7 @@ export function useBookingsApi() {
     bookingDiscounts, saveBookingDiscount, removeBookingDiscount,
     bookings, booking, bookingsDetailed, bookingsForBookables, bookingsForBookablesDetailed,
     createBooking, createBookings, setBookingStatus, updateBooking, removeBooking,
+    removeEventDrivenBookings, eventDrivenBookings, updateEventDrivenBookingTimes,
     bookingItemUsage, createBookingItems,
   }
 }

@@ -47,12 +47,6 @@ export const ONBOARDING_STEPS: OnboardingStepDef[] = [
 ]
 
 export function useOnboarding() {
-  // The onboarding STATE (organisations.onboarding jsonb) is on the seam. detect()
-  // still uses useDb: it COUNTS across seven other domains' tables (person_target_types,
-  // org_terms, group_codes, member_groups, group_fee_options, registration_forms,
-  // persons) — a cross-domain aggregate with no single owner, awaiting a counts
-  // endpoint. Guarded: a null org / failed read just shows the checklist un-ticked.
-  const db = useDb()
   const orgsApi = useOrganisationsApi()
   const { orgId } = useOrg()
 
@@ -69,32 +63,16 @@ export function useOnboarding() {
     await orgsApi.setOnboarding(org, state)
   }
 
-  /** DETECT which steps are complete from real data. Returns a { key: bool } map. */
+  /** DETECT which steps are complete from real data. Returns a { key: bool } map. The
+   *  cross-domain presence-count aggregate now runs server-side in one call (the seam's
+   *  onboardingCounts endpoint). Guarded: a null org / failed read shows the checklist
+   *  un-ticked. */
   async function detect(org = orgId.value): Promise<Record<string, boolean>> {
     if (!org) return {}
-    const head = (table: string, extra?: (q: any) => any) => {
-      let q = (db.from as any)(table).select('id', { count: 'exact', head: true }).eq('org_id', org)
-      return (extra ? extra(q) : q)
-    }
-    const [org1, types, terms, codes, classes, fees, forms, people] = await Promise.all([
-      (db.from as any)('organisations').select('name').eq('id', org).maybeSingle(),
-      head('person_target_types'),
-      head('org_terms'),
-      head('group_codes'),
-      head('member_groups', (q: any) => q.neq('kind', 'membership')),
-      head('group_fee_options'),
-      head('registration_forms'),
-      head('persons'),
-    ])
-    return {
-      club: !!(org1?.data?.name && org1.data.name.trim()),
-      types: (types.count ?? 0) > 0,
-      season: (terms.count ?? 0) > 0,
-      programmes: (codes.count ?? 0) > 0,
-      class: (classes.count ?? 0) > 0,
-      fees: (fees.count ?? 0) > 0,
-      form: (forms.count ?? 0) > 0,
-      team: (people.count ?? 0) > 1,
+    try {
+      return await orgsApi.onboardingCounts(org)
+    } catch {
+      return {}
     }
   }
 

@@ -68,3 +68,15 @@ export const commTopicPatchSchema = z.object({
   isActive: z.boolean().optional(),
 })
 export type CommTopicPatch = z.infer<typeof commTopicPatchSchema>
+
+// A staff `notifications` row (booking approved/declined, etc.). The write returns just
+// the id so the page can fire the email trigger; `payload` is passthrough json.
+export const notificationCreateSchema = z.object({
+  orgId: z.string().min(1),
+  type: z.string().min(1),
+  title: z.string().min(1),
+  body: z.string().nullable().optional(),
+  link: z.string().nullable().optional(),
+  payload: z.any().optional(),
+})
+export type NotificationCreate = z.infer<typeof notificationCreateSchema>

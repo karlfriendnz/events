@@ -2762,17 +2762,16 @@ void ensureTerms()
 import { useToast } from 'primevue/usetoast'
 
 // `db` is retained ONLY for cross-domain / SEAM-GAP tables (discounts, bookings,
-// communications, person_notes, member_group_memberships, bookables). Every
-// events-domain table (events, sessions, invitees, recurrence series, attendance,
-// event_notes, event_tasks, ticket_types, categories, fee_components, registrations)
-// goes through the typed seam below. Each remaining `db.from(...)` carries a
-// `// SEAM GAP:` comment explaining why it can't move yet.
-const db = useDb()
+// Every table this page touches (events, sessions, invitees, recurrence series,
+// attendance, event_notes, event_tasks, ticket_types, categories, fee_components,
+// registrations, plus cross-domain reads for bookings / person notes / group
+// memberships) goes through the typed seam below.
 const eventsApi = useEventsApi()
 const attendanceApi = useAttendanceApi()
 const peopleApi = usePeopleApi()
 const financesApi = useFinancesApi()
 const bookingsApi = useBookingsApi()
+const groupsApi = useGroupsApi()
 
 // camelCase ↔ snake_case bridge for the events seam. The seam returns camelCase
 // domain objects; this page reads snake_case (Supabase's shape). These SHALLOW key
@@ -3222,56 +3221,41 @@ async function syncVenueBookings() {
     .filter((l: any) => l.type === 'BOOKABLE')
     .flatMap((l: any) => l.bookable_ids ?? [])
 
-  // SEAM GAP: bookings domain — event-driven venue bookings need a
-  // bookable_id/event_id-filtered read + insert/update-by-event on useBookingsApi.
-  // The bookings seam has no event_id-scoped read or delete/replace-by-event route
-  // yet (reported wave-2 gap: "delete/replace event-driven bookings by event_id").
-  const { data: existing } = await db.from('bookings')
-    .select('id, bookable_id, status')
-    .eq('event_id', id)
-    .eq('type', 'EVENT_DRIVEN')
-
-  const existingActive = (existing ?? []).filter((b: any) => b.status !== 'CANCELLED')
-  const existingIds = existingActive.map((b: any) => b.bookable_id as string)
+  // Event-driven venue bookings go through the bookings seam (event-scoped read +
+  // create + cancel).
+  const existing = await bookingsApi.eventDrivenBookings(id)
+  const existingActive = (existing ?? []).filter((b) => b.status !== 'CANCELLED')
+  const existingIds = existingActive.map((b) => b.bookableId)
 
   const toAdd = bookableIds.filter(bid => !existingIds.includes(bid))
-  const toCancel = existingActive.filter((b: any) => !bookableIds.includes(b.bookable_id))
+  const toCancel = existingActive.filter((b) => !bookableIds.includes(b.bookableId))
 
   const startAt = event.value?.start_at ?? null
   const endAt = event.value?.end_at ?? null
 
   if (toAdd.length && startAt && endAt) {
-    await db.from('bookings').insert(
+    await bookingsApi.createBookings(
       toAdd.map(bid => ({
-        bookable_id: bid,
-        event_id: id,
+        bookableId: bid,
+        eventId: id,
         type: 'EVENT_DRIVEN',
         status: 'CONFIRMED',
-        start_at: startAt,
-        end_at: endAt,
+        startAt,
+        endAt,
         purpose: event.value?.title ?? null,
-        is_all_day: event.value?.is_all_day ?? false,
+        isAllDay: event.value?.is_all_day ?? false,
       }))
     )
   }
 
-  if (toCancel.length) {
-    await db.from('bookings')
-      .update({ status: 'CANCELLED' })
-      .in('id', toCancel.map((b: any) => b.id))
-  }
+  for (const b of toCancel) await bookingsApi.setBookingStatus(b.id, 'CANCELLED')
 }
 
 async function updateVenueBookingTimes() {
   const startAt = event.value?.start_at ?? null
   const endAt = event.value?.end_at ?? null
   if (!startAt || !endAt) return
-  // SEAM GAP: bookings domain — update EVENT_DRIVEN bookings by event_id (no route).
-  await db.from('bookings')
-    .update({ start_at: startAt, end_at: endAt, is_all_day: event.value?.is_all_day ?? false })
-    .eq('event_id', id)
-    .eq('type', 'EVENT_DRIVEN')
-    .neq('status', 'CANCELLED')
+  await bookingsApi.updateEventDrivenBookingTimes(id, { startAt, endAt, isAllDay: event.value?.is_all_day ?? false })
 }
 
 const breadcrumbs = useBreadcrumbs()
@@ -3299,12 +3283,11 @@ const attNoteCounts = ref<Record<string, number>>({})
 async function loadAttNoteCounts() {
   const personIds = invitees.value.map((inv: any) => inv.person_id).filter(Boolean)
   if (!personIds.length) { attNoteCounts.value = {}; return }
-  // SEAM GAP: person_notes — a person_notes read filtered by person-id set + links
-  // lives in the people/circles domain (reported gap D8: widen PersonNote + note READ
-  // off useDb). usePeopleApi has no notes-by-person-links read yet.
-  const { data } = await (db.from as any)('person_notes').select('person_id, links').in('person_id', personIds)
+  // Notes for the invited people (with their `links`) come through the circles seam;
+  // count the ones pinned to THIS event per person.
+  const data = await useCirclesApi().notesForPeople(personIds)
   const counts: Record<string, number> = {}
-  for (const n of (data ?? [])) if (Array.isArray(n.links) && n.links.some((l: any) => l.type === 'event' && l.id === id)) counts[n.person_id] = (counts[n.person_id] || 0) + 1
+  for (const n of (data ?? [])) if (Array.isArray(n.links) && n.links.some((l: any) => l.type === 'event' && l.id === id)) counts[n.personId] = (counts[n.personId] || 0) + 1
   attNoteCounts.value = counts
 }
 
@@ -4014,17 +3997,10 @@ async function setAttendanceViewMode(mode: 'all' | 'sub_groups' | 'member_groups
   if (mode === 'member_groups' && !memberGroupsForInvitees.value.length) {
     const personIds = invitees.value.map((inv: any) => inv.person_id).filter(Boolean)
     if (personIds.length) {
-      // SEAM GAP: groups domain — "member_group_memberships by person-id set, joined to
-      // member_groups(id,name,color)". useGroupsApi.membershipsByOrg is org-wide and
-      // carries a different projection; no membershipsForPerson-with-group read yet
-      // (reported gap D3/Fi2). Stays on useDb.
-      const { data } = await db.from('member_group_memberships')
-        .select('person_id, member_groups!inner(id, name, color)')
-        .in('person_id', personIds)
-      memberGroupsForInvitees.value = (data ?? []).map((m: any) => ({
-        personId: m.person_id,
-        group: m.member_groups,
-      }))
+      // The groups each invited person belongs to (id/name/color) come through the
+      // groups seam.
+      const data = await groupsApi.groupsForPersons(personIds)
+      memberGroupsForInvitees.value = (data ?? []).map((m) => ({ personId: m.personId, group: m.group }))
     }
   }
 }

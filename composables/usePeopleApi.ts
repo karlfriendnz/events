@@ -4,7 +4,7 @@
 // from MySQL today or the backend team's API tomorrow.
 import type { Person, PersonCreate, PersonPatch, PersonWithOrg } from '../shared/contracts/person'
 import type { PersonNote } from '../shared/contracts/circle'
-import type { PersonNoteCreate } from '../shared/contracts/personNote'
+import type { PersonNoteCreate, PersonNoteUpdate } from '../shared/contracts/personNote'
 
 export function usePeopleApi() {
   /** Everyone in an org, with optional paging + a name/email search. */
@@ -70,9 +70,13 @@ export function usePeopleApi() {
   async function addNote(input: PersonNoteCreate): Promise<PersonNote> {
     return await $fetch<PersonNote>('/api/v1/person-notes', { method: 'POST', body: input })
   }
+  /** Edit a note by id (body + audience/importance/due). */
+  async function updateNote(id: string, patch: PersonNoteUpdate): Promise<PersonNote> {
+    return await $fetch<PersonNote>(`/api/v1/person-notes/${id}`, { method: 'PATCH', body: patch })
+  }
   /** Delete a note by id. */
   async function removeNote(id: string): Promise<void> {
     await $fetch(`/api/v1/person-notes/${id}`, { method: 'DELETE' })
   }
-  return { list, get, findByEmail, byIds, findAllByEmail, create, update, remove, setTypeForMany, removeMany, addNote, removeNote }
+  return { list, get, findByEmail, byIds, findAllByEmail, create, update, remove, setTypeForMany, removeMany, addNote, updateNote, removeNote }
 }

@@ -151,13 +151,9 @@ export function resolveMembershipSettings(stored: any): MembershipSettings {
 }
 
 export function useMemberships() {
-  // SEAM GAP: personMembershipIds() below reads member_groups (kind='membership')
-  // joined through member_group_memberships — a groups-domain table. The groups seam
-  // needs a `membershipGroupsForPerson(personId, orgId)` reader; until then this one
-  // function keeps useDb.
-  const db = useDb()
   const { orgId } = useOrg()
   const api = useMembershipsApi()
+  const groupsApi = useGroupsApi()
 
   // camelCase entitlement → this composable's snake_case shape.
   function entToSnake(e: any): MembershipEntitlement {
@@ -242,16 +238,25 @@ export function useMemberships() {
       .map(e => e.membership_group_id))]
   }
 
-  /** The membership-kind groups a person belongs to (their active passes).
-   *  SEAM GAP: reads member_groups (groups-domain) joined via memberships — needs a
-   *  groups-seam `membershipGroupsForPerson(personId, orgId)`. Keeps useDb until then. */
+  /** The membership-kind groups a person belongs to (their active passes). Resolves the
+   *  person's group ids off the seam, then keeps only the org's membership-kind groups. */
   async function personMembershipIds(personId: string): Promise<{ groupId: string; name: string }[]> {
-    const { data } = await (db.from as any)('member_group_memberships')
-      .select('group:member_groups!inner(id, name, kind, org_id)')
-      .eq('person_id', personId)
-      .eq('group.kind', 'membership')
-      .eq('group.org_id', orgId.value)
-    return (data ?? []).map((m: any) => ({ groupId: m.group.id, name: m.group.name }))
+    if (!orgId.value) return []
+    const [mems, groups] = await Promise.all([
+      groupsApi.membershipsForPerson(orgId.value, personId),
+      groupsApi.list(orgId.value),
+    ])
+    const membershipById = new Map(
+      (groups ?? []).filter((g: any) => isMembershipGroup(g)).map((g: any) => [g.id, g.name]),
+    )
+    const seen = new Set<string>()
+    const out: { groupId: string; name: string }[] = []
+    for (const m of mems ?? []) {
+      if (seen.has(m.groupId) || !membershipById.has(m.groupId)) continue
+      seen.add(m.groupId)
+      out.push({ groupId: m.groupId, name: membershipById.get(m.groupId) as string })
+    }
+    return out
   }
 
   /**

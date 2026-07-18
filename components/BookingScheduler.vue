@@ -304,7 +304,7 @@ const emit = defineEmits<{
   (e: 'back'): void
 }>()
 
-const db = useDb() // retained only for the notifications insert (SEAM GAP: comms send path, owned by comms)
+const commsApi = useCommunicationsApi()
 const api = useBookingsApi()
 const route = useRoute()
 const { orgId: staffOrgId } = useOrg()
@@ -1180,9 +1180,8 @@ async function submit() {
 
       // Single notification covers the whole batch.
       const first = selectedSlots.value[0]
-      // SEAM GAP: notifications insert (comms send path, owned by comms) — no seam yet.
-      const { data: notif } = await (db.from as any)('notifications').insert({
-        org_id: orgId.value,
+      const notif = await commsApi.createNotification({
+        orgId: orgId.value,
         type: isPending ? 'booking.pending' : 'booking.created',
         title: isPending ? 'Booking awaiting approval' : 'Booking created',
         body: `${form.firstName} ${form.lastName} — ${selectedSlots.value.length} slot${selectedSlots.value.length === 1 ? '' : 's'} from ${first.start.toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`,
@@ -1194,7 +1193,7 @@ async function submit() {
           activity_mode_id: pendingModeId.value,
           slot_count: selectedSlots.value.length,
         },
-      }).select('id').single()
+      }).catch(() => null)
       if (notif?.id) {
         $fetch('/api/send-notification-email', { method: 'POST', body: { notificationId: notif.id } }).catch(() => {})
       }

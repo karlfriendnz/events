@@ -731,14 +731,9 @@ const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 
-// db is retained ONLY for the cross-domain / not-yet-seamed reads+writes flagged
-// with `// CROSS-DOMAIN GAP` / `// SEAM GAP` below (calendars + calendar_categories
-// are owned by the waitlists domain and expose reads only; the org-wide
-// separate-sessions query has no seam method yet). Every event/category read+write
-// goes through the typed seam.
-const db = useDb()
 const eventsApi = useEventsApi()
 const bookingsApi = useBookingsApi()
+const calendarApi = useWaitlistsApi() // calendars + calendar_categories writes seam
 const toast = useToast()
 const confirm = useConfirm()
 const route = useRoute()
@@ -1243,15 +1238,10 @@ const activeCalendar = computed(() => {
 })
 
 async function loadCalendars() {
-  // CROSS-DOMAIN GAP: `calendars` + `calendar_categories` are owned by the waitlists
-  // domain seam, which exposes a READ-ONLY calendars list (no category-link embed), so
-  // the calendars read stays on useDb until a calendars-with-categories read + calendar
-  // writes land there. `bookables` (the VENUE list) now comes through the bookings seam.
-  const [{ data: cals }, cats, books] = await Promise.all([
-    (db.from as any)('calendars')
-      .select('id, name, sort_order, pin_to_nav, icon, color, settings, calendar_categories(category_id)')
-      .eq('org_id', orgId.value)
-      .order('sort_order'),
+  // The `calendars` + `calendar_categories` read/writes go through the waitlists-domain
+  // seam (calendar-writes seam); `bookables` (the VENUE list) comes through bookings.
+  const [cals, cats, books] = await Promise.all([
+    calendarApi.calendars(orgId.value),
     eventsApi.categories(orgId.value),
     bookingsApi.bookables(orgId.value),
   ])
@@ -1262,9 +1252,12 @@ async function loadCalendars() {
     .filter(b => b.type === 'VENUE' && b.status !== 'ARCHIVED' && b.status !== 'DELETED')
     .map(b => ({ id: b.id, name: b.name, type: b.type, parent_id: b.parentId }))
     .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
+  // Seam returns camelCase (pinToNav, categoryIds already hydrated) — map pin_to_nav
+  // back for the template. The seam list is already ordered by sort_order.
   namedCalendars.value = (cals ?? []).map((c: any) => ({
-    ...c,
-    categoryIds: c.calendar_categories?.map((cc: any) => cc.category_id) ?? [],
+    id: c.id, name: c.name, color: c.color, icon: c.icon,
+    pin_to_nav: c.pinToNav, settings: c.settings,
+    categoryIds: c.categoryIds ?? [],
   }))
   // Apply the active calendar's categories (or all categories if none selected)
   applyActiveCalendarFilter()
@@ -1299,9 +1292,8 @@ function saveCalPrefs() {
   // sees the same setup — the localStorage write above is just a fast local cache.
   const real = namedCalendars.value.find(c => c.id === calId)
   if (real) {
-    // CROSS-DOMAIN GAP: calendar writes are owned by the waitlists domain (read-only
-    // in the seam today) — persist the per-calendar settings via useDb until it lands.
-    ;(db.from as any)('calendars').update({ settings: snap }).eq('id', calId).then(() => { real.settings = snap })
+    // A named calendar persists its per-calendar settings to the row via the seam.
+    calendarApi.updateCalendar(calId, { settings: snap }).then(() => { real.settings = snap }).catch(() => {})
   }
 }
 
@@ -1425,45 +1417,30 @@ async function createNewCalendar() {
   creatingCalendar.value = true
   const name = newCalendarName.value.trim()
 
+  // Seam (waitlists domain) owns calendar + calendar_categories writes.
   const navCols = {
-    pin_to_nav: newCalendarPin.value,
+    pinToNav: newCalendarPin.value,
     icon: newCalendarIcon.value.trim() || null,
     color: newCalendarColor.value.trim() || null,
   }
-  // CROSS-DOMAIN GAP: `calendars` + `calendar_categories` writes are owned by the
-  // waitlists domain, which exposes reads only — this create/update/link flow stays on
-  // useDb until calendar writes land in that seam.
-  if (editingCalendarId.value) {
-    const { error } = await (db.from as any)('calendars').update({ name, ...navCols }).eq('id', editingCalendarId.value)
-    if (error) {
-      creatingCalendar.value = false
-      toast.add({ severity: 'error', summary: 'Failed to update calendar', detail: error.message, life: 3000 })
-      return
+  try {
+    if (editingCalendarId.value) {
+      await calendarApi.updateCalendar(editingCalendarId.value, { name, ...navCols })
+      await calendarApi.setCalendarCategories(orgId.value, editingCalendarId.value, newCalendarCategoryIds.value)
+      toast.add({ severity: 'success', summary: 'Calendar updated', life: 2000 })
+    } else {
+      await calendarApi.createCalendar({
+        orgId: orgId.value,
+        name,
+        ...navCols,
+        categoryIds: newCalendarCategoryIds.value,
+      })
+      toast.add({ severity: 'success', summary: `Calendar "${name}" created`, life: 2000 })
     }
-    await (db.from as any)('calendar_categories').delete().eq('calendar_id', editingCalendarId.value)
-    if (newCalendarCategoryIds.value.length) {
-      await (db.from as any)('calendar_categories').insert(
-        newCalendarCategoryIds.value.map(cid => ({ calendar_id: editingCalendarId.value, category_id: cid }))
-      )
-    }
-    toast.add({ severity: 'success', summary: 'Calendar updated', life: 2000 })
-  } else {
-    const { data, error } = await (db.from as any)('calendars').insert({
-      org_id: orgId.value,
-      name,
-      ...navCols,
-    }).select('id').single()
-    if (error) {
-      creatingCalendar.value = false
-      toast.add({ severity: 'error', summary: 'Failed to create calendar', detail: error.message, life: 3000 })
-      return
-    }
-    if (data && newCalendarCategoryIds.value.length) {
-      await (db.from as any)('calendar_categories').insert(
-        newCalendarCategoryIds.value.map(cid => ({ calendar_id: (data as any).id, category_id: cid }))
-      )
-    }
-    toast.add({ severity: 'success', summary: `Calendar "${name}" created`, life: 2000 })
+  } catch (e: any) {
+    creatingCalendar.value = false
+    toast.add({ severity: 'error', summary: `Failed to ${editingCalendarId.value ? 'update' : 'create'} calendar`, detail: e?.message, life: 3000 })
+    return
   }
 
   creatingCalendar.value = false
@@ -1487,11 +1464,10 @@ function deleteCalendar() {
     acceptLabel: 'Delete',
     acceptClass: 'p-button-danger',
     accept: async () => {
-      // CROSS-DOMAIN GAP: calendar deletes are owned by the waitlists domain (reads
-      // only in the seam) — stays on useDb until calendar writes land there.
-      const { error } = await (db.from as any)('calendars').delete().eq('id', editingCalendarId.value!)
-      if (error) {
-        toast.add({ severity: 'error', summary: 'Failed to delete calendar', detail: error.message, life: 3000 })
+      try {
+        await calendarApi.removeCalendar(orgId.value, editingCalendarId.value!)
+      } catch (e: any) {
+        toast.add({ severity: 'error', summary: 'Failed to delete calendar', detail: e?.message, life: 3000 })
         return
       }
       toast.add({ severity: 'success', summary: 'Calendar deleted', life: 2000 })
@@ -2006,21 +1982,19 @@ const filtered = computed(() => events.value.filter(e =>
 
 async function load() {
   loading.value = true
-  // SEAM GAP: the ORG-WIDE "separate sessions" query (sessions where
-  // show_as_separate_event=true across EVERY event, joined to their event) has no seam
-  // method — useEventsApi.sessions is per-event, and there's no org-wide
-  // sessions-with-event-join route — so it still reads via useDb. Everything else goes
-  // through the typed seam.
-  const [evList, cats, { data: sessionData, error: sessionError }] = await Promise.all([
+  // The org-wide "separate sessions" read (show_as_separate_event, top-level, dated,
+  // joined to their event) goes through the events seam. Everything else too.
+  const [evList, cats, sessionData] = await Promise.all([
     eventsApi.list(orgId.value),
     eventsApi.categories(orgId.value),
-    db.from('sessions')
-      .select('*, event:events!event_id(id, title, status, org_id, category_id, is_programme)')
-      .eq('show_as_separate_event', true)
-      .is('parent_session_id', null)
-      .not('start_at', 'is', null),
+    eventsApi.separateSessions(orgId.value).catch((e: any) => { console.error('sessions load error:', e); return [] }),
   ])
-  if (sessionError) console.error('sessions load error:', sessionError)
+  // Seam returns camelCase; map to the snake_case shape the calendar item builder reads.
+  const sessions = (sessionData ?? []).map((s: any) => ({
+    ...s,
+    start_at: s.startAt, end_at: s.endAt, is_all_day: s.isAllDay, event_id: s.eventId,
+    event: s.event ? { ...s.event, org_id: s.event.orgId, category_id: s.event.categoryId, is_programme: s.event.isProgramme } : null,
+  }))
   allCategories.value = cats ?? []
   // The seam returns ALL events newest-first; apply the filters the old query did
   // server-side (this programme mode, not archived) and the start_at ordering.
@@ -2034,7 +2008,7 @@ async function load() {
       if (!b.start_at) return -1
       return a.start_at < b.start_at ? -1 : a.start_at > b.start_at ? 1 : 0
     })
-  separateSessions.value = (sessionData ?? []).filter((s: any) => {
+  separateSessions.value = sessions.filter((s: any) => {
     const ev = s.event
     return ev && ev.status !== 'ARCHIVED' && ev.org_id === orgId.value && !!ev.is_programme === isProgramme.value
   })

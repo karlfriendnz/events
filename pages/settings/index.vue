@@ -431,10 +431,11 @@ import { useToast } from 'primevue/usetoast'
 // db is retained ONLY for the two cross-domain dev utilities below (seedDemoEvents /
 // resetDatabase) and the bank-accounts CRUD — see the SEAM GAP notes at each. Every
 // org-settings read/write goes through the seam composables.
-const db = useDb()
+const db = useDb() // retained ONLY for the dev-utility seedDemoEvents/resetDatabase below
 const orgApi = useOrganisationsApi()
 const eventsApi = useEventsApi()
 const formsApi = useFormsApi()
+const financesApi = useFinancesApi()
 const toast = useToast()
 
 // Active panel is driven by ?tab= so the shared <SettingsNav> tab bar controls it.
@@ -523,16 +524,10 @@ function cancelBankAccounts() {
   bankAccounts.value = JSON.parse(JSON.stringify(bankAccountsBackup))
   showBankAccounts.value = false
 }
-// SEAM GAP (finances): bank_accounts CRUD is not on the seam — useFinancesApi exposes
-// discounts/addons/fee-components/xero but no bank_accounts read/write, and this agent
-// doesn't own the finances domain. Left on useDb (loadBankAccounts/saveBankAccounts)
-// until finances adds bankAccounts(orgId) + create/update/delete. Degrades gracefully.
 async function loadBankAccounts() {
-  const { data } = await (db.from as any)('bank_accounts')
-    .select('id, name, details')
-    .eq('org_id', orgId.value)
-    .order('sort_order').order('created_at')
-  bankAccounts.value = (data ?? []) as any[]
+  const data = await financesApi.bankAccounts(orgId.value).catch(() => [])
+  // Seam returns camelCase (id/name/details); the template reads id/name/details.
+  bankAccounts.value = (data ?? []).map((b: any) => ({ id: b.id, name: b.name, details: b.details ?? null }))
 }
 async function saveBankAccounts() {
   savingBankAccounts.value = true
@@ -540,17 +535,13 @@ async function saveBankAccounts() {
     const existingIds = (bankAccountsBackup as any[]).map(b => b.id)
     const currentIds = bankAccounts.value.map(b => b.id)
     const toDelete = existingIds.filter(id => !currentIds.includes(id))
-    if (toDelete.length) await (db.from as any)('bank_accounts').delete().in('id', toDelete)
+    for (const delId of toDelete) await financesApi.removeBankAccount(delId, orgId.value)
     for (const b of bankAccounts.value) {
       if (!b.name?.trim()) continue
       if (b._new) {
-        await (db.from as any)('bank_accounts').insert({
-          id: b.id, org_id: orgId.value, name: b.name.trim(), details: b.details || null,
-        })
+        await financesApi.createBankAccount({ orgId: orgId.value, name: b.name.trim(), details: b.details || null })
       } else {
-        await (db.from as any)('bank_accounts').update({
-          name: b.name.trim(), details: b.details || null,
-        }).eq('id', b.id)
+        await financesApi.updateBankAccount(b.id, { orgId: orgId.value, name: b.name.trim(), details: b.details || null })
       }
     }
     await loadBankAccounts()

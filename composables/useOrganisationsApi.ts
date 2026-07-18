@@ -103,5 +103,9 @@ export function useOrganisationsApi() {
   async function setOnboarding(orgId: string, state: OnboardingState): Promise<void> {
     await $fetch(`/api/v1/organisations/${orgId}/onboarding`, { method: 'PATCH', body: state })
   }
-  return { list, get, create, update, remove, ancestors, descendants, getSettings, setPeopleColumns, getDashboardMeta, setDashboardBanner, setProfileDashboard, getProfile, updateProfile, setParent, setMemberPullMode, getBrandTheme, getDefaultPositions, setDefaultPositions, orgsForUser, getOnboarding, setOnboarding }
+  /** DETECT which onboarding steps are complete from real data ({ stepKey: bool }). */
+  async function onboardingCounts(orgId: string): Promise<Record<string, boolean>> {
+    return await $fetch<Record<string, boolean>>(`/api/v1/organisations/${orgId}/onboarding-counts`)
+  }
+  return { list, get, create, update, remove, ancestors, descendants, getSettings, setPeopleColumns, getDashboardMeta, setDashboardBanner, setProfileDashboard, getProfile, updateProfile, setParent, setMemberPullMode, getBrandTheme, getDefaultPositions, setDefaultPositions, orgsForUser, getOnboarding, setOnboarding, onboardingCounts }
 }

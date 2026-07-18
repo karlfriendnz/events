@@ -787,10 +787,6 @@ definePageMeta({ layout: 'default' })
 const events = useEventsApi()
 const financesApi = useFinancesApi()
 const bookingsApi = useBookingsApi()
-// CROSS-DOMAIN GAP: bookings has no "delete event-driven bookings by event_id" seam
-// method (needed to replace a draft's venue bookings on re-save). Kept as a direct
-// db call below until useBookingsApi exposes a replace-by-event helper.
-const db = useDb()
 const toast = useToast()
 const route = useRoute()
 const orgCurrency = ref('NZD')
@@ -1459,9 +1455,8 @@ async function saveEvent() {
       .filter((l: any) => l.type === 'BOOKABLE')
       .flatMap((l: any) => l.bookable_ids ?? [])
     if (bookableIds.length && payload.startAt && payload.endAt) {
-      // CROSS-DOMAIN GAP: no seam method to delete event-driven bookings by event —
-      // clear any existing ones directly so a re-save doesn't duplicate them.
-      await db.from('bookings').delete().eq('event_id', evtId).eq('type', 'EVENT_DRIVEN')
+      // Clear any existing event-driven bookings so a re-save doesn't duplicate them.
+      await bookingsApi.removeEventDrivenBookings(evtId)
       await bookingsApi.createBookings(
         bookableIds.map(bid => ({
           bookableId: bid,

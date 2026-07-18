@@ -10,6 +10,7 @@ import type {
   CommTopic,
   CommTopicCreate,
   CommTopicPatch,
+  NotificationCreate,
 } from '../shared/contracts/communication'
 // The sent-message log's Communication shape lives in the waitlist contract (its
 // historical home, shared with the /api/v1/communications log route).
@@ -52,5 +53,12 @@ export function useCommunicationsApi() {
     return await $fetch<Communication[]>('/api/v1/communications', { query: { eventIds: eventIds.join(',') } })
   }
 
-  return { getEmailTemplate, upsertEmailTemplate, listTopics, createTopic, updateTopic, removeTopic, byEvents }
+  // ── Staff notifications ──
+  /** Insert a staff notification row (booking approved/declined, etc.); returns its id
+   *  so the caller can fire the email trigger (`/api/send-notification-email`). */
+  async function createNotification(input: NotificationCreate): Promise<{ id: string }> {
+    return await $fetch<{ id: string }>('/api/v1/notifications', { method: 'POST', body: input })
+  }
+
+  return { getEmailTemplate, upsertEmailTemplate, listTopics, createTopic, updateTopic, removeTopic, byEvents, createNotification }
 }

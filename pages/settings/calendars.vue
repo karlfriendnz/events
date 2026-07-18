@@ -180,14 +180,10 @@ const { orgId } = useOrg()
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 
-// SEAM GAP on this page:
-//  • loadCategories needs a per-category EVENT COUNT (`_eventCount`) which the seam's
-//    EventCategory read does not carry — kept on useDb until events adds category
-//    counts. Category WRITES (create/update/remove) DO go through useEventsApi.
 // The Calendars section (calendars + calendar_categories: read join + create/update/
-// delete + category links) now goes through useWaitlistsApi (calendar WRITES seam).
-const db = useDb()
-const { createCategory, updateCategory, removeCategory } = useEventsApi()
+// delete + category links) goes through useWaitlistsApi (calendar WRITES seam); the
+// category list + its per-row event-count badge go through useEventsApi.
+const { categories: apiCategories, categoryEventCounts, createCategory, updateCategory, removeCategory } = useEventsApi()
 const {
   calendars: apiCalendars,
   createCalendar,
@@ -221,12 +217,13 @@ const iconOptions = [
 
 async function loadCategories() {
   catsLoading.value = true
-  const { data } = await db.from('categories')
-    .select('*, events:events(id)')
-    .eq('org_id', orgId.value)
-    .order('sort_order')
-    .order('name')
-  categories.value = (data ?? []).map((c: any) => ({ ...c, _eventCount: c.events?.length ?? 0 }))
+  const [cats, counts] = await Promise.all([
+    apiCategories(orgId.value),
+    categoryEventCounts(orgId.value),
+  ])
+  // The list + calendar chips read id/name/color/icon (all on the seam shape); attach
+  // the per-category event count for the badge.
+  categories.value = (cats ?? []).map((c: any) => ({ ...c, _eventCount: counts?.[c.id] ?? 0 }))
   catsLoading.value = false
 }
 

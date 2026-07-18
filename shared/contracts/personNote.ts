@@ -25,3 +25,17 @@ export const personNoteCreateSchema = z.object({
   authorName: z.string().nullable().optional(),
 })
 export type PersonNoteCreate = z.infer<typeof personNoteCreateSchema>
+
+// The PATCH contract — editing an existing note (body + audience/importance/due
+// date). All fields optional; the repo applies only what's given.
+export const personNoteUpdateSchema = z.object({
+  body: z.string().min(1).optional(),
+  links: z.array(z.any()).optional(),
+  visibleTo: z.array(z.any()).optional(),
+  visibility: z.string().optional(),
+  isImportant: z.boolean().optional(),
+  dueDate: z.string().nullable().optional(),
+  channel: z.string().nullable().optional(),
+  tags: z.array(z.string()).optional(),
+})
+export type PersonNoteUpdate = z.infer<typeof personNoteUpdateSchema>

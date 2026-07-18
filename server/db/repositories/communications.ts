@@ -20,6 +20,7 @@ import type {
   CommTopic,
   CommTopicCreate,
   CommTopicPatch,
+  NotificationCreate,
 } from '../../../shared/contracts/communication'
 
 // Coerce a json column into string[]: already an array → use it; a string → parse;
@@ -169,4 +170,22 @@ export async function deleteTopic(id: string, orgId: string): Promise<void> {
   await db
     .delete(schema.communicationTopics)
     .where(and(eq(schema.communicationTopics.id, id), eq(schema.communicationTopics.orgId, orgId)))
+}
+
+/** Insert a staff `notifications` row (booking approved/declined, etc.) and return its
+ *  id, so the page can fire the email trigger (`/api/send-notification-email`). The
+ *  email send itself stays outside the seam (a legacy endpoint). json `payload` takes
+ *  the RAW JS value. */
+export async function createNotification(input: NotificationCreate): Promise<{ id: string }> {
+  const id = randomUUID()
+  await db.insert(schema.notifications).values({
+    id,
+    orgId: input.orgId,
+    type: input.type,
+    title: input.title,
+    body: input.body ?? null,
+    link: input.link ?? null,
+    payload: input.payload ?? {},
+  } as any)
+  return { id }
 }

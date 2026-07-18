@@ -358,6 +358,44 @@ export async function setOnboarding(id: string, state: { dismissed?: boolean; co
   await db.update(schema.organisations).set({ onboarding: state } as any).where(eq(schema.organisations.id, id))
 }
 
+/**
+ * Onboarding-checklist DETECTION: presence counts across seven domains' tables scoped
+ * to one org, plus the org's own name. Returns the { stepKey: done } map the checklist
+ * reads. This is a deliberately cross-domain COUNT aggregate (person types, terms, codes,
+ * classes, fees, forms, people) with no single domain owner — it lives here beside the
+ * onboarding state it decorates so the page needs one call, not eight. Guarded: a bad
+ * read surfaces as all-false (checklist un-ticked), never a throw.
+ */
+export async function onboardingCounts(id: string): Promise<Record<string, boolean>> {
+  try {
+    const result = await db.execute(sql`
+      SELECT
+        (SELECT name FROM organisations WHERE id = ${id}) AS club_name,
+        (SELECT COUNT(*) FROM person_target_types WHERE org_id = ${id}) AS types,
+        (SELECT COUNT(*) FROM org_terms WHERE org_id = ${id}) AS terms,
+        (SELECT COUNT(*) FROM group_codes WHERE org_id = ${id}) AS codes,
+        (SELECT COUNT(*) FROM member_groups WHERE org_id = ${id} AND (kind IS NULL OR kind <> 'membership')) AS classes,
+        (SELECT COUNT(*) FROM group_fee_options WHERE org_id = ${id}) AS fees,
+        (SELECT COUNT(*) FROM registration_forms WHERE org_id = ${id}) AS forms,
+        (SELECT COUNT(*) FROM persons WHERE org_id = ${id}) AS people
+    `)
+    const r: any = rowsOf(result)[0] ?? {}
+    const n = (v: any) => Number(v) || 0
+    return {
+      club: !!(r.club_name && String(r.club_name).trim()),
+      types: n(r.types) > 0,
+      season: n(r.terms) > 0,
+      programmes: n(r.codes) > 0,
+      class: n(r.classes) > 0,
+      fees: n(r.fees) > 0,
+      form: n(r.forms) > 0,
+      team: n(r.people) > 1,
+    }
+  } catch {
+    return {}
+  }
+}
+
 /** The clubs a login belongs to (org_members by auth user_id, joined to organisations
  *  for name + logo). The ProfileMenu club switcher. Alpha by name. Distinct from the
  *  persons-by-email read (useMyClubs) — keyed by the auth user id. */

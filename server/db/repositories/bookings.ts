@@ -576,6 +576,27 @@ export async function deleteLightZone(id: string): Promise<void> {
   await db.delete(schema.lightZones).where(eq(schema.lightZones.id, id))
 }
 
+/** Per-door / per-zone connected-venue counts for an org (the reverse of the per-bookable
+ *  link reads). The join tables have no org_id, so scope by joining to the org's doors /
+ *  light_zones. Feeds the Access catalogue's "N connected venues" badge. */
+export async function accessConnectionCounts(orgId: string): Promise<{ doors: Record<string, number>; zones: Record<string, number> }> {
+  const [doorRows, zoneRows] = await Promise.all([
+    db.select({ doorId: schema.bookableDoors.doorId })
+      .from(schema.bookableDoors)
+      .innerJoin(schema.doors, eq(schema.doors.id, schema.bookableDoors.doorId))
+      .where(eq(schema.doors.orgId, orgId)),
+    db.select({ zoneId: schema.bookableLightZones.zoneId })
+      .from(schema.bookableLightZones)
+      .innerJoin(schema.lightZones, eq(schema.lightZones.id, schema.bookableLightZones.zoneId))
+      .where(eq(schema.lightZones.orgId, orgId)),
+  ])
+  const doors: Record<string, number> = {}
+  for (const r of doorRows) doors[r.doorId] = (doors[r.doorId] ?? 0) + 1
+  const zones: Record<string, number> = {}
+  for (const r of zoneRows) zones[r.zoneId] = (zones[r.zoneId] ?? 0) + 1
+  return { doors, zones }
+}
+
 // Drop undefined keys from a patch (so a Drizzle .set() only touches provided cols).
 function cleanUndef<T extends Record<string, any>>(o: T): Record<string, any> {
   const s: Record<string, any> = {}
@@ -1044,6 +1065,38 @@ export async function updateBooking(id: string, patch: BookingPatch): Promise<Bo
 
 export async function deleteBooking(id: string): Promise<void> {
   await db.delete(schema.bookings).where(eq(schema.bookings.id, id))
+}
+
+/** Clear the EVENT_DRIVEN calendar bookings an event materialised on its linked venues,
+ *  so a re-save doesn't duplicate them. Scoped to type='EVENT_DRIVEN' — never touches a
+ *  real customer booking that happens to reference the event. */
+export async function deleteEventDrivenBookings(eventId: string): Promise<void> {
+  await db.delete(schema.bookings)
+    .where(and(eq(schema.bookings.eventId, eventId), eq(schema.bookings.type, 'EVENT_DRIVEN')))
+}
+
+/** The EVENT_DRIVEN bookings an event has materialised on its venues (id + bookable +
+ *  status), for the venue-sync diff (add missing, cancel removed). */
+export async function eventDrivenBookings(eventId: string): Promise<{ id: string; bookableId: string; status: string }[]> {
+  const rows = await db
+    .select({ id: schema.bookings.id, bookableId: schema.bookings.bookableId, status: schema.bookings.status })
+    .from(schema.bookings)
+    .where(and(eq(schema.bookings.eventId, eventId), eq(schema.bookings.type, 'EVENT_DRIVEN')))
+  return rows.map((r) => ({ id: r.id, bookableId: r.bookableId, status: r.status ?? '' }))
+}
+
+/** Re-time an event's active EVENT_DRIVEN venue bookings when the event's own time moves. */
+export async function updateEventDrivenBookingTimes(
+  eventId: string,
+  times: { startAt: string; endAt: string; isAllDay: boolean },
+): Promise<void> {
+  await db.update(schema.bookings)
+    .set({ startAt: times.startAt, endAt: times.endAt, isAllDay: times.isAllDay } as any)
+    .where(and(
+      eq(schema.bookings.eventId, eventId),
+      eq(schema.bookings.type, 'EVENT_DRIVEN'),
+      ne(schema.bookings.status, 'CANCELLED'),
+    ))
 }
 
 // ══ Children-of-bookable read ══

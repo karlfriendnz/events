@@ -199,7 +199,6 @@ type Kind = 'doors' | 'lights'
 
 const { orgId } = useOrg()
 const api = useBookingsApi()
-const db = useDb() // retained for bookable_doors / bookable_light_zones venue-count reads (seam-gap)
 const toast = useToast()
 
 const activeTab = ref<Kind>('doors')
@@ -311,22 +310,11 @@ async function load() {
   zones.value = zRows ?? []
   // Connection-count join tables have no org_id — scope to THIS org's doors/zones
   // so counts don't include other orgs' connections.
-  const doorIds = (dRows ?? []).map((d: any) => d.id)
-  const zoneIds = (zRows ?? []).map((z: any) => z.id)
-  // TODO seam-gap: bookable_doors / bookable_light_zones per-door/zone venue counts —
-  // the seam only exposes per-bookable door/zone reads, not the reverse count. Still via useDb.
-  const [{ data: bdRows }, { data: blRows }] = await Promise.all([
-    doorIds.length ? (db.from as any)('bookable_doors').select('door_id').in('door_id', doorIds) : Promise.resolve({ data: [] }),
-    zoneIds.length ? (db.from as any)('bookable_light_zones').select('zone_id').in('zone_id', zoneIds) : Promise.resolve({ data: [] }),
-  ])
-  doorVenueCounts.value = (bdRows ?? []).reduce((acc: Record<string, number>, r: any) => {
-    acc[r.door_id] = (acc[r.door_id] ?? 0) + 1
-    return acc
-  }, {})
-  zoneVenueCounts.value = (blRows ?? []).reduce((acc: Record<string, number>, r: any) => {
-    acc[r.zone_id] = (acc[r.zone_id] ?? 0) + 1
-    return acc
-  }, {})
+  // Per-door / per-zone connected-venue counts, org-scoped server-side (the join tables
+  // have no org_id, so the seam scopes them by joining to this org's doors/zones).
+  const counts = await api.accessConnectionCounts(orgId.value)
+  doorVenueCounts.value = counts?.doors ?? {}
+  zoneVenueCounts.value = counts?.zones ?? {}
   loading.value = false
 }
 

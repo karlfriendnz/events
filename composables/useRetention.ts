@@ -36,8 +36,9 @@ export const STATUS_META: Record<RetentionStatus, { label: string; color: string
 
 export function useRetention() {
   // SEAM GAP (finances domain): the best-effort `registrations` outstanding-fees read
-  // below has no groups-domain home — registrations belong to finances. Left on useDb
-  // until useFinancesApi exposes outstanding-by-person. Everything else is on the seam.
+  // below needs a BATCH "outstanding for many persons" endpoint — finances exposes only
+  // registrationsForPerson(one) + outstandingByOrg(rollup), neither of which fits. Left on
+  // useDb (try/catch — outstanding is optional decoration) until finances adds it.
   const db = useDb()
   const { orgId } = useOrg()
   const groupsApi = useGroupsApi()

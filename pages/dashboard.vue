@@ -162,13 +162,11 @@ async function resolveUserTypeKeys(): Promise<string[]> {
   const email = user.value?.email; if (!email || !orgId.value) return []
   const person = await usePeopleApi().findByEmail(orgId.value, email)
   if (!person) return []
-  // GAP: no seam function maps a person → their permission-group ids (roles domain's
-  // permissionGroupMemberPersonIds is org-wide, wrong shape). Left on useDb.
-  const { data: mem } = await (db.from as any)('permission_group_members').select('group_id').eq('person_id', person.id)
-  const gids = (mem ?? []).map((m: any) => m.group_id)
-  if (!gids.length) return []
-  const grps = await useRolesApi().permissionGroups(orgId.value)
-  const sorted = grps.filter(g => gids.includes(g.id)).slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+  // The permission groups this person is directly assigned to (seam resolves the
+  // person → their groups join). Ordered by sort_order, id + core template each.
+  const grps = await useRolesApi().permissionGroupsForPerson(person.id)
+  if (!grps.length) return []
+  const sorted = grps.slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
   const keys: string[] = []
   for (const g of sorted) { keys.push(g.id); if (g.sourceGroupId) keys.push(g.sourceGroupId) }
   return keys
@@ -452,18 +450,19 @@ async function load() {
   if (!orgId.value) return
   void ensureTerms()
   loading.value = true
-  // Seam reads return camelCase; the persons list is mapped back to the snake_case
-  // shape the aggregate code below reads. Events keep useDb — the FMEvent contract
-  // has no location_type/address, and the upcoming-events widget shows the venue, so
-  // reusing useEventsApi().list would silently drop it (a behaviour regression).
-  const [orgMeta, personsDomain, groupsList, { data: events, count: eventCount }] = await Promise.all([
+  // Seam reads return camelCase; the persons + events lists are mapped back to the
+  // snake_case shape the aggregate code below reads.
+  const [orgMeta, personsDomain, groupsList, upcoming] = await Promise.all([
     useOrganisationsApi().getDashboardMeta(orgId.value as string).catch(() => null),
     usePeopleApi().list(orgId.value as string),
     useGroupsApi().list(orgId.value as string),
-    (db.from as any)('events').select('id, title, start_at, end_at, location_type, address, status', { count: 'exact' })
-      .eq('org_id', orgId.value).neq('status', 'ARCHIVED').neq('status', 'CANCELLED')
-      .gte('start_at', nowIso.value).order('start_at').limit(6),
+    useEventsApi().upcoming(orgId.value as string, nowIso.value, 6),
   ])
+  const events = (upcoming?.events ?? []).map((e: any) => ({
+    id: e.id, title: e.title, start_at: e.startAt, end_at: e.endAt,
+    location_type: e.locationType, address: e.address, status: e.status,
+  }))
+  const eventCount = upcoming?.count ?? 0
   const persons = personsDomain.map(p => ({
     id: p.id, first_name: p.firstName, last_name: p.lastName, email: p.email,
     membership_type: p.membershipType, gender: p.gender, dob: p.dob,

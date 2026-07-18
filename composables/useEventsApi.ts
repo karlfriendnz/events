@@ -7,6 +7,7 @@
 import type {
   FMEvent,
   Session,
+  SeparateSession,
   Invitee,
   InviteeWithPerson,
   Registration,
@@ -52,9 +53,19 @@ export function useEventsApi() {
       query: { orgId, limit: opts.limit, offset: opts.offset },
     })
   }
+  /** The dashboard Upcoming-events widget: events starting at/after `now`, excluding
+   *  ARCHIVED/CANCELLED, earliest first, limited, plus the total matching count. */
+  async function upcoming(orgId: string, now: string, limit = 6): Promise<{ events: FMEvent[]; count: number }> {
+    return await $fetch('/api/v1/events/upcoming', { query: { orgId, now, limit } })
+  }
   /** One event by id. */
   async function get(id: string): Promise<FMEvent> {
     return await $fetch<FMEvent>(`/api/v1/events/${id}`)
+  }
+  /** Org-wide "separate sessions" (show_as_separate_event, top-level, dated) each with a
+   *  slice of its parent event — the events calendar renders these as their own items. */
+  async function separateSessions(orgId: string): Promise<SeparateSession[]> {
+    return await $fetch<SeparateSession[]>('/api/v1/sessions/separate', { query: { orgId } })
   }
   /**
    * The sessions (occurrences) of an event. Default = every session; pass
@@ -266,6 +277,10 @@ export function useEventsApi() {
   async function categories(orgId: string): Promise<EventCategory[]> {
     return await $fetch<EventCategory[]>('/api/v1/categories', { query: { orgId } })
   }
+  /** Per-category event counts ({ categoryId: count }) for the Calendars list badge. */
+  async function categoryEventCounts(orgId: string): Promise<Record<string, number>> {
+    return await $fetch<Record<string, number>>('/api/v1/categories/counts', { query: { orgId } })
+  }
   async function createCategory(input: EventCategoryCreate): Promise<EventCategory> {
     return await $fetch<EventCategory>('/api/v1/categories', { method: 'POST', body: input })
   }
@@ -338,7 +353,7 @@ export function useEventsApi() {
   }
 
   return {
-    list, get, sessions, invitees, inviteesWithPerson, registrations, inviteesForPerson, byMemberGroup, inviteeCountsByOrg,
+    list, upcoming, get, separateSessions, sessions, invitees, inviteesWithPerson, registrations, inviteesForPerson, byMemberGroup, inviteeCountsByOrg,
     ticketOrders,
     seriesCount, series, generateSeries, deleteSeries, setEventsStatus,
     create, update, remove,
@@ -349,7 +364,7 @@ export function useEventsApi() {
     feeComponents, createFeeComponent, updateFeeComponent, removeFeeComponent, replaceEventFees,
     notes, createNote, updateNote, removeNote,
     tasks, createTask, updateTask, removeTask,
-    categories, createCategory, updateCategory, removeCategory,
+    categories, categoryEventCounts, createCategory, updateCategory, removeCategory,
     tickets, createTicket, updateTicket, removeTicket,
     connectionGroups, createConnectionGroup, connectionGroupEventIds,
     setConnectionGroupEvents, removeConnectionGroup,

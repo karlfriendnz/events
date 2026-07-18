@@ -12,11 +12,12 @@
 // timestamps: MySQL returns Date objects; `toIso` serialises to ISO 8601 and lets
 // null pass through, so a nullable start/end date stays null in the contract.
 import { randomUUID } from 'node:crypto'
-import { and, asc, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, ne, or } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   FMEvent,
   Session,
+  SeparateSession,
   Invitee,
   InviteeWithPerson,
   Registration,
@@ -236,6 +237,26 @@ export async function listEvents(
   return rows.map(toEvent)
 }
 
+/** The dashboard's Upcoming-events widget: events starting at/after `nowIso`, excluding
+ *  ARCHIVED/CANCELLED, earliest first, limited — plus the TOTAL matching count (so the
+ *  widget can show "N upcoming" beyond the shown few). */
+export async function upcomingEvents(
+  orgId: string,
+  nowIso: string,
+  limit = 6,
+): Promise<{ events: FMEvent[]; count: number }> {
+  const where = and(
+    eq(schema.events.orgId, orgId),
+    ne(schema.events.status, 'ARCHIVED'),
+    ne(schema.events.status, 'CANCELLED'),
+    gte(schema.events.startAt, nowIso),
+  )
+  const rows = await db.select().from(schema.events).where(where)
+    .orderBy(asc(schema.events.startAt)).limit(limit)
+  const all = await db.select({ id: schema.events.id }).from(schema.events).where(where)
+  return { events: rows.map(toEvent), count: all.length }
+}
+
 /** One event by id, or null. */
 export async function getEvent(id: string): Promise<FMEvent | null> {
   const [r] = await db.select().from(schema.events).where(eq(schema.events.id, id)).limit(1)
@@ -420,6 +441,42 @@ export async function listSessions(
 export async function getSession(id: string): Promise<Session | null> {
   const [r] = await db.select().from(schema.sessions).where(eq(schema.sessions.id, id)).limit(1)
   return r ? toSession(r) : null
+}
+
+/** Org-wide "separate sessions": sessions flagged show_as_separate_event, top-level
+ *  (no parent), with a start — each carrying a small slice of its parent event. The
+ *  events calendar renders these as their own items. No per-event seam covers this
+ *  cross-event read, so it lives here as a purpose-built join. */
+export async function separateSessionsForOrg(orgId: string): Promise<SeparateSession[]> {
+  const rows = await db
+    .select({
+      s: schema.sessions,
+      eventId: schema.events.id,
+      eventTitle: schema.events.title,
+      eventStatus: schema.events.status,
+      eventOrgId: schema.events.orgId,
+      eventCategoryId: schema.events.categoryId,
+      eventIsProgramme: schema.events.isProgramme,
+    })
+    .from(schema.sessions)
+    .innerJoin(schema.events, eq(schema.sessions.eventId, schema.events.id))
+    .where(and(
+      eq(schema.events.orgId, orgId),
+      eq(schema.sessions.showAsSeparateEvent, true),
+      isNull(schema.sessions.parentSessionId),
+      isNotNull(schema.sessions.startAt),
+    ))
+  return rows.map((r) => ({
+    ...toSession(r.s),
+    event: {
+      id: r.eventId,
+      title: r.eventTitle,
+      status: r.eventStatus,
+      orgId: r.eventOrgId,
+      categoryId: r.eventCategoryId ?? null,
+      isProgramme: !!r.eventIsProgramme,
+    },
+  }))
 }
 
 // ── Session writes ──
@@ -976,6 +1033,19 @@ export async function listCategories(orgId: string): Promise<EventCategory[]> {
   const rows = await db.select().from(schema.categories)
     .where(eq(schema.categories.orgId, orgId)).orderBy(asc(schema.categories.sortOrder))
   return rows.map(toCategory)
+}
+/** How many events reference each category in an org → { categoryId: count }. Feeds the
+ *  Settings → Calendars category list's per-row event-count badge. */
+export async function categoryEventCounts(orgId: string): Promise<Record<string, number>> {
+  const rows = await db.select({ categoryId: schema.events.categoryId })
+    .from(schema.events).where(eq(schema.events.orgId, orgId))
+  const out: Record<string, number> = {}
+  for (const r of rows) {
+    const id = r.categoryId
+    if (!id) continue
+    out[id] = (out[id] ?? 0) + 1
+  }
+  return out
 }
 export async function createCategory(input: EventCategoryCreate): Promise<EventCategory> {
   const id = randomUUID()

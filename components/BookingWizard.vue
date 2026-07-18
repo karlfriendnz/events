@@ -1032,7 +1032,8 @@ const emit = defineEmits<{
 }>()
 
 const route = useRoute()
-const db = useSupabaseClient() // kept for auth (signIn*) + the notifications insert (SEAM GAP: comms send path, owned by comms)
+const db = useSupabaseClient() // kept for auth (signIn*) only
+const commsApi = useCommunicationsApi()
 const api = useBookingsApi()
 const formsApi = useFormsApi()
 const orgsApi = useOrganisationsApi()
@@ -2341,9 +2342,8 @@ async function handleSubmit() {
       }
       // Mirror the public-booking notification path.
       const isPending = currentActivityMode.value?.approval_mode === 'REQUIRES_APPROVAL'
-      // SEAM GAP: notifications insert (comms send path, owned by comms) — no seam yet.
-      const { data: notif } = await (db.from as any)('notifications').insert({
-        org_id: queryOrgId.value,
+      const notif = await commsApi.createNotification({
+        orgId: queryOrgId.value,
         type: isPending ? 'booking.pending' : 'booking.created',
         title: isPending ? 'Booking awaiting approval' : 'Booking created',
         body: `${booking.contactName} — ${booking.startAt.toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}`,
@@ -2354,7 +2354,7 @@ async function handleSubmit() {
           bookable_id: booking.bookableId,
           activity_mode_id: booking.activityModeId,
         },
-      }).select('id').single()
+      }).catch(() => null)
       if (notif?.id) {
         $fetch('/api/send-notification-email', { method: 'POST', body: { notificationId: notif.id } }).catch(() => {})
       }

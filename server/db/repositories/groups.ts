@@ -832,6 +832,28 @@ export async function listMembershipsForPerson(
   }))
 }
 
+// The groups a SET of people belong to, each edge carrying the group's presentation
+// (id/name/color) — the event attendance "group by member group" view. No org_id on
+// the join table, so the group row supplies identity. Returns one row per membership.
+export interface PersonGroupRef {
+  personId: string
+  group: { id: string; name: string; color: string | null }
+}
+export async function listGroupsForPersons(personIds: string[]): Promise<PersonGroupRef[]> {
+  if (!personIds.length) return []
+  const rows = await db
+    .select({
+      personId: schema.memberGroupMemberships.personId,
+      groupId: schema.memberGroups.id,
+      name: schema.memberGroups.name,
+      color: schema.memberGroups.color,
+    })
+    .from(schema.memberGroupMemberships)
+    .innerJoin(schema.memberGroups, eq(schema.memberGroupMemberships.groupId, schema.memberGroups.id))
+    .where(inArray(schema.memberGroupMemberships.personId, personIds))
+  return rows.map((r) => ({ personId: r.personId, group: { id: r.groupId, name: r.name, color: r.color ?? null } }))
+}
+
 // Add/update one person's membership on a group (the pk is group_id+person_id). Any
 // field the caller omits is left untouched on update; on insert the notNull json
 // columns (roles/positions) are seeded to []. json columns take RAW arrays.

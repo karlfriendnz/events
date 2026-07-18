@@ -8,7 +8,7 @@ import { and, asc, eq, inArray, like, or, sql } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type { Person, PersonCreate, PersonPatch, PersonWithOrg } from '../../../shared/contracts/person'
 import type { PersonNote } from '../../../shared/contracts/circle'
-import type { PersonNoteCreate } from '../../../shared/contracts/personNote'
+import type { PersonNoteCreate, PersonNoteUpdate } from '../../../shared/contracts/personNote'
 
 // A json() column may hand back an already-parsed value OR a JSON string depending
 // on the driver/column — normalise to an array, defaulting to [] on anything odd.
@@ -286,6 +286,24 @@ export async function createNote(input: PersonNoteCreate): Promise<PersonNote> {
     authorName: input.authorName ?? null,
     channel: input.channel ?? null,
   } as any)
+  const [r] = await db.select().from(schema.personNotes).where(eq(schema.personNotes.id, id)).limit(1)
+  return toNote(r)
+}
+
+export async function updateNote(id: string, patch: PersonNoteUpdate): Promise<PersonNote> {
+  // json columns take the RAW JS value (Drizzle double-encodes a JSON.stringify).
+  const set: Record<string, any> = {}
+  if (patch.body !== undefined) set.body = patch.body
+  if (patch.links !== undefined) set.links = patch.links
+  if (patch.visibleTo !== undefined) set.visibleTo = patch.visibleTo
+  if (patch.visibility !== undefined) set.visibility = patch.visibility
+  if (patch.isImportant !== undefined) set.isImportant = !!patch.isImportant
+  if (patch.dueDate !== undefined) set.dueDate = patch.dueDate
+  if (patch.channel !== undefined) set.channel = patch.channel
+  if (patch.tags !== undefined) set.tags = patch.tags
+  if (Object.keys(set).length) {
+    await db.update(schema.personNotes).set(set as any).where(eq(schema.personNotes.id, id))
+  }
   const [r] = await db.select().from(schema.personNotes).where(eq(schema.personNotes.id, id)).limit(1)
   return toNote(r)
 }

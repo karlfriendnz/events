@@ -170,6 +170,21 @@ export type Session = z.infer<typeof sessionSchema>
 
 export const sessionListSchema = z.array(sessionSchema)
 
+// A separate-session calendar item: a full session plus a small slice of its parent
+// event (the events board renders show_as_separate_event sessions as their own items).
+export const separateSessionSchema = sessionSchema.extend({
+  event: z.object({
+    id: z.string(),
+    title: z.string(),
+    status: z.string(),
+    orgId: z.string(),
+    categoryId: z.string().nullable(),
+    isProgramme: z.boolean(),
+  }).nullable(),
+})
+export type SeparateSession = z.infer<typeof separateSessionSchema>
+export const separateSessionListSchema = z.array(separateSessionSchema)
+
 // WRITE contracts for a session. Create omits the server-owned id and the
 // always-null `status` (no column), requires eventId + a title (title is a
 // required DB column not surfaced on the read shape), and defaults the rest.

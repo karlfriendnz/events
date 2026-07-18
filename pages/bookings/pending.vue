@@ -86,7 +86,7 @@ import { useToast } from 'primevue/usetoast'
 
 definePageMeta({ layout: 'default' })
 
-const db = useDb() // retained only for the notifications inserts (SEAM GAP: comms send path, owned by comms)
+const commsApi = useCommunicationsApi()
 const api = useBookingsApi()
 const { orgId } = useOrg()
 const toast = useToast()
@@ -161,17 +161,16 @@ async function approve(b: any) {
   busyId.value = b.id
   try {
     await api.setBookingStatus(b.id, 'CONFIRMED')
-    // SEAM GAP: notifications insert (comms send path, owned by comms) — no seam yet.
-    await (db.from as any)('notifications').insert({
-      org_id: orgId.value,
+    commsApi.createNotification({
+      orgId: orgId.value,
       type: 'booking.approved',
       title: 'Booking approved',
       body: `${b.contact_name || 'Booking'} — ${formatWhen(b.start_at, b.end_at)}`,
       link: `/bookables/${b.bookable_id}?tab=bookings`,
       payload: { booking_id: b.id },
-    }).select('id').single().then(({ data: n }: any) => {
+    }).then((n) => {
       if (n?.id) $fetch('/api/send-notification-email', { method: 'POST', body: { notificationId: n.id } }).catch(() => {})
-    })
+    }).catch(() => {})
     $fetch('/api/send-customer-booking-email', { method: 'POST', body: { bookingId: b.id, event: 'approved' } }).catch(() => {})
     rows.value = rows.value.filter(r => r.id !== b.id)
     toast.add({ severity: 'success', summary: 'Booking approved', life: 2500 })
@@ -186,17 +185,16 @@ async function decline(b: any) {
   busyId.value = b.id
   try {
     await api.setBookingStatus(b.id, 'CANCELLED')
-    // SEAM GAP: notifications insert (comms send path, owned by comms) — no seam yet.
-    await (db.from as any)('notifications').insert({
-      org_id: orgId.value,
+    commsApi.createNotification({
+      orgId: orgId.value,
       type: 'booking.declined',
       title: 'Booking declined',
       body: `${b.contact_name || 'Booking'} — ${formatWhen(b.start_at, b.end_at)}`,
       link: `/bookables/${b.bookable_id}?tab=bookings`,
       payload: { booking_id: b.id },
-    }).select('id').single().then(({ data: n }: any) => {
+    }).then((n) => {
       if (n?.id) $fetch('/api/send-notification-email', { method: 'POST', body: { notificationId: n.id } }).catch(() => {})
-    })
+    }).catch(() => {})
     $fetch('/api/send-customer-booking-email', { method: 'POST', body: { bookingId: b.id, event: 'declined' } }).catch(() => {})
     rows.value = rows.value.filter(r => r.id !== b.id)
     toast.add({ severity: 'success', summary: 'Booking declined', life: 2500 })

@@ -51,6 +51,14 @@ export function useGroupsApi() {
   > {
     return await $fetch(`/api/v1/groups/memberships`, { query: { orgId, personId } })
   }
+  /** The groups a SET of people belong to, each edge with the group's id/name/color
+   *  (event attendance "group by member group" view). */
+  async function groupsForPersons(
+    personIds: string[],
+  ): Promise<{ personId: string; group: { id: string; name: string; color: string | null } }[]> {
+    if (!personIds.length) return []
+    return await $fetch('/api/v1/groups/groups-for-persons', { query: { personIds: personIds.join(',') } })
+  }
   /** Groups whose code is one of the given codes (public-reg code expansion). */
   async function groupsByCodeIds(codeIds: string[]): Promise<MemberGroup[]> {
     if (codeIds.length === 0) return []
@@ -309,7 +317,7 @@ export function useGroupsApi() {
     await $fetch(`/api/v1/groups/${groupId}/disciplines`, { method: 'PUT', body: { disciplineIds } })
   }
   return {
-    list, get, memberships, membershipsByOrg, membershipsForPerson, groupsByCodeIds,
+    list, get, memberships, membershipsByOrg, membershipsForPerson, groupsForPersons, groupsByCodeIds,
     upsertMembership, removeMembership, membershipsWithPersonForGroups,
     membershipsForRetention, moveMembership, roster, rollover,
     schedules, schedulesForGroups, codes, feeOptions, feeOptionsByOrg,

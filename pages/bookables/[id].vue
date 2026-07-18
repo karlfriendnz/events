@@ -811,7 +811,7 @@ import { useOrg } from '~/composables/useOrg'
 const { orgId, orgReady } = useOrg()
 const router = useRouter()
 
-const db = useDb() // retained only for the notifications inserts (SEAM GAP: comms send path, owned by comms)
+const commsApi = useCommunicationsApi()
 const api = useBookingsApi()
 const formsApi = useFormsApi()
 const toast = useToast()
@@ -1706,15 +1706,14 @@ async function approveBooking() {
     await api.setBookingStatus(editingBooking.value.id, 'CONFIRMED')
     editForm.status = 'CONFIRMED'
     if (editingBooking.value) editingBooking.value.status = 'CONFIRMED'
-    // SEAM GAP: notifications insert (comms send path, owned by comms) — no seam yet.
-    const { data: n } = await (db.from as any)('notifications').insert({
-      org_id: orgId.value,
+    const n = await commsApi.createNotification({
+      orgId: orgId.value,
       type: 'booking.approved',
       title: 'Booking approved',
       body: `${editForm.contact_name || 'Booking'} — ${editingBookingDateLabel.value}`,
       link: `/bookables/${id}?tab=bookings`,
       payload: { booking_id: editingBooking.value.id },
-    }).select('id').single()
+    }).catch(() => null)
     if (n?.id) $fetch('/api/send-notification-email', { method: 'POST', body: { notificationId: n.id } }).catch(() => {})
     $fetch('/api/send-customer-booking-email', { method: 'POST', body: { bookingId: editingBooking.value.id, event: 'approved' } }).catch(() => {})
     await loadBookings()
@@ -1733,15 +1732,14 @@ async function declineBooking() {
     await api.setBookingStatus(editingBooking.value.id, 'CANCELLED')
     editForm.status = 'CANCELLED'
     if (editingBooking.value) editingBooking.value.status = 'CANCELLED'
-    // SEAM GAP: notifications insert (comms send path, owned by comms) — no seam yet.
-    const { data: n } = await (db.from as any)('notifications').insert({
-      org_id: orgId.value,
+    const n = await commsApi.createNotification({
+      orgId: orgId.value,
       type: 'booking.declined',
       title: 'Booking declined',
       body: `${editForm.contact_name || 'Booking'} — ${editingBookingDateLabel.value}`,
       link: `/bookables/${id}?tab=bookings`,
       payload: { booking_id: editingBooking.value.id },
-    }).select('id').single()
+    }).catch(() => null)
     if (n?.id) $fetch('/api/send-notification-email', { method: 'POST', body: { notificationId: n.id } }).catch(() => {})
     $fetch('/api/send-customer-booking-email', { method: 'POST', body: { bookingId: editingBooking.value.id, event: 'declined' } }).catch(() => {})
     showEditDialog.value = false
