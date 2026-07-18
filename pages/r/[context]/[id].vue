@@ -14,7 +14,13 @@
 definePageMeta({ layout: 'embed' })
 
 const route = useRoute()
+// The forms-owned reads (registration_forms / form_fields / registration_form_targets)
+// go through the seam. The remaining `db` reads are CROSS-DOMAIN (organisations,
+// events, sessions, fee_components, discounts, member_groups, member_group_memberships,
+// waitlists, group_codes, org_terms) whose seams don't yet expose the exact shapes
+// this page needs — see the report's cross-domain gaps.
 const db = useDb()
+const formsApi = useFormsApi()
 
 const contextType = computed(() => String(route.params.context || ''))
 const contextId = computed(() => String(route.params.id || ''))
@@ -67,9 +73,9 @@ async function loadOrg(id: string) {
 }
 
 async function loadForm(formId: string) {
-  const { data: form } = await (db.from as any)('registration_forms').select('id, org_id, name, config').eq('id', formId).maybeSingle()
+  const form = await formsApi.get(formId).catch(() => null)
   if (!form) return null
-  let cfg = { ...(form.config || {}) }
+  let cfg: any = { ...(form.config || {}) }
   // Forms built in <FormBuilder> (/forms/:id, /events/new-basic) persist a flat
   // field list in form_fields + config.profiles/fieldMeta — NOT the renderer's
   // groups/groupProfiles/groupFields shape. Normalise so both builders render.
@@ -89,7 +95,7 @@ const CORE_BY_LABEL: Record<string, string> = {
   'First Name': 'first_name', 'Last Name': 'last_name', 'Email Address': 'email', 'Phone Number': 'phone',
 }
 async function normalizeBuilderConfig(formId: string, cfg: any) {
-  const { data: ff } = await (db.from as any)('form_fields').select('*').eq('form_id', formId).order('sort_order')
+  const ff = await formsApi.fields(formId)
   const gid = 'default'
   const fieldMeta = cfg.fieldMeta ?? {}
   // Subjects: the form's declared profiles, else one implicit person. The first
@@ -102,19 +108,19 @@ async function normalizeBuilderConfig(formId: string, cfg: any) {
     min: p.min ?? 1,
     selectsOptions: p.selectsOptions ?? (p.key === firstPerson.key),
   }))
-  const fields = (ff ?? []).map((row: any) => {
-    let options: string[] = []
-    try { options = JSON.parse(row.options || '[]') } catch { options = [] }
+  const fields = ff.map((row) => {
+    // options is a plain array off the seam (json column), not a JSON string.
+    const options: string[] = Array.isArray(row.options) ? row.options : []
     const meta = fieldMeta[row.label] ?? {}
     const core = meta.core ?? CORE_BY_LABEL[row.label]
     return {
       id: row.id,
       label: row.label,
-      field_type: FF_TYPE[row.field_type] ?? 'text',
+      field_type: FF_TYPE[row.fieldType] ?? 'text',
       placeholder: row.placeholder ?? '',
-      helper_text: row.help_text ?? '',
-      has_helper_text: !!row.help_text,
-      is_required: !!row.is_required,
+      helper_text: row.helpText ?? '',
+      has_helper_text: !!row.helpText,
+      is_required: !!row.isRequired,
       options,
       col_span: meta.col_span ?? 2,
       account: core ? CORE_ACCOUNT[core] : undefined,
@@ -252,12 +258,14 @@ async function loadGroupStatus(g: any, formId: string | null) {
 // automatically), excluding classes whose effective term has already ended.
 const groupChoices = ref<any[]>([])
 async function loadFormTargets(fid: string) {
-  const { data: tgts } = await (db.from as any)('registration_form_targets')
-    .select('target_type, target_id, sort_order').eq('form_id', fid).order('sort_order')
-  const groupIds = (tgts ?? []).filter((t: any) => t.target_type === 'group').map((t: any) => t.target_id)
-  const codeIds = (tgts ?? []).filter((t: any) => t.target_type === 'code').map((t: any) => t.target_id)
+  const tgts = await formsApi.targets(fid)
+  const groupIds = tgts.filter((t) => t.targetType === 'group').map((t) => t.targetId)
+  const codeIds = tgts.filter((t) => t.targetType === 'code').map((t) => t.targetId)
   if (!groupIds.length && !codeIds.length) return
 
+  // SEAM GAP: the reads below (group_codes, org_terms, member_groups by id/code,
+  // member_group_memberships) stay on useDb — the groups/terms seams don't yet expose
+  // member_groups.waitlist_id, org_terms.end_date, or a by-code group list.
   // Codes (for subtree expansion + section labels + term inheritance) + terms.
   const [{ data: codes }, { data: terms }] = await Promise.all([
     (db.from as any)('group_codes').select('id, name, parent_id, term_id, sort_order').eq('org_id', orgId.value),

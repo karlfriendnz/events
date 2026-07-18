@@ -7,7 +7,6 @@
 <script setup lang="ts">
 const route = useRoute()
 const router = useRouter()
-const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
 const cr = useCustomReports()
@@ -52,16 +51,14 @@ const columnOptions = computed(() => FIELD_DEFS.value.filter(f => f.key !== 'age
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [types, defs, { data: mships }] = await Promise.all([
+  const [types, defs, pos] = await Promise.all([
     resolvePersonTypes(orgId.value),
     resolveFields(orgId.value),
-    (db.from as any)('member_group_memberships').select('positions, group:member_groups!inner(org_id)').eq('group.org_id', orgId.value),
+    cr.loadReportPositions(),
   ])
   personTypes.value = (types ?? []).filter((t: any) => (t.kind ?? 'person') === 'person').map((t: any) => ({ label: t.label, value: t.key }))
   customFields.value = (defs ?? []).map((f: any) => ({ key: f.id, label: f.label, field_type: f.field_type, options: Array.isArray(f.options) ? f.options : (f.options?.choices ?? []) }))
-  const posSet = new Set<string>()
-  for (const m of (mships ?? [])) for (const p of (m.positions ?? [])) if (p) posSet.add(p)
-  positions.value = [...posSet].sort()
+  positions.value = pos
 
   if (reportId.value) {
     const r = await cr.getReport(reportId.value)

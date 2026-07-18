@@ -81,8 +81,8 @@
 </template>
 
 <script setup lang="ts">
-const db = useDb()
 const { orgId } = useOrg()
+const financesApi = useFinancesApi()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 
@@ -127,40 +127,30 @@ async function load() {
   const horizonEnd = new Date(horizonStart); horizonEnd.setDate(horizonEnd.getDate() + 15)
   const todayEnd = new Date(horizonStart); todayEnd.setDate(todayEnd.getDate() + 1)
 
-  // Each training event row is one occurrence — masters represent their
-  // own first occurrence, children represent every subsequent week
-  // (recurrence_parent_id is set). Group linkage (member_group_id) is
-  // the canonical filter for "training events" so we don't depend on
-  // a specific event style.
-  const { data: events } = await (db.from as any)('events')
-    .select('id, start_at, end_at, location_type, bookable_id, address, meeting_link, member_group:member_groups(id, name, color, location_id)')
-    .eq('org_id', orgId.value)
-    .not('member_group_id', 'is', null)
-    .gte('start_at', horizonStart.toISOString())
-    .lt('start_at', horizonEnd.toISOString())
-    .order('start_at')
+  // Each training event row is one occurrence — masters represent their own first
+  // occurrence, children every subsequent week (recurrence_parent_id set). Group
+  // linkage (member_group_id) is the canonical "training event" filter, and the
+  // bookable name is already resolved server-side.
+  const sessions = await financesApi.attendanceSessions(
+    orgId.value,
+    horizonStart.toISOString(),
+    horizonEnd.toISOString(),
+  )
 
-  const bookableIds = Array.from(new Set((events ?? []).map((e: any) => e.bookable_id).filter(Boolean)))
-  const bookableNames: Record<string, string> = {}
-  if (bookableIds.length) {
-    const { data: bkbls } = await (db.from as any)('bookables').select('id, name').in('id', bookableIds)
-    for (const b of bkbls ?? []) bookableNames[b.id] = b.name
-  }
-
-  allRows.value = (events ?? []).map((e: any) => {
-    const start = new Date(e.start_at)
-    const end = new Date(e.end_at)
+  allRows.value = (sessions ?? []).map((e) => {
+    const start = new Date(e.startAt as string)
+    const end = new Date(e.endAt as string)
     let locationLabel = ''
-    if (e.location_type === 'BOOKABLE' && e.bookable_id) locationLabel = bookableNames[e.bookable_id] ?? ''
-    else if (e.location_type === 'ADDRESS') locationLabel = e.address ?? ''
-    else if (e.location_type === 'ONLINE') locationLabel = e.meeting_link ? 'Online' : ''
+    if (e.locationType === 'BOOKABLE' && e.bookableName) locationLabel = e.bookableName
+    else if (e.locationType === 'ADDRESS') locationLabel = e.address ?? ''
+    else if (e.locationType === 'ONLINE') locationLabel = e.meetingLink ? 'Online' : ''
     const isToday = start >= horizonStart && start < todayEnd
     return {
-      id: e.id,
-      eventId: e.id,
-      groupName: e.member_group?.name ?? 'Attendance',
-      groupColor: e.member_group?.color ?? null,
-      locationId: e.member_group?.location_id ?? null,
+      id: e.eventId,
+      eventId: e.eventId,
+      groupName: e.groupName ?? 'Attendance',
+      groupColor: e.groupColor ?? null,
+      locationId: e.locationId ?? null,
       start,
       end,
       isToday,

@@ -6,7 +6,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin' })
 
-const db = useDb()
+const api = useAdminApi()
 const user = useSupabaseUser()
 const toast = useToast()
 const isSuper = computed(() => ((user.value as any)?.app_metadata?.role) === 'super_admin')
@@ -20,8 +20,8 @@ const saving = ref(false)
 
 async function load() {
   loading.value = true
-  const { data } = await (db.from as any)('permission_groups').select('*').eq('is_core', true).order('sort_order').order('name')
-  groups.value = (data ?? []).map((g: any) => ({ ...g, permissions: g.permissions ?? {} }))
+  const rows = await api.corePermissionGroups()
+  groups.value = rows.map(g => ({ id: g.id, name: g.name, description: g.description, permissions: g.permissions ?? {}, sort_order: g.sortOrder }))
   if (!selectedId.value && groups.value.length) selectedId.value = groups.value[0].id
   loading.value = false
 }
@@ -32,20 +32,21 @@ function newGroup() {
 async function save() {
   const g = selected.value; if (!g || !g.name.trim()) return
   saving.value = true
-  if (g._new) {
-    const { data, error } = await (db.from as any)('permission_groups').insert({
-      org_id: null, is_core: true, name: g.name, description: g.description, permissions: g.permissions, sort_order: g.sort_order,
-    }).select('id').single()
-    if (error) { toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 4000 }); saving.value = false; return }
-    g.id = data.id; g._new = false; selectedId.value = data.id
-  } else {
-    await (db.from as any)('permission_groups').update({ name: g.name, description: g.description, permissions: g.permissions, updated_at: new Date().toISOString() }).eq('id', g.id)
-  }
-  toast.add({ severity: 'success', summary: 'Template saved', life: 2000 }); saving.value = false
+  try {
+    if (g._new) {
+      const created = await api.createCorePermissionGroup({ name: g.name, description: g.description, permissions: g.permissions, sortOrder: g.sort_order })
+      g.id = created.id; g._new = false; selectedId.value = created.id
+    } else {
+      await api.updateCorePermissionGroup(g.id, { name: g.name, description: g.description, permissions: g.permissions })
+    }
+    toast.add({ severity: 'success', summary: 'Template saved', life: 2000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Save failed', detail: e?.data?.message || e?.message, life: 4000 })
+  } finally { saving.value = false }
 }
 async function removeGroup() {
   const g = selected.value; if (!g) return
-  if (!g._new) await (db.from as any)('permission_groups').delete().eq('id', g.id)
+  if (!g._new) await api.deleteCorePermissionGroup(g.id)
   groups.value = groups.value.filter(x => x.id !== g.id); selectedId.value = groups.value[0]?.id ?? null
 }
 
@@ -62,7 +63,7 @@ async function onDrop(i: number) {
   arr.forEach((g, idx) => { g.sort_order = idx })
   groups.value = arr
   const saved = arr.filter(g => !g._new)
-  await Promise.all(saved.map(g => (db.from as any)('permission_groups').update({ sort_order: g.sort_order }).eq('id', g.id)))
+  await api.reorderCorePermissionGroups(saved.map(g => ({ id: g.id, sortOrder: g.sort_order })))
 }
 onMounted(() => { if (!isSuper.value) { navigateTo('/'); return } load() })
 </script>

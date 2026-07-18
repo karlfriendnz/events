@@ -57,7 +57,7 @@ import { useToast } from 'primevue/usetoast'
 
 definePageMeta({ layout: 'default' })
 
-const db = useDb()
+const formsApi = useFormsApi()
 const { orgId } = useOrg()
 const route = useRoute()
 const toast = useToast()
@@ -115,7 +115,7 @@ const designerName = ref('')
 async function saveDesignerName() {
   if (!formId.value) return
   const name = designerName.value.trim() || 'Untitled form'
-  await (db.from as any)('registration_forms').update({ name }).eq('id', formId.value).eq('org_id', orgId.value)
+  await formsApi.update(formId.value, { name })
 }
 
 async function load() {
@@ -125,7 +125,7 @@ async function load() {
   if (isNew.value) { await navigateTo('/forms/new', { replace: true }); return }
   const id = formId.value!
   const fresh = emptyForm()
-  const { data: f } = await (db.from as any)('registration_forms').select('id, name, config').eq('id', id).eq('org_id', orgId.value).single()
+  const f = await formsApi.get(id).catch(() => null)
   // Designer-shaped config → mount <FormDesigner> (it self-loads); skip the builder mapping.
   if (f && Array.isArray((f.config as any)?.groups)) {
     mode.value = 'designer'
@@ -146,7 +146,7 @@ async function load() {
     fresh.profiles = cfg.profiles ?? []
     fieldMeta = cfg.fieldMeta ?? {}
   }
-  const { data: ff } = await (db.from as any)('form_fields').select('*').eq('form_id', id).order('sort_order')
+  const ff = await formsApi.fields(id)
   const coreByLabel: Record<string, 'first_name' | 'last_name' | 'email' | 'phone' | 'attendees' | 'notes'> = {
     'First Name': 'first_name', 'Last Name': 'last_name', 'Email Address': 'email', 'Phone Number': 'phone',
     'People Attending': 'attendees', 'Notes': 'notes',
@@ -155,22 +155,22 @@ async function load() {
     SHORT_TEXT: 'text', LONG_TEXT: 'textarea', SINGLE_SELECT: 'select', MULTI_SELECT: 'select',
     TOGGLE: 'checkbox', NUMBER: 'number', DATE: 'date', FILE: 'file', SECTION_HEADER: 'text',
   }
-  fresh.fields = (ff ?? []).map((row: any) => {
-    let options: string[] = []
-    try { options = JSON.parse(row.options || '[]') } catch { options = [] }
+  fresh.fields = ff.map((row) => {
+    // options is a plain array off the seam (json column), not a JSON string.
+    const options: string[] = Array.isArray(row.options) ? row.options : []
     const meta = fieldMeta[row.label] ?? {}
     const core = meta.core ?? coreByLabel[row.label] ?? undefined
     return {
       _key: freshKey(),
       id: row.id,
-      field_type: dbToType[row.field_type] ?? (row.field_type || 'text').toLowerCase(),
+      field_type: dbToType[row.fieldType] ?? (row.fieldType || 'text').toLowerCase(),
       label: row.label,
       placeholder: row.placeholder ?? '',
       has_placeholder: !!row.placeholder,
-      helper_text: row.help_text ?? '',
-      has_helper_text: !!meta.has_helper_text || !!row.help_text,
+      helper_text: row.helpText ?? '',
+      has_helper_text: !!meta.has_helper_text || !!row.helpText,
       col_span: meta.col_span ?? 2,
-      is_required: !!row.is_required || core === 'first_name' || core === 'last_name' || core === 'email',
+      is_required: !!row.isRequired || core === 'first_name' || core === 'last_name' || core === 'email',
       _optionsText: options.join('\n'),
       core,
       // Advanced rules round-trip from registration_forms.config.fieldMeta.
@@ -205,38 +205,35 @@ async function save() {
       profiles: form.value.profiles ?? [],
     }
     if (isNew.value || !id) {
-      const { data, error } = await (db.from as any)('registration_forms').insert({
-        org_id: orgId.value,
+      const created = await formsApi.create({
+        orgId: orgId.value!,
         name: form.value.name.trim(),
         config,
-      }).select('id').single()
-      if (error) throw error
-      id = data.id
+      })
+      id = created.id
       formId.value = id
     } else {
-      await (db.from as any)('registration_forms').update({ name: form.value.name.trim(), config }).eq('id', id).eq('org_id', orgId.value)
+      await formsApi.update(id, { name: form.value.name.trim(), config })
     }
-    await (db.from as any)('form_fields').delete().eq('form_id', id)
-    if (form.value.fields.length) {
-      const typeToDb: Record<string, string> = {
-        text: 'SHORT_TEXT', textarea: 'LONG_TEXT', select: 'SINGLE_SELECT', checkbox: 'TOGGLE',
-        number: 'NUMBER', date: 'DATE', file: 'FILE',
-      }
-      const rows = form.value.fields.map((f: any, idx: number) => ({
-        form_id: id,
-        field_type: typeToDb[f.field_type] ?? 'SHORT_TEXT',
-        label: f.label || 'Untitled',
-        placeholder: f.has_placeholder ? (f.placeholder || null) : null,
-        help_text: f.has_helper_text ? (f.helper_text || null) : null,
-        is_required: !!f.is_required,
-        sort_order: idx,
-        page_number: 1,
-        options: f.field_type === 'select'
-          ? JSON.stringify((f._optionsText || '').split('\n').map((s: string) => s.trim()).filter(Boolean))
-          : null,
-      }))
-      await (db.from as any)('form_fields').insert(rows)
+    const typeToDb: Record<string, string> = {
+      text: 'SHORT_TEXT', textarea: 'LONG_TEXT', select: 'SINGLE_SELECT', checkbox: 'TOGGLE',
+      number: 'NUMBER', date: 'DATE', file: 'FILE',
     }
+    // options is a PLAIN array now (json column) — no JSON.stringify. saveFields
+    // does the delete-then-insert (an empty list just clears the fields).
+    const fieldRows = form.value.fields.map((f: any, idx: number) => ({
+      fieldType: typeToDb[f.field_type] ?? 'SHORT_TEXT',
+      label: f.label || 'Untitled',
+      placeholder: f.has_placeholder ? (f.placeholder || null) : null,
+      helpText: f.has_helper_text ? (f.helper_text || null) : null,
+      isRequired: !!f.is_required,
+      sortOrder: idx,
+      pageNumber: 1,
+      options: f.field_type === 'select'
+        ? (f._optionsText || '').split('\n').map((s: string) => s.trim()).filter(Boolean)
+        : null,
+    }))
+    await formsApi.saveFields(id, fieldRows)
     // Persist per-field metadata (col_span, core, has_helper_text) in the form config
     // so it round-trips even though form_fields doesn't have those columns yet.
     const fieldMeta = form.value.fields.reduce((acc: any, f: any) => {
@@ -253,9 +250,7 @@ async function save() {
       }
       return acc
     }, {})
-    await (db.from as any)('registration_forms').update({
-      config: { ...config, fieldMeta },
-    }).eq('id', id).eq('org_id', orgId.value)
+    await formsApi.update(id, { config: { ...config, fieldMeta } })
     toast.add({ severity: 'success', summary: 'Form saved', life: 2000 })
     if (returnTo.value) {
       await navigateTo(`${returnTo.value}${returnTo.value.includes('?') ? '&' : '?'}form_id=${id}`)
@@ -273,15 +268,9 @@ async function save() {
 async function onDelete() {
   if (!formId.value) return
   if (!confirm('Delete this form? Events, booking modes and classes using it will be unlinked. This can\'t be undone.')) return
-  // Actually unlink everything pointing at it, then remove the form + fields
-  // (registration_form_targets cascade via FK).
-  await Promise.all([
-    (db.from as any)('events').update({ form_id: null }).eq('form_id', formId.value),
-    (db.from as any)('activity_modes').update({ form_id: null }).eq('form_id', formId.value),
-    (db.from as any)('member_groups').update({ form_id: null }).eq('form_id', formId.value),
-    (db.from as any)('form_fields').delete().eq('form_id', formId.value),
-  ])
-  await (db.from as any)('registration_forms').delete().eq('id', formId.value).eq('org_id', orgId.value)
+  // The DELETE route unlinks everything pointing at it (events / modes / classes
+  // form_id nulled) + removes the form, fields and connections, org-scoped.
+  await formsApi.remove(formId.value, orgId.value!)
   toast.add({ severity: 'success', summary: 'Form deleted', life: 2000 })
   navigateTo('/forms')
 }

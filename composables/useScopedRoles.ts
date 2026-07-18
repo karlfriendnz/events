@@ -96,6 +96,7 @@ export const SCOPED_ROLES: Record<ScopedResourceType, ScopedRoleDef[]> = {
 
 export function useScopedRoles() {
   const db = useDb()
+  const rolesApi = useRolesApi()
   const { orgId } = useOrg()
   const user = useSupabaseUser()
   const { can, load: loadCan, unrestricted, loaded: canLoaded } = useCan()
@@ -119,9 +120,7 @@ export function useScopedRoles() {
   async function loadRoleDefs(force = false) {
     if (roleDefsLoaded.value && !force) return
     if (!orgId.value) return
-    const { data } = await (db.from as any)('scoped_role_defs')
-      .select('resource_type, key, label, role_group, capabilities, sort_order')
-      .eq('org_id', orgId.value).order('sort_order')
+    const data = await rolesApi.scopedRoles(orgId.value)
     const next: Record<ScopedResourceType, ScopedRoleDef[]> = {
       group: [...SCOPED_ROLES.group], event: [...SCOPED_ROLES.event],
     }
@@ -129,9 +128,9 @@ export function useScopedRoles() {
     for (const r of data ?? []) {
       const caps = r.capabilities ?? []
       // role_group is derived from capabilities; trust caps over a stale stored value.
-      ;(byType[r.resource_type] ??= []).push({
+      ;(byType[r.resourceType] ??= []).push({
         key: r.key, label: r.label,
-        group: roleRuns(r.resource_type, caps) ? 'staff' : 'member',
+        group: roleRuns(r.resourceType as ScopedResourceType, caps) ? 'staff' : 'member',
         capabilities: caps,
       })
     }
@@ -191,6 +190,12 @@ export function useScopedRoles() {
   const hasAnyScopedRole = computed(() =>
     Object.values(groupRoles.value).some(r => r.length) || Object.values(eventRoles.value).some(r => r.length))
 
+  // CROSS-DOMAIN GAP: this resolver reads persons (people domain, by email),
+  // member_group_memberships (groups) and invitees (events) — none of which are this
+  // domain's tables, and none of the people/groups/events seams expose a
+  // "for-this-person" read yet. It stays on useDb until those seam functions exist
+  // (needs: personByEmail(orgId,email), membershipRolesByPerson(personId),
+  // inviteeRolesByPerson(personId)). loadRoleDefs above IS converted.
   async function load() {
     loaded.value = false
     if (!canLoaded.value) await loadCan()

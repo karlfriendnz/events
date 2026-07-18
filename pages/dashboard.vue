@@ -148,26 +148,29 @@ async function persistConfig(cfg: CfgItem[]): Promise<{ error: any }> {
   }
   if (!uid) return { error: { message: 'No user session — please sign in again.' } }
   if (!orgId.value) return { error: { message: 'No active organisation selected.' } }
-  const { error } = await (db.from as any)('user_dashboards').upsert(
-    { user_id: uid, org_id: orgId.value, config: cfg, updated_at: new Date().toISOString() },
-    { onConflict: 'user_id,org_id' },
-  )
-  if (error) console.error('[dashboard] save failed', error)
-  return { error }
+  try {
+    await useDashboardsApi().saveUserDashboard(uid, orgId.value, cfg as any[])
+    return { error: null }
+  } catch (error: any) {
+    console.error('[dashboard] save failed', error)
+    return { error: { message: error?.message ?? 'Save failed' } }
+  }
 }
 // The permission groups (= user types) the current user belongs to, plus the core
 // templates they derive from — ordered, used to pick their default dashboard.
 async function resolveUserTypeKeys(): Promise<string[]> {
   const email = user.value?.email; if (!email || !orgId.value) return []
-  const { data: person } = await (db.from as any)('persons').select('id').eq('org_id', orgId.value).ilike('email', email).limit(1).maybeSingle()
+  const person = await usePeopleApi().findByEmail(orgId.value, email)
   if (!person) return []
+  // GAP: no seam function maps a person → their permission-group ids (roles domain's
+  // permissionGroupMemberPersonIds is org-wide, wrong shape). Left on useDb.
   const { data: mem } = await (db.from as any)('permission_group_members').select('group_id').eq('person_id', person.id)
   const gids = (mem ?? []).map((m: any) => m.group_id)
   if (!gids.length) return []
-  const { data: grps } = await (db.from as any)('permission_groups').select('id, source_group_id, sort_order').in('id', gids)
-  const sorted = (grps ?? []).slice().sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+  const grps = await useRolesApi().permissionGroups(orgId.value)
+  const sorted = grps.filter(g => gids.includes(g.id)).slice().sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
   const keys: string[] = []
-  for (const g of sorted) { keys.push(g.id); if (g.source_group_id) keys.push(g.source_group_id) }
+  for (const g of sorted) { keys.push(g.id); if (g.sourceGroupId) keys.push(g.sourceGroupId) }
   return keys
 }
 // The person's TYPE keys (mig 245): a type's dashboard template applies after
@@ -176,19 +179,20 @@ async function resolvePersonTypeKeys(): Promise<string[]> {
   const { previewKey } = usePreviewType()
   if (previewKey.value) return [previewKey.value] // preview-as-type: load THAT type's template
   const email = user.value?.email; if (!email || !orgId.value) return []
-  const { data: person } = await (db.from as any)('persons').select('person_types, person_type').eq('org_id', orgId.value).ilike('email', email).limit(1).maybeSingle()
+  const person = await usePeopleApi().findByEmail(orgId.value, email)
   if (!person) return []
-  const keys = (person.person_types?.length ? person.person_types : [person.person_type]).filter(Boolean)
+  const keys = (person.personTypes?.length ? person.personTypes : [person.personType]).filter(Boolean)
   return keys as string[]
 }
 // Human label for a user_type key ('_default' or a permission_groups.id).
 async function resolveTypeLabel(userType: string): Promise<string> {
   if (userType === '_default') return 'All users'
-  const { data } = await (db.from as any)('permission_groups').select('name').eq('id', userType).maybeSingle()
-  if (data?.name) return data.name
+  const grps = await useRolesApi().permissionGroups(orgId.value)
+  const g = grps.find(x => x.id === userType)
+  if (g?.name) return g.name
   // Person-type keys (Settings → Types & fields → Dashboard) are slugs, not ids
-  const { data: t2 } = await (db.from as any)('person_target_types').select('label').eq('org_id', orgId.value).eq('key', userType).maybeSingle()
-  return t2?.label ?? 'role'
+  const types = await usePersonTypesApi().listTypes(orgId.value)
+  return types.find(t => t.key === userType)?.label ?? 'role'
 }
 const logoUrl = ref<string | null>(null)
 const bannerUrl = ref<string | null>(null)
@@ -201,7 +205,7 @@ async function onBanner(e: Event) {
   try {
     const url = await uploadFile(file)
     bannerUrl.value = url
-    await (db.from as any)('organisations').update({ dashboard_banner_url: url }).eq('id', orgId.value)
+    await useOrganisationsApi().setDashboardBanner(orgId.value, url)
     toast.add({ severity: 'success', summary: 'Banner updated', life: 1500 })
   } catch (err: any) {
     toast.add({ severity: 'error', summary: 'Upload failed', detail: err?.message, life: 4000 })
@@ -209,7 +213,7 @@ async function onBanner(e: Event) {
 }
 async function clearBanner() {
   bannerUrl.value = null
-  await (db.from as any)('organisations').update({ dashboard_banner_url: null }).eq('id', orgId.value)
+  await useOrganisationsApi().setDashboardBanner(orgId.value, null)
 }
 const stats = reactive({ members: 0, groups: 0, upcomingEvents: 0, upcomingBookings: 0 })
 const byType = ref<{ label: string; count: number }[]>([])
@@ -448,20 +452,29 @@ async function load() {
   if (!orgId.value) return
   void ensureTerms()
   loading.value = true
-  const [{ data: orgRow }, { data: persons }, { count: groupCount }, { data: events, count: eventCount }, { data: bookables }] = await Promise.all([
-    (db.from as any)('organisations').select('name, logo_url, dashboard_banner_url, dashboard_config, org_level').eq('id', orgId.value).maybeSingle(),
-    (db.from as any)('persons').select('id, first_name, last_name, email, membership_type, gender, dob, custom_fields, created_at').eq('org_id', orgId.value),
-    (db.from as any)('member_groups').select('id', { count: 'exact', head: true }).eq('org_id', orgId.value).neq('kind', 'membership'),
+  // Seam reads return camelCase; the persons list is mapped back to the snake_case
+  // shape the aggregate code below reads. Events keep useDb — the FMEvent contract
+  // has no location_type/address, and the upcoming-events widget shows the venue, so
+  // reusing useEventsApi().list would silently drop it (a behaviour regression).
+  const [orgMeta, personsDomain, groupsList, { data: events, count: eventCount }] = await Promise.all([
+    useOrganisationsApi().getDashboardMeta(orgId.value as string).catch(() => null),
+    usePeopleApi().list(orgId.value as string),
+    useGroupsApi().list(orgId.value as string),
     (db.from as any)('events').select('id, title, start_at, end_at, location_type, address, status', { count: 'exact' })
       .eq('org_id', orgId.value).neq('status', 'ARCHIVED').neq('status', 'CANCELLED')
       .gte('start_at', nowIso.value).order('start_at').limit(6),
-    (db.from as any)('bookables').select('id').eq('org_id', orgId.value),
   ])
+  const persons = personsDomain.map(p => ({
+    id: p.id, first_name: p.firstName, last_name: p.lastName, email: p.email,
+    membership_type: p.membershipType, gender: p.gender, dob: p.dob,
+    custom_fields: p.customFields, created_at: p.createdAt,
+  }))
+  const groupCount = groupsList.filter(g => g.kind !== 'membership').length
 
-  orgName.value = orgRow?.name ?? ''
-  isParentOrg.value = isGoverningBody(orgRow?.org_level)
-  logoUrl.value = orgRow?.logo_url ?? null
-  bannerUrl.value = orgRow?.dashboard_banner_url ?? null
+  orgName.value = orgMeta?.name ?? ''
+  isParentOrg.value = isGoverningBody(orgMeta?.orgLevel)
+  logoUrl.value = orgMeta?.logoUrl ?? null
+  bannerUrl.value = orgMeta?.dashboardBannerUrl ?? null
   let base: any = null
   if (clubTypeId.value) {
     // MASTER: editing a club-type template's per-type starting dashboard.
@@ -473,10 +486,11 @@ async function load() {
   } else if (templateMode.value) {
     // Editing a role's default template — load THAT template (or fall back to defaults).
     templateLabel.value = await resolveTypeLabel(templateType.value!)
-    try { const { data: tt } = await (db.from as any)('person_target_types').select('is_access').eq('org_id', orgId.value).eq('key', templateType.value).maybeSingle(); templateIsAccess.value = tt ? !!tt.is_access : true } catch { templateIsAccess.value = true }
-    const { data: tpl } = await (db.from as any)('dashboard_templates').select('config')
-      .eq('org_id', orgId.value).eq('user_type', templateType.value).maybeSingle()
-    base = tpl?.config ?? (templateIsAccess.value === false ? [] : orgRow?.dashboard_config)
+    try { const types = await usePersonTypesApi().listTypes(orgId.value); const tt = types.find(t => t.key === templateType.value); templateIsAccess.value = tt ? !!tt.isAccess : true } catch { templateIsAccess.value = true }
+    // dashboard_templates read reused from the admin domain (useAdminApi).
+    const tpls1 = await useAdminApi().dashboardTemplates(orgId.value)
+    const tpl = tpls1.find(t => t.userType === templateType.value)
+    base = tpl?.config ?? (templateIsAccess.value === false ? [] : orgMeta?.dashboardConfig)
   } else {
     // Resolution: this user's own layout → their role's template → '_default' → club default → code.
     let savedCfg: any = null
@@ -487,8 +501,7 @@ async function load() {
       if (uid) user.value = session!.user as any
     }
     if (uid) {
-      const { data: ud } = await (db.from as any)('user_dashboards').select('config')
-        .eq('user_id', uid).eq('org_id', orgId.value).maybeSingle()
+      const ud = await useDashboardsApi().userDashboard(uid, orgId.value)
       savedCfg = ud?.config ?? null
     }
     // Resolve member-vs-admin first so dashAudience is correct before we pick +
@@ -497,11 +510,11 @@ async function load() {
     base = savedCfg
     if (!base) {
       const candidates = [...(await resolveUserTypeKeys()), ...(await resolvePersonTypeKeys()), '_default']
-      const { data: tpls } = await (db.from as any)('dashboard_templates').select('user_type, config')
-        .eq('org_id', orgId.value).in('user_type', candidates)
-      for (const k of candidates) { const t = (tpls ?? []).find((x: any) => x.user_type === k); if (t?.config) { base = t.config; break } }
+      // dashboard_templates read reused from the admin domain (useAdminApi).
+      const tpls = await useAdminApi().dashboardTemplates(orgId.value)
+      for (const k of candidates) { const t = tpls.find(x => x.userType === k); if (t?.config) { base = t.config; break } }
     }
-    base = base ?? orgRow?.dashboard_config
+    base = base ?? orgMeta?.dashboardConfig
   }
   config.value = base ? reconcile(base) : defaultConfig()
   // Safety: a fresh/mis-resolved config that ends up with nothing enabled should
@@ -578,12 +591,10 @@ async function load() {
     .slice(0, 6)
     .map((p: any) => ({ id: p.id, name: `${p.first_name} ${p.last_name}`.trim(), email: p.email, created_at: p.created_at }))
 
-  const ids = (bookables ?? []).map((b: any) => b.id)
-  if (ids.length) {
-    const { count } = await (db.from as any)('bookings').select('id', { count: 'exact', head: true })
-      .in('bookable_id', ids).gte('start_at', nowIso.value)
-    stats.upcomingBookings = count ?? 0
-  } else stats.upcomingBookings = 0
+  // Upcoming-bookings tile: org bookings (seam is org-scoped via the bookable join)
+  // starting from now. Replaces the two-step bookables→bookings count.
+  const orgBookings = await useBookingsApi().bookings(orgId.value as string)
+  stats.upcomingBookings = orgBookings.filter(b => b.startAt && b.startAt >= nowIso.value).length
 
   // ── Activities + their booking numbers / next bookings (Activity cards) ──
   const { data: acts } = await (db.from as any)('activities')

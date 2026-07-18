@@ -7,7 +7,7 @@
   be inherited + locked via <ProtoFieldEditor>).
 -->
 <script setup lang="ts">
-const db = useDb()
+const typesApi = usePersonTypesApi()
 const { orgId } = useOrg()
 const toast = useToast()
 const { loadOrgTypes, resolveFields, fieldAppliesTo } = useOrgFieldPolicy()
@@ -59,14 +59,15 @@ async function load() {
 
 async function seedStandard() {
   const existing = new Set(types.value.map(t => t.key))
-  const rows = STANDARD.filter(s => !existing.has(s.key)).map((s, i) => ({
-    org_id: orgId.value, key: s.key, label: s.label, kind: 'person',
-    is_access: s.is_access, min_count: 0, max_count: null, sort_order: types.value.length + i,
-  }))
-  if (rows.length) {
-    const { error } = await (db.from as any)('person_target_types').insert(rows)
-    if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
-  }
+  const missing = STANDARD.filter(s => !existing.has(s.key))
+  try {
+    for (const [i, s] of missing.entries()) {
+      await typesApi.createType({
+        orgId: orgId.value!, key: s.key, label: s.label, kind: 'person',
+        isAccess: s.is_access, sortOrder: types.value.length + i,
+      })
+    }
+  } catch (e: any) { toast.add({ severity: 'error', summary: 'Failed', detail: e?.message, life: 4000 }); return }
   await load(); if (!selectedKey.value && types.value.length) selectedKey.value = types.value[0].key
   toast.add({ severity: 'success', summary: 'Standard types added', life: 2000 })
 }
@@ -74,29 +75,31 @@ async function seedStandard() {
 async function addType() {
   const label = newLabel.value.trim()
   if (!label || !orgId.value) return
-  const { error } = await (db.from as any)('person_target_types').insert({
-    org_id: orgId.value, key: slugify(label) || 'type_' + Date.now(), label,
-    kind: 'person', is_access: false, min_count: 0, max_count: null, sort_order: types.value.length,
-  })
-  if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
+  try {
+    await typesApi.createType({
+      orgId: orgId.value, key: slugify(label) || 'type_' + Date.now(), label,
+      kind: 'person', isAccess: false, sortOrder: types.value.length,
+    })
+  } catch (e: any) { toast.add({ severity: 'error', summary: 'Failed', detail: e?.message, life: 4000 }); return }
   newLabel.value = ''; adding.value = false
   await load(); selectedKey.value = slugify(label)
 }
 async function removeType(t: any) {
   if (!confirm(`Delete the "${t.label}" type?`)) return
-  await (db.from as any)('person_target_types').delete().eq('id', t.id)
+  await typesApi.removeType(t.id)
   selectedKey.value = null; await load()
 }
 
 async function addField(p: any) {
-  const { error } = await (db.from as any)('field_definitions').insert({
-    org_id: orgId.value, label: p.label, field_type: p.type, is_required: p.required,
-    options: p.options, help_text: p.placeholder || null,
-    targets: (p.targets?.length ? p.targets : [selected.value?.key]),
-    target: (p.targets?.length ? p.targets[0] : selected.value?.key),
-    rules: [], sort_order: fields.value.length,
-  })
-  if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
+  try {
+    await typesApi.createField({
+      orgId: orgId.value!, label: p.label, fieldType: p.type, isRequired: p.required,
+      options: p.options, helpText: p.placeholder || null,
+      targets: (p.targets?.length ? p.targets : [selected.value?.key]),
+      target: (p.targets?.length ? p.targets[0] : selected.value?.key),
+      sortOrder: fields.value.length,
+    })
+  } catch (e: any) { toast.add({ severity: 'error', summary: 'Failed', detail: e?.message, life: 4000 }); return }
   toast.add({ severity: 'success', summary: `Field "${p.label}" added`, life: 2000 })
   fields.value = await resolveFields(orgId.value!)
 }
@@ -107,7 +110,7 @@ async function savePermissions() {
   const t = selected.value
   if (!t) return
   saving.value = true
-  await (db.from as any)('person_target_types').update({ permissions: t.permissions, is_access: !!t.is_access }).eq('id', t.id)
+  await typesApi.updateType(t.id, { permissions: t.permissions, isAccess: !!t.is_access })
   saving.value = false
   toast.add({ severity: 'success', summary: 'Saved', life: 2000 })
 }

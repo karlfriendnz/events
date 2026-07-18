@@ -9,7 +9,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'admin' })
 
-const db = useDb()
+const api = useAdminApi()
 const route = useRoute()
 const user = useSupabaseUser()
 const toast = useToast()
@@ -21,20 +21,27 @@ const isSuper = computed(() => ((user.value as any)?.app_metadata?.role) === 'su
 interface Brand { id: string; name: string; logo_url: string | null; icon_url: string | null; color: string | null; sort_order: number }
 const brands = ref<Brand[]>([])
 const newBrand = ref('')
+// The seam returns camelCase; the template reads snake_case — map at the boundary.
 async function loadBrands() {
-  const { data } = await (db.from as any)('brands').select('id, name, logo_url, icon_url, color, sort_order').order('sort_order').order('name')
-  brands.value = data ?? []
+  const rows = await api.brands()
+  brands.value = rows.map(b => ({ id: b.id, name: b.name, logo_url: b.logoUrl, icon_url: b.iconUrl, color: b.color, sort_order: b.sortOrder }))
 }
 async function addBrand() {
   const name = newBrand.value.trim(); if (!name) return
-  await (db.from as any)('brands').insert({ name, sort_order: brands.value.length })
+  await api.createBrand({ name, sortOrder: brands.value.length })
   newBrand.value = ''; await loadBrands()
 }
 async function patchBrand(b: Brand, patch: Partial<Brand>) {
-  await (db.from as any)('brands').update(patch).eq('id', b.id)
+  // snake → camel for the seam patch.
+  await api.updateBrand(b.id, {
+    ...(patch.name !== undefined ? { name: patch.name } : {}),
+    ...(patch.logo_url !== undefined ? { logoUrl: patch.logo_url } : {}),
+    ...(patch.icon_url !== undefined ? { iconUrl: patch.icon_url } : {}),
+    ...(patch.color !== undefined ? { color: patch.color } : {}),
+  })
 }
 async function removeBrand(id: string) {
-  await (db.from as any)('brands').delete().eq('id', id); await loadBrands()
+  await api.deleteBrand(id); await loadBrands()
 }
 async function onBrandImage(b: Brand, kind: 'logo' | 'icon', e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return
@@ -51,19 +58,19 @@ interface ClubTypeRow { id: string; name: string; sort_order: number }
 const clubTypes = ref<ClubTypeRow[]>([])
 const newClubType = ref('')
 async function loadClubTypes() {
-  const { data } = await (db.from as any)('club_types').select('id, name, sort_order').order('sort_order').order('name')
-  clubTypes.value = data ?? []
+  const rows = await api.clubTypes()
+  clubTypes.value = rows.map(t => ({ id: t.id, name: t.name, sort_order: t.sortOrder }))
 }
 async function addClubType() {
   const name = newClubType.value.trim(); if (!name) return
-  await (db.from as any)('club_types').insert({ name, sort_order: clubTypes.value.length })
+  await api.createClubType({ name, sortOrder: clubTypes.value.length })
   newClubType.value = ''; await loadClubTypes()
 }
 async function renameClubType(t: ClubTypeRow) {
-  await (db.from as any)('club_types').update({ name: t.name.trim() }).eq('id', t.id)
+  await api.updateClubType(t.id, { name: t.name.trim() })
 }
 async function removeClubType(id: string) {
-  await (db.from as any)('club_types').delete().eq('id', id); await loadClubTypes()
+  await api.deleteClubType(id); await loadClubTypes()
 }
 
 // ── Club-type DEFAULTS (setup template — migration 248) ──

@@ -122,8 +122,12 @@
 const { orgId } = useOrg()
 import { useToast } from 'primevue/usetoast'
 
+// `registration_forms` is on the seam (useFormsApi). GAP: `form_fields` (the legacy
+// flat-field editor) and the `status`/`tc_content`/`updated_at` columns are NOT in the
+// forms contract/schema — they stay on useDb below, pending forms-seam coverage.
 const db = useDb()
 const toast = useToast()
+const formsApi = useFormsApi()
 
 const forms = ref<any[]>([])
 const formFields = ref<any[]>([])
@@ -139,9 +143,12 @@ const rowMenu = ref()
 const menuItems = ref<any[]>([])
 
 function formatDate(d: string) {
-  return new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+  if (!d) return ''
+  const dt = new Date(d)
+  return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+// GAP: form_fields has no seam yet — legacy flat-field editor stays on useDb.
 watch(selectedForm, async (form) => {
   if (!form) { formFields.value = []; return }
   const { data } = await db.from('form_fields').select('*').eq('form_id', form.id).order('sort_order')
@@ -150,29 +157,34 @@ watch(selectedForm, async (form) => {
 
 async function load() {
   loading.value = true
-  const { data } = await db.from('registration_forms').select('*').eq('org_id', orgId.value).order('updated_at', { ascending: false })
-  forms.value = (data ?? []).map(f => ({ ...f, field_count: 0 }))
+  const data = await formsApi.list(orgId.value)
+  // status/tc_content/updated_at aren't in the forms contract (dropped in the MySQL
+  // schema); map what exists and default the rest so the legacy template still renders.
+  forms.value = (data ?? []).map(f => ({
+    ...f,
+    field_count: 0,
+    status: (f as any).status,
+    tc_content: (f as any).tc_content,
+    updated_at: (f as any).updatedAt ?? (f as any).updated_at ?? null,
+  }))
   loading.value = false
 }
 
 async function handleCreate() {
   if (!newFormName.value.trim()) return
   creating.value = true
-  const { error } = await db.from('registration_forms').insert({
-    org_id: orgId.value,
-    name: newFormName.value.trim(),
-    status: 'DRAFT',
-    schema: [],
-  })
-  if (!error) {
+  try {
+    await formsApi.create({ orgId: orgId.value, name: newFormName.value.trim() })
     toast.add({ severity: 'success', summary: 'Form created', life: 3000 })
     showCreate.value = false
     newFormName.value = ''
-    load()
+    await load()
+  } finally {
+    creating.value = false
   }
-  creating.value = false
 }
 
+// GAP: form_fields has no seam yet — these three stay on useDb.
 async function handleAddField() {
   if (!newField.value.label.trim() || !selectedForm.value) return
   addingField.value = true
@@ -199,6 +211,7 @@ async function deleteField(fieldId: string) {
   formFields.value = formFields.value.filter(f => f.id !== fieldId)
 }
 
+// GAP: tc_content is not a forms-contract column (dropped in the MySQL schema) — stays on useDb.
 async function saveTCs() {
   if (!selectedForm.value) return
   await db.from('registration_forms').update({ tc_content: selectedForm.value.tc_content }).eq('id', selectedForm.value.id)
@@ -212,6 +225,7 @@ function openMenu(event: Event, row: any) {
       label: row.status === 'PUBLISHED' ? 'Unpublish' : 'Publish',
       icon: 'pi pi-send',
       command: async () => {
+        // GAP: `status` is not a forms-contract column (dropped) — stays on useDb.
         const newStatus = row.status === 'PUBLISHED' ? 'DRAFT' : 'PUBLISHED'
         await db.from('registration_forms').update({ status: newStatus }).eq('id', row.id)
         toast.add({ severity: 'success', summary: `Form ${newStatus.toLowerCase()}`, life: 3000 })
@@ -224,7 +238,7 @@ function openMenu(event: Event, row: any) {
       icon: 'pi pi-trash',
       class: 'text-red-500',
       command: async () => {
-        await db.from('registration_forms').delete().eq('id', row.id)
+        await formsApi.remove(row.id)
         toast.add({ severity: 'success', summary: 'Form deleted', life: 3000 })
         load()
       }

@@ -25,8 +25,11 @@ export const TERM_DEFS: TermDef[] = [
 const DEFAULT_BY_KEY: Record<string, TermDef> = Object.fromEntries(TERM_DEFS.map(t => [t.key, t]))
 
 export function useTerminology() {
-  const db = useDb()
-  const { ancestors } = useOrgHierarchy()
+  // Data access goes through the seam. terminology is a column on organisations /
+  // org_sports, but it's a fields/labels-domain concept, so its accessors live in
+  // usePersonTypesApi. Ancestors come from the seam (orgs.ancestors).
+  const api = usePersonTypesApi()
+  const { ancestors } = useOrganisationsApi()
 
   /**
    * Own + inherited terminology overrides for an org → { key: { singular, plural } }.
@@ -40,20 +43,16 @@ export function useTerminology() {
     const anc = await ancestors(orgId)
     // Furthest ancestor first so nearer orgs (and finally the club) override.
     const ids = [...anc.map(a => a.id).reverse(), orgId]
-    const [{ data }, sportOverrides] = await Promise.all([
-      (db.from as any)('organisations').select('id, terminology').in('id', ids),
+    const [rows, sportOverrides] = await Promise.all([
+      api.terminologyForOrgs(ids),
       (async () => {
+        // sportId === null → resolve org-level only (skip any sport overrides).
         if (opts && 'sportId' in opts && opts.sportId === null) return null
-        if (opts?.sportId) {
-          const { data: s } = await (db.from as any)('org_sports').select('terminology').eq('id', opts.sportId).maybeSingle()
-          return s?.terminology ?? null
-        }
-        const { data: s } = await (db.from as any)('org_sports')
-          .select('terminology').eq('org_id', orgId).eq('is_primary', true).maybeSingle()
-        return s?.terminology ?? null
+        // explicit sport, or the org's PRIMARY sport when omitted.
+        return await api.sportTerminology(orgId, opts?.sportId ?? undefined)
       })(),
     ])
-    const byId: Record<string, any> = Object.fromEntries((data ?? []).map((r: any) => [r.id, r.terminology || {}]))
+    const byId: Record<string, any> = Object.fromEntries((rows ?? []).map((r) => [r.orgId, r.terminology || {}]))
     const merged: Record<string, { singular?: string; plural?: string }> = {}
     const apply = (t: Record<string, any>) => {
       for (const [k, v] of Object.entries(t || {})) {
@@ -88,8 +87,8 @@ export function useTerminology() {
       if (ov.plural && ov.plural.trim() && ov.plural.trim() !== def.plural) out.plural = ov.plural.trim()
       if (Object.keys(out).length) clean[def.key] = out
     }
-    if (opts?.sportId) await (db.from as any)('org_sports').update({ terminology: clean }).eq('id', opts.sportId)
-    else await (db.from as any)('organisations').update({ terminology: clean }).eq('id', orgId)
+    if (opts?.sportId) await api.saveSportTerminology(opts.sportId, clean)
+    else await api.saveOrgTerminology(orgId, clean)
     return clean
   }
 

@@ -87,6 +87,22 @@ export async function listDisciplines(orgId: string): Promise<Discipline[]> {
   return rows.map(toDiscipline)
 }
 
+/**
+ * Every discipline owned by a SET of orgs — the requirement engine needs a
+ * discipline's whole ancestor chain, and those ancestors may be owned by different
+ * governing bodies. UNFILTERED by anything but org (the chain walk is pure, on the
+ * client). Empty in → empty out.
+ */
+export async function listDisciplinesForOrgs(orgIds: string[]): Promise<Discipline[]> {
+  if (!orgIds.length) return []
+  const rows = await db
+    .select()
+    .from(schema.disciplines)
+    .where(inArray(schema.disciplines.orgId, orgIds))
+    .orderBy(asc(schema.disciplines.sortOrder), asc(schema.disciplines.name))
+  return rows.map(toDiscipline)
+}
+
 /** The requirements for a set of disciplines, in author order. Empty in → empty out. */
 export async function listRequirements(disciplineIds: string[]): Promise<DisciplineRequirement[]> {
   if (disciplineIds.length === 0) return []
@@ -198,4 +214,9 @@ export async function saveRequirements(
     )
   }
   return listRequirements([disciplineId])
+}
+
+/** Delete a single requirement row by id. */
+export async function deleteRequirement(id: string): Promise<void> {
+  await db.delete(schema.disciplineRequirements).where(eq(schema.disciplineRequirements.id, id))
 }

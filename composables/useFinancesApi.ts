@@ -8,6 +8,11 @@ import type {
   DiscountPatch,
   BookingDiscount,
   XeroConnection,
+  FeeComponent,
+  Addon,
+  AddonCreate,
+  ReportingBundle,
+  AttendanceSession,
 } from '../shared/contracts/finance'
 
 export function useFinancesApi() {
@@ -32,6 +37,35 @@ export function useFinancesApi() {
   async function xeroConnection(orgId: string): Promise<XeroConnection | null> {
     return await $fetch<XeroConnection | null>('/api/v1/xero-connection', { query: { orgId } })
   }
+  /** Every fee component for an org (read-only on the finances screen). */
+  async function feeComponents(orgId: string): Promise<FeeComponent[]> {
+    return await $fetch<FeeComponent[]>('/api/v1/finances/fee-components', { query: { orgId } })
+  }
+  /** Every add-on for an org. */
+  async function addons(orgId: string): Promise<Addon[]> {
+    return await $fetch<Addon[]>('/api/v1/finances/addons', { query: { orgId } })
+  }
+  async function createAddon(input: AddonCreate): Promise<Addon> {
+    return await $fetch<Addon>('/api/v1/finances/addons', { method: 'POST', body: input })
+  }
+  async function removeAddon(id: string): Promise<void> {
+    await $fetch(`/api/v1/finances/addons/${id}`, { method: 'DELETE' })
+  }
+  /** The org's ISO currency code (defaults NZD) — for money formatting. */
+  async function orgCurrency(orgId: string): Promise<string> {
+    const res = await $fetch<{ currency: string }>('/api/v1/finances/org-currency', { query: { orgId } })
+    return res.currency
+  }
+  /** The /reporting dashboard rollup (events + category + invitee statuses). */
+  async function reportingBundle(orgId: string): Promise<ReportingBundle> {
+    return await $fetch<ReportingBundle>('/api/v1/finances/reporting', { query: { orgId } })
+  }
+  /** Group-linked training event occurrences in a date window [from, to). */
+  async function attendanceSessions(orgId: string, from: string, to: string): Promise<AttendanceSession[]> {
+    return await $fetch<AttendanceSession[]>('/api/v1/finances/attendance-sessions', {
+      query: { orgId, from, to },
+    })
+  }
   return {
     discounts,
     createDiscount,
@@ -39,5 +73,12 @@ export function useFinancesApi() {
     removeDiscount,
     bookingDiscounts,
     xeroConnection,
+    feeComponents,
+    addons,
+    createAddon,
+    removeAddon,
+    orgCurrency,
+    reportingBundle,
+    attendanceSessions,
   }
 }

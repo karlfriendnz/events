@@ -15,7 +15,7 @@
 const props = defineProps<{ target: string; targetLabel: string; orgId: string; entity?: boolean }>()
 const emit = defineEmits<{ (e: 'back'): void }>()
 
-const db = useDb()
+const typesApi = usePersonTypesApi()
 const toast = useToast()
 const { resolveFields, fieldAppliesTo, loadOrgTypes, loadTypeLinks } = useOrgFieldPolicy()
 const { uploadFile } = useUpload()
@@ -101,8 +101,8 @@ const advancedOpen = ref(false)
 
 async function load() {
   loading.value = true
-  const [{ data: pf }, all] = await Promise.all([
-    (db.from as any)('profile_forms').select('config').eq('org_id', props.orgId).eq('type_key', target.value).maybeSingle(),
+  const [pf, all] = await Promise.all([
+    typesApi.getProfileForm(props.orgId, target.value),
     resolveFields(props.orgId),
   ])
   // Resolve through the type's LINKS, not its spelling (mig 272) — the same chain
@@ -214,9 +214,14 @@ async function syncOwnDefs() {
     const def = libDefs.value.find((d: any) => d.id === f.def_id)
     if (!def || def.inherited) continue          // never write another org's row
     if (!defIsStale(f, def)) continue
-    const patch = defPatchFor(f)
-    const { error } = await (db.from as any)('field_definitions').update(patch).eq('id', f.def_id).eq('org_id', props.orgId)
-    if (error) { toast.add({ severity: 'error', summary: 'Field not saved', detail: error.message, life: 4000 }); continue }
+    const patch = defPatchFor(f)                  // snake — for local sync + comparison
+    try {
+      // Own fields only (guarded above); the seam updates by id.
+      await typesApi.updateField(f.def_id, {
+        label: patch.label, fieldType: patch.field_type, options: patch.options,
+        key: patch.key, isRequired: patch.is_required, meta: patch.meta,
+      })
+    } catch (e: any) { toast.add({ severity: 'error', summary: 'Field not saved', detail: e?.message, life: 4000 }); continue }
     Object.assign(def, patch)                    // keep the library in step without a refetch
   }
 }
@@ -226,10 +231,7 @@ function scheduleSave() {
   saving.value = true
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(async () => {
-    await (db.from as any)('profile_forms').upsert(
-      { org_id: props.orgId, type_key: target.value, config: { fields: layout.value }, updated_at: new Date().toISOString() },
-      { onConflict: 'org_id,type_key' },
-    )
+    await typesApi.saveProfileForm(props.orgId, target.value, { fields: layout.value })
     // The layout is this org's own; the definition is what every affiliated club
     // sees. Both, or the two views drift apart silently.
     await syncOwnDefs()
@@ -279,13 +281,17 @@ function addBlock(type: string) {
 // "Add new field" also creates a field_definition (library + events), then places it.
 async function addNewField() {
   saving.value = true
-  const { data, error } = await (db.from as any)('field_definitions').insert({
-    org_id: props.orgId, target: target.value, targets: [target.value], label: 'New field', field_type: 'text',
-    is_required: false, options: [], meta: { col_span: 1 }, rules: [], sort_order: libDefs.value.length,
-  }).select('*').single()
+  let data: any
+  try {
+    data = await typesApi.createField({
+      orgId: props.orgId, target: target.value, targets: [target.value], label: 'New field', fieldType: 'text',
+      isRequired: false, options: [], meta: { col_span: 1 }, sortOrder: libDefs.value.length,
+    })
+  } catch (e: any) { saving.value = false; toast.add({ severity: 'error', summary: 'Failed', detail: e?.message, life: 4000 }); return }
   saving.value = false
-  if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
-  await load(); addDef({ ...data, inherited: false })
+  await load()
+  // Map the created field (camelCase contract) to the snake shape addDef reads.
+  addDef({ id: data.id, label: data.label, field_type: data.fieldType, is_required: data.isRequired, options: data.options, help_text: data.helpText, key: data.key, meta: data.meta, inherited: false })
 }
 function addTab() {
   const e = editing.value as any; if (!e) return

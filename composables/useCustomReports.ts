@@ -20,7 +20,6 @@ export const REPORT_OPS = [
 ]
 
 export function useCustomReports() {
-  const db = useDb()
   const { orgId } = useOrg()
 
   // ageFromDob comes from useAge (THE age helper) — re-exported below so this
@@ -29,25 +28,39 @@ export function useCustomReports() {
   // `set` reads as empty. That's a behaviour change to saved reports, and an
   // intended one — 126 was a lie.
 
-  // ── Persistence ──
+  // ── Persistence (via the /api/v1 seam — never useDb) ──
+  // The seam returns camelCase (orgId/sortOrder); map back to the snake shape the
+  // CustomReport type + consumers expect.
+  function mapReport(r: any): CustomReport {
+    return { id: r.id, org_id: r.orgId, name: r.name, config: normalizeConfig(r.config), sort_order: r.sortOrder ?? 0 }
+  }
   async function loadReports(): Promise<CustomReport[]> {
     if (!orgId.value) return []
-    const { data } = await (db.from as any)('custom_reports').select('*').eq('org_id', orgId.value).order('sort_order').order('name')
-    return (data ?? []).map((r: any) => ({ ...r, config: normalizeConfig(r.config) }))
+    const rows = await $fetch<any[]>('/api/v1/custom-reports', { query: { orgId: orgId.value } })
+    return (rows ?? []).map(mapReport)
   }
   async function getReport(id: string): Promise<CustomReport | null> {
-    const { data } = await (db.from as any)('custom_reports').select('*').eq('id', id).maybeSingle()
-    return data ? { ...data, config: normalizeConfig(data.config) } : null
+    const r = await $fetch<any | null>(`/api/v1/custom-reports/${id}`)
+    return r ? mapReport(r) : null
   }
   async function createReport(name: string, config: ReportConfig): Promise<CustomReport | null> {
-    const { data } = await (db.from as any)('custom_reports').insert({ org_id: orgId.value, name: name.trim() || 'Untitled report', config }).select('*').maybeSingle()
-    return data ? { ...data, config: normalizeConfig(data.config) } : null
+    const r = await $fetch<any>('/api/v1/custom-reports', {
+      method: 'POST',
+      query: { orgId: orgId.value },
+      body: { name: name.trim() || 'Untitled report', config },
+    })
+    return r ? mapReport(r) : null
   }
   async function updateReport(id: string, patch: { name?: string; config?: ReportConfig }): Promise<void> {
-    await (db.from as any)('custom_reports').update(patch).eq('id', id)
+    await $fetch(`/api/v1/custom-reports/${id}`, { method: 'PATCH', body: patch })
   }
   async function deleteReport(id: string): Promise<void> {
-    await (db.from as any)('custom_reports').delete().eq('id', id)
+    await $fetch(`/api/v1/custom-reports/${id}`, { method: 'DELETE' })
+  }
+  /** Distinct member-group positions across the org (report builder field picker). */
+  async function loadReportPositions(): Promise<string[]> {
+    if (!orgId.value) return []
+    return await $fetch<string[]>('/api/v1/custom-reports/positions', { query: { orgId: orgId.value } })
   }
   function normalizeConfig(c: any): ReportConfig {
     return { match: c?.match === 'any' ? 'any' : 'all', filters: Array.isArray(c?.filters) ? c.filters : [], columns: Array.isArray(c?.columns) ? c.columns : ['first_name', 'last_name', 'gender', 'age'] }
@@ -85,27 +98,15 @@ export function useCustomReports() {
   /** Run a report config → matching person rows (with derived __positions/__age). */
   async function runReport(config: ReportConfig): Promise<any[]> {
     if (!orgId.value) return []
-    const { data: persons } = await (db.from as any)('persons')
-      .select('id, first_name, last_name, email, phone, dob, gender, membership_type, person_type, person_types, custom_fields, photo_url')
-      .eq('org_id', orgId.value)
-    // positions come from member_group_memberships (no org_id there — scope by joined group)
-    const needsPositions = config.filters.some(f => f.field === 'position') || config.columns.includes('position')
-    const posByPerson: Record<string, string[]> = {}
-    if (needsPositions) {
-      const { data: mships } = await (db.from as any)('member_group_memberships')
-        .select('person_id, positions, group:member_groups!inner(org_id)')
-        .eq('group.org_id', orgId.value)
-      for (const m of (mships ?? [])) {
-        if (!m.person_id || !Array.isArray(m.positions)) continue
-        ;(posByPerson[m.person_id] ??= [])
-        for (const pos of m.positions) if (pos && !posByPerson[m.person_id].includes(pos)) posByPerson[m.person_id].push(pos)
-      }
-    }
-    const rows = (persons ?? []).map((p: any) => ({ ...p, __positions: posByPerson[p.id] ?? [], __age: ageFromDob(p.dob) }))
+    // The seam hands back the snake_case field vocabulary + each person's union of
+    // member-group positions (__positions). Derive __age client-side and filter in
+    // memory (the pure filter engine is unchanged — fine at club scale).
+    const persons = await $fetch<any[]>('/api/v1/custom-reports/people', { query: { orgId: orgId.value } })
+    const rows = (persons ?? []).map((p: any) => ({ ...p, __age: ageFromDob(p.dob) }))
     const filters = config.filters.filter(f => f.field && f.op)
     if (!filters.length) return rows
     return rows.filter((p: any) => config.match === 'any' ? filters.some(f => testFilter(p, f)) : filters.every(f => testFilter(p, f)))
   }
 
-  return { REPORT_OPS, ageFromDob, personValue, loadReports, getReport, createReport, updateReport, deleteReport, runReport, normalizeConfig }
+  return { REPORT_OPS, ageFromDob, personValue, loadReports, getReport, createReport, updateReport, deleteReport, runReport, loadReportPositions, normalizeConfig }
 }

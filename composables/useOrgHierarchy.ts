@@ -38,14 +38,29 @@ export function orgLevelLabel(level: string | null | undefined): string {
   }
 }
 
+// Map a seam OrgHierarchyNode (camelCase contract) → the snake_case OrgNode this
+// composable's consumers read (org_level / parent_id / via_sport). The seam owns
+// the recursive walk (MySQL CTEs replacing the Postgres RPCs); this is the last
+// place the two casings meet.
+function toOrgNode(n: import('../shared/contracts/admin').OrgHierarchyNode): OrgNode {
+  return {
+    id: n.id,
+    name: n.name,
+    type: n.type ?? null,
+    org_level: n.orgLevel as OrgNode['org_level'],
+    parent_id: n.parentId ?? null,
+    depth: n.depth,
+    via_sport: n.viaSport ?? null,
+  }
+}
+
 export function useOrgHierarchy() {
-  const db = useDb()
+  const api = useAdminApi()
 
   /** Ancestors (immediate parent first, increasing upward). Excludes self. */
   async function ancestors(orgId: string): Promise<OrgNode[]> {
-    const { data, error } = await (db.rpc as any)('org_ancestors', { p_org: orgId })
-    if (error) { console.error('[useOrgHierarchy] ancestors', error); return [] }
-    return (data ?? []) as OrgNode[]
+    try { return (await api.orgAncestors(orgId)).map(toOrgNode) }
+    catch (error) { console.error('[useOrgHierarchy] ancestors', error); return [] }
   }
 
   /**
@@ -54,32 +69,20 @@ export function useOrgHierarchy() {
    *
    * A club has ONE parent_id — its PRIMARY sport's body (org_sports mirrors it
    * there). Every other affiliation of a multi-sport club is reachable only via
-   * org_sport_ancestors. So anything resolving what an org inherits (fields,
-   * types, club types) MUST union both, or a tennis/badminton/squash club
-   * silently inherits from tennis alone and the rest is invisible — no error.
+   * the sport chains. So anything resolving what an org inherits (fields, types,
+   * club types) MUST union both, or a tennis/badminton/squash club silently
+   * inherits from tennis alone and the rest is invisible — no error. The seam's
+   * governing walk does the union + parent-wins dedupe.
    */
   async function governingOrgs(orgId: string): Promise<OrgNode[]> {
-    const [anc, sportAnc] = await Promise.all([
-      (db.rpc as any)('org_ancestors', { p_org: orgId }),
-      (db.rpc as any)('org_sport_ancestors', { p_org: orgId, p_sport: null }),
-    ])
-    if (anc.error) console.error('[useOrgHierarchy] governingOrgs parent chain', anc.error)
-    if (sportAnc.error) console.error('[useOrgHierarchy] governingOrgs sport chains', sportAnc.error)
-    // Parent chain first so it wins the dedupe: a body reachable both ways is an
-    // ancestor proper, and org_sport_ancestors' `distinct on (id)` would pin it to
-    // one arbitrary via_sport anyway.
-    const byId = new Map<string, OrgNode>()
-    for (const o of [...(anc.data ?? []), ...(sportAnc.data ?? [])] as OrgNode[]) {
-      if (!byId.has(o.id)) byId.set(o.id, o)
-    }
-    return [...byId.values()]
+    try { return (await api.orgGoverning(orgId)).map(toOrgNode) }
+    catch (error) { console.error('[useOrgHierarchy] governingOrgs', error); return [] }
   }
 
   /** Descendants (direct children first, increasing downward). Excludes self. */
   async function descendants(orgId: string): Promise<OrgNode[]> {
-    const { data, error } = await (db.rpc as any)('org_descendants', { p_org: orgId })
-    if (error) { console.error('[useOrgHierarchy] descendants', error); return [] }
-    return (data ?? []) as OrgNode[]
+    try { return (await api.orgDescendants(orgId)).map(toOrgNode) }
+    catch (error) { console.error('[useOrgHierarchy] descendants', error); return [] }
   }
 
   /**

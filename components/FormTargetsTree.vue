@@ -27,6 +27,12 @@ watch(orgId, load)
 watch(() => props.locationIds, load, { deep: true })
 async function load() {
   if (!orgId.value) return
+  // SEAM GAP: this read needs the single member_groups.location_id (the class site,
+  // mig 237) to honour the `locationIds` scope prop in the memberships context.
+  // useGroupsApi().list exposes only `locationIds` (the mig-244 membership sites
+  // array), not location_id — converting would silently break location scoping for
+  // membership consumers of this shared tree. Left on useDb until the groups seam
+  // exposes location_id. (codes still come from useGroupCodes, not the seam either.)
   const [codes, { data: allGroups }] = await Promise.all([
     gc.loadCodes(),
     (db.from as any)('member_groups').select('id, name, code_id, location_id, kind').eq('org_id', orgId.value).neq('kind', 'membership').order('name'),

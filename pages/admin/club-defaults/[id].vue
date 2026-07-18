@@ -7,7 +7,7 @@
 -->
 <script setup lang="ts">
 definePageMeta({ layout: 'admin' })
-const db = useDb()
+const api = useAdminApi()
 const route = useRoute()
 const toast = useToast()
 const typeId = computed(() => String(route.params.id))
@@ -53,9 +53,9 @@ useBreadcrumbs([{ label: 'Master', to: '/admin/master' }, { label: () => typeNam
 onMounted(load)
 async function load() {
   loading.value = true
-  const { data: row } = await (db.from as any)('club_types').select('name, is_overall_default').eq('id', typeId.value).maybeSingle()
+  const row = await api.getClubType(typeId.value).catch(() => null)
   typeName.value = row?.name ?? 'Club type'
-  isOverall.value = !!row?.is_overall_default
+  isOverall.value = !!row?.isOverallDefault
   const d = await loadDefaults(typeId.value)
   for (const m of MODULE_DEFS) modOn[m.key] = d.default_modules === null ? true : (m.core || d.default_modules.includes(m.key))
   dPersonTypes.value = (d.default_person_types ?? []).map((p: any) => ({ key: p.key, label: p.label, is_access: !!p.is_access, permissions: p.permissions ?? {}, menu_items: p.menu_items ?? null, landing_path: p.landing_path ?? null }))
@@ -88,8 +88,8 @@ function setTerm(key: string, which: 'singular' | 'plural', v: string) { (dTerm[
 // club — the dashboard restores the current club on the way back.
 async function editDashboard(p: any) {
   await save()
-  const { data: sb } = await (db.from as any)('organisations').select('id').eq('is_sandbox', true).maybeSingle()
-  if (sb?.id && import.meta.client) { sessionStorage.setItem('fm_tpl_return_org', readActiveOrg() || ''); persistActiveOrg(sb.id) }
+  const sandboxId = await api.sandboxOrgId()
+  if (sandboxId && import.meta.client) { sessionStorage.setItem('fm_tpl_return_org', readActiveOrg() || ''); persistActiveOrg(sandboxId) }
   window.location.href = `/dashboard?editTemplate=${p.key}&clubType=${typeId.value}`
 }
 

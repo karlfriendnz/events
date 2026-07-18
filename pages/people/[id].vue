@@ -465,7 +465,7 @@ async function onAvatarFile(e: Event) {
   uploadingPhoto.value = true
   try {
     const url = await uploadFile(file)
-    await (db.from as any)('persons').update({ photo_url: url }).eq('id', route.params.id)
+    await usePeopleApi().update(String(route.params.id), { photoUrl: url })
     if (person.value) person.value.photo_url = url
     toast.add({ severity: 'success', summary: 'Photo updated', life: 2000 })
   } catch (err: any) {
@@ -630,13 +630,29 @@ function toIsoDate(d: Date | null): string | null {
 
 async function load() {
   loading.value = true
-  const [{ data: p }, { data: groups }, { data: memberships }, fields, { data: invites }] = await Promise.all([
-    (db.from as any)('persons').select('*').eq('id', route.params.id).eq('org_id', orgId.value).single(),
-    (db.from as any)('member_groups').select('id, name, color').eq('org_id', orgId.value).order('sort_order').order('name'),
+  // The seam returns a camelCase domain object; the template + hydration below read
+  // snake_case, so map it back (mapper approach). `.catch(()=>null)` preserves the
+  // old `.single()`-tolerates-missing behaviour (a missing person → p=null).
+  const [pDomain, groupsDomain, { data: memberships }, fields, { data: invites }] = await Promise.all([
+    usePeopleApi().get(String(route.params.id)).catch(() => null),
+    useGroupsApi().list(orgId.value as string),
     (db.from as any)('member_group_memberships').select('group_id, roles, role').eq('person_id', route.params.id),
     resolveFields(orgId.value as string),
     (db.from as any)('invitees').select('event_id, status, attended, events(title, start_at, status)').eq('person_id', route.params.id),
   ])
+  const p = pDomain ? {
+    id: pDomain.id, org_id: pDomain.orgId,
+    first_name: pDomain.firstName, last_name: pDomain.lastName,
+    email: pDomain.email, phone: pDomain.phone, phone2: pDomain.phone2,
+    dob: pDomain.dob, gender: pDomain.gender, membership_type: pDomain.membershipType,
+    person_types: pDomain.personTypes, person_type: pDomain.personType,
+    photo_url: pDomain.photoUrl, comms_topics: pDomain.commsTopics,
+    custom_fields: pDomain.customFields, created_at: pDomain.createdAt,
+  } : null
+  // member_groups → the {id,name,color} shape the page uses, code-order preserved.
+  const groups = [...groupsDomain]
+    .sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name))
+    .map(g => ({ id: g.id, name: g.name, color: g.color }))
   resolvePersonTypes(orgId.value as string).then(all => { personTypes.value = (all ?? []).filter((t: any) => (t.kind ?? 'person') === 'person') })
   person.value = p ?? null
   allGroups.value = groups ?? []
@@ -687,8 +703,8 @@ async function load() {
     .then(({ data }: any) => { profileLayout.value = Array.isArray(data?.config?.fields) ? data.config.fields : null })
 
   // ── Dashboard bundle ──
-  const [{ data: orgRow }, { data: typeRow }, { data: regs }, { data: notesData }] = await Promise.all([
-    (db.from as any)('organisations').select('profile_dashboard').eq('id', orgId.value).maybeSingle(),
+  const [orgMeta, { data: typeRow }, { data: regs }, { data: notesData }] = await Promise.all([
+    useOrganisationsApi().getDashboardMeta(orgId.value as string).catch(() => null),
     typeKey
       ? (db.from as any)('person_target_types').select('profile_dashboard').eq('org_id', orgId.value).eq('key', typeKey).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -696,7 +712,7 @@ async function load() {
     (db.from as any)('person_notes').select('*').eq('person_id', route.params.id).order('created_at', { ascending: false }),
   ])
   // The person's TYPE layout (mig 245) wins over the club default.
-  dashConfig.value = typeRow?.profile_dashboard ?? orgRow?.profile_dashboard ?? null
+  dashConfig.value = typeRow?.profile_dashboard ?? orgMeta?.profileDashboard ?? null
   notes.value = notesData ?? []
 
   const regList = regs ?? []
@@ -734,18 +750,22 @@ async function reloadNotes() {
   notes.value = data ?? []
 }
 async function createNote({ body, links, visibleTo, important, dueDate }: { body: string; links: any[]; visibleTo?: any[]; important?: boolean; dueDate?: string | null }) {
-  const { error } = await (db.from as any)('person_notes').insert({
-    org_id: orgId.value, person_id: route.params.id, body, links: links ?? [],
-    visible_to: visibleTo ?? [], visibility: (visibleTo?.[0] as any)?.type || 'staff', is_important: !!important,
-    due_date: dueDate ?? null,
-    author_id: user.value?.id ?? null,
-    author_name: (user.value?.user_metadata as any)?.full_name || user.value?.email || null,
-  })
-  if (!error) { toast.add({ severity: 'success', summary: 'Note added', life: 2000 }); reloadNotes() }
-  else toast.add({ severity: 'error', summary: 'Could not add note', detail: error.message, life: 4000 })
+  try {
+    await usePeopleApi().addNote({
+      orgId: orgId.value as string, personId: String(route.params.id), body,
+      links: links ?? [], visibleTo: visibleTo ?? [],
+      visibility: (visibleTo?.[0] as any)?.type || 'staff', isImportant: !!important,
+      dueDate: dueDate ?? null,
+      authorId: user.value?.id ?? null,
+      authorName: (user.value?.user_metadata as any)?.full_name || user.value?.email || null,
+    })
+    toast.add({ severity: 'success', summary: 'Note added', life: 2000 }); reloadNotes()
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not add note', detail: e?.message, life: 4000 })
+  }
 }
 async function removeNote(id: string) {
-  await (db.from as any)('person_notes').delete().eq('id', id)
+  await usePeopleApi().removeNote(id)
   reloadNotes()
 }
 
@@ -785,10 +805,26 @@ async function save() {
     custom_fields: custom,
     updated_at: new Date().toISOString(),
   }
-  const { error } = await (db.from as any)('persons').update(payload).eq('id', route.params.id)
-
-  if (error) {
-    toast.add({ severity: 'error', summary: 'Could not save', detail: error.message, life: 4000 })
+  // Persist via the seam. The page's payload is snake_case; the patch is the
+  // contract's camelCase. person_types/comms_topics clear to [] (not null) — the
+  // template reads them length-first, so [] and null behave identically.
+  try {
+    await usePeopleApi().update(String(route.params.id), {
+      firstName: payload.first_name,
+      lastName: payload.last_name,
+      email: payload.email,
+      phone: payload.phone,
+      phone2: payload.phone2,
+      dob: payload.dob,
+      gender: payload.gender,
+      membershipType: payload.membership_type,
+      personTypes: form.person_types.length ? form.person_types : [],
+      personType: form.person_types[0] || null,
+      commsTopics: form.comms_topics.length ? form.comms_topics : [],
+      customFields: custom,
+    })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not save', detail: e?.message, life: 4000 })
     saving.value = false
     return
   }
@@ -824,7 +860,7 @@ async function syncGroups() {
 }
 
 async function deletePerson() {
-  await (db.from as any)('persons').delete().eq('id', route.params.id)
+  await usePeopleApi().remove(String(route.params.id))
   toast.add({ severity: 'success', summary: 'Person deleted', life: 2500 })
   navigateTo('/people')
 }

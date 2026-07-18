@@ -537,35 +537,58 @@ export function resolveFor(
 }
 
 // ── DB factory ──────────────────────────────────────────────────────────────
-const COLS = 'id, discipline_id, field_column, field_definition_id, field_key, purpose, operator, value, exempt, applies_to, message, sort_order'
-
-function rowToReq(r: any): DisciplineRequirement {
-  return {
-    id: r.id,
-    discipline_id: r.discipline_id,
-    field_key: r.field_key ?? r.field_definition_id ?? r.field_column,
-    field_source: r.field_definition_id ? 'custom' : 'core',
-    purpose: r.purpose === 'identity' ? 'identity' : 'data',
-    operator: r.operator,
-    value: r.value,
-    exempt: !!r.exempt,
-    applies_to: Array.isArray(r.applies_to) ? r.applies_to : [],
-    message: r.message ?? null,
-    sort_order: r.sort_order ?? 0,
-  }
-}
-
-/** The ONLY place the two-column field split is visible. */
-function reqToRow(req: Partial<DisciplineRequirement>) {
-  const { field_key, field_source, ...rest } = req as any
-  const split = field_key === undefined ? {} : field_source === 'custom'
-    ? { field_column: null, field_definition_id: field_key }
-    : { field_column: field_key, field_definition_id: null }
-  return { ...rest, ...split }
-}
-
+// (The seam maps the two-column field split; the factory's own toReq/toCreate
+// helpers do the camelCase ↔ this-file-shape translation.)
 export function useDisciplineRequirements() {
-  const db = useDb()
+  // Data access goes through the seam (useDisciplinesApi). Everything the pages read
+  // is this composable's snake_case shape, so map the camelCase contract at the edge.
+  const api = useDisciplinesApi()
+
+  // Seam Discipline (contract) → this composable's DisciplineNode. An empty cast
+  // becomes null so castFor reads it as "inherit" (the whole point of person_type_keys).
+  function toNode(d: any): DisciplineNode {
+    return {
+      id: d.id,
+      name: d.name,
+      parent_id: d.parentId ?? null,
+      sort_order: d.sortOrder ?? 0,
+      person_type_keys: Array.isArray(d.personTypeKeys) && d.personTypeKeys.length ? d.personTypeKeys : null,
+    }
+  }
+  // Seam DisciplineRequirement (contract) → this composable's shape. field_key is the
+  // single key the catalogue uses; field_source is DERIVED from which column is set.
+  function toReq(r: any): DisciplineRequirement {
+    return {
+      id: r.id,
+      discipline_id: r.disciplineId,
+      field_key: r.fieldKey ?? r.fieldDefinitionId ?? r.fieldColumn ?? '',
+      field_source: r.fieldDefinitionId ? 'custom' : 'core',
+      purpose: r.purpose === 'identity' ? 'identity' : 'data',
+      operator: r.operator,
+      value: r.value,
+      exempt: !!r.exempt,
+      applies_to: Array.isArray(r.appliesTo) ? r.appliesTo : [],
+      message: r.message ?? null,
+      sort_order: r.sortOrder ?? 0,
+    }
+  }
+  // This composable's requirement → the seam's create payload. The two-column field
+  // split (the ONLY place it's visible) lives here now.
+  function toCreate(r: Partial<DisciplineRequirement>, i: number) {
+    const custom = r.field_source === 'custom'
+    return {
+      fieldColumn: custom ? null : (r.field_key ?? null),
+      fieldDefinitionId: custom ? (r.field_key ?? null) : null,
+      fieldKey: r.field_key ?? null,
+      purpose: r.purpose ?? 'data',
+      operator: r.operator as string,
+      value: r.value ?? null,
+      exempt: r.exempt ?? false,
+      appliesTo: r.applies_to ?? [],
+      message: r.message ?? null,
+      sortOrder: r.sort_order ?? i,
+    }
+  }
 
   /**
    * Requirements for a set of disciplines. Pass the CHAIN ids (see disciplineChain)
@@ -577,46 +600,35 @@ export function useDisciplineRequirements() {
    */
   async function loadRequirements(disciplineIds: string[]): Promise<DisciplineRequirement[]> {
     if (!disciplineIds.length) return []
-    const { data } = await (db.from as any)('discipline_requirements')
-      .select(COLS).in('discipline_id', disciplineIds).order('sort_order')
-    return (data ?? []).map(rowToReq)
+    const rows = await api.requirements(disciplineIds)
+    return rows.map(toReq)
   }
 
   /** Every discipline owned by these orgs — UNFILTERED, because the chain walk needs ancestors. */
   async function loadDisciplines(orgIds: string[]): Promise<DisciplineNode[]> {
     if (!orgIds.length) return []
-    const { data } = await (db.from as any)('disciplines')
-      .select('id, name, parent_id, sort_order, person_type_keys').in('org_id', orgIds).order('sort_order').order('name')
-    return (data ?? []).map((d: any) => ({
-      id: d.id, name: d.name, parent_id: d.parent_id ?? null, sort_order: d.sort_order ?? 0,
-      person_type_keys: Array.isArray(d.person_type_keys) ? d.person_type_keys : null,
-    }))
+    const rows = await api.listForOrgs(orgIds)
+    return rows.map(toNode)
   }
 
   /** The disciplines a group/event is linked to, plus every requirement in their chains. */
   async function loadForEntity(kind: 'event' | 'group', id: string): Promise<{ disciplines: DisciplineNode[]; linkedIds: string[]; requirements: DisciplineRequirement[] }> {
-    const table = kind === 'group' ? 'member_group_disciplines' : 'event_disciplines'
-    const fk = kind === 'group' ? 'group_id' : 'event_id'
-    const { data: links } = await (db.from as any)(table)
-      .select('discipline_id, disciplines(org_id)').eq(fk, id)
-    const linkedIds = (links ?? []).map((l: any) => l.discipline_id).filter(Boolean)
+    const linked = kind === 'group' ? await api.forGroup(id) : await api.forEvent(id)
+    const linkedIds = linked.map((l) => l.id).filter(Boolean)
     if (!linkedIds.length) return { disciplines: [], linkedIds: [], requirements: [] }
-    const orgIds = [...new Set((links ?? []).map((l: any) => l.disciplines?.org_id).filter(Boolean))] as string[]
+    const orgIds = [...new Set(linked.map((l) => l.orgId).filter(Boolean))] as string[]
     const disciplines = await loadDisciplines(orgIds)
     const requirements = await loadRequirements(disciplines.map(d => d.id))
     return { disciplines, linkedIds, requirements }
   }
 
   async function saveRequirements(disciplineId: string, reqs: Partial<DisciplineRequirement>[]): Promise<void> {
-    // Delete-then-insert, scoped to the discipline — the DisciplineLinker idiom.
-    await (db.from as any)('discipline_requirements').delete().eq('discipline_id', disciplineId)
-    if (!reqs.length) return
-    const rows = reqs.map((r, i) => reqToRow({ ...r, discipline_id: disciplineId, sort_order: i }))
-    await (db.from as any)('discipline_requirements').insert(rows)
+    // Delete-then-insert, scoped to the discipline — the seam replaces the whole set.
+    await api.saveRequirements(disciplineId, reqs.map(toCreate) as any)
   }
 
   async function deleteRequirement(id: string): Promise<void> {
-    await (db.from as any)('discipline_requirements').delete().eq('id', id)
+    await api.deleteRequirement(id)
   }
 
   /** Convenience for the flag surfaces: person + entity → what they fail. */

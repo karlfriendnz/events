@@ -9,7 +9,8 @@
 import { useToast } from 'primevue/usetoast'
 definePageMeta({ layout: 'admin' })
 
-const db = useDb()
+const api = useAdminApi()
+const orgsApi = useOrganisationsApi()
 const user = useSupabaseUser()
 const toast = useToast()
 
@@ -86,23 +87,25 @@ const totals = computed(() => ({
 
 async function load() {
   loading.value = true
-  const [{ data: orgData }, { data: personRows }, { data: eventRows }, { data: brandRows }, { data: clubTypeRows }] = await Promise.all([
-    (db.from as any)('organisations').select('id, name, org_level, parent_id, logo_url, brand_id, club_type_ids').eq('is_sandbox', false).order('name'),
-    (db.from as any)('persons').select('org_id'),
-    (db.from as any)('events').select('org_id'),
-    (db.from as any)('brands').select('id, name, logo_url, color').order('sort_order').order('name'),
-    (db.from as any)('club_types').select('id, name').order('name'),
+  // The seam gives orgs (camelCase) with member/event counts already merged, plus
+  // the brand + club-type catalogues. Map to the snake_case shapes the template reads.
+  const [orgRows, brandRows, clubTypeRows] = await Promise.all([
+    api.orgsWithCounts(),
+    api.brands(),
+    api.clubTypes(),
   ])
-  brands.value = brandRows ?? []
-  clubTypes.value = clubTypeRows ?? []
-  const memberBy: Record<string, number> = {}
-  for (const p of personRows ?? []) memberBy[p.org_id] = (memberBy[p.org_id] ?? 0) + 1
-  const eventBy: Record<string, number> = {}
-  for (const e of eventRows ?? []) eventBy[e.org_id] = (eventBy[e.org_id] ?? 0) + 1
-  orgs.value = (orgData ?? []).map((o: any) => ({
-    ...o,
-    members: memberBy[o.id] ?? 0,
-    events: eventBy[o.id] ?? 0,
+  brands.value = brandRows.map(b => ({ id: b.id, name: b.name, logo_url: b.logoUrl, color: b.color }))
+  clubTypes.value = clubTypeRows.map(t => ({ id: t.id, name: t.name }))
+  orgs.value = orgRows.map(o => ({
+    id: o.id,
+    name: o.name,
+    org_level: o.orgLevel,
+    parent_id: o.parentId,
+    logo_url: o.logoUrl,
+    brand_id: o.brandId,
+    club_type_ids: o.clubTypeIds,
+    members: o.members,
+    events: o.events,
     depth: 0,
   }))
   loading.value = false
@@ -121,13 +124,13 @@ const orgLevelSelectOptions = (ORG_TYPE_OPTIONS as readonly string[]).map(v => (
 async function setOrgLevel(row: OrgRow, level: string) {
   if (row.org_level === level) return
   savingLevel.value = row.id
-  await (db.from as any)('organisations').update({ org_level: level, type: level === 'CLUB' ? 'CLUB' : level === 'RST' ? 'RST' : 'NSO' }).eq('id', row.id)
+  await api.setOrgLevel(row.id, level, level === 'CLUB' ? 'CLUB' : level === 'RST' ? 'RST' : 'NSO')
   savingLevel.value = null
   const o = orgs.value.find(x => x.id === row.id); if (o) o.org_level = level
 }
 async function setClubTypes(row: OrgRow, ids: string[]) {
   savingType.value = row.id
-  await (db.from as any)('organisations').update({ club_type_ids: ids ?? [] }).eq('id', row.id)
+  await api.setOrgClubTypes(row.id, ids ?? [])
   savingType.value = null
   const o = orgs.value.find(x => x.id === row.id); if (o) o.club_type_ids = ids
 }
@@ -135,9 +138,13 @@ const savingBrand = ref<string | null>(null)
 async function setBrand(row: OrgRow, brandId: string | null) {
   if (row.brand_id === brandId) return
   savingBrand.value = row.id
-  const { error } = await (db.from as any)('organisations').update({ brand_id: brandId }).eq('id', row.id)
+  try {
+    await api.setOrgBrand(row.id, brandId)
+  } catch (e: any) {
+    savingBrand.value = null
+    toast.add({ severity: 'error', summary: 'Could not update brand', detail: e?.data?.message || e?.message, life: 4000 }); return
+  }
   savingBrand.value = null
-  if (error) { toast.add({ severity: 'error', summary: 'Could not update brand', detail: error.message, life: 4000 }); return }
   const o = orgs.value.find(x => x.id === row.id)
   if (o) o.brand_id = brandId
   const brandName = brandId ? (brandById.value[brandId]?.name ?? 'brand') : 'no brand'
@@ -168,20 +175,21 @@ async function createOrg() {
   creating.value = true; createError.value = ''
   const isClub = newOrg.org_level === 'CLUB'
   const typeIds = isClub ? newOrg.club_type_ids : []
-  const payload: any = {
-    name: newOrg.name.trim(),
-    type: isGoverningBody(newOrg.org_level) ? 'NSO' : (isClub ? 'CLUB' : 'RST'),
-    org_level: newOrg.org_level,
-    parent_id: newOrg.parent_id,
-    default_sport_name: isGoverningBody(newOrg.org_level) ? (newOrg.default_sport_name.trim() || null) : null,
-    brand_id: newOrg.brand_id,
-    club_type_ids: typeIds,
-  }
-  const { data: created, error } = await (db.from as any)('organisations').insert(payload).select('id').single()
-  if (error) { creating.value = false; createError.value = error.message; return }
+  let createdId: string | null = null
+  try {
+    createdId = await api.createOrg({
+      name: newOrg.name.trim(),
+      type: isGoverningBody(newOrg.org_level) ? 'NSO' : (isClub ? 'CLUB' : 'RST'),
+      orgLevel: newOrg.org_level,
+      parentId: newOrg.parent_id,
+      defaultSportName: isGoverningBody(newOrg.org_level) ? (newOrg.default_sport_name.trim() || null) : null,
+      brandId: newOrg.brand_id,
+      clubTypeIds: typeIds,
+    })
+  } catch (e: any) { creating.value = false; createError.value = e?.data?.message || e?.message || 'Could not create organisation'; return }
   // Seed the new club from its club types' defaults (modules / people types / terminology).
-  if (created?.id && typeIds.length) {
-    try { await applyClubTypeDefaults(created.id, typeIds) } catch (e) { /* non-fatal — org still created */ }
+  if (createdId && typeIds.length) {
+    try { await applyClubTypeDefaults(createdId, typeIds) } catch (e) { /* non-fatal — org still created */ }
   }
   creating.value = false
   showCreate.value = false
@@ -202,10 +210,12 @@ function openDelete(row: OrgRow) {
 async function deleteOrg() {
   if (!deleteTarget.value || !canDelete.value) return
   deleting.value = true; deleteError.value = ''
-  const { error } = await (db.from as any)('organisations').delete().eq('id', deleteTarget.value.id)
+  const name = deleteTarget.value.name
+  try {
+    await orgsApi.remove(deleteTarget.value.id)
+  } catch (e: any) { deleting.value = false; deleteError.value = e?.data?.message || e?.message || 'Could not delete'; return }
   deleting.value = false
-  if (error) { deleteError.value = error.message; return }
-  toast.add({ severity: 'success', summary: 'Organisation deleted', detail: deleteTarget.value.name, life: 2500 })
+  toast.add({ severity: 'success', summary: 'Organisation deleted', detail: name, life: 2500 })
   deleteTarget.value = null
   await load()
 }

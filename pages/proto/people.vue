@@ -3,7 +3,7 @@
   menu). Demonstrates "a view per people type". Rows link to the real profile.
 -->
 <script setup lang="ts">
-const db = useDb()
+const peopleApi = usePeopleApi()
 const { orgId } = useOrg()
 const route = useRoute()
 const { loadOrgTypes } = useOrgFieldPolicy()
@@ -29,10 +29,12 @@ async function load() {
   if (!orgId.value) { loading.value = false; return }
   const all = await loadOrgTypes(orgId.value)
   personTypes.value = all.filter((t: any) => (t.kind ?? 'person') === 'person')
-  const { data } = await (db.from as any)('persons')
-    .select('id, first_name, last_name, email, phone, person_type, person_types')
-    .eq('org_id', orgId.value).order('last_name')
-  people.value = data ?? []
+  // The seam returns camelCase; map to the snake_case shape this view reads.
+  const rows = await peopleApi.list(orgId.value)
+  people.value = rows.map(p => ({
+    id: p.id, first_name: p.firstName, last_name: p.lastName, email: p.email, phone: p.phone,
+    person_type: p.personType, person_types: p.personTypes,
+  }))
   loading.value = false
 }
 

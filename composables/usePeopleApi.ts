@@ -3,6 +3,8 @@
 // objects (the shared contract), so a component has no idea whether the data came
 // from MySQL today or the backend team's API tomorrow.
 import type { Person, PersonCreate, PersonPatch } from '../shared/contracts/person'
+import type { PersonNote } from '../shared/contracts/circle'
+import type { PersonNoteCreate } from '../shared/contracts/personNote'
 
 export function usePeopleApi() {
   /** Everyone in an org, with optional paging + a name/email search. */
@@ -19,6 +21,18 @@ export function usePeopleApi() {
   /** One person by id. */
   async function get(id: string): Promise<Person> {
     return await $fetch<Person>(`/api/v1/people/${id}`)
+  }
+  /** Resolve a person by email within an org (case-insensitive), or null when no
+   *  match — the dashboard maps the signed-in user's email to their person row. */
+  async function findByEmail(orgId: string, email: string): Promise<Person | null> {
+    try {
+      return await $fetch<Person>('/api/v1/people/by-email', { query: { orgId, email } })
+    } catch (e: any) {
+      // ofetch surfaces the HTTP status on either .statusCode or .status — a 404
+      // here means "no such person", the old maybeSingle()'s graceful null.
+      if (e?.statusCode === 404 || e?.status === 404 || e?.response?.status === 404) return null
+      throw e
+    }
   }
   /** Create a person; returns the created domain object. */
   async function create(input: PersonCreate): Promise<Person> {
@@ -41,5 +55,13 @@ export function usePeopleApi() {
   async function removeMany(orgId: string, ids: string[]): Promise<void> {
     await $fetch('/api/v1/people/delete-many', { method: 'POST', body: { orgId, ids } })
   }
-  return { list, get, create, update, remove, setTypeForMany, removeMany }
+  /** Add a note to a person (note READS live in useCirclesApi().notes). */
+  async function addNote(input: PersonNoteCreate): Promise<PersonNote> {
+    return await $fetch<PersonNote>('/api/v1/person-notes', { method: 'POST', body: input })
+  }
+  /** Delete a note by id. */
+  async function removeNote(id: string): Promise<void> {
+    await $fetch(`/api/v1/person-notes/${id}`, { method: 'DELETE' })
+  }
+  return { list, get, findByEmail, create, update, remove, setTypeForMany, removeMany, addNote, removeNote }
 }

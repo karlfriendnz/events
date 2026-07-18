@@ -41,8 +41,8 @@ export function encodeXeroAccount(code: string, tracking?: Record<string, string
 }
 
 export const useXeroAccounts = () => {
-  const db = useDb()
   const { orgId } = useOrg()
+  const financesApi = useFinancesApi()
 
   const connected = useState<boolean>('xero-accs-connected', () => false)
   const shortlist = useState<XeroShortlistEntry[]>('xero-accs-shortlist', () => [])
@@ -52,19 +52,17 @@ export const useXeroAccounts = () => {
   const allLoading = useState<boolean>('xero-accs-all-loading', () => false)
   const loadedFor = useState<string | null>('xero-accs-loaded-for', () => null)
 
-  /** Cheap DB-only load (connection status + shortlist). Once per org. */
+  /** Cheap connection load (status + shortlist) via the seam. Once per org. */
   async function loadXeroAccounts(force = false) {
     if (!orgId.value) return
     if (!force && loadedFor.value === orgId.value) return
     loadedFor.value = orgId.value
-    const { data } = await (db.from as any)('xero_connections')
-      .select('status, fee_accounts, sales_account_code')
-      .eq('org_id', orgId.value).maybeSingle()
-    connected.value = !!data && data.status === 'online'
-    shortlist.value = Array.isArray(data?.fee_accounts)
-      ? data.fee_accounts.map((a: any) => ({ label: a.label, code: a.code, default: !!a.default, tracking: a.tracking ?? null }))
+    const conn = await financesApi.xeroConnection(orgId.value)
+    connected.value = !!conn && conn.status === 'online'
+    shortlist.value = Array.isArray(conn?.feeAccounts)
+      ? conn.feeAccounts.map((a: any) => ({ label: a.label, code: a.code, default: !!a.default, tracking: a.tracking ?? null }))
       : []
-    defaultCode.value = data?.sales_account_code ?? null
+    defaultCode.value = conn?.salesAccountCode ?? null
     if (!connected.value) allAccounts.value = null
   }
 

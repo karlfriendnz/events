@@ -75,18 +75,19 @@ export function coreErrors(
 }
 
 export function useCoreFields() {
-  const db = useDb()
+  // Data access goes through the seam; core_fields is a column on organisations, but
+  // it's a fields/types-domain concept, so its accessor lives in usePersonTypesApi.
+  const api = usePersonTypesApi()
   const { orgId } = useOrg()
 
   async function loadConfig(): Promise<CoreConfig> {
     if (!orgId.value) return {}
-    const { data } = await (db.from as any)('organisations').select('core_fields').eq('id', orgId.value).maybeSingle()
-    const c = data?.core_fields ?? {}
+    const c = await api.getCoreFields(orgId.value)
     return { required: c.required ?? {}, enabled: c.enabled ?? {} }
   }
   async function saveConfig(cfg: CoreConfig) {
     if (!orgId.value) return
-    await (db.from as any)('organisations').update({ core_fields: cfg }).eq('id', orgId.value)
+    await api.saveCoreFields(orgId.value, { required: cfg.required ?? {}, enabled: cfg.enabled ?? {} })
   }
 
   return { CORE_SECTIONS, coreStatus, loadConfig, saveConfig }

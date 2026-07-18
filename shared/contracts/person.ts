@@ -27,9 +27,18 @@ export const personSchema = z.object({
   personType: z.string().nullable(),
   // Uploaded avatar; the UI falls back to coloured initials when null.
   photoUrl: z.string().nullable(),
+  // A secondary phone (migration 178) — the profile's "Secondary phone" row reads
+  // it, so the contract must carry it or a converted profile save would drop it.
+  phone2: z.string().nullable(),
+  // The person's own comms-topic subscriptions (migration 177) — the profile's
+  // Communication field reads/writes it; a plain string[] at the boundary.
+  commsTopics: z.array(z.string()),
   // Free-form answers keyed by field id — shape varies by org, so kept open.
   // (Zod v4: z.record needs an explicit key schema.)
   customFields: z.record(z.string(), z.any()),
+  // When the person row was created — the dashboard's "recently added" widget sorts
+  // and shows it. Server-owned (omitted from the write contracts). ISO 8601.
+  createdAt: z.string().nullable(),
 })
 export type Person = z.infer<typeof personSchema>
 
@@ -40,17 +49,20 @@ export const personListSchema = z.array(personSchema)
 // json-backed fields (personTypes, customFields) stay plain array/object here —
 // the repo serialises them. Patch is a partial — any subset of the writable fields.
 export const personCreateSchema = personSchema
-  .omit({ id: true })
+  // createdAt is server-owned (the DB stamps it) — omitted like id.
+  .omit({ id: true, createdAt: true })
   .partial({
     lastName: true,
     email: true,
     phone: true,
+    phone2: true,
     dob: true,
     gender: true,
     membershipType: true,
     personTypes: true,
     personType: true,
     photoUrl: true,
+    commsTopics: true,
     customFields: true,
   })
   .extend({

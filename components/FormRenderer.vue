@@ -547,8 +547,17 @@ function buildPayload() {
 // Guests get a blank form. Once a person is IDENTIFIED (verified sign-in or a
 // staff member-pick — never raw email typing), we pull their full record and
 // pre-fill every field they've already populated, not just their name.
-const db = useDb()
+const peopleApi = usePeopleApi()
 const { resolveFields } = useOrgFieldPolicy()
+
+// The seam hands back a camelCase Person; prefillPrimary reads the snake_case shape
+// the profile record used to have (first_name / custom_fields / …). Bridge it.
+function toSnakePerson(p: any) {
+  return {
+    first_name: p.firstName, last_name: p.lastName, email: p.email, phone: p.phone,
+    dob: p.dob, gender: p.gender, custom_fields: p.customFields ?? {},
+  }
+}
 const authResolved = ref(!!props.preview)  // false → show the landing; true → show the form (preview skips it)
 const authModalOpen = ref(false)           // "Register" opens the auth chooser in a modal
 // Register: normally opens the modal; in an embed with registerToLogin, break out of
@@ -643,21 +652,20 @@ async function onGuest() { authResolved.value = true }
 async function onSignedIn(payload: { email: string; firstName: string; lastName: string; phone: string | null; subjectPersonId?: string | null }) {
   authResolved.value = true
   if (!props.context?.orgId) return
-  const cols = 'first_name, last_name, email, phone, dob, gender, custom_fields'
   // If the member chose to register someone they look after, prefill the
   // primary registrant from THAT person; otherwise from the signed-in member.
   if (payload.subjectPersonId) {
-    const { data } = await (db.from as any)('persons').select(cols)
-      .eq('org_id', props.context.orgId).eq('id', payload.subjectPersonId).maybeSingle()
-    if (data) { prefillPrimary(data); return }
+    const data = await peopleApi.get(payload.subjectPersonId).catch(() => null)
+    if (data) { prefillPrimary(toSnakePerson(data)); return }
   }
   const email = (payload?.email || '').trim().toLowerCase()
   if (email) {
     // Re-fetch the full person (the chooser only carries name/email/phone) so we
-    // can prefill DOB, gender and custom fields too.
-    const { data } = await (db.from as any)('persons').select(cols)
-      .eq('org_id', props.context.orgId).ilike('email', email).maybeSingle()
-    if (data) prefillPrimary(data)
+    // can prefill DOB, gender and custom fields too. The people search matches the
+    // email column; take the exact match.
+    const matches = await peopleApi.list(props.context.orgId, { q: email }).catch(() => [])
+    const data = matches.find((p: any) => (p.email || '').trim().toLowerCase() === email)
+    if (data) prefillPrimary(toSnakePerson(data))
     else identifiedName.value = [payload.firstName, payload.lastName].filter(Boolean).join(' ').trim()
   }
 }

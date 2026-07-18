@@ -17,7 +17,7 @@ import { PROFILE_PRESETS } from '~/composables/useFormProfilePresets'
 
 definePageMeta({ layout: 'default' })
 
-const db = useDb()
+const forms = useFormsApi()
 const { orgId } = useOrg()
 const route = useRoute()
 const toast = useToast()
@@ -69,19 +69,18 @@ async function createForm() {
     const pending = typeId.value === 'basic' ? { _pendingType: 'simple' }
       : typeId.value === 'blank' ? { _pendingType: 'scratch' }
       : { _pendingType: 'preset', _pendingPreset: typeId.value }
-    const { data: f, error } = await (db.from as any)('registration_forms').insert({
-      org_id: orgId.value,
+    const f = await forms.create({
+      orgId: orgId.value as string,
       name: name.value.trim() || 'Registration form',
       config: { groups: [], ...pending },
-    }).select('id').single()
-    if (error) throw error
+    })
     const rows = Object.entries(connKeys.value)
       .filter(([k, v]) => v?.checked && k.includes(':'))
       .map(([k], idx) => {
         const [type, id] = k.split(':')
-        return { org_id: orgId.value, form_id: f.id, target_type: type, target_id: id, sort_order: idx }
+        return { targetType: type, targetId: id, sortOrder: idx }
       })
-    if (rows.length) await (db.from as any)('registration_form_targets').insert(rows)
+    if (rows.length) await forms.saveTargets(f.id, orgId.value as string, rows)
     await navigateTo(`/forms/${f.id}`, { replace: true })
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Could not create the form', detail: e?.message, life: 4000 })

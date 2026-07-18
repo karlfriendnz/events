@@ -8,6 +8,7 @@ import { asc, eq, sql } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type { Organisation, OrgTreeNode, OrganisationCreate, OrganisationPatch } from '../../../shared/contracts/organisation'
 import type { OrgSettings } from '../../../shared/contracts/orgSettings'
+import type { OrgDashboardMeta } from '../../../shared/contracts/orgDashboard'
 
 // people_columns is a json column — mysql2 usually hands it back parsed, but a
 // driver/config can return the raw string. Normalise to an object keyed by tab, or
@@ -99,6 +100,31 @@ export async function getOrgSettings(id: string): Promise<OrgSettings | null> {
 // JSON.stringify — that would double-encode).
 export async function setPeopleColumns(id: string, cols: OrgSettings['peopleColumns']): Promise<void> {
   await db.update(schema.organisations).set({ peopleColumns: cols } as any).where(eq(schema.organisations.id, id))
+}
+
+// ── Dashboard / profile meta ──
+// A focused read of the org columns the club dashboard + member profile screens
+// need: name/logo, the dashboard hero banner + club-default dashboard config, the
+// level, and the club-default profile-dashboard layout. Kept off the base contract
+// (identity/tree only) and off getOrgSettings (the People directory's slice).
+// json columns are passed through as-is (the page owns their shape). null when the
+// org doesn't exist.
+export async function getOrgDashboardMeta(id: string): Promise<OrgDashboardMeta | null> {
+  const [r] = await db.select().from(schema.organisations).where(eq(schema.organisations.id, id)).limit(1)
+  if (!r) return null
+  return {
+    name: r.name,
+    logoUrl: r.logoUrl ?? null,
+    dashboardBannerUrl: r.dashboardBannerUrl ?? null,
+    dashboardConfig: r.dashboardConfig ?? null,
+    orgLevel: r.orgLevel,
+    profileDashboard: r.profileDashboard ?? null,
+  }
+}
+
+// Set (or clear, with null) the dashboard hero banner URL.
+export async function setDashboardBanner(id: string, url: string | null): Promise<void> {
+  await db.update(schema.organisations).set({ dashboardBannerUrl: url } as any).where(eq(schema.organisations.id, id))
 }
 
 // Raw SQL returns snake_case columns (the DB names), unlike a Drizzle select which

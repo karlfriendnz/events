@@ -7,7 +7,7 @@
 <script setup lang="ts">
 const props = defineProps<{ field: any }>()
 const emit = defineEmits<{ (e: 'saved'): void; (e: 'deleted'): void; (e: 'close'): void }>()
-const db = useDb()
+const typesApi = usePersonTypesApi()
 const toast = useToast()
 
 const TYPES = [
@@ -28,10 +28,10 @@ const saving = ref(false)
 async function save() {
   if (locked.value || !f.label.trim()) return
   saving.value = true
-  await (db.from as any)('field_definitions').update({
-    label: f.label.trim(), field_type: f.field_type, is_required: f.is_required,
+  await typesApi.updateField(props.field.id, {
+    label: f.label.trim(), fieldType: f.field_type, isRequired: f.is_required,
     options: f.field_type === 'select' ? f.optionsText.split('\n').map((s: string) => s.trim()).filter(Boolean) : [],
-  }).eq('id', props.field.id)
+  })
   saving.value = false
   toast.add({ severity: 'success', summary: 'Field saved', life: 1800 })
   emit('saved')
@@ -39,7 +39,7 @@ async function save() {
 async function remove() {
   if (locked.value) return
   if (!confirm(`Delete the "${props.field.label}" field?`)) return
-  await (db.from as any)('field_definitions').delete().eq('id', props.field.id)
+  await typesApi.removeField(props.field.id)
   emit('deleted')
 }
 </script>

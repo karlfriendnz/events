@@ -4,7 +4,7 @@
   but the fourth tab is MEMBERS: which people types attach, how many, in what role.
 -->
 <script setup lang="ts">
-const db = useDb()
+const typesApi = usePersonTypesApi()
 const { orgId } = useOrg()
 const toast = useToast()
 const { loadOrgTypes, resolveFields, fieldAppliesTo } = useOrgFieldPolicy()
@@ -39,16 +39,11 @@ async function load() {
   loading.value = true
   const id = orgId.value
   if (!id) { loading.value = false; return }
-  const [all, flds, ownRows] = await Promise.all([
-    loadOrgTypes(id),
-    resolveFields(id),
-    (db.from as any)('person_target_types').select('id, member_slots').eq('org_id', id),
-  ])
-  const extra: Record<string, any> = {}
-  for (const r of (ownRows.data ?? [])) extra[r.id] = r
+  // loadOrgTypes already carries member_slots, so no separate query is needed.
+  const [all, flds] = await Promise.all([loadOrgTypes(id), resolveFields(id)])
   personTypes.value = all.filter((t: any) => (t.kind ?? 'person') === 'person')
   types.value = all.filter((t: any) => t.kind === 'entity')
-    .map((t: any) => ({ ...t, member_slots: extra[t.id]?.member_slots ?? [] }))
+    .map((t: any) => ({ ...t, member_slots: t.member_slots ?? [] }))
   fields.value = flds
   if (!selected.value && types.value.length) selectedKey.value = types.value[0].key
   loading.value = false
@@ -57,17 +52,18 @@ async function load() {
 async function addType() {
   const label = newLabel.value.trim()
   if (!label || !orgId.value) return
-  const { error } = await (db.from as any)('person_target_types').insert({
-    org_id: orgId.value, key: slugify(label) || 'entity_' + Date.now(), label,
-    kind: 'entity', min_count: 0, max_count: null, sort_order: types.value.length,
-  })
-  if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
+  try {
+    await typesApi.createType({
+      orgId: orgId.value, key: slugify(label) || 'entity_' + Date.now(), label,
+      kind: 'entity', sortOrder: types.value.length,
+    })
+  } catch (e: any) { toast.add({ severity: 'error', summary: 'Failed', detail: e?.message, life: 4000 }); return }
   newLabel.value = ''; adding.value = false
   await load(); selectedKey.value = slugify(label)
 }
 async function removeType(t: any) {
   if (!confirm(`Delete the "${t.label}" type?`)) return
-  await (db.from as any)('person_target_types').delete().eq('id', t.id)
+  await typesApi.removeType(t.id)
   selectedKey.value = null; await load()
 }
 
@@ -79,18 +75,19 @@ async function saveMembers() {
   const t = selected.value
   if (!t || t.inherited) return
   saving.value = true
-  await (db.from as any)('person_target_types').update({ member_slots: t.member_slots }).eq('id', t.id)
+  await typesApi.updateType(t.id, { memberSlots: t.member_slots })
   saving.value = false
   toast.add({ severity: 'success', summary: 'Members saved', life: 2000 })
 }
 
 async function addField(p: any) {
-  const { error } = await (db.from as any)('field_definitions').insert({
-    org_id: orgId.value, label: p.label, field_type: p.type, is_required: p.required,
-    options: p.options, help_text: p.placeholder || null,
-    targets: [selected.value?.key], target: selected.value?.key, rules: [], sort_order: fields.value.length,
-  })
-  if (error) { toast.add({ severity: 'error', summary: 'Failed', detail: error.message, life: 4000 }); return }
+  try {
+    await typesApi.createField({
+      orgId: orgId.value!, label: p.label, fieldType: p.type, isRequired: p.required,
+      options: p.options, helpText: p.placeholder || null,
+      targets: [selected.value?.key], target: selected.value?.key, sortOrder: fields.value.length,
+    })
+  } catch (e: any) { toast.add({ severity: 'error', summary: 'Failed', detail: e?.message, life: 4000 }); return }
   toast.add({ severity: 'success', summary: `Field "${p.label}" added`, life: 2000 })
   fields.value = await resolveFields(orgId.value!)
 }

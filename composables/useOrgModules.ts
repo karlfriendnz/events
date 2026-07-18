@@ -50,7 +50,7 @@ export const MODULE_DEFS: ModuleDef[] = [
 ]
 
 export const useOrgModules = () => {
-  const db = useDb()
+  const api = useAdminApi()
   const { orgId } = useOrg()
 
   // null = not yet loaded OR club has no saved config (= everything on)
@@ -60,9 +60,8 @@ export const useOrgModules = () => {
   async function loadModules(force = false) {
     if (!orgId.value) return
     if (!force && loaded.value === orgId.value) return
-    const { data } = await (db.from as any)('organisations')
-      .select('enabled_modules').eq('id', orgId.value).single()
-    enabledKeys.value = Array.isArray(data?.enabled_modules) ? data.enabled_modules : null
+    const keys = await api.orgModules(orgId.value)
+    enabledKeys.value = Array.isArray(keys) ? keys : null
     loaded.value = orgId.value
   }
 
@@ -79,8 +78,7 @@ export const useOrgModules = () => {
   async function saveModules(keys: string[] | null) {
     if (!orgId.value) return
     enabledKeys.value = keys
-    await (db.from as any)('organisations')
-      .update({ enabled_modules: keys }).eq('id', orgId.value)
+    await api.setOrgModules(orgId.value, keys)
   }
 
   return { MODULE_DEFS, enabledKeys, loadModules, isEnabled, saveModules }

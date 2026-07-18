@@ -149,11 +149,14 @@ function remove(idx: number) {
   emit('update:modelValue', next)
 }
 
-const db = useDb()
+const groupsApi = useGroupsApi()
 const allMemberGroups = ref<{ id: string; name: string }[]>([])
 
 onMounted(async () => {
-  const { data } = await db.from('member_groups').select('id, name').eq('org_id', orgId.value).order('name')
-  allMemberGroups.value = data ?? []
+  if (!orgId.value) return
+  const gs = await groupsApi.list(orgId.value as string)
+  allMemberGroups.value = gs
+    .map(g => ({ id: g.id, name: g.name }))
+    .sort((a, b) => a.name.localeCompare(b.name))
 })
 </script>

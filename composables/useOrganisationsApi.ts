@@ -7,6 +7,7 @@
 // wrapping typed $fetch to /api/v1/*.
 import type { Organisation, OrgTreeNode, OrganisationCreate, OrganisationPatch } from '../shared/contracts/organisation'
 import type { OrgSettings } from '../shared/contracts/orgSettings'
+import type { OrgDashboardMeta } from '../shared/contracts/orgDashboard'
 
 export function useOrganisationsApi() {
   async function list(): Promise<Organisation[]> {
@@ -38,5 +39,14 @@ export function useOrganisationsApi() {
   async function setPeopleColumns(orgId: string, cols: OrgSettings['peopleColumns']): Promise<void> {
     await $fetch(`/api/v1/organisations/${orgId}/people-columns`, { method: 'PATCH', body: { peopleColumns: cols } })
   }
-  return { list, create, update, remove, ancestors, descendants, getSettings, setPeopleColumns }
+  /** The org columns the club dashboard + member profile need (name/logo, hero
+   *  banner, club-default dashboard + profile-dashboard configs, level). */
+  async function getDashboardMeta(orgId: string): Promise<OrgDashboardMeta> {
+    return await $fetch<OrgDashboardMeta>(`/api/v1/organisations/${orgId}/dashboard-meta`)
+  }
+  /** Set (or clear with null) the dashboard hero banner image. */
+  async function setDashboardBanner(orgId: string, url: string | null): Promise<void> {
+    await $fetch(`/api/v1/organisations/${orgId}/dashboard-banner`, { method: 'PATCH', body: { dashboardBannerUrl: url } })
+  }
+  return { list, create, update, remove, ancestors, descendants, getSettings, setPeopleColumns, getDashboardMeta, setDashboardBanner }
 }

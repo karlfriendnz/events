@@ -279,8 +279,9 @@
 const { orgId } = useOrg()
 import { useToast } from 'primevue/usetoast'
 
-const db = useDb()
 const toast = useToast()
+const financesApi = useFinancesApi()
+const eventsApi = useEventsApi()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 
@@ -322,8 +323,9 @@ const filteredDiscounts = computed(() => discounts.value.filter(d =>
   (d.event?.title ?? '').toLowerCase().includes(discountSearch.value.toLowerCase())
 ))
 
-function formatCurrency(n: number) {
-  return new Intl.NumberFormat('en-NZ', { style: 'currency', currency: orgCurrency.value }).format(n)
+function formatCurrency(n: number | string | null) {
+  // money values arrive as decimal strings from the seam — coerce before formatting.
+  return new Intl.NumberFormat('en-NZ', { style: 'currency', currency: orgCurrency.value }).format(Number(n) || 0)
 }
 function accountTitle(v: string | null) {
   const t = parseXeroAccount(v).tracking
@@ -336,68 +338,82 @@ function formatDate(d: string) {
 const orgCurrency = ref('NZD')
 async function load() {
   feesLoading.value = true
-  ;(db.from as any)('organisations').select('currency').eq('id', orgId.value).single()
-    .then(({ data }: any) => { orgCurrency.value = data?.currency || 'NZD' })
-  const [{ data: fees }, { data: disc }, { data: adds }, { data: evts }] = await Promise.all([
-    (db.from as any)('fee_components').select('*, event:events!inner(id,title,org_id)').eq('event.org_id', orgId.value).order('sort_order'),
-    db.from('discounts').select('*, event:events(id,title)').eq('org_id', orgId.value).order('created_at', { ascending: false }),
-    (db.from as any)('addons').select('*, event:events!inner(id,title,org_id)').eq('event.org_id', orgId.value).order('sort_order'),
-    db.from('events').select('id,title').eq('org_id', orgId.value).neq('status', 'ARCHIVED').order('title'),
+  financesApi.orgCurrency(orgId.value).then((c) => { orgCurrency.value = c || 'NZD' })
+  const [fees, disc, adds, evts] = await Promise.all([
+    financesApi.feeComponents(orgId.value),
+    financesApi.discounts(orgId.value),
+    financesApi.addons(orgId.value),
+    eventsApi.list(orgId.value),
   ])
-  feeComponents.value = fees ?? []
-  discounts.value = disc ?? []
-  addons.value = adds ?? []
-  events.value = evts ?? []
+  // Events for the create pickers + discount title resolution (ARCHIVED hidden, by title).
+  events.value = (evts ?? [])
+    .filter((e: any) => e.status !== 'ARCHIVED')
+    .sort((a: any, b: any) => (a.title ?? '').localeCompare(b.title ?? ''))
+  const titleById: Record<string, string> = {}
+  for (const e of evts ?? []) titleById[e.id] = e.title ?? ''
+  // Map the seam's camelCase back to the snake shape the template reads.
+  feeComponents.value = (fees ?? []).map((f) => ({
+    id: f.id, event_id: f.eventId, name: f.name, amount: f.amount, xero_code: f.xeroCode, is_locked: f.isLocked, event: f.event,
+  }))
+  discounts.value = (disc ?? []).map((d) => ({
+    id: d.id, event_id: d.eventId, name: d.name, type: d.type, code: d.code,
+    modifier_type: d.modifierType, modifier_value: d.modifierValue, expires_at: d.expiresAt,
+    event: d.eventId ? { id: d.eventId, title: titleById[d.eventId] ?? null } : null,
+  }))
+  addons.value = (adds ?? []).map((a) => ({
+    id: a.id, event_id: a.eventId, name: a.name, type: a.type, price: a.price, stock_limit: a.stockLimit, event: a.event,
+  }))
   feesLoading.value = false
 }
 
 async function handleCreateDiscount() {
   creatingDiscount.value = true
-  const { error } = await db.from('discounts').insert({
-    org_id: orgId.value,
-    event_id: discountForm.value.event_id,
-    name: discountForm.value.name,
-    type: discountForm.value.type,
-    code: discountForm.value.code || null,
-    modifier_type: discountForm.value.modifier_type,
-    modifier_value: discountForm.value.modifier_value,
-  })
-  if (!error) {
+  try {
+    await financesApi.createDiscount({
+      eventId: discountForm.value.event_id,
+      name: discountForm.value.name,
+      type: discountForm.value.type,
+      code: discountForm.value.code || null,
+      modifierType: discountForm.value.modifier_type,
+      modifierValue: discountForm.value.modifier_value,
+    })
     toast.add({ severity: 'success', summary: 'Discount created', life: 3000 })
     showCreateDiscount.value = false
     discountForm.value = { event_id: '', name: '', type: 'CODE', code: '', modifier_type: 'PERCENT', modifier_value: 0 }
-    load()
+    await load()
+  } finally {
+    creatingDiscount.value = false
   }
-  creatingDiscount.value = false
 }
 
 async function handleCreateAddon() {
   creatingAddon.value = true
-  const { error } = await (db.from as any)('addons').insert({
-    event_id: addonForm.value.event_id,
-    name: addonForm.value.name,
-    type: addonForm.value.type,
-    price: addonForm.value.price,
-    stock_limit: addonForm.value.stock_limit,
-    description: addonForm.value.description || null,
-  })
-  if (!error) {
+  try {
+    await financesApi.createAddon({
+      eventId: addonForm.value.event_id,
+      name: addonForm.value.name,
+      type: addonForm.value.type,
+      price: addonForm.value.price,
+      stockLimit: addonForm.value.stock_limit,
+      description: addonForm.value.description || null,
+    })
     toast.add({ severity: 'success', summary: 'Add-on created', life: 3000 })
     showCreateAddon.value = false
     addonForm.value = { event_id: '', name: '', type: 'OBJECT', price: 0, stock_limit: null, description: '' }
-    load()
+    await load()
+  } finally {
+    creatingAddon.value = false
   }
-  creatingAddon.value = false
 }
 
 async function deleteDiscount(id: string) {
-  await db.from('discounts').delete().eq('id', id).eq('org_id', orgId.value)
+  await financesApi.removeDiscount(id)
   toast.add({ severity: 'success', summary: 'Discount deleted', life: 3000 })
   load()
 }
 
 async function deleteAddon(id: string) {
-  await (db.from as any)('addons').delete().eq('id', id)
+  await financesApi.removeAddon(id)
   toast.add({ severity: 'success', summary: 'Add-on deleted', life: 3000 })
   load()
 }

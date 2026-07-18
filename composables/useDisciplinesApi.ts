@@ -40,5 +40,22 @@ export function useDisciplinesApi() {
       body: rows,
     })
   }
-  return { list, requirements, create, update, remove, saveRequirements }
+  /** Every discipline owned by a SET of orgs (the requirement engine's chain walk
+   *  needs the whole ancestry, which may span several governing bodies). */
+  async function listForOrgs(orgIds: string[]): Promise<Discipline[]> {
+    return await $fetch<Discipline[]>('/api/v1/disciplines/for-orgs', { query: { orgIds: orgIds.join(',') } })
+  }
+  /** The disciplines a member group is linked to (each carries its owning orgId). */
+  async function forGroup(groupId: string): Promise<Discipline[]> {
+    return await $fetch<Discipline[]>('/api/v1/disciplines/for-group', { query: { groupId } })
+  }
+  /** The disciplines an event is linked to (each carries its owning orgId). */
+  async function forEvent(eventId: string): Promise<Discipline[]> {
+    return await $fetch<Discipline[]>('/api/v1/disciplines/for-event', { query: { eventId } })
+  }
+  /** Delete a single requirement row. */
+  async function deleteRequirement(id: string): Promise<void> {
+    await $fetch(`/api/v1/disciplines/requirements/${id}`, { method: 'DELETE' })
+  }
+  return { list, requirements, create, update, remove, saveRequirements, listForOrgs, forGroup, forEvent, deleteRequirement }
 }

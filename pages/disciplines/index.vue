@@ -4,8 +4,15 @@
   Premiers > B Grade). Clubs map their groups/events to these (<DisciplineLinker>).
 -->
 <script setup lang="ts">
-const db = useDb()
+const disciplinesApi = useDisciplinesApi()
+const orgsApi = useOrganisationsApi()
 const { orgId } = useOrg()
+
+// Seam Discipline (camelCase contract) → this page's snake_case Disc shape.
+const toDisc = (d: any): Disc => ({
+  id: d.id, org_id: d.orgId, name: d.name, code: d.code ?? null, parent_id: d.parentId ?? null,
+  sort_order: d.sortOrder ?? 0, applies_to: d.appliesTo ?? [], person_type_keys: d.personTypeKeys ?? null,
+})
 
 // NB `disciplines.sport` still exists in the DB but is no longer captured here:
 // a discipline's sport is implied by the governing body that owns it.
@@ -118,8 +125,8 @@ async function onDrop(d: Disc) {
   sibs.forEach((x, i) => { x.sort_order = i })
 
   await Promise.all([
-    (db.from as any)('disciplines').update({ parent_id: dragged.parent_id }).eq('id', dragged.id),
-    ...sibs.map(x => (db.from as any)('disciplines').update({ sort_order: x.sort_order }).eq('id', x.id)),
+    disciplinesApi.update(dragged.id, { parentId: dragged.parent_id }),
+    ...sibs.map(x => disciplinesApi.update(x.id, { sortOrder: x.sort_order })),
   ])
 }
 // (The cycle-safe parent picker lives in <DisciplineWizard> now, alongside the
@@ -127,12 +134,13 @@ async function onDrop(d: Disc) {
 
 async function load() {
   loading.value = true
-  const [{ data: o }, { data: discs }, cat] = await Promise.all([
-    (db.from as any)('organisations').select('name, org_level').eq('id', orgId.value).single(),
-    // person_type_keys = the cast (276). MUST be selected: the wizard hydrates from
-    // this row and writes back what it read, so an unselected column round-trips to
-    // null and silently wipes the cast on the next save.
-    (db.from as any)('disciplines').select('id, org_id, name, code, parent_id, sort_order, applies_to, person_type_keys').eq('org_id', orgId.value).order('sort_order').order('name'),
+  const [orgs, discs, cat] = await Promise.all([
+    // No single-org get(id) on the organisations seam yet (CROSS-DOMAIN GAP) — the
+    // list + find is the interim way to read this org's name + governing level.
+    orgsApi.list(),
+    // person_type_keys = the cast (276). The seam selects it; the wizard hydrates
+    // from this row and writes back what it read.
+    disciplinesApi.list(orgId.value!),
     // null = every field this body has. A requirement carries its own person-type
     // scope, so the PICKER must not be filtered by one — GNZ's fields target
     // 'gymnast', not 'member', and would otherwise never appear.
@@ -140,8 +148,10 @@ async function load() {
     // 16" an ordinary requirement rather than a special case.
     loadFieldCatalogue(orgId.value!, null, { includeAge: true }),
   ])
-  org.value = o ?? null
-  disciplines.value = discs ?? []
+  // The org's name + governing level — the seam returns camelCase.
+  const o = (orgs ?? []).find(x => x.id === orgId.value) ?? null
+  org.value = o ? { name: o.name, org_level: o.orgLevel } : null
+  disciplines.value = (discs ?? []).map(toDisc)
   catalogue.value = cat ?? []
   // OUR OWN person types, for per-rule scoping — juniors' players and juniors'
   // coaches are not asked for the same things. Own-only (loadOrgTypes, not
@@ -193,7 +203,7 @@ async function onWizardSaved() { wizardOpen.value = false; await load() }
  *  here rather than reloading (a reload mid-wizard would blow away the draft). */
 function onFieldCreated(f: PersonFieldDef) { catalogue.value = [...catalogue.value, f] }
 
-async function remove(d: Disc) { await (db.from as any)('disciplines').delete().eq('id', d.id); await load() }
+async function remove(d: Disc) { await disciplinesApi.remove(d.id); await load() }
 
 watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
 </script>

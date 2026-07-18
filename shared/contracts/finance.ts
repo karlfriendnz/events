@@ -117,3 +117,149 @@ export type XeroConnection = z.infer<typeof xeroConnectionSchema>
 
 // The connection is a per-org singleton — null when the org hasn't connected Xero.
 export const xeroConnectionOrNullSchema = xeroConnectionSchema.nullable()
+
+// ── Fee components (read-only on the finances screen) ────────────────────────
+// A fee line on an event (table `fee_components`). It has no org_id of its own —
+// scoped via its event by the repo — and the joined event {id,title} feeds the
+// finances table's Event column. `amount`/`depositPercent` are decimals (string
+// from mysql2), so they take the money union.
+export const feeComponentSchema = z.object({
+  id: z.string(),
+  eventId: z.string().nullable(),
+  name: z.string().nullable(),
+  amount: money,
+  xeroCode: z.string().nullable(),
+  isLocked: z.boolean(),
+  depositPercent: money,
+  sortOrder: z.number().int().nullable(),
+  event: z.object({ id: z.string(), title: z.string().nullable() }).nullable(),
+})
+export type FeeComponent = z.infer<typeof feeComponentSchema>
+export const feeComponentListSchema = z.array(feeComponentSchema)
+
+// ── Add-ons (event extras: table `addons`) ───────────────────────────────────
+// Same event-scoping as fee components (no org_id — via the linked event). The
+// finances screen lists + creates + deletes them.
+export const addonSchema = z.object({
+  id: z.string(),
+  eventId: z.string().nullable(),
+  type: z.string().nullable(),
+  name: z.string().nullable(),
+  description: z.string().nullable(),
+  price: money,
+  stockLimit: z.number().int().nullable(),
+  sortOrder: z.number().int().nullable(),
+  event: z.object({ id: z.string(), title: z.string().nullable() }).nullable(),
+})
+export type Addon = z.infer<typeof addonSchema>
+export const addonListSchema = z.array(addonSchema)
+
+// Create omits the server-owned id + join. eventId + name required; the rest default.
+export const addonCreateSchema = z.object({
+  eventId: z.string().min(1),
+  name: z.string().min(1),
+  type: z.string().optional(),
+  price: money.optional(),
+  stockLimit: z.number().int().nullable().optional(),
+  description: z.string().nullable().optional(),
+})
+export type AddonCreate = z.infer<typeof addonCreateSchema>
+
+// ── Org currency (the one org setting the finances/reporting screens format with) ─
+// Deliberately a tiny standalone read: currency lives on `organisations` (the admin
+// domain), but formatting money is a finances concern, so a minimal read is owned
+// here rather than widening the org/orgSettings contract. See cross-domain note.
+export const orgCurrencySchema = z.object({ currency: z.string() })
+export type OrgCurrency = z.infer<typeof orgCurrencySchema>
+
+// ── Reporting rollup (the /reporting dashboard) ──────────────────────────────
+// A read-only aggregate over events (+ their category) and invitees. The page does
+// its own client-side status/category grouping, so the boundary just hands back the
+// event rows (with category name/color) and the raw invitee {eventId,status} list.
+export const reportingEventSchema = z.object({
+  id: z.string(),
+  title: z.string().nullable(),
+  style: z.string().nullable(),
+  status: z.string().nullable(),
+  startAt: z.string().nullable(),
+  endAt: z.string().nullable(),
+  isAllDay: z.boolean(),
+  category: z.object({ name: z.string().nullable(), color: z.string().nullable() }).nullable(),
+})
+export type ReportingEvent = z.infer<typeof reportingEventSchema>
+export const reportingInviteeSchema = z.object({ eventId: z.string().nullable(), status: z.string() })
+export const reportingBundleSchema = z.object({
+  events: z.array(reportingEventSchema),
+  invitees: z.array(reportingInviteeSchema),
+})
+export type ReportingBundle = z.infer<typeof reportingBundleSchema>
+
+// ── Attendance sessions (the /attendance landing) ────────────────────────────
+// Every group-linked training event occurrence in a date window — the page keeps
+// its own date/label formatting, so the boundary returns the raw fields it needs
+// (event time + resolved group + resolved bookable name).
+export const attendanceSessionSchema = z.object({
+  eventId: z.string(),
+  startAt: z.string().nullable(),
+  endAt: z.string().nullable(),
+  locationType: z.string().nullable(),
+  bookableName: z.string().nullable(),
+  address: z.string().nullable(),
+  meetingLink: z.string().nullable(),
+  groupName: z.string().nullable(),
+  groupColor: z.string().nullable(),
+  locationId: z.string().nullable(),
+})
+export type AttendanceSession = z.infer<typeof attendanceSessionSchema>
+export const attendanceSessionListSchema = z.array(attendanceSessionSchema)
+
+// ── Custom reports (table `custom_reports`) ──────────────────────────────────
+// A club-built people report — filters + columns saved as a json `config`. The
+// config shape (match/filters/columns) is the client's ReportConfig; the boundary
+// passes it through as free json.
+export const customReportSchema = z.object({
+  id: z.string(),
+  orgId: z.string(),
+  name: z.string(),
+  config: z.record(z.string(), z.any()),
+  sortOrder: z.number().int(),
+})
+export type CustomReport = z.infer<typeof customReportSchema>
+export const customReportListSchema = z.array(customReportSchema)
+export const customReportOrNullSchema = customReportSchema.nullable()
+
+export const customReportCreateSchema = z.object({
+  name: z.string().min(1),
+  config: z.record(z.string(), z.any()),
+})
+export type CustomReportCreate = z.infer<typeof customReportCreateSchema>
+export const customReportPatchSchema = z.object({
+  name: z.string().optional(),
+  config: z.record(z.string(), z.any()).optional(),
+})
+export type CustomReportPatch = z.infer<typeof customReportPatchSchema>
+
+// ── Report run-data (the people a custom report filters over) ────────────────
+// SNAKE_CASE ON PURPOSE: these keys are the FIELD VOCABULARY saved inside report
+// configs (first_name, dob, person_types, cf:<id>…) and applied by the pure filter
+// engine in useCustomReports — they are user-facing field identifiers, not internal
+// column names, so camelCasing them here would break every saved report. `__positions`
+// is the per-person union of member-group positions (from member_group_memberships).
+export const reportPersonSchema = z.object({
+  id: z.string(),
+  first_name: z.string().nullable(),
+  last_name: z.string().nullable(),
+  email: z.string().nullable(),
+  phone: z.string().nullable(),
+  dob: z.string().nullable(),
+  gender: z.string().nullable(),
+  membership_type: z.string().nullable(),
+  person_type: z.string().nullable(),
+  person_types: z.array(z.string()),
+  custom_fields: z.record(z.string(), z.any()),
+  photo_url: z.string().nullable(),
+  __positions: z.array(z.string()),
+})
+export type ReportPerson = z.infer<typeof reportPersonSchema>
+export const reportPersonListSchema = z.array(reportPersonSchema)
+export const reportPositionsSchema = z.array(z.string())

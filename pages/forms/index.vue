@@ -70,7 +70,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 
-const db = useDb()
+const formsApi = useFormsApi()
 const { orgId } = useOrg()
 
 const forms = ref<{ id: string; name: string; field_count: number; usage_count: number; target_count: number }[]>([])
@@ -79,40 +79,25 @@ const loading = ref(true)
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const { data: rawForms } = await (db.from as any)('registration_forms')
-    .select('id, name, config')
-    .eq('org_id', orgId.value)
-    .order('name')
-  if (!rawForms?.length) { forms.value = []; loading.value = false; return }
-  const ids = rawForms.map((f: any) => f.id)
-  const [{ data: fields }, { data: modes }, { data: events }, { data: groups }, { data: targets }] = await Promise.all([
-    (db.from as any)('form_fields').select('form_id').in('form_id', ids),
-    (db.from as any)('activity_modes').select('form_id').in('form_id', ids),
-    (db.from as any)('events').select('form_id').in('form_id', ids),
-    (db.from as any)('member_groups').select('form_id').in('form_id', ids),
-    (db.from as any)('registration_form_targets').select('form_id').in('form_id', ids),
-  ])
-  const fieldCounts: Record<string, number> = {}
-  for (const f of fields ?? []) fieldCounts[f.form_id] = (fieldCounts[f.form_id] ?? 0) + 1
-  const usageCounts: Record<string, number> = {}
-  for (const r of [...(modes ?? []), ...(events ?? []), ...(groups ?? [])]) {
-    if (r.form_id) usageCounts[r.form_id] = (usageCounts[r.form_id] ?? 0) + 1
-  }
-  const targetCounts: Record<string, number> = {}
-  for (const t of targets ?? []) targetCounts[t.form_id] = (targetCounts[t.form_id] ?? 0) + 1
+  const rawForms = await formsApi.list(orgId.value as string)
+  if (!rawForms.length) { forms.value = []; loading.value = false; return }
+  // Per-form usage tallies (fields / in-use / connections) — computed server-side.
+  const usage = await formsApi.usage(orgId.value as string)
   // Designer-shaped forms keep their fields in config.groupFields (not form_fields).
   const designerFieldCount = (cfg: any) => {
     if (!cfg?.groupFields) return 0
     return Object.values(cfg.groupFields as Record<string, any[]>)
       .reduce((n, list) => n + (Array.isArray(list) ? list.filter((x: any) => !['section', 'image', 'textblock', 'button', 'tabs'].includes(x.field_type)).length : 0), 0)
   }
-  forms.value = rawForms.map((f: any) => ({
-    id: f.id,
-    name: f.name,
-    field_count: (fieldCounts[f.id] ?? 0) || designerFieldCount(f.config),
-    usage_count: usageCounts[f.id] ?? 0,
-    target_count: targetCounts[f.id] ?? 0,
-  }))
+  forms.value = [...rawForms]
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((f) => ({
+      id: f.id,
+      name: f.name,
+      field_count: (usage[f.id]?.fieldCount ?? 0) || designerFieldCount(f.config),
+      usage_count: usage[f.id]?.usageCount ?? 0,
+      target_count: usage[f.id]?.targetCount ?? 0,
+    }))
   loading.value = false
 }
 
@@ -137,13 +122,9 @@ function onConnectionsSaved(count: number) {
 async function deleteForm(f: { id: string; name: string; usage_count: number }) {
   const usage = f.usage_count ? `\n\nIt's in use by ${f.usage_count} event/mode/class — they'll be unlinked.` : ''
   if (!confirm(`Delete "${f.name}"? This can't be undone.${usage}`)) return
-  await Promise.all([
-    (db.from as any)('events').update({ form_id: null }).eq('form_id', f.id),
-    (db.from as any)('activity_modes').update({ form_id: null }).eq('form_id', f.id),
-    (db.from as any)('member_groups').update({ form_id: null }).eq('form_id', f.id),
-    (db.from as any)('form_fields').delete().eq('form_id', f.id),
-  ])
-  await (db.from as any)('registration_forms').delete().eq('id', f.id).eq('org_id', orgId.value)
+  // The DELETE route detaches everything pointing at it (events / modes / classes
+  // form_id nulled) + removes fields + connections, org-scoped.
+  await formsApi.remove(f.id, orgId.value!)
   forms.value = forms.value.filter(x => x.id !== f.id)
 }
 

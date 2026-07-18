@@ -139,8 +139,38 @@ export function chainForPersonTypes(
 }
 
 export function useOrgFieldPolicy() {
-  const db = useDb()
-  const { ancestors, governingOrgs } = useOrgHierarchy()
+  // Data access goes through the seam (usePersonTypesApi); this composable only maps
+  // the seam's camelCase contract back to the snake_case shapes the pages read, and
+  // stitches in the org-hierarchy walk.
+  const api = usePersonTypesApi()
+  // Ancestors come from the seam (orgs.ancestors, MySQL-backed). governingOrgs (parent
+  // chain ∪ every connected sport's chain) has no seam function yet — CROSS-DOMAIN
+  // GAP — so it's still resolved by useOrgHierarchy (RPC) until the org/affiliations
+  // domain exposes a governingOrgs seam. No useDb lives in this file.
+  const { ancestors } = useOrganisationsApi()
+  const { governingOrgs } = useOrgHierarchy()
+
+  // Seam ResolvedField → the snake_case FieldDef shape the pages/components consume.
+  function toFieldDef(r: any): FieldDef {
+    return {
+      id: r.id,
+      org_id: r.orgId,
+      label: r.label,
+      field_type: r.fieldType,
+      is_required: !!r.isRequired,
+      options: Array.isArray(r.options) ? r.options : [],
+      help_text: r.helpText ?? null,
+      key: r.key ?? null,
+      meta: r.meta && typeof r.meta === 'object' ? r.meta : {},
+      sort_order: r.sortOrder,
+      target: r.target,
+      targets: Array.isArray(r.targets) ? r.targets : [],
+      rules: Array.isArray(r.rules) ? r.rules : [],
+      inherited: !!r.inherited,
+      ownerName: r.ownerName ?? '',
+      ownerLevel: r.ownerLevel ?? '',
+    }
+  }
 
   /**
    * Every person-type link in this org's world: its OWN links, PLUS the links its
@@ -161,22 +191,17 @@ export function useOrgFieldPolicy() {
    */
   async function loadTypeLinks(orgId: string): Promise<PersonTypeLink[]> {
     const gov = await governingOrgs(orgId)
-    const reachable = new Set([orgId, ...gov.map(g => g.id)])
-    const { data } = await (db.from as any)('person_type_links')
-      .select('id, org_id, type_id, source_type_id, source:person_target_types!person_type_links_source_type_id_fkey(key, label, org_id, organisations(name))')
-      .in('org_id', [...reachable])
-    return (data ?? [])
-      .filter((l: any) => l.source?.org_id && reachable.has(l.source.org_id))
-      .map((l: any) => ({
-        id: l.id,
-        type_id: l.type_id,
-        source_type_id: l.source_type_id,
-        source_key: l.source?.key ?? '',
-        source_label: l.source?.label ?? '',
-        source_org_id: l.source?.org_id ?? '',
-        source_org_name: l.source?.organisations?.name ?? '',
-      }))
-      .filter((l: PersonTypeLink) => l.source_key)
+    const reachable = [orgId, ...gov.map(g => g.id)]
+    const rows = await api.typeLinksHydrated(reachable)
+    return rows.map(l => ({
+      id: l.id,
+      type_id: l.typeId,
+      source_type_id: l.sourceTypeId,
+      source_key: l.sourceKey,
+      source_label: l.sourceLabel,
+      source_org_id: l.sourceOrgId,
+      source_org_name: l.sourceOrgName,
+    }))
   }
 
   /**
@@ -190,25 +215,20 @@ export function useOrgFieldPolicy() {
   async function loadLinkableTypes(orgId: string) {
     const gov = await governingOrgs(orgId)
     if (!gov.length) return []
-    const { data } = await (db.from as any)('person_target_types')
-      .select('id, org_id, key, label, kind, organisations(name)')
-      .in('org_id', gov.map(g => g.id))
-      .eq('is_published', true)
-      .order('sort_order')
-    return (data ?? []).map((t: any) => ({
-      ...t, kind: t.kind ?? 'person', ownerName: t.organisations?.name ?? '',
+    const rows = await api.linkableTypes(gov.map(g => g.id))
+    return rows.map(t => ({
+      id: t.id, org_id: t.orgId, key: t.key, label: t.label, kind: t.kind ?? 'person', ownerName: t.ownerName ?? '',
     }))
   }
 
   async function linkType(orgId: string, typeId: string, sourceTypeId: string) {
-    // Idempotent: unique(type_id, source_type_id) makes a repeat link a no-op,
-    // which is what keeps the connect-a-sport reconciliation safe to re-run.
-    return await (db.from as any)('person_type_links')
-      .upsert({ org_id: orgId, type_id: typeId, source_type_id: sourceTypeId }, { onConflict: 'type_id,source_type_id' })
+    // Idempotent server-side (unique(type_id, source_type_id)) — safe to re-run
+    // during connect-a-sport reconciliation.
+    return await api.linkType(orgId, typeId, sourceTypeId)
   }
 
   async function unlinkType(linkId: string) {
-    return await (db.from as any)('person_type_links').delete().eq('id', linkId)
+    return await api.unlinkType(linkId)
   }
 
   /**
@@ -222,51 +242,31 @@ export function useOrgFieldPolicy() {
   async function resolveFields(orgId: string): Promise<FieldDef[]> {
     const gov = await governingOrgs(orgId)
     const ids = [orgId, ...gov.map(a => a.id)]
-    const { data } = await (db.from as any)('field_definitions')
-      .select('id, org_id, label, field_type, is_required, options, help_text, key, meta, sort_order, target, targets, rules, organisations(name, org_level)')
-      .in('org_id', ids)
-      .order('sort_order')
-    const parseArr = (v: any) => {
-      if (Array.isArray(v)) return v
-      if (!v) return []
-      try { const p = JSON.parse(v); return Array.isArray(p) ? p : [] } catch { return [] }
-    }
-    return (data ?? []).map((f: any) => ({
-      ...f,
-      options: parseArr(f.options),
-      rules: parseArr(f.rules),
-      meta: f.meta && typeof f.meta === 'object' ? f.meta : {},
-      inherited: f.org_id !== orgId,
-      ownerName: f.organisations?.name ?? '',
-      ownerLevel: f.organisations?.org_level ?? '',
-    }))
+    const rows = await api.resolveFields(ids, orgId)
+    return rows.map(toFieldDef)
   }
 
   /** Own + inherited person types (Member / Guardian / Coach / …) with min/max. */
   async function resolvePersonTypes(orgId: string) {
     const anc = await ancestors(orgId)
     const ids = [orgId, ...anc.map(a => a.id)]
-    const { data } = await (db.from as any)('person_target_types')
-      .select('id, org_id, key, label, kind, min_count, max_count, sort_order, is_access, organisations(name)')
-      .in('org_id', ids)
-      .order('sort_order')
-    return (data ?? []).map((t: any) => ({
-      ...t,
-      kind: t.kind ?? 'person',
-      is_access: !!t.is_access,
-      inherited: t.org_id !== orgId,
-      ownerName: t.organisations?.name ?? '',
+    const rows = await api.resolvePersonTypes(ids, orgId)
+    return rows.map(t => ({
+      id: t.id, org_id: t.orgId, key: t.key, label: t.label, kind: t.kind ?? 'person',
+      min_count: t.minCount, max_count: t.maxCount, sort_order: t.sortOrder,
+      is_access: !!t.isAccess, inherited: !!t.inherited, ownerName: t.ownerName ?? '',
     }))
   }
 
   /** A club's OWN person/entity types only (no inheritance) — the single source
    *  the /proto/* prototype uses, so there's no duplicate/two-concept confusion. */
   async function loadOrgTypes(orgId: string) {
-    const { data } = await (db.from as any)('person_target_types')
-      .select('id, org_id, key, label, kind, is_access, is_published, permissions, member_slots, sort_order, landing_path, profile_dashboard, menu_items')
-      .eq('org_id', orgId).order('sort_order')
-    return (data ?? []).map((t: any) => ({
-      ...t, kind: t.kind ?? 'person', is_access: !!t.is_access, is_published: !!t.is_published, inherited: false, ownerName: '',
+    const rows = await api.listOrgTypes(orgId)
+    return rows.map(t => ({
+      id: t.id, org_id: t.orgId, key: t.key, label: t.label, kind: t.kind ?? 'person',
+      is_access: !!t.isAccess, is_published: !!t.isPublished, permissions: t.permissions ?? {},
+      member_slots: t.memberSlots ?? [], sort_order: t.sortOrder, landing_path: t.landingPath,
+      profile_dashboard: t.profileDashboard, menu_items: t.menuItems, inherited: false, ownerName: '',
     }))
   }
 

@@ -10,7 +10,13 @@ import { useToast } from 'primevue/usetoast'
 const props = withDefaults(defineProps<{ eventId: string | null; groupId?: string | null; formId?: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean; embedded?: boolean; ageMin?: number | null; ageMax?: number | null }>(), { groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false, embedded: false, ageMin: null, ageMax: null })
 
 const emit = defineEmits<{ (e: 'building', v: boolean): void }>()
+// db is kept ONLY for the communication_topics read (no seam function merges the
+// core + org topics + the is_active filter this needs — see the comms-topics watcher).
 const db = useDb()
+const formsApi = useFormsApi()
+const groupsApi = useGroupsApi()
+const eventsApi = useEventsApi()
+const rolesApi = useRolesApi()
 const toast = useToast()
 const { orgId } = useOrg()
 const { uploadFile } = useUpload()
@@ -1417,11 +1423,9 @@ const evtPermissionGroups = ref<{ id: string; name: string }[]>([])
 watch(orgId, async (id) => {
   if (!id) { evtPermissionGroups.value = []; return }
   try {
-    const [core, own] = await Promise.all([
-      (db.from as any)('permission_groups').select('id, name, sort_order').eq('is_core', true).order('sort_order'),
-      (db.from as any)('permission_groups').select('id, name, sort_order').eq('org_id', id).order('sort_order'),
-    ])
-    evtPermissionGroups.value = [...(core.data ?? []), ...(own.data ?? [])].map((g: any) => ({ id: g.id, name: g.name }))
+    // The seam returns the org's groups PLUS the core templates it inherits.
+    const groups = await rolesApi.permissionGroups(id)
+    evtPermissionGroups.value = groups.map((g) => ({ id: g.id, name: g.name }))
   } catch (e) { console.error('[evt permission groups]', e) }
 }, { immediate: true })
 
@@ -1430,6 +1434,10 @@ watch(orgId, async (id) => {
 const evtCommsTopics = ref<{ id: string; name: string; channels: string[] }[]>([])
 watch(orgId, async (id) => {
   if (!id) { evtCommsTopics.value = []; return }
+  // SEAM GAP: useWaitlistsApi().topics(orgId) returns ONLY the org's topics — it
+  // doesn't merge the core (org_id null) topics nor apply the is_active filter this
+  // read needs, so converting would drop core topics. Left on useDb until the
+  // waitlists-comms seam exposes a merged+active topic list.
   try {
     const [core, own] = await Promise.all([
       (db.from as any)('communication_topics').select('id, name, channels, sort_order, is_active').eq('is_core', true).order('sort_order'),
@@ -2077,16 +2085,16 @@ async function ensureEventFormId(): Promise<string | null> {
   if ((!props.eventId && !props.groupId) || !orgId.value) return null
   if (_ensuringForm) return _ensuringForm
   _ensuringForm = (async () => {
-    const { data } = await (db.from as any)('registration_forms').insert({
-      org_id: orgId.value,
+    const created = await formsApi.create({
+      orgId: orgId.value!,
       name: event.value?.title ? `${event.value.title} registration` : (props.groupId ? 'Group registration' : 'Event registration'),
-    }).select('id').single()
-    if (!data) return null
+    }).catch(() => null)
+    if (!created) return null
     // Link the form to whichever context owns this designer instance.
-    if (props.groupId) await (db.from as any)('member_groups').update({ form_id: data.id }).eq('id', props.groupId)
-    else await (db.from as any)('events').update({ form_id: data.id }).eq('id', props.eventId)
-    if (event.value) event.value.form_id = data.id
-    return data.id as string
+    if (props.groupId) await groupsApi.update(props.groupId, { formId: created.id })
+    else await eventsApi.update(props.eventId!, { formId: created.id })
+    if (event.value) event.value.form_id = created.id
+    return created.id as string
   })()
   const id = await _ensuringForm
   _ensuringForm = null
@@ -2098,14 +2106,14 @@ function persistEvtFormConfig() {
   _formSaveTimer = setTimeout(async () => {
     const formId = await ensureEventFormId()
     if (!formId) return
-    await db.from('registration_forms').update({ config: buildEvtFormConfig() }).eq('id', formId)
+    await formsApi.update(formId, { config: buildEvtFormConfig() })
   }, 600)
 }
 
 async function loadEvtFormConfig() {
   const formId = event.value?.form_id
   if (!formId) return
-  const { data } = await db.from('registration_forms').select('config').eq('id', formId).single()
+  const data = await formsApi.get(formId).catch(() => null)
   const c = data?.config
   if (!c || !Object.keys(c).length) return
   if (Array.isArray(c.groups)) {
@@ -2249,8 +2257,7 @@ async function reload() {
   // Standalone form context (/forms/:id): the designer points straight at a
   // registration_forms row — no owning event/group, the row IS the form.
   if (props.formId) {
-    const { data } = await (db.from as any)('registration_forms')
-      .select('id, name, config').eq('id', props.formId).maybeSingle()
+    const data = await formsApi.get(props.formId).catch(() => null)
     event.value = data ? { id: null, title: data.name, banner_url: null, form_id: data.id } : null
     await loadEvtFormConfig()
     // The /forms/new wizard stashes the chosen registration shape on the config
@@ -2278,15 +2285,18 @@ async function reload() {
   // Group context: the group row stands in for the event (title/banner/form_id),
   // so the whole designer — chooser, subjects, design, preview — works unchanged.
   if (props.groupId) {
-    const { data } = await (db.from as any)('member_groups')
-      .select('id, name, image_url, form_id').eq('id', props.groupId).maybeSingle()
-    event.value = data ? { id: data.id, title: data.name, banner_url: data.image_url, form_id: data.form_id } : null
+    const data = await groupsApi.get(props.groupId).catch(() => null)
+    event.value = data ? { id: data.id, title: data.name, banner_url: data.imageUrl, form_id: data.formId } : null
     await loadEvtFormConfig()
     return
   }
   if (!props.eventId) { event.value = null; return }
-  const { data } = await (db.from as any)('events').select('*').eq('id', props.eventId).maybeSingle()
-  event.value = data ?? null
+  // Seam gives a camelCase FMEvent; the designer reads a few snake_case fields off
+  // event.value (form_id / is_programme / age_min / age_max / title) — alias them.
+  const data = await eventsApi.get(props.eventId).catch(() => null)
+  event.value = data
+    ? { ...data, form_id: data.formId, is_programme: data.isProgramme, age_min: data.ageMin, age_max: data.ageMax, title: data.title }
+    : null
   await loadEvtFormConfig()
 }
 onMounted(reload)

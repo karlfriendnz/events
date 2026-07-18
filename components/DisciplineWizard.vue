@@ -52,7 +52,8 @@ const emit = defineEmits<{
   (e: 'field-created', f: PersonFieldDef): void
 }>()
 
-const db = useDb()
+const disciplinesApi = useDisciplinesApi()
+const typesApi = usePersonTypesApi()
 const { orgId } = useOrg()
 const toast = useToast()
 const dr = useDisciplineRequirements()
@@ -195,20 +196,24 @@ function onCreatorHide() {
 }
 
 async function onFieldCreated(p: { label: string; type: string; placeholder: string; required: boolean; options: string[]; targets: string[] }) {
-  const { data, error } = await (db.from as any)('field_definitions').insert({
-    org_id: orgId.value, label: p.label, field_type: p.type,
-    // is_required stays FALSE from here: the DISCIPLINE decides who needs this, and
-    // true would quietly make it mandatory on every form for the type.
-    is_required: false,
-    options: p.options, help_text: p.placeholder || null,
-    targets: p.targets, target: p.targets[0], rules: [],
-    sort_order: props.catalogue.filter(f => f.source === 'custom').length,
-  }).select('id, label, field_type, options').maybeSingle()
-  if (error || !data) { toast.add({ severity: 'error', summary: 'Could not create the field', detail: error?.message, life: 4000 }); return }
+  let data: any
+  try {
+    data = await typesApi.createField({
+      orgId: orgId.value!, label: p.label, fieldType: p.type,
+      // is_required stays FALSE from here: the DISCIPLINE decides who needs this, and
+      // true would quietly make it mandatory on every form for the type.
+      isRequired: false,
+      options: p.options, helpText: p.placeholder || null,
+      targets: p.targets, target: p.targets[0],
+      sortOrder: props.catalogue.filter(f => f.source === 'custom').length,
+    })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not create the field', detail: e?.message, life: 4000 }); return
+  }
 
   // Hand it to the page so the catalogue prop updates, then select it into the row
   // that asked — otherwise you'd create "School" and still have to go find it.
-  emit('field-created', { key: data.id, label: data.label, source: 'custom', field_type: data.field_type, options: Array.isArray(data.options) ? data.options : [] })
+  emit('field-created', { key: data.id, label: data.label, source: 'custom', field_type: data.fieldType, options: Array.isArray(data.options) ? data.options : [] })
   await nextTick()
   if (creatingFor.value) { creatingFor.value.field_key = data.id; onFieldChange(creatingFor.value) }
   creatingField.value = false
@@ -260,19 +265,19 @@ const badRange = computed(() => form.reqs.find(r => RANGE_OPERATORS.includes(r.o
 
 async function finish() {
   saving.value = true
-  const payload: any = {
-    org_id: orgId.value, name: form.name.trim(), code: form.code.trim() || null,
-    parent_id: form.parent_id, applies_to: form.applies_to.length ? form.applies_to : null,
-    // null (not []) = says nothing → inherit the parent's cast. [] would read as
-    // "nobody takes part", which is not a thing anyone means.
-    person_type_keys: form.person_type_keys.length ? form.person_type_keys : null,
+  // An empty applies_to / person_type_keys array means the same as null to the
+  // consumers (castFor + the linker treat [] as "inherit" / "everywhere"), and the
+  // seam normalises null→[] on read, so the write carries plain arrays.
+  const payload = {
+    name: form.name.trim(), code: form.code.trim() || null,
+    parentId: form.parent_id, appliesTo: form.applies_to, personTypeKeys: form.person_type_keys,
   }
   let id = props.editing?.id ?? null
-  if (id) await (db.from as any)('disciplines').update(payload).eq('id', id)
+  if (id) await disciplinesApi.update(id, payload)
   else {
     const sibs = props.disciplines.filter(d => (d.parent_id ?? null) === (form.parent_id ?? null)).length
-    const { data } = await (db.from as any)('disciplines').insert({ ...payload, sort_order: sibs }).select('id').maybeSingle()
-    id = data?.id ?? null
+    const created = await disciplinesApi.create({ orgId: orgId.value!, ...payload, sortOrder: sibs })
+    id = created?.id ?? null
   }
   if (id) {
     await dr.saveRequirements(id, form.reqs.filter(r => r.field_key).map(r => ({

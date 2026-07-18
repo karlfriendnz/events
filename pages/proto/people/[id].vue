@@ -7,7 +7,7 @@
   custom fields render below. Isolated from the live /people profile.
 -->
 <script setup lang="ts">
-const db = useDb()
+const peopleApi = usePeopleApi()
 const { orgId } = useOrg()
 const route = useRoute()
 const router = useRouter()
@@ -53,13 +53,21 @@ const customFields = computed(() => {
 async function load() {
   loading.value = true
   const id = route.params.id as string
-  const [{ data: p }, all, flds, c] = await Promise.all([
-    (db.from as any)('persons').select('*').eq('id', id).maybeSingle(),
+  // The seam's get throws on 404; fall back to null to keep the "not found" screen.
+  const [p, all, flds, c] = await Promise.all([
+    peopleApi.get(id).catch(() => null),
     loadOrgTypes(orgId.value!),
     resolveFields(orgId.value!),
     loadConfig(),
   ])
-  person.value = p
+  // Map the camelCase contract to the snake_case shape the form reads. NB: phone2 is
+  // NOT on the Person contract yet (people-domain gap), so this editor can't read or
+  // write it until the people seam adds it — the DB value is left untouched on save.
+  person.value = p ? {
+    id: p.id, first_name: p.firstName, last_name: p.lastName, email: p.email, phone: p.phone,
+    dob: p.dob, gender: p.gender, membership_type: p.membershipType,
+    person_type: p.personType, person_types: p.personTypes, custom_fields: p.customFields ?? {},
+  } : null
   if (person.value) {
     if (!person.value.custom_fields) person.value.custom_fields = {}
     if (!Array.isArray(person.value.person_types)) person.value.person_types = person.value.person_type ? [person.value.person_type] : []
@@ -94,13 +102,15 @@ async function save() {
     return
   }
   saving.value = true
-  await (db.from as any)('persons').update({
-    first_name: person.value.first_name, last_name: person.value.last_name,
-    email: person.value.email || null, phone: person.value.phone || null, phone2: person.value.phone2 || null,
+  // phone2 is omitted — not on the Person patch contract yet (people-domain gap);
+  // the DB column is left untouched rather than wiped.
+  await peopleApi.update(person.value.id, {
+    firstName: person.value.first_name, lastName: person.value.last_name,
+    email: person.value.email || null, phone: person.value.phone || null,
     dob: person.value.dob, gender: person.value.gender || null,
-    person_types: person.value.person_types, person_type: person.value.person_types[0] ?? null,
-    custom_fields: person.value.custom_fields,
-  }).eq('id', person.value.id)
+    personTypes: person.value.person_types, personType: person.value.person_types[0] ?? null,
+    customFields: person.value.custom_fields,
+  })
   saving.value = false
   toast.add({ severity: 'success', summary: 'Saved', life: 1800 })
 }

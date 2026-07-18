@@ -9,10 +9,13 @@
 // raw string — `asObj` normalises either into a plain object (and never throws), so
 // the domain always sees a real JS object.
 import { randomUUID } from 'node:crypto'
-import { and, asc, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
+  FormField,
+  FormFieldInput,
   FormSubmission,
+  FormUsageMap,
   RegistrationForm,
   RegistrationFormTarget,
   RegistrationFormCreate,
@@ -34,6 +37,22 @@ function asObj(v: unknown): Record<string, any> {
   return {}
 }
 
+// Coerce a json column into a plain array: already an array → use it; a string →
+// parse (tolerating the legacy double-encoded value migrated from Supabase); anything
+// else / a parse failure → []. Never throws.
+function asArray(v: unknown): any[] {
+  if (Array.isArray(v)) return v
+  if (typeof v === 'string') {
+    try {
+      const parsed = JSON.parse(v)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
 // A timestamp column arrives as a Date (mysql2) or a string; normalise to ISO 8601,
 // the transport form the contract promises.
 function toIso(v: unknown): string {
@@ -47,6 +66,25 @@ function toForm(r: typeof schema.registrationForms.$inferSelect): RegistrationFo
     orgId: r.orgId,
     name: r.name,
     config: asObj(r.config),
+  }
+}
+
+function toField(r: typeof schema.formFields.$inferSelect): FormField {
+  // options / conditions are json columns; tolerate a raw array, a legacy encoded
+  // string, or null. A field with no options stays null (a select with none → []).
+  return {
+    id: r.id,
+    formId: r.formId,
+    fieldType: r.fieldType,
+    label: r.label,
+    placeholder: r.placeholder ?? null,
+    helpText: r.helpText ?? null,
+    isRequired: !!r.isRequired,
+    isEventOnly: !!r.isEventOnly,
+    options: r.options == null ? null : asArray(r.options).map((x) => String(x)),
+    conditions: r.conditions == null ? null : asArray(r.conditions),
+    pageNumber: r.pageNumber,
+    sortOrder: r.sortOrder,
   }
 }
 
@@ -166,4 +204,112 @@ export async function updateForm(id: string, patch: RegistrationFormPatch): Prom
 
 export async function deleteForm(id: string): Promise<void> {
   await db.delete(schema.registrationForms).where(eq(schema.registrationForms.id, id))
+}
+
+// ── Form fields (legacy <FormBuilder> shape) ──
+/** The ordered fields of one form (sort_order asc). Empty for designer-shaped forms. */
+export async function listFields(formId: string): Promise<FormField[]> {
+  const rows = await db
+    .select()
+    .from(schema.formFields)
+    .where(eq(schema.formFields.formId, formId))
+    .orderBy(asc(schema.formFields.sortOrder))
+  return rows.map(toField)
+}
+
+/**
+ * Replace the whole field set of a form (delete-then-insert), the same idempotent
+ * shape the UI used against Supabase. Options/conditions are PLAIN arrays — drizzle's
+ * json() serialises them; don't JSON.stringify first or they double-encode.
+ */
+export async function saveFields(formId: string, fields: FormFieldInput[]): Promise<void> {
+  await db.delete(schema.formFields).where(eq(schema.formFields.formId, formId))
+  if (!fields.length) return
+  const rows = fields.map((f, idx) => ({
+    id: randomUUID(),
+    formId,
+    fieldType: f.fieldType,
+    label: f.label,
+    placeholder: f.placeholder ?? null,
+    helpText: f.helpText ?? null,
+    isRequired: !!f.isRequired,
+    isEventOnly: !!f.isEventOnly,
+    options: f.options ?? null,
+    conditions: f.conditions ?? null,
+    pageNumber: f.pageNumber ?? 1,
+    sortOrder: f.sortOrder ?? idx,
+  }))
+  await db.insert(schema.formFields).values(rows as any)
+}
+
+// ── Form connections (registration_form_targets) ──
+/**
+ * Replace the whole connection set of a form (delete-then-insert). Every row is
+ * org-stamped. `orgId` is required — a target is a (form, org, type, id) tuple.
+ */
+export async function saveTargets(
+  formId: string,
+  orgId: string,
+  targets: { targetType: string; targetId: string; sortOrder: number }[],
+): Promise<void> {
+  await db.delete(schema.registrationFormTargets).where(eq(schema.registrationFormTargets.formId, formId))
+  if (!targets.length) return
+  const rows = targets.map((t) => ({
+    id: randomUUID(),
+    orgId,
+    formId,
+    targetType: t.targetType,
+    targetId: t.targetId,
+    sortOrder: t.sortOrder,
+  }))
+  await db.insert(schema.registrationFormTargets).values(rows as any)
+}
+
+// ── Usage tallies for the Forms list ──
+/**
+ * Per-form counts for an org's forms: form_fields (fieldCount), events + booking
+ * modes + classes linking to it (usageCount), and registration_form_targets
+ * (targetCount). One aggregation over the tables that reference a form by id, scoped
+ * to THIS org's form ids so nothing cross-tenant is ever counted.
+ */
+export async function usageCounts(orgId: string): Promise<FormUsageMap> {
+  const formRows = await db
+    .select({ id: schema.registrationForms.id })
+    .from(schema.registrationForms)
+    .where(eq(schema.registrationForms.orgId, orgId))
+  const ids = formRows.map((f) => f.id)
+  const out: FormUsageMap = {}
+  for (const id of ids) out[id] = { fieldCount: 0, usageCount: 0, targetCount: 0 }
+  if (!ids.length) return out
+
+  const [fields, modes, events, groups, targets] = await Promise.all([
+    db.select({ formId: schema.formFields.formId }).from(schema.formFields).where(inArray(schema.formFields.formId, ids)),
+    db.select({ formId: schema.activityModes.formId }).from(schema.activityModes).where(inArray(schema.activityModes.formId, ids)),
+    db.select({ formId: schema.events.formId }).from(schema.events).where(inArray(schema.events.formId, ids)),
+    db.select({ formId: schema.memberGroups.formId }).from(schema.memberGroups).where(inArray(schema.memberGroups.formId, ids)),
+    db.select({ formId: schema.registrationFormTargets.formId }).from(schema.registrationFormTargets).where(inArray(schema.registrationFormTargets.formId, ids)),
+  ])
+  for (const r of fields) if (r.formId && out[r.formId]) out[r.formId].fieldCount++
+  for (const r of [...modes, ...events, ...groups]) if (r.formId && out[r.formId]) out[r.formId].usageCount++
+  for (const r of targets) if (r.formId && out[r.formId]) out[r.formId].targetCount++
+  return out
+}
+
+/**
+ * Delete a form and detach everything pointing at it: null the form_id on the
+ * events / booking modes / classes that use it (their public pages fall back to "no
+ * form set up"), remove its fields + connections, then the form itself. Org-scoped
+ * on the final delete so a form can never be removed cross-tenant. Bulk-by-form_id
+ * updates that per-id composables can't express, which is why the cascade lives in
+ * the forms repo rather than the owning domains.
+ */
+export async function deleteFormAndDetach(id: string, orgId: string): Promise<void> {
+  await Promise.all([
+    db.update(schema.events).set({ formId: null } as any).where(eq(schema.events.formId, id)),
+    db.update(schema.activityModes).set({ formId: null } as any).where(eq(schema.activityModes.formId, id)),
+    db.update(schema.memberGroups).set({ formId: null } as any).where(eq(schema.memberGroups.formId, id)),
+    db.delete(schema.formFields).where(eq(schema.formFields.formId, id)),
+    db.delete(schema.registrationFormTargets).where(eq(schema.registrationFormTargets.formId, id)),
+  ])
+  await db.delete(schema.registrationForms).where(and(eq(schema.registrationForms.id, id), eq(schema.registrationForms.orgId, orgId)))
 }

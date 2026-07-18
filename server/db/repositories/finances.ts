@@ -19,7 +19,7 @@
 // money: `modifier_value` is a decimal — mysql2 returns it as a string; it is passed
 // through unchanged (the contract accepts string|number) rather than lossily coerced.
 import { randomUUID } from 'node:crypto'
-import { asc, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, lt } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   Discount,
@@ -27,6 +27,15 @@ import type {
   XeroConnection,
   DiscountCreate,
   DiscountPatch,
+  FeeComponent,
+  Addon,
+  AddonCreate,
+  ReportingBundle,
+  AttendanceSession,
+  CustomReport,
+  CustomReportCreate,
+  CustomReportPatch,
+  ReportPerson,
 } from '../../../shared/contracts/finance'
 
 // Coerce a json column into its parsed value, leaving non-string payloads as-is.
@@ -214,4 +223,328 @@ export async function getXeroConnection(orgId: string): Promise<XeroConnection |
     .where(eq(schema.xeroConnections.orgId, orgId))
     .limit(1)
   return rows.length ? toXeroConnection(rows[0]) : null
+}
+
+// ── json normalisers (a json() column may hand back a parsed value OR a string) ──
+function asArr(v: unknown): string[] {
+  if (Array.isArray(v)) return v as string[]
+  if (typeof v === 'string') {
+    try {
+      const p = JSON.parse(v)
+      return Array.isArray(p) ? p : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+function asRecord(v: unknown): Record<string, any> {
+  if (v && typeof v === 'object' && !Array.isArray(v)) return v as Record<string, any>
+  if (typeof v === 'string') {
+    try {
+      const p = JSON.parse(v)
+      return p && typeof p === 'object' && !Array.isArray(p) ? p : {}
+    } catch {
+      return {}
+    }
+  }
+  return {}
+}
+
+// ── Fee components ───────────────────────────────────────────────────────────
+// CROSS-DOMAIN READ: `fee_components` is finances' concern, but it has no org_id,
+// so it's scoped by joining `events` (the same idiom `listDiscounts` uses above).
+/** Every fee component in an org (via its event), in fee sort order. */
+export async function listFeeComponents(orgId: string): Promise<FeeComponent[]> {
+  const rows = await db
+    .select({ f: schema.feeComponents, eid: schema.events.id, etitle: schema.events.title })
+    .from(schema.feeComponents)
+    .innerJoin(schema.events, eq(schema.feeComponents.eventId, schema.events.id))
+    .where(eq(schema.events.orgId, orgId))
+    .orderBy(asc(schema.feeComponents.sortOrder))
+  return rows.map((r) => ({
+    id: r.f.id,
+    eventId: r.f.eventId ?? null,
+    name: r.f.name ?? null,
+    amount: r.f.amount ?? null,
+    xeroCode: r.f.xeroCode ?? null,
+    isLocked: !!r.f.isLocked,
+    depositPercent: r.f.depositPercent ?? null,
+    sortOrder: r.f.sortOrder ?? null,
+    event: { id: r.eid, title: r.etitle ?? null },
+  }))
+}
+
+// ── Add-ons ──────────────────────────────────────────────────────────────────
+function toAddon(a: typeof schema.addons.$inferSelect, eid: string, etitle: string | null): Addon {
+  return {
+    id: a.id,
+    eventId: a.eventId ?? null,
+    type: a.type ?? null,
+    name: a.name ?? null,
+    description: a.description ?? null,
+    price: a.price ?? null,
+    stockLimit: a.stockLimit ?? null,
+    sortOrder: a.sortOrder ?? null,
+    event: { id: eid, title: etitle },
+  }
+}
+
+/** Every add-on in an org (via its event), in add-on sort order. */
+export async function listAddons(orgId: string): Promise<Addon[]> {
+  const rows = await db
+    .select({ a: schema.addons, eid: schema.events.id, etitle: schema.events.title })
+    .from(schema.addons)
+    .innerJoin(schema.events, eq(schema.addons.eventId, schema.events.id))
+    .where(eq(schema.events.orgId, orgId))
+    .orderBy(asc(schema.addons.sortOrder))
+  return rows.map((r) => toAddon(r.a, r.eid, r.etitle ?? null))
+}
+
+/** Create an add-on on an event. The repo owns the id. */
+export async function createAddon(input: AddonCreate): Promise<Addon | null> {
+  const id = randomUUID()
+  await db.insert(schema.addons).values({
+    id,
+    eventId: input.eventId,
+    name: input.name,
+    type: input.type ?? 'OBJECT',
+    price: input.price ?? '0',
+    stockLimit: input.stockLimit ?? null,
+    description: input.description ?? null,
+  } as any)
+  const [r] = await db
+    .select({ a: schema.addons, eid: schema.events.id, etitle: schema.events.title })
+    .from(schema.addons)
+    .innerJoin(schema.events, eq(schema.addons.eventId, schema.events.id))
+    .where(eq(schema.addons.id, id))
+    .limit(1)
+  return r ? toAddon(r.a, r.eid, r.etitle ?? null) : null
+}
+
+export async function deleteAddon(id: string): Promise<void> {
+  await db.delete(schema.addons).where(eq(schema.addons.id, id))
+}
+
+// ── Org currency (a minimal read the finances/reporting screens format with) ──
+/** The org's ISO currency code (defaults NZD when unset). */
+export async function getOrgCurrency(orgId: string): Promise<string> {
+  const [o] = await db
+    .select({ currency: schema.organisations.currency })
+    .from(schema.organisations)
+    .where(eq(schema.organisations.id, orgId))
+    .limit(1)
+  return o?.currency || 'NZD'
+}
+
+// ── Reporting rollup ─────────────────────────────────────────────────────────
+// CROSS-DOMAIN READ: events + categories + invitees, aggregated for the /reporting
+// dashboard. The page does its own status/category grouping, so this returns the
+// event rows (with category name/color) and the raw invitee status list.
+export async function reportingBundle(orgId: string): Promise<ReportingBundle> {
+  const eventRows = await db
+    .select({
+      id: schema.events.id,
+      title: schema.events.title,
+      style: schema.events.style,
+      status: schema.events.status,
+      startAt: schema.events.startAt,
+      endAt: schema.events.endAt,
+      isAllDay: schema.events.isAllDay,
+      catName: schema.categories.name,
+      catColor: schema.categories.color,
+    })
+    .from(schema.events)
+    .leftJoin(schema.categories, eq(schema.events.categoryId, schema.categories.id))
+    .where(eq(schema.events.orgId, orgId))
+    .orderBy(asc(schema.events.startAt))
+
+  const inviteeRows = await db
+    .select({ eventId: schema.invitees.eventId, status: schema.invitees.status })
+    .from(schema.invitees)
+    .innerJoin(schema.events, eq(schema.invitees.eventId, schema.events.id))
+    .where(eq(schema.events.orgId, orgId))
+
+  return {
+    events: eventRows.map((e) => ({
+      id: e.id,
+      title: e.title ?? null,
+      style: e.style ?? null,
+      status: e.status ?? null,
+      startAt: toIso(e.startAt),
+      endAt: toIso(e.endAt),
+      isAllDay: !!e.isAllDay,
+      category: e.catName != null || e.catColor != null ? { name: e.catName ?? null, color: e.catColor ?? null } : null,
+    })),
+    invitees: inviteeRows.map((i) => ({ eventId: i.eventId ?? null, status: i.status })),
+  }
+}
+
+// ── Attendance sessions ──────────────────────────────────────────────────────
+// CROSS-DOMAIN READ: group-linked training events in a date window, with the group
+// (member_groups) and bookable name resolved. `member_group_id NOT NULL` is the
+// canonical "training event" filter (independent of event style).
+export async function attendanceSessions(orgId: string, from: string, to: string): Promise<AttendanceSession[]> {
+  const fromD = new Date(from)
+  const toD = new Date(to)
+  const rows = await db
+    .select({
+      eventId: schema.events.id,
+      startAt: schema.events.startAt,
+      endAt: schema.events.endAt,
+      locationType: schema.events.locationType,
+      bookableId: schema.events.bookableId,
+      address: schema.events.address,
+      meetingLink: schema.events.meetingLink,
+      groupName: schema.memberGroups.name,
+      groupColor: schema.memberGroups.color,
+      locationId: schema.memberGroups.locationId,
+    })
+    .from(schema.events)
+    .leftJoin(schema.memberGroups, eq(schema.events.memberGroupId, schema.memberGroups.id))
+    .where(
+      and(
+        eq(schema.events.orgId, orgId),
+        isNotNull(schema.events.memberGroupId),
+        gte(schema.events.startAt, fromD),
+        lt(schema.events.startAt, toD),
+      ),
+    )
+    .orderBy(asc(schema.events.startAt))
+
+  // Resolve bookable names in one query.
+  const bookableIds = Array.from(new Set(rows.map((r) => r.bookableId).filter((x): x is string => !!x)))
+  const names: Record<string, string> = {}
+  if (bookableIds.length) {
+    const bkbls = await db
+      .select({ id: schema.bookables.id, name: schema.bookables.name })
+      .from(schema.bookables)
+      .where(inArray(schema.bookables.id, bookableIds))
+    for (const b of bkbls) names[b.id] = b.name
+  }
+
+  return rows.map((r) => ({
+    eventId: r.eventId,
+    startAt: toIso(r.startAt),
+    endAt: toIso(r.endAt),
+    locationType: r.locationType ?? null,
+    bookableName: r.bookableId ? names[r.bookableId] ?? null : null,
+    address: r.address ?? null,
+    meetingLink: r.meetingLink ?? null,
+    groupName: r.groupName ?? null,
+    groupColor: r.groupColor ?? null,
+    locationId: r.locationId ?? null,
+  }))
+}
+
+// ── Custom reports (table `custom_reports`) ──────────────────────────────────
+function toCustomReport(r: typeof schema.customReports.$inferSelect): CustomReport {
+  return {
+    id: r.id,
+    orgId: r.orgId,
+    name: r.name,
+    config: asRecord(r.config),
+    sortOrder: r.sortOrder ?? 0,
+  }
+}
+
+/** Every custom report for an org, in sort order then name. */
+export async function listCustomReports(orgId: string): Promise<CustomReport[]> {
+  const rows = await db
+    .select()
+    .from(schema.customReports)
+    .where(eq(schema.customReports.orgId, orgId))
+    .orderBy(asc(schema.customReports.sortOrder), asc(schema.customReports.name))
+  return rows.map(toCustomReport)
+}
+
+/** One custom report by id, or null. */
+export async function getCustomReport(id: string): Promise<CustomReport | null> {
+  const [r] = await db.select().from(schema.customReports).where(eq(schema.customReports.id, id)).limit(1)
+  return r ? toCustomReport(r) : null
+}
+
+export async function createCustomReport(orgId: string, input: CustomReportCreate): Promise<CustomReport> {
+  const id = randomUUID()
+  // json column: pass the plain JS value (drizzle serialises it) — never stringify.
+  await db.insert(schema.customReports).values({ id, orgId, name: input.name, config: input.config } as any)
+  return (await getCustomReport(id))!
+}
+
+export async function updateCustomReport(id: string, patch: CustomReportPatch): Promise<CustomReport | null> {
+  const set: Record<string, any> = {}
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.config !== undefined) set.config = patch.config
+  if (Object.keys(set).length) await db.update(schema.customReports).set(set).where(eq(schema.customReports.id, id))
+  return getCustomReport(id)
+}
+
+export async function deleteCustomReport(id: string): Promise<void> {
+  await db.delete(schema.customReports).where(eq(schema.customReports.id, id))
+}
+
+// ── Report run-data ──────────────────────────────────────────────────────────
+// CROSS-DOMAIN READ: the people a custom report filters over. Returns the SNAKE_CASE
+// field vocabulary the saved-config filter engine expects (see the contract note),
+// plus each person's union of member-group positions.
+export async function reportPeople(orgId: string): Promise<ReportPerson[]> {
+  const persons = await db
+    .select({
+      id: schema.persons.id,
+      firstName: schema.persons.firstName,
+      lastName: schema.persons.lastName,
+      email: schema.persons.email,
+      phone: schema.persons.phone,
+      dob: schema.persons.dob,
+      gender: schema.persons.gender,
+      membershipType: schema.persons.membershipType,
+      personType: schema.persons.personType,
+      personTypes: schema.persons.personTypes,
+      customFields: schema.persons.customFields,
+      photoUrl: schema.persons.photoUrl,
+    })
+    .from(schema.persons)
+    .where(eq(schema.persons.orgId, orgId))
+
+  // Positions live on member_group_memberships (no org_id there) — scope by joined group.
+  const mships = await db
+    .select({ personId: schema.memberGroupMemberships.personId, positions: schema.memberGroupMemberships.positions })
+    .from(schema.memberGroupMemberships)
+    .innerJoin(schema.memberGroups, eq(schema.memberGroupMemberships.groupId, schema.memberGroups.id))
+    .where(eq(schema.memberGroups.orgId, orgId))
+
+  const posByPerson: Record<string, string[]> = {}
+  for (const m of mships) {
+    if (!m.personId) continue
+    const arr = (posByPerson[m.personId] ??= [])
+    for (const p of asArr(m.positions)) if (p && !arr.includes(p)) arr.push(p)
+  }
+
+  return persons.map((p) => ({
+    id: p.id,
+    first_name: p.firstName ?? null,
+    last_name: p.lastName ?? null,
+    email: p.email ?? null,
+    phone: p.phone ?? null,
+    dob: p.dob != null ? String(p.dob) : null,
+    gender: p.gender ?? null,
+    membership_type: p.membershipType ?? null,
+    person_type: p.personType ?? null,
+    person_types: asArr(p.personTypes),
+    custom_fields: asRecord(p.customFields),
+    photo_url: p.photoUrl ?? null,
+    __positions: posByPerson[p.id] ?? [],
+  }))
+}
+
+/** Distinct member-group positions across an org (for the report field picker). */
+export async function reportPositions(orgId: string): Promise<string[]> {
+  const mships = await db
+    .select({ positions: schema.memberGroupMemberships.positions })
+    .from(schema.memberGroupMemberships)
+    .innerJoin(schema.memberGroups, eq(schema.memberGroupMemberships.groupId, schema.memberGroups.id))
+    .where(eq(schema.memberGroups.orgId, orgId))
+  const set = new Set<string>()
+  for (const m of mships) for (const p of asArr(m.positions)) if (p) set.add(p)
+  return [...set].sort()
 }

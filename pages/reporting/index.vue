@@ -143,8 +143,8 @@
 const { orgId } = useOrg()
 import { useToast } from 'primevue/usetoast'
 
-const db = useDb()
 const toast = useToast()
+const financesApi = useFinancesApi()
 
 const loading = ref(true)
 const search = ref('')
@@ -218,31 +218,32 @@ function exportAll() {
 
 async function load() {
   loading.value = true
-  ;(db.from as any)('organisations').select('currency').eq('id', orgId.value).single()
-    .then(({ data }: any) => { orgCurrency.value = data?.currency || 'NZD' })
+  financesApi.orgCurrency(orgId.value).then((c) => { orgCurrency.value = c || 'NZD' })
 
-  const [{ data: eventData }, { data: invData }] = await Promise.all([
-    db.from('events')
-      .select('*, category:categories(name, color)')
-      .eq('org_id', orgId.value)
-      .order('start_at'),
-    (db.from as any)('invitees').select('event_id, status, event:events!inner(org_id)').eq('event.org_id', orgId.value),
-  ])
-
-  const invitees = invData ?? []
+  const bundle = await financesApi.reportingBundle(orgId.value)
+  // Map the seam's camelCase invitees back to the event_id/status shape the page groups on.
+  const invitees = (bundle.invitees ?? []).map((i) => ({ event_id: i.eventId, status: i.status }))
 
   // Aggregate per event
   const invCountByEvent: Record<string, number> = {}
   const confirmedByEvent: Record<string, number> = {}
   for (const inv of invitees) {
+    if (!inv.event_id) continue
     invCountByEvent[inv.event_id] = (invCountByEvent[inv.event_id] ?? 0) + 1
     if (['CONFIRMED', 'HOLD'].includes(inv.status)) {
       confirmedByEvent[inv.event_id] = (confirmedByEvent[inv.event_id] ?? 0) + 1
     }
   }
 
-  events.value = (eventData ?? []).map(e => ({
-    ...e,
+  events.value = (bundle.events ?? []).map((e) => ({
+    id: e.id,
+    title: e.title,
+    style: e.style,
+    status: e.status,
+    start_at: e.startAt,
+    end_at: e.endAt,
+    is_all_day: e.isAllDay,
+    category: e.category,
     invitee_count: invCountByEvent[e.id] ?? 0,
     confirmed_count: confirmedByEvent[e.id] ?? 0,
   }))

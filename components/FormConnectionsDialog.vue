@@ -12,7 +12,7 @@ import { useToast } from 'primevue/usetoast'
 const props = defineProps<{ visible: boolean; formId: string | null; formName?: string }>()
 const emit = defineEmits<{ (e: 'update:visible', v: boolean): void; (e: 'saved', count: number): void }>()
 
-const db = useDb()
+const forms = useFormsApi()
 const { orgId } = useOrg()
 const toast = useToast()
 
@@ -25,10 +25,10 @@ watch(() => props.visible, (v) => { if (v && props.formId) load() })
 
 async function load() {
   keys.value = {}
-  const { data: tgts } = await (db.from as any)('registration_form_targets')
-    .select('target_type, target_id').eq('form_id', props.formId).order('sort_order')
+  if (!props.formId) return
+  const tgts = await forms.targets(props.formId)
   const k: Record<string, { checked: boolean }> = {}
-  for (const t of (tgts ?? [])) k[`${t.target_type}:${t.target_id}`] = { checked: true }
+  for (const t of tgts) k[`${t.targetType}:${t.targetId}`] = { checked: true }
   keys.value = k
 }
 
@@ -45,10 +45,9 @@ async function save() {
       .filter(([k, v]) => v?.checked && k.includes(':'))
       .map(([k], idx) => {
         const [type, id] = k.split(':')
-        return { org_id: orgId.value, form_id: props.formId, target_type: type, target_id: id, sort_order: idx }
+        return { targetType: type, targetId: id, sortOrder: idx }
       })
-    await (db.from as any)('registration_form_targets').delete().eq('form_id', props.formId)
-    if (rows.length) await (db.from as any)('registration_form_targets').insert(rows)
+    await forms.saveTargets(props.formId, orgId.value!, rows)
     emit('saved', rows.length)
     emit('update:visible', false)
     toast.add({ severity: 'success', summary: 'Connections saved', life: 2000 })
