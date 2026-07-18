@@ -94,20 +94,25 @@ const emit = defineEmits<{
   'update:modelValue': [string[]]
 }>()
 
-const db = useDb()
+// member_groups + memberships come from the groups-domain seam (cross-domain reads).
+const groupsApi = useGroupsApi()
 const search = ref('')
 const loading = ref(true)
 const allGroupTree = ref<any[]>([])
 const expandedIds = reactive<Record<string, boolean>>({})
 
 onMounted(async () => {
-  const [{ data: groupData }, { data: membershipData }] = await Promise.all([
-    db.from('member_groups').select('id, name, color, parent_id, sort_order').eq('org_id', orgId.value).order('sort_order'),
-    db.from('member_group_memberships').select('group_id'),
+  const [groupData, membershipData] = await Promise.all([
+    groupsApi.list(orgId.value),
+    groupsApi.membershipsByOrg(orgId.value),
   ])
   const countMap: Record<string, number> = {}
-  for (const m of membershipData ?? []) countMap[m.group_id] = (countMap[m.group_id] ?? 0) + 1
-  const groups = (groupData ?? []).map(g => ({ ...g, _memberCount: countMap[g.id] ?? 0 }))
+  for (const m of membershipData ?? []) countMap[m.groupId] = (countMap[m.groupId] ?? 0) + 1
+  // Seam returns camelCase; map back to the snake_case shape this tree reads.
+  const groups = (groupData ?? []).map(g => ({
+    id: g.id, name: g.name, color: g.color, parent_id: g.parentId, sort_order: g.sortOrder,
+    _memberCount: countMap[g.id] ?? 0,
+  }))
   const children = groups.filter(g => g.parent_id)
   allGroupTree.value = groups
     .filter(g => !g.parent_id)

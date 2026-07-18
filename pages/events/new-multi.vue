@@ -311,7 +311,9 @@ import type { LocationEntry } from '~/composables/useLocation'
 import type { FeeLineItem } from '~/composables/useFeeGroups'
 import { makeDiscountDraft, defaultProgrammeDiscounts, type DiscountDraft } from '~/composables/useEventDiscounts'
 
-const db = useDb()
+const events = useEventsApi()
+const formsApi = useFormsApi()
+const financesApi = useFinancesApi()
 const route = useRoute()
 const toast = useToast()
 
@@ -325,14 +327,14 @@ const today = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d })
 const draftEventId = ref<string | null>(null)
 async function ensureDraft() {
   if (draftEventId.value) return
-  const { data } = await (db.from as any)('events').insert({
-    org_id: orgId.value,
+  const data = await events.create({
+    orgId: orgId.value,
     style: 'ADVANCED',
-    created_via: 'multi',
+    createdVia: 'multi',
     status: 'DRAFT',
-    is_programme: route.query.programme === '1',
+    isProgramme: route.query.programme === '1',
     title: (route.query.name as string)?.trim() || 'Untitled programme',
-  }).select('id').single()
+  })
   draftEventId.value = data?.id ?? null
 }
 
@@ -482,10 +484,10 @@ const wizardFeeLineItems = computed(() => namedTemplates.value.flatMap(tpl => tp
 // (config.sessions + config.subjectSessions) from synthetic preview ids to real ones.
 async function remapFormSessionIds(evtId: string, map: Record<string, string>) {
   if (!Object.keys(map).length) return
-  const { data: ev } = await (db.from as any)('events').select('form_id').eq('id', evtId).maybeSingle()
-  const formId = ev?.form_id
+  const ev = await events.get(evtId)
+  const formId = ev?.formId
   if (!formId) return
-  const { data: fr } = await (db.from as any)('registration_forms').select('config').eq('id', formId).maybeSingle()
+  const fr = await formsApi.get(formId)
   const cfg = fr?.config
   if (!cfg || typeof cfg !== 'object') return
   const remapInner = (obj: any) => {
@@ -501,7 +503,7 @@ async function remapFormSessionIds(evtId: string, map: Record<string, string>) {
   }
   remapInner(cfg.sessions)                                  // { groupId: { sessionId: mode } }
   if (cfg.subjectSessions) for (const gid of Object.keys(cfg.subjectSessions)) remapInner(cfg.subjectSessions[gid])
-  await (db.from as any)('registration_forms').update({ config: cfg }).eq('id', formId)
+  await formsApi.update(formId, { config: cfg })
 }
 
 const canCreate = computed(() =>
@@ -550,8 +552,7 @@ const currencySymbol = computed(() => {
 })
 onMounted(async () => {
   await ensureDraft()
-  const { data } = await (db.from as any)('organisations').select('currency').eq('id', orgId.value).maybeSingle()
-  if (data?.currency) orgCurrency.value = data.currency
+  try { orgCurrency.value = (await financesApi.orgCurrency(orgId.value)) || 'NZD' } catch { /* keep default */ }
 })
 
 function openDiscount() {
@@ -615,12 +616,12 @@ function buildDatetime(day: Date, timePicker: Date | null, fallbackHour = 0): st
 }
 
 // A session's location (a single LocationEntry) → the flat session location
-// columns. Sessions have no locations jsonb, so we store the flat trio.
+// fields (camelCase, for the seam create). Sessions have no locations jsonb.
 function locationCols(l?: LocationEntry) {
   return {
-    location_type: (l?.type ?? 'ADDRESS') as 'ADDRESS' | 'ONLINE' | 'BOOKABLE',
+    locationType: (l?.type ?? 'ADDRESS') as 'ADDRESS' | 'ONLINE' | 'BOOKABLE',
     address: l?.type === 'ADDRESS' ? (l.address || null) : null,
-    meeting_link: l?.type === 'ONLINE' ? (l.meeting_link || null) : null,
+    meetingLink: l?.type === 'ONLINE' ? (l.meeting_link || null) : null,
   }
 }
 
@@ -632,30 +633,28 @@ async function createEvent() {
     //    here; <FormDesigner> owns it). Fall back to an insert if there's no draft.
     await ensureDraft()
     const payload = {
-      org_id: orgId.value,
+      orgId: orgId.value,
       title: form.title.trim(),
       status: 'DRAFT' as const,
-      start_at: combineDT(form.startDate, null)!.toISOString(),
-      end_at: combineDT(form.endDate, null)!.toISOString(),
-      is_public: true,
-      is_programme: route.query.programme === '1',
-      age_min: form.ageMin ?? null,
-      age_max: form.ageMax ?? null,
+      startAt: combineDT(form.startDate, null)!.toISOString(),
+      endAt: combineDT(form.endDate, null)!.toISOString(),
+      isPublic: true,
+      isProgramme: route.query.programme === '1',
+      ageMin: form.ageMin ?? null,
+      ageMax: form.ageMax ?? null,
       // Auto-tagged from a named calendar's sole category (?category=…) when created there.
-      ...(route.query.category ? { category_id: route.query.category as string } : {}),
+      ...(route.query.category ? { categoryId: route.query.category as string } : {}),
       // Event-level location = the first session's location (each session carries its own).
       locations: namedTemplates.value[0]?.location ?? [emptyLoc()],
       ...locationCols(namedTemplates.value[0]?.location?.[0]),
     }
     let evtId: string
     if (draftEventId.value) {
-      const { error } = await db.from('events').update(payload).eq('id', draftEventId.value)
-      if (error) throw error
+      await events.update(draftEventId.value, payload)
       evtId = draftEventId.value
     } else {
-      const { data: evt, error: evtErr } = await db.from('events')
-        .insert({ ...payload, style: 'ADVANCED', created_via: 'multi' }).select('id').single()
-      if (evtErr || !evt?.id) throw evtErr ?? new Error('Failed to create event')
+      const evt = await events.create({ ...payload, style: 'ADVANCED', createdVia: 'multi' } as any)
+      if (!evt?.id) throw new Error('Failed to create event')
       evtId = evt.id
     }
 
@@ -670,12 +669,12 @@ async function createEvent() {
       (tpl.fees ?? [])
         .filter((f: FeeLineItem) => (f.name ?? '').trim() || (f.amount ?? 0) > 0)
         .map((f: FeeLineItem, i: number) => ({
-          session_id: sessionId,
+          sessionId,
           // Blank fee name defaults to the session name (e.g. "Morning").
           name: (f.name || '').trim() || tpl.name.trim() || 'Fee',
           amount: f.amount ?? 0,
-          xero_code: f.xero_code || null,
-          sort_order: i,
+          xeroCode: f.xero_code || null,
+          sortOrder: i,
         }))
 
     // Maps the builder's synthetic preview session ids (prev:${ti}:${di}) to the
@@ -687,72 +686,73 @@ async function createEvent() {
       if (days.length === 0) continue
 
       // Insert day-1 as master
-      const { data: master, error: masterErr } = await db.from('sessions').insert({
-        event_id: evtId,
+      const master = await events.createSession({
+        eventId: evtId,
         title: tpl.name.trim(),
-        start_at: buildDatetime(days[0], tpl.startTime, 9),
-        end_at: buildDatetime(days[0], tpl.endTime, 17),
-        capacity_max: tpl.limit ?? null,
-        is_required: false,
-        is_public: true,
+        startAt: buildDatetime(days[0], tpl.startTime, 9),
+        endAt: buildDatetime(days[0], tpl.endTime, 17),
+        capacityMax: tpl.limit ?? null,
+        isRequired: false,
+        isPublic: true,
         ...locationCols(tpl.location?.[0]),
-        display_on_form: true,
-        is_master: true,
-        master_id: null,
-        sort_order: sortOrder++,
-      }).select('id').single()
+        displayOnForm: true,
+        isMaster: true,
+        masterId: null,
+        sortOrder: sortOrder++,
+      })
 
-      if (masterErr || !master?.id) throw masterErr ?? new Error('Failed to create master session')
+      if (!master?.id) throw new Error('Failed to create master session')
       feeRows.push(...feeItemsFor(tpl, master.id))
       synthToReal[`prev:${ti}:0`] = master.id
 
-      // Bulk-insert remaining days linked to master
+      // Insert remaining days linked to master
       if (days.length > 1) {
-        const linked = days.slice(1).map(day => ({
-          event_id: evtId,
-          title: tpl.name.trim(),
-          start_at: buildDatetime(day, tpl.startTime, 9),
-          end_at: buildDatetime(day, tpl.endTime, 17),
-          capacity_max: tpl.limit ?? null,
-          is_required: false,
-          is_public: true,
-          ...locationCols(tpl.location?.[0]),
-          display_on_form: true,
-          is_master: false,
-          master_id: master.id,
-          sort_order: sortOrder++,
-        }))
-        const { data: linkedRows, error: linkedErr } = await db.from('sessions').insert(linked).select('id')
-        if (linkedErr) throw linkedErr
-        ;(linkedRows ?? []).forEach((s: any, k: number) => {
+        let k = 0
+        for (const day of days.slice(1)) {
+          const s = await events.createSession({
+            eventId: evtId,
+            title: tpl.name.trim(),
+            startAt: buildDatetime(day, tpl.startTime, 9),
+            endAt: buildDatetime(day, tpl.endTime, 17),
+            capacityMax: tpl.limit ?? null,
+            isRequired: false,
+            isPublic: true,
+            ...locationCols(tpl.location?.[0]),
+            displayOnForm: true,
+            isMaster: false,
+            masterId: master.id,
+            sortOrder: sortOrder++,
+          })
           feeRows.push(...feeItemsFor(tpl, s.id))
           synthToReal[`prev:${ti}:${k + 1}`] = s.id   // day index k+1 (day 0 = master)
-        })
+          k++
+        }
       }
     }
 
-    if (feeRows.length) await db.from('fee_components').insert(feeRows)
+    for (const fee of feeRows) await events.createFeeComponent(fee)
 
     // Remap the form's synthetic preview session ids → the real ids, so any
     // per-session choices the user set in the builder point at the real sessions.
     await remapFormSessionIds(evtId, synthToReal)
 
     // 3. Discounts — same shape + modal as the event wizard/advanced editor.
+    //    Persisted via the finances seam (discounts table is finances-owned).
     const discountRows = form.discounts
       .filter(d => d.name.trim() && (d.modifier_value ?? 0) > 0)
       .map(d => ({
-        event_id: evtId,
+        eventId: evtId,
         type: 'CODE' as const,
         name: d.name.trim(),
-        form_text: d.form_text?.trim() || null,
-        is_active: d.is_active,
-        modifier_value: d.modifier_value ?? 0,
-        modifier_type: d.modifier_type,
-        apply_to: d.apply_to,
+        formText: d.form_text?.trim() || null,
+        isActive: d.is_active,
+        modifierValue: d.modifier_value ?? 0,
+        modifierType: d.modifier_type,
+        applyTo: d.apply_to,
         conditions: JSON.parse(JSON.stringify(d.conditions.filter(c => c.key))),
-        expires_at: d.expires_type === 'custom' && d.expires_at ? toIsoDate(d.expires_at) : null,
+        expiresAt: d.expires_type === 'custom' && d.expires_at ? toIsoDate(d.expires_at) : null,
       }))
-    if (discountRows.length) await db.from('discounts').insert(discountRows)
+    for (const dr of discountRows) await financesApi.createDiscount(dr as any)
 
     toast.add({ severity: 'success', summary: 'Event created', detail: `${days.length * namedTemplates.value.length} sessions generated`, life: 4000 })
     await navigateTo(`/events/${evtId}`)

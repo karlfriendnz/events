@@ -20,28 +20,26 @@ export interface AllocPerson {
 }
 
 export function useTeamAllocator() {
-  const db = useDb()
+  const api = useGroupsApi()
 
   // Re-exported from useAge (THE age helper) so this composable's API is unchanged.
 
   // Load every member_group_memberships row for the given group ids, keyed by
-  // group id → AllocPerson[]. One query, then bucketed client-side.
+  // group id → AllocPerson[]. One seam call, then bucketed client-side.
   async function loadPeopleForGroups(groupIds: string[]): Promise<Record<string, AllocPerson[]>> {
     const out: Record<string, AllocPerson[]> = {}
     for (const id of groupIds) out[id] = []
     if (!groupIds.length) return out
-    const { data } = await (db.from as any)('member_group_memberships')
-      .select('group_id, role, roles, person:persons!inner(id, first_name, last_name, email, phone, dob, gender)')
-      .in('group_id', groupIds)
-    for (const r of data ?? []) {
+    const rows = await api.membershipsWithPersonForGroups(groupIds)
+    for (const r of rows) {
       const p = r.person
       if (!p) continue
       const roles: string[] = Array.isArray(r.roles) ? r.roles : (r.role ? [r.role] : [])
-      ;(out[r.group_id] ??= []).push({
+      ;(out[r.groupId] ??= []).push({
         id: p.id,
-        name: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || '—',
-        first_name: p.first_name ?? null,
-        last_name: p.last_name ?? null,
+        name: `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || '—',
+        first_name: p.firstName ?? null,
+        last_name: p.lastName ?? null,
         email: p.email ?? null,
         phone: p.phone ?? null,
         dob: p.dob ?? null,
@@ -54,10 +52,8 @@ export function useTeamAllocator() {
     return out
   }
 
-  // Move a person from one group to another. Insert the destination membership
-  // (skipping if one already exists — no duplicate rows) THEN delete the source
-  // row. Carries the person's role/roles onto the new row + stamps the
-  // destination group's term. Returns { ok, error? }.
+  // Move a person from one group to another (seam: insert dest skip-if-exists, then
+  // delete source). Carries role/roles + stamps the destination term. Returns { ok }.
   async function movePerson(
     person: AllocPerson,
     fromGroupId: string,
@@ -65,27 +61,19 @@ export function useTeamAllocator() {
     destTermId: string | null,
   ): Promise<{ ok: boolean; error?: any }> {
     if (fromGroupId === toGroupId) return { ok: true }
-    const { data: existing } = await (db.from as any)('member_group_memberships')
-      .select('person_id')
-      .eq('group_id', toGroupId)
-      .eq('person_id', person.id)
-      .maybeSingle()
-    if (!existing) {
-      const { error } = await (db.from as any)('member_group_memberships').insert({
-        group_id: toGroupId,
-        person_id: person.id,
+    try {
+      await api.moveMembership({
+        fromGroupId,
+        toGroupId,
+        personId: person.id,
         role: person.role ?? null,
-        roles: person.roles.length ? person.roles : null,
-        term_id: destTermId ?? null,
+        roles: person.roles,
+        termId: destTermId ?? null,
       })
-      if (error) return { ok: false, error }
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, error }
     }
-    const { error: delErr } = await (db.from as any)('member_group_memberships')
-      .delete()
-      .eq('group_id', fromGroupId)
-      .eq('person_id', person.id)
-    if (delErr) return { ok: false, error: delErr }
-    return { ok: true }
   }
 
   return { ageFromDob, loadPeopleForGroups, movePerson }

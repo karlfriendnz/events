@@ -283,7 +283,7 @@ import type { ModePayload } from '~/components/ModeWizard.vue'
 
 definePageMeta({ layout: 'default' })
 
-const db = useDb()
+const api = useBookingsApi()
 const { orgId } = useOrg()
 const route = useRoute()
 const toast = useToast()
@@ -495,8 +495,8 @@ async function handleImageUpload(e: Event) {
 // ── Data load ───────────────────────────────────────────────────────
 async function loadParents() {
   if (!orgId.value) return
-  const { data } = await (db.from as any)('bookables').select('id, name, type, parent_id, status').eq('org_id', orgId.value)
-  allBookables.value = data ?? []
+  const all = await api.bookables(orgId.value)
+  allBookables.value = all.map(b => ({ id: b.id, name: b.name, type: b.type, parent_id: b.parentId, status: b.status }))
   parentsLoaded.value = true
   if (needsClub.value) {
     revealedUpTo.value = 0
@@ -526,18 +526,17 @@ async function submit() {
     //    inherit it on the booker page.
     let parentId: string | null = form.parent_id || null
     if (form.club_name.trim()) {
-      const { data: club, error: clubErr } = await (db.from as any)('bookables').insert({
-        org_id: orgId.value,
+      const club = await api.createBookable({
+        orgId: orgId.value,
         name: form.club_name.trim(),
         type: 'VENUE',
         status: 'ACTIVE',
-        parent_id: null,
-        max_concurrent: 1,
-        is_public: true,
-        is_master: true,
-        main_image: form.main_image || null,
-      }).select('id').single()
-      if (clubErr || !club?.id) throw clubErr ?? new Error('Could not create club')
+        parentId: null,
+        maxConcurrent: 1,
+        isPublic: true,
+        isMaster: true,
+        mainImage: form.main_image || null,
+      })
       parentId = club.id
     }
 
@@ -558,67 +557,63 @@ async function submit() {
       for (let i = 0; i < count; i++) {
         const isMaster = i === 0
         const name = count === 1 ? baseName : `${baseName} ${i + 1}`
-        const { data, error } = await (db.from as any)('bookables').insert({
-          org_id: orgId.value,
+        const created = await api.createBookable({
+          orgId: orgId.value,
           name,
           type: 'VENUE',
           status: 'ACTIVE',
-          parent_id: parentId,
-          max_concurrent: area.max_concurrent || 1,
-          is_public: true,
-          is_master: isMaster,
-          master_id: isMaster ? null : venueIds[0],
-        }).select('id').single()
-        if (error || !data?.id) throw error ?? new Error(`Could not create ${baseName}`)
-        venueIds.push(data.id)
+          parentId,
+          maxConcurrent: area.max_concurrent || 1,
+          isPublic: true,
+          isMaster,
+          masterId: isMaster ? null : venueIds[0],
+        })
+        venueIds.push(created.id)
       }
 
       // One activity per area, named after the area.
-      const { data: act, error: actErr } = await (db.from as any)('activities').insert({
-        org_id: orgId.value,
-        name: baseName,
-        status: 'ACTIVE',
-      }).select('id').single()
-      if (actErr || !act?.id) throw actErr ?? new Error(`Could not create activity for ${baseName}`)
+      const act = await api.createActivity({ orgId: orgId.value, name: baseName, status: 'ACTIVE' })
 
       // Modes — captured ones if any, otherwise a single "Default" so
       // the activity is bookable end-to-end without a follow-up trip
       // to the editor.
-      const modeRows = area.modes.length
-        ? area.modes.map((m, sort_order) => ({
-            activity_id: act.id,
+      if (area.modes.length) {
+        for (let sort_order = 0; sort_order < area.modes.length; sort_order++) {
+          const m = area.modes[sort_order]
+          await api.createActivityMode({
+            activityId: act.id,
             name: m.name,
             description: m.description || null,
             color: m.color,
-            min_people: m.min_people,
-            max_people: m.max_people,
-            allow_visitors: m.allow_visitors,
+            minPeople: m.min_people,
+            maxPeople: m.max_people,
+            allowVisitors: m.allow_visitors,
             pricing: m.default_price != null ? { default: m.default_price } : {},
-            sort_order,
-          }))
-        : [{ activity_id: act.id, name: 'Default' }]
-      await (db.from as any)('activity_modes').insert(modeRows)
+            sortOrder: sort_order,
+          })
+        }
+      } else {
+        await api.createActivityMode({ activityId: act.id, name: 'Default' })
+      }
 
-      // Activity ↔ bookable joins.
-      await (db.from as any)('activity_bookables').insert(
-        venueIds.map(vid => ({ activity_id: act.id, bookable_id: vid })),
-      )
+      // Activity ↔ bookable joins (fresh activity — set = all venues).
+      await api.setActivityBookables(act.id, venueIds)
 
       // Availability — one OPEN row per sibling so the calendar has
       // something to render. Without this, the scheduler sees zero
       // slots and the venue is effectively unbookable.
-      await (db.from as any)('availability_rules').insert(
-        venueIds.map(vid => ({
-          bookable_id: vid,
+      for (const vid of venueIds) {
+        await api.replaceAvailabilityRules(vid, [{
+          bookableId: vid,
           name: isAlways ? 'Always open' : 'Open hours',
-          rule_type: 'OPEN',
-          days_of_week: days,
-          time_slots: [{ from: fromTime, to: toTime }],
-          time_from: fromTime,
-          time_to: toTime,
-          is_active: true,
-        })),
-      )
+          ruleType: 'OPEN',
+          daysOfWeek: days,
+          timeSlots: [{ from: fromTime, to: toTime }],
+          timeFrom: fromTime,
+          timeTo: toTime,
+          isActive: true,
+        }])
+      }
     }
 
     const totalVenues = form.areas.reduce((sum, a) => sum + a.count, 0)

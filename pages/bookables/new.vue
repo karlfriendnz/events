@@ -342,7 +342,7 @@ import type { ModePayload } from '~/components/ModeWizard.vue'
 
 definePageMeta({ layout: 'default' })
 
-const db = useDb()
+const api = useBookingsApi()
 const { orgId } = useOrg()
 const route = useRoute()
 const toast = useToast()
@@ -505,17 +505,18 @@ function goToStep(n: number) {
 
 async function loadParents() {
   if (!orgId.value) return
-  const { data } = await (db.from as any)('bookables').select('id, name, type, parent_id, status').eq('org_id', orgId.value)
-  allBookables.value = data ?? []
+  const all = await api.bookables(orgId.value)
+  allBookables.value = all.map(b => ({ id: b.id, name: b.name, type: b.type, parent_id: b.parentId, status: b.status }))
 }
 
 async function loadActivities() {
   if (!orgId.value) return
   loadingActivities.value = true
-  const { data } = await (db.from as any)('activities')
-    .select('id, name, description, color, icon')
-    .eq('org_id', orgId.value).eq('status', 'ACTIVE').order('name')
-  existingActivities.value = data ?? []
+  const all = await api.activities(orgId.value)
+  existingActivities.value = all
+    .filter(a => a.status === 'ACTIVE')
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(a => ({ id: a.id, name: a.name, description: a.description, color: a.color, icon: a.icon }))
   loadingActivities.value = false
 }
 
@@ -540,22 +541,21 @@ async function submit() {
     for (let i = 0; i < count; i++) {
       const isMaster = i === 0
       const name = count === 1 ? baseName : `${baseName} ${i + 1}`
-      const { data, error } = await (db.from as any)('bookables').insert({
-        org_id: orgId.value,
+      const created = await api.createBookable({
+        orgId: orgId.value,
         name,
         type: 'VENUE',
         status: 'ACTIVE',
-        parent_id: form.parent_id || null,
+        parentId: form.parent_id || null,
         location: form.location.trim() || null,
         description: form.description.trim() || null,
-        max_concurrent: form.max_concurrent || 1,
-        main_image: form.main_image || null,
-        is_public: true,
-        is_master: isMaster,
-        master_id: isMaster ? null : venueIds[0],
-      }).select('id').single()
-      if (error || !data?.id) throw error ?? new Error('Could not create venue')
-      venueIds.push(data.id)
+        maxConcurrent: form.max_concurrent || 1,
+        mainImage: form.main_image || null,
+        isPublic: true,
+        isMaster,
+        masterId: isMaster ? null : venueIds[0],
+      })
+      venueIds.push(created.id)
     }
     const venue = { id: venueIds[0] }
 
@@ -565,75 +565,62 @@ async function submit() {
     //    follow-up trip to the activity editor.
     let createdActivityIds: string[] = []
     if (form.new_activities.length) {
-      const { data: created } = await (db.from as any)('activities').insert(
-        form.new_activities.map(na => ({
-          org_id: orgId.value,
-          name: na.name,
-          color: na.color,
-          status: 'ACTIVE',
-        })),
-      ).select('id, name')
-      createdActivityIds = (created ?? []).map((r: any) => r.id)
-      if (created?.length) {
-        const modeRows: any[] = []
-        created.forEach((row: any, idx: number) => {
-          const captured = form.new_activities[idx]?.modes ?? []
-          if (captured.length) {
-            captured.forEach((m, sort_order) => {
-              const pricing = m.default_price != null ? { default: m.default_price } : {}
-              modeRows.push({
-                activity_id: row.id,
-                name: m.name,
-                description: m.description || null,
-                color: m.color,
-                min_people: m.min_people,
-                max_people: m.max_people,
-                allow_visitors: m.allow_visitors,
-                pricing,
-                sort_order,
-              })
+      for (const na of form.new_activities) {
+        const act = await api.createActivity({ orgId: orgId.value, name: na.name, color: na.color, status: 'ACTIVE' })
+        createdActivityIds.push(act.id)
+        const captured = na.modes ?? []
+        if (captured.length) {
+          for (let sort_order = 0; sort_order < captured.length; sort_order++) {
+            const m = captured[sort_order]
+            const pricing = m.default_price != null ? { default: m.default_price } : {}
+            await api.createActivityMode({
+              activityId: act.id,
+              name: m.name,
+              description: m.description || null,
+              color: m.color,
+              minPeople: m.min_people,
+              maxPeople: m.max_people,
+              allowVisitors: m.allow_visitors,
+              pricing,
+              sortOrder: sort_order,
             })
-          } else {
-            modeRows.push({ activity_id: row.id, name: 'Default' })
           }
-        })
-        await (db.from as any)('activity_modes').insert(modeRows)
+        } else {
+          await api.createActivityMode({ activityId: act.id, name: 'Default' })
+        }
       }
     }
 
     const allActivityIds = [...form.activity_ids, ...createdActivityIds]
 
-    // 3. Link activities to every sibling so the booker sees them all.
-    if (allActivityIds.length) {
-      const rows: any[] = []
-      for (const vid of venueIds) {
-        for (const activity_id of allActivityIds) rows.push({ activity_id, bookable_id: vid })
-      }
-      await (db.from as any)('activity_bookables').insert(rows)
+    // 3. Link activities to every sibling so the booker sees them all. APPEND
+    //    (existing activities keep their other venue links).
+    for (const activityId of allActivityIds) {
+      await api.addActivityBookables(activityId, venueIds)
     }
 
     // 4. Availability rule per sibling. Always write one — without any
     //    rule the scheduler/calendar treats the venue as having no
     //    bookable slots. ALWAYS = 24/7 across every day; SCHEDULED uses
-    //    the picked window. time_from/time_to mirror the first slot for
+    //    the picked window. timeFrom/timeTo mirror the first slot for
     //    legacy fallbacks that read those fields directly.
     {
       const isAlways = form.availability_mode === 'ALWAYS'
       const days = isAlways ? [0, 1, 2, 3, 4, 5, 6] : form.days
       const fromTime = isAlways ? '00:00' : form.time_from
       const toTime = isAlways ? '23:59' : form.time_to
-      await (db.from as any)('availability_rules').insert(
-        venueIds.map(vid => ({
-          bookable_id: vid,
+      for (const vid of venueIds) {
+        await api.replaceAvailabilityRules(vid, [{
+          bookableId: vid,
           name: isAlways ? 'Always open' : 'Open hours',
-          rule_type: 'OPEN',
-          days_of_week: days,
-          time_slots: [{ from: fromTime, to: toTime }],
-          time_from: fromTime,
-          time_to: toTime,
-          is_active: true,
-        })),
-      )
+          ruleType: 'OPEN',
+          daysOfWeek: days,
+          timeSlots: [{ from: fromTime, to: toTime }],
+          timeFrom: fromTime,
+          timeTo: toTime,
+          isActive: true,
+        }])
+      }
     }
 
     toast.add({

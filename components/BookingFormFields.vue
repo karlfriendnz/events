@@ -151,7 +151,9 @@ watch(() => props.formId, async (formId) => {
   loading.value = true
   try {
     const [{ data: ff }, { data: rf }] = await Promise.all([
+      // TODO cross-domain: form_fields still via useDb (owned by forms)
       (db.from as any)('form_fields').select('*').eq('form_id', formId).order('sort_order'),
+      // TODO cross-domain: registration_forms still via useDb (owned by forms)
       (db.from as any)('registration_forms').select('config').eq('id', formId).single(),
     ])
     const cfg = (rf?.config as any) ?? {}

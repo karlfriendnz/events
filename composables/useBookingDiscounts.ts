@@ -137,27 +137,31 @@ function amountForDiscount(d: BookingDiscount, ctx: BookingContext): number {
 }
 
 export function useBookingDiscounts() {
-  const db = useDb()
+  const api = useBookingsApi()
   const { orgId } = useOrg()
 
+  // The seam returns camelCase (activityIds/modifierType/…) with the activity+mode
+  // scope already folded in; map it back to the snake_case shape the pure logic
+  // (qualifies/bestMatch) below still reads.
   async function loadActive(): Promise<BookingDiscount[]> {
     if (!orgId.value) return []
-    const [discRes, actRes, modeRes] = await Promise.all([
-      (db.from as any)('booking_discounts')
-        .select('*')
-        .eq('org_id', orgId.value)
-        .eq('is_active', true),
-      (db.from as any)('booking_discount_activities').select('discount_id, activity_id'),
-      (db.from as any)('booking_discount_activity_modes').select('discount_id, activity_mode_id'),
-    ])
-    const acts: Record<string, string[]> = {}
-    for (const r of (actRes.data ?? [])) (acts[r.discount_id] ??= []).push(r.activity_id)
-    const modes: Record<string, string[]> = {}
-    for (const r of (modeRes.data ?? [])) (modes[r.discount_id] ??= []).push(r.activity_mode_id)
-    return (discRes.data ?? []).map((d: any) => ({
-      ...d,
-      activity_ids: acts[d.id] ?? [],
-      mode_ids: modes[d.id] ?? [],
+    const rows = await api.bookingDiscounts(orgId.value, { activeOnly: true })
+    return rows.map((d): BookingDiscount => ({
+      id: d.id,
+      org_id: d.orgId,
+      name: d.name,
+      form_text: d.formText,
+      modifier_type: d.modifierType as BookingDiscount['modifier_type'],
+      modifier_value: Number(d.modifierValue),
+      apply_to: d.applyTo as BookingDiscount['apply_to'],
+      conditions: (d.conditions ?? []) as DiscountCondition[],
+      valid_from: d.validFrom,
+      valid_until: d.validUntil,
+      max_uses: d.maxUses,
+      uses_count: d.usesCount,
+      is_active: d.isActive,
+      activity_ids: d.activityIds ?? [],
+      mode_ids: d.modeIds ?? [],
     }))
   }
 

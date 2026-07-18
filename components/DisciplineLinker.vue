@@ -15,6 +15,16 @@
   member_group_disciplines / event_disciplines.
 -->
 <script setup lang="ts">
+// CROSS-DOMAIN GAP: this component stays on useDb() until three seam pieces land,
+// because its load() chain is entangled and every link is load-bearing:
+//   1. `org_sports` read (sport + nso_org_id) — no seam (org_sports has no owner).
+//   2. the `org_sport_ancestors` RPC → govIds — the noted "governingOrgs" gap (Fi1);
+//      needs a recursive-CTE route (parent chain ∪ approved sport chains).
+//   3. `member_group_disciplines` WRITE (group context) — groups domain, no write seam.
+// The disciplines READ could move to useDisciplinesApi().listForOrgs(govIds) and the
+// EVENT link read/write to useEventsApi().eventDisciplineIds/setEventDisciplines, but
+// both depend on govIds from (2), so partial conversion can't remove useDb here. Do
+// the whole component once (2) exists. See cross-domain-gaps.md.
 const props = defineProps<{ entityType: 'group' | 'event'; entityId: string }>()
 const db = useDb()
 const { orgId } = useOrg()

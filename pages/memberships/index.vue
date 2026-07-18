@@ -7,12 +7,12 @@
 <script setup lang="ts">
 import { isMembershipGroup } from '~/composables/useMemberships'
 
-const db = useDb()
 const { orgId } = useOrg()
 const gc = useGroupCodes()
 const gf = useGroupFees()
 const wl = useWaitlists()
 const ms = useMemberships()
+const groupsApi = useGroupsApi()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 useBreadcrumbs([{ label: 'Memberships' }])
@@ -47,29 +47,36 @@ const sections = computed(() => {
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [{ data: groups }, { data: mems }, { data: feeOpts }, ents, wlCounts, codes] = await Promise.all([
-    (db.from as any)('member_groups').select('id, name, color, capacity, waitlist_id, kind, code_id, sort_order, location_ids').eq('org_id', orgId.value).eq('kind', 'membership').order('sort_order', { ascending: true, nullsFirst: false }).order('name'),
-    (db.from as any)('member_group_memberships').select('group_id, group:member_groups!inner(org_id, kind)').eq('group.org_id', orgId.value).eq('group.kind', 'membership'),
-    (db.from as any)('group_fee_options').select('id, group_id, name, fee_type, period_unit, period_count, instalment_count, session_count, prorata, items:group_fee_option_items(amount)').eq('org_id', orgId.value),
+  // Membership-kind groups + all-org membership refs + entitlements + waitlist counts
+  // + codes — all via the seam (member_groups/memberships are the groups seam's).
+  const [allGroups, mems, ents, wlCounts, codes] = await Promise.all([
+    groupsApi.list(orgId.value),
+    groupsApi.membershipsByOrg(orgId.value),
     ms.loadAllEntitlements(),
     wl.entryCounts(),
     gc.loadCodes(),
   ])
+  const groups = allGroups
+    .filter(g => g.kind === 'membership')
+    .sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name))
   codesById.value = Object.fromEntries((codes ?? []).map((c: any) => [c.id, c]))
+  const memGroupIds = new Set(groups.map(g => g.id))
   const memberCounts: Record<string, number> = {}
-  for (const m of (mems ?? [])) memberCounts[m.group_id] = (memberCounts[m.group_id] || 0) + 1
+  for (const m of mems) if (memGroupIds.has(m.groupId)) memberCounts[m.groupId] = (memberCounts[m.groupId] || 0) + 1
+  // Each membership's fee options (per-group, in parallel).
+  const feeLists = await Promise.all(groups.map(g => gf.loadFeeOptions(g.id)))
   const feesByGroup: Record<string, any[]> = {}
-  for (const f of (feeOpts ?? [])) (feesByGroup[f.group_id] ??= []).push(f)
+  groups.forEach((g, i) => { feesByGroup[g.id] = feeLists[i] })
   const entCounts: Record<string, number> = {}
   for (const e of ents) entCounts[e.membership_group_id] = (entCounts[e.membership_group_id] || 0) + 1
-  rows.value = (groups ?? []).map((g: any) => {
+  rows.value = groups.map((g) => {
     const fees = feesByGroup[g.id] ?? []
     return {
-      id: g.id, name: g.name, color: g.color, capacity: g.capacity, codeId: g.code_id ?? null, sortOrder: g.sort_order ?? 0, locationIds: g.location_ids ?? [],
+      id: g.id, name: g.name, color: g.color, capacity: g.capacity, codeId: g.codeId ?? null, sortOrder: g.sortOrder ?? 0, locationIds: g.locationIds ?? [],
       members: memberCounts[g.id] ?? 0,
       feeLabel: fees.length === 1 ? gf.priceLabel(fees[0]) : fees.length > 1 ? `${fees.length} options` : null,
       feeCount: fees.length,
-      waitlistId: g.waitlist_id, waiting: g.waitlist_id ? (wlCounts[g.waitlist_id] ?? 0) : 0,
+      waitlistId: g.waitlistId, waiting: g.waitlistId ? (wlCounts[g.waitlistId] ?? 0) : 0,
       included: entCounts[g.id] ?? 0,
     }
   })
@@ -106,9 +113,9 @@ async function persistList(list: Row[], codeId: string | null, moved: Row) {
   const updates: any[] = []
   list.forEach((row, idx) => {
     const patch: Record<string, any> = {}
-    if (row.sortOrder !== idx) { row.sortOrder = idx; patch.sort_order = idx }
-    if (row.id === moved.id && row.codeId !== codeId) { row.codeId = codeId; patch.code_id = codeId }
-    if (Object.keys(patch).length) updates.push((db.from as any)('member_groups').update(patch).eq('id', row.id))
+    if (row.sortOrder !== idx) { row.sortOrder = idx; patch.sortOrder = idx }
+    if (row.id === moved.id && row.codeId !== codeId) { row.codeId = codeId; patch.codeId = codeId }
+    if (Object.keys(patch).length) updates.push(groupsApi.update(row.id, patch))
   })
   await Promise.all(updates)
   rows.value = [...rows.value].sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name))
@@ -158,8 +165,8 @@ async function confirmNest() {
   const code = await gc.createCode({ name: nestName.value.trim(), color: nestPair.value.target.color ?? '#1E2157', term_id: null, parent_id: null })
   if (code) {
     await Promise.all([
-      (db.from as any)('member_groups').update({ code_id: code.id, sort_order: 0 }).eq('id', nestPair.value.target.id),
-      (db.from as any)('member_groups').update({ code_id: code.id, sort_order: 1 }).eq('id', nestPair.value.dragged.id),
+      groupsApi.update(nestPair.value.target.id, { codeId: code.id, sortOrder: 0 }),
+      groupsApi.update(nestPair.value.dragged.id, { codeId: code.id, sortOrder: 1 }),
     ])
   }
   nesting.value = false
@@ -177,19 +184,21 @@ async function create() {
   if (!newMs.name.trim()) return
   creating.value = true
   const createLens = (useActiveLocation().activeLocationId.value ?? null)
-  const { data, error } = await (db.from as any)('member_groups')
-    .insert({
-      org_id: orgId.value, name: newMs.name.trim(), color: newMs.color, kind: 'membership',
-      // Created under a location lens -> the membership belongs to that site;
-      // under "All locations" it spans the whole club (connect more sites later).
-      location_ids: createLens ? [createLens] : null,
+  try {
+    const g = await groupsApi.create({
+      orgId: orgId.value, name: newMs.name.trim(), color: newMs.color, kind: 'membership',
+      // Created under a location lens -> the membership belongs to that site; under
+      // "All locations" [] spans the whole club (connect more sites later).
+      locationIds: createLens ? [createLens] : [],
     })
-    .select('id').single()
-  creating.value = false
-  if (error) return
-  showCreate.value = false
-  newMs.name = ''
-  if (data?.id) navigateTo(`/memberships/${data.id}`)
+    showCreate.value = false
+    newMs.name = ''
+    if (g?.id) navigateTo(`/memberships/${g.id}`)
+  } catch {
+    // insert failed — stay on the dialog
+  } finally {
+    creating.value = false
+  }
 }
 </script>
 

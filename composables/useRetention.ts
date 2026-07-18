@@ -35,8 +35,12 @@ export const STATUS_META: Record<RetentionStatus, { label: string; color: string
 }
 
 export function useRetention() {
+  // SEAM GAP (finances domain): the best-effort `registrations` outstanding-fees read
+  // below has no groups-domain home — registrations belong to finances. Left on useDb
+  // until useFinancesApi exposes outstanding-by-person. Everything else is on the seam.
   const db = useDb()
   const { orgId } = useOrg()
+  const groupsApi = useGroupsApi()
   const gc = useGroupCodes()
   const tm = useTermsMemberships()
   const scoped = useScopedRoles()
@@ -45,35 +49,39 @@ export function useRetention() {
     const empty: RetentionData = { terms: [], codes: [], memberTerms: {}, info: {}, outstanding: {} }
     if (!orgId.value) return empty
     await scoped.loadRoleDefs()
-    const [terms, codes, { data: groups }] = await Promise.all([
+    const [terms, codes, groups] = await Promise.all([
       tm.loadTerms(),
       gc.loadCodes(),
-      (db.from as any)('member_groups').select('id, code_id, term_id').eq('org_id', orgId.value),
+      groupsApi.list(orgId.value),
     ])
     const codesById = Object.fromEntries((codes ?? []).map((c: any) => [c.id, c])) as Record<string, GroupCode>
-    const groupIds = (groups ?? []).map((g: any) => g.id)
+    const groupIds = (groups ?? []).map((g) => g.id)
     if (!groupIds.length) return { ...empty, terms, codes }
     const groupTerm: Record<string, string | null> = {}
     const groupCode: Record<string, string> = {}
-    for (const g of groups ?? []) { groupTerm[g.id] = gc.effectiveTermId(g, codesById); groupCode[g.id] = g.code_id ?? '__none' }
+    // seam groups are camelCase; effectiveTermId reads code_id/term_id, so pass a
+    // snake-compatible view.
+    for (const g of groups) {
+      const gv = { code_id: g.codeId, term_id: g.termId }
+      groupTerm[g.id] = gc.effectiveTermId(gv, codesById)
+      groupCode[g.id] = g.codeId ?? '__none'
+    }
 
-    const { data: mems } = await (db.from as any)('member_group_memberships')
-      .select('group_id, person_id, role, roles, start_date, person:persons!inner(first_name, last_name, email, phone, created_at)')
-      .in('group_id', groupIds)
+    const mems = await groupsApi.membershipsForRetention(groupIds)
 
     const memberTerms: RetentionData['memberTerms'] = {}
     const info: RetentionData['info'] = {}
-    for (const m of mems ?? []) {
+    for (const m of mems) {
       const roleKeys = scoped.normalizeRoles('group', m.roles, m.role)
       if (scoped.isStaff('group', roleKeys)) continue // members only
-      const term = groupTerm[m.group_id]
+      const term = groupTerm[m.groupId]
       if (!term) continue
-      const pid = m.person_id
+      const pid = m.personId
       ;(memberTerms[pid] ??= {})[term] ??= new Set()
-      memberTerms[pid][term].add(groupCode[m.group_id])
+      memberTerms[pid][term].add(groupCode[m.groupId])
       const p = m.person
-      const join = m.start_date || p?.created_at?.slice(0, 10) || null
-      if (!info[pid]) info[pid] = { name: `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim() || 'Unknown', email: p?.email ?? null, phone: p?.phone ?? null, joinDate: join }
+      const join = m.startDate || p?.createdAt?.slice(0, 10) || null
+      if (!info[pid]) info[pid] = { name: `${p?.firstName ?? ''} ${p?.lastName ?? ''}`.trim() || 'Unknown', email: p?.email ?? null, phone: p?.phone ?? null, joinDate: join }
       else if (join && (!info[pid].joinDate || join < info[pid].joinDate!)) info[pid].joinDate = join
     }
 
@@ -82,6 +90,7 @@ export function useRetention() {
     const pids = Object.keys(memberTerms)
     if (pids.length) {
       try {
+        // SEAM GAP (finances): registrations read — no groups-seam home.
         const { data: regs } = await (db.from as any)('registrations').select('person_id, total_amount, paid_amount').in('person_id', pids)
         for (const r of regs ?? []) {
           const owed = (Number(r.total_amount) || 0) - (Number(r.paid_amount) || 0)

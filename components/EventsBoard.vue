@@ -731,10 +731,51 @@ const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 
+// db is retained ONLY for the cross-domain / not-yet-seamed reads+writes flagged
+// with `// CROSS-DOMAIN GAP` / `// SEAM GAP` below (calendars + calendar_categories
+// are owned by the waitlists domain and expose reads only; the org-wide
+// separate-sessions query has no seam method yet). Every event/category read+write
+// goes through the typed seam.
 const db = useDb()
+const eventsApi = useEventsApi()
+const bookingsApi = useBookingsApi()
 const toast = useToast()
 const confirm = useConfirm()
 const route = useRoute()
+
+// The seam returns camelCase FMEvents; this component (and its computeds/template)
+// read snake_case throughout, so map each loaded event back to the shape they expect.
+// `category` is attached from the separately-loaded category catalogue (the old query
+// embedded it via a join).
+function toEventRow(e: any) {
+  return {
+    id: e.id,
+    org_id: e.orgId,
+    title: e.title,
+    description: e.description ?? null,
+    style: e.style,
+    status: e.status,
+    start_at: e.startAt,
+    end_at: e.endAt,
+    is_public: e.isPublic,
+    is_programme: e.isProgramme,
+    is_all_day: e.isAllDay ?? false,
+    form_id: e.formId ?? null,
+    member_group_id: e.memberGroupId ?? null,
+    category_id: e.categoryId ?? null,
+    banner_url: e.bannerUrl ?? null,
+    location_type: e.locationType ?? null,
+    address: e.address ?? null,
+    meeting_link: e.meetingLink ?? null,
+    age_min: e.ageMin ?? null,
+    age_max: e.ageMax ?? null,
+    recurrence_rule: e.recurrenceRule ?? null,
+    recurrence_parent_id: e.recurrenceParentId ?? null,
+    created_via: e.createdVia ?? null,
+    exdates: e.exdates ?? [],
+    category: e.categoryId ? (categoriesById.value[e.categoryId] ?? null) : null,
+  }
+}
 
 // This same board serves /programme (aliased below). A "programme" is just an
 // event with is_programme=true; on /programme we scope to those + lock the view
@@ -860,23 +901,21 @@ async function startAdvanced() {
   showEventNameModal.value = false
   try {
     const payload: any = {
-      org_id: orgId.value,
+      orgId: orgId.value,
       title: newEventName.value.trim(),
       status: 'DRAFT',
       style: 'ADVANCED',
-      created_via: 'advanced',
-      is_programme: isProgramme.value,
+      createdVia: 'advanced',
+      isProgramme: isProgramme.value,
     }
-    if (activeCalendarStampCategory.value) payload.category_id = activeCalendarStampCategory.value
-    if (clickedDate.value) payload.start_at = clickedDate.value
-    if (clickedEndDate.value) payload.end_at = clickedEndDate.value
-    const { data, error } = await (db.from as any)('events').insert(payload).select('id').single()
-    if (error || !data) {
-      toast.add({ severity: 'error', summary: 'Could not create the event', detail: error?.message, life: 4000 })
-      showEventNameModal.value = true
-      return
-    }
-    navigateTo(`/events/${data.id}`)
+    if (activeCalendarStampCategory.value) payload.categoryId = activeCalendarStampCategory.value
+    if (clickedDate.value) payload.startAt = clickedDate.value
+    if (clickedEndDate.value) payload.endAt = clickedEndDate.value
+    const created = await eventsApi.create(payload)
+    navigateTo(`/events/${created.id}`)
+  } catch (error: any) {
+    toast.add({ severity: 'error', summary: 'Could not create the event', detail: error?.message, life: 4000 })
+    showEventNameModal.value = true
   } finally {
     creatingAdvanced.value = false
   }
@@ -915,23 +954,21 @@ async function createCustomEvent() {
   creatingCustom.value = true
   try {
     const payload: any = {
-      org_id: orgId.value,
+      orgId: orgId.value,
       title: newEventName.value.trim(),
       status: 'DRAFT',
       style: 'BASIC',
-      created_via: 'custom',    // opens in the full event page, not the wizard
-      is_programme: isProgramme.value,
+      createdVia: 'custom',    // opens in the full event page, not the wizard
+      isProgramme: isProgramme.value,
     }
-    if (activeCalendarStampCategory.value) payload.category_id = activeCalendarStampCategory.value
-    if (clickedDate.value) payload.start_at = clickedDate.value
-    if (clickedEndDate.value) payload.end_at = clickedEndDate.value
-    const { data, error } = await (db.from as any)('events').insert(payload).select('id').single()
-    if (error || !data) {
-      toast.add({ severity: 'error', summary: 'Could not create the event', detail: error?.message, life: 4000 })
-      return
-    }
+    if (activeCalendarStampCategory.value) payload.categoryId = activeCalendarStampCategory.value
+    if (clickedDate.value) payload.startAt = clickedDate.value
+    if (clickedEndDate.value) payload.endAt = clickedEndDate.value
+    const created = await eventsApi.create(payload)
     // Custom = the same form as the wizard, but every section on one page.
-    navigateTo(`/events/new-basic?draft=${data.id}&mode=full`)
+    navigateTo(`/events/new-basic?draft=${created.id}&mode=full`)
+  } catch (error: any) {
+    toast.add({ severity: 'error', summary: 'Could not create the event', detail: error?.message, life: 4000 })
   } finally {
     creatingCustom.value = false
   }
@@ -1206,15 +1243,16 @@ const activeCalendar = computed(() => {
 })
 
 async function loadCalendars() {
-  const [{ data: cals }, { data: cats }, { data: books }] = await Promise.all([
+  // CROSS-DOMAIN GAP: `calendars` + `calendar_categories` are owned by the waitlists
+  // domain seam, which exposes a READ-ONLY calendars list (no category-link embed).
+  // `bookables` belongs to the bookings domain. Both still read via useDb here until a
+  // calendars-with-categories read + calendar writes land in the waitlists seam.
+  const [{ data: cals }, cats, { data: books }] = await Promise.all([
     (db.from as any)('calendars')
       .select('id, name, sort_order, pin_to_nav, icon, color, settings, calendar_categories(category_id)')
       .eq('org_id', orgId.value)
       .order('sort_order'),
-    db.from('categories')
-      .select('id, name, color, icon')
-      .eq('org_id', orgId.value)
-      .order('name'),
+    eventsApi.categories(orgId.value),
     (db.from as any)('bookables')
       .select('id, name, type, parent_id')   // parent_id: sub-venues nest under their venue
       .eq('org_id', orgId.value)
@@ -1262,6 +1300,8 @@ function saveCalPrefs() {
   // sees the same setup — the localStorage write above is just a fast local cache.
   const real = namedCalendars.value.find(c => c.id === calId)
   if (real) {
+    // CROSS-DOMAIN GAP: calendar writes are owned by the waitlists domain (read-only
+    // in the seam today) — persist the per-calendar settings via useDb until it lands.
     ;(db.from as any)('calendars').update({ settings: snap }).eq('id', calId).then(() => { real.settings = snap })
   }
 }
@@ -1391,6 +1431,9 @@ async function createNewCalendar() {
     icon: newCalendarIcon.value.trim() || null,
     color: newCalendarColor.value.trim() || null,
   }
+  // CROSS-DOMAIN GAP: `calendars` + `calendar_categories` writes are owned by the
+  // waitlists domain, which exposes reads only — this create/update/link flow stays on
+  // useDb until calendar writes land in that seam.
   if (editingCalendarId.value) {
     const { error } = await (db.from as any)('calendars').update({ name, ...navCols }).eq('id', editingCalendarId.value)
     if (error) {
@@ -1445,6 +1488,8 @@ function deleteCalendar() {
     acceptLabel: 'Delete',
     acceptClass: 'p-button-danger',
     accept: async () => {
+      // CROSS-DOMAIN GAP: calendar deletes are owned by the waitlists domain (reads
+      // only in the seam) — stays on useDb until calendar writes land there.
       const { error } = await (db.from as any)('calendars').delete().eq('id', editingCalendarId.value!)
       if (error) {
         toast.add({ severity: 'error', summary: 'Failed to delete calendar', detail: error.message, life: 3000 })
@@ -1634,12 +1679,10 @@ const dropDialog = reactive({
 async function detectConflicts(targetEventId: string, parentId: string | null, newStart: Date) {
   if (!parentId) return []
   const dayKey = newStart.toISOString().slice(0, 10)
-  const { data: siblings } = await db.from('events')
-    .select('id, title, start_at')
-    .or(`id.eq.${parentId},recurrence_parent_id.eq.${parentId}`)
-    .neq('id', targetEventId)
-  return (siblings ?? [])
-    .filter((s: any) => s.start_at?.slice(0, 10) === dayKey)
+  const all = await eventsApi.list(orgId.value)
+  return all
+    .filter((s: any) => (s.id === parentId || s.recurrenceParentId === parentId) && s.id !== targetEventId)
+    .filter((s: any) => s.startAt?.slice(0, 10) === dayKey)
     .map((s: any) => s.title || 'Untitled')
 }
 
@@ -1652,17 +1695,18 @@ async function onCalendarEventDrop(item: any, newStart: Date, newEnd: Date) {
   const eventId = ext?.id ?? item.id
   if (!eventId) return
 
-  const { data: eventRow } = await db.from('events').select('id, title, start_at, end_at, recurrence_parent_id').eq('id', eventId).single()
-  if (!eventRow) return
+  let fetched: any
+  try { fetched = await eventsApi.get(eventId) } catch { return }
+  if (!fetched) return
+  const eventRow = toEventRow(fetched)
 
   const parentId = eventRow.recurrence_parent_id ?? eventId
   const conflicts = await detectConflicts(eventId, eventRow.recurrence_parent_id ? parentId : null, newStart)
 
   // Check if this event is part of a series (has parent OR has children)
-  const { count: childCount } = await (db.from as any)('events')
-    .select('id', { count: 'exact', head: true })
-    .eq('recurrence_parent_id', eventId)
-  const inSeries = !!eventRow.recurrence_parent_id || (childCount ?? 0) > 0
+  const all = await eventsApi.list(orgId.value)
+  const childCount = all.filter((e: any) => e.recurrenceParentId === eventId).length
+  const inSeries = !!eventRow.recurrence_parent_id || childCount > 0
 
   if (inSeries) {
     dropDialog.scope = 'this'
@@ -1677,10 +1721,10 @@ async function onCalendarEventDrop(item: any, newStart: Date, newEnd: Date) {
 }
 
 async function applyDateMove(eventRow: any, newStart: Date, newEnd: Date) {
-  await db.from('events').update({
-    start_at: newStart.toISOString(),
-    end_at: newEnd.toISOString(),
-  }).eq('id', eventRow.id)
+  await eventsApi.update(eventRow.id, {
+    startAt: newStart.toISOString(),
+    endAt: newEnd.toISOString(),
+  })
   await load()
 }
 
@@ -1699,21 +1743,20 @@ async function performDropMove() {
     await applyDateMove(eventRow, newStart, newEnd)
   } else {
     // Get all related events (the parent + every child)
-    const { data: family } = await db.from('events')
-      .select('id, start_at, end_at')
-      .or(`id.eq.${parentId},recurrence_parent_id.eq.${parentId}`)
-    const targets = (family ?? []).filter((e: any) => {
+    const all = await eventsApi.list(orgId.value)
+    const family = all.filter((e: any) => e.id === parentId || e.recurrenceParentId === parentId)
+    const targets = family.filter((e: any) => {
       if (dropDialog.scope === 'all') return true
       // 'following' = events at or after the dragged event's original start
-      return e.start_at >= eventRow.start_at
+      return e.startAt >= eventRow.start_at
     })
     for (const t of targets) {
-      const ts = new Date(t.start_at); ts.setDate(ts.getDate() + dayDelta)
-      const te = new Date(t.end_at ?? t.start_at); te.setDate(te.getDate() + dayDelta)
-      await db.from('events').update({
-        start_at: ts.toISOString(),
-        end_at: te.toISOString(),
-      }).eq('id', t.id)
+      const ts = new Date(t.startAt); ts.setDate(ts.getDate() + dayDelta)
+      const te = new Date(t.endAt ?? t.startAt); te.setDate(te.getDate() + dayDelta)
+      await eventsApi.update(t.id, {
+        startAt: ts.toISOString(),
+        endAt: te.toISOString(),
+      })
     }
   }
 
@@ -1964,22 +2007,33 @@ const filtered = computed(() => events.value.filter(e =>
 
 async function load() {
   loading.value = true
-  const [{ data, error }, { data: sessionData, error: sessionError }] = await Promise.all([
-    db.from('events')
-      .select('*, category:categories!category_id(id, name, color, icon)')
-      .eq('org_id', orgId.value)
-      .eq('is_programme', isProgramme.value)   // /programme = programmes only; /events excludes them
-      .neq('status', 'ARCHIVED')
-      .order('start_at', { ascending: true, nullsFirst: false }),
+  // SEAM GAP: the org-wide "separate sessions" query (sessions where
+  // show_as_separate_event=true across every event) has no seam method yet — the
+  // Session contract doesn't carry show_as_separate_event / parent_session_id — so it
+  // still reads via useDb. Everything else goes through the typed seam.
+  const [evList, cats, { data: sessionData, error: sessionError }] = await Promise.all([
+    eventsApi.list(orgId.value),
+    eventsApi.categories(orgId.value),
     db.from('sessions')
       .select('*, event:events!event_id(id, title, status, org_id, category_id, is_programme)')
       .eq('show_as_separate_event', true)
       .is('parent_session_id', null)
       .not('start_at', 'is', null),
   ])
-  if (error) console.error('events load error:', error)
   if (sessionError) console.error('sessions load error:', sessionError)
-  events.value = data ?? []
+  allCategories.value = cats ?? []
+  // The seam returns ALL events newest-first; apply the filters the old query did
+  // server-side (this programme mode, not archived) and the start_at ordering.
+  events.value = (evList ?? [])
+    .filter((e: any) => !!e.isProgramme === isProgramme.value && e.status !== 'ARCHIVED')
+    .map(toEventRow)
+    .sort((a: any, b: any) => {
+      // nullsFirst:false — undated events sort to the end.
+      if (!a.start_at && !b.start_at) return 0
+      if (!a.start_at) return 1
+      if (!b.start_at) return -1
+      return a.start_at < b.start_at ? -1 : a.start_at > b.start_at ? 1 : 0
+    })
   separateSessions.value = (sessionData ?? []).filter((s: any) => {
     const ev = s.event
     return ev && ev.status !== 'ARCHIVED' && ev.org_id === orgId.value && !!ev.is_programme === isProgramme.value
@@ -1998,28 +2052,32 @@ function progStat(id: string): ProgStat {
 async function loadProgrammeStats(eventIds: string[]) {
   programmeStats.value = {}
   if (!eventIds.length) return
-  const [{ data: sess }, { data: regs }] = await Promise.all([
-    (db.from as any)('sessions').select('id, event_id, capacity_max, start_at, is_master').in('event_id', eventIds),
-    (db.from as any)('registrations').select('event_id').in('event_id', eventIds),
-  ])
+  // Programmes are few, so fan out per-event through the seam (no bulk read needed).
+  const perEvent = await Promise.all(eventIds.map(async (id) => ({
+    id,
+    sessions: await eventsApi.sessions(id),
+    registrations: await eventsApi.registrations(id),
+  })))
   const sessToEvent: Record<string, string> = {}
   const acc: Record<string, { sessions: number; types: number; days: Set<string>; capacity: number; registrations: number; fromFee: number | null }> = {}
   for (const id of eventIds) acc[id] = { sessions: 0, types: 0, days: new Set(), capacity: 0, registrations: 0, fromFee: null }
-  for (const s of (sess ?? [])) {
-    sessToEvent[s.id] = s.event_id
-    const a = acc[s.event_id]; if (!a) continue
-    a.sessions++
-    if (s.is_master) a.types++
-    if (s.start_at) a.days.add(new Date(s.start_at).toISOString().slice(0, 10))
-    a.capacity += s.capacity_max ?? 0
+  for (const { id, sessions: sess, registrations: regs } of perEvent) {
+    const a = acc[id]; if (!a) continue
+    for (const s of sess) {
+      sessToEvent[s.id] = id
+      a.sessions++
+      if (s.isMaster) a.types++
+      if (s.startAt) a.days.add(new Date(s.startAt).toISOString().slice(0, 10))
+      a.capacity += s.capacityMax ?? 0
+    }
+    a.registrations += regs.length
   }
-  for (const r of (regs ?? [])) { if (acc[r.event_id]) acc[r.event_id].registrations++ }
   const sessionIds = Object.keys(sessToEvent)
   if (sessionIds.length) {
-    const { data: fees } = await (db.from as any)('fee_components').select('session_id, amount').in('session_id', sessionIds)
-    for (const f of (fees ?? [])) {
-      const a = acc[sessToEvent[f.session_id]]; if (!a) continue
-      const amt = f.amount ?? 0
+    const fees = await eventsApi.feeComponents({ sessionIds })
+    for (const f of fees) {
+      const a = acc[sessToEvent[f.sessionId as string]]; if (!a) continue
+      const amt = Number(f.amount ?? 0)
       if (amt > 0 && (a.fromFee === null || amt < a.fromFee)) a.fromFee = amt
     }
   }
@@ -2046,13 +2104,13 @@ function openMenu(event: Event, row: any) {
 }
 
 async function publishEvent(id: string) {
-  await db.from('events').update({ status: 'PUBLISHED' }).eq('id', id)
+  await eventsApi.update(id, { status: 'PUBLISHED' })
   toast.add({ severity: 'success', summary: `${t('event', false)} published`, life: 3000 })
   load()
 }
 
 async function archiveEvent(id: string) {
-  await db.from('events').update({ status: 'ARCHIVED' }).eq('id', id)
+  await eventsApi.update(id, { status: 'ARCHIVED' })
   toast.add({ severity: 'success', summary: `${t('event', false)} archived`, life: 3000 })
   load()
 }
@@ -2083,46 +2141,40 @@ async function installDemoData() {
       const x = new Date(d); x.setHours(h, m, 0, 0); return x.toISOString()
     }
 
-    // Categories
-    const { data: cats } = await db.from('categories').insert([
-      { org_id: orgId.value, name: 'Swim Training', color: '#3B82F6' },
-      { org_id: orgId.value, name: 'Competitions', color: '#8B5CF6' },
-      { org_id: orgId.value, name: 'Social Events', color: '#10B981' },
-    ]).select('id, name')
-
-    const catByName = Object.fromEntries((cats ?? []).map((c: any) => [c.name, c.id]))
+    // Categories — created one at a time through the seam.
+    const catDefs = [
+      { name: 'Swim Training', color: '#3B82F6' },
+      { name: 'Competitions', color: '#8B5CF6' },
+      { name: 'Social Events', color: '#10B981' },
+    ]
+    const cats = [] as any[]
+    for (const c of catDefs) cats.push(await eventsApi.createCategory({ orgId: orgId.value, name: c.name, color: c.color }))
+    const catByName = Object.fromEntries(cats.map((c: any) => [c.name, c.id]))
 
     // Events
-    await db.from('events').insert([
+    const eventDefs = [
       {
-        org_id: orgId.value, style: 'BASIC', status: 'PUBLISHED',
-        title: 'Swim Squad Training',
-        category_id: catByName['Swim Training'],
-        start_at: iso(addDays(2), 7), end_at: iso(addDays(2), 8),
-        is_all_day: false,
+        style: 'BASIC', status: 'PUBLISHED', title: 'Swim Squad Training',
+        categoryId: catByName['Swim Training'],
+        startAt: iso(addDays(2), 7), endAt: iso(addDays(2), 8), isAllDay: false,
       },
       {
-        org_id: orgId.value, style: 'BASIC', status: 'PUBLISHED',
-        title: 'Junior Development Training',
-        category_id: catByName['Swim Training'],
-        start_at: iso(addDays(5), 16), end_at: iso(addDays(5), 17, 30),
-        is_all_day: false,
+        style: 'BASIC', status: 'PUBLISHED', title: 'Junior Development Training',
+        categoryId: catByName['Swim Training'],
+        startAt: iso(addDays(5), 16), endAt: iso(addDays(5), 17, 30), isAllDay: false,
       },
       {
-        org_id: orgId.value, style: 'BASIC', status: 'PUBLISHED',
-        title: 'Regional Championships',
-        category_id: catByName['Competitions'],
-        start_at: iso(addDays(14), 8), end_at: iso(addDays(15), 17),
-        is_all_day: false,
+        style: 'BASIC', status: 'PUBLISHED', title: 'Regional Championships',
+        categoryId: catByName['Competitions'],
+        startAt: iso(addDays(14), 8), endAt: iso(addDays(15), 17), isAllDay: false,
       },
       {
-        org_id: orgId.value, style: 'BASIC', status: 'DRAFT',
-        title: 'End of Season Dinner',
-        category_id: catByName['Social Events'],
-        start_at: iso(addDays(21), 18, 30), end_at: iso(addDays(21), 22),
-        is_all_day: false,
+        style: 'BASIC', status: 'DRAFT', title: 'End of Season Dinner',
+        categoryId: catByName['Social Events'],
+        startAt: iso(addDays(21), 18, 30), endAt: iso(addDays(21), 22), isAllDay: false,
       },
-    ])
+    ]
+    for (const e of eventDefs) await eventsApi.create({ orgId: orgId.value, ...e })
 
     await Promise.all([load(), loadCalendars()])
     localStorage.setItem(DEMO_PROMPTED_KEY, '1')

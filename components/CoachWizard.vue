@@ -182,7 +182,7 @@ const emit = defineEmits<{
   (e: 'done', payload: { bookableId: string; activityId: string }): void
 }>()
 
-const db = useDb()
+const api = useBookingsApi()
 const { orgId } = useOrg()
 const toast = useToast()
 
@@ -308,51 +308,45 @@ async function create() {
     if (coachEmail.value.trim()) customFields.email = coachEmail.value.trim()
     if (coachPhone.value.trim()) customFields.phone = coachPhone.value.trim()
 
-    const { data: bk, error: bkErr } = await (db.from as any)('bookables').insert({
-      org_id: orgId.value,
+    const bk = await api.createBookable({
+      orgId: orgId.value,
       name: coachName.value.trim(),
       type: 'PERSON',
       status: 'ACTIVE',
-      max_concurrent: 1,
-      is_public: true,
-      custom_fields: customFields,
-    }).select('id').single()
-    if (bkErr || !bk?.id) throw bkErr ?? new Error('Could not create coach bookable')
-    const bookableId = bk.id as string
+      maxConcurrent: 1,
+      isPublic: true,
+      customFields,
+    })
+    const bookableId = bk.id
 
     // 2. Owning activity (one per coach — name = coach name).
-    const { data: act, error: actErr } = await (db.from as any)('activities').insert({
-      org_id: orgId.value,
+    const act = await api.createActivity({
+      orgId: orgId.value,
       name: coachName.value.trim(),
       status: 'ACTIVE',
-      bookings_enabled: true,
-      booking_flow: 'wizard',
-      require_mode: true,
-      staff_bookable_id: bookableId,
-    }).select('id').single()
-    if (actErr || !act?.id) throw actErr ?? new Error('Could not create activity')
-    const activityId = act.id as string
+      bookingsEnabled: true,
+      bookingFlow: 'wizard',
+      requireMode: true,
+      staffBookableId: bookableId,
+    })
+    const activityId = act.id
 
     // 3. Link the coach as the activity's bookable — no venue picker needed.
-    await (db.from as any)('activity_bookables').insert({
-      activity_id: activityId,
-      bookable_id: bookableId,
-    })
+    await api.setActivityBookables(activityId, [bookableId])
 
     // 4. Modes — each rate becomes one bookable mode under the activity.
-    if (rates.value.length) {
-      await (db.from as any)('activity_modes').insert(
-        rates.value.map((r, i) => ({
-          activity_id: activityId,
-          name: r.name.trim(),
-          period_unit: r.period_unit,
-          period_count: r.period_count,
-          term_type: 'fixed',
-          period_price: r.period_price,
-          category: effectiveCategory.value || null,
-          sort_order: i,
-        })),
-      )
+    for (let i = 0; i < rates.value.length; i++) {
+      const r = rates.value[i]
+      await api.createActivityMode({
+        activityId,
+        name: r.name.trim(),
+        periodUnit: r.period_unit,
+        periodCount: r.period_count,
+        termType: 'fixed',
+        periodPrice: r.period_price,
+        category: effectiveCategory.value || null,
+        sortOrder: i,
+      })
     }
 
     toast.add({

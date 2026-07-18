@@ -76,8 +76,8 @@ export function layoutDay<T extends { startMin: number; endMin: number }>(items:
 }
 
 export function useClassTimetable() {
-  const db = useDb()
   const { orgId } = useOrg()
+  const groupsApi = useGroupsApi()
   const gc = useGroupCodes()
   const scoped = useScopedRoles()
 
@@ -85,54 +85,55 @@ export function useClassTimetable() {
   async function loadSessions(): Promise<{ sessions: TimetableSession[]; codes: GroupCode[] }> {
     if (!orgId.value) return { sessions: [], codes: [] }
     await scoped.loadRoleDefs()
-    const [codes, { data: groups }] = await Promise.all([
+    const [codes, groups] = await Promise.all([
       gc.loadCodes(),
-      (db.from as any)('member_groups').select('id, name, color, code_id, capacity, term_id, gender_restriction, age_range, image_url, location_id').eq('org_id', orgId.value),
+      groupsApi.list(orgId.value),
     ])
     const codesById = Object.fromEntries((codes ?? []).map((c: any) => [c.id, c])) as Record<string, GroupCode>
-    const groupIds = (groups ?? []).map((g: any) => g.id)
+    const groupIds = (groups ?? []).map((g) => g.id)
     if (!groupIds.length) return { sessions: [], codes: codes ?? [] }
 
-    const [{ data: scheds }, { data: mems }] = await Promise.all([
-      (db.from as any)('member_group_schedules')
-        .select('id, name, group_id, day_of_week, start_time, end_time, location').in('group_id', groupIds),
-      (db.from as any)('member_group_memberships').select('group_id, role, roles, person:persons!inner(first_name, last_name)').in('group_id', groupIds),
+    const [scheds, mems] = await Promise.all([
+      groupsApi.schedulesForGroups(groupIds),
+      groupsApi.membershipsWithPersonForGroups(groupIds),
     ])
 
     // head coach + non-staff member count per group
     const headByGroup: Record<string, string> = {}
     const countByGroup: Record<string, number> = {}
-    for (const m of mems ?? []) {
+    for (const m of mems) {
       const roleKeys = scoped.normalizeRoles('group', m.roles, m.role)
       if (scoped.isStaff('group', roleKeys)) {
-        if (!headByGroup[m.group_id]) headByGroup[m.group_id] = `${m.person?.first_name ?? ''} ${m.person?.last_name ?? ''}`.trim()
-      } else countByGroup[m.group_id] = (countByGroup[m.group_id] || 0) + 1
+        if (!headByGroup[m.groupId]) headByGroup[m.groupId] = `${m.person?.firstName ?? ''} ${m.person?.lastName ?? ''}`.trim()
+      } else countByGroup[m.groupId] = (countByGroup[m.groupId] || 0) + 1
     }
-    const groupById = Object.fromEntries((groups ?? []).map((g: any) => [g.id, g]))
+    const groupById = Object.fromEntries((groups ?? []).map((g) => [g.id, g]))
 
     const sessions: TimetableSession[] = []
-    for (const s of scheds ?? []) {
-      const g = groupById[s.group_id]
+    for (const s of scheds) {
+      const g: any = groupById[s.groupId]
       if (!g) continue
-      const code = g.code_id ? codesById[g.code_id] : null
-      const startMin = toMin(s.start_time), endMin = Math.max(toMin(s.end_time), toMin(s.start_time) + 15)
+      const code = g.codeId ? codesById[g.codeId] : null
+      const startMin = toMin(s.startTime), endMin = Math.max(toMin(s.endTime), toMin(s.startTime) + 15)
       const loc = s.location ? locationSummary([s.location as LocationEntry]) : ''
+      // effectiveTermId reads code_id/term_id (snake) — pass a compatible view.
+      const gv = { code_id: g.codeId, term_id: g.termId }
       sessions.push({
         id: s.id, groupId: g.id, groupName: g.name,
-        codeId: g.code_id ?? null, codeName: code?.name ?? null,
-        color: code?.color || g.color || colorFor(g.code_id || g.id),
-        day: s.day_of_week ?? 0, startMin, endMin,
+        codeId: g.codeId ?? null, codeName: code?.name ?? null,
+        color: code?.color || g.color || colorFor(g.codeId || g.id),
+        day: s.dayOfWeek ?? 0, startMin, endMin,
         startLabel: minLabel(startMin), endLabel: minLabel(endMin),
         coach: headByGroup[g.id] || null,
         count: countByGroup[g.id] || 0,
         capacity: g.capacity ?? null,
         venue: loc && loc !== '—' ? loc : '',
         sport: null,
-        termId: gc.effectiveTermId(g, codesById),
-        genderRestriction: g.gender_restriction ?? null,
-        ageRange: g.age_range ?? null,
-        imageUrl: g.image_url ?? null,
-        locationId: g.location_id ?? null,
+        termId: gc.effectiveTermId(gv, codesById),
+        genderRestriction: g.genderRestriction ?? null,
+        ageRange: g.ageRange ?? null,
+        imageUrl: g.imageUrl ?? null,
+        locationId: g.locationId ?? null,
       })
     }
     return { sessions, codes: codes ?? [] }

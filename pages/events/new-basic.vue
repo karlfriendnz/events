@@ -784,6 +784,12 @@ import { useToast } from 'primevue/usetoast'
 
 definePageMeta({ layout: 'default' })
 
+const events = useEventsApi()
+const financesApi = useFinancesApi()
+const bookingsApi = useBookingsApi()
+// CROSS-DOMAIN GAP: bookings has no "delete event-driven bookings by event_id" seam
+// method (needed to replace a draft's venue bookings on re-save). Kept as a direct
+// db call below until useBookingsApi exposes a replace-by-event helper.
 const db = useDb()
 const toast = useToast()
 const route = useRoute()
@@ -948,16 +954,16 @@ const categoryColorPalette = [
 async function createCategory() {
   if (!newCategoryName.value.trim()) return
   savingCategory.value = true
-  const { data, error } = await db.from('categories').insert({
-    org_id: orgId.value,
-    name: newCategoryName.value.trim(),
-    color: newCategoryColor.value,
-  }).select('id, name, color').single()
-  if (!error && data) {
-    categories.value.push(data)
+  try {
+    const data = await events.createCategory({
+      orgId: orgId.value,
+      name: newCategoryName.value.trim(),
+      color: newCategoryColor.value,
+    })
+    categories.value.push({ id: data.id, name: data.name, color: data.color })
     form.category_ids.push(data.id)
     toast.add({ severity: 'success', summary: 'Calendar created', life: 2000 })
-  }
+  } catch { /* dialog closes below */ }
   showNewCategoryDialog.value = false
   newCategoryName.value = ''
   newCategoryColor.value = '#1E2157'
@@ -1378,73 +1384,73 @@ async function saveEvent() {
     const payload: any = {
       title: form.title.trim(),
       description: form.description.trim() || null,
-      category_id: form.category_ids[0] ?? null,
-      secondary_category_id: form.category_ids[1] ?? null,
-      age_min: form.ageMin ?? null,
-      age_max: form.ageMax ?? null,
-      is_all_day: form.is_all_day,
-      start_at: buildDateTime(form.start_date, form.is_all_day ? null : form.start_time),
-      end_at: buildDateTime(form.end_date, form.is_all_day ? null : form.end_time),
-      recurrence_rule: form.repeat || null,
+      categoryId: form.category_ids[0] ?? null,
+      secondaryCategoryId: form.category_ids[1] ?? null,
+      ageMin: form.ageMin ?? null,
+      ageMax: form.ageMax ?? null,
+      isAllDay: form.is_all_day,
+      startAt: buildDateTime(form.start_date, form.is_all_day ? null : form.start_time),
+      endAt: buildDateTime(form.end_date, form.is_all_day ? null : form.end_time),
+      recurrenceRule: form.repeat || null,
       exdates: form.exdates ?? [],
       locations: form.locations,
-      location_type: (form.locations[0]?.type ?? 'ADDRESS') as 'ADDRESS' | 'ONLINE' | 'BOOKABLE',
+      locationType: (form.locations[0]?.type ?? 'ADDRESS') as 'ADDRESS' | 'ONLINE' | 'BOOKABLE',
       address: form.locations[0]?.type === 'ADDRESS' ? (form.locations[0].address || null) : null,
-      meeting_link: form.locations[0]?.type === 'ONLINE' ? (form.locations[0].meeting_link || null) : null,
-      capacity_max: form.has_capacity ? (form.capacity_max ?? null) : null,
-      has_waitlist: form.has_waitlist,
-      is_public: form.is_public,
-      is_featured: form.is_featured,
-      show_attendee_list: form.show_attendee_list,
-      show_attendee_count: form.show_attendee_count,
-      allow_interest: form.allow_interest,
-      hold_spot_enabled: form.hold_spot_enabled,
-      reg_open_at: form.reg_open_at ?? null,
-      reg_close_at: form.reg_close_at ?? null,
+      meetingLink: form.locations[0]?.type === 'ONLINE' ? (form.locations[0].meeting_link || null) : null,
+      capacityMax: form.has_capacity ? (form.capacity_max ?? null) : null,
+      hasWaitlist: form.has_waitlist,
+      isPublic: form.is_public,
+      isFeatured: form.is_featured,
+      showAttendeeList: form.show_attendee_list,
+      showAttendeeCount: form.show_attendee_count,
+      allowInterest: form.allow_interest,
+      holdSpotEnabled: form.hold_spot_enabled,
+      regOpenAt: form.reg_open_at ?? null,
+      regCloseAt: form.reg_close_at ?? null,
       // The form is owned by <FormDesigner>, which stamps events.form_id on the
       // draft row the moment it creates the form — so don't write it here or we'd
       // clobber it with a stale value. We only ever CLEAR it: the event stopped
       // collecting a form (they picked RSVP-only after building one).
-      ...(form.use_registration_form ? {} : { form_id: null }),
+      ...(form.use_registration_form ? {} : { formId: null }),
       status: 'DRAFT',
     }
 
     let evtId: string
     if (draftEventId.value) {
-      const { error } = await db.from('events').update(payload).eq('id', draftEventId.value)
-      if (error) throw error
+      await events.update(draftEventId.value, payload)
       evtId = draftEventId.value
     } else {
-      const { data, error } = await db.from('events').insert({ ...payload, org_id: orgId.value, style: 'BASIC', created_via: 'wizard', is_programme: isProgramme }).select('id').single()
-      if (error) throw error
+      const data = await events.create({ ...payload, orgId: orgId.value, style: 'BASIC', createdVia: 'wizard', isProgramme } as any)
       evtId = data.id
     }
 
     if (form.is_paid && form.fees.length) {
-      const feeRows = form.fees.filter(f => f.name.trim()).map(f => ({
-        event_id: evtId,
-        name: f.name.trim(),
-        amount: f.amount ?? 0,
-        xero_code: f.xero_code || null,
-      }))
-      if (feeRows.length) await db.from('fee_components').insert(feeRows)
+      for (const f of form.fees.filter(f => f.name.trim())) {
+        await events.createFeeComponent({
+          eventId: evtId,
+          name: f.name.trim(),
+          amount: f.amount ?? 0,
+          xeroCode: f.xero_code || null,
+        })
+      }
 
       // Discounts — same shape (and modal) the advanced event editor writes.
+      // Persisted via the finances seam (discounts table is finances-owned).
       const discountRows = form.discounts
         .filter(d => d.name.trim())
         .map(d => ({
-          event_id: evtId,
+          eventId: evtId,
           type: 'CODE' as const,
           name: d.name.trim(),
-          form_text: d.form_text?.trim() || null,
-          is_active: d.is_active,
-          modifier_value: d.modifier_value ?? 0,
-          modifier_type: d.modifier_type,
-          apply_to: d.apply_to,
+          formText: d.form_text?.trim() || null,
+          isActive: d.is_active,
+          modifierValue: d.modifier_value ?? 0,
+          modifierType: d.modifier_type,
+          applyTo: d.apply_to,
           conditions: JSON.parse(JSON.stringify(d.conditions.filter(c => c.key))),
-          expires_at: d.expires_type === 'custom' && d.expires_at ? toIsoDate(d.expires_at) : null,
+          expiresAt: d.expires_type === 'custom' && d.expires_at ? toIsoDate(d.expires_at) : null,
         }))
-      if (discountRows.length) await db.from('discounts').insert(discountRows)
+      for (const dr of discountRows) await financesApi.createDiscount(dr as any)
     }
 
     // Sync venue bookings — create EVENT_DRIVEN booking rows so the event
@@ -1452,20 +1458,21 @@ async function saveEvent() {
     const bookableIds: string[] = (form.locations ?? [])
       .filter((l: any) => l.type === 'BOOKABLE')
       .flatMap((l: any) => l.bookable_ids ?? [])
-    if (bookableIds.length && payload.start_at && payload.end_at) {
-      // Replace any existing event-driven bookings for this event
+    if (bookableIds.length && payload.startAt && payload.endAt) {
+      // CROSS-DOMAIN GAP: no seam method to delete event-driven bookings by event —
+      // clear any existing ones directly so a re-save doesn't duplicate them.
       await db.from('bookings').delete().eq('event_id', evtId).eq('type', 'EVENT_DRIVEN')
-      await db.from('bookings').insert(
+      await bookingsApi.createBookings(
         bookableIds.map(bid => ({
-          bookable_id: bid,
-          event_id: evtId,
+          bookableId: bid,
+          eventId: evtId,
           type: 'EVENT_DRIVEN',
           status: 'CONFIRMED',
-          start_at: payload.start_at,
-          end_at: payload.end_at,
+          startAt: payload.startAt,
+          endAt: payload.endAt,
           purpose: payload.title,
-          is_all_day: payload.is_all_day,
-        })),
+          isAllDay: payload.isAllDay,
+        })) as any,
       )
     }
 
@@ -1483,20 +1490,21 @@ async function saveEvent() {
 }
 
 onMounted(async () => {
-  ;(db.from as any)('organisations').select('currency').eq('id', orgId.value).single()
-    .then(({ data }: any) => { orgCurrency.value = data?.currency || 'NZD' })
+  financesApi.orgCurrency(orgId.value)
+    .then((c: string) => { orgCurrency.value = c || 'NZD' })
+    .catch(() => {})
 
   narrow.value = window.innerWidth < 768
   const onResize = () => { narrow.value = window.innerWidth < 768 }
   window.addEventListener('resize', onResize)
   onUnmounted(() => window.removeEventListener('resize', onResize))
 
-  const [{ data: catData }, { data: bookableData }] = await Promise.all([
-    db.from('categories').select('id, name, color').eq('org_id', orgId.value).order('name'),
-    db.from('bookables').select('id, name, parent_id').eq('org_id', orgId.value).order('name'),
+  const [catData, bookableData] = await Promise.all([
+    events.categories(orgId.value),
+    bookingsApi.bookables(orgId.value),
   ])
-  categories.value = catData ?? []
-  allBookables.value = bookableData ?? []
+  categories.value = catData.map(c => ({ id: c.id, name: c.name, color: c.color }))
+  allBookables.value = (bookableData ?? []).map((b: any) => ({ id: b.id, name: b.name, parent_id: b.parentId ?? null }))
   for (const b of allBookables.value) availabilityMap[b.id] = 'available'
 
   // Resume an unfinished draft if there is one, rather than stranding it and
@@ -1505,14 +1513,14 @@ onMounted(async () => {
   if (await resumeDraft()) return
 
   // Create a draft event so EventInviteeManager has an ID to work with
-  const { data } = await db.from('events').insert({
-    org_id: orgId.value,
+  const data = await events.create({
+    orgId: orgId.value,
     title: form.title || '(draft)',
     style: 'BASIC',
     status: 'DRAFT',
-    created_via: 'wizard',      // reopening a wizard draft returns to the wizard
-    is_programme: isProgramme,  // created from /programme → it's a programme
-  }).select('id').single()
+    createdVia: 'wizard',      // reopening a wizard draft returns to the wizard
+    isProgramme,               // created from /programme → it's a programme
+  })
   if (data) {
     draftEventId.value = data.id
     rememberDraft()
@@ -1545,20 +1553,15 @@ async function deleteEvent() {
   if (!id) { navigateTo('/events'); return }
   deleting.value = true
   try {
-    // Clear the rows that hang off the event first — anything the wizard may
-    // already have written (invitees, disciplines, the venue bookings it syncs).
-    for (const table of ['invitees', 'event_disciplines', 'fee_components', 'discounts', 'sessions', 'bookings']) {
-      await (db.from as any)(table).delete().eq('event_id', id)
-    }
-    const { error } = await (db.from as any)('events').delete().eq('id', id)
-    if (error) {
-      toast.add({ severity: 'error', summary: 'Could not delete', detail: error.message, life: 4000 })
-      return
-    }
+    // Deleting the event cascades to its child rows (invitees, disciplines, fees,
+    // discounts, sessions, bookings) via ON DELETE CASCADE FKs in the schema.
+    await events.remove(id)
     forgetDraft()
     confirmDeleteOpen.value = false
     toast.add({ severity: 'success', summary: 'Event deleted', life: 2500 })
     navigateTo('/events')
+  } catch (err: any) {
+    toast.add({ severity: 'error', summary: 'Could not delete', detail: err?.message, life: 4000 })
   } finally {
     deleting.value = false
   }
@@ -1589,8 +1592,24 @@ async function resumeDraft(): Promise<boolean> {
   }
   if (!stored?.eventId) return false
 
-  const { data: evt } = await (db.from as any)('events')
-    .select('*').eq('id', stored.eventId).eq('org_id', orgId.value).maybeSingle()
+  const ev = await events.get(stored.eventId).catch(() => null)
+  // Map the seam's camelCase back to the snake_case shape this function reads.
+  const evt = ev && ev.orgId === orgId.value ? {
+    ...ev,
+    banner_url: ev.bannerUrl,
+    category_id: ev.categoryId,
+    secondary_category_id: ev.secondaryCategoryId,
+    age_min: ev.ageMin,
+    age_max: ev.ageMax,
+    start_at: ev.startAt,
+    end_at: ev.endAt,
+    is_all_day: ev.isAllDay,
+    capacity_max: ev.capacityMax,
+    reg_open_at: ev.regOpenAt,
+    reg_close_at: ev.regCloseAt,
+    is_public: ev.isPublic,
+    form_id: ev.formId,
+  } : null
 
   if (!evt) { forgetDraft(); return false }
   // An explicit ?draft=<id> opens that event whatever its status — full mode is

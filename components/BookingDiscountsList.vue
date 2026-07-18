@@ -218,7 +218,8 @@
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
 
-const db = useDb()
+const db = useDb() // retained only for the cross-domain member_groups read below
+const api = useBookingsApi()
 const toast = useToast()
 const { orgId } = useOrg()
 
@@ -501,31 +502,23 @@ async function saveDraft() {
       is_active: draft.is_active,
     }
 
-    let discountId: string
-    if (editingIdx.value !== null) {
-      const existing = discounts.value[editingIdx.value]
-      discountId = existing.id
-      const { error } = await (db.from as any)('booking_discounts').update(payload).eq('id', discountId)
-      if (error) throw error
-      await (db.from as any)('booking_discount_activities').delete().eq('discount_id', discountId)
-      await (db.from as any)('booking_discount_activity_modes').delete().eq('discount_id', discountId)
-    } else {
-      const { data, error } = await (db.from as any)('booking_discounts').insert(payload).select('id').single()
-      if (error) throw error
-      discountId = data.id
-    }
-
-    if (draft.activity_ids.length) {
-      const rows = draft.activity_ids.map(activity_id => ({ discount_id: discountId, activity_id }))
-      const { error } = await (db.from as any)('booking_discount_activities').insert(rows)
-      if (error) throw error
-    }
-
-    if (draft.mode_ids.length) {
-      const rows = draft.mode_ids.map(activity_mode_id => ({ discount_id: discountId, activity_mode_id }))
-      const { error } = await (db.from as any)('booking_discount_activity_modes').insert(rows)
-      if (error) throw error
-    }
+    // One seam call upserts the discount AND replaces its activity/mode scope.
+    await api.saveBookingDiscount({
+      id: editingIdx.value !== null ? discounts.value[editingIdx.value].id : undefined,
+      orgId: orgId.value!,
+      name: payload.name,
+      formText: payload.form_text,
+      modifierType: payload.modifier_type,
+      modifierValue: payload.modifier_value,
+      applyTo: payload.apply_to,
+      conditions: payload.conditions,
+      validFrom: payload.valid_from,
+      validUntil: payload.valid_until,
+      maxUses: payload.max_uses,
+      isActive: payload.is_active,
+      activityIds: draft.activity_ids,
+      modeIds: draft.mode_ids,
+    })
 
     toast.add({ severity: 'success', summary: editingIdx.value !== null ? 'Discount updated' : 'Discount created', life: 2500 })
     showDialog.value = false
@@ -539,19 +532,27 @@ async function saveDraft() {
 }
 
 async function toggleActive(d: Discount) {
-  const { error } = await (db.from as any)('booking_discounts').update({ is_active: d.is_active }).eq('id', d.id)
-  if (error) {
+  // No dedicated PATCH — re-save the whole discount (scope included) with the flip.
+  try {
+    await api.saveBookingDiscount({
+      id: d.id, orgId: orgId.value!, name: d.name, formText: d.form_text,
+      modifierType: d.modifier_type, modifierValue: d.modifier_value, applyTo: d.apply_to,
+      conditions: d.conditions, validFrom: d.valid_from, validUntil: d.valid_until,
+      maxUses: d.max_uses, isActive: d.is_active, activityIds: d.activity_ids, modeIds: d.mode_ids,
+    })
+  } catch (e: any) {
     d.is_active = !d.is_active
-    toast.add({ severity: 'error', summary: 'Could not update', detail: error.message, life: 3000 })
+    toast.add({ severity: 'error', summary: 'Could not update', detail: e?.message, life: 3000 })
   }
 }
 
 async function deleteDiscount(idx: number) {
   const d = discounts.value[idx]
   if (!confirm(`Delete discount "${d.name}"?`)) return
-  const { error } = await (db.from as any)('booking_discounts').delete().eq('id', d.id)
-  if (error) {
-    toast.add({ severity: 'error', summary: 'Could not delete', detail: error.message, life: 3000 })
+  try {
+    await api.removeBookingDiscount(d.id)
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not delete', detail: e?.message, life: 3000 })
     return
   }
   discounts.value.splice(idx, 1)
@@ -559,39 +560,37 @@ async function deleteDiscount(idx: number) {
 
 async function load() {
   loading.value = true
-  const [discRes, actRes, modeRes, grpRes] = await Promise.all([
-    (db.from as any)('booking_discounts').select('*').eq('org_id', orgId.value).order('created_at', { ascending: false }),
-    (db.from as any)('activities').select('id, name').eq('org_id', orgId.value).order('name'),
-    (db.from as any)('activity_modes').select('id, name, activity_id, activities!inner(name, org_id)').eq('activities.org_id', orgId.value).order('name'),
+  // Discounts (scope folded in) + activities come from the bookings seam. Modes are
+  // fetched per-activity then flattened (the seam reads modes by activity), carrying
+  // each mode's activity name for the picker. member_groups is cross-domain.
+  const [discRows, acts, grpRes] = await Promise.all([
+    api.bookingDiscounts(orgId.value!),
+    api.activities(orgId.value!),
+    // TODO cross-domain: member_groups still via useDb (owned by groups)
     (db.from as any)('member_groups').select('id, name').eq('org_id', orgId.value).order('name'),
   ])
-  // The discount join tables have no org_id — scope them to THIS org's discounts
-  // so we don't pull every org's join rows into the client.
-  const discountIds = (discRes.data ?? []).map((d: any) => d.id)
-  const [actLinkRes, modeLinkRes] = discountIds.length
-    ? await Promise.all([
-        (db.from as any)('booking_discount_activities').select('discount_id, activity_id').in('discount_id', discountIds),
-        (db.from as any)('booking_discount_activity_modes').select('discount_id, activity_mode_id').in('discount_id', discountIds),
-      ])
-    : [{ data: [] }, { data: [] }]
-  activities.value = actRes.data ?? []
-  modes.value = (modeRes.data ?? []).map((m: any) => ({
-    id: m.id, name: m.name, activity_id: m.activity_id, activity_name: m.activities?.name ?? '',
-  }))
+  activities.value = acts.map(a => ({ id: a.id, name: a.name }))
+  const modeLists = await Promise.all(acts.map(a => api.activityModes(a.id)))
+  modes.value = acts.flatMap((a, i) => modeLists[i].map(m => ({
+    id: m.id, name: m.name, activity_id: m.activityId, activity_name: a.name,
+  })))
   memberGroups.value = grpRes.data ?? []
-  const actsByDiscount: Record<string, string[]> = {}
-  for (const link of (actLinkRes.data ?? [])) {
-    (actsByDiscount[link.discount_id] ??= []).push(link.activity_id)
-  }
-  const modesByDiscount: Record<string, string[]> = {}
-  for (const link of (modeLinkRes.data ?? [])) {
-    (modesByDiscount[link.discount_id] ??= []).push(link.activity_mode_id)
-  }
-  discounts.value = (discRes.data ?? []).map((d: any) => ({
-    ...d,
-    activity_ids: actsByDiscount[d.id] ?? [],
-    mode_ids: modesByDiscount[d.id] ?? [],
-    conditions: d.conditions ?? [],
+  discounts.value = discRows.map((d): Discount => ({
+    id: d.id,
+    org_id: d.orgId,
+    name: d.name,
+    form_text: d.formText,
+    modifier_type: d.modifierType as Discount['modifier_type'],
+    modifier_value: Number(d.modifierValue),
+    apply_to: d.applyTo as Discount['apply_to'],
+    conditions: (d.conditions ?? []) as any,
+    valid_from: d.validFrom,
+    valid_until: d.validUntil,
+    max_uses: d.maxUses,
+    uses_count: d.usesCount,
+    is_active: d.isActive,
+    activity_ids: d.activityIds ?? [],
+    mode_ids: d.modeIds ?? [],
   }))
   loading.value = false
 }

@@ -529,11 +529,13 @@ const emit = defineEmits<{
   'navigate-tab': [tab: string]
 }>()
 
-const db = useDb()
+const db = useDb() // retained for cross-domain (organisations) + seam-gap (bookable_modes write, activity_bookables by-bookable) reads/writes
+const api = useBookingsApi()
 
 const orgCurrency = ref('NZD')
 onMounted(() => {
   if (!orgId.value) return
+  // TODO cross-domain: organisations still via useDb (owned by admin)
   ;(db.from as any)('organisations').select('currency').eq('id', orgId.value).single()
     .then(({ data }: any) => { orgCurrency.value = data?.currency || 'NZD' })
 })
@@ -629,20 +631,20 @@ async function loadModes() {
   if (!props.bookable?.id) return
   loadingModes.value = true
   try {
-    const { data } = await (db.from as any)('bookable_modes')
-      .select('*').eq('bookable_id', props.bookable.id).order('sort_order')
+    const data = await api.bookableModes(props.bookable.id)
+    // Seam returns camelCase BookableMode; map into the local VenueMode (snake_case) shape.
     modes.value = (data ?? []).map((m: any) => ({
       _key: m.id,
       id: m.id,
       name: m.name,
       description: m.description ?? '',
       color: m.color ?? '#6366F1',
-      min_players: m.min_players ?? null,
-      max_players: m.max_players ?? null,
-      price_per_hour: m.price_per_hour ?? null,
-      price_per_slot: m.price_per_slot ?? null,
-      flat_fee: m.flat_fee ?? null,
-      price_per_person: m.price_per_person ?? null,
+      min_players: m.minPlayers ?? null,
+      max_players: m.maxPlayers ?? null,
+      price_per_hour: m.pricePerHour ?? null,
+      price_per_slot: m.pricePerSlot ?? null,
+      flat_fee: m.flatFee ?? null,
+      price_per_person: m.pricePerPerson ?? null,
     }))
   } finally {
     loadingModes.value = false
@@ -653,6 +655,7 @@ async function saveModes() {
   if (!props.bookable?.id) return
   savingModes.value = true
   try {
+    // TODO seam-gap: bookable_modes has no seam write (only a read). Still via useDb.
     await (db.from as any)('bookable_modes').delete().eq('bookable_id', props.bookable.id)
     const rows = modes.value.filter(m => m.name.trim()).map((m, i) => ({
       bookable_id: props.bookable!.id,
@@ -796,16 +799,21 @@ const linkedActivities = computed(() => allActivities.value.filter(a => linkedAc
 
 async function loadActivities() {
   if (!props.bookable?.id) return
-  const [{ data: acts }, { data: links }] = await Promise.all([
-    (db.from as any)('activities').select('id, name, color').eq('org_id', orgId.value).eq('status', 'ACTIVE').order('name'),
+  // TODO seam-gap: activity_bookables by-bookable read (seam only offers by-activity). Still via useDb.
+  const [acts, { data: links }] = await Promise.all([
+    api.activities(orgId.value),
     (db.from as any)('activity_bookables').select('activity_id').eq('bookable_id', props.bookable.id),
   ])
-  allActivities.value = acts ?? []
+  // Seam returns all activities (camelCase id/name/color = same keys); keep only ACTIVE, name-ordered.
+  allActivities.value = (acts ?? [])
+    .filter((a: any) => a.status === 'ACTIVE')
+    .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''))
   linkedActivityIds.value = (links ?? []).map((l: any) => l.activity_id)
 }
 
 async function saveActivityLinks() {
   if (!props.bookable?.id) return
+  // TODO seam-gap: activity_bookables by-bookable write (seam only offers setActivityBookables by-activity, which would clobber other bookables). Still via useDb.
   await (db.from as any)('activity_bookables').delete().eq('bookable_id', props.bookable.id)
   if (linkedActivityIds.value.length) {
     await (db.from as any)('activity_bookables').insert(
@@ -861,49 +869,43 @@ async function save() {
   if (newSport.value.trim()) addSport()
   if (newFeature.value.trim()) addFeature()
   saving.value = true
-  const payload = {
-    org_id: orgId.value,
+  // Seam takes camelCase domain objects.
+  const payload: any = {
+    orgId: orgId.value,
     name: form.name.trim(),
-    internal_name: form.internal_name.trim() || null,
+    internalName: form.internal_name.trim() || null,
     description: form.description.trim() || null,
     location: form.location.trim() || null,
     sports: form.sports,
     features: form.features,
     sections: form.sections.length ? form.sections : null,
-    space_type: form.space_type,
-    max_concurrent: form.max_concurrent ?? 1,
+    spaceType: form.space_type,
+    maxConcurrent: form.max_concurrent ?? 1,
     rules: form.rules.trim() || null,
-    booking_limit_type: form.booking_limit_type,
-    booking_limit_count: form.booking_limit_type !== 'none' ? form.booking_limit_count : null,
-    disallow_concurrent: form.disallow_concurrent,
-    disallow_consecutive: form.disallow_consecutive,
-    allow_modes_with_others: form.allow_modes_with_others,
+    bookingLimitType: form.booking_limit_type,
+    bookingLimitCount: form.booking_limit_type !== 'none' ? form.booking_limit_count : null,
+    disallowConcurrent: form.disallow_concurrent,
+    disallowConsecutive: form.disallow_consecutive,
+    allowModesWithOthers: form.allow_modes_with_others,
     status: form.status,
-    is_public: form.is_public,
-    show_in_menu: form.show_in_menu,
-    show_location: form.show_location,
-    default_booking_view: form.default_booking_view,
-    allow_sub_venues: form.allow_sub_venues,
-    auto_resolve_children: form.auto_resolve_children,
-    master_id: form.master_id || null,
+    isPublic: form.is_public,
+    showInMenu: form.show_in_menu,
+    showLocation: form.show_location,
+    defaultBookingView: form.default_booking_view,
+    allowSubVenues: form.allow_sub_venues,
+    autoResolveChildren: form.auto_resolve_children,
+    masterId: form.master_id || null,
     images: form.images,
-    main_image: form.main_image,
-    sponsor_image: form.sponsor_image,
+    mainImage: form.main_image,
+    sponsorImage: form.sponsor_image,
     type: props.bookable?.type ?? 'VENUE',
-    parent_id: props.parentId ?? props.bookable?.parent_id ?? null,
+    parentId: props.parentId ?? props.bookable?.parent_id ?? null,
   }
-  console.log('[save] sending sections:', JSON.stringify(payload.sections))
   try {
-    if (props.bookable?.id) {
-      const { data, error } = await db.from('bookables').update(payload).eq('id', props.bookable.id).select().single()
-      if (error) throw error
-      console.log('[save] returned sections:', JSON.stringify((data as any)?.sections))
-      emit('saved', data)
-    } else {
-      const { data, error } = await db.from('bookables').insert(payload).select().single()
-      if (error) throw error
-      emit('saved', data)
-    }
+    const data = props.bookable?.id
+      ? await api.updateBookable(props.bookable.id, payload)
+      : await api.createBookable(payload)
+    emit('saved', data)
   } catch (err: any) {
     console.error('Save failed:', err)
     alert('Save failed: ' + (err?.message ?? err))

@@ -181,8 +181,33 @@ const props = withDefaults(defineProps<{
   showInvite?: boolean
 }>(), { showInvite: true })
 
-const db = useDb()
+const eventsApi = useEventsApi()
+const peopleApi = usePeopleApi()
+const groupsApi = useGroupsApi()
 const toast = useToast()
+
+// Invitees carry only a personId over the seam; names/emails come from the people
+// directory, loaded once and joined client-side (the old query joined persons inline).
+const personById = ref<Map<string, any>>(new Map())
+async function loadPeople() {
+  const people = await peopleApi.list(orgId.value)
+  personById.value = new Map(people.map(p => [p.id, p]))
+}
+// Map a seam Invitee (camelCase, no person join) back to the snake_case shape the
+// template reads, attaching the joined person.
+function toInviteeRow(inv: any) {
+  const p = inv.personId ? personById.value.get(inv.personId) : null
+  return {
+    id: inv.id,
+    person_id: inv.personId,
+    status: inv.status,
+    roles: inv.roles ?? [],
+    role: inv.roles?.[0] ?? null,
+    attended: inv.attended,
+    responded_at: inv.respondedAt,
+    person: p ? { id: p.id, first_name: p.firstName, last_name: p.lastName, email: p.email } : null,
+  }
+}
 
 // Scoped per-event roles. A person can be an Attendee / Coach / Manager of an event.
 const scoped = useScopedRoles()
@@ -202,17 +227,13 @@ const inviteesLoading = ref(false)
 
 async function loadInvitees() {
   inviteesLoading.value = true
-  const { data } = await db
-    .from('invitees')
-    .select('*, person:persons(id, first_name, last_name, email)')
-    .eq('event_id', props.eventId)
-    .order('invited_at')
-  invitees.value = data ?? []
+  const rows = await eventsApi.invitees(props.eventId)
+  invitees.value = rows.map(toInviteeRow)
   inviteesLoading.value = false
 }
 
 async function removeInvitee(inviteeId: string) {
-  await db.from('invitees').delete().eq('id', inviteeId)
+  await eventsApi.removeInvitee(inviteeId)
   toast.add({ severity: 'success', summary: 'Invitee removed', life: 3000 })
   loadInvitees()
 }
@@ -224,27 +245,34 @@ function isAlreadyInvited(personId: string) {
 async function addIndividual(person: any) {
   if (isAlreadyInvited(person.id)) return
   addingPersonId.value = person.id
-  const { error } = await db.from('invitees').insert({ event_id: props.eventId, person_id: person.id, status: 'INVITED', role: 'attendee', roles: ['attendee'] } as any)
-  if (error) {
-    toast.add({ severity: 'error', summary: 'Error', detail: error.message, life: 4000 })
-  } else {
+  try {
+    await eventsApi.addInvitee(props.eventId, { personId: person.id, status: 'INVITED', role: 'attendee', roles: ['attendee'] })
+    // Keep the just-added person available for the name-join before reload.
+    if (person.id && !personById.value.has(person.id)) {
+      personById.value.set(person.id, { id: person.id, firstName: person.first_name, lastName: person.last_name, email: person.email ?? null })
+    }
     await loadInvitees()
     toast.add({ severity: 'success', summary: `${person.first_name} ${person.last_name} added`, life: 3000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e?.data?.message ?? e?.message, life: 4000 })
   }
   addingPersonId.value = null
 }
 
-// "Add all N" from the filter results — one insert, not N round-trips. Anyone
-// already invited is skipped rather than erroring on the unique constraint.
+// "Add all N" from the filter results. Anyone already invited is skipped (the old
+// upsert ignored duplicates; here we filter first, then add each fresh one).
 async function addManyIndividuals(people: any[]) {
   const fresh = people.filter(p => !isAlreadyInvited(p.id))
   if (!fresh.length) return
-  const { error } = await (db.from as any)('invitees').upsert(
-    fresh.map(p => ({ event_id: props.eventId, person_id: p.id, status: 'INVITED', role: 'attendee', roles: ['attendee'] })),
-    { onConflict: 'event_id,person_id', ignoreDuplicates: true },
-  )
-  if (error) {
-    toast.add({ severity: 'error', summary: 'Error', detail: error.message, life: 4000 })
+  try {
+    for (const p of fresh) {
+      await eventsApi.addInvitee(props.eventId, { personId: p.id, status: 'INVITED', role: 'attendee', roles: ['attendee'] })
+      if (p.id && !personById.value.has(p.id)) {
+        personById.value.set(p.id, { id: p.id, firstName: p.first_name, lastName: p.last_name, email: p.email ?? null })
+      }
+    }
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e?.data?.message ?? e?.message, life: 4000 })
     return
   }
   await loadInvitees()
@@ -269,9 +297,8 @@ const showAllInGroup = reactive<Record<string, boolean>>({})
 const GROUP_PREVIEW = 12
 
 async function loadMemberGroups() {
-  const { data } = await (db.from as any)('member_groups')
-    .select('id, name, color').eq('org_id', orgId.value)
-  allMemberGroups.value = data ?? []
+  const groups = await groupsApi.list(orgId.value)
+  allMemberGroups.value = groups.map(g => ({ id: g.id, name: g.name, color: g.color, parent_id: g.parentId }))
 }
 
 // The selector hands back the ids; adding/removing invitees is our job.
@@ -310,7 +337,10 @@ async function addGroupInvitees(groupId: string, who: 'all' | 'members' | 'staff
   // If this group has children, pull memberships from children; otherwise use the group itself
   const groupIds = children.length > 0 ? children.map(g => g.id) : [groupId]
 
-  const { data: allMemberships } = await (db.from as any)('member_group_memberships').select('person_id, roles, role').in('group_id', groupIds)
+  // One memberships read per group (the seam is per-group), flattened + normalised
+  // back to the { person_id, roles, role } shape this function expects.
+  const perGroup = await Promise.all(groupIds.map(gid => groupsApi.memberships(gid)))
+  const allMemberships = perGroup.flat().map((m: any) => ({ person_id: m.personId, roles: m.roles, role: m.role }))
   // The split Add button's facet: everyone, just the members, or just the staff
   // (a coach is a membership whose role is a staff role — useScopedRoles knows).
   const memberships = (allMemberships ?? []).filter((m: any) => {
@@ -337,12 +367,13 @@ async function addGroupInvitees(groupId: string, who: 'all' | 'members' | 'staff
   const existingIds = new Set(invitees.value.map(i => i.person_id))
   const toInsert = personIds
     .filter(pid => !existingIds.has(pid))
-    .map(pid => { const role = eventRoleByPerson[pid] || 'attendee'; return { event_id: props.eventId, person_id: pid, status: 'INVITED', role, roles: [role] } })
+    .map(pid => { const role = eventRoleByPerson[pid] || 'attendee'; return { personId: pid, status: 'INVITED', role, roles: [role] } })
 
   if (toInsert.length) {
-    const { error } = await db.from('invitees').insert(toInsert)
-    if (error) {
-      toast.add({ severity: 'error', summary: 'Error', detail: error.message, life: 4000 })
+    try {
+      for (const inv of toInsert) await eventsApi.addInvitee(props.eventId, inv)
+    } catch (e: any) {
+      toast.add({ severity: 'error', summary: 'Error', detail: e?.data?.message ?? e?.message, life: 4000 })
       addingGroupId.value = null
       return
     }
@@ -365,7 +396,7 @@ async function removeGroup(groupId: string) {
   const personIds = groupMembershipsMap.value[groupId] ?? []
   const toDelete = invitees.value.filter(i => personIds.includes(i.person_id)).map(i => i.id)
   if (toDelete.length) {
-    await db.from('invitees').delete().in('id', toDelete)
+    for (const id of toDelete) await eventsApi.removeInvitee(id)
     await loadInvitees()
   }
   const idx = selectedInviteeGroups.value.indexOf(groupId)
@@ -386,13 +417,14 @@ function toggleBulkSelect(id: string) {
 async function bulkDelete() {
   if (!bulkSelected.value.length) return
   bulkDeleting.value = true
-  const { error } = await db.from('invitees').delete().in('id', bulkSelected.value)
-  if (error) {
-    toast.add({ severity: 'error', summary: 'Error', detail: error.message, life: 4000 })
-  } else {
-    toast.add({ severity: 'success', summary: `${bulkSelected.value.length} invitee${bulkSelected.value.length > 1 ? 's' : ''} removed`, life: 3000 })
+  try {
+    const n = bulkSelected.value.length
+    for (const id of bulkSelected.value) await eventsApi.removeInvitee(id)
+    toast.add({ severity: 'success', summary: `${n} invitee${n > 1 ? 's' : ''} removed`, life: 3000 })
     bulkSelected.value = []
     loadInvitees()
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e?.data?.message ?? e?.message, life: 4000 })
   }
   bulkDeleting.value = false
 }
@@ -474,9 +506,11 @@ const inviteeActionMenuItems = [
 // <PeopleSelector>, where it queries persons and hands back the actual list of
 // matching people to add.
 
-onMounted(() => {
+onMounted(async () => {
   scoped.loadRoleDefs()
   loadMemberGroups()
+  // People power the name-join on each invitee pill — load them before the invitees.
+  await loadPeople()
   loadInvitees()
 })
 </script>

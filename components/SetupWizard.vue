@@ -230,7 +230,7 @@ const emit = defineEmits<{
   (e: 'done', payload: { activityId: string; parentBookableIds: string[] }): void
 }>()
 
-const db = useDb()
+const api = useBookingsApi()
 const { orgId } = useOrg()
 const toast = useToast()
 
@@ -453,40 +453,40 @@ async function create() {
   creating.value = true
   try {
     // 1) Activity row.
-    const { data: act, error: actErr } = await (db.from as any)('activities').insert({
-      org_id: orgId.value,
+    const act = await api.createActivity({
+      orgId: orgId.value,
       name: activityName.value.trim(),
       status: 'ACTIVE',
-      bookings_enabled: true,
-      require_mode: true,
-      area_name_singular: sport.value.noun,
-      area_name_plural: `${sport.value.noun}s`,
+      bookingsEnabled: true,
+      requireMode: true,
+      areaNameSingular: sport.value.noun,
+      areaNamePlural: `${sport.value.noun}s`,
       // Sport-style activities use the single-screen scheduler (grid + side
       // panel) rather than the multi-step wizard — slot picking on a court
       // grid is the natural flow for repeat hireable spaces.
-      booking_flow: 'scheduler',
+      bookingFlow: 'scheduler',
       // Default sessions — fixed slot length + gap. min == max keeps the
       // booker locked to one duration; advanced users can widen the range
       // later in the activity editor.
-      min_duration_mins: slotMins.value,
-      max_duration_mins: slotMins.value,
-      buffer_mins: bufferMins.value,
-    }).select('id').single()
-    if (actErr || !act?.id) throw actErr ?? new Error('Could not create activity')
+      minDurationMins: slotMins.value,
+      maxDurationMins: slotMins.value,
+      bufferMins: bufferMins.value,
+    } as any)
+    if (!act?.id) throw new Error('Could not create activity')
     const activityId = act.id as string
 
     // 2) Top-level facility (grandparent). Owns the courts so the venue
     //    list shows a clean "Tennis Courts › Court 1 › Q1…" tree.
-    const { data: facility, error: fErr } = await (db.from as any)('bookables').insert({
-      org_id: orgId.value,
+    const facility = await api.createBookable({
+      orgId: orgId.value,
       name: venueName.value.trim(),
       type: 'VENUE',
       status: 'ACTIVE',
-      max_concurrent: 1,
-      is_public: true,
-      allow_sub_venues: true,
-    }).select('id').single()
-    if (fErr || !facility?.id) throw fErr ?? new Error('Could not create facility')
+      maxConcurrent: 1,
+      isPublic: true,
+      allowSubVenues: true,
+    } as any)
+    if (!facility?.id) throw new Error('Could not create facility')
     const facilityId = facility.id as string
 
     // 3) Parent court bookables. Court 1 is the master; the rest link via
@@ -499,20 +499,20 @@ async function create() {
     for (let i = 0; i < count.value; i++) {
       const isMaster = i === 0
       const name = count.value === 1 ? baseName.value.trim() : `${baseName.value.trim()} ${i + 1}`
-      const { data, error } = await (db.from as any)('bookables').insert({
-        org_id: orgId.value,
+      const data = await api.createBookable({
+        orgId: orgId.value,
         name,
         type: 'VENUE',
         status: 'ACTIVE',
-        max_concurrent: 1,
-        parent_id: facilityId,
-        is_master: isMaster,
-        master_id: isMaster ? null : parentIds[0],
-        is_public: true,
-        allow_sub_venues: needsSubVenues,
-        auto_resolve_children: needsSubVenues,
-      }).select('id').single()
-      if (error || !data?.id) throw error ?? new Error('Could not create venue')
+        maxConcurrent: 1,
+        parentId: facilityId,
+        isMaster,
+        masterId: isMaster ? null : parentIds[0],
+        isPublic: true,
+        allowSubVenues: needsSubVenues,
+        autoResolveChildren: needsSubVenues,
+      } as any)
+      if (!data?.id) throw new Error('Could not create venue')
       parentIds.push(data.id)
     }
 
@@ -533,18 +533,18 @@ async function create() {
       const masterChildIds: string[] = []
       for (let ci = 0; ci < finest.children.length; ci++) {
         const isMaster = ci === 0
-        const { data, error } = await (db.from as any)('bookables').insert({
-          org_id: orgId.value,
+        const data = await api.createBookable({
+          orgId: orgId.value,
           name: finest.children[ci],
           type: 'VENUE',
           status: 'ACTIVE',
-          max_concurrent: 1,
-          parent_id: parentIds[0],
-          is_master: isMaster,
-          master_id: isMaster ? null : masterChildIds[0],
-          is_public: true,
-        }).select('id').single()
-        if (error || !data?.id) throw error ?? new Error('Could not create sub-venue')
+          maxConcurrent: 1,
+          parentId: parentIds[0],
+          isMaster,
+          masterId: isMaster ? null : masterChildIds[0],
+          isPublic: true,
+        } as any)
+        if (!data?.id) throw new Error('Could not create sub-venue')
         masterChildIds.push(data.id)
       }
 
@@ -560,18 +560,18 @@ async function create() {
       for (let pi = 1; pi < parentIds.length; pi++) {
         const linkedChildIds: string[] = []
         for (let ci = 0; ci < finest.children.length; ci++) {
-          const { data, error } = await (db.from as any)('bookables').insert({
-            org_id: orgId.value,
+          const data = await api.createBookable({
+            orgId: orgId.value,
             name: finest.children[ci],
             type: 'VENUE',
             status: 'ACTIVE',
-            max_concurrent: 1,
-            parent_id: parentIds[pi],
-            is_master: false,
-            master_id: masterChildIds[ci],
-            is_public: true,
-          }).select('id').single()
-          if (error || !data?.id) throw error ?? new Error('Could not create linked sub-venue')
+            maxConcurrent: 1,
+            parentId: parentIds[pi],
+            isMaster: false,
+            masterId: masterChildIds[ci],
+            isPublic: true,
+          } as any)
+          if (!data?.id) throw new Error('Could not create linked sub-venue')
           linkedChildIds.push(data.id)
         }
         for (const div of requiredDivisions.value) {
@@ -588,13 +588,13 @@ async function create() {
     for (const k of pickedModeKeys.value) {
       const m = sport.value.presetModes.find(x => x.key === k)
       if (!m) continue
-      const { data: row, error: mErr } = await (db.from as any)('activity_modes').insert({
-        activity_id: activityId,
+      const row = await api.createActivityMode({
+        activityId,
         name: m.name,
-        configuration_key: m.requires,
-        sort_order: order++,
-      }).select('id, configuration_key').single()
-      if (mErr || !row?.id) throw mErr ?? new Error('Could not create activity mode')
+        configurationKey: m.requires,
+        sortOrder: order++,
+      } as any)
+      if (!row?.id) throw new Error('Could not create activity mode')
       insertedModes.push({ id: row.id, requires: m.requires })
     }
 
@@ -602,9 +602,7 @@ async function create() {
     //    isn't a booking target — it's just for org structure). Children
     //    of each court inherit through configuration pool resolution at
     //    booking time.
-    await (db.from as any)('activity_bookables').insert(
-      parentIds.map(pid => ({ activity_id: activityId, bookable_id: pid })),
-    )
+    await api.setActivityBookables(activityId, parentIds)
 
     // 7a) Default availability rules — one OPEN rule per parent court whose
     //     time_slots[] holds every individual session generated from the
@@ -614,21 +612,22 @@ async function create() {
     //     cleared all days (treat as 24/7 / configure later).
     const sessionSlots = buildSessionSlots()
     if (days.value.length && sessionSlots.length && parentIds.length) {
-      const { error: avErr } = await (db.from as any)('availability_rules').insert(
-        parentIds.map(pid => ({
-          bookable_id: pid,
+      // One OPEN rule per parent court. Each court is freshly created (empty),
+      // so replacing its whole set with [oneRule] is equivalent to a single insert.
+      for (const pid of parentIds) {
+        await api.replaceAvailabilityRules(pid, [{
+          bookableId: pid,
           name: 'Default sessions',
-          rule_type: 'OPEN',
-          days_of_week: days.value,
-          // time_from/time_to mirror the first slot — matches the shape
+          ruleType: 'OPEN',
+          daysOfWeek: days.value,
+          // timeFrom/timeTo mirror the first slot — matches the shape
           // AvailabilityEditor writes, keeps the legacy fallback consistent.
-          time_from: sessionSlots[0].from,
-          time_to: sessionSlots[0].to,
-          time_slots: sessionSlots,
-          is_active: true,
-        })),
-      )
-      if (avErr) throw avErr
+          timeFrom: sessionSlots[0].from,
+          timeTo: sessionSlots[0].to,
+          timeSlots: sessionSlots,
+          isActive: true,
+        }] as any)
+      }
     }
 
     // 7b) Per-mode bookable scope. Every mode is bookable on every parent
@@ -637,14 +636,9 @@ async function create() {
     //    editor's UI shows and avoids surprises if later changes narrow
     //    activity-level scope without touching the modes.
     if (insertedModes.length && parentIds.length) {
-      const scopeRows: any[] = []
       for (const mode of insertedModes) {
-        for (const pid of parentIds) {
-          scopeRows.push({ mode_id: mode.id, bookable_id: pid })
-        }
+        await api.setModeBookables(mode.id, parentIds.map(pid => ({ bookableId: pid })))
       }
-      const { error: scopeErr } = await (db.from as any)('activity_mode_bookables').insert(scopeRows)
-      if (scopeErr) throw scopeErr
     }
 
     toast.add({

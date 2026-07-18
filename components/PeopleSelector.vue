@@ -49,13 +49,29 @@ const emit = defineEmits<{
   (e: 'reveal-person', personId: string): void
 }>()
 
-const db = useDb()
+const peopleApi = usePeopleApi()
+const groupsApi = useGroupsApi()
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 const gc = useGroupCodes()
 
 const isChosen = (id: string) => props.invitedPersonIds.includes(id)
+
+// The seam returns the whole people directory (camelCase); search + filter run
+// client-side over it (per-club counts are bounded). Loaded once, mapped to the
+// snake_case shape the rest of this component reads.
+let allPersonsCache: any[] | null = null
+async function allPersons(): Promise<any[]> {
+  if (!allPersonsCache) {
+    const ppl = await peopleApi.list(orgId.value)
+    allPersonsCache = ppl.map(p => ({
+      id: p.id, first_name: p.firstName, last_name: p.lastName, email: p.email,
+      gender: p.gender, dob: p.dob, membership_type: p.membershipType,
+    }))
+  }
+  return allPersonsCache
+}
 
 // ── ONE search box feeds both halves ──────────────────────────────────────
 // The class tree filters locally; people are fetched. Same query, so you never
@@ -73,30 +89,27 @@ function onSearchInput() {
 
 async function searchPeople() {
   personLoading.value = true
-  const q = search.value.trim()
+  const q = search.value.trim().toLowerCase()
 
   // People type FULL names. Matching the whole string against first_name OR
   // last_name individually finds nobody for "sam ng" — no single column holds it.
   // So a multi-word query also matches first+last as a pair (either way round).
   const parts = q.split(/\s+/).filter(Boolean)
-  const clauses = [
-    `first_name.ilike.%${q}%`,
-    `last_name.ilike.%${q}%`,
-    `email.ilike.%${q}%`,
-  ]
-  if (parts.length > 1) {
-    const [a, b] = [parts[0], parts.slice(1).join(' ')]
-    clauses.push(`and(first_name.ilike.%${a}%,last_name.ilike.%${b}%)`)
-    clauses.push(`and(first_name.ilike.%${b}%,last_name.ilike.%${a}%)`)
+  const people = await allPersons()
+  const match = (p: any) => {
+    const fn = (p.first_name || '').toLowerCase(), ln = (p.last_name || '').toLowerCase(), em = (p.email || '').toLowerCase()
+    if (fn.includes(q) || ln.includes(q) || em.includes(q)) return true
+    if (parts.length > 1) {
+      const a = parts[0], b = parts.slice(1).join(' ')
+      if (fn.includes(a) && ln.includes(b)) return true
+      if (fn.includes(b) && ln.includes(a)) return true
+    }
+    return false
   }
-
-  const { data } = await db.from('persons')
-    .select('id, first_name, last_name, email')
-    .eq('org_id', orgId.value)
-    .or(clauses.join(','))
-    .order('last_name')
-    .limit(20)
-  personResults.value = data ?? []
+  personResults.value = people
+    .filter(match)
+    .sort((a, b) => (a.last_name || '').localeCompare(b.last_name || ''))
+    .slice(0, 20)
   personLoading.value = false
 }
 
@@ -177,30 +190,30 @@ function applyFilter() {
 
 async function runFilter() {
   matching.value = true
-  let q = (db.from as any)('persons')
-    .select('id, first_name, last_name, email, gender, dob, membership_type')
-    .eq('org_id', orgId.value)
+  let people = await allPersons()
 
-  if (filter.genders.length) q = q.in('gender', filter.genders)
-  if (filter.membershipTypes.length) q = q.in('membership_type', filter.membershipTypes)
+  if (filter.genders.length) people = people.filter(p => filter.genders.includes(p.gender))
+  if (filter.membershipTypes.length) people = people.filter(p => filter.membershipTypes.includes(p.membership_type))
 
   const { from, to } = dobRange(filter.ageMin, filter.ageMax)
   // An age filter implies a known birth date — someone with no dob can't be shown
-  // to match "under 12", so they're excluded rather than silently included.
-  if (from) q = q.gte('dob', from)
-  if (to) q = q.lte('dob', to)
+  // to match "under 12", so they're excluded rather than silently included. dob is
+  // compared on its date prefix, so a full ISO timestamp still sorts correctly.
+  if (from) people = people.filter(p => p.dob && (p.dob as string).slice(0, 10) >= from)
+  if (to) people = people.filter(p => p.dob && (p.dob as string).slice(0, 10) <= to)
 
   // "In any of these classes" — resolve to person ids first, then constrain.
   if (filter.groupIds.length) {
-    const { data: mem } = await (db.from as any)('member_group_memberships')
-      .select('person_id').in('group_id', filter.groupIds)
-    const ids = [...new Set((mem ?? []).map((m: any) => m.person_id))]
-    if (!ids.length) { matches.value = []; ran.value = true; matching.value = false; return }
-    q = q.in('id', ids)
+    const per = await Promise.all(filter.groupIds.map(g => groupsApi.memberships(g)))
+    const ids = new Set(per.flat().map((m: any) => m.personId))
+    if (!ids.size) { matches.value = []; ran.value = true; matching.value = false; return }
+    people = people.filter(p => ids.has(p.id))
   }
 
-  const { data } = await q.order('last_name').limit(500)
-  matches.value = data ?? []
+  matches.value = people
+    .slice()
+    .sort((a, b) => (a.last_name || '').localeCompare(b.last_name || ''))
+    .slice(0, 500)
   ran.value = true
   matching.value = false
 }
@@ -237,14 +250,14 @@ const expanded = reactive<Record<string, boolean>>({})
 
 async function loadGroups() {
   groupsLoading.value = true
-  const [codes, { data: groups }] = await Promise.all([
+  const [codes, groups] = await Promise.all([
     gc.loadCodes(),
-    (db.from as any)('member_groups')
-      .select('id, name, color, code_id, sort_order, kind')
-      .eq('org_id', orgId.value).order('sort_order'),
+    groupsApi.list(orgId.value),
   ])
   allCodes.value = codes ?? []
-  allGroups.value = (groups ?? []).filter((g: any) => g.kind !== 'membership')  // memberships aren't classes
+  allGroups.value = groups
+    .filter((g: any) => g.kind !== 'membership')  // memberships aren't classes
+    .map((g: any) => ({ id: g.id, name: g.name, color: g.color, code_id: g.codeId, sort_order: g.sortOrder, kind: g.kind }))
   groupsLoading.value = false
 }
 

@@ -46,8 +46,66 @@ export const FEE_TYPES: { value: FeeType; label: string; hint: string }[] = [
 ]
 
 export function useGroupFees() {
-  const db = useDb()
   const { orgId } = useOrg()
+  const api = useGroupsApi()
+
+  // ── seam mappers (camelCase contract ↔ this composable's snake_case shape) ──
+  function toSnake(o: any): GroupFeeOption {
+    return {
+      id: o.id,
+      org_id: o.orgId,
+      group_id: o.groupId,
+      name: o.name,
+      fee_type: o.feeType,
+      period_unit: o.periodUnit ?? null,
+      period_count: o.periodCount ?? 1,
+      auto_renew: !!o.autoRenew,
+      instalment_count: o.instalmentCount ?? null,
+      session_count: o.sessionCount ?? null,
+      prorata: !!o.prorata,
+      due_date: o.dueDate ?? null,
+      deposit_percent: o.depositPercent != null ? Number(o.depositPercent) : null,
+      description: o.description ?? null,
+      sort_order: o.sortOrder ?? 0,
+      status: o.status ?? 'active',
+      items: (o.items || []).map((it: any) => ({
+        id: it.id,
+        option_id: it.optionId,
+        name: it.name,
+        amount: Number(it.amount) || 0,
+        account: it.account ?? null,
+        sort_order: it.sortOrder ?? 0,
+      })),
+    }
+  }
+
+  // Normalise the type-specific columns for one option (which cols apply per fee_type)
+  // + shape it for the seam (camelCase). Mirrors the legacy optionCols/optionItemRows.
+  function toSeamOption(o: GroupFeeOption) {
+    const recurring = o.fee_type === 'recurring'
+    return {
+      name: o.name?.trim() || feeTypeLabel(o.fee_type),
+      feeType: o.fee_type,
+      periodUnit: recurring ? (o.period_unit || 'month') : null,
+      periodCount: recurring ? (o.period_count || 1) : 1,
+      autoRenew: recurring ? !!o.auto_renew : false,
+      instalmentCount: o.fee_type === 'instalment' ? (o.instalment_count || 1) : null,
+      sessionCount: (o.fee_type === 'concession' || o.fee_type === 'per_session') ? (o.session_count ?? null) : null,
+      prorata: o.fee_type === 'upfront' ? !!o.prorata : false,
+      dueDate: o.due_date || null,
+      depositPercent: (o.deposit_percent === 0 || o.deposit_percent) ? o.deposit_percent : null,
+      description: o.description || null,
+      status: o.status || 'active',
+      items: (o.items || [])
+        .filter((i) => (i.name && i.name.trim()) || Number(i.amount))
+        .map((i, idx) => ({
+          name: i.name?.trim() || null,
+          amount: Number(i.amount) || 0,
+          account: i.account || null,
+          sortOrder: idx,
+        })),
+    }
+  }
 
   function fmtMoney(v: number, currency = 'NZD'): string {
     try { return new Intl.NumberFormat('en-NZ', { style: 'currency', currency }).format(Number(v || 0)) }
@@ -84,104 +142,21 @@ export function useGroupFees() {
   }
 
   async function loadFeeOptions(groupId: string): Promise<GroupFeeOption[]> {
-    const { data: opts } = await (db.from as any)('group_fee_options')
-      .select('*')
-      .eq('group_id', groupId)
-      .order('sort_order', { ascending: true, nullsFirst: false })
-      .order('created_at')
-    const list = (opts || []) as GroupFeeOption[]
-    if (!list.length) return []
-    const { data: items } = await (db.from as any)('group_fee_option_items')
-      .select('*')
-      .in('option_id', list.map(o => o.id))
-      .order('sort_order', { ascending: true, nullsFirst: false })
-    const byOpt: Record<string, FeeLineItem[]> = {}
-    for (const it of (items || []) as FeeLineItem[]) (byOpt[it.option_id!] ||= []).push(it)
-    return list.map(o => ({ ...o, items: byOpt[o.id] || [] }))
+    const opts = await api.feeOptions(groupId)
+    return opts.map(toSnake)
   }
 
-  // Save the whole set for a group (delete-then-insert, mirrors the other editors).
+  // Save the whole set for a group (delete-then-insert, in the seam).
   async function saveFeeOptions(groupId: string, options: GroupFeeOption[]): Promise<void> {
-    // wipe existing (cascades items) then reinsert
-    await (db.from as any)('group_fee_options').delete().eq('group_id', groupId)
-    let sort = 0
-    for (const o of options) {
-      const { data: created } = await (db.from as any)('group_fee_options').insert({
-        org_id: orgId.value,
-        group_id: groupId,
-        name: o.name?.trim() || feeTypeLabel(o.fee_type),
-        fee_type: o.fee_type,
-        period_unit: o.fee_type === 'recurring' ? (o.period_unit || 'month') : null,
-        period_count: o.fee_type === 'recurring' ? (o.period_count || 1) : 1,
-        auto_renew: o.fee_type === 'recurring' ? !!o.auto_renew : false,
-        instalment_count: o.fee_type === 'instalment' ? (o.instalment_count || 1) : null,
-        session_count: (o.fee_type === 'concession' || o.fee_type === 'per_session') ? (o.session_count ?? null) : null,
-        prorata: o.fee_type === 'upfront' ? !!o.prorata : false,
-        due_date: o.due_date || null,
-        deposit_percent: (o.deposit_percent === 0 || o.deposit_percent) ? o.deposit_percent : null,
-        description: o.description || null,
-        sort_order: sort++,
-        status: o.status || 'active',
-      }).select('id').single()
-      const newId = created.id
-      const items = (o.items || []).filter(i => (i.name && i.name.trim()) || Number(i.amount))
-      if (items.length) {
-        await (db.from as any)('group_fee_option_items').insert(items.map((i, idx) => ({
-          option_id: newId,
-          name: i.name?.trim() || null,
-          amount: Number(i.amount) || 0,
-          account: i.account || null,
-          sort_order: idx,
-        })))
-      }
-    }
-  }
-
-  // Normalise the type-specific columns for one option (shared by save paths).
-  function optionCols(o: GroupFeeOption, groupId: string, sortOrder: number) {
-    return {
-      org_id: orgId.value,
-      group_id: groupId,
-      name: o.name?.trim() || feeTypeLabel(o.fee_type),
-      fee_type: o.fee_type,
-      period_unit: o.fee_type === 'recurring' ? (o.period_unit || 'month') : null,
-      period_count: o.fee_type === 'recurring' ? (o.period_count || 1) : 1,
-      auto_renew: o.fee_type === 'recurring' ? !!o.auto_renew : false,
-      instalment_count: o.fee_type === 'instalment' ? (o.instalment_count || 1) : null,
-      session_count: (o.fee_type === 'concession' || o.fee_type === 'per_session') ? (o.session_count ?? null) : null,
-      prorata: o.fee_type === 'upfront' ? !!o.prorata : false,
-      due_date: o.due_date || null,
-      deposit_percent: (o.deposit_percent === 0 || o.deposit_percent) ? o.deposit_percent : null,
-      description: o.description || null,
-      sort_order: sortOrder,
-      status: o.status || 'active',
-    }
-  }
-
-  function optionItemRows(o: GroupFeeOption, optionId: string) {
-    return (o.items || [])
-      .filter(i => (i.name && i.name.trim()) || Number(i.amount))
-      .map((i, idx) => ({ option_id: optionId, name: i.name?.trim() || null, amount: Number(i.amount) || 0, account: i.account || null, sort_order: idx }))
+    await api.saveFeeOptions(groupId, orgId.value, options.map(toSeamOption))
   }
 
   // APPEND one fee option to several groups at once (bulk add — doesn't touch
   // a group's existing options). Returns how many groups it was added to.
   async function addFeeOptionToGroups(groupIds: string[], option: GroupFeeOption): Promise<number> {
     if (!groupIds.length) return 0
-    // next sort_order per group = current count, so the option appends
-    const { data: existing } = await (db.from as any)('group_fee_options')
-      .select('group_id').in('group_id', groupIds)
-    const countBy: Record<string, number> = {}
-    for (const r of (existing || [])) countBy[r.group_id] = (countBy[r.group_id] || 0) + 1
-    let added = 0
-    for (const gid of groupIds) {
-      const { data: created } = await (db.from as any)('group_fee_options')
-        .insert(optionCols(option, gid, countBy[gid] || 0)).select('id').single()
-      const items = optionItemRows(option, created.id)
-      if (items.length) await (db.from as any)('group_fee_option_items').insert(items)
-      added++
-    }
-    return added
+    await api.addFeeOptionToGroups(orgId.value, groupIds, toSeamOption(option))
+    return groupIds.length
   }
 
   return { FEE_TYPES, fmtMoney, feeTypeLabel, optionTotal, priceLabel, loadFeeOptions, saveFeeOptions, addFeeOptionToGroups }

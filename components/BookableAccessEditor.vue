@@ -146,7 +146,7 @@
 const props = defineProps<{ bookableId: string }>()
 
 const { orgId } = useOrg()
-const db = useDb()
+const api = useBookingsApi()
 
 const doors = ref<any[]>([])
 const zones = ref<any[]>([])
@@ -174,37 +174,30 @@ const deliveryOptions = [
 
 async function loadAll() {
   if (!orgId.value || !props.bookableId) return
-  const [
-    { data: bookable },
-    { data: dRows },
-    { data: zRows },
-    { data: bdRows },
-    { data: blRows },
-  ] = await Promise.all([
-    (db.from as any)('bookables')
-      .select('access_enabled, access_code_delivery, access_code_length, access_unlock_before_mins, access_unlock_after_mins, lighting_ramp_up_mins, lighting_ramp_down_mins, lighting_level_percent')
-      .eq('id', props.bookableId).maybeSingle(),
-    (db.from as any)('doors').select('id, name').eq('org_id', orgId.value).eq('is_active', true).order('name'),
-    (db.from as any)('light_zones').select('id, name').eq('org_id', orgId.value).eq('is_active', true).order('name'),
-    (db.from as any)('bookable_doors').select('door_id').eq('bookable_id', props.bookableId),
-    (db.from as any)('bookable_light_zones').select('zone_id').eq('bookable_id', props.bookableId),
+  const [bookable, dRows, zRows, bdIds, blIds] = await Promise.all([
+    api.bookable(props.bookableId),
+    api.doors(orgId.value),
+    api.lightZones(orgId.value),
+    api.bookableDoors(props.bookableId),
+    api.bookableLightZones(props.bookableId),
   ])
   if (bookable) {
     Object.assign(form, {
-      access_enabled: bookable.access_enabled ?? false,
-      access_code_delivery: bookable.access_code_delivery ?? 'email',
-      access_code_length: bookable.access_code_length ?? 6,
-      access_unlock_before_mins: bookable.access_unlock_before_mins ?? 5,
-      access_unlock_after_mins: bookable.access_unlock_after_mins ?? 5,
-      lighting_ramp_up_mins: bookable.lighting_ramp_up_mins ?? 0,
-      lighting_ramp_down_mins: bookable.lighting_ramp_down_mins ?? 0,
-      lighting_level_percent: bookable.lighting_level_percent ?? 100,
+      access_enabled: bookable.accessEnabled ?? false,
+      access_code_delivery: bookable.accessCodeDelivery ?? 'email',
+      access_code_length: bookable.accessCodeLength ?? 6,
+      access_unlock_before_mins: bookable.accessUnlockBeforeMins ?? 5,
+      access_unlock_after_mins: bookable.accessUnlockAfterMins ?? 5,
+      lighting_ramp_up_mins: bookable.lightingRampUpMins ?? 0,
+      lighting_ramp_down_mins: bookable.lightingRampDownMins ?? 0,
+      lighting_level_percent: bookable.lightingLevelPercent ?? 100,
     })
   }
-  doors.value = dRows ?? []
-  zones.value = zRows ?? []
-  connectedDoorIds.value = (bdRows ?? []).map((r: any) => r.door_id)
-  connectedZoneIds.value = (blRows ?? []).map((r: any) => r.zone_id)
+  // Seam has no is_active filter — keep only active doors/zones (template reads id/name, camel = same).
+  doors.value = (dRows ?? []).filter((d: any) => d.isActive)
+  zones.value = (zRows ?? []).filter((z: any) => z.isActive)
+  connectedDoorIds.value = bdIds ?? []
+  connectedZoneIds.value = blIds ?? []
 }
 
 let saveTimer: any = null
@@ -216,38 +209,30 @@ function autosave() {
 async function doSave() {
   if (!props.bookableId) return
   const payload = {
-    access_enabled: form.access_enabled,
-    access_code_delivery: form.access_code_delivery,
-    access_code_length: form.access_code_length ?? 6,
-    access_unlock_before_mins: form.access_unlock_before_mins ?? 5,
-    access_unlock_after_mins: form.access_unlock_after_mins ?? 5,
-    lighting_ramp_up_mins: form.lighting_ramp_up_mins ?? 0,
-    lighting_ramp_down_mins: form.lighting_ramp_down_mins ?? 0,
-    lighting_level_percent: form.lighting_level_percent ?? 100,
+    accessEnabled: form.access_enabled,
+    accessCodeDelivery: form.access_code_delivery,
+    accessCodeLength: form.access_code_length ?? 6,
+    accessUnlockBeforeMins: form.access_unlock_before_mins ?? 5,
+    accessUnlockAfterMins: form.access_unlock_after_mins ?? 5,
+    lightingRampUpMins: form.lighting_ramp_up_mins ?? 0,
+    lightingRampDownMins: form.lighting_ramp_down_mins ?? 0,
+    lightingLevelPercent: form.lighting_level_percent ?? 100,
   }
-  const { error } = await (db.from as any)('bookables').update(payload).eq('id', props.bookableId)
-  if (!error) lastSavedAt.value = new Date().toLocaleTimeString()
+  try {
+    await api.updateBookable(props.bookableId, payload)
+    lastSavedAt.value = new Date().toLocaleTimeString()
+  } catch { /* keep prior saved-at */ }
 }
 
 async function saveDoorLinks() {
   if (!props.bookableId) return
-  await (db.from as any)('bookable_doors').delete().eq('bookable_id', props.bookableId)
-  if (connectedDoorIds.value.length) {
-    await (db.from as any)('bookable_doors').insert(
-      connectedDoorIds.value.map((door_id, i) => ({ bookable_id: props.bookableId, door_id, sort_order: i }))
-    )
-  }
+  await api.setBookableDoors(props.bookableId, connectedDoorIds.value)
   lastSavedAt.value = new Date().toLocaleTimeString()
 }
 
 async function saveZoneLinks() {
   if (!props.bookableId) return
-  await (db.from as any)('bookable_light_zones').delete().eq('bookable_id', props.bookableId)
-  if (connectedZoneIds.value.length) {
-    await (db.from as any)('bookable_light_zones').insert(
-      connectedZoneIds.value.map((zone_id, i) => ({ bookable_id: props.bookableId, zone_id, sort_order: i }))
-    )
-  }
+  await api.setBookableLightZones(props.bookableId, connectedZoneIds.value)
   lastSavedAt.value = new Date().toLocaleTimeString()
 }
 

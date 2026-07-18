@@ -328,10 +328,12 @@ async function load() {
   const orgId = route.query.org as string | undefined
   if (!orgId) { loading.value = false; return }
   const [{ data: orgRow }, { data }, { data: modes }] = await Promise.all([
+    // TODO cross-domain: organisations still via useDb (owned by admin/org)
     (db.from as any)('organisations')
       .select('booker_theme')
       .eq('id', orgId)
       .maybeSingle(),
+    // TODO public-path: activities read — anonymous embed page; /api/v1 seam is the authed path
     (db.from as any)('activities')
       .select('id, name, description, color, icon, image_url, booking_flow, status, bookings_enabled, staff_bookable_id')
       .eq('org_id', orgId)
@@ -339,6 +341,7 @@ async function load() {
       .neq('bookings_enabled', false)
       .order('sort_order')
       .order('name'),
+    // TODO public-path: activity_modes read — anonymous embed page; /api/v1 seam is the authed path
     (db.from as any)('activity_modes')
       .select('id, name, activity_id, category, period_price, period_unit, sort_order')
       .order('sort_order').order('name'),

@@ -99,13 +99,45 @@ export type OrgTermCreate = z.infer<typeof orgTermCreateSchema>
 export const orgTermPatchSchema = orgTermCreateSchema.partial()
 export type OrgTermPatch = z.infer<typeof orgTermPatchSchema>
 
-// An independent sequence of terms (the legacy "term set" concept); may belong to a sport.
+// An independent sequence of terms (the legacy "term set" concept); may belong to a
+// sport and/or a set of locations (mig 239 — null/empty = whole club).
 export const termSetSchema = z.object({
   id: z.string(),
   orgId: z.string(),
   name: z.string(),
   sortOrder: z.number().int(),
   sportId: z.string().nullable(),
+  // json array → plain string[] (or null when the set covers the whole club).
+  locationIds: z.array(z.string()).nullable(),
 })
 export type TermSet = z.infer<typeof termSetSchema>
 export const termSetListSchema = z.array(termSetSchema)
+
+// WRITE contracts for a term set. orgId + name required; sport/locations optional.
+export const termSetCreateSchema = termSetSchema.omit({ id: true }).partial().extend({
+  orgId: z.string(),
+  name: z.string().min(1),
+})
+export type TermSetCreate = z.infer<typeof termSetCreateSchema>
+
+export const termSetPatchSchema = termSetCreateSchema.partial()
+export type TermSetPatch = z.infer<typeof termSetPatchSchema>
+
+// One group's billing links: the terms it runs in (with a per-term fee) + the
+// membership plans it offers. A thin read projection (no full term/plan hydration —
+// the caller already has those loaded).
+export const groupBillingSchema = z.object({
+  terms: z.array(z.object({ termId: z.string(), fee: decimalSchema })),
+  plans: z.array(z.object({ planId: z.string() })),
+})
+export type GroupBilling = z.infer<typeof groupBillingSchema>
+
+// WRITE contract for a membership entitlement (what a membership includes).
+// membershipGroupId comes from the route; the rest describe one target + benefit.
+export const membershipEntitlementInputSchema = z.object({
+  targetType: z.string(),
+  targetId: z.string(),
+  benefitType: z.string().optional(),
+  benefitValue: decimalSchema.optional(),
+})
+export type MembershipEntitlementInput = z.infer<typeof membershipEntitlementInputSchema>

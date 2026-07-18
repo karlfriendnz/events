@@ -7,6 +7,7 @@
 // wrapping typed $fetch to /api/v1/*.
 import type {
   MembershipEntitlement,
+  MembershipEntitlementInput,
   MembershipPlan,
   MembershipPlanWithOptions,
   MembershipPlanCreate,
@@ -15,6 +16,9 @@ import type {
   OrgTermCreate,
   OrgTermPatch,
   TermSet,
+  TermSetCreate,
+  TermSetPatch,
+  GroupBilling,
 } from '../shared/contracts/membership'
 
 export function useMembershipsApi() {
@@ -29,6 +33,50 @@ export function useMembershipsApi() {
     return await $fetch<MembershipEntitlement[]>('/api/v1/memberships/entitlements', {
       query: { membershipGroupId },
     })
+  }
+  /** Every entitlement in an org (coverage resolution across all memberships). */
+  async function entitlementsByOrg(orgId: string): Promise<MembershipEntitlement[]> {
+    return await $fetch<MembershipEntitlement[]>('/api/v1/memberships/entitlements', {
+      query: { orgId },
+    })
+  }
+  /** Replace what one membership includes (delete-then-insert). */
+  async function saveEntitlements(
+    orgId: string,
+    membershipGroupId: string,
+    rows: MembershipEntitlementInput[],
+  ): Promise<MembershipEntitlement[]> {
+    return await $fetch<MembershipEntitlement[]>('/api/v1/memberships/entitlements', {
+      method: 'POST',
+      body: { orgId, membershipGroupId, rows },
+    })
+  }
+  /** One group's billing links (terms + fees + plans). */
+  async function groupBilling(groupId: string): Promise<GroupBilling> {
+    return await $fetch<GroupBilling>('/api/v1/memberships/group-billing', { query: { groupId } })
+  }
+  /** Replace a group's billing links (delete-then-insert). */
+  async function saveGroupBilling(
+    groupId: string,
+    termFees: { termId: string; fee: string | number | null }[],
+    planIds: string[],
+  ): Promise<GroupBilling> {
+    return await $fetch<GroupBilling>('/api/v1/memberships/group-billing', {
+      method: 'POST',
+      body: { groupId, termFees, planIds },
+    })
+  }
+  /** Create a term set (sequence). */
+  async function createTermSet(input: TermSetCreate): Promise<TermSet> {
+    return await $fetch<TermSet>('/api/v1/term-sets', { method: 'POST', body: input })
+  }
+  /** Update a term set (name / sport / locations). */
+  async function updateTermSet(id: string, patch: TermSetPatch): Promise<TermSet> {
+    return await $fetch<TermSet>(`/api/v1/term-sets/${id}`, { method: 'PATCH', body: patch })
+  }
+  /** Delete a term set (its terms fall back to the default sequence). */
+  async function removeTermSet(id: string): Promise<void> {
+    await $fetch(`/api/v1/term-sets/${id}`, { method: 'DELETE' })
   }
   /** Every term/season an org defines. */
   async function terms(orgId: string): Promise<OrgTerm[]> {
@@ -63,7 +111,8 @@ export function useMembershipsApi() {
     await $fetch(`/api/v1/memberships/plans/${id}`, { method: 'DELETE' })
   }
   return {
-    plans, entitlements, terms, termSets,
+    plans, entitlements, entitlementsByOrg, saveEntitlements, groupBilling, saveGroupBilling,
+    terms, termSets, createTermSet, updateTermSet, removeTermSet,
     createTerm, updateTerm, removeTerm, createPlan, updatePlan, removePlan,
   }
 }

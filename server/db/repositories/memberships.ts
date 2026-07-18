@@ -15,6 +15,7 @@ import { asc, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   MembershipEntitlement,
+  MembershipEntitlementInput,
   MembershipPlan,
   MembershipPlanOption,
   MembershipPlanWithOptions,
@@ -24,6 +25,9 @@ import type {
   OrgTermCreate,
   OrgTermPatch,
   TermSet,
+  TermSetCreate,
+  TermSetPatch,
+  GroupBilling,
 } from '../../../shared/contracts/membership'
 
 // Coerce a MySQL `date` value into a yyyy-mm-dd string (or null). A Date is formatted
@@ -100,6 +104,22 @@ function toPlan(r: typeof schema.membershipPlans.$inferSelect): MembershipPlan {
   }
 }
 
+// A term set's location_ids is a json array (or null = whole club). mysql2 usually
+// hands json back parsed, but a driver can return the raw string — normalise either.
+function asArrayOrNull(v: unknown): string[] | null {
+  if (v == null) return null
+  if (Array.isArray(v)) return v as string[]
+  if (typeof v === 'string') {
+    try {
+      const parsed = JSON.parse(v)
+      return Array.isArray(parsed) ? (parsed as string[]) : null
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
 function toTermSet(r: typeof schema.termSets.$inferSelect): TermSet {
   return {
     id: r.id,
@@ -107,6 +127,7 @@ function toTermSet(r: typeof schema.termSets.$inferSelect): TermSet {
     name: r.name,
     sortOrder: r.sortOrder ?? 0,
     sportId: r.sportId ?? null,
+    locationIds: asArrayOrNull(r.locationIds),
   }
 }
 
@@ -258,4 +279,118 @@ export async function updatePlan(id: string, patch: MembershipPlanPatch): Promis
 
 export async function deletePlan(id: string): Promise<void> {
   await db.delete(schema.membershipPlans).where(eq(schema.membershipPlans.id, id))
+}
+
+// ── Term sets (writes) ──
+async function loadTermSet(id: string): Promise<TermSet | null> {
+  const [r] = await db.select().from(schema.termSets).where(eq(schema.termSets.id, id)).limit(1)
+  return r ? toTermSet(r) : null
+}
+
+export async function createTermSet(input: TermSetCreate): Promise<TermSet> {
+  const id = randomUUID()
+  await db.insert(schema.termSets).values({
+    id,
+    orgId: input.orgId,
+    name: input.name,
+    sortOrder: input.sortOrder ?? 0,
+    sportId: input.sportId ?? null,
+    // json column — RAW array (or null = whole club).
+    locationIds: input.locationIds ?? null,
+  } as any)
+  return (await loadTermSet(id))!
+}
+
+export async function updateTermSet(id: string, patch: TermSetPatch): Promise<TermSet | null> {
+  const set: Record<string, any> = {}
+  if (patch.name !== undefined) set.name = patch.name
+  if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
+  if (patch.sportId !== undefined) set.sportId = patch.sportId
+  if (patch.locationIds !== undefined) set.locationIds = patch.locationIds
+  if (Object.keys(set).length) await db.update(schema.termSets).set(set).where(eq(schema.termSets.id, id))
+  return loadTermSet(id)
+}
+
+export async function deleteTermSet(id: string): Promise<void> {
+  // Terms fall back to the default set (set_id → null via FK on delete set null).
+  await db.delete(schema.termSets).where(eq(schema.termSets.id, id))
+}
+
+// ── Group billing (member_group_terms + member_group_plans) ──
+// What one group offers: the terms it runs in (with a per-term fee) + the plans it
+// links. Two small reads joined into one projection. member_group_terms/plans have
+// no org_id — scoped by groupId (the caller owns the group).
+export async function loadGroupBilling(groupId: string): Promise<GroupBilling> {
+  const [terms, plans] = await Promise.all([
+    db
+      .select({ termId: schema.memberGroupTerms.termId, fee: schema.memberGroupTerms.fee })
+      .from(schema.memberGroupTerms)
+      .where(eq(schema.memberGroupTerms.groupId, groupId)),
+    db
+      .select({ planId: schema.memberGroupPlans.planId })
+      .from(schema.memberGroupPlans)
+      .where(eq(schema.memberGroupPlans.groupId, groupId)),
+  ])
+  return {
+    terms: terms.map((t) => ({ termId: t.termId, fee: (t.fee as any) ?? null })),
+    plans: plans.map((p) => ({ planId: p.planId })),
+  }
+}
+
+// Replace a group's billing links (delete-then-insert both tables). termFees =
+// [{termId, fee}], planIds = plan ids. Scoped by groupId.
+export async function saveGroupBilling(
+  groupId: string,
+  termFees: { termId: string; fee: string | number | null }[],
+  planIds: string[],
+): Promise<GroupBilling> {
+  await db.delete(schema.memberGroupTerms).where(eq(schema.memberGroupTerms.groupId, groupId))
+  await db.delete(schema.memberGroupPlans).where(eq(schema.memberGroupPlans.groupId, groupId))
+  for (const t of termFees) {
+    await db.insert(schema.memberGroupTerms).values({
+      id: randomUUID(),
+      groupId,
+      termId: t.termId,
+      fee: t.fee ?? null,
+    } as any)
+  }
+  for (const planId of planIds) {
+    await db.insert(schema.memberGroupPlans).values({ id: randomUUID(), groupId, planId } as any)
+  }
+  return loadGroupBilling(groupId)
+}
+
+// ── Membership entitlements (writes) ──
+/** Every entitlement in an org (for coverage resolution across all memberships). */
+export async function listEntitlementsByOrg(orgId: string): Promise<MembershipEntitlement[]> {
+  const rows = await db
+    .select()
+    .from(schema.membershipEntitlements)
+    .where(eq(schema.membershipEntitlements.orgId, orgId))
+  return rows.map(toEntitlement)
+}
+
+/** Replace what one membership includes (delete-then-insert). */
+export async function saveEntitlements(
+  orgId: string,
+  membershipGroupId: string,
+  rows: MembershipEntitlementInput[],
+): Promise<MembershipEntitlement[]> {
+  await db
+    .delete(schema.membershipEntitlements)
+    .where(eq(schema.membershipEntitlements.membershipGroupId, membershipGroupId))
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]
+    await db.insert(schema.membershipEntitlements).values({
+      id: randomUUID(),
+      orgId,
+      membershipGroupId,
+      targetType: r.targetType,
+      targetId: r.targetId,
+      benefitType: r.benefitType ?? 'included',
+      benefitValue: r.benefitValue ?? null,
+      sortOrder: i,
+    } as any)
+  }
+  return listEntitlements(membershipGroupId)
 }

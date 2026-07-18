@@ -62,7 +62,7 @@
 interface Row { s: any; booked: number; cap: number | null; samePrevDay: boolean; past: boolean; today: boolean }
 
 const props = defineProps<{ eventId: string }>()
-const db = useDb()
+const events = useEventsApi()
 
 const loading = ref(true)
 const sessions = ref<any[]>([])
@@ -139,16 +139,23 @@ function barWidth(r: Row) {
 
 async function load() {
   loading.value = true
-  const { data: sess } = await (db.from as any)('sessions')
-    .select('id, title, start_at, end_at, capacity_max, location_type, address, meeting_link, is_master, sort_order')
-    .eq('event_id', props.eventId)
-    .order('start_at', { ascending: true })
-  sessions.value = sess ?? []
+  // Seam returns camelCase; map back to the snake_case shape this template reads.
+  const sess = await events.sessions(props.eventId)
+  sessions.value = sess.map(s => ({
+    ...s,
+    start_at: s.startAt,
+    end_at: s.endAt,
+    capacity_max: s.capacityMax,
+    location_type: s.locationType,
+    meeting_link: s.meetingLink,
+    is_master: s.isMaster,
+    sort_order: s.sortOrder,
+  }))
   const ids = sessions.value.map((s: any) => s.id)
   if (ids.length) {
-    const { data: rs } = await (db.from as any)('registration_sessions').select('session_id, status').in('session_id', ids)
+    const rs = await events.registrationSessionsBySessions(ids)
     const m: Record<string, number> = {}
-    for (const r of (rs ?? [])) if (r.status === 'CONFIRMED') m[r.session_id] = (m[r.session_id] ?? 0) + 1
+    for (const r of rs) if (r.status === 'CONFIRMED') m[r.sessionId] = (m[r.sessionId] ?? 0) + 1
     bookedBySession.value = m
   }
   loading.value = false

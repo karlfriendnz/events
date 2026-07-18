@@ -6,15 +6,15 @@
 
 <script setup lang="ts">
 const { orgId } = useOrg()
-const db = useDb()
+const events = useEventsApi()
 const route = useRoute()
 
-const { data } = await db.from('events').insert({
-  org_id: orgId.value,
+const data = await events.create({
+  orgId: orgId.value,
   title: (route.query.name as string) ?? '',
   style: 'ADVANCED',
   status: 'DRAFT',
-}).select('id').single()
+})
 
 if (data?.id) {
   const params = new URLSearchParams()

@@ -28,10 +28,30 @@ export const memberGroupSchema = z.object({
   // json arrays/objects → plain shapes at the boundary. Empty when not set.
   subGroups: z.array(z.any()),
   locationIds: z.array(z.string()),
+  // Singular site (mig 237) — distinct from the multi-site locationIds (mig 244).
+  // A group belongs to one primary location; the People-directory location lens and
+  // membership-with-group reads read this. Kept alongside locationIds, not merged.
+  locationId: z.string().nullable(),
+  // The one waitlist this group is connected to (mig 221), or null.
+  waitlistId: z.string().nullable(),
   kind: z.string(),
   formId: z.string().nullable(),
   imageUrl: z.string().nullable(),
   sortOrder: z.number().int(),
+  // Term-rollover provenance (mig 201): stable lineage across terms + the exact prior
+  // group cloned. Read by the rollover/wizard screens; null on legacy/evergreen rows.
+  lineageId: z.string().nullable(),
+  rolledFromGroupId: z.string().nullable(),
+  // A class the club ended for good (mig 231) — ISO timestamp or null.
+  discontinuedAt: z.string().nullable(),
+  // Per-membership settings blob (migs 241/242) — passthrough json.
+  membershipSettings: z.any().nullable(),
+  // Legacy free-text detail columns still rendered by the group INFO card (mig 198).
+  code: z.string().nullable(),
+  currentTerm: z.string().nullable(),
+  termFee: money,
+  headPersonId: z.string().nullable(),
+  parentId: z.string().nullable(),
 })
 export type MemberGroup = z.infer<typeof memberGroupSchema>
 
@@ -62,8 +82,12 @@ export const groupCodeSchema = z.object({
   // json object → { roleKey: minimum }. Empty when not set.
   roleMinimums: z.record(z.string(), z.any()),
   memberPositions: z.array(z.string()),
+  // Per-position minimum people per group — { position: minimum } (mig 217).
+  positionMinimums: z.record(z.string(), z.any()),
   memberTypeKey: z.string().nullable(),
   sportId: z.string().nullable(),
+  // Stable identity across term rollovers (mig 205); code-role/staff configs key on it.
+  lineageId: z.string().nullable(),
 })
 export type GroupCode = z.infer<typeof groupCodeSchema>
 
@@ -125,15 +149,54 @@ export const groupFeeOptionItemSchema = z.object({
 export type GroupFeeOptionItem = z.infer<typeof groupFeeOptionItemSchema>
 
 // A way to pay to join a group — one fee option made of one or more line items.
+// The type-specific columns (period/instalment/session/prorata/due/deposit) round-trip
+// so the composable's priceLabel doesn't lose data on a read (mig 204 + 225).
 export const groupFeeOptionSchema = z.object({
   id: z.string(),
   orgId: z.string(),
   groupId: z.string(),
   name: z.string(),
   feeType: z.string(),
+  periodUnit: z.string().nullable(),
+  periodCount: z.number().int().nullable(),
+  autoRenew: z.boolean().nullable(),
+  instalmentCount: z.number().int().nullable(),
+  sessionCount: z.number().int().nullable(),
+  prorata: z.boolean().nullable(),
+  description: z.string().nullable(),
+  status: z.string(),
+  dueDate: z.string().nullable(),
+  depositPercent: money,
   sortOrder: z.number().int().nullable(),
   items: z.array(groupFeeOptionItemSchema),
 })
 export type GroupFeeOption = z.infer<typeof groupFeeOptionSchema>
 
 export const groupFeeOptionListSchema = z.array(groupFeeOptionSchema)
+
+// A saved Classes-style overview (mig 207) — a name + a config blob ({columns, codeIds}).
+// config is passthrough json (the composable owns its shape).
+export const groupViewSchema = z.object({
+  id: z.string(),
+  orgId: z.string(),
+  name: z.string(),
+  config: z.any(),
+  sortOrder: z.number().int(),
+})
+export type GroupView = z.infer<typeof groupViewSchema>
+export const groupViewListSchema = z.array(groupViewSchema)
+
+export const groupViewCreateSchema = z.object({
+  orgId: z.string(),
+  name: z.string().min(1),
+  config: z.any().optional(),
+  sortOrder: z.number().int().optional(),
+})
+export type GroupViewCreate = z.infer<typeof groupViewCreateSchema>
+
+export const groupViewPatchSchema = z.object({
+  name: z.string().optional(),
+  config: z.any().optional(),
+  sortOrder: z.number().int().optional(),
+})
+export type GroupViewPatch = z.infer<typeof groupViewPatchSchema>

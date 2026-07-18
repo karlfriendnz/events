@@ -151,38 +151,50 @@ export function resolveMembershipSettings(stored: any): MembershipSettings {
 }
 
 export function useMemberships() {
+  // SEAM GAP: personMembershipIds() below reads member_groups (kind='membership')
+  // joined through member_group_memberships — a groups-domain table. The groups seam
+  // needs a `membershipGroupsForPerson(personId, orgId)` reader; until then this one
+  // function keeps useDb.
   const db = useDb()
   const { orgId } = useOrg()
+  const api = useMembershipsApi()
 
-  // ── Entitlement CRUD ──
-  async function loadEntitlements(membershipGroupId: string): Promise<MembershipEntitlement[]> {
-    const { data } = await (db.from as any)('membership_entitlements')
-      .select('id, membership_group_id, target_type, target_id, benefit_type, benefit_value, sort_order')
-      .eq('membership_group_id', membershipGroupId)
-      .order('sort_order')
-    return (data ?? []) as MembershipEntitlement[]
-  }
-
-  async function saveEntitlements(membershipGroupId: string, rows: Omit<MembershipEntitlement, 'membership_group_id'>[]): Promise<void> {
-    await (db.from as any)('membership_entitlements').delete().eq('membership_group_id', membershipGroupId)
-    if (rows.length) {
-      await (db.from as any)('membership_entitlements').insert(rows.map((r, i) => ({
-        org_id: orgId.value,
-        membership_group_id: membershipGroupId,
-        target_type: r.target_type,
-        target_id: r.target_id,
-        benefit_type: r.benefit_type ?? 'included',
-        benefit_value: r.benefit_value ?? null,
-        sort_order: i,
-      })))
+  // camelCase entitlement → this composable's snake_case shape.
+  function entToSnake(e: any): MembershipEntitlement {
+    return {
+      id: e.id,
+      org_id: e.orgId,
+      membership_group_id: e.membershipGroupId,
+      target_type: e.targetType,
+      target_id: e.targetId,
+      benefit_type: (e.benefitType ?? 'included') as MembershipEntitlement['benefit_type'],
+      benefit_value: e.benefitValue != null ? Number(e.benefitValue) : null,
+      sort_order: e.sortOrder ?? 0,
     }
   }
 
+  // ── Entitlement CRUD ──
+  async function loadEntitlements(membershipGroupId: string): Promise<MembershipEntitlement[]> {
+    const rows = await api.entitlements(membershipGroupId)
+    return rows.map(entToSnake)
+  }
+
+  async function saveEntitlements(membershipGroupId: string, rows: Omit<MembershipEntitlement, 'membership_group_id'>[]): Promise<void> {
+    await api.saveEntitlements(
+      orgId.value,
+      membershipGroupId,
+      rows.map((r) => ({
+        targetType: r.target_type,
+        targetId: r.target_id,
+        benefitType: r.benefit_type ?? 'included',
+        benefitValue: r.benefit_value ?? null,
+      })),
+    )
+  }
+
   async function loadAllEntitlements(org = orgId.value): Promise<MembershipEntitlement[]> {
-    const { data } = await (db.from as any)('membership_entitlements')
-      .select('id, membership_group_id, target_type, target_id, benefit_type, benefit_value')
-      .eq('org_id', org)
-    return (data ?? []) as MembershipEntitlement[]
+    const rows = await api.entitlementsByOrg(org)
+    return rows.map(entToSnake)
   }
 
   // ── Coverage (phase 2): does someone's membership cover a class/event? ──
@@ -230,7 +242,9 @@ export function useMemberships() {
       .map(e => e.membership_group_id))]
   }
 
-  /** The membership-kind groups a person belongs to (their active passes). */
+  /** The membership-kind groups a person belongs to (their active passes).
+   *  SEAM GAP: reads member_groups (groups-domain) joined via memberships — needs a
+   *  groups-seam `membershipGroupsForPerson(personId, orgId)`. Keeps useDb until then. */
   async function personMembershipIds(personId: string): Promise<{ groupId: string; name: string }[]> {
     const { data } = await (db.from as any)('member_group_memberships')
       .select('group:member_groups!inner(id, name, kind, org_id)')

@@ -165,6 +165,9 @@
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
+const events = useEventsApi()
+// CROSS-DOMAIN GAP: `attendance` has no seam yet — the sessions→attendance rollup
+// below still reads via useDb() until an attendance domain seam lands.
 const db = useDb()
 
 // ── Filters ──────────────────────────────────────────────────────────
@@ -189,22 +192,36 @@ const attendedByEvent = ref<Record<string, number>>({})
 
 async function load() {
   loading.value = true
-  const [{ data: cats }, { data: evts }] = await Promise.all([
-    db.from('categories').select('id, name, color, icon').eq('org_id', orgId.value).order('name'),
-    db.from('events')
-      .select('id, title, start_at, category_id, category:categories!category_id(id, name, color)')
-      .eq('org_id', orgId.value)
-      .neq('status', 'ARCHIVED')
-      .order('start_at', { ascending: false }),
+  // Categories + events come from the events seam (camelCase → mapped to the
+  // snake_case shape this page reads). The category object is attached client-side
+  // from the categories list (the seam list has no join). ARCHIVED filtered + sorted
+  // by start date here (the seam returns all events, createdAt order).
+  const [cats, evtsRaw] = await Promise.all([
+    events.categories(orgId.value),
+    events.list(orgId.value),
   ])
+  const catById: Record<string, any> = {}
+  categories.value = cats.map(c => {
+    const row = { id: c.id, name: c.name, color: c.color, icon: c.icon }
+    catById[c.id] = row
+    return row
+  })
+  const evts = evtsRaw
+    .filter(e => e.status !== 'ARCHIVED')
+    .sort((a, b) => (b.startAt || '').localeCompare(a.startAt || ''))
+    .map(e => ({
+      id: e.id,
+      title: e.title,
+      start_at: e.startAt,
+      category_id: e.categoryId,
+      category: e.categoryId ? catById[e.categoryId] ?? null : null,
+    }))
+  allEvents.value = evts
 
-  categories.value = cats ?? []
-  allEvents.value = evts ?? []
-
-  const eventIds = (evts ?? []).map((e: any) => e.id)
+  const eventIds = evts.map((e: any) => e.id)
   if (!eventIds.length) { loading.value = false; return }
 
-  // Chunk helper to avoid URL length limits
+  // Chunk helper to avoid URL length limits (attendance path only — cross-domain gap)
   async function queryInChunks<T>(table: string, column: string, ids: string[], extraQuery?: (q: any) => any): Promise<T[]> {
     const CHUNK = 100
     const results: T[] = []
@@ -217,14 +234,10 @@ async function load() {
     return results
   }
 
-  const invs = await queryInChunks<any>('invitees', 'event_id', eventIds, q => q.select('id, event_id, status'))
-
-  // Build invitees map
+  // Per-event invitee totals via the seam (one org-level query).
   const iMap: Record<string, { total: number; confirmed: number }> = {}
-  for (const inv of invs) {
-    if (!iMap[inv.event_id]) iMap[inv.event_id] = { total: 0, confirmed: 0 }
-    iMap[inv.event_id].total++
-    if (inv.status === 'CONFIRMED') iMap[inv.event_id].confirmed++
+  for (const c of await events.inviteeCountsByOrg(orgId.value)) {
+    iMap[c.eventId] = { total: c.total, confirmed: c.confirmed }
   }
   inviteesByEvent.value = iMap
 

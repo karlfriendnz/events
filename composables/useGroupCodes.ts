@@ -37,8 +37,31 @@ export interface GroupCode {
 export const codeLineage = (c: { id: string; lineage_id?: string | null }) => c.lineage_id ?? c.id
 
 export function useGroupCodes() {
+  // SEAM GAP: default_member_positions lives on the organisations row and the org
+  // seam (useOrganisationsApi/orgSettings) doesn't expose it yet — the two default-
+  // position functions below still use useDb until the org domain adds get/set.
   const db = useDb()
   const { orgId } = useOrg()
+  const api = useGroupsApi()
+
+  // camelCase contract → this composable's snake_case GroupCode shape.
+  function toSnake(c: any): GroupCode {
+    return {
+      id: c.id,
+      org_id: c.orgId,
+      name: c.name,
+      color: c.color ?? null,
+      parent_id: c.parentId ?? null,
+      term_id: c.termId ?? null,
+      sport_id: c.sportId ?? null,
+      sort_order: c.sortOrder ?? 0,
+      member_type_key: c.memberTypeKey ?? null,
+      lineage_id: c.lineageId ?? null,
+      role_minimums: c.roleMinimums ?? {},
+      member_positions: c.memberPositions ?? [],
+      position_minimums: c.positionMinimums ?? {},
+    }
+  }
 
   // Org-wide DEFAULT positions (Member, …) every group inherits (migration 217).
   const defaultPositions = useState<string[]>('fm_default_positions', () => [])
@@ -46,6 +69,7 @@ export function useGroupCodes() {
   async function loadDefaultPositions(force = false): Promise<string[]> {
     if (defaultPositionsLoaded.value && !force) return defaultPositions.value
     if (!orgId.value) return []
+    // SEAM GAP: organisations.default_member_positions — no org-seam getter yet.
     const { data } = await (db.from as any)('organisations')
       .select('default_member_positions').eq('id', orgId.value).maybeSingle()
     defaultPositions.value = Array.isArray(data?.default_member_positions) ? data.default_member_positions : []
@@ -55,6 +79,7 @@ export function useGroupCodes() {
   async function saveDefaultPositions(list: string[]): Promise<void> {
     if (!orgId.value) return
     const clean = list.map(p => p.trim()).filter(Boolean)
+    // SEAM GAP: organisations.default_member_positions — no org-seam setter yet.
     await (db.from as any)('organisations').update({ default_member_positions: clean }).eq('id', orgId.value)
     defaultPositions.value = clean
     defaultPositionsLoaded.value = true
@@ -63,47 +88,44 @@ export function useGroupCodes() {
   // All codes for the org, in sort order (then name) — shape callers into a tree.
   async function loadCodes(): Promise<GroupCode[]> {
     if (!orgId.value) return []
-    const { data } = await (db.from as any)('group_codes')
-      .select('id, org_id, name, color, parent_id, term_id, sort_order, created_at, member_type_key, lineage_id, role_minimums, member_positions, position_minimums, sport_id')
-      .eq('org_id', orgId.value)
-      .order('sort_order', { ascending: true, nullsFirst: false })
-      .order('name')
-    return (data ?? []) as GroupCode[]
+    const codes = await api.codes(orgId.value)
+    return codes.map(toSnake)
   }
 
   async function createCode(patch: { name: string; color?: string | null; parent_id?: string | null; term_id?: string | null; sort_order?: number }): Promise<GroupCode | null> {
-    const { data, error } = await (db.from as any)('group_codes').insert({
-      org_id: orgId.value,
-      name: patch.name.trim(),
-      color: patch.color ?? null,
-      parent_id: patch.parent_id ?? null,
-      term_id: patch.term_id ?? null,
-      sort_order: patch.sort_order ?? 0,
-    }).select('id, org_id, name, color, parent_id, term_id, sort_order, created_at').single()
-    if (error) return null
-    return data as GroupCode
+    try {
+      const created = await api.createCode({
+        orgId: orgId.value,
+        name: patch.name.trim(),
+        color: patch.color ?? null,
+        parentId: patch.parent_id ?? null,
+        termId: patch.term_id ?? null,
+        sortOrder: patch.sort_order ?? 0,
+      })
+      return toSnake(created)
+    } catch {
+      return null
+    }
   }
 
   async function updateCode(id: string, patch: Partial<Pick<GroupCode, 'name' | 'color' | 'parent_id' | 'term_id' | 'sort_order' | 'member_type_key' | 'role_minimums' | 'member_positions' | 'position_minimums'>>): Promise<void> {
-    await (db.from as any)('group_codes').update(patch).eq('id', id)
+    const camel: Record<string, any> = {}
+    if (patch.name !== undefined) camel.name = patch.name
+    if (patch.color !== undefined) camel.color = patch.color
+    if (patch.parent_id !== undefined) camel.parentId = patch.parent_id
+    if (patch.term_id !== undefined) camel.termId = patch.term_id
+    if (patch.sort_order !== undefined) camel.sortOrder = patch.sort_order
+    if (patch.member_type_key !== undefined) camel.memberTypeKey = patch.member_type_key
+    if (patch.role_minimums !== undefined) camel.roleMinimums = patch.role_minimums
+    if (patch.member_positions !== undefined) camel.memberPositions = patch.member_positions
+    if (patch.position_minimums !== undefined) camel.positionMinimums = patch.position_minimums
+    await api.updateCode(id, camel)
   }
 
-  // Delete a code, re-homing its contents to the deleted code's parent so nothing
-  // is orphaned: child GROUPS move up to parent_id, child CODES re-parent likewise.
+  // Delete a code — the seam re-homes its contents to the parent (child groups +
+  // child codes) and drops the code's own role/staff config (mig 213/214).
   async function deleteCode(id: string): Promise<void> {
-    const { data: row } = await (db.from as any)('group_codes')
-      .select('parent_id, lineage_id').eq('id', id).maybeSingle()
-    const newParent = row?.parent_id ?? null
-    const lineage = row?.lineage_id ?? id
-    await Promise.all([
-      (db.from as any)('member_groups').update({ code_id: newParent }).eq('code_id', id),
-      (db.from as any)('group_codes').update({ parent_id: newParent }).eq('parent_id', id),
-      // The deleted code's own staff config goes with it (its groups re-home to the
-      // parent, which carries the parent's/default roles). Migration 213/214.
-      (db.from as any)('code_role_defs').delete().eq('code_lineage_id', lineage),
-      (db.from as any)('code_staff').delete().eq('code_lineage_id', lineage),
-    ])
-    await (db.from as any)('group_codes').delete().eq('id', id)
+    await api.removeCode(id)
   }
 
   // The term a group actually runs on: its code's term_id, walking up the code

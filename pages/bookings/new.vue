@@ -152,7 +152,7 @@
 </template>
 
 <script setup lang="ts">
-const db = useDb()
+const api = useBookingsApi()
 const route = useRoute()
 const { orgId } = useOrg()
 
@@ -176,23 +176,28 @@ function resetCategory() {
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [{ data: actData }, { data: modeData }] = await Promise.all([
-    (db.from as any)('activities')
-      .select('id, name, description, color, icon, image_url, booking_flow, status, bookings_enabled, staff_bookable_id')
-      .eq('org_id', orgId.value)
-      .eq('status', 'ACTIVE')
-      .eq('bookings_enabled', true)
-      .order('name'),
-    (db.from as any)('activity_modes')
-      .select('id, name, activity_id, category, period_price, period_unit, sort_order')
-      .order('sort_order').order('name'),
-  ])
-  const orgActivityIds = new Set((actData ?? []).map((a: any) => a.id))
+  // Seam returns camelCase; the template reads snake_case, so map at the boundary.
+  const actRaw = await api.activities(orgId.value)
+  const actData = actRaw
+    .filter((a: any) => a.status === 'ACTIVE' && a.bookingsEnabled)
+    .map((a: any) => ({
+      id: a.id, name: a.name, description: a.description, color: a.color, icon: a.icon,
+      image_url: a.imageUrl, booking_flow: a.bookingFlow, status: a.status,
+      bookings_enabled: a.bookingsEnabled, staff_bookable_id: a.staffBookableId,
+    }))
+    .sort((x: any, y: any) => String(x.name).localeCompare(String(y.name)))
   const activitiesById: Record<string, any> = {}
-  for (const a of actData ?? []) activitiesById[a.id] = a
-  activities.value = actData ?? []
-  allModes.value = (modeData ?? [])
-    .filter((m: any) => orgActivityIds.has(m.activity_id))
+  for (const a of actData) activitiesById[a.id] = a
+  activities.value = actData
+  // The seam lists modes per-activity; gather across this org's activities (same set
+  // the old org_id filter produced).
+  const modeLists = await Promise.all(actData.map((a: any) => api.activityModes(a.id)))
+  allModes.value = modeLists.flat()
+    .map((m: any) => ({
+      id: m.id, name: m.name, activity_id: m.activityId, category: m.category,
+      period_price: m.periodPrice, period_unit: m.periodUnit, sort_order: m.sortOrder,
+    }))
+    .sort((x: any, y: any) => (x.sort_order - y.sort_order) || String(x.name).localeCompare(String(y.name)))
     .map((m: any) => ({ ...m, activity: activitiesById[m.activity_id] }))
   loading.value = false
   // Pre-select if the caller passed ?activityId= (e.g. coming from

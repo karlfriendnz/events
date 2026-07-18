@@ -799,7 +799,8 @@ import { rruleToSummary } from '~/composables/useRepeatOptions'
 const props = defineProps<{ bookableId: string; readonly?: boolean }>()
 const emit = defineEmits<{ saved: [] }>()
 
-const db = useDb()
+const db = useDb() // retained for cross-domain (member_groups, bookings/events) + seam-gap (availability_rules granular writes, by-bookable activity joins)
+const api = useBookingsApi()
 const toast = useToast()
 
 const loading = ref(true)
@@ -814,29 +815,30 @@ const tempClosedUntil = ref<Date | null>(null)
 const tempClosedReason = ref('')
 
 async function loadTempClosed() {
-  const { data } = await (db.from as any)('bookables').select('closed_from, closed_until, closure_reason').eq('id', props.bookableId).maybeSingle()
-  isTempClosed.value = !!(data?.closed_from || data?.closed_until)
-  tempClosedFrom.value = data?.closed_from ? new Date(data.closed_from) : null
-  tempClosedUntil.value = data?.closed_until ? new Date(data.closed_until) : null
-  tempClosedReason.value = data?.closure_reason ?? ''
+  const data = await api.bookable(props.bookableId)
+  isTempClosed.value = !!(data?.closedFrom || data?.closedUntil)
+  tempClosedFrom.value = data?.closedFrom ? new Date(data.closedFrom) : null
+  tempClosedUntil.value = data?.closedUntil ? new Date(data.closedUntil) : null
+  tempClosedReason.value = data?.closureReason ?? ''
 }
 
 async function saveTempClosed() {
   savingTempClosed.value = true
-  const updates = {
-    closed_from: tempClosedFrom.value ? tempClosedFrom.value.toISOString().slice(0, 10) : null,
-    closed_until: tempClosedUntil.value ? tempClosedUntil.value.toISOString().slice(0, 10) : null,
-    closure_reason: tempClosedReason.value || null,
-  }
-  await (db.from as any)('bookables').update(updates).eq('id', props.bookableId)
-  isTempClosed.value = !!(updates.closed_from || updates.closed_until)
+  const closedFrom = tempClosedFrom.value ? tempClosedFrom.value.toISOString().slice(0, 10) : null
+  const closedUntil = tempClosedUntil.value ? tempClosedUntil.value.toISOString().slice(0, 10) : null
+  await api.updateBookable(props.bookableId, {
+    closedFrom,
+    closedUntil,
+    closureReason: tempClosedReason.value || null,
+  } as any)
+  isTempClosed.value = !!(closedFrom || closedUntil)
   savingTempClosed.value = false
   showTempClosedDialog.value = false
 }
 
 async function clearTempClosed() {
   savingTempClosed.value = true
-  await (db.from as any)('bookables').update({ closed_from: null, closed_until: null, closure_reason: null }).eq('id', props.bookableId)
+  await api.updateBookable(props.bookableId, { closedFrom: null, closedUntil: null, closureReason: null } as any)
   isTempClosed.value = false
   tempClosedFrom.value = null
   tempClosedUntil.value = null
@@ -853,6 +855,8 @@ async function persistRuleOrder(orderedIds: string[]) {
     const ruleId = orderedIds[i]
     const local = rules.value.find(r => r.id === ruleId)
     if (local) local.sort_order = i
+    // TODO seam-gap: availability_rules per-rule sort_order update — the seam only
+    // offers whole-set replaceAvailabilityRules, which can't express a granular reorder. Still via useDb.
     await (db.from as any)('availability_rules').update({ sort_order: i }).eq('id', ruleId)
   }
 }
@@ -1263,22 +1267,29 @@ const PRICE_TYPES = [
 
 async function load() {
   loading.value = true
-  const [{ data: r }, { data: g }, { data: m }, { data: ab }] = await Promise.all([
+  const [{ data: r }, { data: g }, mSeam, { data: ab }] = await Promise.all([
+    // TODO seam-gap: availability_rules list stays on useDb alongside its granular/history-preserving writes (seam only offers whole-set replaceAvailabilityRules).
     (db.from as any)('availability_rules').select('*').eq('bookable_id', props.bookableId).order('sort_order').order('created_at'),
+    // TODO cross-domain: member_groups still via useDb (owned by groups)
     db.from('member_groups').select('id, name, color, parent_id').eq('org_id', orgId.value).order('sort_order').order('name'),
-    (db.from as any)('bookable_modes').select('id, name, color').eq('bookable_id', props.bookableId).order('name'),
+    api.bookableModes(props.bookableId),
+    // TODO seam-gap: activity_bookables by-bookable read (seam only offers by-activity)
     (db.from as any)('activity_bookables').select('activity_id').eq('bookable_id', props.bookableId),
   ])
   rules.value = r ?? []
   memberGroups.value = g ?? []
-  bookableModes.value = m ?? []
+  // BookableMode camelCase id/name/color are the same keys the template reads; sort by name to keep prior order.
+  bookableModes.value = (mSeam ?? []).slice().sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''))
   const activityIds = (ab ?? []).map((row: any) => row.activity_id)
   if (activityIds.length) {
-    const [{ data: acts }, { data: am }] = await Promise.all([
-      (db.from as any)('activities').select('id, name').in('id', activityIds).order('name'),
+    // TODO seam-gap: activity_modes multi-activity read (seam only offers activityModes per single activity)
+    const [actsAll, { data: am }] = await Promise.all([
+      api.activities(orgId.value),
       (db.from as any)('activity_modes').select('id, name, color, activity_id').in('activity_id', activityIds).order('name'),
     ])
-    linkedActivities.value = acts ?? []
+    linkedActivities.value = (actsAll ?? [])
+      .filter((a: any) => activityIds.includes(a.id))
+      .sort((a: any, b: any) => (a.name || '').localeCompare(b.name || ''))
     activityModes.value = am ?? []
   } else {
     linkedActivities.value = []
@@ -1778,6 +1789,11 @@ async function save() {
   await persistRule(payload)
 }
 
+// TODO seam-gap: every availability_rules write below (persistRule / resolveConflict /
+// toggleRule / deleteRule / cloneRule) is a granular, history-preserving op (single-row
+// update/insert/delete, supersede via replaced_by_rule_id, restore, clone). The seam's
+// only write is whole-set replaceAvailabilityRules, which would destroy id stability +
+// the replaced_by history — so these stay on useDb until a granular rules seam lands.
 async function persistRule(payload: any, opts: { replacedRuleIds?: string[] } = {}) {
   if (editing.value) {
     await (db.from as any)('availability_rules').update(payload).eq('id', editing.value.id)
@@ -1989,6 +2005,8 @@ async function loadBookingsForView() {
     start = new Date(year, month, 1, 0, 0, 0, 0)
     end = new Date(year, month + 1, 0, 23, 59, 59, 999)
   }
+  // TODO seam-gap: bookings read is by bookable_id + date-range + status — the seam only
+  // offers an org-scoped bookings list (no bookable/date filter). Still via useDb.
   const { data } = await (db.from as any)('bookings')
     .select('id, start_at, end_at, status')
     .eq('bookable_id', props.bookableId)

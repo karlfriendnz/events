@@ -91,8 +91,58 @@ export interface GroupBilling {
 }
 
 export function useTermsMemberships() {
-  const db = useDb()
   const { orgId } = useOrg()
+  const api = useMembershipsApi()
+
+  // ── seam mappers (camelCase contract → this composable's snake_case shapes) ──
+  function termToSnake(t: any): OrgTerm {
+    return {
+      id: t.id,
+      org_id: t.orgId,
+      name: t.name,
+      start_date: t.startDate ?? null,
+      end_date: t.endDate ?? null,
+      signup_open: t.signupOpen ?? null,
+      signup_close: t.signupClose ?? null,
+      set_id: t.setId ?? null,
+      status: t.status,
+      sort_order: t.sortOrder ?? 0,
+    }
+  }
+  function setToSnake(s: any): TermSet {
+    return {
+      id: s.id,
+      org_id: s.orgId,
+      name: s.name,
+      sport_id: s.sportId ?? null,
+      location_ids: s.locationIds ?? null,
+      sort_order: s.sortOrder ?? 0,
+    }
+  }
+  function optToSnake(o: any): MembershipPlanOption {
+    return {
+      id: o.id,
+      plan_id: o.planId,
+      name: o.name ?? null,
+      period_unit: o.periodUnit,
+      period_count: o.periodCount,
+      price: o.price != null ? Number(o.price) : null,
+      auto_renew: !!o.autoRenew,
+      sort_order: o.sortOrder ?? 0,
+    }
+  }
+  function planToSnake(p: any): MembershipPlan {
+    return {
+      id: p.id,
+      org_id: p.orgId,
+      name: p.name,
+      description: p.description ?? null,
+      color: p.color ?? null,
+      status: p.status,
+      sort_order: p.sortOrder ?? 0,
+      options: (p.options ?? []).map(optToSnake),
+    }
+  }
 
   // ---- period math ----
   // A readable label for an option's duration, e.g. "3 months", "1 year".
@@ -136,68 +186,46 @@ export function useTermsMemberships() {
 
   // ---- loaders ----
   async function loadTerms(org = orgId.value): Promise<OrgTerm[]> {
-    const { data } = await (db.from as any)('org_terms')
-      .select('id, org_id, name, start_date, end_date, signup_open, signup_close, set_id, status, sort_order')
-      .eq('org_id', org)
-      .order('sort_order', { ascending: true, nullsFirst: false })
-      .order('start_date')
-    return (data || []) as OrgTerm[]
+    const terms = await api.terms(org)
+    return terms.map(termToSnake)
   }
 
   // ---- term sets (migration 232) ----
   async function loadTermSets(org = orgId.value): Promise<TermSet[]> {
-    const { data } = await (db.from as any)('term_sets')
-      .select('id, org_id, name, sport_id, location_ids, sort_order')
-      .eq('org_id', org)
-      .order('sort_order', { ascending: true, nullsFirst: false })
-      .order('name')
-    return (data || []) as TermSet[]
+    const sets = await api.termSets(org)
+    return sets.map(setToSnake)
   }
   async function createTermSet(name: string, org = orgId.value): Promise<TermSet | null> {
-    const { data } = await (db.from as any)('term_sets')
-      .insert({ org_id: org, name }).select('id, org_id, name, sport_id, location_ids, sort_order').single()
-    return (data ?? null) as TermSet | null
+    try {
+      return setToSnake(await api.createTermSet({ orgId: org, name }))
+    } catch {
+      return null
+    }
   }
   async function renameTermSet(id: string, name: string): Promise<void> {
-    await (db.from as any)('term_sets').update({ name }).eq('id', id)
+    await api.updateTermSet(id, { name })
   }
   async function setTermSetSport(id: string, sportId: string | null): Promise<void> {
-    await (db.from as any)('term_sets').update({ sport_id: sportId }).eq('id', id)
+    await api.updateTermSet(id, { sportId })
   }
   async function setTermSetLocations(id: string, locationIds: string[] | null): Promise<void> {
-    await (db.from as any)('term_sets').update({ location_ids: locationIds?.length ? locationIds : null }).eq('id', id)
+    await api.updateTermSet(id, { locationIds: locationIds?.length ? locationIds : null })
   }
   async function deleteTermSet(id: string): Promise<void> {
-    // Terms fall back to the default set (set_id → null via FK on delete set null)
-    await (db.from as any)('term_sets').delete().eq('id', id)
+    await api.removeTermSet(id)
   }
 
   async function loadPlans(org = orgId.value): Promise<MembershipPlan[]> {
-    const { data: plans } = await (db.from as any)('membership_plans')
-      .select('id, org_id, name, description, color, status, sort_order')
-      .eq('org_id', org)
-      .order('sort_order', { ascending: true, nullsFirst: false })
-      .order('name')
-    const list = (plans || []) as MembershipPlan[]
-    if (!list.length) return []
-    const { data: opts } = await (db.from as any)('membership_plan_options')
-      .select('id, plan_id, name, period_unit, period_count, price, auto_renew, sort_order')
-      .in('plan_id', list.map(p => p.id))
-      .order('sort_order', { ascending: true, nullsFirst: false })
-    const byPlan: Record<string, MembershipPlanOption[]> = {}
-    for (const o of (opts || []) as MembershipPlanOption[]) (byPlan[o.plan_id!] ||= []).push(o)
-    return list.map(p => ({ ...p, options: byPlan[p.id] || [] }))
+    const plans = await api.plans(org)
+    return plans.map(planToSnake)
   }
 
-  // What a single group offers (term links + plan links), hydrated.
+  // What a single group offers (term links + plan links).
   async function loadGroupBilling(groupId: string): Promise<GroupBilling> {
-    const [{ data: gt }, { data: gp }] = await Promise.all([
-      (db.from as any)('member_group_terms').select('term_id, fee').eq('group_id', groupId),
-      (db.from as any)('member_group_plans').select('plan_id').eq('group_id', groupId),
-    ])
+    const b = await api.groupBilling(groupId)
     return {
-      terms: (gt || []).map((r: any) => ({ term_id: r.term_id, fee: r.fee })),
-      plans: (gp || []).map((r: any) => ({ plan_id: r.plan_id })),
+      terms: b.terms.map((r) => ({ term_id: r.termId, fee: r.fee != null ? Number(r.fee) : null })),
+      plans: b.plans.map((r) => ({ plan_id: r.planId })),
     }
   }
 

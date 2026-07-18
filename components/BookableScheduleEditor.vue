@@ -162,6 +162,8 @@
 const props = defineProps<{ bookableId: string; readonly?: boolean }>()
 const emit = defineEmits<{ saved: [] }>()
 
+// TODO seam-gap: booking_windows + booking_window_slots have no /api/v1 seam methods
+// yet — this whole editor stays on useDb until the booking-windows seam lands.
 const db = useDb()
 const windows = ref<any[]>([])
 const loading = ref(true)

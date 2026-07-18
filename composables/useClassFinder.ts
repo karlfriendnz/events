@@ -85,7 +85,7 @@ export function parseAgeRange(s: string | null): { min: number | null; max: numb
 
 export function useClassFinder() {
   const ct = useClassTimetable()
-  const db = useDb()
+  const disc = useDisciplinesApi()
 
   // Shared state (persists across route changes; the drawer is mounted once in the layout).
   const open = useState<boolean>('classFinder.open', () => false)
@@ -124,18 +124,19 @@ export function useClassFinder() {
       if (s.venue && !g.venues.includes(s.venue)) g.venues.push(s.venue)
     }
 
-    // Disciplines each class is mapped to (member_group_disciplines → disciplines).
+    // Disciplines each class is mapped to (via the disciplines seam, per group).
     // Only disciplines actually in use become chooser options.
     const groupIds = [...byGroup.keys()]
     const discOptions = new Map<string, { id: string; name: string; sport: string | null }>()
     if (groupIds.length) {
-      const { data: links } = await (db.from as any)('member_group_disciplines')
-        .select('group_id, discipline_id, discipline:disciplines(id, name, sport)').in('group_id', groupIds)
-      for (const l of links ?? []) {
-        const g = byGroup.get(l.group_id); const d = l.discipline
-        if (!g || !d) continue
-        if (!g.disciplineIds.includes(d.id)) { g.disciplineIds.push(d.id); g.disciplines.push({ id: d.id, name: d.name }) }
-        if (!discOptions.has(d.id)) discOptions.set(d.id, { id: d.id, name: d.name, sport: d.sport ?? null })
+      const perGroup = await Promise.all(groupIds.map(async (gid) => ({ gid, ds: await disc.forGroup(gid) })))
+      for (const { gid, ds } of perGroup) {
+        const g = byGroup.get(gid)
+        if (!g) continue
+        for (const d of ds) {
+          if (!g.disciplineIds.includes(d.id)) { g.disciplineIds.push(d.id); g.disciplines.push({ id: d.id, name: d.name }) }
+          if (!discOptions.has(d.id)) discOptions.set(d.id, { id: d.id, name: d.name, sport: (d as any).sport ?? null })
+        }
       }
     }
     const disciplines = [...discOptions.values()].sort((a, b) => a.name.localeCompare(b.name))

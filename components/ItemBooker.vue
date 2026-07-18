@@ -206,6 +206,7 @@ const emit = defineEmits<{
 }>()
 
 const db = useDb()
+const api = useBookingsApi()
 const { orgId } = useOrg()
 const toast = useToast()
 
@@ -392,31 +393,35 @@ async function load() {
   if (!props.activityId) return
   loading.value = true
   try {
-    const [{ data: act }, { data: ms }, { data: ab }] = await Promise.all([
-      (db.from as any)('activities')
-        .select('id, name, color, icon, area_name_singular, area_name_plural, assignment_mode, booking_flow, org_id')
-        .eq('id', props.activityId).single(),
-      (db.from as any)('activity_modes')
-        .select('id, name, color, period_unit, period_count, term_type, period_price, sort_order, form_id')
-        .eq('activity_id', props.activityId)
-        .not('period_unit', 'is', null)
-        .order('sort_order'),
-      (db.from as any)('activity_bookables')
-        .select('bookable_id')
-        .eq('activity_id', props.activityId),
+    // Seam returns camelCase; the template reads snake_case, so map at the boundary.
+    const [actRaw, msRaw, abRaw] = await Promise.all([
+      api.activity(props.activityId),
+      api.activityModes(props.activityId),
+      api.activityBookables(props.activityId),
     ])
-    activity.value = act ?? null
-    modes.value = ms ?? []
-    const parentIds = (ab ?? []).map((r: any) => r.bookable_id)
-    if (parentIds.length) {
-      const { data: pb } = await (db.from as any)('bookables')
-        .select('id, name, parent_id, max_concurrent, status')
-        .in('id', parentIds)
-      linkedBookables.value = (pb ?? []).filter((b: any) => b.status !== 'ARCHIVED')
-      const { data: cb } = await (db.from as any)('bookables')
-        .select('id, name, parent_id, status')
-        .in('parent_id', parentIds)
-      childBookables.value = (cb ?? []).filter((b: any) => b.status !== 'ARCHIVED')
+    activity.value = actRaw ? {
+      id: actRaw.id, name: actRaw.name, color: actRaw.color, icon: actRaw.icon,
+      area_name_singular: actRaw.areaNameSingular, area_name_plural: actRaw.areaNamePlural,
+      assignment_mode: actRaw.assignmentMode, booking_flow: actRaw.bookingFlow, org_id: actRaw.orgId,
+    } : null
+    modes.value = (msRaw ?? [])
+      .filter((m: any) => m.periodUnit != null)
+      .sort((a: any, b: any) => a.sortOrder - b.sortOrder)
+      .map((m: any) => ({
+        id: m.id, name: m.name, color: m.color, period_unit: m.periodUnit, period_count: m.periodCount,
+        term_type: m.termType, period_price: m.periodPrice, sort_order: m.sortOrder, form_id: m.formId,
+      }))
+    const parentIds: string[] = (abRaw ?? []).map((r: any) => r.bookableId)
+    if (parentIds.length && actRaw?.orgId) {
+      // Seam has no in(ids)/children-of read; fetch the org's bookables once and split client-side.
+      const allBk = await api.bookables(actRaw.orgId)
+      const parentSet = new Set(parentIds)
+      linkedBookables.value = allBk
+        .filter((b: any) => parentSet.has(b.id) && b.status !== 'ARCHIVED')
+        .map((b: any) => ({ id: b.id, name: b.name, parent_id: b.parentId, max_concurrent: b.maxConcurrent, status: b.status }))
+      childBookables.value = allBk
+        .filter((b: any) => b.parentId && parentSet.has(b.parentId) && b.status !== 'ARCHIVED')
+        .map((b: any) => ({ id: b.id, name: b.name, parent_id: b.parentId, status: b.status }))
     } else {
       linkedBookables.value = []
       childBookables.value = []
@@ -437,6 +442,7 @@ async function loadBookingsForWindow() {
   if (!ids.length) return
   const winStart = new Date(startAt.value); winStart.setHours(0, 0, 0, 0)
   const winEnd = new Date(endAt.value); winEnd.setDate(winEnd.getDate() + 1)
+  // TODO seam-gap: overlap check needs a bookable_id-IN + start/end window server filter (api.bookings has none) — kept on useDb for correctness
   const { data } = await (db.from as any)('bookings')
     .select('id, bookable_id, start_at, end_at, status')
     .in('bookable_id', ids)
@@ -499,33 +505,28 @@ async function submit() {
       return
     }
 
-    const payload: any = {
-      // bookings is scoped via bookable_id → bookables.org_id, no org_id
-      // column on the bookings table itself.
-      activity_id: activity.value.id,
-      activity_mode_id: pickedMode.value.id,
-      bookable_id: unit.id,
-      // type enum: 'ONE_OFF' is the right value even for our recurring
-      // rentals — the existing 'RECURRING' enum means a recurrence_rule-
-      // driven schedule (weekly standing bookings), which is a different
-      // concept. is_recurring is the flag for rolling rentals.
+    // bookings is scoped via bookable_id → bookables.org_id, no org_id column on the table.
+    // type enum: 'ONE_OFF' is right even for recurring rentals — 'RECURRING' means a
+    // recurrence_rule schedule (a different concept). is_recurring flags rolling rentals.
+    const created = await api.createBooking({
+      activityId: activity.value.id,
+      activityModeId: pickedMode.value.id,
+      bookableId: unit.id,
       type: 'ONE_OFF',
-      start_at: startAt.value.toISOString(),
-      end_at: endAt.value.toISOString(),
+      startAt: startAt.value.toISOString(),
+      endAt: endAt.value.toISOString(),
       status: 'CONFIRMED',
-      is_recurring: pickedMode.value.term_type === 'recurring',
-      contact_name: contactName.value || null,
-      contact_email: contactEmail.value || null,
-      contact_phone: contactPhone.value || null,
-      subject_person_id: subjectPersonId.value,
-    }
-    const { data, error } = await (db.from as any)('bookings').insert(payload).select('id').single()
-    if (error) throw error
-    if (data?.id) {
-      $fetch('/api/finalize-access', { method: 'POST', body: { bookingId: data.id } }).catch(() => {})
+      isRecurring: pickedMode.value.term_type === 'recurring',
+      contactName: contactName.value || null,
+      contactEmail: contactEmail.value || null,
+      contactPhone: contactPhone.value || null,
+      subjectPersonId: subjectPersonId.value,
+    })
+    if (created?.id) {
+      $fetch('/api/finalize-access', { method: 'POST', body: { bookingId: created.id } }).catch(() => {})
     }
     toast.add({ severity: 'success', summary: 'Booked', detail: `${activity.value.name} · ${unit.name}`, life: 4000 })
-    emit('done', { bookingId: data.id })
+    emit('done', { bookingId: created.id })
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Could not book', detail: e?.data?.message ?? e?.message ?? 'Unknown error', life: 6000 })
   } finally {

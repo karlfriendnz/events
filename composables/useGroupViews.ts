@@ -36,8 +36,8 @@ export interface GroupView {
 const DEFAULT_CONFIG: GroupViewConfig = { columns: ['head', 'gymnasts', 'waitlist', 'attendances', 'termfee', 'gender', 'signup', 'sport'], codeIds: [] }
 
 export function useGroupViews() {
-  const db = useDb()
   const { orgId } = useOrg()
+  const api = useGroupsApi()
   const views = useState<GroupView[]>('fm-group-views', () => [])
 
   function normalizeConfig(c: any): GroupViewConfig {
@@ -47,45 +47,48 @@ export function useGroupViews() {
     }
   }
 
+  // camelCase contract → this composable's snake_case GroupView shape.
+  function toSnake(v: any): GroupView {
+    return { id: v.id, org_id: v.orgId, name: v.name, config: normalizeConfig(v.config), sort_order: v.sortOrder ?? 0 }
+  }
+
   async function loadViews(): Promise<GroupView[]> {
     if (!orgId.value) return []
-    const { data } = await (db.from as any)('group_views')
-      .select('id, org_id, name, config, sort_order, created_at')
-      .eq('org_id', orgId.value)
-      .order('sort_order', { ascending: true })
-      .order('name', { ascending: true })
-    const list = (data ?? []).map((r: any) => ({ ...r, config: normalizeConfig(r.config) }))
+    const list = (await api.views(orgId.value)).map(toSnake)
     views.value = list
     return list
   }
 
   async function getView(id: string): Promise<GroupView | null> {
-    const { data } = await (db.from as any)('group_views')
-      .select('id, org_id, name, config, sort_order, created_at')
-      .eq('id', id)
-      .maybeSingle()
-    return data ? { ...data, config: normalizeConfig(data.config) } : null
+    try {
+      return toSnake(await api.view(id))
+    } catch {
+      return null
+    }
   }
 
   async function createView(patch: { name: string; config?: Partial<GroupViewConfig>; sort_order?: number }): Promise<GroupView | null> {
-    const { data } = await (db.from as any)('group_views').insert({
-      org_id: orgId.value,
-      name: patch.name.trim(),
-      config: { ...DEFAULT_CONFIG, ...patch.config },
-      sort_order: patch.sort_order ?? 0,
-    }).select('id, org_id, name, config, sort_order, created_at').maybeSingle()
-    const created = data ? { ...data, config: normalizeConfig(data.config) } : null
-    if (created) views.value = [...views.value, created]
-    return created
+    try {
+      const created = toSnake(await api.createView({
+        orgId: orgId.value,
+        name: patch.name.trim(),
+        config: { ...DEFAULT_CONFIG, ...patch.config },
+        sortOrder: patch.sort_order ?? 0,
+      }))
+      views.value = [...views.value, created]
+      return created
+    } catch {
+      return null
+    }
   }
 
   async function updateView(id: string, patch: { name?: string; config?: GroupViewConfig; sort_order?: number }): Promise<void> {
-    await (db.from as any)('group_views').update(patch).eq('id', id)
+    await api.updateView(id, { name: patch.name, config: patch.config, sortOrder: patch.sort_order })
     views.value = views.value.map(v => v.id === id ? { ...v, ...patch } as GroupView : v)
   }
 
   async function deleteView(id: string): Promise<void> {
-    await (db.from as any)('group_views').delete().eq('id', id)
+    await api.removeView(id)
     views.value = views.value.filter(v => v.id !== id)
   }
 

@@ -1,92 +1,125 @@
-// The repository: the ONLY code that knows how bookables, activities, activity
-// modes and bookings are stored. It turns DB rows into domain objects (the contract
-// shape) and back. Nitro routes call these functions; they never touch Drizzle or
-// the DB directly. When the backend team's MySQL API replaces this, only this file
-// changes — routes, composables and UI are untouched.
+// The repository: the ONLY code that knows how the bookings domain is stored —
+// bookables, their modes/configurations/availability/access links, activities +
+// their modes/scope/required-items, bookings + their items, booking discounts, and
+// the org-wide door/light catalogue. It turns DB rows into domain objects (the
+// contract shape) and back. Nitro routes call these functions; they never touch
+// Drizzle or the DB directly. When the backend team's MySQL API replaces this, only
+// this file changes — routes, composables and UI are untouched.
 //
-// json handling: sections/features/categories/sports (bookables) and a mode's
-// pricing/addons are `json` columns. mysql2 usually hands them back already parsed,
-// but a driver/config can return the raw string — asArray/asObj normalise either
-// (and never throw), so the domain always sees a real JS value.
+// json handling: the many json columns (a bookable's features/images/categories/
+// sports, a mode's pricing/addons/payment_options, an availability rule's slots) are
+// `json` in MySQL. mysql2 usually hands them back already parsed, but a driver/config
+// can return the raw string — asArray/asObj normalise either (and never throw), so
+// the domain always sees a real JS value. On WRITE, json columns take RAW JS values
+// (never JSON.stringify — Drizzle json() double-encodes).
 import { randomUUID } from 'node:crypto'
-import { asc, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
-  Bookable,
-  Activity,
-  ActivityMode,
-  Booking,
-  BookableCreate,
-  BookablePatch,
-  ActivityCreate,
-  ActivityPatch,
+  Bookable, BookableCreate, BookablePatch,
+  Activity, ActivityCreate, ActivityPatch,
+  ActivityMode, ActivityModeCreate, ActivityModePatch,
+  BookableMode,
+  AvailabilityRule, AvailabilityRuleCreate, AvailabilityRulePatch,
+  BookableConfigurationFull,
+  Door, DoorCreate, DoorPatch,
+  LightZone, LightZoneCreate, LightZonePatch,
+  BookingDiscount,
+  ActivityModeBookable, ActivityModeResource, ActivityModeRequiredItem, ActivityBookable,
+  Booking, BookingCreate,
 } from '../../../shared/contracts/booking'
 
-// Coerce a json column into string[]: already an array → use it; a string → parse;
-// anything else / a parse failure → [].
-function asArray(v: unknown): string[] {
-  if (Array.isArray(v)) return v as string[]
+// ── json / value coercion ──
+function asArray(v: unknown): any[] {
+  if (Array.isArray(v)) return v
   if (typeof v === 'string') {
-    try {
-      const parsed = JSON.parse(v)
-      return Array.isArray(parsed) ? (parsed as string[]) : []
-    } catch {
-      return []
-    }
+    try { const p = JSON.parse(v); return Array.isArray(p) ? p : [] } catch { return [] }
   }
   return []
 }
-
-// Coerce a json column into a plain object (a mode's pricing): already an object →
-// use it; a string → parse to an object; anything else / a parse failure → null.
+function asStrArray(v: unknown): string[] { return asArray(v).map((x) => String(x)) }
 function asObj(v: unknown): Record<string, any> | null {
   if (v && typeof v === 'object' && !Array.isArray(v)) return v as Record<string, any>
   if (typeof v === 'string') {
-    try {
-      const parsed = JSON.parse(v)
-      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
-    } catch {
-      return null
-    }
+    try { const p = JSON.parse(v); return p && typeof p === 'object' && !Array.isArray(p) ? p : null } catch { return null }
   }
   return null
 }
-
-// Coerce a json column into an array of arbitrary items (a mode's addons).
-function asAnyArray(v: unknown): any[] | null {
-  if (Array.isArray(v)) return v as any[]
-  if (typeof v === 'string') {
-    try {
-      const parsed = JSON.parse(v)
-      return Array.isArray(parsed) ? parsed : null
-    } catch {
-      return null
-    }
-  }
-  return null
-}
-
-// A DB timestamp → ISO 8601 string, the transport form.
+// A DB timestamp → ISO 8601 string.
 function toIso(v: unknown): string {
   const d = v instanceof Date ? v : new Date(v as any)
   return d.toISOString()
 }
+function toIsoN(v: unknown): string | null {
+  if (v == null) return null
+  return toIso(v)
+}
+// A DB date column → 'YYYY-MM-DD' string (Date object or already a string).
+function toDateStr(v: unknown): string | null {
+  if (v == null) return null
+  if (v instanceof Date) return v.toISOString().slice(0, 10)
+  return String(v)
+}
+// time columns pass through as strings.
+function toStrN(v: unknown): string | null {
+  return v == null ? null : String(v)
+}
+function toNum(v: unknown): number | null {
+  return v == null ? null : Number(v)
+}
 
+// ── mappers (row → domain) ──
 function toBookable(r: typeof schema.bookables.$inferSelect): Bookable {
   return {
     id: r.id,
     orgId: r.orgId,
     name: r.name,
+    internalName: r.internalName ?? null,
     type: r.type,
+    status: r.status,
     parentId: r.parentId ?? null,
     masterId: r.masterId ?? null,
-    maxConcurrent: r.maxConcurrent,
-    status: r.status,
+    isMaster: r.isMaster,
+    isSlaveAutoAssign: r.isSlaveAutoAssign,
     isPublic: r.isPublic,
-    sections: asArray(r.sections),
-    features: asArray(r.features),
-    categories: asArray(r.categories),
-    sports: asArray(r.sports),
+    isNetwork: r.isNetwork,
+    maxConcurrent: r.maxConcurrent,
+    location: r.location ?? null,
+    showLocation: r.showLocation,
+    description: r.description ?? null,
+    features: asStrArray(r.features),
+    rules: r.rules ?? null,
+    images: asArray(r.images),
+    categories: asStrArray(r.categories),
+    sports: asStrArray(r.sports),
+    customFields: asObj(r.customFields),
+    sortOrder: r.sortOrder,
+    itemCategory: r.itemCategory ?? null,
+    defaultBookingView: r.defaultBookingView ?? null,
+    closedFrom: toDateStr(r.closedFrom),
+    closedUntil: toDateStr(r.closedUntil),
+    closureReason: r.closureReason ?? null,
+    customizedSections: asArray(r.customizedSections),
+    mainImage: r.mainImage ?? null,
+    sponsorImage: r.sponsorImage ?? null,
+    showInMenu: r.showInMenu,
+    sections: asStrArray(r.sections),
+    spaceType: r.spaceType ?? null,
+    bookingLimitType: r.bookingLimitType,
+    bookingLimitCount: r.bookingLimitCount ?? null,
+    disallowConcurrent: r.disallowConcurrent,
+    disallowConsecutive: r.disallowConsecutive,
+    allowModesWithOthers: r.allowModesWithOthers,
+    allowSubVenues: r.allowSubVenues,
+    autoResolveChildren: r.autoResolveChildren,
+    accessEnabled: r.accessEnabled,
+    accessCodeDelivery: r.accessCodeDelivery,
+    accessCodeLength: r.accessCodeLength,
+    accessUnlockBeforeMins: r.accessUnlockBeforeMins,
+    accessUnlockAfterMins: r.accessUnlockAfterMins,
+    lightingRampUpMins: r.lightingRampUpMins,
+    lightingRampDownMins: r.lightingRampDownMins,
+    lightingLevelPercent: r.lightingLevelPercent,
   }
 }
 
@@ -100,10 +133,31 @@ function toActivity(r: typeof schema.activities.$inferSelect): Activity {
     icon: r.icon,
     imageUrl: r.imageUrl ?? null,
     status: r.status,
-    staffBookableId: r.staffBookableId ?? null,
-    bookingFlow: r.bookingFlow,
-    assignmentMode: r.assignmentMode,
+    sortOrder: r.sortOrder,
+    requireMode: r.requireMode,
+    approvalMode: r.approvalMode,
+    bookingWindowDays: r.bookingWindowDays ?? null,
+    minNoticeHours: r.minNoticeHours ?? null,
+    cancellationWindowHours: r.cancellationWindowHours ?? null,
+    minDurationMins: r.minDurationMins ?? null,
+    maxDurationMins: r.maxDurationMins ?? null,
+    bufferMins: r.bufferMins ?? null,
+    areaNameSingular: r.areaNameSingular ?? null,
+    areaNamePlural: r.areaNamePlural ?? null,
     bookingsEnabled: r.bookingsEnabled,
+    allowMultiSlot: r.allowMultiSlot,
+    allowMultiSlotPeak: r.allowMultiSlotPeak,
+    allowKiosk: r.allowKiosk,
+    allowRecurring: r.allowRecurring,
+    allowMemberChanges: r.allowMemberChanges,
+    autoRemoveUnpaid: r.autoRemoveUnpaid,
+    requireVisitorNames: r.requireVisitorNames,
+    hideMemberNames: r.hideMemberNames,
+    bookingFlow: r.bookingFlow,
+    modeLabel: r.modeLabel,
+    modeDisplay: r.modeDisplay,
+    assignmentMode: r.assignmentMode,
+    staffBookableId: r.staffBookableId ?? null,
   }
 }
 
@@ -112,16 +166,97 @@ function toActivityMode(r: typeof schema.activityModes.$inferSelect): ActivityMo
     id: r.id,
     activityId: r.activityId,
     name: r.name,
+    description: r.description ?? null,
     color: r.color ?? null,
-    pricing: asObj(r.pricing),
-    addons: asAnyArray(r.addons),
-    configurationKey: r.configurationKey ?? null,
-    formId: r.formId ?? null,
     sortOrder: r.sortOrder,
+    imageUrl: r.imageUrl ?? null,
+    pricing: asObj(r.pricing),
+    addons: asArray(r.addons),
+    minPeople: r.minPeople ?? null,
+    maxPeople: r.maxPeople ?? null,
+    minVisitors: r.minVisitors ?? null,
+    maxVisitors: r.maxVisitors ?? null,
+    allowVisitors: r.allowVisitors,
+    formId: r.formId ?? null,
+    defaultBookingView: r.defaultBookingView ?? null,
+    paymentOptions: asObj(r.paymentOptions),
+    approvalMode: r.approvalMode,
+    configurationKey: r.configurationKey ?? null,
     periodUnit: r.periodUnit ?? null,
     periodCount: r.periodCount,
     termType: r.termType,
     periodPrice: r.periodPrice ?? null,
+    category: r.category ?? null,
+  }
+}
+
+function toBookableMode(r: typeof schema.bookableModes.$inferSelect): BookableMode {
+  return {
+    id: r.id,
+    bookableId: r.bookableId,
+    name: r.name,
+    description: r.description ?? null,
+    color: r.color ?? null,
+    minPlayers: r.minPlayers ?? null,
+    maxPlayers: r.maxPlayers ?? null,
+    sortOrder: r.sortOrder,
+    pricePerHour: r.pricePerHour ?? null,
+    pricePerSlot: r.pricePerSlot ?? null,
+    flatFee: r.flatFee ?? null,
+    pricePerPerson: r.pricePerPerson ?? null,
+  }
+}
+
+function toAvailabilityRule(r: typeof schema.availabilityRules.$inferSelect): AvailabilityRule {
+  return {
+    id: r.id,
+    bookableId: r.bookableId,
+    name: r.name,
+    ruleType: r.ruleType,
+    daysOfWeek: asArray(r.daysOfWeek),
+    timeFrom: toStrN(r.timeFrom),
+    timeTo: toStrN(r.timeTo),
+    eligibility: asObj(r.eligibility),
+    membershipTypes: asArray(r.membershipTypes),
+    groupIds: asArray(r.groupIds),
+    sortOrder: r.sortOrder,
+    isActive: r.isActive,
+    capacityUsed: r.capacityUsed,
+    color: r.color,
+    priceTiers: asArray(r.priceTiers),
+    timeSlots: asArray(r.timeSlots),
+    weekInterval: r.weekInterval,
+    weekAnchor: toDateStr(r.weekAnchor),
+    monthWeek: r.monthWeek ?? null,
+    rrule: r.rrule ?? null,
+    bookableModeId: r.bookableModeId ?? null,
+    activityModeIds: r.activityModeIds == null ? null : asArray(r.activityModeIds),
+    maxConcurrent: r.maxConcurrent ?? null,
+    validFrom: toDateStr(r.validFrom),
+    validUntil: toDateStr(r.validUntil),
+    replacedByRuleId: r.replacedByRuleId ?? null,
+    inviteeModes: r.inviteeModes == null ? null : asArray(r.inviteeModes),
+    inviteeGroups: r.inviteeGroups == null ? null : asArray(r.inviteeGroups),
+  }
+}
+
+function toDoor(r: typeof schema.doors.$inferSelect): Door {
+  return {
+    id: r.id, orgId: r.orgId, name: r.name,
+    locationNote: r.locationNote ?? null,
+    hardwareProvider: r.hardwareProvider ?? null,
+    hardwareId: r.hardwareId ?? null,
+    defaultUnlockSeconds: r.defaultUnlockSeconds,
+    isActive: r.isActive,
+  }
+}
+function toLightZone(r: typeof schema.lightZones.$inferSelect): LightZone {
+  return {
+    id: r.id, orgId: r.orgId, name: r.name,
+    hardwareProvider: r.hardwareProvider ?? null,
+    hardwareId: r.hardwareId ?? null,
+    defaultLevelPercent: r.defaultLevelPercent,
+    isActive: r.isActive,
   }
 }
 
@@ -131,11 +266,27 @@ function toBooking(r: typeof schema.bookings.$inferSelect, orgId: string): Booki
     id: r.id,
     orgId,
     bookableId: r.bookableId,
-    activityId: r.activityId ?? null,
-    activityModeId: r.activityModeId ?? null,
+    eventId: r.eventId ?? null,
+    sessionId: r.sessionId ?? null,
+    type: r.type,
+    status: r.status,
     startAt: toIso(r.startAt),
     endAt: toIso(r.endAt),
-    status: r.status,
+    notes: r.notes ?? null,
+    contactName: r.contactName ?? null,
+    contactEmail: r.contactEmail ?? null,
+    contactPhone: r.contactPhone ?? null,
+    purpose: r.purpose ?? null,
+    isAllDay: r.isAllDay,
+    activityId: r.activityId ?? null,
+    activityModeId: r.activityModeId ?? null,
+    bookableModeId: r.bookableModeId ?? null,
+    modeId: r.modeId ?? null,
+    selectedAddons: asArray(r.selectedAddons),
+    attendeeCount: r.attendeeCount ?? null,
+    bookingDiscountId: r.bookingDiscountId ?? null,
+    discountAmount: r.discountAmount ?? null,
+    customFields: asObj(r.customFields),
     parentBookingId: r.parentBookingId ?? null,
     isRecurring: r.isRecurring,
     subjectPersonId: r.subjectPersonId ?? null,
@@ -143,64 +294,64 @@ function toBooking(r: typeof schema.bookings.$inferSelect, orgId: string): Booki
   }
 }
 
-/** Every bookable an org owns, in sort order. */
+// ══ Bookables ══
 export async function listBookables(orgId: string): Promise<Bookable[]> {
-  const rows = await db
-    .select()
-    .from(schema.bookables)
+  const rows = await db.select().from(schema.bookables)
     .where(eq(schema.bookables.orgId, orgId))
     .orderBy(asc(schema.bookables.sortOrder))
   return rows.map(toBookable)
 }
 
-/** One bookable by id, or null. */
 export async function getBookable(id: string): Promise<Bookable | null> {
   const [r] = await db.select().from(schema.bookables).where(eq(schema.bookables.id, id)).limit(1)
   return r ? toBookable(r) : null
 }
 
-// ── Bookable writes ──
-// The repo owns the id (MySQL can't default a uuid). The json array columns
-// (sections/features/categories/sports) are JSON.stringify'd on the way IN,
-// mirroring asArray on the way OUT. `as any` on the insert: the first-pass schema
-// marks many columns .notNull() (from Postgres) without their defaults, so Drizzle
-// over-requires them; the DB (defaults + relaxed mode) fills the rest. Consistent
-// with the app's (db.from as any) idiom.
+// Build a Drizzle SET object from a (camelCase) patch, keyed by the schema's JS
+// property names. `undefined` fields are skipped; json fields pass through raw.
+function bookableSet(patch: BookablePatch): Record<string, any> {
+  const s: Record<string, any> = {}
+  const keys: (keyof BookablePatch)[] = [
+    'orgId', 'name', 'internalName', 'type', 'status', 'parentId', 'masterId', 'isMaster',
+    'isSlaveAutoAssign', 'isPublic', 'isNetwork', 'maxConcurrent', 'location', 'showLocation',
+    'description', 'features', 'rules', 'images', 'categories', 'sports', 'customFields',
+    'sortOrder', 'itemCategory', 'defaultBookingView', 'closedFrom', 'closedUntil', 'closureReason',
+    'customizedSections', 'mainImage', 'sponsorImage', 'showInMenu', 'sections', 'spaceType',
+    'bookingLimitType', 'bookingLimitCount', 'disallowConcurrent', 'disallowConsecutive',
+    'allowModesWithOthers', 'allowSubVenues', 'autoResolveChildren', 'accessEnabled',
+    'accessCodeDelivery', 'accessCodeLength', 'accessUnlockBeforeMins', 'accessUnlockAfterMins',
+    'lightingRampUpMins', 'lightingRampDownMins', 'lightingLevelPercent',
+  ]
+  for (const k of keys) if (patch[k] !== undefined) s[k] = patch[k]
+  return s
+}
+
+// The repo owns the id (MySQL can't default a uuid). `as any` on the insert: the
+// first-pass schema marks many columns .notNull() (from Postgres) without their
+// defaults, so Drizzle over-requires them; the DB (defaults + relaxed mode) fills the
+// rest — consistent with the app's (db.from as any) idiom.
 export async function createBookable(input: BookableCreate): Promise<Bookable> {
   const id = randomUUID()
   await db.insert(schema.bookables).values({
     id,
-    orgId: input.orgId,
-    name: input.name,
-    type: input.type ?? 'VENUE',
-    parentId: input.parentId ?? null,
-    masterId: input.masterId ?? null,
-    maxConcurrent: input.maxConcurrent ?? 1,
-    status: input.status ?? 'ACTIVE',
-    isPublic: input.isPublic ?? true,
-    sections: input.sections ?? [],
-    features: input.features ?? [],
-    categories: input.categories ?? [],
-    sports: input.sports ?? [],
+    // sensible defaults for the notNull columns the UI may omit
+    type: 'VENUE', status: 'ACTIVE', maxConcurrent: 1,
+    isMaster: false, isSlaveAutoAssign: false, isPublic: true, isNetwork: false,
+    showLocation: false, showInMenu: false, sortOrder: 0,
+    bookingLimitType: 'none', disallowConcurrent: false, disallowConsecutive: false,
+    allowModesWithOthers: true, allowSubVenues: false, autoResolveChildren: false,
+    accessEnabled: false, accessCodeDelivery: 'none', accessCodeLength: 6,
+    accessUnlockBeforeMins: 0, accessUnlockAfterMins: 0,
+    lightingRampUpMins: 0, lightingRampDownMins: 0, lightingLevelPercent: 100,
+    customizedSections: [],
+    ...bookableSet(input),
   } as any)
   return (await getBookable(id))!
 }
 
 export async function updateBookable(id: string, patch: BookablePatch): Promise<Bookable | null> {
-  const set: Record<string, any> = {}
-  if (patch.orgId !== undefined) set.orgId = patch.orgId
-  if (patch.name !== undefined) set.name = patch.name
-  if (patch.type !== undefined) set.type = patch.type
-  if (patch.parentId !== undefined) set.parentId = patch.parentId
-  if (patch.masterId !== undefined) set.masterId = patch.masterId
-  if (patch.maxConcurrent !== undefined) set.maxConcurrent = patch.maxConcurrent
-  if (patch.status !== undefined) set.status = patch.status
-  if (patch.isPublic !== undefined) set.isPublic = patch.isPublic
-  if (patch.sections !== undefined) set.sections = patch.sections ?? []
-  if (patch.features !== undefined) set.features = patch.features ?? []
-  if (patch.categories !== undefined) set.categories = patch.categories ?? []
-  if (patch.sports !== undefined) set.sports = patch.sports ?? []
-  if (Object.keys(set).length) await db.update(schema.bookables).set(set).where(eq(schema.bookables.id, id))
+  const s = bookableSet(patch)
+  if (Object.keys(s).length) await db.update(schema.bookables).set(s).where(eq(schema.bookables.id, id))
   return getBookable(id)
 }
 
@@ -208,59 +359,277 @@ export async function deleteBookable(id: string): Promise<void> {
   await db.delete(schema.bookables).where(eq(schema.bookables.id, id))
 }
 
-/** Every activity an org offers, in sort order. */
+// ══ Bookable modes ══
+export async function listBookableModes(bookableId: string): Promise<BookableMode[]> {
+  const rows = await db.select().from(schema.bookableModes)
+    .where(eq(schema.bookableModes.bookableId, bookableId))
+    .orderBy(asc(schema.bookableModes.sortOrder))
+  return rows.map(toBookableMode)
+}
+
+// ══ Availability rules ══
+export async function listAvailabilityRules(bookableId: string): Promise<AvailabilityRule[]> {
+  const rows = await db.select().from(schema.availabilityRules)
+    .where(eq(schema.availabilityRules.bookableId, bookableId))
+    .orderBy(asc(schema.availabilityRules.sortOrder))
+  return rows.map(toAvailabilityRule)
+}
+
+// Every availability rule across a set of bookables (the scheduler loads a whole
+// venue tree at once). Returns them keyed nowhere — the caller buckets by bookableId.
+export async function listAvailabilityRulesForBookables(bookableIds: string[]): Promise<AvailabilityRule[]> {
+  if (!bookableIds.length) return []
+  const rows = await db.select().from(schema.availabilityRules)
+    .where(inArray(schema.availabilityRules.bookableId, bookableIds))
+    .orderBy(asc(schema.availabilityRules.sortOrder))
+  return rows.map(toAvailabilityRule)
+}
+
+function availabilitySet(patch: AvailabilityRulePatch): Record<string, any> {
+  const s: Record<string, any> = {}
+  const keys: (keyof AvailabilityRulePatch)[] = [
+    'bookableId', 'name', 'ruleType', 'daysOfWeek', 'timeFrom', 'timeTo', 'eligibility',
+    'membershipTypes', 'groupIds', 'sortOrder', 'isActive', 'capacityUsed', 'color', 'priceTiers',
+    'timeSlots', 'weekInterval', 'weekAnchor', 'monthWeek', 'rrule', 'bookableModeId',
+    'activityModeIds', 'maxConcurrent', 'validFrom', 'validUntil', 'replacedByRuleId',
+    'inviteeModes', 'inviteeGroups',
+  ]
+  for (const k of keys) if (patch[k] !== undefined) s[k] = patch[k]
+  return s
+}
+
+export async function createAvailabilityRule(input: AvailabilityRuleCreate): Promise<AvailabilityRule> {
+  const id = randomUUID()
+  await db.insert(schema.availabilityRules).values({
+    id,
+    name: '', ruleType: 'AVAILABLE', daysOfWeek: [], eligibility: {}, membershipTypes: [],
+    groupIds: [], sortOrder: 0, isActive: true, capacityUsed: 0, color: '#1E2157',
+    priceTiers: [], timeSlots: [], weekInterval: 1,
+    ...availabilitySet(input),
+  } as any)
+  const [r] = await db.select().from(schema.availabilityRules).where(eq(schema.availabilityRules.id, id)).limit(1)
+  return toAvailabilityRule(r)
+}
+
+export async function updateAvailabilityRule(id: string, patch: AvailabilityRulePatch): Promise<AvailabilityRule | null> {
+  const s = availabilitySet(patch)
+  if (Object.keys(s).length) await db.update(schema.availabilityRules).set(s).where(eq(schema.availabilityRules.id, id))
+  const [r] = await db.select().from(schema.availabilityRules).where(eq(schema.availabilityRules.id, id)).limit(1)
+  return r ? toAvailabilityRule(r) : null
+}
+
+export async function deleteAvailabilityRule(id: string): Promise<void> {
+  await db.delete(schema.availabilityRules).where(eq(schema.availabilityRules.id, id))
+}
+
+// Replace every availability rule for a bookable (delete-then-insert). Used by the
+// availability editor, which owns the whole set for a venue.
+export async function replaceAvailabilityRules(bookableId: string, rules: AvailabilityRuleCreate[]): Promise<AvailabilityRule[]> {
+  await db.delete(schema.availabilityRules).where(eq(schema.availabilityRules.bookableId, bookableId))
+  for (const rule of rules) await createAvailabilityRule({ ...rule, bookableId })
+  return listAvailabilityRules(bookableId)
+}
+
+// ══ Bookable configurations (+ children) ══
+export async function listConfigurations(parentBookableId: string): Promise<BookableConfigurationFull[]> {
+  const configs = await db.select().from(schema.bookableConfigurations)
+    .where(eq(schema.bookableConfigurations.parentBookableId, parentBookableId))
+    .orderBy(asc(schema.bookableConfigurations.sortOrder))
+  if (!configs.length) return []
+  const childRows = await db.select().from(schema.bookableConfigurationChildren)
+    .where(inArray(schema.bookableConfigurationChildren.configurationId, configs.map((c) => c.id)))
+    .orderBy(asc(schema.bookableConfigurationChildren.sortOrder))
+  return configs.map((c) => ({
+    id: c.id,
+    parentBookableId: c.parentBookableId,
+    key: c.key,
+    name: c.name,
+    sortOrder: c.sortOrder,
+    children: childRows.filter((ch) => ch.configurationId === c.id).map((ch) => ({
+      configurationId: ch.configurationId,
+      bookableId: ch.bookableId,
+      sortOrder: ch.sortOrder,
+      slotIndex: ch.slotIndex,
+      slotName: ch.slotName ?? null,
+    })),
+  }))
+}
+
+// Idempotent slot-aware save (the engine `useBookableConfigurations` used to run
+// directly against Supabase). Re-applying the same `key` replaces the membership
+// wholesale. `slots` = [{ name, childIds }]; empty slots are dropped — a save with no
+// member ids is a no-op. Returns the configuration id (or null when nothing to save).
+export async function saveConfiguration(
+  parentBookableId: string,
+  key: string,
+  name: string,
+  slots: { name: string; childIds: string[] }[],
+): Promise<string | null> {
+  const clean = slots.filter((s) => s.childIds.length > 0)
+  if (!clean.length) return null
+  const [existing] = await db.select({ id: schema.bookableConfigurations.id })
+    .from(schema.bookableConfigurations)
+    .where(and(
+      eq(schema.bookableConfigurations.parentBookableId, parentBookableId),
+      eq(schema.bookableConfigurations.key, key),
+    )).limit(1)
+  let configId = existing?.id
+  if (configId) {
+    await db.update(schema.bookableConfigurations).set({ name }).where(eq(schema.bookableConfigurations.id, configId))
+    await db.delete(schema.bookableConfigurationChildren).where(eq(schema.bookableConfigurationChildren.configurationId, configId))
+  } else {
+    configId = randomUUID()
+    await db.insert(schema.bookableConfigurations).values({
+      id: configId, parentBookableId, key, name, sortOrder: 0,
+    } as any)
+  }
+  const rows: any[] = []
+  let sortOrder = 0
+  for (let si = 0; si < clean.length; si++) {
+    for (const bid of clean[si].childIds) {
+      rows.push({ configurationId: configId, bookableId: bid, sortOrder: sortOrder++, slotIndex: si, slotName: clean[si].name })
+    }
+  }
+  if (rows.length) await db.insert(schema.bookableConfigurationChildren).values(rows as any)
+  return configId
+}
+
+export async function deleteConfiguration(configId: string): Promise<void> {
+  await db.delete(schema.bookableConfigurationChildren).where(eq(schema.bookableConfigurationChildren.configurationId, configId))
+  await db.delete(schema.bookableConfigurations).where(eq(schema.bookableConfigurations.id, configId))
+}
+
+// ══ Bookable ↔ door / light-zone links ══
+export async function listBookableDoors(bookableId: string): Promise<string[]> {
+  const rows = await db.select({ doorId: schema.bookableDoors.doorId }).from(schema.bookableDoors)
+    .where(eq(schema.bookableDoors.bookableId, bookableId))
+    .orderBy(asc(schema.bookableDoors.sortOrder))
+  return rows.map((r) => r.doorId)
+}
+export async function listBookableLightZones(bookableId: string): Promise<string[]> {
+  const rows = await db.select({ zoneId: schema.bookableLightZones.zoneId }).from(schema.bookableLightZones)
+    .where(eq(schema.bookableLightZones.bookableId, bookableId))
+    .orderBy(asc(schema.bookableLightZones.sortOrder))
+  return rows.map((r) => r.zoneId)
+}
+export async function setBookableDoors(bookableId: string, doorIds: string[]): Promise<void> {
+  await db.delete(schema.bookableDoors).where(eq(schema.bookableDoors.bookableId, bookableId))
+  if (doorIds.length) await db.insert(schema.bookableDoors).values(doorIds.map((doorId, i) => ({ bookableId, doorId, sortOrder: i })) as any)
+}
+export async function setBookableLightZones(bookableId: string, zoneIds: string[]): Promise<void> {
+  await db.delete(schema.bookableLightZones).where(eq(schema.bookableLightZones.bookableId, bookableId))
+  if (zoneIds.length) await db.insert(schema.bookableLightZones).values(zoneIds.map((zoneId, i) => ({ bookableId, zoneId, sortOrder: i })) as any)
+}
+
+// ══ Doors ══
+export async function listDoors(orgId: string): Promise<Door[]> {
+  const rows = await db.select().from(schema.doors).where(eq(schema.doors.orgId, orgId)).orderBy(asc(schema.doors.name))
+  return rows.map(toDoor)
+}
+export async function createDoor(input: DoorCreate): Promise<Door> {
+  const id = randomUUID()
+  await db.insert(schema.doors).values({ id, defaultUnlockSeconds: 5, isActive: true, ...cleanUndef(input) } as any)
+  const [r] = await db.select().from(schema.doors).where(eq(schema.doors.id, id)).limit(1)
+  return toDoor(r)
+}
+export async function updateDoor(id: string, patch: DoorPatch): Promise<Door | null> {
+  const s = cleanUndef(patch)
+  if (Object.keys(s).length) await db.update(schema.doors).set(s).where(eq(schema.doors.id, id))
+  const [r] = await db.select().from(schema.doors).where(eq(schema.doors.id, id)).limit(1)
+  return r ? toDoor(r) : null
+}
+export async function deleteDoor(id: string): Promise<void> {
+  await db.delete(schema.doors).where(eq(schema.doors.id, id))
+}
+
+// ══ Light zones ══
+export async function listLightZones(orgId: string): Promise<LightZone[]> {
+  const rows = await db.select().from(schema.lightZones).where(eq(schema.lightZones.orgId, orgId)).orderBy(asc(schema.lightZones.name))
+  return rows.map(toLightZone)
+}
+export async function createLightZone(input: LightZoneCreate): Promise<LightZone> {
+  const id = randomUUID()
+  await db.insert(schema.lightZones).values({ id, defaultLevelPercent: 100, isActive: true, ...cleanUndef(input) } as any)
+  const [r] = await db.select().from(schema.lightZones).where(eq(schema.lightZones.id, id)).limit(1)
+  return toLightZone(r)
+}
+export async function updateLightZone(id: string, patch: LightZonePatch): Promise<LightZone | null> {
+  const s = cleanUndef(patch)
+  if (Object.keys(s).length) await db.update(schema.lightZones).set(s).where(eq(schema.lightZones.id, id))
+  const [r] = await db.select().from(schema.lightZones).where(eq(schema.lightZones.id, id)).limit(1)
+  return r ? toLightZone(r) : null
+}
+export async function deleteLightZone(id: string): Promise<void> {
+  await db.delete(schema.lightZones).where(eq(schema.lightZones.id, id))
+}
+
+// Drop undefined keys from a patch (so a Drizzle .set() only touches provided cols).
+function cleanUndef<T extends Record<string, any>>(o: T): Record<string, any> {
+  const s: Record<string, any> = {}
+  for (const k of Object.keys(o)) if (o[k] !== undefined) s[k] = o[k]
+  return s
+}
+
+// ══ Activities ══
 export async function listActivities(orgId: string): Promise<Activity[]> {
-  const rows = await db
-    .select()
-    .from(schema.activities)
+  const rows = await db.select().from(schema.activities)
     .where(eq(schema.activities.orgId, orgId))
     .orderBy(asc(schema.activities.sortOrder))
   return rows.map(toActivity)
 }
 
-/** One activity by id, or null. */
 export async function getActivity(id: string): Promise<Activity | null> {
   const [r] = await db.select().from(schema.activities).where(eq(schema.activities.id, id)).limit(1)
   return r ? toActivity(r) : null
 }
 
-// ── Activity writes ──
-// The repo owns the id. activities has no json columns, so nothing to stringify;
-// `as any` per the insert idiom above lets the DB fill the .notNull() columns the
-// contract doesn't carry (the many booking-behaviour flags).
+// Every activity linked to a bookable (reverse of activity_bookables), plus any
+// activity directly tagged with staff_bookable_id. Used by the staff "What I offer"
+// tab to resolve/backfill a PERSON bookable's owning activity.
+export async function listActivitiesForBookable(bookableId: string): Promise<Activity[]> {
+  const linked = await db
+    .select({ a: schema.activities })
+    .from(schema.activityBookables)
+    .innerJoin(schema.activities, eq(schema.activityBookables.activityId, schema.activities.id))
+    .where(eq(schema.activityBookables.bookableId, bookableId))
+  const tagged = await db.select().from(schema.activities).where(eq(schema.activities.staffBookableId, bookableId))
+  const byId = new Map<string, typeof schema.activities.$inferSelect>()
+  for (const r of linked) byId.set(r.a.id, r.a)
+  for (const r of tagged) byId.set(r.id, r)
+  return [...byId.values()].map(toActivity)
+}
+
+function activitySet(patch: ActivityPatch): Record<string, any> {
+  const s: Record<string, any> = {}
+  const keys: (keyof ActivityPatch)[] = [
+    'orgId', 'name', 'description', 'color', 'icon', 'imageUrl', 'status', 'sortOrder',
+    'requireMode', 'approvalMode', 'bookingWindowDays', 'minNoticeHours', 'cancellationWindowHours',
+    'minDurationMins', 'maxDurationMins', 'bufferMins', 'areaNameSingular', 'areaNamePlural',
+    'bookingsEnabled', 'allowMultiSlot', 'allowMultiSlotPeak', 'allowKiosk', 'allowRecurring',
+    'allowMemberChanges', 'autoRemoveUnpaid', 'requireVisitorNames', 'hideMemberNames',
+    'bookingFlow', 'modeLabel', 'modeDisplay', 'assignmentMode', 'staffBookableId',
+  ]
+  for (const k of keys) if (patch[k] !== undefined) s[k] = patch[k]
+  return s
+}
+
 export async function createActivity(input: ActivityCreate): Promise<Activity> {
   const id = randomUUID()
   await db.insert(schema.activities).values({
     id,
-    orgId: input.orgId,
-    name: input.name,
-    description: input.description ?? null,
-    color: input.color ?? '#1E2157',
-    icon: input.icon ?? 'pi-calendar',
-    imageUrl: input.imageUrl ?? null,
-    status: input.status ?? 'ACTIVE',
-    staffBookableId: input.staffBookableId ?? null,
-    bookingFlow: input.bookingFlow ?? 'wizard',
-    assignmentMode: input.assignmentMode ?? 'system',
-    bookingsEnabled: input.bookingsEnabled ?? true,
+    color: '#1E2157', icon: 'pi-calendar', status: 'ACTIVE', sortOrder: 0,
+    requireMode: false, approvalMode: 'auto', bookingsEnabled: true,
+    allowMultiSlot: false, allowMultiSlotPeak: false, allowKiosk: false, allowRecurring: false,
+    allowMemberChanges: true, autoRemoveUnpaid: false, requireVisitorNames: false, hideMemberNames: false,
+    bookingFlow: 'wizard', modeLabel: 'Mode', modeDisplay: 'cards', assignmentMode: 'system',
+    ...activitySet(input),
   } as any)
   return (await getActivity(id))!
 }
 
 export async function updateActivity(id: string, patch: ActivityPatch): Promise<Activity | null> {
-  const set: Record<string, any> = {}
-  if (patch.orgId !== undefined) set.orgId = patch.orgId
-  if (patch.name !== undefined) set.name = patch.name
-  if (patch.description !== undefined) set.description = patch.description
-  if (patch.color !== undefined) set.color = patch.color
-  if (patch.icon !== undefined) set.icon = patch.icon
-  if (patch.imageUrl !== undefined) set.imageUrl = patch.imageUrl
-  if (patch.status !== undefined) set.status = patch.status
-  if (patch.staffBookableId !== undefined) set.staffBookableId = patch.staffBookableId
-  if (patch.bookingFlow !== undefined) set.bookingFlow = patch.bookingFlow
-  if (patch.assignmentMode !== undefined) set.assignmentMode = patch.assignmentMode
-  if (patch.bookingsEnabled !== undefined) set.bookingsEnabled = patch.bookingsEnabled
-  if (Object.keys(set).length) await db.update(schema.activities).set(set).where(eq(schema.activities.id, id))
+  const s = activitySet(patch)
+  if (Object.keys(s).length) await db.update(schema.activities).set(s).where(eq(schema.activities.id, id))
   return getActivity(id)
 }
 
@@ -268,34 +637,274 @@ export async function deleteActivity(id: string): Promise<void> {
   await db.delete(schema.activities).where(eq(schema.activities.id, id))
 }
 
-/** The modes of one activity, in sort order. */
+// ══ Activity modes ══
 export async function listActivityModes(activityId: string): Promise<ActivityMode[]> {
-  const rows = await db
-    .select()
-    .from(schema.activityModes)
+  const rows = await db.select().from(schema.activityModes)
     .where(eq(schema.activityModes.activityId, activityId))
     .orderBy(asc(schema.activityModes.sortOrder))
   return rows.map(toActivityMode)
 }
 
+export async function getActivityMode(id: string): Promise<ActivityMode | null> {
+  const [r] = await db.select().from(schema.activityModes).where(eq(schema.activityModes.id, id)).limit(1)
+  return r ? toActivityMode(r) : null
+}
+
+function modeSet(patch: ActivityModePatch): Record<string, any> {
+  const s: Record<string, any> = {}
+  const keys: (keyof ActivityModePatch)[] = [
+    'activityId', 'name', 'description', 'color', 'sortOrder', 'imageUrl', 'pricing', 'addons',
+    'minPeople', 'maxPeople', 'minVisitors', 'maxVisitors', 'allowVisitors', 'formId',
+    'defaultBookingView', 'paymentOptions', 'approvalMode', 'configurationKey', 'periodUnit',
+    'periodCount', 'termType', 'periodPrice', 'category',
+  ]
+  for (const k of keys) if (patch[k] !== undefined) s[k] = patch[k]
+  return s
+}
+
+export async function createActivityMode(input: ActivityModeCreate): Promise<ActivityMode> {
+  const id = randomUUID()
+  await db.insert(schema.activityModes).values({
+    id,
+    sortOrder: 0, pricing: {}, addons: [], paymentOptions: {}, allowVisitors: false,
+    approvalMode: 'auto', periodCount: 1, termType: 'fixed',
+    ...modeSet(input),
+  } as any)
+  return (await getActivityMode(id))!
+}
+
+export async function updateActivityMode(id: string, patch: ActivityModePatch): Promise<ActivityMode | null> {
+  const s = modeSet(patch)
+  if (Object.keys(s).length) await db.update(schema.activityModes).set(s).where(eq(schema.activityModes.id, id))
+  return getActivityMode(id)
+}
+
+export async function deleteActivityMode(id: string): Promise<void> {
+  await db.delete(schema.activityModes).where(eq(schema.activityModes.id, id))
+}
+
+// ══ Activity ↔ bookable / group / mode-scope join tables ══
+export async function listActivityBookables(activityId: string): Promise<ActivityBookable[]> {
+  const rows = await db.select().from(schema.activityBookables).where(eq(schema.activityBookables.activityId, activityId))
+  return rows.map((r) => ({ id: r.id, activityId: r.activityId, bookableId: r.bookableId }))
+}
+export async function setActivityBookables(activityId: string, bookableIds: string[]): Promise<void> {
+  await db.delete(schema.activityBookables).where(eq(schema.activityBookables.activityId, activityId))
+  if (bookableIds.length) await db.insert(schema.activityBookables).values(bookableIds.map((bookableId) => ({ id: randomUUID(), activityId, bookableId })) as any)
+}
+export async function addActivityBookable(activityId: string, bookableId: string): Promise<void> {
+  await db.insert(schema.activityBookables).values({ id: randomUUID(), activityId, bookableId } as any)
+}
+// APPEND (activity, bookable) links without touching the activity's existing ones —
+// the create wizards link an existing activity to newly-made venues, so a
+// delete-then-insert SET would wrongly unlink its other venues.
+export async function addActivityBookables(activityId: string, bookableIds: string[]): Promise<void> {
+  if (!bookableIds.length) return
+  await db.insert(schema.activityBookables).values(bookableIds.map((bookableId) => ({ id: randomUUID(), activityId, bookableId })) as any)
+}
+
+export async function listActivityGroups(activityId: string): Promise<string[]> {
+  const rows = await db.select({ groupId: schema.activityGroups.groupId }).from(schema.activityGroups)
+    .where(eq(schema.activityGroups.activityId, activityId))
+  return rows.map((r) => r.groupId)
+}
+export async function setActivityGroups(activityId: string, groupIds: string[]): Promise<void> {
+  await db.delete(schema.activityGroups).where(eq(schema.activityGroups.activityId, activityId))
+  if (groupIds.length) await db.insert(schema.activityGroups).values(groupIds.map((groupId) => ({ activityId, groupId })) as any)
+}
+
+export async function listActivityModeBookables(modeId: string): Promise<ActivityModeBookable[]> {
+  const rows = await db.select().from(schema.activityModeBookables).where(eq(schema.activityModeBookables.modeId, modeId))
+  return rows.map((r) => ({ modeId: r.modeId, bookableId: r.bookableId, priceOverride: r.priceOverride ?? null }))
+}
+export async function setActivityModeBookables(modeId: string, rows: ActivityModeBookable[]): Promise<void> {
+  await db.delete(schema.activityModeBookables).where(eq(schema.activityModeBookables.modeId, modeId))
+  if (rows.length) await db.insert(schema.activityModeBookables).values(rows.map((r) => ({ modeId, bookableId: r.bookableId, priceOverride: r.priceOverride ?? null })) as any)
+}
+
+export async function listActivityModeResources(modeId: string): Promise<ActivityModeResource[]> {
+  const rows = await db.select().from(schema.activityModeResources)
+    .where(eq(schema.activityModeResources.modeId, modeId))
+    .orderBy(asc(schema.activityModeResources.sortOrder))
+  return rows.map((r) => ({ modeId: r.modeId, bookableId: r.bookableId, sortOrder: r.sortOrder }))
+}
+export async function setActivityModeResources(modeId: string, bookableIds: string[]): Promise<void> {
+  await db.delete(schema.activityModeResources).where(eq(schema.activityModeResources.modeId, modeId))
+  if (bookableIds.length) await db.insert(schema.activityModeResources).values(bookableIds.map((bookableId, i) => ({ modeId, bookableId, sortOrder: i })) as any)
+}
+
+export async function listActivityModeRequiredItems(modeId: string): Promise<ActivityModeRequiredItem[]> {
+  const rows = await db.select().from(schema.activityModeRequiredItems)
+    .where(eq(schema.activityModeRequiredItems.modeId, modeId))
+    .orderBy(asc(schema.activityModeRequiredItems.sortOrder))
+  return rows.map((r) => ({
+    id: r.id, modeId: r.modeId, bookableId: r.bookableId, quantity: r.quantity,
+    sortOrder: r.sortOrder, isOptional: r.isOptional, priceOverride: r.priceOverride ?? null,
+  }))
+}
+export async function setActivityModeRequiredItems(modeId: string, items: Omit<ActivityModeRequiredItem, 'id' | 'modeId'>[]): Promise<void> {
+  await db.delete(schema.activityModeRequiredItems).where(eq(schema.activityModeRequiredItems.modeId, modeId))
+  if (items.length) await db.insert(schema.activityModeRequiredItems).values(items.map((it, i) => ({
+    id: randomUUID(), modeId, bookableId: it.bookableId, quantity: it.quantity ?? 1,
+    sortOrder: it.sortOrder ?? i, isOptional: it.isOptional ?? false, priceOverride: it.priceOverride ?? null,
+  })) as any)
+}
+
+// ══ Booking discounts (with scope join tables) ══
+export async function listBookingDiscounts(orgId: string, opts?: { activeOnly?: boolean }): Promise<BookingDiscount[]> {
+  const where = opts?.activeOnly
+    ? and(eq(schema.bookingDiscounts.orgId, orgId), eq(schema.bookingDiscounts.isActive, true))
+    : eq(schema.bookingDiscounts.orgId, orgId)
+  const discs = await db.select().from(schema.bookingDiscounts).where(where).orderBy(desc(schema.bookingDiscounts.createdAt))
+  if (!discs.length) return []
+  const ids = discs.map((d) => d.id)
+  const [acts, modes] = await Promise.all([
+    db.select().from(schema.bookingDiscountActivities).where(inArray(schema.bookingDiscountActivities.discountId, ids)),
+    db.select().from(schema.bookingDiscountActivityModes).where(inArray(schema.bookingDiscountActivityModes.discountId, ids)),
+  ])
+  const actMap: Record<string, string[]> = {}
+  for (const r of acts) (actMap[r.discountId] ??= []).push(r.activityId)
+  const modeMap: Record<string, string[]> = {}
+  for (const r of modes) (modeMap[r.discountId] ??= []).push(r.activityModeId)
+  return discs.map((d) => ({
+    id: d.id, orgId: d.orgId, name: d.name, formText: d.formText ?? null,
+    modifierType: d.modifierType, modifierValue: d.modifierValue, applyTo: d.applyTo,
+    conditions: asArray(d.conditions), validFrom: toIsoN(d.validFrom), validUntil: toIsoN(d.validUntil),
+    maxUses: d.maxUses ?? null, usesCount: d.usesCount, isActive: d.isActive,
+    activityIds: actMap[d.id] ?? [], modeIds: modeMap[d.id] ?? [],
+  }))
+}
+
+// Create/update a discount + its activity/mode scope in one call (delete-then-insert
+// the join rows). Pass the full editable shape (minus id/usesCount).
+export async function saveBookingDiscount(input: {
+  id?: string
+  orgId: string
+  name: string
+  formText?: string | null
+  modifierType: string
+  modifierValue: number | string
+  applyTo: string
+  conditions: any[]
+  validFrom?: string | null
+  validUntil?: string | null
+  maxUses?: number | null
+  isActive: boolean
+  activityIds: string[]
+  modeIds: string[]
+}): Promise<BookingDiscount> {
+  const id = input.id ?? randomUUID()
+  const base = {
+    orgId: input.orgId, name: input.name, formText: input.formText ?? null,
+    modifierType: input.modifierType, modifierValue: input.modifierValue, applyTo: input.applyTo,
+    conditions: input.conditions ?? [],
+    validFrom: input.validFrom ? new Date(input.validFrom) : null,
+    validUntil: input.validUntil ? new Date(input.validUntil) : null,
+    maxUses: input.maxUses ?? null, isActive: input.isActive,
+  }
+  if (input.id) {
+    await db.update(schema.bookingDiscounts).set(base as any).where(eq(schema.bookingDiscounts.id, id))
+  } else {
+    await db.insert(schema.bookingDiscounts).values({ id, usesCount: 0, ...base } as any)
+  }
+  await db.delete(schema.bookingDiscountActivities).where(eq(schema.bookingDiscountActivities.discountId, id))
+  await db.delete(schema.bookingDiscountActivityModes).where(eq(schema.bookingDiscountActivityModes.discountId, id))
+  if (input.activityIds.length) await db.insert(schema.bookingDiscountActivities).values(input.activityIds.map((activityId) => ({ discountId: id, activityId })) as any)
+  if (input.modeIds.length) await db.insert(schema.bookingDiscountActivityModes).values(input.modeIds.map((activityModeId) => ({ discountId: id, activityModeId })) as any)
+  const [row] = await listBookingDiscounts(input.orgId).then((all) => all.filter((d) => d.id === id))
+  return row
+}
+
+export async function deleteBookingDiscount(id: string): Promise<void> {
+  await db.delete(schema.bookingDiscountActivities).where(eq(schema.bookingDiscountActivities.discountId, id))
+  await db.delete(schema.bookingDiscountActivityModes).where(eq(schema.bookingDiscountActivityModes.discountId, id))
+  await db.delete(schema.bookingDiscounts).where(eq(schema.bookingDiscounts.id, id))
+}
+
+// ══ Bookings ══
 /**
  * Bookings for an org, newest first. There is no org_id on bookings, so scope via a
  * JOIN to the bookable (bookings.bookable_id → bookables.org_id) and carry that
- * org_id onto the domain object. `limit`/`offset` page the result.
+ * org_id onto the domain object. Optional filters: bookableId(s), status, a
+ * [from,to] window against start_at. `limit`/`offset` page the result.
  */
 export async function listBookings(
   orgId: string,
-  opts?: { limit?: number; offset?: number },
+  opts?: { limit?: number; offset?: number; bookableIds?: string[]; status?: string },
 ): Promise<Booking[]> {
+  const conds: any[] = [eq(schema.bookables.orgId, orgId)]
+  if (opts?.bookableIds?.length) conds.push(inArray(schema.bookings.bookableId, opts.bookableIds))
+  if (opts?.status) conds.push(eq(schema.bookings.status, opts.status))
   let q = db
     .select({ b: schema.bookings, orgId: schema.bookables.orgId })
     .from(schema.bookings)
     .innerJoin(schema.bookables, eq(schema.bookings.bookableId, schema.bookables.id))
-    .where(eq(schema.bookables.orgId, orgId))
+    .where(and(...conds))
     .orderBy(desc(schema.bookings.startAt))
     .$dynamic()
   if (opts?.limit != null) q = q.limit(opts.limit)
   if (opts?.offset != null) q = q.offset(opts.offset)
   const rows = await q
   return rows.map((r) => toBooking(r.b, r.orgId))
+}
+
+// Bookings for a set of bookables (a venue calendar loads one venue tree). Scoped by
+// the bookable ids, which are themselves org-owned.
+export async function listBookingsForBookables(bookableIds: string[]): Promise<Booking[]> {
+  if (!bookableIds.length) return []
+  const rows = await db
+    .select({ b: schema.bookings, orgId: schema.bookables.orgId })
+    .from(schema.bookings)
+    .innerJoin(schema.bookables, eq(schema.bookings.bookableId, schema.bookables.id))
+    .where(inArray(schema.bookings.bookableId, bookableIds))
+    .orderBy(desc(schema.bookings.startAt))
+  return rows.map((r) => toBooking(r.b, r.orgId))
+}
+
+function bookingSet(input: Partial<BookingCreate>): Record<string, any> {
+  const s: Record<string, any> = {}
+  const keys: (keyof BookingCreate)[] = [
+    'bookableId', 'eventId', 'sessionId', 'type', 'status', 'notes', 'contactName', 'contactEmail',
+    'contactPhone', 'purpose', 'isAllDay', 'activityId', 'activityModeId', 'bookableModeId', 'modeId',
+    'selectedAddons', 'attendeeCount', 'bookingDiscountId', 'discountAmount', 'customFields',
+    'parentBookingId', 'isRecurring', 'subjectPersonId',
+  ]
+  for (const k of keys) if (input[k] !== undefined) s[k] = input[k]
+  if (input.startAt !== undefined) s.startAt = new Date(input.startAt)
+  if (input.endAt !== undefined) s.endAt = new Date(input.endAt)
+  return s
+}
+
+// Insert one booking (the staff insert path). Returns the created booking with the
+// org derived from its bookable.
+export async function createBooking(input: BookingCreate): Promise<Booking> {
+  const id = randomUUID()
+  await db.insert(schema.bookings).values({
+    id,
+    type: 'BOOKING', status: 'CONFIRMED', isAllDay: false, selectedAddons: [], customFields: {},
+    isRecurring: false,
+    ...bookingSet(input),
+  } as any)
+  const [r] = await db
+    .select({ b: schema.bookings, orgId: schema.bookables.orgId })
+    .from(schema.bookings)
+    .innerJoin(schema.bookables, eq(schema.bookings.bookableId, schema.bookables.id))
+    .where(eq(schema.bookings.id, id)).limit(1)
+  return toBooking(r.b, r.orgId)
+}
+
+// Insert many bookings (a multi-bookable slot reservation: one primary + N children
+// sharing parent_booking_id). Returns them all.
+export async function createBookings(inputs: BookingCreate[]): Promise<Booking[]> {
+  const out: Booking[] = []
+  for (const input of inputs) out.push(await createBooking(input))
+  return out
+}
+
+export async function updateBookingStatus(id: string, status: string): Promise<void> {
+  await db.update(schema.bookings).set({ status }).where(eq(schema.bookings.id, id))
+}
+
+export async function deleteBooking(id: string): Promise<void> {
+  await db.delete(schema.bookings).where(eq(schema.bookings.id, id))
 }

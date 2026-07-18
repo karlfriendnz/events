@@ -15,6 +15,9 @@ import type {
   MemberGroupPatch,
   GroupCodeCreate,
   GroupCodePatch,
+  GroupView,
+  GroupViewCreate,
+  GroupViewPatch,
 } from '../shared/contracts/group'
 
 export function useGroupsApi() {
@@ -34,12 +37,60 @@ export function useGroupsApi() {
    *  directory's location lens (not a full roster). */
   async function membershipsByOrg(
     orgId: string,
-  ): Promise<{ personId: string; groupId: string; locationId: string | null }[]> {
+  ): Promise<
+    { personId: string; groupId: string; locationId: string | null; role: string | null; roles: string[] }[]
+  > {
     return await $fetch(`/api/v1/groups/memberships`, { query: { orgId } })
+  }
+  /** One person's memberships across an org (with each group's primary location). */
+  async function membershipsForPerson(
+    orgId: string,
+    personId: string,
+  ): Promise<
+    { groupId: string; personId: string; role: string | null; roles: string[]; locationId: string | null }[]
+  > {
+    return await $fetch(`/api/v1/groups/memberships`, { query: { orgId, personId } })
+  }
+  /** Groups whose code is one of the given codes (public-reg code expansion). */
+  async function groupsByCodeIds(codeIds: string[]): Promise<MemberGroup[]> {
+    if (codeIds.length === 0) return []
+    return await $fetch<MemberGroup[]>('/api/v1/groups', { query: { codeIds: codeIds.join(',') } })
+  }
+  /** Add/update one person's membership on a group. */
+  async function upsertMembership(input: {
+    groupId: string
+    personId: string
+    role?: string | null
+    roles?: string[]
+    positions?: string[]
+    subGroupId?: string | null
+    termId?: string | null
+    planOptionId?: string | null
+    feeOptionId?: string | null
+    startDate?: string | null
+    endDate?: string | null
+    autoRenew?: boolean | null
+    membershipStatus?: string | null
+  }): Promise<MemberGroupMembership> {
+    return await $fetch<MemberGroupMembership>('/api/v1/groups/memberships', {
+      method: 'POST',
+      body: input,
+    })
+  }
+  /** Remove one person from a group. */
+  async function removeMembership(groupId: string, personId: string): Promise<void> {
+    await $fetch('/api/v1/groups/memberships', { method: 'DELETE', body: { groupId, personId } })
   }
   /** The weekly training schedules of one group. */
   async function schedules(groupId: string): Promise<MemberGroupSchedule[]> {
     return await $fetch<MemberGroupSchedule[]>(`/api/v1/groups/${groupId}/schedules`)
+  }
+  /** The weekly training schedules across many groups (Week View / class finder). */
+  async function schedulesForGroups(groupIds: string[]): Promise<MemberGroupSchedule[]> {
+    if (groupIds.length === 0) return []
+    return await $fetch<MemberGroupSchedule[]>('/api/v1/groups/schedules', {
+      query: { groupIds: groupIds.join(',') },
+    })
   }
   /** Every code an org defines. */
   async function codes(orgId: string): Promise<GroupCode[]> {
@@ -48,6 +99,89 @@ export function useGroupsApi() {
   /** The fee options of one group, each with its line items. */
   async function feeOptions(groupId: string): Promise<GroupFeeOption[]> {
     return await $fetch<GroupFeeOption[]>(`/api/v1/groups/${groupId}/fee-options`)
+  }
+  /** Replace a group's fee options (delete-then-insert, incl. line items). */
+  async function saveFeeOptions(
+    groupId: string,
+    orgId: string,
+    options: any[],
+  ): Promise<GroupFeeOption[]> {
+    return await $fetch<GroupFeeOption[]>(`/api/v1/groups/${groupId}/fee-options`, {
+      method: 'POST',
+      body: { orgId, options },
+    })
+  }
+  /** Append ONE fee option to many groups (bulk; never wipes existing). */
+  async function addFeeOptionToGroups(orgId: string, groupIds: string[], option: any): Promise<void> {
+    await $fetch('/api/v1/group-fees/bulk', { method: 'POST', body: { orgId, groupIds, option } })
+  }
+  /** Memberships of a set of groups, each with the person's display fields (allocator). */
+  async function membershipsWithPersonForGroups(groupIds: string[]): Promise<
+    {
+      groupId: string
+      personId: string
+      role: string | null
+      roles: string[]
+      person: {
+        id: string
+        firstName: string | null
+        lastName: string | null
+        email: string | null
+        phone: string | null
+        dob: string | null
+        gender: string | null
+      } | null
+    }[]
+  > {
+    if (groupIds.length === 0) return []
+    return await $fetch('/api/v1/groups/memberships-with-person', {
+      query: { groupIds: groupIds.join(',') },
+    })
+  }
+  /** Memberships of a set of groups with membership start_date + person name/email/
+   *  phone/created_at, for the retention report. */
+  async function membershipsForRetention(groupIds: string[]): Promise<
+    {
+      groupId: string
+      personId: string
+      role: string | null
+      roles: string[]
+      startDate: string | null
+      person: {
+        firstName: string | null
+        lastName: string | null
+        email: string | null
+        phone: string | null
+        createdAt: string | null
+      } | null
+    }[]
+  > {
+    if (groupIds.length === 0) return []
+    return await $fetch('/api/v1/groups/memberships-for-retention', {
+      query: { groupIds: groupIds.join(',') },
+    })
+  }
+  /** Move a person from one group to another (insert dest skip-if-exists, delete source). */
+  async function moveMembership(input: {
+    fromGroupId: string
+    toGroupId: string
+    personId: string
+    role?: string | null
+    roles?: string[]
+    termId?: string | null
+  }): Promise<void> {
+    await $fetch('/api/v1/groups/move-membership', { method: 'POST', body: input })
+  }
+  /** Replace a group's weekly training schedules (delete-then-insert). */
+  async function saveSchedules(
+    groupId: string,
+    orgId: string,
+    rows: any[],
+  ): Promise<MemberGroupSchedule[]> {
+    return await $fetch<MemberGroupSchedule[]>(`/api/v1/groups/${groupId}/schedules`, {
+      method: 'POST',
+      body: { orgId, rows },
+    })
   }
   /** Create a group. */
   async function create(input: MemberGroupCreate): Promise<MemberGroup> {
@@ -73,8 +207,30 @@ export function useGroupsApi() {
   async function removeCode(id: string): Promise<void> {
     await $fetch(`/api/v1/group-codes/${id}`, { method: 'DELETE' })
   }
+  /** Every saved Classes-style view an org has. */
+  async function views(orgId: string): Promise<GroupView[]> {
+    return await $fetch<GroupView[]>('/api/v1/group-views', { query: { orgId } })
+  }
+  /** One saved view by id. */
+  async function view(id: string): Promise<GroupView> {
+    return await $fetch<GroupView>('/api/v1/group-views', { query: { id } })
+  }
+  async function createView(input: GroupViewCreate): Promise<GroupView> {
+    return await $fetch<GroupView>('/api/v1/group-views', { method: 'POST', body: input })
+  }
+  async function updateView(id: string, patch: GroupViewPatch): Promise<GroupView> {
+    return await $fetch<GroupView>(`/api/v1/group-views/${id}`, { method: 'PATCH', body: patch })
+  }
+  async function removeView(id: string): Promise<void> {
+    await $fetch(`/api/v1/group-views/${id}`, { method: 'DELETE' })
+  }
   return {
-    list, get, memberships, membershipsByOrg, schedules, codes, feeOptions,
+    list, get, memberships, membershipsByOrg, membershipsForPerson, groupsByCodeIds,
+    upsertMembership, removeMembership, membershipsWithPersonForGroups,
+    membershipsForRetention, moveMembership,
+    schedules, schedulesForGroups, codes, feeOptions,
+    saveFeeOptions, addFeeOptionToGroups, saveSchedules,
     create, update, remove, createCode, updateCode, removeCode,
+    views, view, createView, updateView, removeView,
   }
 }

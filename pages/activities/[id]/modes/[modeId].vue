@@ -437,7 +437,8 @@
 
 <script setup lang="ts">
 const route = useRoute()
-const db = useDb()
+const db = useDb() // retained for cross-domain reads: member_groups, organisations, registration_forms, form_fields
+const api = useBookingsApi()
 const { orgId } = useOrg()
 
 const COLORS = ['#6366F1','#EF4444','#F59E0B','#10B981','#3B82F6','#EC4899','#8B5CF6','#F97316','#14B8A6','#84CC16']
@@ -577,15 +578,10 @@ async function searchCategories(event: { query: string }) {
   // Pull every category in use for the org's activities, distinct.
   // Cheap query — list of one-word strings — fine to refetch per
   // keystroke (delay handled by AutoComplete's own debounce).
-  const { data: actIds } = await (db.from as any)('activities')
-    .select('id').eq('org_id', orgId.value)
-  const ids = (actIds ?? []).map((a: any) => a.id)
-  if (!ids.length) { categorySuggestions.value = []; return }
-  const { data } = await (db.from as any)('activity_modes')
-    .select('category')
-    .in('activity_id', ids)
-    .not('category', 'is', null)
-  const all = Array.from(new Set((data ?? []).map((r: any) => r.category as string).filter(Boolean)))
+  const acts = await api.activities(orgId.value)
+  if (!acts.length) { categorySuggestions.value = []; return }
+  const modeLists = await Promise.all(acts.map(a => api.activityModes(a.id)))
+  const all = Array.from(new Set(modeLists.flat().map(m => m.category).filter(Boolean))) as string[]
   categorySuggestions.value = q ? all.filter(c => c.toLowerCase().includes(q)) : all
 }
 
@@ -711,43 +707,39 @@ useBreadcrumbs([
 async function load() {
   loading.value = true
   try {
-    const [{ data: act }, { data: groups }, { data: orgRow }, { data: actBookables }] = await Promise.all([
-      (db.from as any)('activities').select('name, staff_bookable_id').eq('id', route.params.id).single(),
+    const [act, orgBookables, groupsRes, orgRowRes, actBookableLinks] = await Promise.all([
+      api.activity(route.params.id as string),
+      api.bookables(orgId.value!),
+      // TODO cross-domain: member_groups still via useDb (owned by groups)
       (db.from as any)('member_groups').select('id, name, color').eq('org_id', orgId.value).order('name'),
+      // TODO cross-domain: organisations.default_payment_options still via useDb (owned by settings/admin)
       (db.from as any)('organisations').select('default_payment_options').eq('id', orgId.value).single(),
-      // Bookables linked to the parent activity — the candidate set for
-      // mode-level scoping (any descendant of these is also fair game).
-      (db.from as any)('activity_bookables')
-        .select('bookable:bookables(id, name, parent_id, type)')
-        .eq('activity_id', route.params.id),
+      api.activityBookables(route.params.id as string),
     ])
     activityName.value = act?.name ?? ''
-    isStaffOwned.value = !!act?.staff_bookable_id
-    ownerStaffBookableId.value = act?.staff_bookable_id ?? null
-    allGroups.value = groups ?? []
-    orgDefaultPaymentOptions.value = (orgRow?.default_payment_options as Record<string, boolean>) ?? {}
-    activityBookables.value = (actBookables ?? [])
-      .map((r: any) => r.bookable)
-      .filter(Boolean) as ActivityBookable[]
+    isStaffOwned.value = !!act?.staffBookableId
+    ownerStaffBookableId.value = act?.staffBookableId ?? null
+    allGroups.value = groupsRes.data ?? []
+    orgDefaultPaymentOptions.value = (orgRowRes.data?.default_payment_options as Record<string, boolean>) ?? {}
+    // Resolve the parent activity's linked bookables from the org list.
+    const byId = new Map(orgBookables.map(b => [b.id, b]))
+    activityBookables.value = actBookableLinks
+      .map(l => byId.get(l.bookableId))
+      .filter(Boolean)
+      .map((b: any) => ({ id: b.id, name: b.name, parent_id: b.parentId, type: b.type })) as ActivityBookable[]
     // Pull the children of every linked bookable so the user can scope to a
     // specific quarter/court/etc. without having to link it to the activity.
     const linkedIds = activityBookables.value.map(b => b.id)
     if (linkedIds.length) {
-      const [{ data: kids }, { data: configs }] = await Promise.all([
-        (db.from as any)('bookables')
-          .select('id, name, parent_id, type')
-          .in('parent_id', linkedIds)
-          .neq('status', 'DELETED'),
-        (db.from as any)('bookable_configurations')
-          .select('key, name')
-          .in('parent_bookable_id', linkedIds),
-      ])
-      activityBookableChildren.value = (kids ?? []) as ActivityBookable[]
-      // De-dup by key — the same config (e.g. 'halves') typically exists on
-      // every linked court, but we surface it once.
+      activityBookableChildren.value = orgBookables
+        .filter(b => b.parentId && linkedIds.includes(b.parentId) && b.status !== 'DELETED')
+        .map(b => ({ id: b.id, name: b.name, parent_id: b.parentId, type: b.type })) as ActivityBookable[]
+      // Configurations across every linked bookable, de-duped by key — the same
+      // config (e.g. 'halves') typically exists on every linked court.
+      const configLists = await Promise.all(linkedIds.map(id => api.configurations(id)))
       const seen = new Map<string, ConfigurationOption>()
-      for (const c of (configs ?? []) as ConfigurationOption[]) {
-        if (!seen.has(c.key)) seen.set(c.key, c)
+      for (const c of configLists.flat()) {
+        if (!seen.has(c.key)) seen.set(c.key, { key: c.key, name: c.name } as ConfigurationOption)
       }
       availableConfigurations.value = [...seen.values()]
     } else {
@@ -755,59 +747,52 @@ async function load() {
       availableConfigurations.value = []
     }
 
-    // Org-wide venues for the Required-venue picker. Pull every active
-    // venue plus its parent_id so the option labels can hint at hierarchy.
-    const { data: venuesData } = await (db.from as any)('bookables')
-      .select('id, name, parent_id')
-      .eq('org_id', orgId.value)
-      .eq('type', 'VENUE')
-      .eq('status', 'ACTIVE')
-      .order('name')
-    orgVenueOptions.value = venuesData ?? []
+    // Org-wide venues for the Required-venue picker (hierarchy hint via parent_id).
+    orgVenueOptions.value = orgBookables
+      .filter(b => b.type === 'VENUE' && b.status === 'ACTIVE')
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(b => ({ id: b.id, name: b.name, parent_id: b.parentId }))
 
     // Org-wide ITEM bookables for the Required-equipment picker.
-    const { data: itemData } = await (db.from as any)('bookables')
-      .select('id, name, max_concurrent')
-      .eq('org_id', orgId.value)
-      .eq('type', 'ITEM')
-      .eq('status', 'ACTIVE')
-      .order('name')
-    orgItemOptions.value = itemData ?? []
+    orgItemOptions.value = orgBookables
+      .filter(b => b.type === 'ITEM' && b.status === 'ACTIVE')
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(b => ({ id: b.id, name: b.name, max_concurrent: b.maxConcurrent }))
 
     if (!isNew.value) {
-      const [{ data: mode }, { data: modeBookables }, { data: modeResources }, { data: modeReqItems }] = await Promise.all([
-        (db.from as any)('activity_modes').select('*').eq('id', route.params.modeId).single(),
-        (db.from as any)('activity_mode_bookables').select('bookable_id').eq('mode_id', route.params.modeId),
-        (db.from as any)('activity_mode_resources').select('bookable_id').eq('mode_id', route.params.modeId),
-        (db.from as any)('activity_mode_required_items').select('id, bookable_id, quantity, is_optional, price_override').eq('mode_id', route.params.modeId).order('sort_order'),
+      const [mode, modeBookables, modeResources, modeReqItems] = await Promise.all([
+        api.activityMode(route.params.modeId as string),
+        api.modeBookables(route.params.modeId as string),
+        api.modeResources(route.params.modeId as string),
+        api.modeRequiredItems(route.params.modeId as string),
       ])
       if (mode) {
         form.name = mode.name
         form.description = mode.description ?? ''
         form.color = mode.color ?? COLORS[0]
-        form.image_url = mode.image_url ?? ''
+        form.image_url = mode.imageUrl ?? ''
         form.pricing = normalizePricing(mode.pricing)
         form.addons = mode.addons ?? []
-        form.min_people     = mode.min_people     ?? null
-        form.max_people     = mode.max_people     ?? null
-        form.allow_visitors = mode.allow_visitors ?? false
-        form.min_visitors   = mode.min_visitors   ?? null
-        form.max_visitors   = mode.max_visitors   ?? null
-        form.form_id        = mode.form_id        ?? null
-        form.default_booking_view = mode.default_booking_view ?? null
-        Object.assign(form.payment_options, mode.payment_options ?? {})
-        form.approval_mode = mode.approval_mode ?? 'INSTANT'
-        form.configuration_key = mode.configuration_key ?? null
+        form.min_people     = mode.minPeople     ?? null
+        form.max_people     = mode.maxPeople     ?? null
+        form.allow_visitors = mode.allowVisitors ?? false
+        form.min_visitors   = mode.minVisitors   ?? null
+        form.max_visitors   = mode.maxVisitors   ?? null
+        form.form_id        = mode.formId        ?? null
+        form.default_booking_view = mode.defaultBookingView ?? null
+        Object.assign(form.payment_options, mode.paymentOptions ?? {})
+        form.approval_mode = mode.approvalMode ?? 'INSTANT'
+        form.configuration_key = mode.configurationKey ?? null
         form.category = mode.category ?? ''
       }
-      form.bookable_ids = (modeBookables ?? []).map((r: any) => r.bookable_id)
-      form.resource_bookable_ids = (modeResources ?? []).map((r: any) => r.bookable_id)
-      form.equipment_items = (modeReqItems ?? []).map((r: any) => ({
+      form.bookable_ids = modeBookables.map(r => r.bookableId)
+      form.resource_bookable_ids = modeResources.map(r => r.bookableId)
+      form.equipment_items = modeReqItems.map(r => ({
         id: r.id,
-        bookable_id: r.bookable_id,
+        bookable_id: r.bookableId,
         quantity: r.quantity,
-        is_optional: !!r.is_optional,
-        price_override: r.price_override != null ? Number(r.price_override) : null,
+        is_optional: !!r.isOptional,
+        price_override: r.priceOverride != null ? Number(r.priceOverride) : null,
       }))
     }
     await loadForms()
@@ -843,70 +828,49 @@ async function save() {
       name: form.name.trim(),
       description: form.description.trim() || null,
       color: form.color,
-      image_url: form.image_url || null,
+      imageUrl: form.image_url || null,
       pricing: cleanPricing(form.pricing),
       addons: cleanAddons(form.addons),
-      min_people:     form.min_people,
-      max_people:     form.max_people,
-      allow_visitors: form.allow_visitors,
-      min_visitors:   form.allow_visitors ? form.min_visitors : null,
-      max_visitors:   form.allow_visitors ? form.max_visitors : null,
-      form_id:        form.form_id,
-      default_booking_view: form.default_booking_view || null,
-      payment_options: { ...form.payment_options },
-      approval_mode: form.approval_mode,
-      configuration_key: form.configuration_key,
+      minPeople:     form.min_people,
+      maxPeople:     form.max_people,
+      allowVisitors: form.allow_visitors,
+      minVisitors:   form.allow_visitors ? form.min_visitors : null,
+      maxVisitors:   form.allow_visitors ? form.max_visitors : null,
+      formId:        form.form_id,
+      defaultBookingView: form.default_booking_view || null,
+      paymentOptions: { ...form.payment_options },
+      approvalMode: form.approval_mode,
+      configurationKey: form.configuration_key,
       category: form.category?.trim() || null,
     }
 
     let modeId = route.params.modeId as string
     if (isNew.value) {
-      const { data } = await (db.from as any)('activity_modes').insert({
-        ...payload,
-        activity_id: route.params.id,
-        sort_order: 0,
-      }).select().single()
-      if (data) modeId = data.id
+      const created = await api.createActivityMode({ ...payload, activityId: route.params.id as string, sortOrder: 0 })
+      modeId = created.id
     } else {
-      await (db.from as any)('activity_modes').update(payload).eq('id', route.params.modeId)
+      await api.updateActivityMode(route.params.modeId as string, payload)
     }
 
-    // Unified Venue picker: one underlying control, semantics chosen by
-    // the activity type. Coach activities write to
-    // activity_mode_resources (additional reservation pool); other
-    // activities write to activity_mode_bookables (narrowing scope).
-    // Wipe BOTH tables on every save so a row that's switched type
-    // doesn't leave orphans behind.
-    await (db.from as any)('activity_mode_bookables').delete().eq('mode_id', modeId)
-    await (db.from as any)('activity_mode_resources').delete().eq('mode_id', modeId)
-    if (isStaffOwned.value && form.resource_bookable_ids.length) {
-      await (db.from as any)('activity_mode_resources').insert(
-        form.resource_bookable_ids.map((bid, i) => ({ mode_id: modeId, bookable_id: bid, sort_order: i })),
-      )
-    }
-    if (!isStaffOwned.value && form.bookable_ids.length) {
-      await (db.from as any)('activity_mode_bookables').insert(
-        form.bookable_ids.map(bid => ({ mode_id: modeId, bookable_id: bid })),
-      )
-    }
+    // Unified Venue picker: one underlying control, semantics chosen by the
+    // activity type. Coach activities write to activity_mode_resources
+    // (additional reservation pool); other activities write to
+    // activity_mode_bookables (narrowing scope). setMode* delete-then-insert, so
+    // passing [] for the non-active table wipes any orphan from a type switch.
+    await api.setModeBookables(modeId, isStaffOwned.value ? [] : form.bookable_ids.map(bid => ({ bookableId: bid })))
+    await api.setModeResources(modeId, isStaffOwned.value ? form.resource_bookable_ids : [])
 
-    // Replace mode-level equipment rows. Single list driven by the
-    // editor; each row's is_optional drives where it surfaces in the
-    // booker (locked vs editable).
-    await (db.from as any)('activity_mode_required_items').delete().eq('mode_id', modeId)
-    const equipmentRows = form.equipment_items
+    // Replace mode-level equipment rows. Single list driven by the editor; each
+    // row's is_optional drives where it surfaces in the booker (locked vs editable).
+    await api.setModeRequiredItems(modeId, form.equipment_items
       .filter(r => r.bookable_id && r.quantity > 0)
       .map((r, i) => ({
-        mode_id: modeId,
-        bookable_id: r.bookable_id,
+        bookableId: r.bookable_id,
         quantity: r.quantity,
-        is_optional: !!r.is_optional,
-        price_override: r.price_override,
-        sort_order: i,
-      }))
-    if (equipmentRows.length) {
-      await (db.from as any)('activity_mode_required_items').insert(equipmentRows)
-    }
+        isOptional: !!r.is_optional,
+        priceOverride: r.price_override,
+        sortOrder: i,
+      })))
 
     navigateTo(backHref.value)
   } finally {
@@ -916,7 +880,7 @@ async function save() {
 
 async function deleteMode() {
   if (!confirm('Delete this mode? This cannot be undone.')) return
-  await (db.from as any)('activity_modes').delete().eq('id', route.params.modeId)
+  await api.removeActivityMode(route.params.modeId as string)
   navigateTo(`/activities/${route.params.id}`)
 }
 

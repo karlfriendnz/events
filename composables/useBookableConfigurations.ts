@@ -17,7 +17,7 @@ export interface ConfigSlot {
 }
 
 export function useBookableConfigurations() {
-  const db = useDb()
+  const api = useBookingsApi()
 
   /**
    * Idempotent save. Re-applying the same `key` for the same parent
@@ -27,7 +27,8 @@ export function useBookableConfigurations() {
    * {Q1, Q2}" persists correctly.
    *
    * Empty slots are filtered out — saving with no member ids on any
-   * slot is a no-op (the configuration row is left untouched).
+   * slot is a no-op (the configuration row is left untouched). The
+   * slot-aware save now lives in the bookings repo behind the seam.
    */
   async function saveConfiguration(
     parentBookableId: string,
@@ -35,40 +36,7 @@ export function useBookableConfigurations() {
     name: string,
     slots: ConfigSlot[],
   ): Promise<string | null> {
-    const cleanSlots = slots.filter(s => s.childIds.length > 0)
-    if (!cleanSlots.length) return null
-
-    const { data: existing } = await (db.from as any)('bookable_configurations')
-      .select('id').eq('parent_bookable_id', parentBookableId).eq('key', key).maybeSingle()
-    let configId = existing?.id as string | undefined
-    if (configId) {
-      await (db.from as any)('bookable_configurations').update({ name }).eq('id', configId)
-      await (db.from as any)('bookable_configuration_children').delete().eq('configuration_id', configId)
-    } else {
-      const { data: created } = await (db.from as any)('bookable_configurations')
-        .insert({ parent_bookable_id: parentBookableId, key, name, sort_order: 0 })
-        .select('id').single()
-      configId = created?.id
-    }
-    if (!configId) return null
-
-    const rows: any[] = []
-    let sortOrder = 0
-    for (let si = 0; si < cleanSlots.length; si++) {
-      for (const bid of cleanSlots[si].childIds) {
-        rows.push({
-          configuration_id: configId,
-          bookable_id: bid,
-          sort_order: sortOrder++,
-          slot_index: si,
-          slot_name: cleanSlots[si].name,
-        })
-      }
-    }
-    if (rows.length) {
-      await (db.from as any)('bookable_configuration_children').insert(rows)
-    }
-    return configId
+    return await api.saveConfiguration(parentBookableId, key, name, slots)
   }
 
   /**

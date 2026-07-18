@@ -26,7 +26,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 
-const db = useDb()
+const api = useBookingsApi()
 const { orgId } = useOrg()
 const route = useRoute()
 const router = useRouter()
@@ -67,18 +67,14 @@ watch([activeCount, bookingsCount, countsLoaded], () => {
 
 async function loadCounts() {
   if (!orgId.value) return
-  const [{ count: bookablesCount }, { count: bkCount }] = await Promise.all([
-    (db.from as any)('bookables')
-      .select('id', { count: 'exact', head: true })
-      .eq('org_id', orgId.value)
-      .not('status', 'in', '("DELETED","ARCHIVED")'),
-    // bookings has no org_id — scope through the bookable's org with an inner join.
-    (db.from as any)('bookings')
-      .select('id, bookable:bookables!inner(org_id)', { count: 'exact', head: true })
-      .eq('bookable.org_id', orgId.value),
+  // The tabs only gate on presence (>0), so count the active bookables and probe for
+  // at least one booking through the seam (bookings are org-scoped via their bookable).
+  const [bks, someBooking] = await Promise.all([
+    api.bookables(orgId.value),
+    api.bookings(orgId.value, { limit: 1 }),
   ])
-  activeCount.value = bookablesCount ?? 0
-  bookingsCount.value = bkCount ?? 0
+  activeCount.value = bks.filter(b => b.status !== 'DELETED' && b.status !== 'ARCHIVED').length
+  bookingsCount.value = someBooking.length
   countsLoaded.value = true
 }
 

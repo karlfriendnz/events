@@ -12,7 +12,9 @@ import { useToast } from 'primevue/usetoast'
 definePageMeta({ layout: 'default' })
 
 const route = useRoute()
-const db = useDb()
+const events = useEventsApi()
+const forms = useFormsApi()
+const finances = useFinancesApi()
 const toast = useToast()
 
 const eventId = computed(() => String(route.params.id || ''))
@@ -35,32 +37,32 @@ const currency = ref('NZD')
 async function load() {
   loading.value = true; loadError.value = ''
   try {
-    const { data: ev } = await (db.from as any)('events')
-      .select('id, org_id, title, form_id, status, banner_url, start_at, description, location_type, address')
-      .eq('id', eventId.value).maybeSingle()
+    // Event from the events seam; currency from finances; form from the forms seam;
+    // fees + sessions from the events seam (all camelCase → mapped to what this reads).
+    const ev = await events.get(eventId.value)
     if (!ev) { loadError.value = `This ${t('event', false, true)} could not be found.`; return }
-    orgId.value = ev.org_id; eventTitle.value = ev.title
+    orgId.value = ev.orgId; eventTitle.value = ev.title
     eventInfo.value = {
-      title: ev.title, banner_url: ev.banner_url, start_at: ev.start_at, description: ev.description,
-      location: ev.location_type === 'ONLINE' ? 'Online' : (ev.address || null),
+      title: ev.title, banner_url: ev.bannerUrl, start_at: ev.startAt, description: ev.description,
+      location: ev.locationType === 'ONLINE' ? 'Online' : (ev.address || null),
     }
 
-    const [{ data: org }, { data: form }, { data: feeRows }, { data: sess }] = await Promise.all([
-      (db.from as any)('organisations').select('currency').eq('id', ev.org_id).maybeSingle(),
-      ev.form_id ? (db.from as any)('registration_forms').select('id, config').eq('id', ev.form_id).maybeSingle() : Promise.resolve({ data: null }),
-      (db.from as any)('fee_components').select('name, amount, session_id').eq('event_id', eventId.value),
-      (db.from as any)('sessions').select('id, title, start_at, is_required, display_on_form').eq('event_id', eventId.value).order('sort_order'),
+    const [cur, form, feeRows, sess] = await Promise.all([
+      finances.orgCurrency(ev.orgId),
+      ev.formId ? forms.get(ev.formId) : Promise.resolve(null),
+      events.feeComponents({ eventId: eventId.value }),
+      events.sessions(eventId.value),
     ])
-    currency.value = org?.currency || 'NZD'
+    currency.value = cur || 'NZD'
     if (!form) { loadError.value = `No registration form has been set up for this ${t('event', false, true)} yet.`; return }
     config.value = { ...(form.config || {}), _formId: form.id }
 
-    feeLineItems.value = (feeRows ?? []).filter((f: any) => !f.session_id).map((f: any) => ({ name: f.name, amount: Number(f.amount) || 0 }))
+    feeLineItems.value = feeRows.filter((f: any) => !f.sessionId).map((f: any) => ({ name: f.name, amount: Number(f.amount) || 0 }))
     const feeBySession: Record<string, number> = {}
-    for (const f of (feeRows ?? [])) if (f.session_id) feeBySession[f.session_id] = (feeBySession[f.session_id] || 0) + (Number(f.amount) || 0)
-    sessions.value = (sess ?? []).map((s: any) => ({
-      id: s.id, title: s.title, start_at: s.start_at,
-      required: !!s.is_required, display: s.display_on_form !== false, fee: feeBySession[s.id] || 0,
+    for (const f of feeRows) if (f.sessionId) feeBySession[f.sessionId] = (feeBySession[f.sessionId] || 0) + (Number(f.amount) || 0)
+    sessions.value = sess.map((s: any) => ({
+      id: s.id, title: s.title, start_at: s.startAt,
+      required: !!s.isRequired, display: s.displayOnForm !== false, fee: feeBySession[s.id] || 0,
     }))
   } catch (e: any) {
     loadError.value = e?.message || 'Something went wrong loading the form.'

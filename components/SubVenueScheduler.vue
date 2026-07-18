@@ -303,6 +303,8 @@ async function loadBookings() {
   // the entire field) render as blocked across every child column.
   const parentIds = Array.from(new Set(props.children.map((c: any) => c.parent_id).filter(Boolean) as string[]))
   parentBookableIds.value = new Set(parentIds)
+  // TODO seam-gap: bookings read is by bookable_id set + date range + joins events —
+  // the seam only offers an org-scoped bookings list (no bookable/date filter, no event join). Still via useDb (events join also cross-domain).
   const { data } = await db.from('bookings')
     .select('*, event:events(id, title)')
     .in('bookable_id', [...childIds, ...parentIds])
@@ -328,6 +330,8 @@ async function loadRules() {
     .map((c: any) => c.master_id)
     .filter((id: string | null | undefined): id is string => !!id)
   const ids = Array.from(new Set([...childIds, ...masterIds]))
+  // TODO seam-gap: availability_rules read spans MANY bookable ids at once — the seam
+  // only exposes availabilityRules(bookableId) per single bookable. Still via useDb.
   const { data } = await (db.from as any)('availability_rules')
     .select('id, bookable_id, name, rule_type, days_of_week, time_slots, time_from, time_to, activity_mode_ids, is_active, color, valid_from, valid_until, rrule')
     .in('bookable_id', ids)

@@ -328,7 +328,21 @@
 import { useToast } from 'primevue/usetoast'
 const { orgId } = useOrg()
 
-const db = useDb()
+const db = useDb() // retained only for the cross-domain events read in load()
+const api = useBookingsApi()
+
+// Seam bookings are flat + camelCase; this table reads snake_case and nested
+// bookable/event/mode objects (hydrated client-side in load()).
+function snakeBooking(b: any) {
+  return {
+    id: b.id, bookable_id: b.bookableId, event_id: b.eventId, session_id: b.sessionId,
+    type: b.type, status: b.status, start_at: b.startAt, end_at: b.endAt, notes: b.notes,
+    contact_name: b.contactName, contact_email: b.contactEmail, contact_phone: b.contactPhone,
+    purpose: b.purpose, is_all_day: b.isAllDay, activity_id: b.activityId,
+    activity_mode_id: b.activityModeId, attendee_count: b.attendeeCount,
+    parent_booking_id: b.parentBookingId, subject_person_id: b.subjectPersonId,
+  }
+}
 const toast = useToast()
 
 const bookings = ref<any[]>([])
@@ -620,42 +634,57 @@ const rowsForTable = computed(() => {
 // ── Data load ────────────────────────────────────────────────
 async function load() {
   loading.value = true
-  const [{ data: bookingData }, { data: bookableData }, { data: eventData }, { data: activityData }] = await Promise.all([
-    db.from('bookings').select('*, bookable:bookables!bookable_id(id,name,type), event:events(id,title), mode:activity_modes(id,name,color)').order('start_at'),
-    db.from('bookables').select('id,name,type,is_public').eq('org_id', orgId.value).neq('status', 'DELETED').order('name'),
+  const [allBookings, bookableList, acts, eventRes] = await Promise.all([
+    api.bookings(orgId.value!),
+    api.bookables(orgId.value!),
+    api.activities(orgId.value!),
+    // TODO cross-domain: events still via useDb (owned by events)
     db.from('events').select('id,title').eq('org_id', orgId.value).neq('status', 'ARCHIVED').order('title'),
-    (db.from as any)('activities')
-      .select('id, name, color, booking_flow, status, bookings_enabled, sort_order')
-      .eq('org_id', orgId.value)
-      .eq('status', 'ACTIVE')
-      .neq('bookings_enabled', false)
-      .order('sort_order')
-      .order('name'),
   ])
-  bookings.value = bookingData ?? []
-  bookables.value = bookableData ?? []
-  events.value = eventData ?? []
-  publicActivities.value = ((activityData ?? []) as PublicActivity[])
+
+  // Hydrate the nested bookable/event/mode objects the row template reads.
+  const bookablesById = new Map(bookableList.map(b => [b.id, b]))
+  const eventsById = new Map(((eventRes.data ?? []) as any[]).map(e => [e.id, e]))
+  const modeLists = await Promise.all(acts.map(a => api.activityModes(a.id)))
+  const modesById = new Map(modeLists.flat().map(m => [m.id, m]))
+
+  bookings.value = allBookings.map(b => {
+    const bk = bookablesById.get(b.bookableId)
+    const md = b.activityModeId ? modesById.get(b.activityModeId) : null
+    return {
+      ...snakeBooking(b),
+      bookable: bk ? { id: bk.id, name: bk.name, type: bk.type } : null,
+      event: b.eventId ? (eventsById.get(b.eventId) ?? null) : null,
+      mode: md ? { id: md.id, name: md.name, color: md.color } : null,
+    }
+  })
+  bookables.value = bookableList
+    .filter(b => b.status !== 'DELETED')
+    .map(b => ({ id: b.id, name: b.name, type: b.type, is_public: b.isPublic }))
+  events.value = (eventRes.data ?? []) as any[]
+  publicActivities.value = acts
+    .filter(a => a.status === 'ACTIVE' && a.bookingsEnabled)
+    .map(a => ({ id: a.id, name: a.name, color: a.color, booking_flow: a.bookingFlow, status: a.status, bookings_enabled: a.bookingsEnabled, sort_order: a.sortOrder })) as PublicActivity[]
   loading.value = false
 }
 
 async function handleCreate() {
   if (!form.value.bookable_id) return
   creating.value = true
-  const { error } = await db.from('bookings').insert({
-    bookable_id: form.value.bookable_id,
-    event_id: form.value.event_id || null,
-    purpose: form.value.purpose || null,
-    start_at: form.value.start_at?.toISOString(),
-    end_at: form.value.end_at?.toISOString(),
-    status: 'CONFIRMED',
-  })
-  if (!error) {
+  try {
+    await api.createBooking({
+      bookableId: form.value.bookable_id,
+      eventId: form.value.event_id || null,
+      purpose: form.value.purpose || null,
+      startAt: form.value.start_at!.toISOString(),
+      endAt: form.value.end_at!.toISOString(),
+      status: 'CONFIRMED',
+    })
     toast.add({ severity: 'success', summary: 'Booking created', life: 3000 })
     showCreate.value = false
     form.value = { bookable_id: '', event_id: null, purpose: '', start_at: null, end_at: null }
     load()
-  } else {
+  } catch {
     toast.add({ severity: 'error', summary: 'Failed to create booking', life: 3000 })
   }
   creating.value = false
@@ -678,7 +707,7 @@ function openMenu(event: Event, row: any) {
       icon: row.status === 'CONFIRMED' ? 'pi pi-times' : 'pi pi-check',
       command: async () => {
         const newStatus = row.status === 'CONFIRMED' ? 'CANCELLED' : 'CONFIRMED'
-        await db.from('bookings').update({ status: newStatus }).eq('id', row.id)
+        await api.setBookingStatus(row.id, newStatus)
         toast.add({ severity: 'success', summary: `Booking ${newStatus.toLowerCase()}`, life: 3000 })
         load()
       }
@@ -689,7 +718,7 @@ function openMenu(event: Event, row: any) {
       icon: 'pi pi-trash',
       class: 'text-red-500',
       command: async () => {
-        await db.from('bookings').delete().eq('id', row.id)
+        await api.removeBooking(row.id)
         toast.add({ severity: 'success', summary: 'Booking deleted', life: 3000 })
         load()
       }

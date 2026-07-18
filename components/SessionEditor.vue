@@ -482,7 +482,8 @@ const emit = defineEmits<{
   (e: 'takeAttendance', sessionId: string): void
 }>()
 
-const db = useDb()
+const eventsApi = useEventsApi()
+const groupsApi = useGroupsApi()
 
 const activeTab = ref(props.initialTab)
 const fieldOpen = reactive({ date: true, location: hasLocation(props.session) })
@@ -531,14 +532,14 @@ const resolvedEventId = computed(() => props.eventId ?? sessionDraftEventId.valu
 async function ensureDraftEvent() {
   if (resolvedEventId.value || creatingDraft.value) return
   creatingDraft.value = true
-  const { data } = await db.from('events').insert({ org_id: orgId.value, title: '(draft)', style: 'ADVANCED', status: 'DRAFT' }).select('id').single()
+  const data = await eventsApi.create({ orgId: orgId.value, title: '(draft)', style: 'ADVANCED', status: 'DRAFT' })
   if (data) sessionDraftEventId.value = data.id
   creatingDraft.value = false
 }
 
 onMounted(async () => {
-  const { data } = await db.from('member_groups').select('id, name').eq('org_id', orgId.value).order('name')
-  allInviteeMemberGroups.value = data ?? []
+  const groups = await groupsApi.list(orgId.value)
+  allInviteeMemberGroups.value = groups.map(g => ({ id: g.id, name: g.name }))
 })
 
 function hasLocation(session: any): boolean {

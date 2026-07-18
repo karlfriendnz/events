@@ -5,9 +5,10 @@
   memberships board.
 -->
 <script setup lang="ts">
-const db = useDb()
 const { orgId } = useOrg()
 const gc = useGroupCodes()
+const groupsApi = useGroupsApi()
+const peopleApi = usePeopleApi()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 const route = useRoute()
@@ -41,20 +42,26 @@ async function load() {
     grew = false
     for (const c of codes) if (c.parent_id && subtree.has(c.parent_id) && !subtree.has(c.id)) { subtree.add(c.id); grew = true }
   }
-  const { data: groups } = await (db.from as any)('member_groups')
-    .select('id, name, color, code_id')
-    .eq('org_id', orgId.value).eq('kind', 'membership')
-    .in('code_id', [...subtree])
-  tiers.value = (groups ?? []).map((g: any) => ({ id: g.id, name: g.name, color: g.color }))
+  // Membership-kind groups on this code or anywhere in its subtree (via the seam).
+  const groups = (await groupsApi.groupsByCodeIds([...subtree])).filter(g => g.kind === 'membership')
+  tiers.value = groups.map(g => ({ id: g.id, name: g.name, color: g.color }))
   if (!tiers.value.length) { people.value = []; loading.value = false; return }
-  const { data: mems } = await (db.from as any)('member_group_memberships')
-    .select('group_id, person:persons!inner(id, first_name, last_name, email, phone)')
-    .in('group_id', tiers.value.map(g => g.id))
+  const tierIds = new Set(tiers.value.map(g => g.id))
+  // Every org membership ref (person↔group) filtered to this umbrella's tiers, joined
+  // to the person directory in memory (both via the seam).
+  const [allMems, persons] = await Promise.all([
+    groupsApi.membershipsByOrg(orgId.value),
+    peopleApi.list(orgId.value),
+  ])
+  const personById: Record<string, any> = {}
+  for (const p of persons) personById[p.id] = p
   const byPerson: Record<string, PersonRow> = {}
-  for (const m of (mems ?? [])) {
-    const p = m.person
-    const row = (byPerson[p.id] ??= { id: p.id, name: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim(), email: p.email, phone: p.phone, tiers: [] })
-    const tier = tiers.value.find(g => g.id === m.group_id)
+  for (const m of allMems) {
+    if (!tierIds.has(m.groupId)) continue
+    const p = personById[m.personId]
+    if (!p) continue
+    const row = (byPerson[p.id] ??= { id: p.id, name: `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim(), email: p.email, phone: p.phone, tiers: [] })
+    const tier = tiers.value.find(g => g.id === m.groupId)
     if (tier && !row.tiers.some(x => x.membershipId === tier.id)) row.tiers.push({ name: tier.name, color: tier.color, membershipId: tier.id })
   }
   people.value = Object.values(byPerson).sort((a, b) => a.name.localeCompare(b.name))

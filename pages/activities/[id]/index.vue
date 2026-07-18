@@ -470,7 +470,39 @@ import { useToast } from 'primevue/usetoast'
 import type { ModePayload } from '~/components/ModeWizard.vue'
 
 const route = useRoute()
-const db = useDb()
+const db = useDb() // retained only for the cross-domain member_groups read in load()
+const api = useBookingsApi()
+
+// The seam returns camelCase; this page's template + form bind snake_case. Map an
+// activity / mode domain object back to the snake shape the page expects.
+function snakeActivity(a: any) {
+  return {
+    id: a.id, org_id: a.orgId, name: a.name, description: a.description, color: a.color,
+    icon: a.icon, image_url: a.imageUrl, status: a.status, sort_order: a.sortOrder,
+    require_mode: a.requireMode, approval_mode: a.approvalMode,
+    booking_window_days: a.bookingWindowDays, min_notice_hours: a.minNoticeHours,
+    cancellation_window_hours: a.cancellationWindowHours, min_duration_mins: a.minDurationMins,
+    max_duration_mins: a.maxDurationMins, buffer_mins: a.bufferMins,
+    area_name_singular: a.areaNameSingular, area_name_plural: a.areaNamePlural,
+    bookings_enabled: a.bookingsEnabled, allow_multi_slot: a.allowMultiSlot,
+    allow_multi_slot_peak: a.allowMultiSlotPeak, allow_kiosk: a.allowKiosk,
+    allow_recurring: a.allowRecurring, allow_member_changes: a.allowMemberChanges,
+    auto_remove_unpaid: a.autoRemoveUnpaid, require_visitor_names: a.requireVisitorNames,
+    hide_member_names: a.hideMemberNames, booking_flow: a.bookingFlow, mode_label: a.modeLabel,
+    mode_display: a.modeDisplay, assignment_mode: a.assignmentMode, staff_bookable_id: a.staffBookableId,
+  }
+}
+function snakeMode(m: any) {
+  return {
+    id: m.id, activity_id: m.activityId, name: m.name, description: m.description, color: m.color,
+    sort_order: m.sortOrder, image_url: m.imageUrl, pricing: m.pricing, addons: m.addons,
+    min_people: m.minPeople, max_people: m.maxPeople, min_visitors: m.minVisitors,
+    max_visitors: m.maxVisitors, allow_visitors: m.allowVisitors, form_id: m.formId,
+    default_booking_view: m.defaultBookingView, payment_options: m.paymentOptions,
+    approval_mode: m.approvalMode, configuration_key: m.configurationKey, period_unit: m.periodUnit,
+    period_count: m.periodCount, term_type: m.termType, period_price: m.periodPrice, category: m.category,
+  }
+}
 const { orgId } = useOrg()
 const toast = useToast()
 
@@ -626,22 +658,26 @@ useBreadcrumbs([
 async function load() {
   loading.value = true
   try {
-    const [{ data: act }, { data: bookables }, { data: venueLinks }, { data: groups }, { data: groupLinks }, { data: modeData }] = await Promise.all([
-      (db.from as any)('activities').select('*').eq('id', route.params.id).single(),
-      (db.from as any)('bookables').select('id, name, location, main_image, sponsor_image')
-        .eq('org_id', orgId.value).neq('status', 'DELETED').order('name'),
-      (db.from as any)('activity_bookables').select('bookable_id').eq('activity_id', route.params.id),
+    const id = route.params.id as string
+    const [actRaw, bookablesRaw, venueLinks, groupLinks, modeRaw, groupsRes] = await Promise.all([
+      api.activity(id),
+      api.bookables(orgId.value!),
+      api.activityBookables(id),
+      api.activityGroups(id),
+      api.activityModes(id),
+      // TODO cross-domain: member_groups still via useDb (owned by groups)
       (db.from as any)('member_groups').select('id, name, color').eq('org_id', orgId.value).order('name'),
-      (db.from as any)('activity_groups').select('group_id').eq('activity_id', route.params.id),
-      (db.from as any)('activity_modes').select('*').eq('activity_id', route.params.id).order('sort_order').order('name'),
     ])
+    const act = actRaw ? snakeActivity(actRaw) : null
 
     activity.value = act
-    allBookables.value = bookables ?? []
-    linkedBookableIds.value = (venueLinks ?? []).map((l: any) => l.bookable_id)
-    allGroups.value = groups ?? []
-    linkedGroupIds.value = (groupLinks ?? []).map((l: any) => l.group_id)
-    modes.value = modeData ?? []
+    allBookables.value = bookablesRaw
+      .filter(b => b.status !== 'DELETED')
+      .map(b => ({ id: b.id, name: b.name, location: b.location, main_image: b.mainImage, sponsor_image: b.sponsorImage }))
+    linkedBookableIds.value = venueLinks.map(l => l.bookableId)
+    allGroups.value = groupsRes.data ?? []
+    linkedGroupIds.value = groupLinks
+    modes.value = modeRaw.map(snakeMode)
 
     if (act) {
       form.name = act.name
@@ -689,35 +725,33 @@ async function save() {
   if (!form.name.trim()) return
   saving.value = true
   try {
-    const { data } = await (db.from as any)('activities')
-      .update({
-        name: form.name.trim(), description: form.description.trim() || null,
-        image_url: form.image_url || null,
-        color: form.color, icon: form.icon, status: form.status, require_mode: form.require_mode,
-        area_name_singular: form.area_name_singular.trim() || null,
-        area_name_plural: form.area_name_plural.trim() || null,
-        bookings_enabled: form.bookings_enabled,
-        allow_multi_slot: form.allow_multi_slot,
-        allow_multi_slot_peak: form.allow_multi_slot_peak,
-        allow_kiosk: form.allow_kiosk,
-        allow_recurring: form.allow_recurring,
-        allow_member_changes: form.allow_member_changes,
-        auto_remove_unpaid: form.auto_remove_unpaid,
-        require_visitor_names: form.require_visitor_names,
-        hide_member_names: form.hide_member_names,
-        approval_mode: form.approval_mode,
-        booking_flow: form.booking_flow,
-        mode_label: form.mode_label.trim() || 'Mode',
-        mode_display: form.mode_display,
-        booking_window_days: form.booking_window_days,
-        min_notice_hours: form.min_notice_hours,
-        cancellation_window_hours: form.cancellation_window_hours,
-        min_duration_mins: form.min_duration_mins,
-        max_duration_mins: form.max_duration_mins,
-        buffer_mins: form.buffer_mins,
-      })
-      .eq('id', route.params.id).select().single()
-    activity.value = data
+    const updated = await api.updateActivity(route.params.id as string, {
+      name: form.name.trim(), description: form.description.trim() || null,
+      imageUrl: form.image_url || null,
+      color: form.color, icon: form.icon, status: form.status, requireMode: form.require_mode,
+      areaNameSingular: form.area_name_singular.trim() || null,
+      areaNamePlural: form.area_name_plural.trim() || null,
+      bookingsEnabled: form.bookings_enabled,
+      allowMultiSlot: form.allow_multi_slot,
+      allowMultiSlotPeak: form.allow_multi_slot_peak,
+      allowKiosk: form.allow_kiosk,
+      allowRecurring: form.allow_recurring,
+      allowMemberChanges: form.allow_member_changes,
+      autoRemoveUnpaid: form.auto_remove_unpaid,
+      requireVisitorNames: form.require_visitor_names,
+      hideMemberNames: form.hide_member_names,
+      approvalMode: form.approval_mode,
+      bookingFlow: form.booking_flow,
+      modeLabel: form.mode_label.trim() || 'Mode',
+      modeDisplay: form.mode_display,
+      bookingWindowDays: form.booking_window_days,
+      minNoticeHours: form.min_notice_hours,
+      cancellationWindowHours: form.cancellation_window_hours,
+      minDurationMins: form.min_duration_mins,
+      maxDurationMins: form.max_duration_mins,
+      bufferMins: form.buffer_mins,
+    })
+    activity.value = snakeActivity(updated)
   } finally {
     saving.value = false
   }
@@ -725,7 +759,7 @@ async function save() {
 
 async function deleteMode(id: string) {
   if (!confirm('Delete this mode?')) return
-  await (db.from as any)('activity_modes').delete().eq('id', id)
+  await api.removeActivityMode(id)
   modes.value = modes.value.filter(m => m.id !== id)
 }
 
@@ -736,22 +770,22 @@ const modeWizardOpen = ref(false)
 async function onModeCreated(mode: ModePayload) {
   const sort_order = modes.value.reduce((max, m) => Math.max(max, m.sort_order ?? 0), 0) + 1
   const pricing = mode.default_price != null ? { default: mode.default_price } : null
-  const { data, error } = await (db.from as any)('activity_modes').insert({
-    activity_id: route.params.id,
-    name: mode.name,
-    description: mode.description || null,
-    color: mode.color,
-    min_people: mode.min_people,
-    max_people: mode.max_people,
-    allow_visitors: mode.allow_visitors,
-    pricing,
-    sort_order,
-  }).select('*').single()
-  if (error || !data) {
-    toast.add({ severity: 'error', summary: 'Could not create mode', detail: error?.message ?? 'Unknown error', life: 4000 })
-    return
+  try {
+    const created = await api.createActivityMode({
+      activityId: route.params.id as string,
+      name: mode.name,
+      description: mode.description || null,
+      color: mode.color,
+      minPeople: mode.min_people,
+      maxPeople: mode.max_people,
+      allowVisitors: mode.allow_visitors,
+      pricing,
+      sortOrder: sort_order,
+    })
+    modes.value = [...modes.value, snakeMode(created)]
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not create mode', detail: e?.message ?? 'Unknown error', life: 4000 })
   }
-  modes.value = [...modes.value, data]
 }
 
 // Tracks the mode being cloned so the Clone button can show a brief
@@ -762,31 +796,42 @@ async function cloneMode(source: any) {
   if (!source?.id) return
   cloningModeId.value = source.id
   try {
-    // Drop server-managed columns and the original id; everything else
-    // (pricing, addons, configuration_key, payment_options, allow_visitors,
-    // approval_mode, form_id, etc.) carries over to the duplicate.
-    const { id: _id, created_at: _ca, updated_at: _ua, ...rest } = source
+    // Everything the mode carries (pricing, addons, configuration_key,
+    // payment_options, allow_visitors, approval_mode, form_id, etc.) is passed to
+    // the create; the seam owns the new id + created_at.
     const cloneName = `${source.name} (copy)`
     const nextSortOrder = (modes.value.reduce((max, m) => Math.max(max, m.sort_order ?? 0), 0)) + 1
-    const { data: created, error } = await (db.from as any)('activity_modes')
-      .insert({ ...rest, name: cloneName, sort_order: nextSortOrder })
-      .select('*')
-      .single()
-    if (error || !created?.id) throw error ?? new Error('Could not clone mode')
+    const created = await api.createActivityMode({
+      activityId: route.params.id as string,
+      name: cloneName,
+      description: source.description ?? null,
+      color: source.color ?? null,
+      imageUrl: source.image_url ?? null,
+      pricing: source.pricing ?? null,
+      addons: source.addons ?? [],
+      minPeople: source.min_people ?? null,
+      maxPeople: source.max_people ?? null,
+      minVisitors: source.min_visitors ?? null,
+      maxVisitors: source.max_visitors ?? null,
+      allowVisitors: source.allow_visitors ?? false,
+      formId: source.form_id ?? null,
+      defaultBookingView: source.default_booking_view ?? null,
+      paymentOptions: source.payment_options ?? null,
+      approvalMode: source.approval_mode ?? 'auto',
+      configurationKey: source.configuration_key ?? null,
+      periodUnit: source.period_unit ?? null,
+      periodCount: source.period_count ?? 1,
+      termType: source.term_type ?? 'fixed',
+      periodPrice: source.period_price ?? null,
+      category: source.category ?? null,
+      sortOrder: nextSortOrder,
+    })
 
-    // Copy per-mode bookable scope so the clone is bookable on the same
-    // venues as the source. activity_mode_bookables is the join table.
-    const { data: scopeRows } = await (db.from as any)('activity_mode_bookables')
-      .select('bookable_id')
-      .eq('mode_id', source.id)
-    const scopeIds = ((scopeRows ?? []) as { bookable_id: string }[]).map(r => r.bookable_id)
-    if (scopeIds.length) {
-      await (db.from as any)('activity_mode_bookables').insert(
-        scopeIds.map(bid => ({ mode_id: created.id, bookable_id: bid })),
-      )
-    }
+    // Copy per-mode bookable scope so the clone is bookable on the same venues.
+    const scope = await api.modeBookables(source.id)
+    if (scope.length) await api.setModeBookables(created.id, scope.map(s => ({ bookableId: s.bookableId, priceOverride: s.priceOverride })))
 
-    modes.value = [...modes.value, created]
+    modes.value = [...modes.value, snakeMode(created)]
     toast.add({ severity: 'success', summary: 'Mode cloned', detail: `"${cloneName}" created.`, life: 3000 })
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Could not clone mode', detail: e?.message ?? 'Unknown error', life: 4000 })
@@ -796,23 +841,11 @@ async function cloneMode(source: any) {
 }
 
 async function saveVenueLinks() {
-  const id = route.params.id as string
-  await (db.from as any)('activity_bookables').delete().eq('activity_id', id)
-  if (linkedBookableIds.value.length) {
-    await (db.from as any)('activity_bookables').insert(
-      linkedBookableIds.value.map(bid => ({ activity_id: id, bookable_id: bid }))
-    )
-  }
+  await api.setActivityBookables(route.params.id as string, linkedBookableIds.value)
 }
 
 async function saveGroupLinks() {
-  const id = route.params.id as string
-  await (db.from as any)('activity_groups').delete().eq('activity_id', id)
-  if (linkedGroupIds.value.length) {
-    await (db.from as any)('activity_groups').insert(
-      linkedGroupIds.value.map(gid => ({ activity_id: id, group_id: gid }))
-    )
-  }
+  await api.setActivityGroups(route.params.id as string, linkedGroupIds.value)
 }
 
 async function unlinkVenue(bookableId: string) {
@@ -827,7 +860,7 @@ async function unlinkGroup(groupId: string) {
 
 async function deleteActivity() {
   if (!confirm(`Delete "${activity.value?.name}"? This cannot be undone.`)) return
-  await (db.from as any)('activities').delete().eq('id', route.params.id)
+  await api.removeActivity(route.params.id as string)
   navigateTo('/activities')
 }
 

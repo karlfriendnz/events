@@ -1,11 +1,17 @@
 // GET /api/v1/groups?orgId=... — every group an org has. The client only ever talks
 // to routes like this, never to the database. Output is validated against the shared
 // contract before it leaves, so the client's types are guaranteed.
-import { listGroups } from '../../../db/repositories/groups'
+import { listGroups, listGroupsByCodeIds } from '../../../db/repositories/groups'
 import { memberGroupListSchema } from '../../../../shared/contracts/group'
 
 export default defineEventHandler(async (event) => {
-  const orgId = getQuery(event).orgId
+  const q = getQuery(event)
+  // codeIds mode: groups under any of a set of codes (public-reg code-target expansion).
+  if (typeof q.codeIds === 'string' && q.codeIds) {
+    const ids = q.codeIds.split(',').filter(Boolean)
+    return memberGroupListSchema.parse(await listGroupsByCodeIds(ids))
+  }
+  const orgId = q.orgId
   if (typeof orgId !== 'string' || !orgId) {
     throw createError({ statusCode: 400, statusMessage: 'orgId is required' })
   }

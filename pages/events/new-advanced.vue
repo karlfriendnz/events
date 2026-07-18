@@ -469,7 +469,9 @@ import type { LocationEntry } from '~/composables/useLocation'
 
 definePageMeta({ layout: 'default' })
 
-const db = useDb()
+const events = useEventsApi()
+const financesApi = useFinancesApi()
+const bookingsApi = useBookingsApi()
 const toast = useToast()
 const route = useRoute()
 const orgCurrency = ref('NZD')
@@ -494,13 +496,13 @@ const draftEventId = ref<string | null>(null)
 
 async function ensureDraft() {
   if (draftEventId.value) return
-  const { data } = await (db.from as any)('events').insert({
-    org_id: orgId.value,
+  const data = await events.create({
+    orgId: orgId.value,
     style: 'ADVANCED',
-    created_via: 'advanced',
+    createdVia: 'advanced',
     status: 'DRAFT',
     title: (route.query.name as string)?.trim() || 'Untitled event',
-  }).select('id').single()
+  })
   draftEventId.value = data?.id ?? null
 }
 
@@ -646,13 +648,13 @@ const colorPalette = ['#1E2157','#3B82F6','#8B5CF6','#EC4899','#EF4444','#F59E0B
 async function createCategory() {
   if (!newCategoryName.value.trim()) return
   savingCategory.value = true
-  const { data, error } = await db.from('categories').insert({
-    org_id: orgId.value, name: newCategoryName.value.trim(), color: newCategoryColor.value,
-  }).select('id, name, color').single()
-  if (!error && data) {
-    categories.value.push(data)
+  try {
+    const data = await events.createCategory({
+      orgId: orgId.value, name: newCategoryName.value.trim(), color: newCategoryColor.value,
+    })
+    categories.value.push({ id: data.id, name: data.name, color: data.color })
     form.category_ids.push(data.id)
-  }
+  } catch { /* ignore — dialog closes below */ }
   showNewCategoryDialog.value = false
   newCategoryName.value = ''
   newCategoryColor.value = '#1E2157'
@@ -689,92 +691,92 @@ async function saveEvent() {
   saving.value = true
   try {
     const payload = {
-      org_id: orgId.value,
+      orgId: orgId.value,
       style: 'ADVANCED',
-      created_via: 'advanced',
+      createdVia: 'advanced',
       status: 'DRAFT',
       title: form.title.trim(),
       description: form.description.trim() || null,
-      category_id: form.category_ids[0] ?? null,
-      secondary_category_id: form.category_ids[1] ?? null,
-      banner_url: form.banner_url || null,
-      is_all_day: form.is_all_day,
-      start_at: buildDateTime(form.start_date, form.is_all_day ? null : form.start_time),
-      end_at: buildDateTime(form.end_date, form.is_all_day ? null : form.end_time),
-      recurrence_rule: form.repeat || null,
+      categoryId: form.category_ids[0] ?? null,
+      secondaryCategoryId: form.category_ids[1] ?? null,
+      bannerUrl: form.banner_url || null,
+      isAllDay: form.is_all_day,
+      startAt: buildDateTime(form.start_date, form.is_all_day ? null : form.start_time),
+      endAt: buildDateTime(form.end_date, form.is_all_day ? null : form.end_time),
+      recurrenceRule: form.repeat || null,
       exdates: form.exdates ?? [],
       locations: form.locations,
-      location_type: (form.locations[0]?.type ?? 'ADDRESS') as 'ADDRESS' | 'ONLINE' | 'BOOKABLE',
+      locationType: (form.locations[0]?.type ?? 'ADDRESS') as 'ADDRESS' | 'ONLINE' | 'BOOKABLE',
       address: form.locations[0]?.type === 'ADDRESS' ? (form.locations[0].address || null) : null,
-      meeting_link: form.locations[0]?.type === 'ONLINE' ? (form.locations[0].meeting_link || null) : null,
-      capacity_max: form.has_capacity ? (form.capacity_max ?? null) : null,
-      has_waitlist: form.has_waitlist,
-      allow_guests: form.allow_guests,
-      reg_open_at: form.reg_open_at ?? null,
-      reg_close_at: form.reg_close_at ?? null,
-      phased_registration: form.phased_registration,
-      member_window_days: form.member_window_days,
-      public_opens_at: form.public_opens_at ?? null,
-      is_public: form.is_public,
-      is_featured: form.is_featured,
-      show_attendee_list: form.show_attendee_list,
-      show_attendee_count: form.show_attendee_count,
-      allow_interest: form.allow_interest,
-      hold_spot_enabled: form.hold_spot_enabled,
+      meetingLink: form.locations[0]?.type === 'ONLINE' ? (form.locations[0].meeting_link || null) : null,
+      capacityMax: form.has_capacity ? (form.capacity_max ?? null) : null,
+      hasWaitlist: form.has_waitlist,
+      allowGuests: form.allow_guests,
+      regOpenAt: form.reg_open_at ?? null,
+      regCloseAt: form.reg_close_at ?? null,
+      phasedRegistration: form.phased_registration,
+      memberWindowDays: form.member_window_days,
+      publicOpensAt: form.public_opens_at ?? null,
+      isPublic: form.is_public,
+      isFeatured: form.is_featured,
+      showAttendeeList: form.show_attendee_list,
+      showAttendeeCount: form.show_attendee_count,
+      allowInterest: form.allow_interest,
+      holdSpotEnabled: form.hold_spot_enabled,
     }
 
     // The draft already exists (it has to, for the discipline picker) — update it.
     // Inserting here would leave an empty orphan event behind every time.
-    const { data, error } = draftEventId.value
-      ? await (db.from as any)('events').update(payload).eq('id', draftEventId.value).select('id').single()
-      : await (db.from as any)('events').insert(payload).select('id').single()
-    if (error) throw error
+    const data = draftEventId.value
+      ? await events.update(draftEventId.value, payload)
+      : await events.create(payload as any)
     draftEventId.value = data.id
 
     const days = sessionDays.value
     if (days.length && namedTemplates.value.length) {
       let sortOrder = 0
       for (const tpl of namedTemplates.value) {
-        const { data: master, error: masterErr } = await db.from('sessions').insert({
-          event_id: data.id,
+        const master = await events.createSession({
+          eventId: data.id,
           title: tpl.name.trim(),
-          start_at: buildSessionDatetime(days[0], tpl.startTime, 9),
-          end_at: buildSessionDatetime(days[0], tpl.endTime, 17),
-          capacity_max: tpl.limit ?? null,
-          is_required: false,
-          is_public: form.is_public,
-          display_on_form: true,
-          is_master: true,
-          master_id: null,
-          sort_order: sortOrder++,
-        }).select('id').single()
-        if (masterErr || !master?.id) throw masterErr ?? new Error('Failed to create master session')
+          startAt: buildSessionDatetime(days[0], tpl.startTime, 9),
+          endAt: buildSessionDatetime(days[0], tpl.endTime, 17),
+          capacityMax: tpl.limit ?? null,
+          isRequired: false,
+          isPublic: form.is_public,
+          displayOnForm: true,
+          isMaster: true,
+          masterId: null,
+          sortOrder: sortOrder++,
+        })
+        if (!master?.id) throw new Error('Failed to create master session')
 
         if (days.length > 1) {
-          const linked = days.slice(1).map(day => ({
-            event_id: data.id,
-            title: tpl.name.trim(),
-            start_at: buildSessionDatetime(day, tpl.startTime, 9),
-            end_at: buildSessionDatetime(day, tpl.endTime, 17),
-            capacity_max: tpl.limit ?? null,
-            is_required: false,
-            is_public: form.is_public,
-            display_on_form: true,
-            is_master: false,
-            master_id: master.id,
-            sort_order: sortOrder++,
-          }))
-          const { error: linkedErr } = await db.from('sessions').insert(linked)
-          if (linkedErr) throw linkedErr
+          for (const day of days.slice(1)) {
+            await events.createSession({
+              eventId: data.id,
+              title: tpl.name.trim(),
+              startAt: buildSessionDatetime(day, tpl.startTime, 9),
+              endAt: buildSessionDatetime(day, tpl.endTime, 17),
+              capacityMax: tpl.limit ?? null,
+              isRequired: false,
+              isPublic: form.is_public,
+              displayOnForm: true,
+              isMaster: false,
+              masterId: master.id,
+              sortOrder: sortOrder++,
+            })
+          }
         }
       }
     }
 
     if (form.is_paid && form.fees.length) {
-      const rows = form.fees.filter(f => f.name.trim()).map(f => ({
-        event_id: data.id, name: f.name.trim(), amount: f.amount ?? 0, xero_code: f.account || null,
-      }))
-      if (rows.length) await db.from('fee_components').insert(rows)
+      for (const f of form.fees.filter(f => f.name.trim())) {
+        await events.createFeeComponent({
+          eventId: data.id, name: f.name.trim(), amount: f.amount ?? 0, xeroCode: f.account || null,
+        })
+      }
     }
 
     // Sync venue bookings — surface this event on each linked venue's calendar.
@@ -784,17 +786,17 @@ async function saveEvent() {
     const eventStart = buildDateTime(form.start_date, form.is_all_day ? null : form.start_time)
     const eventEnd = buildDateTime(form.end_date, form.is_all_day ? null : form.end_time)
     if (bookableIds.length && eventStart && eventEnd) {
-      await db.from('bookings').insert(
+      await bookingsApi.createBookings(
         bookableIds.map((bid: string) => ({
-          bookable_id: bid,
-          event_id: data.id,
+          bookableId: bid,
+          eventId: data.id,
           type: 'EVENT_DRIVEN',
           status: 'CONFIRMED',
-          start_at: eventStart,
-          end_at: eventEnd,
+          startAt: eventStart,
+          endAt: eventEnd,
           purpose: form.title.trim(),
-          is_all_day: form.is_all_day,
-        })),
+          isAllDay: form.is_all_day,
+        })) as any,
       )
     }
 
@@ -818,13 +820,14 @@ async function saveDraft() {
 // ── Mount ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
   ensureDraft()
-  ;(db.from as any)('organisations').select('currency').eq('id', orgId.value).single()
-    .then(({ data }: any) => { orgCurrency.value = data?.currency || 'NZD' })
-  const [{ data: catData }, { data: bookableData }] = await Promise.all([
-    db.from('categories').select('id, name, color').eq('org_id', orgId.value).order('name'),
-    db.from('bookables').select('id, name').eq('org_id', orgId.value).order('name'),
+  financesApi.orgCurrency(orgId.value)
+    .then((c: string) => { orgCurrency.value = c || 'NZD' })
+    .catch(() => {})
+  const [catData, bookableData] = await Promise.all([
+    events.categories(orgId.value),
+    bookingsApi.bookables(orgId.value),
   ])
-  categories.value = catData ?? []
+  categories.value = catData.map(c => ({ id: c.id, name: c.name, color: c.color }))
   for (const b of (bookableData ?? [])) availabilityMap[b.id] = 'available'
 })
 </script>

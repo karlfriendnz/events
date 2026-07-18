@@ -523,11 +523,26 @@ import { codeLineage } from '~/composables/useGroupCodes'
 import type { GroupCode } from '~/composables/useGroupCodes'
 import type { CodeStaff } from '~/composables/useCodeRoles'
 
+// SEAM GAP: `db` is kept ONLY for reading organisations.currency (the org seam
+// doesn't expose currency yet). Every other data access goes through the seam.
 const db = useDb()
 const { orgId } = useOrg()
 const tm = useTermsMemberships()
 const rollover = useTermRollover()
 const gf = useGroupFees()
+const groupsApi = useGroupsApi()
+const membershipsApi = useMembershipsApi()
+const peopleApi = usePeopleApi()
+
+// A camelCase OrgTerm (from the seam) → this page's snake_case OrgTerm.
+function termCamelToSnake(t: any): OrgTerm {
+  return {
+    id: t.id, org_id: t.orgId, name: t.name,
+    start_date: t.startDate ?? null, end_date: t.endDate ?? null,
+    signup_open: t.signupOpen ?? null, signup_close: t.signupClose ?? null,
+    set_id: t.setId ?? null, status: t.status, sort_order: t.sortOrder ?? 0,
+  }
+}
 // ── Terminology (never hardcode "class"/"programme" — clubs rename these) ──
 // 'group' = the class concept, 'code' = the programme concept.
 const terminology = useTerminology()
@@ -674,13 +689,9 @@ const personSuggestions = ref<{ id: string; label: string }[]>([])
 async function searchPersonsFor(e: { query: string }) {
   const q = (e.query ?? '').trim()
   if (!q) { personSuggestions.value = []; return }
-  const { data } = await (db.from as any)('persons')
-    .select('id, first_name, last_name, email')
-    .eq('org_id', orgId.value)
-    .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,email.ilike.%${q}%`)
-    .limit(10)
+  const data = await peopleApi.list(orgId.value, { q, limit: 10 })
   personSuggestions.value = (data ?? []).map((p: any) => ({
-    id: p.id, label: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || p.email || '—',
+    id: p.id, label: `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || p.email || '—',
   }))
 }
 async function assignVacant(pt: { key: string }, slot: { key: string }, person: { id: string }, rowKey: string) {
@@ -739,8 +750,7 @@ const discontinued = reactive<Record<string, boolean>>({})
 async function setDiscontinued(g: RolloverGroup, on: boolean) {
   discontinued[g.id] = on
   if (on) included[g.id] = false
-  await (db.from as any)('member_groups')
-    .update({ discontinued_at: on ? new Date().toISOString() : null }).eq('id', g.id)
+  await groupsApi.update(g.id, { discontinuedAt: on ? new Date().toISOString() : null })
 }
 // ── Step 3: training sessions ──
 // The term's weekly training events, generated from each class's session times.
@@ -845,13 +855,12 @@ watch(termChoice, async () => {
   signupClose.value = t.signup_close ? new Date(`${t.signup_close}T00:00:00`) : null
   pickedTermLocked.value = false
   pickedTermRegCount.value = 0
-  const { data: gs } = await (db.from as any)('member_groups').select('id').eq('org_id', orgId.value).eq('term_id', t.id)
-  const ids = (gs ?? []).map((g: any) => g.id)
-  if (ids.length) {
-    const { count } = await (db.from as any)('member_group_memberships')
-      .select('id', { count: 'exact', head: true }).in('group_id', ids)
-    pickedTermRegCount.value = count ?? 0
-    pickedTermLocked.value = (count ?? 0) > 0
+  const ids = new Set((await groupsApi.list(orgId.value)).filter(g => g.termId === t.id).map(g => g.id))
+  if (ids.size) {
+    const mems = await groupsApi.membershipsByOrg(orgId.value)
+    const count = mems.filter(m => ids.has(m.groupId)).length
+    pickedTermRegCount.value = count
+    pickedTermLocked.value = count > 0
   }
 })
 
@@ -990,37 +999,48 @@ function fmtMoney(n: number) { return gf.fmtMoney(n, orgCurrency.value) }
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [loadedTerms, { data: groups }, { data: org }, tmap] = await Promise.all([
+  const [loadedTerms, allGroups, org, tmap] = await Promise.all([
     tm.loadTerms(),
-    (db.from as any)('member_groups').select('id, term_id').eq('org_id', orgId.value).not('term_id', 'is', null),
-    (db.from as any)('organisations').select('currency').eq('id', orgId.value).maybeSingle(),
+    groupsApi.list(orgId.value),
+    // SEAM GAP: organisations.currency — no org-seam getter yet.
+    (db.from as any)('organisations').select('currency').eq('id', orgId.value).maybeSingle().then((r: any) => r.data),
     terminology.resolveTerminology(orgId.value),
   ])
   terms.value = loadedTerms
   termMap.value = tmap
   if (org?.currency) orgCurrency.value = org.currency
+  // Only groups that belong to a term count towards the per-term totals.
+  const groups = allGroups.filter(g => g.termId)
   const counts: Record<string, number> = {}
-  for (const g of (groups ?? [])) counts[g.term_id] = (counts[g.term_id] || 0) + 1
+  for (const g of groups) counts[g.termId!] = (counts[g.termId!] || 0) + 1
   groupCountByTerm.value = counts
 
   // How many source classes already have fee options (for the fees step copy),
   // plus the full class list (grouped by code) for the detailed classes step.
   if (sourceTerm.value) {
-    const srcIds = (groups ?? []).filter((g: any) => g.term_id === sourceTerm.value!.id).map((g: any) => g.id)
+    const srcIds: string[] = groups.filter(g => g.termId === sourceTerm.value!.id).map(g => g.id)
     if (srcIds.length) {
-      const [{ data: fo }, srcGroups, codes, { data: scheds }, staffAll, roleDefs] = await Promise.all([
-        (db.from as any)('group_fee_options').select('id, group_id, name, sort_order').in('group_id', srcIds).order('sort_order'),
+      // Fee options (with items) + schedules per source class come from the seam
+      // (per-group, in parallel). srcGroups/codes/staff use their own composables.
+      const [feeOptionLists, srcGroups, codes, schedLists, staffAll, roleDefs] = await Promise.all([
+        Promise.all(srcIds.map(id => gf.loadFeeOptions(id))),
         rollover.loadTermGroups(sourceTerm.value.id),
         gc.loadCodes(),
-        (db.from as any)('member_group_schedules').select('id, group_id, name, day_of_week, start_time, end_time, location').in('group_id', srcIds).order('sort_order'),
+        Promise.all(srcIds.map(id => groupsApi.schedules(id))),
         cr.loadStaff(),
         cr.ensureDefaults(),
       ])
       codeStaffAll.value = staffAll
       codeRoleDefsW.value = roleDefs
       codesList.value = (codes ?? []) as GroupCode[]
+      // Schedules keyed by group id, mapped to the snake shape the step reads.
       const sb: Record<string, any[]> = {}
-      for (const s of (scheds ?? [])) (sb[s.group_id] ??= []).push(s)
+      srcIds.forEach((id, i) => {
+        sb[id] = (schedLists[i] || []).map((s: any) => ({
+          group_id: s.groupId, name: s.name, day_of_week: s.dayOfWeek,
+          start_time: s.startTime, end_time: s.endTime, location: s.location,
+        }))
+      })
       schedsByGroup.value = sb
       for (const g of srcGroups) {
         schedRows[g.id] = (sb[g.id] ?? []).map((s: any) => ({
@@ -1030,20 +1050,18 @@ async function load() {
         }))
         schedDirty[g.id] = false
       }
-      feesGroupCount.value = new Set((fo ?? []).map((r: any) => r.group_id)).size
+      // Fee seeds: EVERY fee option each class carries over (the history), with its
+      // full LINE ITEMS — from the seam (each option arrives hydrated with items).
+      const optsByGroup: Record<string, any[]> = {}
+      const itemsByOpt: Record<string, any[]> = {}
+      srcIds.forEach((id, i) => {
+        const opts = feeOptionLists[i] || []
+        optsByGroup[id] = opts
+        for (const o of opts) itemsByOpt[o.id] = o.items || []
+      })
+      feesGroupCount.value = srcIds.filter(id => (optsByGroup[id]?.length ?? 0) > 0).length
       classList.value = srcGroups
       codesById.value = Object.fromEntries((codes ?? []).map((c: GroupCode) => [c.id, c]))
-      // Fee seeds: EVERY fee option each class carries over (the history),
-      // with its full LINE ITEMS — name, amount, Xero account per line.
-      const optIds = (fo ?? []).map((o: any) => o.id)
-      const itemsByOpt: Record<string, any[]> = {}
-      if (optIds.length) {
-        const { data: items } = await (db.from as any)('group_fee_option_items')
-          .select('option_id, name, amount, account, sort_order').in('option_id', optIds).order('sort_order')
-        for (const it of (items ?? [])) (itemsByOpt[it.option_id] ??= []).push(it)
-      }
-      const optsByGroup: Record<string, any[]> = {}
-      for (const o of (fo ?? [])) (optsByGroup[o.group_id] ??= []).push(o)
       for (const g of srcGroups) {
         discontinued[g.id] = !!g.discontinued_at
         included[g.id] = !g.discontinued_at
@@ -1093,30 +1111,31 @@ async function persistTerm(): Promise<OrgTerm> {
       patch.start_date = tm.toIso(termStart.value)
       patch.end_date = tm.toIso(termEnd.value)
     }
-    const { error } = await (db.from as any)('org_terms').update(patch).eq('id', termChoice.value)
-    if (error) throw error
+    await membershipsApi.updateTerm(termChoice.value, {
+      signupOpen: patch.signup_open, signupClose: patch.signup_close,
+      status: patch.status, name: patch.name,
+      ...(patch.start_date ? { startDate: patch.start_date, endDate: patch.end_date } : {}),
+    })
     savedTermId.value = termChoice.value
     return { ...pickedTerm.value!, ...patch }
   }
-  const cols = {
-    org_id: orgId.value,
+  const camel = {
+    orgId: orgId.value,
     name: termName.value.trim(),
-    start_date: tm.toIso(termStart.value!),
-    end_date: tm.toIso(termEnd.value!),
-    ...signup,
+    startDate: tm.toIso(termStart.value!),
+    endDate: tm.toIso(termEnd.value!),
+    signupOpen: signup.signup_open,
+    signupClose: signup.signup_close,
     // The new term continues the source term's sequence (term set, 232).
-    set_id: sourceTerm.value?.set_id ?? null,
+    setId: sourceTerm.value?.set_id ?? null,
     status: termStatus.value,
   }
   if (savedTermId.value) {
-    const { data, error } = await (db.from as any)('org_terms').update(cols).eq('id', savedTermId.value).select('*').single()
-    if (error) throw error
-    return data
+    return termCamelToSnake(await membershipsApi.updateTerm(savedTermId.value, camel))
   }
-  const { data, error } = await (db.from as any)('org_terms').insert({ ...cols, sort_order: terms.value.length }).select('*').single()
-  if (error) throw error
-  savedTermId.value = data.id
-  return data
+  const created = await membershipsApi.createTerm({ ...camel, sortOrder: terms.value.length })
+  savedTermId.value = created.id
+  return termCamelToSnake(created)
 }
 async function saveTermStep() {
   if (savingTerm.value) return
@@ -1154,10 +1173,9 @@ async function run() {
 
     // Map source class → its clone in the new term (used by session edits,
     // event generation and fee replacement below).
-    const { data: clones } = await (db.from as any)('member_groups')
-      .select('id, rolled_from_group_id').eq('org_id', orgId.value).eq('term_id', target.id)
+    const clones = (await groupsApi.list(orgId.value)).filter(g => g.termId === target.id)
     const cloneBySrc: Record<string, string> = {}
-    for (const c of (clones ?? [])) if (c.rolled_from_group_id) cloneBySrc[c.rolled_from_group_id] = c.id
+    for (const c of clones) if (c.rolledFromGroupId) cloneBySrc[c.rolledFromGroupId] = c.id
 
     if (rolling.value && sourceTerm.value) {
       // 2b) Session-time edits from the Trainings step land on the CLONE's
@@ -1166,15 +1184,15 @@ async function run() {
       for (const g of schedEdited) {
         const cloneId = cloneBySrc[g.id]
         if (!cloneId) continue
-        await (db.from as any)('member_group_schedules').delete().eq('group_id', cloneId)
+        // Replace the clone's schedules via the seam (delete-then-insert).
         const rows = (schedRows[g.id] || [])
           .filter(r => r.start_time && r.end_time)
           .map((r, i) => ({
-            org_id: orgId.value, group_id: cloneId, name: r.name,
-            day_of_week: r.day_of_week, start_time: r.start_time, end_time: r.end_time,
-            location: r.location, sort_order: i,
+            name: r.name, dayOfWeek: r.day_of_week,
+            startTime: r.start_time, endTime: r.end_time,
+            location: r.location, sortOrder: i,
           }))
-        if (rows.length) await (db.from as any)('member_group_schedules').insert(rows)
+        await groupsApi.saveSchedules(cloneId, orgId.value, rows)
       }
 
       // 2c) Turn each new class's session times into the term's training

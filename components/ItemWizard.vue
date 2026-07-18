@@ -232,7 +232,7 @@ const emit = defineEmits<{
   (e: 'done', payload: { activityId: string; bookableIds: string[] }): void
 }>()
 
-const db = useDb()
+const api = useBookingsApi()
 const { orgId } = useOrg()
 const toast = useToast()
 
@@ -396,16 +396,16 @@ async function create() {
   creating.value = true
   try {
     // 1) Activity row.
-    const { data: act, error: actErr } = await (db.from as any)('activities').insert({
-      org_id: orgId.value,
+    const act = await api.createActivity({
+      orgId: orgId.value,
       name: activityName.value.trim(),
       status: 'ACTIVE',
-      bookings_enabled: true,
-      booking_flow: 'item',
-      require_mode: true,
-      assignment_mode: count.value > 1 ? assignmentMode.value : 'system',
-      area_name_singular: preset.value.noun,
-      area_name_plural: `${preset.value.noun}s`,
+      bookingsEnabled: true,
+      bookingFlow: 'item',
+      requireMode: true,
+      assignmentMode: count.value > 1 ? assignmentMode.value : 'system',
+      areaNameSingular: preset.value.noun,
+      areaNamePlural: `${preset.value.noun}s`,
       color: '#1E2157',
       icon: preset.value.type === 'projector' ? 'pi-video'
         : preset.value.type === 'locker' ? 'pi-lock'
@@ -413,65 +413,63 @@ async function create() {
         : preset.value.type === 'bike' ? 'pi-car'
         : preset.value.type === 'kit' ? 'pi-briefcase'
         : 'pi-box',
-    }).select('id').single()
-    if (actErr || !act?.id) throw actErr ?? new Error('Could not create activity')
-    const activityId = act.id as string
+    })
+    const activityId = act.id
 
     // 2) Bookables. Single-unit setups get one row; multi-unit setups get
     //    a parent + N children so each child is an addressable rentable
     //    row that ItemBooker can pick.
     const bookableIds: string[] = []
     if (count.value === 1) {
-      const { data: bk, error: bkErr } = await (db.from as any)('bookables').insert({
-        org_id: orgId.value,
+      const bk = await api.createBookable({
+        orgId: orgId.value,
         name: itemName.value.trim(),
         type: 'ITEM',
         status: 'ACTIVE',
-        max_concurrent: 1,
-        is_public: true,
-      }).select('id').single()
-      if (bkErr || !bk?.id) throw bkErr ?? new Error('Could not create bookable')
+        maxConcurrent: 1,
+        isPublic: true,
+      })
       bookableIds.push(bk.id)
-      await (db.from as any)('activity_bookables').insert({ activity_id: activityId, bookable_id: bk.id })
+      await api.setActivityBookables(activityId, [bk.id])
     } else {
-      const { data: parent, error: pErr } = await (db.from as any)('bookables').insert({
-        org_id: orgId.value,
+      const parent = await api.createBookable({
+        orgId: orgId.value,
         name: itemName.value.trim(),
         type: 'VENUE',
         status: 'ACTIVE',
-        max_concurrent: count.value,
-        is_public: true,
-        allow_sub_venues: true,
-      }).select('id').single()
-      if (pErr || !parent?.id) throw pErr ?? new Error('Could not create parent bookable')
+        maxConcurrent: count.value,
+        isPublic: true,
+        allowSubVenues: true,
+      })
       bookableIds.push(parent.id)
-      const childRows = Array.from({ length: count.value }, (_, i) => ({
-        org_id: orgId.value,
-        name: `${baseName.value.trim()} ${i + 1}`,
-        type: 'ITEM',
-        parent_id: parent.id,
-        status: 'ACTIVE',
-        max_concurrent: 1,
-        is_public: true,
-      }))
-      const { data: kids, error: kErr } = await (db.from as any)('bookables').insert(childRows).select('id')
-      if (kErr) throw kErr
-      for (const k of kids ?? []) bookableIds.push(k.id)
-      await (db.from as any)('activity_bookables').insert({ activity_id: activityId, bookable_id: parent.id })
+      for (let i = 0; i < count.value; i++) {
+        const kid = await api.createBookable({
+          orgId: orgId.value,
+          name: `${baseName.value.trim()} ${i + 1}`,
+          type: 'ITEM',
+          parentId: parent.id,
+          status: 'ACTIVE',
+          maxConcurrent: 1,
+          isPublic: true,
+        })
+        bookableIds.push(kid.id)
+      }
+      await api.setActivityBookables(activityId, [parent.id])
     }
 
     // 3) Modes.
-    const modeRows = rates.value.map((r, i) => ({
-      activity_id: activityId,
-      name: r.name.trim(),
-      period_unit: r.period_unit,
-      period_count: r.period_count,
-      term_type: r.term_type,
-      period_price: r.period_price,
-      sort_order: i,
-    }))
-    const { error: mErr } = await (db.from as any)('activity_modes').insert(modeRows)
-    if (mErr) throw mErr
+    for (let i = 0; i < rates.value.length; i++) {
+      const r = rates.value[i]
+      await api.createActivityMode({
+        activityId,
+        name: r.name.trim(),
+        periodUnit: r.period_unit,
+        periodCount: r.period_count,
+        termType: r.term_type,
+        periodPrice: r.period_price,
+        sortOrder: i,
+      })
+    }
 
     toast.add({
       severity: 'success',

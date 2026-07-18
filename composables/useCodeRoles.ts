@@ -42,6 +42,15 @@ export interface CodeRoleDef {
 }
 
 export function useCodeRoles() {
+  // SEAM GAP (roles domain): code_role_defs + code_staff live in the ROLES seam
+  // (server/db/repositories/roles.ts + shared/contracts/role.ts + useRolesApi), which
+  // this composable must NOT extend (rule #1 — cross-domain ownership). What the roles
+  // domain still needs before this composable can drop useDb:
+  //   • useRolesApi.codeRoleDefs(orgId)                          (repo listCodeRoleDefs exists, not exposed)
+  //   • useRolesApi.saveCodeRoleDefsForScope(orgId, lineage|null, roles[])  — delete-then-insert per scope
+  //   • useRolesApi.codeStaff() to include a person projection {id,firstName,lastName,email}
+  //   • useRolesApi.assignCodeStaff(orgId, lineage, personId, roleKey) + removeCodeStaff(id)
+  // Until those land, the DB calls below stay on useDb. Reported to the team lead.
   const db = useDb()
   const { orgId } = useOrg()
 

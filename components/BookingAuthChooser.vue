@@ -395,6 +395,7 @@ async function emitSignedIn(user: { id: string; email?: string | null; user_meta
   }
   // Best-effort: pull phone + canonical name from org_members.
   if (props.orgId) {
+    // TODO cross-domain: org_members still via useDb (owned by admin)
     const { data } = await (db.from as any)('org_members')
       .select('phone, first_name, last_name')
       .eq('user_id', user.id)
@@ -422,6 +423,7 @@ const chosenSubjectId = ref<string | null>(null)
 
 async function resolvePersonId(email: string): Promise<string | null> {
   if (!email || !props.orgId) return null
+  // TODO cross-domain: persons still via useDb (owned by people)
   const { data } = await (db.from as any)('persons')
     .select('id').eq('org_id', props.orgId).ilike('email', email).maybeSingle()
   return data?.id ?? null
@@ -431,6 +433,7 @@ async function resolvePersonId(email: string): Promise<string | null> {
  *  picker step. Returns true when it took over (caller must not emit). */
 async function offerSubjectPicker(personId: string, name: string, prefill: PrefillPayload): Promise<boolean> {
   if (!props.orgId) return false
+  // TODO cross-domain: circles still via useDb (owned by people-links)
   const { data } = await (db.from as any)('circles')
     .select('id, name, kind, circle_members(person_id, role, can_book_for, can_view, can_register, is_lead, person:persons(id, first_name, last_name))')
     .eq('org_id', props.orgId)
@@ -485,6 +488,7 @@ async function searchMembers(event: { query: string }) {
   const filterClause = q
     ? `first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern}`
     : ''
+  // TODO cross-domain: persons still via useDb (owned by people)
   let query = (db.from as any)('persons')
     .select('id, first_name, last_name, email, phone')
     .eq('org_id', props.orgId)

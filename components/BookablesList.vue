@@ -506,7 +506,31 @@
 const { orgId } = useOrg()
 import { useToast } from 'primevue/usetoast'
 
-const db = useDb()
+const api = useBookingsApi()
+
+// The seam returns camelCase; this list's template + computeds read snake_case.
+// Map a bookable domain object back to the full snake shape they expect.
+function snakeBookable(b: any) {
+  return {
+    id: b.id, org_id: b.orgId, name: b.name, internal_name: b.internalName, type: b.type,
+    status: b.status, parent_id: b.parentId, master_id: b.masterId, is_master: b.isMaster,
+    is_slave_auto_assign: b.isSlaveAutoAssign, is_public: b.isPublic, is_network: b.isNetwork,
+    max_concurrent: b.maxConcurrent, location: b.location, show_location: b.showLocation,
+    description: b.description, features: b.features, rules: b.rules, images: b.images,
+    categories: b.categories, sports: b.sports, custom_fields: b.customFields, sort_order: b.sortOrder,
+    item_category: b.itemCategory, default_booking_view: b.defaultBookingView, closed_from: b.closedFrom,
+    closed_until: b.closedUntil, closure_reason: b.closureReason, customized_sections: b.customizedSections,
+    main_image: b.mainImage, sponsor_image: b.sponsorImage, show_in_menu: b.showInMenu, sections: b.sections,
+    space_type: b.spaceType, booking_limit_type: b.bookingLimitType, booking_limit_count: b.bookingLimitCount,
+    disallow_concurrent: b.disallowConcurrent, disallow_consecutive: b.disallowConsecutive,
+    allow_modes_with_others: b.allowModesWithOthers, allow_sub_venues: b.allowSubVenues,
+    auto_resolve_children: b.autoResolveChildren, access_enabled: b.accessEnabled,
+    access_code_delivery: b.accessCodeDelivery, access_code_length: b.accessCodeLength,
+    access_unlock_before_mins: b.accessUnlockBeforeMins, access_unlock_after_mins: b.accessUnlockAfterMins,
+    lighting_ramp_up_mins: b.lightingRampUpMins, lighting_ramp_down_mins: b.lightingRampDownMins,
+    lighting_level_percent: b.lightingLevelPercent,
+  }
+}
 const toast = useToast()
 
 const bookables = ref<any[]>([])
@@ -569,14 +593,14 @@ async function checkAvailability() {
   const end   = new Date(d.getFullYear(), d.getMonth(), d.getDate(), eh, em).toISOString()
 
   // Overlapping bookings → mark as fully booked when count >= max_concurrent.
-  const { data: bookingData } = await db.from('bookings')
-    .select('bookable_id')
-    .lte('start_at', end)
-    .gte('end_at', start)
-    .neq('status', 'CANCELLED')
+  // The seam returns the org's bookings; filter to the window + non-cancelled here.
+  const allBookings = await api.bookings(orgId.value)
+  const bookingData = allBookings
+    .filter(b => b.startAt <= end && b.endAt >= start && b.status !== 'CANCELLED')
+    .map(b => ({ bookable_id: b.bookableId }))
 
   const counts = new Map<string, number>()
-  for (const b of (bookingData ?? []) as { bookable_id: string }[]) {
+  for (const b of bookingData as { bookable_id: string }[]) {
     counts.set(b.bookable_id, (counts.get(b.bookable_id) ?? 0) + 1)
   }
 
@@ -735,11 +759,8 @@ const visibleTabs = computed(() =>
 
 async function loadArchivedCount() {
   if (!orgId.value) return
-  const { count } = await (db.from as any)('bookables')
-    .select('id', { count: 'exact', head: true })
-    .eq('org_id', orgId.value)
-    .eq('status', 'ARCHIVED')
-  archivedCount.value = count ?? 0
+  const all = await api.bookables(orgId.value)
+  archivedCount.value = all.filter(b => b.status === 'ARCHIVED').length
   if (archivedCount.value === 0 && activeTab.value === 'ARCHIVED') activeTab.value = 'VENUE'
 }
 
@@ -816,8 +837,11 @@ function isTempClosed(item: any): boolean {
 
 async function load() {
   loading.value = true
-  const { data } = await db.from('bookables').select('*').eq('org_id', orgId.value).not('status', 'in', '("DELETED","ARCHIVED")').order('name')
-  bookables.value = data ?? []
+  const all = await api.bookables(orgId.value!)
+  bookables.value = all
+    .filter(b => b.status !== 'DELETED' && b.status !== 'ARCHIVED')
+    .map(snakeBookable)
+    .sort((a, b) => a.name.localeCompare(b.name))
   loading.value = false
 }
 
@@ -835,26 +859,26 @@ async function handleCreate() {
   if (!form.value.name.trim()) return
   if (!orgId.value) { toast.add({ severity: 'error', summary: 'Not ready', detail: 'Organisation not loaded yet. Please try again.', life: 4000 }); return }
   creating.value = true
-  const { error } = await db.from('bookables').insert({
-    org_id: orgId.value,
-    name: form.value.name.trim(),
-    internal_name: form.value.internal_name || null,
-    type: activeTab.value === 'ITEM' || createItemParentId.value ? 'ITEM' : activeTab.value,
-    item_category: (activeTab.value === 'ITEM' || createItemParentId.value) ? (form.value.item_category || null) : null,
-    location: form.value.location || null,
-    max_concurrent: form.value.max_concurrent,
-    is_public: form.value.is_public,
-    description: form.value.description || null,
-    parent_id: createItemParentId.value || null,
-  })
-  if (!error) {
+  try {
+    await api.createBookable({
+      orgId: orgId.value,
+      name: form.value.name.trim(),
+      internalName: form.value.internal_name || null,
+      type: activeTab.value === 'ITEM' || createItemParentId.value ? 'ITEM' : activeTab.value,
+      itemCategory: (activeTab.value === 'ITEM' || createItemParentId.value) ? (form.value.item_category || null) : null,
+      location: form.value.location || null,
+      maxConcurrent: form.value.max_concurrent,
+      isPublic: form.value.is_public,
+      description: form.value.description || null,
+      parentId: createItemParentId.value || null,
+    })
     toast.add({ severity: 'success', summary: 'Created', life: 3000 })
     showCreate.value = false
     const wasItemForVenue = createItemParentId.value
     createItemParentId.value = null
     if (wasItemForVenue) activeTab.value = 'VENUE'
     load()
-  }
+  } catch { /* toast handled by caller UI state */ }
   creating.value = false
 }
 

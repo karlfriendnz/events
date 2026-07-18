@@ -73,7 +73,7 @@
 <script setup lang="ts">
 const props = defineProps<{ staffBookableId: string; staffName?: string | null }>()
 
-const db = useDb()
+const api = useBookingsApi()
 const { orgId } = useOrg()
 const toast = useToast()
 
@@ -95,61 +95,44 @@ function formatPeriod(m: any): string {
 //      Backfill the column and reuse it.
 //   3. No activity at all — create one named after the staff member.
 async function ensureActivity(): Promise<string | null> {
-  // Path 1.
-  const tagged = await (db.from as any)('activities')
-    .select('id')
-    .eq('staff_bookable_id', props.staffBookableId)
-    .neq('status', 'ARCHIVED')
-    .maybeSingle()
-  if (tagged.error) {
-    console.error('StaffOfferingsEditor: tagged-activity lookup failed', tagged.error)
-  } else if (tagged.data?.id) {
-    return tagged.data.id as string
+  // Pull every activity linked to (or tagged with) this staff bookable in one call,
+  // then resolve the three paths client-side.
+  let linked: Awaited<ReturnType<typeof api.bookableActivities>> = []
+  try {
+    linked = await api.bookableActivities(props.staffBookableId)
+  } catch (e) {
+    console.error('StaffOfferingsEditor: bookable-activity lookup failed', e)
   }
 
-  // Path 2 — two simple queries (skip the embedded-resource syntax for
-  // PostgREST robustness; older relationship caches can hiccup on it).
-  const linkRows = await (db.from as any)('activity_bookables')
-    .select('activity_id')
-    .eq('bookable_id', props.staffBookableId)
-  if (!linkRows.error && (linkRows.data ?? []).length) {
-    const ids = (linkRows.data as any[]).map(r => r.activity_id)
-    const acts = await (db.from as any)('activities')
-      .select('id, status, staff_bookable_id')
-      .in('id', ids)
-    if (!acts.error) {
-      const candidate = (acts.data ?? []).find((a: any) =>
-        a.status !== 'ARCHIVED' && !a.staff_bookable_id,
-      )
-      if (candidate?.id) {
-        await (db.from as any)('activities')
-          .update({ staff_bookable_id: props.staffBookableId })
-          .eq('id', candidate.id)
-        return candidate.id as string
-      }
-    }
+  // Path 1 — an activity already tagged with staff_bookable_id.
+  const tagged = linked.find(a => a.staffBookableId === props.staffBookableId && a.status !== 'ARCHIVED')
+  if (tagged) return tagged.id
+
+  // Path 2 — linked via activity_bookables but not yet tagged (pre-mig-119); backfill.
+  const candidate = linked.find(a => a.status !== 'ARCHIVED' && !a.staffBookableId)
+  if (candidate) {
+    await api.updateActivity(candidate.id, { staffBookableId: props.staffBookableId })
+    return candidate.id
   }
 
-  // Path 3.
+  // Path 3 — no activity yet; create one named after the staff member.
   if (!orgId.value) return null
-  const created = await (db.from as any)('activities').insert({
-    org_id: orgId.value,
-    name: props.staffName?.trim() || 'Coach',
-    status: 'ACTIVE',
-    bookings_enabled: true,
-    booking_flow: 'wizard',
-    require_mode: true,
-    staff_bookable_id: props.staffBookableId,
-  }).select('id').single()
-  if (created.error || !created.data?.id) {
-    console.error('StaffOfferingsEditor: failed to create activity', created.error)
+  try {
+    const created = await api.createActivity({
+      orgId: orgId.value,
+      name: props.staffName?.trim() || 'Coach',
+      status: 'ACTIVE',
+      bookingsEnabled: true,
+      bookingFlow: 'wizard',
+      requireMode: true,
+      staffBookableId: props.staffBookableId,
+    })
+    await api.setActivityBookables(created.id, [props.staffBookableId])
+    return created.id
+  } catch (e) {
+    console.error('StaffOfferingsEditor: failed to create activity', e)
     return null
   }
-  await (db.from as any)('activity_bookables').insert({
-    activity_id: created.data.id,
-    bookable_id: props.staffBookableId,
-  })
-  return created.data.id as string
 }
 
 async function load() {
@@ -158,11 +141,13 @@ async function load() {
     const id = await ensureActivity()
     activityId.value = id
     if (!id) { modes.value = []; return }
-    const { data } = await (db.from as any)('activity_modes')
-      .select('id, name, color, period_unit, period_count, period_price, term_type, sort_order')
-      .eq('activity_id', id)
-      .order('sort_order').order('name')
-    modes.value = data ?? []
+    // Seam returns camelCase; map the fields this card reads back to snake_case.
+    const rows = await api.activityModes(id)
+    modes.value = rows.map(m => ({
+      ...m,
+      period_unit: m.periodUnit, period_count: m.periodCount,
+      period_price: m.periodPrice, term_type: m.termType, sort_order: m.sortOrder,
+    }))
   } catch (e) {
     console.error('StaffOfferingsEditor load failed', e)
     toast.add({ severity: 'error', summary: 'Could not load services', detail: (e as any)?.message ?? 'Unknown error', life: 5000 })
@@ -180,12 +165,12 @@ async function addMode() {
   if (!activityId.value) return
   creatingMode.value = true
   try {
-    const { data: row, error } = await (db.from as any)('activity_modes').insert({
-      activity_id: activityId.value,
+    const row = await api.createActivityMode({
+      activityId: activityId.value,
       name: 'New option',
-      sort_order: modes.value.length,
-    }).select('id').single()
-    if (error || !row?.id) throw error ?? new Error('Could not create')
+      sortOrder: modes.value.length,
+    })
+    if (!row?.id) throw new Error('Could not create')
     navigateTo(`/activities/${activityId.value}/modes/${row.id}`)
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Could not add', detail: e?.message ?? 'Unknown error', life: 5000 })

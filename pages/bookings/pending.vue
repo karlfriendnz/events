@@ -87,6 +87,7 @@ import { useToast } from 'primevue/usetoast'
 definePageMeta({ layout: 'default' })
 
 const db = useDb()
+const api = useBookingsApi()
 const { orgId } = useOrg()
 const toast = useToast()
 
@@ -127,6 +128,8 @@ async function load() {
   if (!orgId.value) return
   loading.value = true
   // bookings has no org_id — scope through the bookable.
+  // TODO seam-gap: bookings list read needs bookable/activity/activity_mode joins (name/location/color)
+  // not exposed by api.bookings() (flat Booking rows only) — left via useDb to preserve display data.
   const { data } = await (db.from as any)('bookings')
     .select(`
       id, status, start_at, end_at, contact_name, contact_email, contact_phone, attendee_count,
@@ -151,7 +154,8 @@ function openBooking(b: any) {
 async function approve(b: any) {
   busyId.value = b.id
   try {
-    await (db.from as any)('bookings').update({ status: 'CONFIRMED' }).eq('id', b.id)
+    await api.setBookingStatus(b.id, 'CONFIRMED')
+    // TODO cross-domain: notifications still via useDb (owned by comms)
     await (db.from as any)('notifications').insert({
       org_id: orgId.value,
       type: 'booking.approved',
@@ -175,7 +179,8 @@ async function decline(b: any) {
   if (!confirm(`Decline ${b.contact_name || 'this booking'}? The slot will be freed up.`)) return
   busyId.value = b.id
   try {
-    await (db.from as any)('bookings').update({ status: 'CANCELLED' }).eq('id', b.id)
+    await api.setBookingStatus(b.id, 'CANCELLED')
+    // TODO cross-domain: notifications still via useDb (owned by comms)
     await (db.from as any)('notifications').insert({
       org_id: orgId.value,
       type: 'booking.declined',

@@ -305,6 +305,7 @@ const emit = defineEmits<{
 }>()
 
 const db = useDb()
+const api = useBookingsApi()
 const route = useRoute()
 const { orgId: staffOrgId } = useOrg()
 // Staff path uses the user's session org; the public /book flow reads ?org=
@@ -363,20 +364,20 @@ async function load() {
   if (!orgId.value || !props.activityId) return
   loadingBookables.value = true
   // Activity → linked bookables
-  const { data: links } = await (db.from as any)('activity_bookables')
-    .select('bookable_id')
-    .eq('activity_id', props.activityId)
-  const linkedIds = (links ?? []).map((l: any) => l.bookable_id)
+  const links = await api.activityBookables(props.activityId)
+  const linkedIds = (links ?? []).map((l: any) => l.bookableId)
 
   // Pull every bookable in the org so we can resolve children of linked parents.
-  const { data: all } = await (db.from as any)('bookables')
-    .select('id, name, type, parent_id, location, sort_order, is_master, master_id, sponsor_image, main_image, auto_resolve_children')
-    .eq('org_id', orgId.value)
-    .neq('status', 'DELETED')
-    .neq('status', 'ARCHIVED')
-    .order('sort_order')
-    .order('name')
-  allBookables.value = all ?? []
+  // Seam returns camelCase; map to the snake_case shape the rest of the component uses.
+  const all = await api.bookables(orgId.value)
+  allBookables.value = (all ?? [])
+    .filter((b: any) => b.status !== 'DELETED' && b.status !== 'ARCHIVED')
+    .sort((a: any, b: any) => (a.sortOrder - b.sortOrder) || String(a.name).localeCompare(String(b.name)))
+    .map((b: any) => ({
+      id: b.id, name: b.name, type: b.type, parent_id: b.parentId, location: b.location,
+      sort_order: b.sortOrder, is_master: b.isMaster, master_id: b.masterId,
+      sponsor_image: b.sponsorImage, main_image: b.mainImage, auto_resolve_children: b.autoResolveChildren,
+    }))
 
   const byParent: Record<string, any[]> = {}
   for (const b of allBookables.value) {
@@ -428,22 +429,20 @@ async function load() {
   // Activity (for the allow_multi_slot flag — controls whether the user
   // can pick multiple slots before submitting — and the display name we
   // show in the header).
-  const { data: act } = await (db.from as any)('activities')
-    .select('allow_multi_slot, name, mode_label')
-    .eq('id', props.activityId)
-    .maybeSingle()
-  allowMultiSlot.value = !!act?.allow_multi_slot
+  const act = await api.activity(props.activityId)
+  allowMultiSlot.value = !!act?.allowMultiSlot
   activityName.value = (act?.name as string | null) ?? null
-  activityModeLabel.value = ((act?.mode_label as string | null | undefined) ?? 'Mode').trim() || 'Mode'
+  activityModeLabel.value = ((act?.modeLabel as string | null | undefined) ?? 'Mode').trim() || 'Mode'
 
   // Activity modes (incl. addons jsonb so the dialog can render them, plus
   // configuration_key for the "any half / any quarter" pool resolution).
-  const { data: m } = await (db.from as any)('activity_modes')
-    .select('id, name, color, sort_order, approval_mode, addons, configuration_key')
-    .eq('activity_id', props.activityId)
-    .order('sort_order')
-    .order('name')
-  modes.value = m ?? []
+  const mRaw = await api.activityModes(props.activityId)
+  modes.value = (mRaw ?? [])
+    .sort((a: any, b: any) => (a.sortOrder - b.sortOrder) || String(a.name).localeCompare(String(b.name)))
+    .map((m: any) => ({
+      id: m.id, name: m.name, color: m.color, sort_order: m.sortOrder,
+      approval_mode: m.approvalMode, addons: m.addons, configuration_key: m.configurationKey,
+    }))
   // Default the active mode to the first one — otherwise venueGroups can't
   // apply the mode's scope or configuration filter, and the picker briefly
   // shows venues the mode wouldn't allow.
@@ -453,12 +452,13 @@ async function load() {
 
   // Per-mode bookable scope — empty = "any bookable on this activity".
   if (modes.value.length) {
-    const { data: mb } = await (db.from as any)('activity_mode_bookables')
-      .select('mode_id, bookable_id')
-      .in('mode_id', modes.value.map(x => x.id))
+    // Seam lists mode-bookables per mode; gather across the activity's modes.
+    const mbLists = await Promise.all(modes.value.map((x: any) => api.modeBookables(x.id)))
     const map: Record<string, string[]> = {}
-    for (const row of (mb ?? []) as { mode_id: string; bookable_id: string }[]) {
-      ;(map[row.mode_id] ??= []).push(row.bookable_id)
+    for (const rows of mbLists) {
+      for (const row of (rows ?? []) as { modeId: string; bookableId: string }[]) {
+        ;(map[row.modeId] ??= []).push(row.bookableId)
+      }
     }
     modeBookableScope.value = map
   } else {
@@ -476,34 +476,23 @@ async function load() {
     if (v.parent_id) parentIds.add(v.parent_id)
   }
   if (parentIds.size) {
-    const { data: cfgs } = await (db.from as any)('bookable_configurations')
-      .select('id, parent_bookable_id, key, name, sort_order')
-      .in('parent_bookable_id', Array.from(parentIds))
-      .order('sort_order')
-    const cfgRows = (cfgs ?? []) as { id: string; parent_bookable_id: string; key: string; name: string; sort_order: number }[]
-    let cfgChildren: { configuration_id: string; bookable_id: string; sort_order: number }[] = []
-    if (cfgRows.length) {
-      const { data: cc } = await (db.from as any)('bookable_configuration_children')
-        .select('configuration_id, bookable_id, sort_order, slot_index, slot_name')
-        .in('configuration_id', cfgRows.map(c => c.id))
-        .order('slot_index')
-        .order('sort_order')
-      cfgChildren = (cc ?? []) as typeof cfgChildren
-    }
-    // Group children into slots per configuration.
-    const slotsByConfig: Record<string, Record<number, ConfigSlot>> = {}
-    for (const cc of cfgChildren) {
-      const idx = (cc as any).slot_index ?? 0
-      const cfg = (slotsByConfig[cc.configuration_id] ??= {})
-      const slot = (cfg[idx] ??= { index: idx, name: (cc as any).slot_name ?? `Slot ${idx + 1}`, memberIds: [] })
-      slot.memberIds.push(cc.bookable_id)
-    }
+    // Seam returns each parent's configurations with their children folded in.
+    const cfgLists = await Promise.all([...parentIds].map((pid) => api.configurations(pid)))
+    const cfgFulls = cfgLists.flat()
     const map: Record<string, Record<string, ConfigEntry>> = {}
-    for (const c of cfgRows) {
-      const slotMap = slotsByConfig[c.id] ?? {}
+    for (const c of cfgFulls) {
+      const children = [...((c as any).children ?? [])].sort(
+        (a: any, b: any) => (a.slotIndex - b.slotIndex) || (a.sortOrder - b.sortOrder),
+      )
+      const slotMap: Record<number, ConfigSlot> = {}
+      for (const cc of children) {
+        const idx = (cc as any).slotIndex ?? 0
+        const slot = (slotMap[idx] ??= { index: idx, name: (cc as any).slotName ?? `Slot ${idx + 1}`, memberIds: [] })
+        slot.memberIds.push((cc as any).bookableId)
+      }
       const slots = Object.values(slotMap).sort((a, b) => a.index - b.index)
       const childIds = slots.flatMap(s => s.memberIds)
-      ;(map[c.parent_bookable_id] ??= {})[c.key] = { name: c.name, slots, childIds }
+      ;(map[(c as any).parentBookableId] ??= {})[(c as any).key] = { name: (c as any).name, slots, childIds }
     }
     configurationsByParent.value = map
   } else {
@@ -1121,6 +1110,7 @@ async function submit() {
     if (allMemberIds.size && selectedSlots.value.length) {
       const earliest = selectedSlots.value.reduce((min, s) => s.start < min ? s.start : min, selectedSlots.value[0].start)
       const latest = selectedSlots.value.reduce((max, s) => s.end > max ? s.end : max, selectedSlots.value[0].end)
+      // TODO seam-gap: cross-block pre-flight needs a bookable_id-IN + start/end window server filter (api.bookings has none) — kept on useDb for correctness
       const { data: clashes } = await (db.from as any)('bookings')
         .select('id, bookable_id, start_at, end_at, status')
         .in('bookable_id', Array.from(allMemberIds))
@@ -1160,44 +1150,41 @@ async function submit() {
       // so all the physical sub-venues get blocked atomically. Without a
       // configuration, it's still one row per picked slot like before.
       const baseFor = (s: PendingSlot) => ({
-        activity_id: props.activityId,
-        activity_mode_id: pendingModeId.value,
+        activityId: props.activityId,
+        activityModeId: pendingModeId.value,
         type: 'ONE_OFF',
         status,
-        start_at: s.start.toISOString(),
-        end_at: s.end.toISOString(),
-        contact_name: contactName,
-        contact_email: contactEmail,
-        contact_phone: contactPhone,
-        attendee_count: attendeeCount,
+        startAt: s.start.toISOString(),
+        endAt: s.end.toISOString(),
+        contactName,
+        contactEmail,
+        contactPhone,
+        attendeeCount,
         notes: notesValue,
-        selected_addons: addons,
-        subject_person_id: subjectPersonId.value,
-        is_all_day: false,
+        selectedAddons: addons,
+        subjectPersonId: subjectPersonId.value,
+        isAllDay: false,
       })
 
       const primaryIds: string[] = []
       for (const s of selectedSlots.value) {
         const memberIds = membersFor(s)
         const base = baseFor(s)
-        const { data: primary, error: pErr } = await (db.from as any)('bookings')
-          .insert({ ...base, bookable_id: memberIds[0] })
-          .select('id').single()
-        if (pErr) throw pErr
+        const primary = await api.createBooking({ ...base, bookableId: memberIds[0] })
         primaryIds.push(primary.id)
         if (memberIds.length > 1) {
           const childRows = memberIds.slice(1).map(bid => ({
             ...base,
-            bookable_id: bid,
-            parent_booking_id: primary.id,
+            bookableId: bid,
+            parentBookingId: primary.id,
           }))
-          const { error: cErr } = await (db.from as any)('bookings').insert(childRows)
-          if (cErr) throw cErr
+          await api.createBookings(childRows)
         }
       }
 
       // Single notification covers the whole batch.
       const first = selectedSlots.value[0]
+      // TODO cross-domain: notifications still via useDb (owned by comms)
       const { data: notif } = await (db.from as any)('notifications').insert({
         org_id: orgId.value,
         type: isPending ? 'booking.pending' : 'booking.created',

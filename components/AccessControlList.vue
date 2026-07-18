@@ -198,7 +198,8 @@ import { useToast } from 'primevue/usetoast'
 type Kind = 'doors' | 'lights'
 
 const { orgId } = useOrg()
-const db = useDb()
+const api = useBookingsApi()
+const db = useDb() // retained for bookable_doors / bookable_light_zones venue-count reads (seam-gap)
 const toast = useToast()
 
 const activeTab = ref<Kind>('doors')
@@ -286,16 +287,34 @@ function openMenu(event: Event, kind: Kind, row: any) {
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [{ data: dRows }, { data: zRows }] = await Promise.all([
-    (db.from as any)('doors').select('*').eq('org_id', orgId.value).order('name'),
-    (db.from as any)('light_zones').select('*').eq('org_id', orgId.value).order('name'),
+  const [dSeam, zSeam] = await Promise.all([
+    api.doors(orgId.value),
+    api.lightZones(orgId.value),
   ])
+  // Seam returns camelCase; template + openEdit read snake_case — bridge each row.
+  const dRows = (dSeam ?? []).map((d: any) => ({
+    ...d,
+    location_note: d.locationNote,
+    hardware_provider: d.hardwareProvider,
+    hardware_id: d.hardwareId,
+    default_unlock_seconds: d.defaultUnlockSeconds,
+    is_active: d.isActive,
+  }))
+  const zRows = (zSeam ?? []).map((z: any) => ({
+    ...z,
+    hardware_provider: z.hardwareProvider,
+    hardware_id: z.hardwareId,
+    default_level_percent: z.defaultLevelPercent,
+    is_active: z.isActive,
+  }))
   doors.value = dRows ?? []
   zones.value = zRows ?? []
   // Connection-count join tables have no org_id — scope to THIS org's doors/zones
   // so counts don't include other orgs' connections.
   const doorIds = (dRows ?? []).map((d: any) => d.id)
   const zoneIds = (zRows ?? []).map((z: any) => z.id)
+  // TODO seam-gap: bookable_doors / bookable_light_zones per-door/zone venue counts —
+  // the seam only exposes per-bookable door/zone reads, not the reverse count. Still via useDb.
   const [{ data: bdRows }, { data: blRows }] = await Promise.all([
     doorIds.length ? (db.from as any)('bookable_doors').select('door_id').in('door_id', doorIds) : Promise.resolve({ data: [] }),
     zoneIds.length ? (db.from as any)('bookable_light_zones').select('zone_id').in('zone_id', zoneIds) : Promise.resolve({ data: [] }),
@@ -313,43 +332,44 @@ async function load() {
 
 async function handleSave() {
   saving.value = true
-  const table = editKind.value === 'doors' ? 'doors' : 'light_zones'
+  const isDoor = editKind.value === 'doors'
+  // Seam takes camelCase; build the domain payload.
   const payload: any = {
-    org_id: orgId.value,
+    orgId: orgId.value,
     name: editForm.name.trim(),
-    hardware_provider: editForm.hardware_provider || null,
-    hardware_id: editForm.hardware_id?.trim() || null,
-    is_active: editForm.is_active,
+    hardwareProvider: editForm.hardware_provider || null,
+    hardwareId: editForm.hardware_id?.trim() || null,
+    isActive: editForm.is_active,
   }
-  if (editKind.value === 'doors') {
-    payload.location_note = editForm.location_note?.trim() || null
-    payload.default_unlock_seconds = editForm.default_unlock_seconds ?? 5
+  if (isDoor) {
+    payload.locationNote = editForm.location_note?.trim() || null
+    payload.defaultUnlockSeconds = editForm.default_unlock_seconds ?? 5
   } else {
-    payload.default_level_percent = editForm.default_level_percent ?? 100
+    payload.defaultLevelPercent = editForm.default_level_percent ?? 100
   }
 
-  const { error } = editId.value
-    ? await (db.from as any)(table).update(payload).eq('id', editId.value)
-    : await (db.from as any)(table).insert(payload)
-
-  if (error) {
-    toast.add({ severity: 'error', summary: 'Save failed', detail: error.message, life: 4000 })
-  } else {
+  try {
+    if (editId.value) {
+      isDoor ? await api.updateDoor(editId.value, payload) : await api.updateLightZone(editId.value, payload)
+    } else {
+      isDoor ? await api.createDoor(payload) : await api.createLightZone(payload)
+    }
     toast.add({ severity: 'success', summary: editId.value ? 'Updated' : 'Created', life: 2500 })
     editVisible.value = false
     await load()
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Save failed', detail: e?.message, life: 4000 })
   }
   saving.value = false
 }
 
 async function handleDelete(kind: Kind, row: any) {
-  const table = kind === 'doors' ? 'doors' : 'light_zones'
-  const { error } = await (db.from as any)(table).delete().eq('id', row.id)
-  if (error) {
-    toast.add({ severity: 'error', summary: 'Delete failed', detail: error.message, life: 4000 })
-  } else {
+  try {
+    kind === 'doors' ? await api.removeDoor(row.id) : await api.removeLightZone(row.id)
     toast.add({ severity: 'success', summary: 'Deleted', life: 2500 })
     await load()
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Delete failed', detail: e?.message, life: 4000 })
   }
 }
 
