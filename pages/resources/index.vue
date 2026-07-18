@@ -27,7 +27,6 @@ const groupsById = ref<Record<string, { name: string; color: string | null }>>({
 const currentFolderId = ref<string | null>(null)
 const loading = ref(true)
 
-const db = useDb()
 const { orgId } = useOrg()
 
 const foldersById = computed<Record<string, Folder>>(() =>
@@ -158,19 +157,19 @@ async function load() {
   const [fs, rs, tg, types, grps, vs, aud, ppl] = await Promise.all([
     loadFolders(), loadResources(), loadAllTargets(),
     useOrgFieldPolicy().resolvePersonTypes(orgId.value),
-    (db.from as any)('member_groups').select('id, name, color').eq('org_id', orgId.value),
+    useGroupsApi().list(orgId.value),
     loadViewStats(), loadAudienceIndex(),
-    (db.from as any)('persons').select('id, first_name, last_name').eq('org_id', orgId.value),
+    usePeopleApi().list(orgId.value),
   ])
   folders.value = fs
   items.value = rs
   targetsByOwner.value = tg
   personTypesById.value = Object.fromEntries((types ?? []).map((x: any) => [x.id, { label: x.label }]))
-  groupsById.value = Object.fromEntries(((grps.data ?? []) as any[]).map(g => [g.id, { name: g.name, color: g.color }]))
+  groupsById.value = Object.fromEntries((grps as any[]).map(g => [g.id, { name: g.name, color: g.color }]))
   stats.value = vs
   audience.value = aud
-  peopleById.value = Object.fromEntries(((ppl.data ?? []) as any[])
-    .map(p => [p.id, `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || 'Unnamed']))
+  peopleById.value = Object.fromEntries((ppl as any[])
+    .map(p => [p.id, `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || 'Unnamed']))
   loading.value = false
 }
 onMounted(load)

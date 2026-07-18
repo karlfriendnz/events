@@ -15,9 +15,7 @@ const {
   logView, resolveMyPersonId, kindIcon, kindLabel,
 } = useResources()
 
-const db = useDb()
 const { orgId } = useOrg()
-const user = useSupabaseUser()
 
 useBreadcrumbs([{ label: 'Resources', to: '/resources' }, { label: 'Library' }])
 
@@ -49,14 +47,14 @@ async function load() {
 
   if (personId) {
     const [me, types, mems] = await Promise.all([
-      (db.from as any)('persons').select('person_types').eq('id', personId).maybeSingle(),
-      (db.from as any)('person_target_types').select('id, key').eq('org_id', orgId.value),
-      (db.from as any)('member_group_memberships').select('group_id').eq('person_id', personId),
+      usePeopleApi().get(personId),
+      usePersonTypesApi().listTypes(orgId.value),
+      useGroupsApi().membershipsByOrg(orgId.value),
     ])
     // Targets store the person-TYPE's id; the person carries type keys — map across.
-    const myKeys: string[] = me.data?.person_types ?? []
-    myTypeIds.value = ((types.data ?? []) as any[]).filter(t => myKeys.includes(t.key)).map(t => t.id)
-    myGroupIds.value = ((mems.data ?? []) as any[]).map(m => m.group_id)
+    const myKeys: string[] = me.personTypes ?? []
+    myTypeIds.value = types.filter(t => myKeys.includes(t.key)).map(t => t.id)
+    myGroupIds.value = mems.filter(m => m.personId === personId).map(m => m.groupId)
   }
   loading.value = false
 }

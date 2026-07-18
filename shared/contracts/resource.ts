@@ -23,6 +23,19 @@ export type ResourceFolder = z.infer<typeof resourceFolderSchema>
 
 export const resourceFolderListSchema = z.array(resourceFolderSchema)
 
+// WRITE contracts for folders. Create omits the server-owned id; only name is
+// required, the rest default in the repo (root folder, no override, sort 0). Patch
+// is a partial — a rename sends { name }, a move sends { parentId }, an override
+// toggle sends { overrideTargets }.
+export const resourceFolderCreateSchema = resourceFolderSchema
+  .omit({ id: true })
+  .partial({ parentId: true, overrideTargets: true, sortOrder: true })
+  .extend({ name: z.string().min(1) })
+export type ResourceFolderCreate = z.infer<typeof resourceFolderCreateSchema>
+
+export const resourceFolderPatchSchema = resourceFolderCreateSchema.partial()
+export type ResourceFolderPatch = z.infer<typeof resourceFolderPatchSchema>
+
 // A resource (file / link / video / image / doc) inside a folder. `kind` and the
 // folder link are open strings — validated as a set at the boundary, not a DB CHECK.
 export const resourceSchema = z.object({
@@ -65,6 +78,25 @@ export type ResourceTarget = z.infer<typeof resourceTargetSchema>
 
 export const resourceTargetListSchema = z.array(resourceTargetSchema)
 
+// Saving one owner's whole audience at once — delete-then-insert (mirrors
+// FormConnectionsDialog). orgId scopes the write; an empty `targets` clears the
+// owner's audience entirely (used when an item stops overriding its folder).
+export const resourceTargetsSaveSchema = z.object({
+  orgId: z.string(),
+  ownerType: z.string(),
+  ownerId: z.string(),
+  targets: z.array(z.object({ targetType: z.string(), targetId: z.string() })),
+})
+export type ResourceTargetsSave = z.infer<typeof resourceTargetsSaveSchema>
+
+// A bulk reorder: an ordered id list, org-scoped in the WHERE (never trust the id
+// list alone). Each id's new sort_order is its index in the array.
+export const resourceReorderSchema = z.object({
+  orgId: z.string(),
+  ids: z.array(z.string()),
+})
+export type ResourceReorder = z.infer<typeof resourceReorderSchema>
+
 // One engagement interaction with a resource — an open / download / watch, by a
 // person (or anonymous). `seconds` = dwell for a timed watch. `createdAt` is ISO
 // 8601 at the boundary; the DB stores a timestamp and the repo serialises it.
@@ -82,3 +114,10 @@ export const resourceViewSchema = z.object({
 export type ResourceView = z.infer<typeof resourceViewSchema>
 
 export const resourceViewListSchema = z.array(resourceViewSchema)
+
+// Logging one engagement interaction. The server owns id + createdAt; personId /
+// userId may be null (an anonymous open), and seconds is only set for a timed watch.
+export const resourceViewCreateSchema = resourceViewSchema
+  .omit({ id: true, createdAt: true })
+  .partial({ personId: true, userId: true, seconds: true, source: true })
+export type ResourceViewCreate = z.infer<typeof resourceViewCreateSchema>

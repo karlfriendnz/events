@@ -24,10 +24,10 @@ const emit = defineEmits<{
   (e: 'saved'): void
 }>()
 
-const db = useDb()
 const { orgId } = useOrg()
 const toast = useToast()
 const { saveTargets, setOverride } = useResources()
+const resApi = useResourcesApi()
 const { ensureTerms, t } = useTerms()
 onMounted(ensureTerms)
 const groupTermPlural = computed(() => t('group', true))
@@ -57,13 +57,12 @@ async function ensureOptions() {
   if (loaded.value) return
   const [types, grps] = await Promise.all([
     useOrgFieldPolicy().resolvePersonTypes(orgId.value),
-    (db.from as any)('member_groups')
-      .select('id, name, color, kind').eq('org_id', orgId.value).order('name'),
+    useGroupsApi().list(orgId.value),
   ])
   personTypes.value = (types ?? [])
     .filter((t: any) => t.kind !== 'entity')
     .map((t: any) => ({ id: t.id, label: t.label }))
-  groups.value = ((grps.data ?? []) as any[])
+  groups.value = (grps as any[])
     .filter(g => g.kind !== 'membership')
     .map(g => ({ id: g.id, name: g.name, color: g.color }))
   loaded.value = true
@@ -74,11 +73,9 @@ async function open() {
   keys.value = {}
   await ensureOptions()
   if (!props.ownerId) return
-  const { data } = await (db.from as any)('resource_targets')
-    .select('target_type, target_id')
-    .eq('owner_type', props.ownerType).eq('owner_id', props.ownerId).order('sort_order')
+  const rows = await resApi.targets(props.ownerType, props.ownerId)
   const k: Record<string, { checked: boolean }> = {}
-  for (const t of (data ?? [])) k[`${t.target_type}:${t.target_id}`] = { checked: true }
+  for (const t of rows) k[`${t.targetType}:${t.targetId}`] = { checked: true }
   keys.value = k
 }
 

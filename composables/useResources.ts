@@ -72,97 +72,99 @@ const VIDEO_EXT = ['mp4', 'mov', 'webm', 'm4v', 'avi', 'mkv']
 const PDF_EXT = ['pdf']
 
 export function useResources() {
-  const db = useDb()
   const { orgId } = useOrg()
+  const api = useResourcesApi()
+
+  // Map the seam's camelCase domain objects back to the snake_case shapes this
+  // composable has always exposed, so its callers (both resources pages) are
+  // untouched by the move onto the /api/v1 seam.
+  const toFolder = (f: any): ResourceFolder => ({
+    id: f.id, org_id: f.orgId, parent_id: f.parentId ?? null,
+    name: f.name, override_targets: f.overrideTargets, sort_order: f.sortOrder,
+  })
+  const toItem = (r: any): ResourceItem => ({
+    id: r.id, org_id: r.orgId, folder_id: r.folderId ?? null, kind: r.kind,
+    title: r.title, url: r.url, description: r.description ?? null,
+    override_targets: r.overrideTargets, sort_order: r.sortOrder,
+  })
+  const toTarget = (t: any): ResourceTarget => ({
+    owner_type: t.ownerType, owner_id: t.ownerId,
+    target_type: t.targetType, target_id: t.targetId,
+  })
 
   // ---- Folders ----
   async function loadFolders(): Promise<ResourceFolder[]> {
-    const { data } = await (db.from as any)('resource_folders')
-      .select('id, org_id, parent_id, name, override_targets, sort_order, created_at')
-      .eq('org_id', orgId.value).order('sort_order')
-    return data ?? []
+    return (await api.folders(orgId.value)).map(toFolder)
   }
 
   async function createFolder(name: string, parentId: string | null, sortOrder = 0): Promise<ResourceFolder | null> {
-    const { data } = await (db.from as any)('resource_folders')
-      .insert({ org_id: orgId.value, parent_id: parentId, name, sort_order: sortOrder })
-      .select('id, org_id, parent_id, name, override_targets, sort_order, created_at').single()
-    return data ?? null
+    return toFolder(await api.createFolder({ orgId: orgId.value, name, parentId, sortOrder }))
   }
 
   async function renameFolder(id: string, name: string) {
-    await (db.from as any)('resource_folders').update({ name }).eq('id', id)
+    await api.updateFolder(id, { name })
   }
 
   async function moveFolder(id: string, parentId: string | null) {
-    await (db.from as any)('resource_folders').update({ parent_id: parentId }).eq('id', id)
+    await api.updateFolder(id, { parentId })
   }
 
   async function deleteFolder(id: string) {
-    // Children cascade via FK; clean up this folder's own target rows.
-    await (db.from as any)('resource_targets').delete().eq('owner_type', 'folder').eq('owner_id', id)
-    await (db.from as any)('resource_folders').delete().eq('id', id)
+    // Children cascade via FK; the repo also cleans this folder's own target rows.
+    await api.removeFolder(id)
   }
 
   async function reorderFolders(ids: string[]) {
-    await Promise.all(ids.map((id, i) =>
-      (db.from as any)('resource_folders').update({ sort_order: i }).eq('id', id)))
+    await api.reorderFolders(orgId.value, ids)
   }
 
   // ---- Resources ----
   async function loadResources(): Promise<ResourceItem[]> {
-    const { data } = await (db.from as any)('resources')
-      .select('id, org_id, folder_id, kind, title, url, description, override_targets, sort_order, created_at')
-      .eq('org_id', orgId.value).order('sort_order')
-    return data ?? []
+    return (await api.resources(orgId.value)).map(toItem)
   }
 
   async function createResource(
     payload: { kind: ResourceKind; title: string; url: string; description?: string | null; folderId: string | null; sortOrder?: number },
   ): Promise<ResourceItem | null> {
-    const { data } = await (db.from as any)('resources').insert({
-      org_id: orgId.value,
-      folder_id: payload.folderId,
+    return toItem(await api.create({
+      orgId: orgId.value,
+      folderId: payload.folderId,
       kind: payload.kind,
       title: payload.title,
       url: payload.url,
       description: payload.description ?? null,
-      sort_order: payload.sortOrder ?? 0,
-    }).select('id, org_id, folder_id, kind, title, url, description, override_targets, sort_order, created_at').single()
-    return data ?? null
+      sortOrder: payload.sortOrder ?? 0,
+    }))
   }
 
   async function updateResource(id: string, patch: Partial<Pick<ResourceItem, 'title' | 'url' | 'description' | 'kind'>>) {
-    await (db.from as any)('resources').update(patch).eq('id', id)
+    await api.update(id, patch)
   }
 
   async function moveResource(id: string, folderId: string | null) {
-    await (db.from as any)('resources').update({ folder_id: folderId }).eq('id', id)
+    await api.update(id, { folderId })
   }
 
   async function deleteResource(id: string) {
-    await (db.from as any)('resource_targets').delete().eq('owner_type', 'resource').eq('owner_id', id)
-    await (db.from as any)('resources').delete().eq('id', id)
+    // The repo removes this resource's own target rows too.
+    await api.remove(id)
   }
 
   async function reorderResources(ids: string[]) {
-    await Promise.all(ids.map((id, i) =>
-      (db.from as any)('resources').update({ sort_order: i }).eq('id', id)))
+    await api.reorderResources(orgId.value, ids)
   }
 
   async function setOverride(ownerType: 'folder' | 'resource', id: string, value: boolean) {
-    const table = ownerType === 'folder' ? 'resource_folders' : 'resources'
-    await (db.from as any)(table).update({ override_targets: value }).eq('id', id)
+    if (ownerType === 'folder') await api.updateFolder(id, { overrideTargets: value })
+    else await api.update(id, { overrideTargets: value })
   }
 
   // ---- Targets ----
   /** All target rows for the org, bucketed by `${ownerType}:${ownerId}`. */
   async function loadAllTargets(): Promise<Record<string, ResourceTarget[]>> {
-    const { data } = await (db.from as any)('resource_targets')
-      .select('owner_type, owner_id, target_type, target_id, sort_order')
-      .eq('org_id', orgId.value).order('sort_order')
+    const rows = (await api.allTargets(orgId.value)).map(toTarget)
     const out: Record<string, ResourceTarget[]> = {}
-    for (const t of (data ?? [])) {
+    for (const t of rows) {
       const k = ownerKey(t.owner_type, t.owner_id)
       ;(out[k] ??= []).push(t)
     }
@@ -171,15 +173,13 @@ export function useResources() {
 
   /** Save one owner's targets — delete-then-insert (mirrors FormConnectionsDialog). */
   async function saveTargets(ownerType: 'folder' | 'resource', ownerId: string, keyed: Record<string, { checked?: boolean }>) {
-    const rows = Object.entries(keyed)
+    const targets = Object.entries(keyed)
       .filter(([k, v]) => v?.checked && k.includes(':'))
-      .map(([k], idx) => {
+      .map(([k]) => {
         const [type, id] = k.split(':')
-        return { org_id: orgId.value, owner_type: ownerType, owner_id: ownerId, target_type: type, target_id: id, sort_order: idx }
+        return { targetType: type, targetId: id }
       })
-    await (db.from as any)('resource_targets').delete().eq('owner_type', ownerType).eq('owner_id', ownerId)
-    if (rows.length) await (db.from as any)('resource_targets').insert(rows)
-    return rows.length
+    return await api.saveTargets(orgId.value, ownerType, ownerId, targets)
   }
 
   /**
@@ -209,7 +209,9 @@ export function useResources() {
   // (its effective targets → groups / person types → distinct people). A resource with
   // no targets is aimed at everyone, so its denominator is the whole club.
 
-  /** The signed-in user's persons row, resolved once per session (views are per-person). */
+  /** The signed-in user's persons row, resolved once per session (views are per-person).
+   *  Resolution crosses into the people domain via its seam (a name/email search that
+   *  matches the exact email), not a raw persons query. */
   const myPersonId = useState<string | null>('resource_view_person', () => null)
   const myPersonResolved = useState<boolean>('resource_view_person_resolved', () => false)
   async function resolveMyPersonId(): Promise<string | null> {
@@ -217,9 +219,9 @@ export function useResources() {
     myPersonResolved.value = true
     const user = useSupabaseUser().value
     if (!user?.email) return null
-    const { data } = await (db.from as any)('persons')
-      .select('id').eq('org_id', orgId.value).eq('email', user.email).maybeSingle()
-    myPersonId.value = data?.id ?? null
+    const email = user.email.toLowerCase()
+    const matches = await usePeopleApi().list(orgId.value, { q: user.email })
+    myPersonId.value = matches.find(p => (p.email ?? '').toLowerCase() === email)?.id ?? null
     return myPersonId.value
   }
 
@@ -234,11 +236,11 @@ export function useResources() {
   ) {
     try {
       const user = useSupabaseUser().value
-      await (db.from as any)('resource_views').insert({
-        org_id: orgId.value,
-        resource_id: resourceId,
-        person_id: await resolveMyPersonId(),
-        user_id: user?.id ?? null,
+      await api.logView({
+        orgId: orgId.value,
+        resourceId,
+        personId: await resolveMyPersonId(),
+        userId: user?.id ?? null,
         kind,
         seconds: opts.seconds ?? null,
         source: opts.source ?? 'library',
@@ -248,17 +250,15 @@ export function useResources() {
 
   /** Every view row for the org, folded into per-resource stats. */
   async function loadViewStats(): Promise<Record<string, ResourceStats>> {
-    const { data } = await (db.from as any)('resource_views')
-      .select('resource_id, person_id, kind, seconds, created_at')
-      .eq('org_id', orgId.value)
+    const rows = await api.viewsByOrg(orgId.value)
     const out: Record<string, ResourceStats & { _viewers: Set<string> }> = {}
-    for (const v of (data ?? []) as any[]) {
-      const s = (out[v.resource_id] ??= { opens: 0, downloads: 0, watchSeconds: 0, viewerIds: [], lastAt: null, _viewers: new Set() })
+    for (const v of rows) {
+      const s = (out[v.resourceId] ??= { opens: 0, downloads: 0, watchSeconds: 0, viewerIds: [], lastAt: null, _viewers: new Set() })
       if (v.kind === 'download') s.downloads++
       else if (v.kind === 'watch') s.watchSeconds += v.seconds ?? 0
       else s.opens++
-      if (v.person_id) s._viewers.add(v.person_id)
-      if (!s.lastAt || v.created_at > s.lastAt) s.lastAt = v.created_at
+      if (v.personId) s._viewers.add(v.personId)
+      if (!s.lastAt || v.createdAt > s.lastAt) s.lastAt = v.createdAt
     }
     const stats: Record<string, ResourceStats> = {}
     for (const [id, s] of Object.entries(out)) {
@@ -267,26 +267,26 @@ export function useResources() {
     return stats
   }
 
-  /** One wave of queries; enough to size any resource's audience client-side. */
+  /** One wave of queries; enough to size any resource's audience client-side. Composed
+   *  from the people / person-type / groups seams (this domain owns none of them). */
   async function loadAudienceIndex(): Promise<AudienceIndex> {
     const [people, types, memberships] = await Promise.all([
-      (db.from as any)('persons').select('id, person_types').eq('org_id', orgId.value),
-      (db.from as any)('person_target_types').select('id, key').eq('org_id', orgId.value),
-      (db.from as any)('member_group_memberships').select('group_id, person_id'),
+      usePeopleApi().list(orgId.value),
+      usePersonTypesApi().listTypes(orgId.value),
+      useGroupsApi().membershipsByOrg(orgId.value),
     ])
-    const rows = (people.data ?? []) as { id: string; person_types: string[] | null }[]
     const byType: Record<string, string[]> = {}
-    for (const t of ((types.data ?? []) as { id: string; key: string }[])) {
+    for (const t of types) {
       // resource_targets stores the TYPE's id; a person carries type KEYS.
-      byType[t.id] = rows.filter(p => (p.person_types ?? []).includes(t.key)).map(p => p.id)
+      byType[t.id] = people.filter(p => (p.personTypes ?? []).includes(t.key)).map(p => p.id)
     }
-    const inOrg = new Set(rows.map(p => p.id))
+    const inOrg = new Set(people.map(p => p.id))
     const byGroup: Record<string, string[]> = {}
-    for (const m of ((memberships.data ?? []) as { group_id: string; person_id: string }[])) {
-      if (!inOrg.has(m.person_id)) continue   // membership rows carry no org_id — scope via people
-      ;(byGroup[m.group_id] ??= []).push(m.person_id)
+    for (const m of memberships) {
+      if (!inOrg.has(m.personId)) continue   // scope memberships via people in this org
+      ;(byGroup[m.groupId] ??= []).push(m.personId)
     }
-    return { byType, byGroup, everyone: rows.map(p => p.id) }
+    return { byType, byGroup, everyone: people.map(p => p.id) }
   }
 
   /** Who can see this thing — distinct person ids. No targets = the whole club. */
