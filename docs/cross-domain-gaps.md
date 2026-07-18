@@ -84,3 +84,13 @@ domain converts in wave 2; a handful are "done-domain" fills the main session do
 
 ## Latent bug to check
 - pages/bookables/[id].vue reads `data.parent_id` off `api.bookable()` which returns camelCase (`parentId`) — likely a camel/snake mismatch left by the bookings conversion.
+
+## Mega-file gaps (events/[id], groups/[id])
+- **events: widen Session contract + create/updateSession** — the session editor reads/writes ~12 cols the contract omits (parent_session_id, is_all_day, has_waitlist, show_attendee_list, show_as_separate_event, invitee_modes, invitee_groups, eligibility, admins, description, recurrence_rule, exdates). Routing writes through the current shape silently drops them (sub-sessions + master→linked inheritance break). Session + session-level fee_components left on useDb until widened.
+- **events: Invitee READ with joined person** (name/email) + `sub_group_id`/`signed_out`/`invited_at` writes — Invitee contract too thin for loadInvitees + the attendance/invitees tabs.
+- **events: recurrence series** — no `recurrence_parent_id` read/count/delete/insert (generateOccurrences, series archive follow/all).
+- **events: Registration reporting shape** — Registration lacks guest_name/guest_email/created_at + nested ticket-items join (reporting + ticket-order reads).
+- **groups: id-preserving schedule save** — seam `saveSchedules` is delete-then-insert with fresh UUIDs → orphans `events.member_group_schedule_id`. The group page needs an update-in-place schedule route.
+- **groups: memberships-with-person projection carrying custom_fields + person_types** — discipline flags need both (roster/membershipsWithPerson don't carry them).
+- **groups: member_group_terms + member_group_plans WRITE** (billing tab per-term fee + plan links).
+- **people: read-by-ids bulk projection** (attendance visitor names); **PersonCreate allowing null first name** (inline last-name-only add).
