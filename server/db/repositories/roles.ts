@@ -183,3 +183,15 @@ export async function updateScopedRoleDef(id: string, patch: ScopedRoleDefPatch)
 export async function deleteScopedRoleDef(id: string): Promise<void> {
   await db.delete(schema.scopedRoleDefs).where(eq(schema.scopedRoleDefs.id, id))
 }
+
+// The person ids who hold a (legacy) permission group in an org — used by the People
+// directory's Admins tab to flag people with access via the old RBAC path.
+// permission_group_members has no org_id, so scope by joining to permission_groups.
+export async function listPermissionGroupMemberPersonIds(orgId: string): Promise<string[]> {
+  const rows = await db
+    .select({ personId: schema.permissionGroupMembers.personId })
+    .from(schema.permissionGroupMembers)
+    .innerJoin(schema.permissionGroups, eq(schema.permissionGroupMembers.groupId, schema.permissionGroups.id))
+    .where(eq(schema.permissionGroups.orgId, orgId))
+  return [...new Set(rows.map((r) => r.personId))]
+}

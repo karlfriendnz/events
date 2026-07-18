@@ -22,6 +22,11 @@ export const personSchema = z.object({
   // A person may hold several types (Member, Coach…). A Postgres array / MySQL json
   // column in storage; always a plain string[] to the UI and the pure logic.
   personTypes: z.array(z.string()),
+  // The legacy single-type anchor (= personTypes[0]). Kept because screens still read
+  // it as a fallback when personTypes is empty, and write both on type changes.
+  personType: z.string().nullable(),
+  // Uploaded avatar; the UI falls back to coloured initials when null.
+  photoUrl: z.string().nullable(),
   // Free-form answers keyed by field id — shape varies by org, so kept open.
   // (Zod v4: z.record needs an explicit key schema.)
   customFields: z.record(z.string(), z.any()),
@@ -44,6 +49,8 @@ export const personCreateSchema = personSchema
     gender: true,
     membershipType: true,
     personTypes: true,
+    personType: true,
+    photoUrl: true,
     customFields: true,
   })
   .extend({

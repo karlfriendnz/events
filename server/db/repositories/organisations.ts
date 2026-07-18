@@ -7,6 +7,24 @@ import { randomUUID } from 'node:crypto'
 import { asc, eq, sql } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type { Organisation, OrgTreeNode, OrganisationCreate, OrganisationPatch } from '../../../shared/contracts/organisation'
+import type { OrgSettings } from '../../../shared/contracts/orgSettings'
+
+// people_columns is a json column — mysql2 usually hands it back parsed, but a
+// driver/config can return the raw string. Normalise to an object keyed by tab, or
+// null when never configured; never throw on bad json.
+function asColumns(v: unknown): OrgSettings['peopleColumns'] {
+  if (v == null) return null
+  if (typeof v === 'object' && !Array.isArray(v)) return v as OrgSettings['peopleColumns']
+  if (typeof v === 'string') {
+    try {
+      const parsed = JSON.parse(v)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null
+    } catch {
+      return null
+    }
+  }
+  return null
+}
 
 function toDomain(r: typeof schema.organisations.$inferSelect): Organisation {
   const created = r.createdAt instanceof Date ? r.createdAt : new Date(r.createdAt as any)
@@ -61,6 +79,26 @@ export async function updateOrganisation(id: string, patch: OrganisationPatch): 
 
 export async function deleteOrganisation(id: string): Promise<void> {
   await db.delete(schema.organisations).where(eq(schema.organisations.id, id))
+}
+
+// ── Settings ──
+// A focused read of just the org columns the People directory needs — kept off the
+// base Organisation domain (which is identity/tree only). Returns null when the org
+// doesn't exist.
+export async function getOrgSettings(id: string): Promise<OrgSettings | null> {
+  const [r] = await db.select().from(schema.organisations).where(eq(schema.organisations.id, id)).limit(1)
+  if (!r) return null
+  return {
+    orgLevel: r.orgLevel,
+    memberPullMode: r.memberPullMode ?? null,
+    peopleColumns: asColumns(r.peopleColumns),
+  }
+}
+
+// Save the per-tab column selection. json column takes the raw JS value (no
+// JSON.stringify — that would double-encode).
+export async function setPeopleColumns(id: string, cols: OrgSettings['peopleColumns']): Promise<void> {
+  await db.update(schema.organisations).set({ peopleColumns: cols } as any).where(eq(schema.organisations.id, id))
 }
 
 // Raw SQL returns snake_case columns (the DB names), unlike a Drizzle select which

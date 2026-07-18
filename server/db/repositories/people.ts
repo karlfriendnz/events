@@ -4,7 +4,7 @@
 // MySQL API replaces this, only this file changes — routes, composables and UI are
 // untouched.
 import { randomUUID } from 'node:crypto'
-import { and, asc, eq, like, or } from 'drizzle-orm'
+import { and, asc, eq, inArray, like, or } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type { Person, PersonCreate, PersonPatch } from '../../../shared/contracts/person'
 
@@ -57,6 +57,8 @@ function toDomain(r: typeof schema.persons.$inferSelect): Person {
     gender: r.gender ?? null,
     membershipType: r.membershipType ?? null,
     personTypes: asArray(r.personTypes),
+    personType: r.personType ?? null,
+    photoUrl: r.photoUrl ?? null,
     customFields: asObj(r.customFields),
   }
 }
@@ -116,6 +118,10 @@ export async function createPerson(input: PersonCreate): Promise<Person> {
     gender: input.gender ?? null,
     membershipType: input.membershipType ?? null,
     personTypes: input.personTypes ?? [],
+    // The legacy single-type anchor: use it if given, else default to the first of
+    // personTypes so the two never drift apart.
+    personType: input.personType ?? input.personTypes?.[0] ?? null,
+    photoUrl: input.photoUrl ?? null,
     customFields: input.customFields ?? {},
   } as any)
   return (await getPerson(id))!
@@ -134,6 +140,8 @@ export async function updatePerson(id: string, patch: PersonPatch): Promise<Pers
   if (patch.gender !== undefined) set.gender = patch.gender
   if (patch.membershipType !== undefined) set.membershipType = patch.membershipType
   if (patch.personTypes !== undefined) set.personTypes = patch.personTypes
+  if (patch.personType !== undefined) set.personType = patch.personType
+  if (patch.photoUrl !== undefined) set.photoUrl = patch.photoUrl
   if (patch.customFields !== undefined) set.customFields = patch.customFields
   if (Object.keys(set).length) await db.update(schema.persons).set(set).where(eq(schema.persons.id, id))
   return getPerson(id)
@@ -141,4 +149,24 @@ export async function updatePerson(id: string, patch: PersonPatch): Promise<Pers
 
 export async function deletePerson(id: string): Promise<void> {
   await db.delete(schema.persons).where(eq(schema.persons.id, id))
+}
+
+// ── Bulk writes ──
+// The People directory's bulk actions (set-type / delete on N selected rows). Both
+// are scoped by orgId as well as the id list, so a crafted id from another tenant
+// can never be swept into the same statement (security audit CRIT-3 spirit) — and
+// the caller always operates on rows it already loaded for that org.
+export async function setTypeForMany(orgId: string, ids: string[], typeKey: string | null): Promise<void> {
+  if (!ids.length) return
+  // person_type (legacy anchor) + person_types (the array) move together. Clearing =
+  // null anchor + null array, matching the page's "Clear type".
+  await db
+    .update(schema.persons)
+    .set({ personType: typeKey, personTypes: typeKey ? [typeKey] : null } as any)
+    .where(and(eq(schema.persons.orgId, orgId), inArray(schema.persons.id, ids)))
+}
+
+export async function deletePeople(orgId: string, ids: string[]): Promise<void> {
+  if (!ids.length) return
+  await db.delete(schema.persons).where(and(eq(schema.persons.orgId, orgId), inArray(schema.persons.id, ids)))
 }

@@ -434,8 +434,26 @@
 import { useToast } from 'primevue/usetoast'
 
 const { orgId } = useOrg()
-const db = useDb()
 const toast = useToast()
+// Data access goes through the typed /api/v1 seam — never useDb()/Supabase directly.
+const peopleApi = usePeopleApi()
+const orgApi = useOrganisationsApi()
+const groupsApi = useGroupsApi()
+const affiliationsApi = useAffiliationsApi()
+const personTypesApi = usePersonTypesApi()
+const rolesApi = useRolesApi()
+// The seam returns camelCase domain objects; this page's markup + logic read snake_case
+// person rows. Map once here so every downstream reference stays identical.
+function toRow(p: any) {
+  return {
+    id: p.id, org_id: p.orgId,
+    first_name: p.firstName, last_name: p.lastName,
+    email: p.email, phone: p.phone, dob: p.dob, gender: p.gender,
+    membership_type: p.membershipType,
+    person_types: p.personTypes, person_type: p.personType,
+    photo_url: p.photoUrl, custom_fields: p.customFields,
+  }
+}
 useBreadcrumbs([{ label: 'People and organisations' }])
 const { resolvePersonTypes, resolveFields, fieldAppliesTo, loadOrgTypes } = useOrgFieldPolicy()
 const { loadEntities, memberCounts, createEntity } = useEntities()
@@ -466,9 +484,9 @@ async function setPullMode(m: 'reference' | 'copy') {
 }
 async function loadGoverning() {
   if (!orgId.value) return
-  const { data } = await (db.from as any)('organisations').select('org_level, member_pull_mode').eq('id', orgId.value).maybeSingle()
-  orgLevel.value = data?.org_level ?? null
-  pullMode.value = data?.member_pull_mode === 'copy' ? 'copy' : 'reference'
+  const s = await orgApi.getSettings(orgId.value).catch(() => null)
+  orgLevel.value = s?.orgLevel ?? null
+  pullMode.value = s?.memberPullMode === 'copy' ? 'copy' : 'reference'
   if (isGoverning.value) loadClubMembers()
 }
 const clubMembersFiltered = computed(() => {
@@ -485,12 +503,12 @@ const accessTypeKeys = ref<Set<string>>(new Set())
 const adminMemberIds = ref<Set<string>>(new Set())
 async function loadAdmins() {
   if (!orgId.value) return
-  const [{ data: types }, mem] = await Promise.all([
-    (db.from as any)('person_target_types').select('key').eq('org_id', orgId.value).eq('is_access', true),
-    (db.from as any)('permission_group_members').select('person_id, group:permission_groups!inner(org_id)').eq('group.org_id', orgId.value).then((r: any) => r).catch(() => ({ data: [] })),
+  const [types, memberIds] = await Promise.all([
+    personTypesApi.listTypes(orgId.value).catch(() => []),
+    rolesApi.permissionGroupMemberPersonIds(orgId.value).catch(() => []),
   ])
-  accessTypeKeys.value = new Set((types ?? []).map((t: any) => t.key))
-  adminMemberIds.value = new Set(((mem?.data) ?? []).map((m: any) => m.person_id))
+  accessTypeKeys.value = new Set(types.filter((t: any) => t.isAccess).map((t: any) => t.key))
+  adminMemberIds.value = new Set(memberIds)
 }
 function adminTypeKeys(p: any): string[] { return typeKeysOf(p).filter(k => accessTypeKeys.value.has(k)) }
 
@@ -532,31 +550,38 @@ async function saveAddAdmin() {
   const typeKey = addAdminTypeKey.value
   // NEW person → create with the admin type, then open their profile.
   if (adminNewMode.value) {
-    const { data: created, error } = await (db.from as any)('persons').insert({
-      org_id: orgId.value,
-      first_name: newAdmin.first_name.trim() || null,
-      last_name: newAdmin.last_name.trim() || null,
-      email: newAdmin.email.trim() || null,
-      phone: newAdmin.phone.trim() || null,
-      person_types: [typeKey], person_type: typeKey,
-    }).select('id').single()
-    savingAdmin.value = false
-    if (error || !created) { toast.add({ severity: 'error', summary: 'Could not create admin', detail: error?.message, life: 4000 }); return }
-    addAdminOpen.value = false
-    navigateTo(`/people/${created.id}#profile`)
+    try {
+      const created = await peopleApi.create({
+        orgId: orgId.value as string,
+        firstName: newAdmin.first_name.trim(),
+        lastName: newAdmin.last_name.trim() || '',
+        email: newAdmin.email.trim() || null,
+        phone: newAdmin.phone.trim() || null,
+        personTypes: [typeKey], personType: typeKey,
+      })
+      savingAdmin.value = false
+      addAdminOpen.value = false
+      navigateTo(`/people/${created.id}#profile`)
+    } catch (e: any) {
+      savingAdmin.value = false
+      toast.add({ severity: 'error', summary: 'Could not create admin', detail: e?.data?.message || e?.message, life: 4000 })
+    }
     return
   }
   // EXISTING person → append the access type.
   const p = people.value.find(x => x.id === addAdminPersonId.value)
   const existing = p ? typeKeysOf(p) : []
   const arr = existing.includes(typeKey) ? existing : [...existing, typeKey]
-  const { error } = await (db.from as any)('persons')
-    .update({ person_types: arr, person_type: arr[0] ?? typeKey }).eq('id', addAdminPersonId.value)
-  savingAdmin.value = false
-  if (error) { toast.add({ severity: 'error', summary: 'Could not add admin', detail: error.message, life: 4000 }); return }
-  if (p) { p.person_types = arr; p.person_type = arr[0] ?? typeKey }
-  addAdminOpen.value = false
-  toast.add({ severity: 'success', summary: 'Admin added', life: 2000 })
+  try {
+    await peopleApi.update(addAdminPersonId.value as string, { personTypes: arr, personType: arr[0] ?? typeKey })
+    savingAdmin.value = false
+    if (p) { p.person_types = arr; p.person_type = arr[0] ?? typeKey }
+    addAdminOpen.value = false
+    toast.add({ severity: 'success', summary: 'Admin added', life: 2000 })
+  } catch (e: any) {
+    savingAdmin.value = false
+    toast.add({ severity: 'error', summary: 'Could not add admin', detail: e?.data?.message || e?.message, life: 4000 })
+  }
 }
 function isAdminPerson(p: any): boolean { return adminTypeKeys(p).length > 0 || adminMemberIds.value.has(p.id) }
 const admins = computed(() => {
@@ -640,7 +665,7 @@ let saveColsTimer: ReturnType<typeof setTimeout> | null = null
 function saveColumns() {
   if (saveColsTimer) clearTimeout(saveColsTimer)
   saveColsTimer = setTimeout(async () => {
-    await (db.from as any)('organisations').update({ people_columns: colConfig.value }).eq('id', orgId.value)
+    await orgApi.setPeopleColumns(orgId.value as string, colConfig.value)
   }, 500)
 }
 function cfDisplay(data: any, col: any) {
@@ -742,24 +767,25 @@ async function loadTypes() {
 }
 
 async function loadColumns() {
-  const { data } = await (db.from as any)('organisations').select('people_columns').eq('id', orgId.value).single()
-  colConfig.value = (data?.people_columns && typeof data.people_columns === 'object') ? data.people_columns : {}
+  const s = await orgApi.getSettings(orgId.value as string).catch(() => null)
+  colConfig.value = (s?.peopleColumns && typeof s.peopleColumns === 'object') ? s.peopleColumns : {}
 }
 
 async function load() {
   loading.value = true
-  const [{ data }, { data: mships }, { data: lstaff }] = await Promise.all([
-    (db.from as any)('persons').select('*').eq('org_id', orgId.value).order('last_name', { ascending: true }),
-    (db.from as any)('member_group_memberships').select('person_id, group:member_groups!inner(org_id, location_id)').eq('group.org_id', orgId.value),
-    (db.from as any)('location_staff').select('person_id, location_id').eq('org_id', orgId.value),
+  const [rows, mships, lstaff] = await Promise.all([
+    peopleApi.list(orgId.value as string),
+    groupsApi.membershipsByOrg(orgId.value as string),
+    affiliationsApi.locationStaffByOrg(orgId.value as string),
   ])
-  people.value = data ?? []
+  people.value = rows.map(toRow)
   const locMap: Record<string, string[]> = {}
-  for (const m of (mships ?? [])) {
-    const lid = m.group?.location_id
-    if (lid) (locMap[m.person_id] ??= []).push(lid)
+  for (const m of mships) {
+    if (m.locationId) (locMap[m.personId] ??= []).push(m.locationId)
   }
-  for (const s2 of (lstaff ?? [])) (locMap[s2.person_id] ??= []).push(s2.location_id)
+  for (const s2 of lstaff) {
+    if (s2.locationId) (locMap[s2.personId] ??= []).push(s2.locationId)
+  }
   personLocations.value = locMap
   loading.value = false
 }
@@ -773,35 +799,37 @@ function openCreate() {
 async function handleCreate() {
   if (!newPerson.value.first_name.trim() || !newPerson.value.last_name.trim() || !newPerson.value.person_type) return
   creating.value = true
-  const { data, error } = await (db.from as any)('persons').insert({
-    org_id: orgId.value,
-    first_name: newPerson.value.first_name.trim(),
-    last_name: newPerson.value.last_name.trim(),
-    person_type: newPerson.value.person_type,
-    person_types: [newPerson.value.person_type],
-  }).select('id').maybeSingle()
-  creating.value = false
-  if (error || !data?.id) {
-    toast.add({ severity: 'error', summary: 'Could not add person', detail: error?.message, life: 4000 })
-    return
+  const type = newPerson.value.person_type as string
+  try {
+    const created = await peopleApi.create({
+      orgId: orgId.value as string,
+      firstName: newPerson.value.first_name.trim(),
+      lastName: newPerson.value.last_name.trim(),
+      personType: type,
+      personTypes: [type],
+    })
+    creating.value = false
+    showCreate.value = false
+    newPerson.value = { first_name: '', last_name: '', email: '', phone: '', person_type: null }
+    // Straight to the new person's profile (renders their type's layout) to finish.
+    navigateTo(`/people/${created.id}#profile`)
+  } catch (e: any) {
+    creating.value = false
+    toast.add({ severity: 'error', summary: 'Could not add person', detail: e?.data?.message || e?.message, life: 4000 })
   }
-  showCreate.value = false
-  newPerson.value = { first_name: '', last_name: '', email: '', phone: '', person_type: null }
-  // Straight to the new person's profile (renders their type's layout) to finish.
-  navigateTo(`/people/${data.id}#profile`)
 }
 
 async function bulkSetType(typeKey: string | null) {
   const ids = selected.value.map(p => p.id)
   if (!ids.length) return
-  const { error } = await (db.from as any)('persons').update({ person_type: typeKey, person_types: typeKey ? [typeKey] : null }).in('id', ids)
-  if (!error) {
+  try {
+    await peopleApi.setTypeForMany(orgId.value as string, ids, typeKey)
     toast.add({ severity: 'success', summary: `Type set for ${ids.length} ${ids.length === 1 ? 'person' : 'people'}`, life: 2500 })
     selected.value = []
     bulkType.value = null
     load()
-  } else {
-    toast.add({ severity: 'error', summary: 'Could not set type', detail: error.message, life: 4000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not set type', detail: e?.data?.message || e?.message, life: 4000 })
   }
 }
 
@@ -869,13 +897,13 @@ async function bulkDelete() {
   const ids = selected.value.map(p => p.id)
   if (!ids.length) return
   if (!window.confirm(`Delete ${ids.length} ${ids.length === 1 ? 'person' : 'people'}? This can't be undone.`)) return
-  const { error } = await (db.from as any)('persons').delete().in('id', ids)
-  if (!error) {
+  try {
+    await peopleApi.removeMany(orgId.value as string, ids)
     toast.add({ severity: 'success', summary: `Deleted ${ids.length} ${ids.length === 1 ? 'person' : 'people'}`, life: 2500 })
     selected.value = []
     load()
-  } else {
-    toast.add({ severity: 'error', summary: 'Delete failed', detail: error.message, life: 4000 })
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Delete failed', detail: e?.data?.message || e?.message, life: 4000 })
   }
 }
 
@@ -886,9 +914,13 @@ function openMenu(event: Event, row: any) {
       icon: 'pi pi-trash',
       class: 'text-red-500',
       command: async () => {
-        await (db.from as any)('persons').delete().eq('id', row.id)
-        toast.add({ severity: 'success', summary: 'Person deleted', life: 3000 })
-        load()
+        try {
+          await peopleApi.remove(row.id)
+          toast.add({ severity: 'success', summary: 'Person deleted', life: 3000 })
+          load()
+        } catch (e: any) {
+          toast.add({ severity: 'error', summary: 'Delete failed', detail: e?.data?.message || e?.message, life: 4000 })
+        }
       },
     },
   ]

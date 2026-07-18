@@ -6,6 +6,7 @@
 // This is the template every migrated screen follows: a use<Thing>Api() composable
 // wrapping typed $fetch to /api/v1/*.
 import type { Organisation, OrgTreeNode, OrganisationCreate, OrganisationPatch } from '../shared/contracts/organisation'
+import type { OrgSettings } from '../shared/contracts/orgSettings'
 
 export function useOrganisationsApi() {
   async function list(): Promise<Organisation[]> {
@@ -28,5 +29,14 @@ export function useOrganisationsApi() {
   async function descendants(id: string): Promise<OrgTreeNode[]> {
     return await $fetch<OrgTreeNode[]>(`/api/v1/organisations/${id}/descendants`)
   }
-  return { list, create, update, remove, ancestors, descendants }
+  /** The org settings the People directory needs (level, member-pull mode, column
+   *  selection) — a focused read, not the base organisation contract. */
+  async function getSettings(orgId: string): Promise<OrgSettings> {
+    return await $fetch<OrgSettings>(`/api/v1/organisations/${orgId}/settings`)
+  }
+  /** Save the People directory's per-tab visible-column selection. */
+  async function setPeopleColumns(orgId: string, cols: OrgSettings['peopleColumns']): Promise<void> {
+    await $fetch(`/api/v1/organisations/${orgId}/people-columns`, { method: 'PATCH', body: { peopleColumns: cols } })
+  }
+  return { list, create, update, remove, ancestors, descendants, getSettings, setPeopleColumns }
 }

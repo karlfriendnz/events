@@ -32,5 +32,14 @@ export function usePeopleApi() {
   async function remove(id: string): Promise<void> {
     await $fetch(`/api/v1/people/${id}`, { method: 'DELETE' })
   }
-  return { list, get, create, update, remove }
+  /** Bulk-set (or clear, with typeKey=null) the type on N selected people, in one
+   *  scoped statement. */
+  async function setTypeForMany(orgId: string, ids: string[], typeKey: string | null): Promise<void> {
+    await $fetch('/api/v1/people/set-type', { method: 'POST', body: { orgId, ids, typeKey } })
+  }
+  /** Bulk-delete N selected people in one scoped statement. */
+  async function removeMany(orgId: string, ids: string[]): Promise<void> {
+    await $fetch('/api/v1/people/delete-many', { method: 'POST', body: { orgId, ids } })
+  }
+  return { list, get, create, update, remove, setTypeForMany, removeMany }
 }

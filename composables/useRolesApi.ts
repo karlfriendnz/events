@@ -32,6 +32,11 @@ export function useRolesApi() {
   async function codeStaff(orgId: string): Promise<CodeStaff[]> {
     return await $fetch<CodeStaff[]>('/api/v1/code-staff', { query: { orgId } })
   }
+  /** The person ids holding a (legacy) permission group in the org — the Admins tab
+   *  uses it to flag people with access via the old RBAC path. */
+  async function permissionGroupMemberPersonIds(orgId: string): Promise<string[]> {
+    return await $fetch<string[]>('/api/v1/permission-group-members', { query: { orgId } })
+  }
   return {
     scopedRoles,
     createScopedRole,
@@ -39,5 +44,6 @@ export function useRolesApi() {
     removeScopedRole,
     permissionGroups,
     codeStaff,
+    permissionGroupMemberPersonIds,
   }
 }

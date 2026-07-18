@@ -6,6 +6,7 @@ import type {
   Location,
   LocationCreate,
   LocationPatch,
+  LocationStaff,
   OrgManagerGrant,
   OrgSport,
   OrgSportCreate,
@@ -43,6 +44,10 @@ export function useAffiliationsApi() {
   async function removeLocation(id: string): Promise<void> {
     await $fetch(`/api/v1/locations/${id}`, { method: 'DELETE' })
   }
+  /** An org's per-site staff assignments — for the People directory's location lens. */
+  async function locationStaffByOrg(orgId: string): Promise<LocationStaff[]> {
+    return await $fetch<LocationStaff[]>('/api/v1/location-staff', { query: { orgId } })
+  }
   return {
     orgSports,
     createOrgSport,
@@ -53,5 +58,6 @@ export function useAffiliationsApi() {
     createLocation,
     updateLocation,
     removeLocation,
+    locationStaffByOrg,
   }
 }

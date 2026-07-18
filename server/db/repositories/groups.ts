@@ -328,3 +328,24 @@ export async function updateCode(id: string, patch: GroupCodePatch): Promise<Gro
 export async function deleteCode(id: string): Promise<void> {
   await db.delete(schema.groupCodes).where(eq(schema.groupCodes.id, id))
 }
+
+// The membership → (person, group, location) refs for a whole org, used by the People
+// directory's location lens. member_group_memberships has NO org_id, so scope by
+// joining to member_groups (which does) and take the group's location from there.
+export interface OrgMembershipRef {
+  personId: string
+  groupId: string
+  locationId: string | null
+}
+export async function listMembershipsByOrg(orgId: string): Promise<OrgMembershipRef[]> {
+  const rows = await db
+    .select({
+      personId: schema.memberGroupMemberships.personId,
+      groupId: schema.memberGroupMemberships.groupId,
+      locationId: schema.memberGroups.locationId,
+    })
+    .from(schema.memberGroupMemberships)
+    .innerJoin(schema.memberGroups, eq(schema.memberGroupMemberships.groupId, schema.memberGroups.id))
+    .where(eq(schema.memberGroups.orgId, orgId))
+  return rows.map((r) => ({ personId: r.personId, groupId: r.groupId, locationId: r.locationId ?? null }))
+}

@@ -30,6 +30,13 @@ export function useGroupsApi() {
   async function memberships(groupId: string): Promise<MemberGroupMembership[]> {
     return await $fetch<MemberGroupMembership[]>(`/api/v1/groups/${groupId}/memberships`)
   }
+  /** Every membership in an org as (person, group, location) refs — for the People
+   *  directory's location lens (not a full roster). */
+  async function membershipsByOrg(
+    orgId: string,
+  ): Promise<{ personId: string; groupId: string; locationId: string | null }[]> {
+    return await $fetch(`/api/v1/groups/memberships`, { query: { orgId } })
+  }
   /** The weekly training schedules of one group. */
   async function schedules(groupId: string): Promise<MemberGroupSchedule[]> {
     return await $fetch<MemberGroupSchedule[]>(`/api/v1/groups/${groupId}/schedules`)
@@ -67,7 +74,7 @@ export function useGroupsApi() {
     await $fetch(`/api/v1/group-codes/${id}`, { method: 'DELETE' })
   }
   return {
-    list, get, memberships, schedules, codes, feeOptions,
+    list, get, memberships, membershipsByOrg, schedules, codes, feeOptions,
     create, update, remove, createCode, updateCode, removeCode,
   }
 }
