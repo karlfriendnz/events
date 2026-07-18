@@ -2219,6 +2219,9 @@ onMounted(async () => {
   // fetch that booking and pop the edit modal automatically.
   const bookingId = route.query.booking as string | undefined
   if (bookingId) {
+    // TODO seam-gap: single booking by id WITH joins (event / activity_mode /
+    // bookable) — the seam has bookings(orgId) list + status/delete only, no
+    // by-id read and no joined shape the edit dialog needs.
     const { data } = await (db.from as any)('bookings')
       .select(`
         id, status, start_at, end_at, contact_name, contact_email, contact_phone,
