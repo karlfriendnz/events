@@ -55,3 +55,15 @@ domain converts in wave 2; a handful are "done-domain" fills the main session do
 
 ## Memberships / terms (wave 2)
 - [ ] OrgTerm: `endDate` (public term-end filtering). (forms Fo11)
+
+## Wave-2 additional gaps (discovered during groups/events/bookings conversion)
+- **bookings: filtered `bookings` read** `bookings(orgId,{bookableIds[],from,to}, joins)` — every overlap/clash/calendar read is gap-blocked for lack of a bookable_id-IN + time-window server filter (appears 5×: BookingWizard, BookingScheduler, ItemBooker, BookingsCalendar, pending).
+- **bookings: `updateBooking(id,{startAt,endAt})`** — calendar drag-reschedule.
+- **bookings: children-of-bookable read** (`bookableChildren(id)`) — BookingsCalendar tree walk.
+- **bookings: org-wide `activityModes(orgId)`** — avoids N+1 per-activity loops.
+- **bookings: delete/replace event-driven bookings by event_id** — events new-basic + [id] need it.
+- **ARCHITECTURAL: `/api/v1` anonymous-capability** — the public embed booker (`/book`, `BookingsCalendar` on `pages/embed/calendar.vue`) runs with NO session; the authed `/api/v1` seam can't serve it as-is. Decide: public read routes, or keep the public booker on the RLS client. Left on useDb deliberately.
+- **calendar WRITES** (create/update/delete/pin-to-nav/settings/category-links) — waitlists owns `calendars` read-only; events calendar-settings drawer needs writes.
+- **attendance seam** — reporting + events/groups attendance tabs (no attendance repo/routes).
+- **governingOrgs seam** (`org_sport_ancestors` → govIds) — DisciplineLinker + useOrgFieldPolicy.
+- **communications WRITES** — event comms tab, booking notifications inserts.
