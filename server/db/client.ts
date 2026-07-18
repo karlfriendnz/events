@@ -22,7 +22,10 @@ const url = process.env.MYSQL_URL
     : 'mysql://root:fmroot@127.0.0.1:3400/fm')
 
 // A pool, reused across warm Nitro invocations rather than a connection per request.
-const pool = mysql.createPool(url)
+// `decimalNumbers: true` — mysql2 returns DECIMAL columns as JS numbers, not strings.
+// Postgres/Supabase returned money as numbers; without this the UI's `amount.toFixed()`
+// / numeric maths break on every fee/price/total. Fixes the whole class at the source.
+const pool = mysql.createPool({ uri: url, decimalNumbers: true })
 
 export const db = drizzle(pool, { schema, mode: 'default' })
 export { schema }

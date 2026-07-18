@@ -1408,11 +1408,11 @@ function tierDotColor(tier: any): string {
 
 function tierTimeTotal(tier: any): number {
   const items: any[] = tier.time_fees ?? (tier.line_items ?? [])
-  return items.reduce((s, li) => s + (li.amount ?? 0), 0)
+  return items.reduce((s, li) => s + Number(li.amount ?? 0), 0)
 }
 
 function tierFlatTotal(tier: any): number {
-  return (tier.flat_fees ?? []).reduce((s: number, li: any) => s + (li.amount ?? 0), 0)
+  return (tier.flat_fees ?? []).reduce((s: number, li: any) => s + Number(li.amount ?? 0), 0)
 }
 
 // ── Panel ────────────────────────────────────────────────────────────────────
@@ -1764,7 +1764,7 @@ async function save() {
     color: isBlock ? form.value.color : '#6B7280',
     price_tiers: isBlock ? [] : form.value.price_tiers.map(t => ({
       ...t,
-      price: t.price_type === 'free' ? null : (t.time_fees ?? []).reduce((s: number, li: any) => s + (li.amount ?? 0), 0),
+      price: t.price_type === 'free' ? null : (t.time_fees ?? []).reduce((s: number, li: any) => s + Number(li.amount ?? 0), 0),
     })),
     sort_order: editing.value?.sort_order ?? rules.value.length,
     bookable_mode_id: form.value.bookable_mode_id ?? null,

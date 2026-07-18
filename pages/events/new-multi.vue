@@ -587,7 +587,7 @@ function discountSummary(d: WizardDiscount) {
     : 'Applies to everyone.'
 }
 function feeLabel(fees?: FeeLineItem[]) {
-  const total = (fees ?? []).reduce((s, f) => s + (f.amount ?? 0), 0)
+  const total = (fees ?? []).reduce((s, f) => s + Number(f.amount ?? 0), 0)
   return total > 0 ? money(total) : 'Free'
 }
 

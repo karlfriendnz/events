@@ -203,7 +203,7 @@ function patch(addon: ModeAddon, field: keyof ModeAddon, value: any) {
 function onToggleTiers(addon: ModeAddon, on: boolean) {
   if (on) {
     // Seed with one open-ended tier using the current flat price.
-    const flat = (addon.fees ?? []).reduce((s, f) => s + (f.amount ?? 0), 0)
+    const flat = (addon.fees ?? []).reduce((s, f) => s + Number(f.amount ?? 0), 0)
     patch(addon, 'tiers', [{ up_to: null, unit_price: flat }])
   } else {
     patch(addon, 'tiers', undefined)

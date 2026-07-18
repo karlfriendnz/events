@@ -1,0 +1,519 @@
+{
+  "base": "http://localhost:3077",
+  "total": 64,
+  "bad": 6,
+  "rows": [
+    {
+      "route": "/dashboard",
+      "status": "CONSOLE_ERR",
+      "consoleErrors": 2,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": "Failed to load resource: the server responded with a status of 404 (not found)"
+    },
+    {
+      "route": "/people",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/people/7fff8279-7817-431f-aa18-0454ff8e0d10",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/account",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/account/profiles",
+      "status": "CONSOLE_ERR",
+      "consoleErrors": 1,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": "Failed to load resource: the server responded with a status of 404 (not found)"
+    },
+    {
+      "route": "/events",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/events/294e336a-3670-42b9-b160-644fd1bd773c",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/events/new-basic",
+      "status": "EMPTY",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/events/new-advanced",
+      "status": "EMPTY",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/events/new-multi",
+      "status": "EMPTY",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/events/reporting",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/programme",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/groups",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/groups/timetable",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/groups/allocator",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/groups/codes",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/groups/fees",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/groups/retention",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/groups/rollover",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/groups/views",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/groups/waitlists",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/groups/term-wizard",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/memberships",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/attendance",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/bookables",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/bookables/2330876a-1bc1-4080-97fa-196affd274cb",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/bookables/new",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/bookables/new-v2",
+      "status": "EMPTY",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/bookings",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/bookings/new",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/bookings/pending",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/finances",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/reporting",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/registration",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/forms",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/forms/new",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/forms/937a4b4c-1e95-4ca9-9fbd-2aae4d56a50b",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/organisations",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/disciplines",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/managers",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/resources",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/resources/library",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/assets",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/settings",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/settings/fields",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/settings/terminology",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/settings/permissions",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/settings/memberships",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/settings/terms",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/settings/modules",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/settings/locations",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/settings/affiliations",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/settings/calendars",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/settings/venues",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/settings/xero",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/settings/integrations",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/settings/profile-dashboard",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/settings/communications",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/admin",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/admin/master",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/admin/permissions",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/help",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/me",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    },
+    {
+      "route": "/onboarding",
+      "status": "ok",
+      "consoleErrors": 0,
+      "pageErrors": 0,
+      "api5xx": [],
+      "note": ""
+    }
+  ]
+}

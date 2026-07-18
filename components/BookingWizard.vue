@@ -882,7 +882,7 @@
                     <td colspan="2" class="px-5 py-3 text-green-700 text-right text-xs">
                       {{ matchedDiscount.discount.modifier_type === 'PERCENT' ? `${matchedDiscount.discount.modifier_value}% off` : 'discount' }}
                     </td>
-                    <td class="px-5 py-3 font-semibold text-green-800 text-right tabular-nums">−${{ matchedDiscount.amount.toFixed(2) }}</td>
+                    <td class="px-5 py-3 font-semibold text-green-800 text-right tabular-nums">−${{ Number(matchedDiscount.amount).toFixed(2) }}</td>
                   </tr>
                 </tbody>
                 <tfoot>
@@ -1787,7 +1787,7 @@ function toggleAddon(addon: any) {
 }
 
 function addonTotal(addon: any): number {
-  return (addon.fees ?? []).reduce((s: number, f: any) => s + (f.amount ?? 0), 0)
+  return (addon.fees ?? []).reduce((s: number, f: any) => s + Number(f.amount ?? 0), 0)
 }
 
 function tierRangeLabel(tiers: { up_to: number | null }[] | undefined, index: number): string {

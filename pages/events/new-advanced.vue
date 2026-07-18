@@ -579,7 +579,7 @@ const visibilityOptions = [
   { key: 'hold_spot_enabled',   label: 'Hold-spot registration',desc: 'Members can hold a spot pending confirmation' },
 ]
 
-const totalFees = computed(() => form.fees.reduce((sum, f) => sum + (f.amount ?? 0), 0))
+const totalFees = computed(() => form.fees.reduce((sum, f) => sum + Number(f.amount ?? 0), 0))
 
 function addFee() {
   form.fees.push({ name: '', account: '', amount: null })

@@ -18,7 +18,7 @@
           <div class="flex items-center gap-1 h-9 px-2 border border-gray-200 rounded-lg focus-within:border-primary w-28 shrink-0">
             <span class="text-gray-400 shrink-0 text-sm">$</span>
             <input
-              :value="amountDisplay[fee.id] ?? (fee.amount != null ? fee.amount.toFixed(2) : '')"
+              :value="amountDisplay[fee.id] ?? (fee.amount != null ? Number(fee.amount).toFixed(2) : '')"
               type="text" inputmode="decimal" placeholder="0.00"
               class="flex-1 min-w-0 text-right text-sm text-gray-800 placeholder-gray-400 outline-none bg-transparent"
               @input="onAmountInput(fee, $event)"
@@ -117,7 +117,7 @@
             <div class="flex items-center h-10 px-3 gap-1 focus-within:bg-blue-50/40 transition-colors">
               <span class="text-gray-400 shrink-0 text-sm">$</span>
               <input
-                :value="amountDisplay[fee.id] ?? (fee.amount != null ? fee.amount.toFixed(2) : '')"
+                :value="amountDisplay[fee.id] ?? (fee.amount != null ? Number(fee.amount).toFixed(2) : '')"
                 type="text"
                 inputmode="decimal"
                 placeholder="0.00"

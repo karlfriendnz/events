@@ -364,7 +364,7 @@ const discountLines = computed(() => {
   for (const s of choosers.value) for (let i = 1; i <= count(s.key); i++) perPerson.push(applicableDiscounts(props.discounts ?? [], instanceDiscountCtx(s.key, i)))
   return aggregateDiscountLines(perPerson, oneDiscountOnly.value)
 })
-const totalDiscount = computed(() => discountLines.value.reduce((s, d) => s + d.amount, 0))
+const totalDiscount = computed(() => discountLines.value.reduce((s, d) => s + Number(d.amount ?? 0), 0))
 const netTotal = computed(() => Math.max(0, grandTotal.value - totalDiscount.value))
 // Full itemized summary across every subject + instance, for the Summary step.
 const fullOrderLines = computed(() => {

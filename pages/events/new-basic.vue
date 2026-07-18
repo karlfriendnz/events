@@ -1221,7 +1221,7 @@ watch(mobileSteps, steps => {
 // registration form is.
 
 const totalFees = computed(() =>
-  form.fees.reduce((sum, f) => sum + (f.amount ?? 0), 0)
+  form.fees.reduce((sum, f) => sum + Number(f.amount ?? 0), 0)
 )
 
 // ── Discounts ──────────────────────────────────────────────────────────────

@@ -62,15 +62,15 @@ export function defaultRegistrationTypes(): RegistrationTypeFees[] {
 }
 
 export function feeTotal(fees: FeeLineItem[]): string {
-  return (fees ?? []).reduce((s, f) => s + (f.amount ?? 0), 0).toFixed(2)
+  return (fees ?? []).reduce((s, f) => s + Number(f.amount ?? 0), 0).toFixed(2)
 }
 
 export function getSessionFee(config: SessionFeesConfig | undefined, personType: string): number | null {
   if (!config?.is_charged) return 0
   if (config.all_charged_equally) {
-    return (config.base_fees ?? []).reduce((s, f) => s + (f.amount ?? 0), 0)
+    return (config.base_fees ?? []).reduce((s, f) => s + Number(f.amount ?? 0), 0)
   }
   const group = (config.groups ?? []).find(g => g.person_type === personType)
   if (!group) return null
-  return (group.fees ?? []).reduce((s, f) => s + (f.amount ?? 0), 0)
+  return (group.fees ?? []).reduce((s, f) => s + Number(f.amount ?? 0), 0)
 }

@@ -20,7 +20,8 @@
     "e2e:provision": "node --env-file=.env scripts/provision-e2e-user.mjs",
     "e2e:cleanup": "node --env-file=.env scripts/provision-e2e-user.mjs --delete",
     "test:embeds": "playwright test tests/embeds.spec.ts",
-    "check:seam": "node scripts/check-seam.mjs"
+    "check:seam": "node scripts/check-seam.mjs",
+    "test:pages": "playwright test tests/all-pages.spec.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.89.0",

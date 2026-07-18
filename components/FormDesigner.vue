@@ -237,10 +237,10 @@ const evtGroupPickerHover = ref<string | null>(null)
 function sessionFeeAmount(s: any): number | null {
   if (!s._feesConfig?.is_charged) return null
   if (s._feesConfig.all_charged_equally) {
-    return (s._feesConfig.base_fees ?? []).reduce((sum: number, f: any) => sum + (f.amount ?? 0), 0)
+    return (s._feesConfig.base_fees ?? []).reduce((sum: number, f: any) => sum + Number(f.amount ?? 0), 0)
   }
   const grp = s._feesConfig.groups?.[0]
-  if (grp) return (grp.fees ?? []).reduce((sum: number, f: any) => sum + (f.amount ?? 0), 0)
+  if (grp) return (grp.fees ?? []).reduce((sum: number, f: any) => sum + Number(f.amount ?? 0), 0)
   return null
 }
 
@@ -1705,11 +1705,11 @@ const evtOrderRows = computed<OrderRow[][]>(() => {
 })
 
 const evtOrderTotal = computed(() =>
-  evtOrderRows.value.reduce((sum, rows) => sum + rows.reduce((s, r) => s + r.amount, 0), 0)
+  evtOrderRows.value.reduce((sum, rows) => sum + rows.reduce((s, r) => s + Number(r.amount ?? 0), 0), 0)
 )
 
 const evtTotalDiscountSavings = computed(() =>
-  evtDiscountSummaryLines.value.reduce((sum, d) => sum + d.amount, 0)
+  evtDiscountSummaryLines.value.reduce((sum, d) => sum + Number(d.amount ?? 0), 0)
 )
 
 function evalDiscountOp(actual: number, op: string, expected: number): boolean {
@@ -1728,7 +1728,7 @@ const evtApplicableDiscounts = computed<{ name: string; formText: string; amount
   return Array.from({ length: personCount }, (_, i) => {
     const rows = evtOrderRows.value[i] ?? []
     const positiveAmounts = rows.filter(r => r.amount > 0).map(r => r.amount)
-    const personTotal = rows.reduce((s, r) => s + r.amount, 0)
+    const personTotal = rows.reduce((s, r) => s + Number(r.amount ?? 0), 0)
 
     const selectedSessionCount = sessions.value.filter((s: any) => {
       const sid = s.id ?? s._savedId
@@ -3907,11 +3907,11 @@ defineExpose({ reload })
                             <div class="shrink-0 text-right">
                               <template v-if="s._feesConfig?.is_charged">
                                 <template v-if="s._feesConfig.all_charged_equally">
-                                  <p class="text-sm font-bold text-primary">${{ (s._feesConfig.base_fees ?? []).reduce((sum: number, f: any) => sum + (f.amount ?? 0), 0).toFixed(2) }}</p>
+                                  <p class="text-sm font-bold text-primary">${{ (s._feesConfig.base_fees ?? []).reduce((sum: number, f: any) => sum + Number(f.amount ?? 0), 0).toFixed(2) }}</p>
                                 </template>
                                 <template v-else>
                                   <template v-if="s._feesConfig.groups?.[0]">
-                                    <p class="text-sm font-bold text-primary">${{ (s._feesConfig.groups[0]?.fees ?? []).reduce((sum: number, f: any) => sum + (f.amount ?? 0), 0).toFixed(2) }}</p>
+                                    <p class="text-sm font-bold text-primary">${{ (s._feesConfig.groups[0]?.fees ?? []).reduce((sum: number, f: any) => sum + Number(f.amount ?? 0), 0).toFixed(2) }}</p>
                                   </template>
                                   <p v-else class="text-xs text-gray-400 italic">No fee set</p>
                                 </template>
@@ -3937,7 +3937,7 @@ defineExpose({ reload })
                           <div class="flex items-center pt-1.5 border-t border-gray-100 text-sm font-bold">
                             <span class="flex-1 text-gray-700">Total</span>
                             <span class="tabular-nums w-[72px] text-right mr-9 shrink-0 text-primary">
-                              ${{ evtOrderRows[evtGIdx(subject.key, inst)].reduce((s, r) => s + r.amount, 0).toFixed(2) }}
+                              ${{ evtOrderRows[evtGIdx(subject.key, inst)].reduce((s, r) => s + Number(r.amount ?? 0), 0).toFixed(2) }}
                             </span>
                           </div>
                         </div>
@@ -4136,7 +4136,7 @@ defineExpose({ reload })
                     <div v-for="disc in evtDiscountSummaryLines" :key="disc.formText"
                       class="flex items-center text-sm text-green-600">
                       <span class="flex-1 flex items-center gap-1.5"><i class="pi pi-tag text-xs" />{{ disc.formText }}</span>
-                      <span class="tabular-nums w-[72px] text-right mr-[53px] shrink-0 font-medium">−${{ disc.amount.toFixed(2) }}</span>
+                      <span class="tabular-nums w-[72px] text-right mr-[53px] shrink-0 font-medium">−${{ Number(disc.amount).toFixed(2) }}</span>
                     </div>
                     <div class="flex items-center pt-1 border-t border-dashed border-gray-200 text-sm font-semibold text-green-700">
                       <span class="flex-1">Total savings</span>
@@ -4185,7 +4185,7 @@ defineExpose({ reload })
                 <div v-for="disc in evtDiscountSummaryLines" :key="disc.formText"
                   class="flex items-center text-sm text-green-600">
                   <span class="flex-1 flex items-center gap-1.5"><i class="pi pi-tag text-xs" />{{ disc.formText }}</span>
-                  <span class="tabular-nums w-[72px] text-right mr-[53px] shrink-0 font-medium">−${{ disc.amount.toFixed(2) }}</span>
+                  <span class="tabular-nums w-[72px] text-right mr-[53px] shrink-0 font-medium">−${{ Number(disc.amount).toFixed(2) }}</span>
                 </div>
                 <div class="flex items-center pt-1 border-t border-dashed border-gray-200 text-sm font-semibold text-green-700">
                   <span class="flex-1">Total savings</span>

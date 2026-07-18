@@ -989,7 +989,7 @@ const modeAddons = computed<any[]>(() =>
 const hasModeAddons = computed(() => modeAddons.value.length > 0)
 
 function addonUnitAmount(addon: any): number {
-  return (addon?.fees ?? []).reduce((s: number, f: any) => s + (f?.amount ?? 0), 0)
+  return (addon?.fees ?? []).reduce((s: number, f: any) => s + Number(f?.amount ?? 0), 0)
 }
 function addonDisplayAmount(addon: any): number {
   const unit = addonUnitAmount(addon)

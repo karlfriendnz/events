@@ -662,7 +662,7 @@ async function load() {
   bookables.value = bookableList
     .filter(b => b.status !== 'DELETED')
     .map(b => ({ id: b.id, name: b.name, type: b.type, is_public: b.isPublic }))
-  events.value = (eventRes.data ?? []) as any[]
+  events.value = eventList as any[]
   publicActivities.value = acts
     .filter(a => a.status === 'ACTIVE' && a.bookingsEnabled)
     .map(a => ({ id: a.id, name: a.name, color: a.color, booking_flow: a.bookingFlow, status: a.status, bookings_enabled: a.bookingsEnabled, sort_order: a.sortOrder })) as PublicActivity[]
