@@ -516,7 +516,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
     </div>
 
     <!-- Right: Attendance table -->
-    <div class="min-w-0 flex flex-col bg-white" :class="fit ? '' : 'flex-1 overflow-hidden'">
+    <div class="flex-1 min-w-0 flex flex-col bg-white" :class="fit ? '' : 'overflow-hidden'">
     <div class="bg-white rounded-xl border border-gray-200 flex flex-col"
       :class="attendanceInSessionMode ? 'rounded-none border-0 flex-1 overflow-hidden' : (fit ? 'w-full' : 'mx-3 sm:mx-6 my-4 sm:my-6 max-w-5xl self-center w-full flex-1 overflow-hidden')">
 

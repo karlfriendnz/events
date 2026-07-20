@@ -11,11 +11,18 @@ const emit = defineEmits<{ (e: 'loaded', ev: any): void; (e: 'invite'): void; (e
 
 const eventsApi = useEventsApi()
 const bookingsApi = useBookingsApi()
+const { orgId } = useOrg()
 const toast = useToast()
 
 const event = ref<any>(null)
 const loading = ref(true)
 const resolvedVenue = ref('')
+const categories = ref<any[]>([])
+const categoriesById = computed(() => Object.fromEntries(categories.value.map((c: any) => [c.id, c])))
+async function loadCategories() {
+  if (!orgId.value) return
+  try { categories.value = await eventsApi.categories(orgId.value) } catch { categories.value = [] }
+}
 
 // A "Venue" location stores a bookable id, not a name — resolve the bookable's name.
 async function resolveVenue() {
@@ -32,7 +39,7 @@ async function load() {
   try { event.value = await eventsApi.get(props.eventId); resolveVenue() } catch { event.value = null }
   finally { loading.value = false; emit('loaded', event.value) }
 }
-onMounted(load)
+onMounted(() => { load(); loadCategories() })
 watch(() => props.eventId, load)
 defineExpose({ reload: load })
 
@@ -80,13 +87,14 @@ const saving = ref(false)
 const form = reactive<{
   title: string; status: string; is_all_day: boolean
   start_date: Date | null; start_time: Date | null; end_date: Date | null; end_time: Date | null
-  locations: any[]
-}>({ title: '', status: 'PUBLISHED', is_all_day: false, start_date: null, start_time: null, end_date: null, end_time: null, locations: [] })
+  category_id: string | null; locations: any[]
+}>({ title: '', status: 'PUBLISHED', is_all_day: false, start_date: null, start_time: null, end_date: null, end_time: null, category_id: null, locations: [] })
 
 function startEdit() {
   const ev = event.value
   form.title = ev.title || ''
   form.status = ev.status || 'PUBLISHED'
+  form.category_id = ev.categoryId ?? null
   form.is_all_day = !!ev.isAllDay
   form.start_date = ev.startAt ? new Date(ev.startAt) : null
   form.start_time = ev.startAt && !ev.isAllDay ? new Date(ev.startAt) : null
@@ -110,6 +118,7 @@ async function saveDetails() {
     const updated = await eventsApi.update(props.eventId, {
       title: form.title.trim(),
       status: form.status,
+      categoryId: form.category_id || null,
       isAllDay: form.is_all_day,
       startAt: buildDT(form.start_date, form.start_time, form.is_all_day),
       endAt: buildDT(form.end_date || form.start_date, form.end_time, form.is_all_day),
@@ -151,6 +160,13 @@ async function saveDetails() {
             <span class="field-label shrink-0 sm:w-20">Status</span>
             <Tag :value="statusLabel" :severity="statusSeverity" />
           </div>
+          <div v-if="event.categoryId && categoriesById[event.categoryId]" class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
+            <span class="field-label shrink-0 sm:w-20">Category</span>
+            <span class="inline-flex items-center gap-1.5 text-sm text-gray-700">
+              <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: categoriesById[event.categoryId].color || '#94a3b8' }" />
+              {{ categoriesById[event.categoryId].name }}
+            </span>
+          </div>
           <div v-if="locationSummaryText" class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Location</span>
             <span class="text-sm text-gray-700">{{ locationSummaryText }}</span>
@@ -174,6 +190,25 @@ async function saveDetails() {
       <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
         <span class="field-label shrink-0 sm:w-20">Status</span>
         <Select v-model="form.status" :options="STATUS_OPTIONS" option-label="label" option-value="value" class="w-full sm:w-52" />
+      </div>
+      <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
+        <span class="field-label shrink-0 sm:w-20">Category</span>
+        <Select v-model="form.category_id" :options="categories" option-label="name" option-value="id"
+          placeholder="No category" show-clear filter class="w-full sm:w-64">
+          <template #value="{ value }">
+            <span v-if="value && categoriesById[value]" class="inline-flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: categoriesById[value].color || '#94a3b8' }" />
+              {{ categoriesById[value].name }}
+            </span>
+            <span v-else class="text-gray-400">No category</span>
+          </template>
+          <template #option="{ option }">
+            <span class="inline-flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: option.color || '#94a3b8' }" />
+              {{ option.name }}
+            </span>
+          </template>
+        </Select>
       </div>
       <div class="flex flex-col sm:flex-row sm:gap-4">
         <span class="field-label shrink-0 sm:w-20 sm:pt-2.5">Location</span>

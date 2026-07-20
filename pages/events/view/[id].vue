@@ -2,7 +2,7 @@
   Simple "run the event" view — the landing page for a Quick event. A thin shell that
   composes reusable, self-contained components: <EventDetailsSummary> (details + inline
   edit), a two-tab body of <EventAttendance> (invitees + take attendance) and
-  <EventNotesTasks>. Everything here works off the route :id — no page-level data load.
+  <EventNotesTab>. Everything here works off the route :id — no page-level data load.
 -->
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
@@ -44,7 +44,7 @@ const BODY_TABS = [
       <EventAttendance :event-id="id" fit />
     </div>
     <div v-show="activeTab === 'notes'">
-      <EventNotesTasks :event-id="id" />
+      <EventNotesTab :event-id="id" />
     </div>
     <Toast />
   </div>
