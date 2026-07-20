@@ -241,6 +241,12 @@ export const inviteeWithPersonSchema = inviteeSchema.extend({
       lastName: z.string().nullable(),
       email: z.string().nullable(),
       dateOfBirth: z.string().nullable(),
+      gender: z.string().nullable(),
+      photoUrl: z.string().nullable(),
+      phone: z.string().nullable(),
+      phone2: z.string().nullable(),
+      membershipType: z.string().nullable(),
+      customFields: z.record(z.string(), z.any()).nullable(),
     })
     .nullable(),
 })

@@ -755,6 +755,12 @@ export async function inviteesForEvent(eventId: string): Promise<InviteeWithPers
       lastName: schema.persons.lastName,
       email: schema.persons.email,
       dob: schema.persons.dob,
+      gender: schema.persons.gender,
+      photoUrl: schema.persons.photoUrl,
+      phone: schema.persons.phone,
+      phone2: schema.persons.phone2,
+      membershipType: schema.persons.membershipType,
+      customFields: schema.persons.customFields,
     })
     .from(schema.invitees)
     .leftJoin(schema.persons, eq(schema.invitees.personId, schema.persons.id))
@@ -769,6 +775,12 @@ export async function inviteesForEvent(eventId: string): Promise<InviteeWithPers
           lastName: r.lastName ?? null,
           email: r.email ?? null,
           dateOfBirth: toDateStr(r.dob),
+          gender: r.gender ?? null,
+          photoUrl: r.photoUrl ?? null,
+          phone: r.phone ?? null,
+          phone2: r.phone2 ?? null,
+          membershipType: r.membershipType ?? null,
+          customFields: (r.customFields as Record<string, any>) ?? null,
         }
       : null,
   }))
