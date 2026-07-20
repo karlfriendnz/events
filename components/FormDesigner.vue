@@ -3394,7 +3394,7 @@ defineExpose({ reload })
           <div v-if="!evtFormGroups.length || !evtFormGroupModes[selectedFormGroupId]" class="flex items-center justify-center py-16 px-6">
             <div class="bg-white rounded-xl shadow-lg overflow-hidden w-full max-w-[580px]">
               <div class="bg-[#182e59] px-6 py-4 text-center">
-                <h2 class="text-[17px] font-semibold text-white leading-snug">Choose a registration type</h2>
+                <h2 class="text-[17px] font-semibold text-white leading-snug">{{ evtChooserStep === 'template' ? 'Choose a template' : 'Choose a registration type' }}</h2>
               </div>
               <!-- Step 1: pick the kind of form -->
               <div v-if="evtChooserStep === 'type'" class="p-5 space-y-2.5">
