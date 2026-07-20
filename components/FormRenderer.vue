@@ -77,10 +77,14 @@ const ageCriteria = computed(() => {
   if (hi != null) return `Up to age ${hi}`
   return ''
 })
+const restrictionCriteria = computed(() => {
+  const g = props.event?.gender_restriction ?? null
+  return [ageCriteria.value, g ? genderRestrictionLabel(g) : ''].filter(Boolean).join(' · ')
+})
 const displayEvent = computed(() => {
   const e = props.event
-  if (!e || e.criteria || !ageCriteria.value) return e
-  return { ...e, criteria: ageCriteria.value }
+  if (!e || e.criteria || !restrictionCriteria.value) return e
+  return { ...e, criteria: restrictionCriteria.value }
 })
 const hasDescription = computed(() => {
   const d = design.value?.description
@@ -355,6 +359,7 @@ function instanceDiscountCtx(key: string, inst: number): DiscountCtx {
     dayCount: dayKeys.size,
     fullDay, fullWeek,
     age: instanceAge(key, inst),
+    selectedSessionDates: selected.filter((s: any) => s.start_at).map((s: any) => s.start_at),
   }
 }
 const oneDiscountOnly = computed(() => !!props.config?.discountSettings?.one_discount_only)
@@ -451,6 +456,22 @@ function validate(): boolean {
         const who = `${s.label}${count(s.key) > 1 ? ' ' + inst : ''}`
         if (amin != null && age < amin) { error.value = `${who} must be at least ${amin} year${amin === 1 ? '' : 's'} old for this event.`; return false }
         if (amax != null && age > amax) { error.value = `${who} must be ${amax} or younger for this event.`; return false }
+      }
+    }
+  }
+  // Gender restriction: a registrant who states a Gender must match the event's.
+  const genderReq = props.event?.gender_restriction ?? null
+  if (genderReq) {
+    const norm = (v: any) => String(v ?? '').trim().toUpperCase().replace(/[\s-]+/g, '_')
+    for (const s of subjects.value) {
+      for (let inst = 1; inst <= count(s.key); inst++) {
+        const g = norm(getVal(s.key, inst, 'Gender'))
+        if (!g) continue
+        if (g !== norm(genderReq)) {
+          const who = `${s.label}${count(s.key) > 1 ? ' ' + inst : ''}`
+          error.value = `This event is for ${genderRestrictionLabel(genderReq).toLowerCase()} — ${who} doesn't match.`
+          return false
+        }
       }
     }
   }

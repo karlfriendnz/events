@@ -153,6 +153,7 @@ async function load() {
         title: ev.title, banner_url: ev.bannerUrl, start_at: ev.startAt, description: ev.description,
         location: ev.locationType === 'ONLINE' ? 'Online' : (ev.address || null),
         age_min: ev.ageMin ?? null, age_max: ev.ageMax ?? null,
+        gender_restriction: ev.genderRestriction ?? null,
       }
       formId = ev.formId
       await loadOrg(ev.orgId)

@@ -86,6 +86,14 @@ function addCondition() {
   draft.conditions.push({ key: null, operator: null, value: null })
 }
 
+// Options for the compound "Booked within a period" condition.
+const PERIOD_UNITS = [{ label: 'sessions', value: 'sessions' }, { label: 'full days', value: 'days' }]
+const PERIOD_WINDOWS = [{ label: 'a rolling number of days', value: 'rolling' }, { label: 'a set date range', value: 'range' }]
+function ensurePeriod(cond: any) {
+  if (!cond.value || typeof cond.value !== 'object') cond.value = { count: null, unit: 'sessions', window: 'rolling', windowDays: null, from: null, to: null }
+  return cond.value
+}
+
 function save() {
   if (!draft.name) return
   emit('save', JSON.parse(JSON.stringify(draft)))
@@ -111,11 +119,11 @@ function save() {
           <p class="text-xs text-gray-500 leading-relaxed">{{ tpl.description }}</p>
         </button>
       </div>
-      <!-- "Start from scratch" — temporarily hidden per request; flip v-if to restore. -->
-      <button v-if="false" class="w-full text-left rounded-xl border border-dashed border-gray-300 hover:border-gray-400 px-4 py-3 flex items-center gap-3 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+      <!-- Build a custom rule from a blank draft (skip the templates). -->
+      <button class="w-full text-left rounded-xl border border-dashed border-gray-300 hover:border-primary hover:text-primary hover:bg-primary/[0.02] px-4 py-3 flex items-center gap-3 text-sm text-gray-500 transition-colors"
         @click="openBlank">
-        <i class="pi pi-plus-circle text-gray-400" />
-        Start from scratch
+        <i class="pi pi-plus-circle" />
+        Create custom discount
       </button>
     </div>
   </Dialog>
@@ -225,8 +233,35 @@ function save() {
                   @update:modelValue="v => onConditionKeyChange(cond, v)" />
               </div>
 
+              <!-- Compound "within a period" spans the operator + value columns -->
+              <div v-if="cond.key && getValueType(cond.key) === 'period'"
+                class="py-2 pr-2 pl-3 border-l border-gray-100 flex flex-wrap items-center gap-1.5 text-sm text-gray-600"
+                style="grid-column: 2 / 4">
+                <InputNumber :modelValue="cond.value?.count" @update:modelValue="v => ensurePeriod(cond).count = v"
+                  :min="1" placeholder="0" inputClass="h-8 text-sm w-14 text-center px-1" class="shrink-0" />
+                <Select :modelValue="cond.value?.unit" @update:modelValue="v => ensurePeriod(cond).unit = v"
+                  :options="PERIOD_UNITS" optionLabel="label" optionValue="value" class="text-sm shrink-0"
+                  :pt="{ root: { style: 'border: none; box-shadow: none; background: transparent; padding: 0' } }" />
+                <span class="shrink-0">within</span>
+                <Select :modelValue="cond.value?.window" @update:modelValue="v => ensurePeriod(cond).window = v"
+                  :options="PERIOD_WINDOWS" optionLabel="label" optionValue="value" class="text-sm shrink-0"
+                  :pt="{ root: { style: 'border: none; box-shadow: none; background: transparent; padding: 0' } }" />
+                <template v-if="cond.value?.window !== 'range'">
+                  <InputNumber :modelValue="cond.value?.windowDays" @update:modelValue="v => ensurePeriod(cond).windowDays = v"
+                    :min="1" placeholder="0" inputClass="h-8 text-sm w-14 text-center px-1" class="shrink-0" />
+                  <span class="shrink-0">days</span>
+                </template>
+                <template v-else>
+                  <DatePicker :modelValue="cond.value?.from" @update:modelValue="v => ensurePeriod(cond).from = v"
+                    dateFormat="dd/mm/yy" placeholder="From" inputClass="h-8 text-sm px-2 w-24" class="shrink-0" />
+                  <span class="shrink-0">–</span>
+                  <DatePicker :modelValue="cond.value?.to" @update:modelValue="v => ensurePeriod(cond).to = v"
+                    dateFormat="dd/mm/yy" placeholder="To" inputClass="h-8 text-sm px-2 w-24" class="shrink-0" />
+                </template>
+              </div>
+
               <!-- Operator -->
-              <div class="py-2 pr-2 border-l border-gray-100">
+              <div v-if="!(cond.key && getValueType(cond.key) === 'period')" class="py-2 pr-2 border-l border-gray-100">
                 <template v-if="cond.key && getValueType(cond.key) === 'boolean'">
                   <div class="flex rounded-md border border-gray-200 overflow-hidden text-xs font-semibold bg-white">
                     <button type="button" class="flex-1 py-1.5 border-r border-gray-200 transition-all"
@@ -244,7 +279,7 @@ function save() {
               </div>
 
               <!-- Value -->
-              <div class="py-2 pr-2 pl-2 border-l border-gray-100">
+              <div v-if="!(cond.key && getValueType(cond.key) === 'period')" class="py-2 pr-2 pl-2 border-l border-gray-100">
                 <template v-if="cond.key && getValueType(cond.key) !== 'boolean'">
                   <!-- number: full width -->
                   <InputNumber v-if="getValueType(cond.key) === 'number'"

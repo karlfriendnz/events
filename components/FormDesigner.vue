@@ -6,8 +6,10 @@
 -->
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
+import { genderRestrictionLabel } from '~/composables/useEventRestrictions'
+import { applicableDiscounts as evalApplicableDiscounts, type DiscountCtx } from '~/composables/useDiscountEval'
 
-const props = withDefaults(defineProps<{ eventId: string | null; groupId?: string | null; formId?: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean; embedded?: boolean; ageMin?: number | null; ageMax?: number | null }>(), { groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false, embedded: false, ageMin: null, ageMax: null })
+const props = withDefaults(defineProps<{ eventId: string | null; groupId?: string | null; formId?: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean; embedded?: boolean; ageMin?: number | null; ageMax?: number | null; genderRestriction?: string | null }>(), { groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false, embedded: false, ageMin: null, ageMax: null, genderRestriction: null })
 
 const emit = defineEmits<{ (e: 'building', v: boolean): void }>()
 const formsApi = useFormsApi()
@@ -37,12 +39,19 @@ const evtAgeCriteria = computed(() => {
   if (hi != null) return `Up to age ${hi}`
   return ''
 })
-// Event object for the preview header, with age folded into `criteria` when the
-// event has no explicit criteria of its own.
+// Gender restriction → the same "Invitee Restrictions" line, joined after age.
+const evtGenderCriteria = computed(() => {
+  const g = props.genderRestriction ?? event.value?.gender_restriction ?? null
+  return g ? (genderRestrictionLabel(g) || '') : ''
+})
+const evtRestrictionCriteria = computed(() =>
+  [evtAgeCriteria.value, evtGenderCriteria.value].filter(Boolean).join(' · '))
+// Event object for the preview header, with age + gender folded into `criteria`
+// when the event has no explicit criteria of its own.
 const evtDisplayEvent = computed(() => {
   const e = event.value
-  if (!e || e.criteria || !evtAgeCriteria.value) return e
-  return { ...e, criteria: evtAgeCriteria.value }
+  if (!e || e.criteria || !evtRestrictionCriteria.value) return e
+  return { ...e, criteria: evtRestrictionCriteria.value }
 })
 // ── WYSIWYG preview: the "Preview" mode renders the REAL <FormRenderer> off the
 //    live config, so what you build is exactly what registrants get. ──
@@ -1712,85 +1721,39 @@ const evtTotalDiscountSavings = computed(() =>
   evtDiscountSummaryLines.value.reduce((sum, d) => sum + Number(d.amount ?? 0), 0)
 )
 
-function evalDiscountOp(actual: number, op: string, expected: number): boolean {
-  switch (op) {
-    case '>=': return actual >= expected
-    case '>':  return actual > expected
-    case '<=': return actual <= expected
-    case '<':  return actual < expected
-    case '=':  return actual === expected
-    default:   return true
-  }
-}
-
+// Preview discounts through the SAME shared engine the live form + server use
+// (useDiscountEval) so the price the club sees while building matches what a
+// registrant is actually charged — no drifted second copy. Age can't be known in
+// the synthetic preview (no DOB entered), so age-gated discounts don't preview.
 const evtApplicableDiscounts = computed<{ name: string; formText: string; amount: number }[][]>(() => {
   const personCount = evtAccordionPersonCount.value
+  const dtRows = formSessionDateTable.value.rows
+  const weekSeqs = [...new Set(dtRows.map(r => r.weekSeq))]
   return Array.from({ length: personCount }, (_, i) => {
     const rows = evtOrderRows.value[i] ?? []
     const positiveAmounts = rows.filter(r => r.amount > 0).map(r => r.amount)
     const personTotal = rows.reduce((s, r) => s + Number(r.amount ?? 0), 0)
 
-    const selectedSessionCount = sessions.value.filter((s: any) => {
+    const selectedSessions = sessions.value.filter((s: any) => {
       const sid = s.id ?? s._savedId
-      return s.display_on_form !== false &&
-        sessionVisibleOnForm(s) &&
-        getSessionMode(sid) !== 'hidden' &&
+      return s.display_on_form !== false && sessionVisibleOnForm(s) && getSessionMode(sid) !== 'hidden' &&
         (s.required || evtPreviewSessionSelections.value[i]?.[sid])
-    }).length
+    })
+    const dates = selectedSessions.filter((s: any) => s.start_at).map((s: any) => s.start_at as string)
+    const dayKeys = new Set(dates.map(d => new Date(d).toDateString()))
 
-    const applicableDiscounts: { name: string; formText: string; amount: number }[] = []
-
-    for (const disc of eventDiscounts.value.filter((d: any) => d.is_active)) {
-      let met = true
-      for (const cond of (disc.conditions ?? [])) {
-        switch (cond.key) {
-          case 'registration_group_size_min':
-            if (!evalDiscountOp(personCount, cond.operator, cond.value)) met = false; break
-          case 'booked_session_count_min':
-            if (!evalDiscountOp(selectedSessionCount, cond.operator, cond.value)) met = false; break
-          case 'registration_date_before':
-            if (cond.value && new Date() > new Date(cond.value)) met = false; break
-          case 'registration_total_value_min':
-            if (!evalDiscountOp(personTotal, cond.operator, Number(cond.value))) met = false; break
-          case 'promo_code':
-            met = false; break
-          // participant/membership conditions can't be evaluated from form state — assume met
-        }
-      }
-      if (!met) continue
-
-      const v = Number(disc.modifier_value ?? 0)
-      let amount = 0
-      switch (disc.apply_to ?? 'per_session') {
-        case 'per_session':
-          amount = disc.modifier_type === 'PERCENT'
-            ? positiveAmounts.reduce((s: number, a: number) => s + a * v / 100, 0)
-            : positiveAmounts.length * v
-          break
-        case 'per_person':
-          amount = disc.modifier_type === 'PERCENT' ? personTotal * v / 100 : v
-          break
-        case 'cheapest_item':
-          if (positiveAmounts.length) {
-            const cheapest = Math.min(...positiveAmounts)
-            amount = disc.modifier_type === 'PERCENT' ? cheapest * v / 100 : Math.min(v, cheapest)
-          }
-          break
-        case 'most_expensive_item':
-          if (positiveAmounts.length) {
-            const expensive = Math.max(...positiveAmounts)
-            amount = disc.modifier_type === 'PERCENT' ? expensive * v / 100 : Math.min(v, expensive)
-          }
-          break
-        case 'registration_total':
-          amount = disc.modifier_type === 'PERCENT' ? personTotal * v / 100 : Math.min(v, personTotal)
-          break
-      }
-
-      if (amount > 0) applicableDiscounts.push({ name: disc.name, formText: disc.form_text || disc.name, amount })
+    const ctx: DiscountCtx = {
+      personCount,
+      personTotal,
+      positiveAmounts,
+      selectedSessionCount: selectedSessions.length,
+      dayCount: dayKeys.size,
+      fullDay: dtRows.some(r => isRowFullySelected(i, r)),
+      fullWeek: weekSeqs.some(ws => isWeekFullySelected(i, ws)),
+      age: null,
+      selectedSessionDates: dates,
     }
-
-    return applicableDiscounts
+    return evalApplicableDiscounts(eventDiscounts.value, ctx)
   })
 })
 

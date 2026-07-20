@@ -349,6 +349,7 @@ Bulk-create many separate events from a template. Useful for e.g. "create 8 week
 **What the user can do**
 - Define one template event.
 - Pick how many copies, with a date pattern.
+- On the **Discounts** step, turn on any of three ready-made "quick discounts" (Full day, Full week — both set a fixed price — and a 25%-off Sibling discount) and just change the amount. All three start switched OFF, so nothing is discounted until the club chooses it. Below them, "Create custom discount" opens the full builder for anything bespoke.
 - Preview the full list, then bulk-create.
 
 **Database** — writes many rows to `events` + `sessions`.

@@ -245,15 +245,6 @@ async function saveDetails() {
       </div>
     </template>
 
-    <!-- Delete confirmation -->
-    <Dialog v-model:visible="deleteOpen" modal :draggable="false" header="Delete event?" :style="{ width: '95vw', maxWidth: '400px' }">
-      <p class="text-sm text-gray-600">This permanently deletes <span class="font-medium text-gray-900">{{ event?.title }}</span> and its invitees. This can't be undone.</p>
-      <template #footer>
-        <Button label="Cancel" severity="secondary" text size="small" @click="deleteOpen = false" />
-        <Button label="Delete event" icon="pi pi-trash" severity="danger" size="small" :loading="busy" @click="doDelete" />
-      </template>
-    </Dialog>
-
     <!-- Edit mode -->
     <div v-else class="space-y-3">
       <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
@@ -298,5 +289,14 @@ async function saveDetails() {
           style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveDetails" />
       </div>
     </div>
+
+    <!-- Delete confirmation -->
+    <Dialog v-model:visible="deleteOpen" modal :draggable="false" header="Delete event?" :style="{ width: '95vw', maxWidth: '400px' }">
+      <p class="text-sm text-gray-600">This permanently deletes <span class="font-medium text-gray-900">{{ event?.title }}</span> and its invitees. This can't be undone.</p>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text size="small" @click="deleteOpen = false" />
+        <Button label="Delete event" icon="pi pi-trash" severity="danger" size="small" :loading="busy" @click="doDelete" />
+      </template>
+    </Dialog>
   </div>
 </template>

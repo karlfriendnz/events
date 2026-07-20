@@ -110,6 +110,7 @@ function toEvent(r: typeof schema.events.$inferSelect): FMEvent {
     locations: asObj(r.locations),
     ageMin: r.ageMin ?? null,
     ageMax: r.ageMax ?? null,
+    genderRestriction: r.genderRestriction ?? null,
     recurrenceRule: r.recurrenceRule ?? null,
     recurrenceParentId: r.recurrenceParentId ?? null,
     createdVia: r.createdVia ?? null,
@@ -312,6 +313,7 @@ export async function createEvent(input: FMEventCreate): Promise<FMEvent> {
     locations: input.locations ?? null,
     ageMin: input.ageMin ?? null,
     ageMax: input.ageMax ?? null,
+    genderRestriction: input.genderRestriction ?? null,
     recurrenceRule: input.recurrenceRule ?? null,
     recurrenceParentId: input.recurrenceParentId ?? null,
     createdVia: input.createdVia ?? null,
@@ -374,6 +376,7 @@ export async function updateEvent(id: string, patch: FMEventPatch): Promise<FMEv
   if (patch.locations !== undefined) set.locations = patch.locations
   if (patch.ageMin !== undefined) set.ageMin = patch.ageMin
   if (patch.ageMax !== undefined) set.ageMax = patch.ageMax
+  if (patch.genderRestriction !== undefined) set.genderRestriction = patch.genderRestriction
   if (patch.recurrenceRule !== undefined) set.recurrenceRule = patch.recurrenceRule
   if (patch.recurrenceParentId !== undefined) set.recurrenceParentId = patch.recurrenceParentId
   if (patch.createdVia !== undefined) set.createdVia = patch.createdVia
@@ -1040,6 +1043,9 @@ function toCategory(r: typeof schema.categories.$inferSelect): EventCategory {
     id: r.id, orgId: r.orgId, parentId: r.parentId ?? null, name: r.name,
     color: r.color ?? null, icon: r.icon ?? null, defaultTc: r.defaultTc ?? null,
     defaultFormId: r.defaultFormId ?? null, defaultXeroCodes: asObj(r.defaultXeroCodes),
+    defaultDisciplineId: r.defaultDisciplineId ?? null,
+    accessTypeKeys: (() => { const a = asArray(r.accessTypeKeys) as string[]; return a.length ? a : null })(),
+    accessPersonIds: (() => { const a = asArray(r.accessPersonIds) as string[]; return a.length ? a : null })(),
     sortOrder: r.sortOrder,
   }
 }
@@ -1067,6 +1073,9 @@ export async function createCategory(input: EventCategoryCreate): Promise<EventC
     id, orgId: input.orgId, parentId: input.parentId ?? null, name: input.name,
     color: input.color ?? null, icon: input.icon ?? null, defaultTc: input.defaultTc ?? null,
     defaultFormId: input.defaultFormId ?? null, defaultXeroCodes: input.defaultXeroCodes ?? null,
+    defaultDisciplineId: input.defaultDisciplineId ?? null,
+    accessTypeKeys: (input.accessTypeKeys && input.accessTypeKeys.length) ? input.accessTypeKeys : null,
+    accessPersonIds: (input.accessPersonIds && input.accessPersonIds.length) ? input.accessPersonIds : null,
     sortOrder: input.sortOrder ?? 0,
   } as any)
   const [r] = await db.select().from(schema.categories).where(eq(schema.categories.id, id)).limit(1)
@@ -1081,6 +1090,9 @@ export async function updateCategory(id: string, patch: EventCategoryPatch): Pro
   if (patch.defaultTc !== undefined) set.defaultTc = patch.defaultTc
   if (patch.defaultFormId !== undefined) set.defaultFormId = patch.defaultFormId
   if (patch.defaultXeroCodes !== undefined) set.defaultXeroCodes = patch.defaultXeroCodes
+  if (patch.defaultDisciplineId !== undefined) set.defaultDisciplineId = patch.defaultDisciplineId
+  if (patch.accessTypeKeys !== undefined) set.accessTypeKeys = (patch.accessTypeKeys && patch.accessTypeKeys.length) ? patch.accessTypeKeys : null
+  if (patch.accessPersonIds !== undefined) set.accessPersonIds = (patch.accessPersonIds && patch.accessPersonIds.length) ? patch.accessPersonIds : null
   if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
   await db.update(schema.categories).set(set).where(eq(schema.categories.id, id))
   const [r] = await db.select().from(schema.categories).where(eq(schema.categories.id, id)).limit(1)

@@ -221,9 +221,14 @@ async function loadFieldDefs() {
     customFieldDefs.value = cat.filter((f: any) => f.source === 'custom').map((f: any) => ({ key: String(f.key), label: f.label }))
   } catch { customFieldDefs.value = [] }
 }
-const allColumns = computed<{ key: string; label: string; type: string; get: (inv: any) => any; auto: () => boolean }[]>(() => [
-  { key: 'ticket', label: 'Ticket type', type: 'text', get: (inv) => inv.ticket_type, auto: () => invitees.value.some(i => i.ticket_type) },
-  { key: 'paid', label: 'Paid', type: 'paid', get: (inv) => inv.paid_at, auto: () => invitees.value.some(i => i.fee_amount != null || i.paid_at) },
+const allColumns = computed<{ key: string; label: string; type: string; get: (inv: any) => any; auto: () => boolean }[]>(() => {
+  // Ticket type / Paid only exist when the event can actually handle them — a ticketed
+  // event (has_tickets) or one that's collected a real fee. Otherwise they're not offered.
+  const hasTickets = !!event.value?.has_tickets
+  const hasFees = hasTickets || invitees.value.some(i => Number(i.fee_amount) > 0 || i.paid_at)
+  return [
+  ...(hasTickets ? [{ key: 'ticket', label: 'Ticket type', type: 'text', get: (inv: any) => inv.ticket_type, auto: () => true }] : []),
+  ...(hasFees ? [{ key: 'paid', label: 'Paid', type: 'paid', get: (inv: any) => inv.paid_at, auto: () => true }] : []),
   { key: 'age', label: 'Age', type: 'text', get: (inv) => inv.person?.dob ? (ageFromDob(inv.person.dob) ?? null) : null, auto: () => invitees.value.some(i => i.person?.dob) },
   { key: 'gender', label: 'Gender', type: 'text', get: (inv) => inv.person?.gender, auto: () => invitees.value.some(i => i.person?.gender) },
   { key: 'phone', label: 'Phone', type: 'text', get: (inv) => inv.person?.phone, auto: () => false },
@@ -232,7 +237,8 @@ const allColumns = computed<{ key: string; label: string; type: string; get: (in
   { key: 'membership', label: 'Membership', type: 'text', get: (inv) => inv.person?.membership_type, auto: () => false },
   { key: 'photo', label: 'Photo', type: 'photo', get: (inv) => inv.person?.photo_url, auto: () => invitees.value.some(i => i.person?.photo_url) },
   ...customFieldDefs.value.map(f => ({ key: 'cf:' + f.key, label: f.label, type: 'text', get: (inv: any) => inv.person?.custom_fields?.[f.key], auto: () => false })),
-])
+  ]
+})
 function colVisible(key: string) {
   if (key in colOverride) return colOverride[key]
   return allColumns.value.find(c => c.key === key)?.auto() ?? false

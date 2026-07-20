@@ -35,6 +35,7 @@ export const clubTypeSchema = z.object({
   defaultModules: z.any().nullable(),
   defaultPersonTypes: z.any().nullable(),
   defaultTerminology: z.any().nullable(),
+  defaultEventCategories: z.any().nullable(),
   isOverallDefault: z.boolean(),
   sortOrder: z.number().int(),
 })
@@ -143,6 +144,7 @@ export const clubTypeDefaultsSchema = z.object({
   defaultModules: z.any().nullable(),
   defaultPersonTypes: z.any().nullable(),
   defaultTerminology: z.any().nullable(),
+  defaultEventCategories: z.any().nullable(),
 })
 export type ClubTypeDefaults = z.infer<typeof clubTypeDefaultsSchema>
 

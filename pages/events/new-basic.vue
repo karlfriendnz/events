@@ -219,6 +219,13 @@
                 </div>
               </div>
             </div>
+            <!-- Gender restriction -->
+            <div class="px-5 py-4">
+              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] items-center gap-4'">
+                <label class="field-label">Gender</label>
+                <Select v-model="form.genderRestriction" :options="GENDER_RESTRICTION_OPTIONS" optionLabel="label" optionValue="value" class="w-full sm:w-56" />
+              </div>
+            </div>
             <!-- Banner -->
             <div class="px-5 py-4">
               <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
@@ -462,7 +469,7 @@
           <!-- flex column + definite height so FormDesigner's absolute two-panel
                layout resolves (otherwise it collapses to nothing). -->
           <div v-else class="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col" style="height:70vh; min-height:560px">
-            <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax" embedded class="flex-1 min-h-0" />
+            <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax" :gender-restriction="form.genderRestriction" embedded class="flex-1 min-h-0" />
           </div>
         </div>
 
@@ -1146,6 +1153,7 @@ const form = reactive({
   category_ids: (route.query.category ? [route.query.category as string] : []) as string[],
   ageMin: null as number | null,
   ageMax: null as number | null,
+  genderRestriction: null as string | null,
   // Dates
   is_all_day: false,
   start_date: parseDateParam(route.query.date as string ?? null),
@@ -1239,6 +1247,7 @@ const totalFees = computed(() =>
 // (<EventDiscountDialog> + useEventDiscounts). One discount system, not a
 // wizard-only variant; rows persist to `discounts` at saveEvent().
 import type { DiscountDraft } from '~/composables/useEventDiscounts'
+import { GENDER_RESTRICTION_OPTIONS } from '~/composables/useEventRestrictions'
 type WizardDiscount = DiscountDraft & { id: string }
 
 const { conditionLabel } = useEventDiscounts()
@@ -1394,6 +1403,7 @@ async function saveEvent() {
       secondaryCategoryId: form.category_ids[1] ?? null,
       ageMin: form.ageMin ?? null,
       ageMax: form.ageMax ?? null,
+      genderRestriction: form.genderRestriction ?? null,
       isAllDay: form.is_all_day,
       startAt: buildDateTime(form.start_date, form.is_all_day ? null : form.start_time),
       endAt: buildDateTime(form.end_date, form.is_all_day ? null : form.end_time),
@@ -1606,6 +1616,7 @@ async function resumeDraft(): Promise<boolean> {
     secondary_category_id: ev.secondaryCategoryId,
     age_min: ev.ageMin,
     age_max: ev.ageMax,
+    gender_restriction: ev.genderRestriction,
     start_at: ev.startAt,
     end_at: ev.endAt,
     is_all_day: ev.isAllDay,
@@ -1630,6 +1641,7 @@ async function resumeDraft(): Promise<boolean> {
   form.category_ids = [evt.category_id, evt.secondary_category_id].filter(Boolean) as string[]
   form.ageMin = evt.age_min ?? null
   form.ageMax = evt.age_max ?? null
+  form.genderRestriction = evt.gender_restriction ?? null
   if (evt.start_at) {
     form.start_date = new Date(evt.start_at)
     form.start_time = new Date(evt.start_at)

@@ -24,6 +24,7 @@ export interface ClubTypeDefaults {
   default_modules: string[] | null                              // enabled module keys; null = leave all on
   default_person_types: DefaultPersonType[] | null
   default_terminology: Record<string, { singular?: string; plural?: string }> | null
+  default_event_categories: string[] | null                     // event category names seeded on new-club creation; null = none
 }
 
 export function useClubTypes() {
@@ -47,6 +48,7 @@ export function useClubTypes() {
       default_modules: t?.defaultModules ?? null,
       default_person_types: t?.defaultPersonTypes ?? null,
       default_terminology: t?.defaultTerminology ?? null,
+      default_event_categories: t?.defaultEventCategories ?? null,
     }
   }
 
@@ -56,6 +58,7 @@ export function useClubTypes() {
       defaultModules: d.default_modules,
       defaultPersonTypes: d.default_person_types,
       defaultTerminology: d.default_terminology,
+      defaultEventCategories: d.default_event_categories,
     })
   }
 

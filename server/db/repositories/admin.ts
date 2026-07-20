@@ -90,6 +90,7 @@ function toClubType(r: typeof schema.clubTypes.$inferSelect): ClubType {
     defaultModules: asJson(r.defaultModules),
     defaultPersonTypes: asJson(r.defaultPersonTypes),
     defaultTerminology: asJson(r.defaultTerminology),
+    defaultEventCategories: asJson(r.defaultEventCategories),
     isOverallDefault: Boolean(r.isOverallDefault),
     sortOrder: r.sortOrder,
   }
@@ -251,6 +252,7 @@ export async function saveClubTypeDefaults(id: string, d: ClubTypeDefaults): Pro
     defaultModules: d.defaultModules ?? null,
     defaultPersonTypes: d.defaultPersonTypes ?? null,
     defaultTerminology: d.defaultTerminology ?? null,
+    defaultEventCategories: d.defaultEventCategories ?? null,
   } as any).where(eq(schema.clubTypes.id, id))
 }
 
@@ -547,6 +549,7 @@ export async function applyClubTypeDefaults(
     defaultModules: schema.clubTypes.defaultModules,
     defaultPersonTypes: schema.clubTypes.defaultPersonTypes,
     defaultTerminology: schema.clubTypes.defaultTerminology,
+    defaultEventCategories: schema.clubTypes.defaultEventCategories,
   }).from(schema.clubTypes).where(inArray(schema.clubTypes.id, ids))
   if (!rawTypes.length) return
   // Re-order to match ids (overall default first) so later-wins is deterministic.
@@ -600,6 +603,31 @@ export async function applyClubTypeDefaults(
     const dashRows = [...dashByKey.entries()].filter(([k]) => !have.has(k))
       .map(([userType, config]) => ({ orgId, userType, config }))
     if (dashRows.length) await db.insert(schema.dashboardTemplates).values(dashRows as any)
+  }
+
+  // Event categories — union of every type's list, first occurrence wins order, then
+  // seed the `categories` rows the club doesn't already have (matched by name,
+  // case-insensitive). A colour is assigned from a small cycling palette so seeded
+  // categories aren't all grey.
+  const catNames: string[] = []
+  const seenCat = new Set<string>()
+  for (const t of types) for (const raw of (asJson(t.defaultEventCategories) ?? []) as any[]) {
+    const name = String(raw ?? '').trim()
+    if (!name) continue
+    const lower = name.toLowerCase()
+    if (seenCat.has(lower)) continue
+    seenCat.add(lower)
+    catNames.push(name)
+  }
+  if (catNames.length) {
+    const existing = await db.select({ name: schema.categories.name })
+      .from(schema.categories).where(eq(schema.categories.orgId, orgId))
+    const have = new Set(existing.map((r) => (r.name ?? '').toLowerCase()))
+    const CAT_PALETTE = ['#6366F1', '#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6']
+    const catRows = catNames.filter((n) => !have.has(n.toLowerCase())).map((name, i) => ({
+      id: randomUUID(), orgId, name, color: CAT_PALETTE[i % CAT_PALETTE.length], sortOrder: i,
+    }))
+    if (catRows.length) await db.insert(schema.categories).values(catRows as any)
   }
 }
 

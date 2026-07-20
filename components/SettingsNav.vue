@@ -41,6 +41,7 @@ const tabs = computed(() => [
   { divider: true },
   { label: 'Events', icon: 'pi-megaphone', to: '/settings', tab: 'events' },
   { label: 'Bookings', icon: 'pi-calendar', to: '/settings', tab: 'bookings' },
+  { label: 'Financials', icon: 'pi-wallet', to: '/settings', tab: 'financials' },
 ])
 function linkTo(t: any) {
   return t.tab ? { path: t.to, query: t.tab === 'general' ? {} : { tab: t.tab } } : t.to

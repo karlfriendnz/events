@@ -43,6 +43,7 @@ export const fmEventSchema = z.object({
   locations: z.any().nullable(),
   ageMin: z.number().int().nullable(),
   ageMax: z.number().int().nullable(),
+  genderRestriction: z.string().nullable(),
   recurrenceRule: z.string().nullable(),
   recurrenceParentId: z.string().nullable(),
   createdVia: z.string().nullable(),
@@ -97,6 +98,7 @@ export const fmEventCreateSchema = fmEventSchema
     isPublic: true, isProgramme: true, formId: true, memberGroupId: true,
     categoryId: true, bannerUrl: true, locationType: true, bookableId: true,
     address: true, meetingLink: true, locations: true, ageMin: true, ageMax: true,
+    genderRestriction: true,
     recurrenceRule: true, recurrenceParentId: true, createdVia: true, exdates: true,
     isAllDay: true, secondaryCategoryId: true, capacityMin: true, capacityMax: true,
     showAttendeeList: true, showAttendeeCount: true, allowInterest: true, allowGuests: true,
@@ -384,13 +386,19 @@ export const eventCategorySchema = z.object({
   defaultTc: z.string().nullable(),
   defaultFormId: z.string().nullable(),
   defaultXeroCodes: z.any().nullable(),
+  defaultDisciplineId: z.string().nullable(),   // this category's default governing-body discipline (null = none)
+  // WHO CAN ACCESS — a permission target is a person TYPE or a specific PERSON (the
+  // system-wide rule: any access control may name a people type or an individual).
+  // Both null/empty = everyone.
+  accessTypeKeys: z.array(z.string()).nullable(), // person-type keys who may access it
+  accessPersonIds: z.array(z.string()).nullable(), // specific person ids who may access it
   sortOrder: z.number().int(),
 })
 export type EventCategory = z.infer<typeof eventCategorySchema>
 export const eventCategoryListSchema = z.array(eventCategorySchema)
 export const eventCategoryCreateSchema = eventCategorySchema.omit({ id: true }).partial({
   parentId: true, color: true, icon: true, defaultTc: true, defaultFormId: true,
-  defaultXeroCodes: true, sortOrder: true,
+  defaultXeroCodes: true, defaultDisciplineId: true, accessTypeKeys: true, accessPersonIds: true, sortOrder: true,
 })
 export type EventCategoryCreate = z.infer<typeof eventCategoryCreateSchema>
 export const eventCategoryPatchSchema = eventCategoryCreateSchema.partial()

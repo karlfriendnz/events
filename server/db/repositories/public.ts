@@ -326,6 +326,7 @@ export async function publicEvent(id: string): Promise<PublicEventDetail | null>
     discounts,
     ageMin: ev.ageMin ?? null,
     ageMax: ev.ageMax ?? null,
+    genderRestriction: ev.genderRestriction ?? null,
   }
 }
 

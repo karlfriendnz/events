@@ -1,0 +1,1 @@
+ALTER TABLE `events` ADD `gender_restriction` text;

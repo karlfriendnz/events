@@ -56,8 +56,11 @@ export const CONDITION_DEFS: Record<string, { label: string; group: string; oper
   participant_category:                     { label: 'Participant category',             group: 'Participant',   operators: ['in', 'not_in'],       valueType: 'array',  options: ['junior', 'masters', 'open', 'recreational'] },
   registration_group_size_min:              { label: 'Group size (people)',              group: 'Registration',  operators: ['>=', '>', '='],       valueType: 'number' },
   registration_total_value_min:             { label: 'Cart total ($)',                   group: 'Registration',  operators: ['>=', '>'],            valueType: 'currency'},
-  booked_day_count_min:                     { label: 'Days booked',                      group: 'Registration',  operators: ['>=', '>'],            valueType: 'number' },
+  booked_day_count_min:                     { label: 'Full days booked',                 group: 'Registration',  operators: ['>=', '>'],            valueType: 'number' },
   booked_session_count_min:                 { label: 'Sessions booked',                  group: 'Registration',  operators: ['>=', '>'],            valueType: 'number' },
+  // Compound "N sessions/days within a period" — e.g. 3 sessions within 3 days,
+  // or 3 sessions between two dates. value = { count, unit, window, windowDays, from, to }.
+  booked_units_within_period:               { label: 'Booked within a period',           group: 'Registration',  operators: ['within'],             valueType: 'period' },
   // Completeness conditions for multi-session programmes — every session that
   // exists on a given day (resp. in a given week) has been booked.
   booked_full_day:                          { label: 'Whole day booked',                 group: 'Registration',  operators: ['is_true'],            valueType: 'boolean' },
@@ -85,6 +88,7 @@ export const OPERATOR_LABELS: Record<string, string> = {
   'in': 'is one of', 'not_in': 'is not one of',
   'is_true': 'yes', 'is_false': 'no',
   'between': 'between', 'equals': 'equals', 'in_all': 'is registered for all of',
+  'within': 'within',
 }
 
 export const DISCOUNT_TEMPLATES = [
@@ -102,16 +106,32 @@ export const DISCOUNT_TEMPLATES = [
       conditions: [{ key: 'registration_within_first_n_registrations', operator: '<=', value: 50 }] } },
 ]
 
-// Default discounts pre-seeded into the Holiday Programme (multi-session) wizard.
-// A club sees them on the Discounts step and adjusts the amount or removes them.
-// NB: the "whole day/week booked" conditions are CAPTURED here; enforcing them at
-// registration time is a later phase (like the other event-discount conditions).
-export function defaultProgrammeDiscounts(): Array<Partial<DiscountDraft> & { name: string }> {
+// The three QUICK discounts offered at the top of the Holiday Programme
+// (multi-session) wizard's Discounts step. They're shown OFF by default — the
+// club flips one on and just changes the amount/type; anything more bespoke goes
+// through "Create custom discount" below (the full <EventDiscountDialog>).
+// Each preset is a partial DiscountDraft plus a stable `key`/`label`/`description`.
+// NB: the "whole day/week booked" + group-size conditions are CAPTURED here;
+// enforcing them at registration time is a later phase (like every other
+// event-discount condition).
+export interface QuickDiscountPreset {
+  key: string
+  label: string
+  description: string
+  preset: Partial<DiscountDraft> & { name: string }
+}
+
+export function quickProgrammeDiscounts(): QuickDiscountPreset[] {
   return [
-    { name: 'Full day discount', form_text: 'Book the whole day and save', modifier_value: 10, modifier_type: 'PERCENT', apply_to: 'registration_total',
-      conditions: [{ key: 'booked_full_day', operator: 'is_true', value: true }] },
-    { name: 'Full week discount', form_text: 'Book the whole week and save', modifier_value: 15, modifier_type: 'PERCENT', apply_to: 'registration_total',
-      conditions: [{ key: 'booked_full_week', operator: 'is_true', value: true }] },
+    { key: 'full_day', label: 'Full day discount', description: 'Set price when the whole day is booked.',
+      preset: { name: 'Full day discount', form_text: 'Book the whole day', modifier_value: 50, modifier_type: 'REPLACE', apply_to: 'registration_total',
+        conditions: [{ key: 'booked_full_day', operator: 'is_true', value: true }] } },
+    { key: 'full_week', label: 'Full week discount', description: 'Set price when the whole week is booked.',
+      preset: { name: 'Full week discount', form_text: 'Book the whole week', modifier_value: 200, modifier_type: 'REPLACE', apply_to: 'registration_total',
+        conditions: [{ key: 'booked_full_week', operator: 'is_true', value: true }] } },
+    { key: 'sibling', label: 'Sibling discount', description: '% off when more than one child registers together.',
+      preset: { name: 'Sibling discount', form_text: 'Sibling discount', modifier_value: 25, modifier_type: 'PERCENT', apply_to: 'per_person',
+        conditions: [{ key: 'registration_group_size_min', operator: '>=', value: 2 }] } },
   ]
 }
 
@@ -136,6 +156,9 @@ export const ACTIVE_CONDITION_KEYS = [
   'registration_within_first_n_registrations', // Within first N registrations
   'booked_full_day',                        // Whole day booked (programmes)
   'booked_full_week',                       // Whole week booked (programmes)
+  'booked_day_count_min',                   // Full days booked (count)
+  'booked_session_count_min',               // Sessions booked (count)
+  'booked_units_within_period',             // N sessions/days within a period
 ]
 
 export function useEventDiscounts() {
@@ -160,6 +183,7 @@ export function useEventDiscounts() {
     else if (def.valueType === 'array')    cond.value = []
     else if (def.valueType === 'string')   cond.value = ''
     else if (def.valueType === 'datetime') cond.value = null
+    else if (def.valueType === 'period')   cond.value = { count: null, unit: 'sessions', window: 'rolling', windowDays: null, from: null, to: null }
   }
 
   function conditionLabel(c: DiscountCondition): string {
@@ -167,6 +191,15 @@ export function useEventDiscounts() {
     const def = CONDITION_DEFS[c.key]
     if (!def) return c.key
     const opLabel = OPERATOR_LABELS[c.operator ?? ''] ?? c.operator ?? ''
+    // "3 sessions within 3 days" / "3 days within 12 Jul–16 Jul" — a self-contained sentence.
+    if (def.valueType === 'period') {
+      const v = c.value || {}
+      const n = v.count ?? '?'
+      const unit = v.unit || 'sessions'
+      const fmt = (d: any) => d ? new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '?'
+      const win = v.window === 'range' ? `${fmt(v.from)}–${fmt(v.to)}` : `${v.windowDays ?? '?'} days`
+      return `${n} ${unit} within ${win}`
+    }
     let valLabel = ''
     if (def.valueType === 'boolean') valLabel = ''
     else if (def.valueType === 'range') valLabel = `${c.value?.min ?? '?'}–${c.value?.max ?? '?'}`

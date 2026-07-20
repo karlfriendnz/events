@@ -300,8 +300,43 @@
             </div>
           </div>
 
+          <!-- Categories — manage every event category from one place -->
           <div class="card p-5">
-            <h2 class="text-sm font-semibold text-surface-700 mb-1">Payment Options for events</h2>
+            <div class="flex items-center justify-between mb-1">
+              <h2 class="text-sm font-semibold text-surface-700">Categories</h2>
+              <Button label="New category" icon="pi pi-plus" size="small" severity="secondary" outlined @click="openCatCreate" />
+            </div>
+            <p class="text-xs text-surface-500 mb-3">Group your events. Each category can set a default discipline and control who can access it.</p>
+            <div class="divide-y divide-surface-100">
+              <div v-for="cat in categories" :key="cat.id" class="flex items-center gap-3 py-2.5">
+                <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: cat.color || '#94a3b8' }" />
+                <div class="min-w-0 flex-1">
+                  <p class="text-sm font-medium text-surface-800 truncate">{{ cat.name }}</p>
+                  <p class="text-xs text-surface-500 truncate">
+                    <span v-if="cat.defaultDisciplineId">{{ discNameById[cat.defaultDisciplineId] || 'Discipline' }} · </span>
+                    <span>Access: {{ catAccessLabel(cat) }}</span>
+                  </p>
+                </div>
+                <button type="button" class="text-surface-400 hover:text-primary w-8 h-8 flex items-center justify-center shrink-0" @click="openCatEdit(cat)">
+                  <i class="pi pi-pencil text-xs" />
+                </button>
+                <button type="button" class="text-surface-300 hover:text-red-500 w-8 h-8 flex items-center justify-center shrink-0" @click="deleteCat(cat)">
+                  <i class="pi pi-trash text-xs" />
+                </button>
+              </div>
+              <p v-if="!categories.length" class="text-sm text-surface-400 py-3">No categories yet. Add one to get started.</p>
+            </div>
+          </div>
+        </TabPanel>
+
+        <!-- ── FINANCIALS ── -->
+        <TabPanel value="financials" class="space-y-4 max-w-3xl">
+          <div class="mb-1">
+            <h1 class="text-xl font-semibold text-gray-900">Financials</h1>
+            <p class="text-sm text-gray-500">Payment settings for events.</p>
+          </div>
+          <div class="card p-5">
+            <h2 class="text-sm font-semibold text-surface-700 mb-1">Payment options for events</h2>
             <p class="text-xs text-surface-500 mb-4">Methods offered by default on event registration forms. Individual events can override.</p>
             <PaymentOptionsEditor
               v-model="eventsPaymentOptions"
@@ -420,6 +455,62 @@
       </template>
     </Dialog>
 
+    <!-- Category create / edit -->
+    <Dialog v-model:visible="showCatDialog" :header="editingCat ? 'Edit category' : 'New category'" modal :style="{ width: '95vw', maxWidth: '480px' }">
+      <div class="space-y-4">
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium text-surface-700">Name</label>
+          <InputText v-model="catForm.name" placeholder="e.g. Holiday Programme" class="w-full" @keyup.enter="saveCat" />
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium text-surface-700">Colour</label>
+          <div class="flex flex-wrap gap-2">
+            <button v-for="c in catColorPalette" :key="c" type="button"
+              class="w-7 h-7 rounded-full border-2 transition-transform"
+              :class="catForm.color === c ? 'border-surface-900 scale-110' : 'border-transparent'"
+              :style="{ background: c }" @click="catForm.color = c" />
+          </div>
+        </div>
+        <div v-if="catHasDisciplines" class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium text-surface-700">Default discipline</label>
+          <Select v-model="catForm.default_discipline_id" :options="discGroups" option-label="name" option-value="id"
+            option-group-label="label" option-group-children="items" show-clear filter
+            placeholder="No default" class="w-full">
+            <template #optiongroup="{ option }">
+              <span class="text-xs font-bold uppercase tracking-wide text-surface-500">{{ option.label }}</span>
+            </template>
+            <template #option="{ option }">
+              <div class="flex items-center gap-2" :style="{ paddingLeft: `${(option.depth || 0) * 16}px` }">
+                <i v-if="option.depth" class="pi pi-angle-right text-[10px] text-surface-300" />
+                <span :class="option.depth ? 'text-surface-700' : 'font-medium text-surface-800'">{{ option.name }}</span>
+              </div>
+            </template>
+          </Select>
+          <p class="text-xs text-surface-400">Events created in this category start linked to this discipline (from your governing body).</p>
+        </div>
+        <div class="flex flex-col gap-2">
+          <label class="text-sm font-medium text-surface-700">Who can access</label>
+          <div class="flex flex-col gap-1">
+            <span class="text-xs text-surface-500">People types</span>
+            <ChipMultiSelect v-model="catForm.access_type_keys" :options="catPersonTypes" option-label="label" option-value="key"
+              filter placeholder="Any type" class="w-full" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <span class="text-xs text-surface-500">Specific people</span>
+            <AutoComplete v-model="catPersonSel" multiple :suggestions="catPersonSuggestions" @complete="searchCatPeople"
+              :optionLabel="personLabel" placeholder="Search people…" class="w-full" :pt="{ root: { class: 'w-full' } }" />
+          </div>
+          <p class="text-xs text-surface-400">Leave both empty for everyone. Otherwise access is limited to the chosen people types and people.</p>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text @click="showCatDialog = false" />
+        <Button :label="editingCat ? 'Save' : 'Create'" :loading="catSaving" :disabled="!catForm.name.trim()" @click="saveCat"
+          style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+      </template>
+    </Dialog>
+
+    <ConfirmDialog />
     <Toast />
   </div>
 </template>
@@ -427,6 +518,7 @@
 <script setup lang="ts">
 const { orgId } = useOrg()
 import { useToast } from 'primevue/usetoast'
+import { useConfirm } from 'primevue/useconfirm'
 
 // Every org-settings read/write — including the dev seed/reset tooling — goes through
 // the seam composables now. No direct useDb() remains on this page.
@@ -614,6 +706,114 @@ async function loadClubTypes() {
   inheritedClubTypes.value = orgId.value ? await resolveInheritedClubTypes(orgId.value, clubTypes.value) : []
 }
 
+// ── Event categories management (Events tab) ─────────────────────
+// Categories live in one place here: name + colour + a DEFAULT DISCIPLINE (only
+// offered when the club reaches any via a governing body) + WHO CAN ACCESS it
+// (person types; empty = everyone). Discipline options + person types share the
+// same seam as the rest of the app (useReachableDisciplines / loadOrgTypes).
+const confirm = useConfirm()
+const { loadOrgTypes } = useOrgFieldPolicy()
+const { load: loadReachableDisciplines } = useReachableDisciplines()
+const peopleApi = usePeopleApi()
+function personLabel(p: any): string {
+  const first = p.firstName ?? p.first_name ?? ''
+  const last = p.lastName ?? p.last_name ?? ''
+  return `${first} ${last}`.trim() || p.email || 'Person'
+}
+const catColorPalette = ['#1E2157', '#3B82F6', '#8B5CF6', '#EC4899', '#EF4444', '#F59E0B', '#10B981', '#06B6D4', '#6B7280', '#1EA97C', '#F97316', '#84CC16']
+const discGroups = ref<any[]>([])
+const discNameById = ref<Record<string, string>>({})
+const catPersonTypes = ref<{ key: string; label: string }[]>([])
+const catTypeLabel = computed(() => Object.fromEntries(catPersonTypes.value.map(t => [t.key, t.label])))
+const catHasDisciplines = computed(() => discGroups.value.length > 0)
+
+const showCatDialog = ref(false)
+const catSaving = ref(false)
+const editingCat = ref<any>(null)
+const catForm = reactive<{ name: string; color: string; default_discipline_id: string | null; access_type_keys: string[] }>({
+  name: '', color: '#1E2157', default_discipline_id: null, access_type_keys: [],
+})
+// Access can also name specific PEOPLE (not just types) — the system-wide rule that a
+// permission target is a person OR a people type. Selected people are held as objects
+// (for the chips); saved as their ids.
+const catPersonSel = ref<any[]>([])
+const catPersonSuggestions = ref<any[]>([])
+async function searchCatPeople(e: { query: string }) {
+  const q = e.query?.trim()
+  if (!q) { catPersonSuggestions.value = []; return }
+  catPersonSuggestions.value = await peopleApi.list(orgId.value, { q, limit: 20 }).catch(() => [])
+}
+
+async function loadCategoryOptions() {
+  const [discs, types] = await Promise.all([
+    loadReachableDisciplines('event').catch(() => ({ groups: [], flat: [] })),
+    loadOrgTypes(orgId.value).catch(() => [] as any[]),
+  ])
+  discGroups.value = discs.groups
+  discNameById.value = Object.fromEntries(discs.flat.map((d: any) => [d.id, d.name]))
+  catPersonTypes.value = (types as any[]).filter(t => t.kind === 'person').map(t => ({ key: t.key, label: t.label }))
+}
+async function reloadCategories() {
+  categories.value = await eventsApi.categories(orgId.value)
+}
+function openCatCreate() {
+  editingCat.value = null
+  catForm.name = ''; catForm.color = '#1E2157'; catForm.default_discipline_id = null; catForm.access_type_keys = []
+  catPersonSel.value = []
+  showCatDialog.value = true
+}
+async function openCatEdit(cat: any) {
+  editingCat.value = cat
+  catForm.name = cat.name
+  catForm.color = cat.color ?? '#1E2157'
+  catForm.default_discipline_id = cat.defaultDisciplineId ?? null
+  catForm.access_type_keys = Array.isArray(cat.accessTypeKeys) ? [...cat.accessTypeKeys] : []
+  // Resolve the saved person ids back to objects so they render as chips.
+  const ids = Array.isArray(cat.accessPersonIds) ? cat.accessPersonIds : []
+  catPersonSel.value = ids.length ? await peopleApi.byIds(ids).catch(() => []) : []
+  showCatDialog.value = true
+}
+async function saveCat() {
+  if (!catForm.name.trim()) return
+  catSaving.value = true
+  try {
+    const personIds = catPersonSel.value.map((p: any) => p.id)
+    const payload = {
+      name: catForm.name.trim(), color: catForm.color,
+      defaultDisciplineId: catForm.default_discipline_id || null,
+      accessTypeKeys: catForm.access_type_keys.length ? catForm.access_type_keys : null,
+      accessPersonIds: personIds.length ? personIds : null,
+    }
+    if (editingCat.value) await eventsApi.updateCategory(editingCat.value.id, payload)
+    else await eventsApi.createCategory({ orgId: orgId.value, ...payload })
+    toast.add({ severity: 'success', summary: editingCat.value ? 'Category updated' : 'Category created', life: 2500 })
+    showCatDialog.value = false
+    await reloadCategories()
+  } catch (err: any) {
+    toast.add({ severity: 'error', summary: 'Failed to save', detail: err?.message, life: 4000 })
+  }
+  catSaving.value = false
+}
+function deleteCat(cat: any) {
+  confirm.require({
+    message: `Delete "${cat.name}"? Events using it will just be unassigned, not deleted.`,
+    header: 'Delete category', icon: 'pi pi-exclamation-triangle', acceptClass: 'p-button-danger',
+    accept: async () => {
+      await eventsApi.removeCategory(cat.id)
+      toast.add({ severity: 'success', summary: 'Category deleted', life: 2500 })
+      await reloadCategories()
+    },
+  })
+}
+function catAccessLabel(cat: any): string {
+  const keys = Array.isArray(cat.accessTypeKeys) ? cat.accessTypeKeys : []
+  const people = Array.isArray(cat.accessPersonIds) ? cat.accessPersonIds : []
+  if (!keys.length && !people.length) return 'Everyone'
+  const parts = keys.map((k: string) => catTypeLabel.value[k] ?? k)
+  if (people.length) parts.push(`${people.length} ${people.length === 1 ? 'person' : 'people'}`)
+  return parts.join(', ')
+}
+
 async function load() {
   // The org GENERAL profile, event categories, the org's forms, and the full org
   // list (for the parent-candidate hierarchy) — all via the seam.
@@ -772,6 +972,7 @@ async function resetDatabase() {
 
 onMounted(async () => {
   await load()
+  loadCategoryOptions()
   // Returning from /forms with ?form_id=… — apply it as the default and save.
   const returningId = (useRoute().query.form_id as string | undefined) ?? null
   if (returningId && returningId !== org.value.default_form_id) {

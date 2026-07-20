@@ -17,6 +17,7 @@ const { TERM_DEFS } = useTerminology()
 const { CLUB_MENU: MENU } = useClubMenu()
 const { loadDefaults, saveDefaults } = useClubTypes()
 
+const STANDARD_EVENT_CATEGORIES = ['Internal', 'Holiday Programme', 'Game', 'Administration']
 const STANDARD_TYPES = [
   { key: 'member', label: 'Member', is_access: false },
   { key: 'parent', label: 'Parent', is_access: false },
@@ -45,6 +46,8 @@ const saving = ref(false)
 const modOn = reactive<Record<string, boolean>>({})
 const dPersonTypes = ref<any[]>([])
 const dTerm = reactive<Record<string, { singular?: string; plural?: string }>>({})
+const dEventCats = ref<string[]>([])
+const newEventCat = ref('')
 const newTypeLabel = ref('')
 const configIdx = ref<number | null>(null)
 
@@ -61,7 +64,19 @@ async function load() {
   dPersonTypes.value = (d.default_person_types ?? []).map((p: any) => ({ key: p.key, label: p.label, is_access: !!p.is_access, permissions: p.permissions ?? {}, menu_items: p.menu_items ?? null, landing_path: p.landing_path ?? null }))
   for (const k of Object.keys(dTerm)) delete dTerm[k]
   Object.assign(dTerm, d.default_terminology ?? {})
+  dEventCats.value = Array.isArray(d.default_event_categories) ? [...d.default_event_categories] : []
   loading.value = false
+}
+
+function addEventCat() {
+  const name = newEventCat.value.trim(); if (!name) return
+  if (!dEventCats.value.some(c => c.toLowerCase() === name.toLowerCase())) dEventCats.value.push(name)
+  newEventCat.value = ''
+}
+function removeEventCat(i: number) { dEventCats.value.splice(i, 1) }
+function addStandardEventCats() {
+  const have = new Set(dEventCats.value.map(c => c.toLowerCase()))
+  for (const c of STANDARD_EVENT_CATEGORIES) if (!have.has(c.toLowerCase())) dEventCats.value.push(c)
 }
 
 function addStandardTypes() {
@@ -109,6 +124,7 @@ async function save() {
     default_modules: modules,
     default_person_types: types.length ? types : null,
     default_terminology: Object.keys(term).length ? term : null,
+    default_event_categories: dEventCats.value.length ? dEventCats.value : null,
   })
   saving.value = false
   toast.add({ severity: 'success', summary: 'Template saved', life: 1800 })
@@ -214,6 +230,28 @@ async function save() {
               <InputText :modelValue="dTerm[def.key]?.plural" @update:modelValue="v => setTerm(def.key, 'plural', v)" :placeholder="def.plural" class="flex-1" size="small" />
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Event categories -->
+      <div class="card p-5">
+        <div class="flex items-center justify-between mb-1">
+          <h3 class="text-sm font-semibold text-gray-800">Event categories</h3>
+          <button type="button" class="text-xs text-primary hover:underline" @click="addStandardEventCats">+ Add standard set</button>
+        </div>
+        <p class="text-xs text-gray-400 mb-3">The event categories a new club of this type starts with (e.g. Internal, Holiday Programme, Game, Administration).</p>
+        <div v-if="dEventCats.length" class="flex flex-wrap gap-2 mb-3">
+          <span v-for="(c, i) in dEventCats" :key="i" class="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full bg-gray-100 text-sm text-gray-700">
+            {{ c }}
+            <button type="button" class="text-gray-400 hover:text-red-500 w-4 h-4 flex items-center justify-center" @click="removeEventCat(i)">
+              <i class="pi pi-times text-[10px]" />
+            </button>
+          </span>
+        </div>
+        <p v-else class="text-sm text-gray-400 mb-3">No categories — the club starts with none.</p>
+        <div class="flex items-center gap-2">
+          <InputText v-model="newEventCat" placeholder="Add a category e.g. Game" class="flex-1" size="small" @keyup.enter="addEventCat" />
+          <Button label="Add" size="small" severity="secondary" outlined @click="addEventCat" />
         </div>
       </div>
 

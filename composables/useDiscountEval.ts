@@ -17,6 +17,38 @@ export interface DiscountCtx {
   fullDay: boolean             // this person booked EVERY session on at least one day
   fullWeek: boolean            // this person booked EVERY session in at least one week
   age: number | null           // this person's age (from DOB), or null
+  selectedSessionDates?: string[] // ISO start_at of this person's selected sessions (for "within a period")
+}
+
+// "N sessions/days within a period" — a rolling window of `windowDays`, or a fixed
+// date range. Counts this person's selected sessions (or the distinct days they fall
+// on) and checks whether `count` of them sit inside some window.
+function startOfDayMs(d: Date): number { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime() }
+function withinPeriodMet(v: any, ctx: DiscountCtx): boolean {
+  const count = Number(v?.count)
+  if (!count || count <= 0) return true                     // nothing asked → not a blocker
+  const unit = v?.unit === 'days' ? 'days' : 'sessions'
+  const dayMs = 86400000
+  const times = (ctx.selectedSessionDates ?? [])
+    .map(s => new Date(s)).filter(d => !isNaN(d.getTime())).map(startOfDayMs).sort((a, b) => a - b)
+  if (!times.length) return false
+  const units = unit === 'days' ? [...new Set(times)] : times   // days = distinct; sessions = every one
+  if (v?.window === 'range') {
+    const from = v?.from ? startOfDayMs(new Date(v.from)) : null
+    const to = v?.to ? startOfDayMs(new Date(v.to)) : null
+    const inRange = units.filter(t => (from == null || t >= from) && (to == null || t <= to))
+    return inRange.length >= count
+  }
+  // rolling: is there any window strictly under windowDays spanning `count` units?
+  const windowDays = Number(v?.windowDays)
+  if (!windowDays || windowDays <= 0) return false
+  const span = windowDays * dayMs
+  let lo = 0
+  for (let hi = 0; hi < units.length; hi++) {
+    while (units[hi] - units[lo] >= span) lo++
+    if (hi - lo + 1 >= count) return true
+  }
+  return false
 }
 
 function op(actual: number, operator: string, expected: any): boolean {
@@ -40,6 +72,7 @@ function conditionMet(cond: any, ctx: DiscountCtx): boolean {
     case 'registration_date_before':      return !cond.value || new Date() <= new Date(cond.value)
     case 'booked_full_day':               return ctx.fullDay
     case 'booked_full_week':              return ctx.fullWeek
+    case 'booked_units_within_period':    return withinPeriodMet(cond.value, ctx)
     case 'participant_age_between': {
       if (ctx.age == null) return false
       const min = cond.value?.min, max = cond.value?.max

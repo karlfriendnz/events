@@ -78,6 +78,10 @@
                 <span class="text-sm text-gray-500">years</span>
               </div>
             </div>
+            <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1.5 sm:gap-4">
+              <label class="text-sm font-medium text-gray-700">Gender</label>
+              <Select v-model="form.genderRestriction" :options="GENDER_RESTRICTION_OPTIONS" optionLabel="label" optionValue="value" class="w-full sm:w-56" />
+            </div>
           </div>
         </div>
 
@@ -184,16 +188,47 @@
 
     <!-- ── Step 3 · Discounts (the shared <EventDiscountDialog> system) ── -->
     <div v-show="step === 2" class="space-y-6">
+      <!-- Quick discounts — the three common presets, OFF by default. Flip one on
+           and change the amount/type inline; the pencil opens the full editor. -->
+      <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <div>
+          <p class="text-sm font-medium text-gray-700">Quick discounts</p>
+          <p class="text-xs text-gray-500 mt-0.5">Common holiday-programme deals. Turn one on and set the amount — off by default.</p>
+        </div>
+        <div class="divide-y divide-gray-100">
+          <div v-for="q in quickDiscounts" :key="q.key"
+            class="py-3.5 first:pt-0 last:pb-0 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3 min-w-0">
+              <ToggleSwitch v-model="q.enabled" />
+              <div class="min-w-0">
+                <p class="text-sm font-semibold text-gray-800">{{ q.label }}</p>
+                <p class="text-xs text-gray-500 mt-0.5">{{ q.description }}</p>
+              </div>
+            </div>
+            <div v-if="q.enabled" class="flex items-center gap-2 shrink-0">
+              <Select v-model="q.modifier_type" :options="DISCOUNT_TYPES" optionLabel="label" optionValue="value" class="w-36" />
+              <div class="flex items-center">
+                <span v-if="q.modifier_type !== 'PERCENT'" class="text-sm text-gray-500 mr-1">{{ currencySymbol }}</span>
+                <InputNumber v-model="q.modifier_value" :min="0" :max="q.modifier_type === 'PERCENT' ? 100 : undefined"
+                  :suffix="q.modifier_type === 'PERCENT' ? '%' : ''" :inputStyle="{ width: '7rem' }" />
+              </div>
+              <Button icon="pi pi-pencil" text size="small" severity="secondary" @click="editQuick(q)" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Custom discounts — anything beyond the three quick ones. -->
       <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <p class="text-sm font-medium text-gray-700">Discounts</p>
-            <p class="text-xs text-gray-500 mt-0.5">Early bird, members only, siblings, promo codes — set who qualifies. Optional.</p>
+            <p class="text-sm font-medium text-gray-700">Custom discounts</p>
+            <p class="text-xs text-gray-500 mt-0.5">Early bird, members only, promo codes — set who qualifies. Optional.</p>
           </div>
-          <Button label="Add discount" icon="pi pi-plus" size="small" severity="secondary" outlined @click="openDiscount" />
+          <Button label="Create custom discount" icon="pi pi-plus" size="small" severity="secondary" outlined @click="openDiscount" />
         </div>
         <div v-if="!form.discounts.length" class="text-center py-6 text-sm text-gray-400">
-          No discounts — everyone pays the full session fee.
+          No custom discounts yet.
         </div>
         <div v-else class="space-y-2">
           <div v-for="(d, idx) in form.discounts" :key="d.id"
@@ -238,8 +273,8 @@
         Preparing the form…
       </div>
       <FormDesigner v-else :event-id="draftEventId" :org-id="orgId"
-        :sessions="wizardSessions" :fee-line-items="wizardFeeLineItems" :discounts="form.discounts"
-        :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax"
+        :sessions="wizardSessions" :fee-line-items="wizardFeeLineItems" :discounts="activeDiscounts"
+        :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax" :gender-restriction="form.genderRestriction"
         embedded class="flex flex-col flex-1 min-h-0" />
     </div>
 
@@ -273,8 +308,8 @@
 
           <div class="border-t border-gray-100 pt-4">
             <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Discounts</p>
-            <div v-if="form.discounts.length" class="space-y-1.5">
-              <div v-for="d in form.discounts" :key="d.id" class="flex items-center justify-between gap-3 text-sm">
+            <div v-if="activeDiscounts.length" class="space-y-1.5">
+              <div v-for="d in activeDiscounts" :key="d.id" class="flex items-center justify-between gap-3 text-sm">
                 <span class="text-gray-800 truncate">{{ d.name || 'Untitled discount' }}</span>
                 <span class="text-primary font-medium shrink-0">{{ discountAmountLabel(d) }}</span>
               </div>
@@ -309,7 +344,8 @@ import { ref, reactive, computed } from 'vue'
 
 import type { LocationEntry } from '~/composables/useLocation'
 import type { FeeLineItem } from '~/composables/useFeeGroups'
-import { makeDiscountDraft, defaultProgrammeDiscounts, type DiscountDraft } from '~/composables/useEventDiscounts'
+import { makeDiscountDraft, quickProgrammeDiscounts, type DiscountDraft } from '~/composables/useEventDiscounts'
+import { GENDER_RESTRICTION_OPTIONS } from '~/composables/useEventRestrictions'
 
 const events = useEventsApi()
 const formsApi = useFormsApi()
@@ -357,6 +393,7 @@ const form = reactive({
   title: (route.query.name as string) ?? '',
   ageMin: null as number | null,
   ageMax: null as number | null,
+  genderRestriction: null as string | null,
   startDate: parseDateParam(route.query.date as string ?? null),
   endDate: parseDateParam(route.query.endDate as string ?? null),
   includeWeekends: false,
@@ -364,10 +401,22 @@ const form = reactive({
   exdates: [] as string[],           // YYYY-MM-DD, same model as the wizard's Skip-dates
   regOpen: null as Date | null,
   regClose: null as Date | null,
-  // Holiday-programme default discounts (Full day / Full week) — pre-seeded so the
-  // club just adjusts the amount or removes them.
-  discounts: defaultProgrammeDiscounts().map(d => ({ ...makeDiscountDraft(), ...d, id: crypto.randomUUID() })) as WizardDiscount[],
+  // Custom discounts (built via the full <EventDiscountDialog>). Starts empty —
+  // the three quick discounts below are the common presets; anything bespoke is
+  // added here.
+  discounts: [] as WizardDiscount[],
 })
+
+// The three QUICK discounts (Full day / Full week set-price + Sibling %). Shown
+// at the top of the Discounts step, OFF by default — the club flips one on and
+// tweaks the amount/type inline. Only enabled ones are persisted at create.
+type QuickDiscount = DiscountDraft & { id: string; key: string; label: string; description: string; enabled: boolean }
+const quickDiscounts = reactive<QuickDiscount[]>(
+  quickProgrammeDiscounts().map(q => ({
+    ...makeDiscountDraft(), ...q.preset,
+    id: crypto.randomUUID(), key: q.key, label: q.label, description: q.description, enabled: false,
+  })) as QuickDiscount[]
+)
 
 // Local Y-M-D so a skipped date matches the loop day regardless of timezone.
 function ymd(d: Date) {
@@ -536,13 +585,23 @@ const canNext = computed(() => {
 //    the event wizard / advanced editor. Rows persist to `discounts` at create. ──
 type WizardDiscount = DiscountDraft & { id: string }
 const toIsoDate = (d: Date) => new Date(d).toISOString().slice(0, 10)
-const { conditionLabel } = useEventDiscounts()
+const { conditionLabel, DISCOUNT_TYPES } = useEventDiscounts()
 // Best-discount-only policy — ON by default; persisted into the form config by
 // <FormDesigner> (shared reactive), same as the advanced editor.
 const discountSettings = reactive({ one_discount_only: true })
 const discountFlowOpen = ref(false)
 const discountEditIdx = ref<number | null>(null)
+const quickEditKey = ref<string | null>(null)
 const discountEditDraft = ref<DiscountDraft | null>(null)
+// Only the DiscountDraft fields — strips the quick-row meta (key/label/…/enabled)
+// so the dialog gets a clean draft.
+function draftOf(q: QuickDiscount): DiscountDraft {
+  const { id, key, label, description, enabled, ...draft } = q
+  return JSON.parse(JSON.stringify(draft))
+}
+// Everything that will actually apply — enabled quick discounts + custom ones.
+// Drives the form preview + summary (create-time re-filters for a valid amount).
+const activeDiscounts = computed<WizardDiscount[]>(() => [...quickDiscounts.filter(q => q.enabled), ...form.discounts])
 
 const orgCurrency = ref('NZD')
 const money = (n: number) => new Intl.NumberFormat('en-NZ', { style: 'currency', currency: orgCurrency.value || 'NZD' }).format(n)
@@ -557,22 +616,36 @@ onMounted(async () => {
 
 function openDiscount() {
   discountEditIdx.value = null
+  quickEditKey.value = null
   discountEditDraft.value = null
   discountFlowOpen.value = true
 }
 function editDiscount(idx: number) {
   discountEditIdx.value = idx
+  quickEditKey.value = null
   discountEditDraft.value = JSON.parse(JSON.stringify(form.discounts[idx]))
   discountFlowOpen.value = true
 }
+// Open the full dialog on a quick discount, for conditions/validity beyond the
+// inline amount/type. Saving from the dialog also flips the quick row on.
+function editQuick(q: QuickDiscount) {
+  discountEditIdx.value = null
+  quickEditKey.value = q.key
+  discountEditDraft.value = draftOf(q)
+  discountFlowOpen.value = true
+}
 function onDiscountSave(draft: DiscountDraft) {
-  if (discountEditIdx.value !== null) {
+  if (quickEditKey.value) {
+    const q = quickDiscounts.find(x => x.key === quickEditKey.value)
+    if (q) Object.assign(q, draft, { enabled: true })
+  } else if (discountEditIdx.value !== null) {
     const keepId = form.discounts[discountEditIdx.value].id
     form.discounts.splice(discountEditIdx.value, 1, { id: keepId, ...draft })
   } else {
     form.discounts.push({ id: crypto.randomUUID(), ...draft })
   }
   discountEditIdx.value = null
+  quickEditKey.value = null
   discountEditDraft.value = null
 }
 function discountAmountLabel(d: WizardDiscount) {
@@ -642,6 +715,7 @@ async function createEvent() {
       isProgramme: route.query.programme === '1',
       ageMin: form.ageMin ?? null,
       ageMax: form.ageMax ?? null,
+      genderRestriction: form.genderRestriction ?? null,
       // Auto-tagged from a named calendar's sole category (?category=…) when created there.
       ...(route.query.category ? { categoryId: route.query.category as string } : {}),
       // Event-level location = the first session's location (each session carries its own).
@@ -736,10 +810,13 @@ async function createEvent() {
     // per-session choices the user set in the builder point at the real sessions.
     await remapFormSessionIds(evtId, synthToReal)
 
-    // 3. Discounts — same shape + modal as the event wizard/advanced editor.
-    //    Persisted via the finances seam (discounts table is finances-owned).
-    const discountRows = form.discounts
-      .filter(d => d.name.trim() && (d.modifier_value ?? 0) > 0)
+    // 3. Discounts — the enabled QUICK discounts + any CUSTOM ones. Same shape +
+    //    modal as the event wizard/advanced editor. A set-price (REPLACE) may be
+    //    0 (a free day); % / $ off must be > 0. Persisted via the finances seam.
+    const discountValid = (d: DiscountDraft) =>
+      d.name.trim() && d.modifier_value != null && (d.modifier_type === 'REPLACE' ? d.modifier_value >= 0 : d.modifier_value > 0)
+    const discountRows = [...quickDiscounts.filter(q => q.enabled), ...form.discounts]
+      .filter(discountValid)
       .map(d => ({
         eventId: evtId,
         type: 'CODE' as const,

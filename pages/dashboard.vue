@@ -830,11 +830,12 @@ async function saveLayout() {
     const list = [...((ct?.defaultPersonTypes as any[]) ?? [])]
     const idx = list.findIndex((p: any) => p.key === templateType.value)
     if (idx >= 0) list[idx] = { ...list[idx], dashboard: next }
-    // Round-trip all three defaults (the route sets each column) so we don't wipe them.
+    // Round-trip all defaults (the route sets each column) so we don't wipe them.
     await useAdminApi().saveClubTypeDefaults(clubTypeId.value, {
       defaultModules: ct?.defaultModules ?? null,
       defaultPersonTypes: list,
       defaultTerminology: ct?.defaultTerminology ?? null,
+      defaultEventCategories: (ct as any)?.defaultEventCategories ?? null,
     })
     saving.value = false
     toast.add({ severity: 'success', summary: `Template dashboard saved`, life: 2200 })
