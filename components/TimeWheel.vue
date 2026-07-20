@@ -39,6 +39,34 @@ function pad(n: number) { return String(n).padStart(2, '0') }
 const display = computed(() =>
   props.modelValue ? props.modelValue.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '')
 
+// The trigger is ALSO a real text input — you can TYPE the time ("9:30", "930",
+// "9:30pm", "21:15") instead of scrolling. `text` mirrors the display; commitText
+// parses whatever was typed on blur/Enter.
+const text = ref('')
+watch(display, v => { text.value = v }, { immediate: true })
+function parseTyped(raw: string): Date | null {
+  const s = raw.trim().toLowerCase()
+  if (!s) return null
+  const m = s.match(/^(\d{1,2})[:. ]?(\d{2})?\s*(a\.?m\.?|p\.?m\.?|a|p)?$/)
+  if (!m) return null
+  let h = parseInt(m[1], 10); const min = m[2] ? parseInt(m[2], 10) : 0
+  if (min > 59) return null
+  const ap = m[3]?.[0]
+  if (ap === 'p' && h < 12) h += 12
+  if (ap === 'a' && h === 12) h = 0
+  if (h > 23) return null
+  const base = props.modelValue ? new Date(props.modelValue) : new Date()
+  base.setHours(h, min, 0, 0)
+  return base
+}
+function commitText() {
+  const raw = text.value
+  if (!raw.trim()) { if (props.modelValue) emit('update:modelValue', null); return }
+  const d = parseTyped(raw)
+  if (d) emit('update:modelValue', d)   // the watch reformats `text`
+  else text.value = display.value        // invalid → revert to last good value
+}
+
 function toggle(e: Event) {
   if (props.disabled) return
   const d = props.modelValue
@@ -74,10 +102,13 @@ function cancel() { op.value?.hide() }
 
 <template>
   <div class="ts-wrap">
-    <button type="button" class="ts-trigger" :class="{ 'ts-disabled': disabled }" :disabled="disabled" @click="toggle">
-      <span :class="display ? 'ts-value' : 'ts-placeholder'">{{ display || '--:--' }}</span>
-      <i class="pi pi-clock ts-icon" />
-    </button>
+    <div class="ts-trigger" :class="{ 'ts-disabled': disabled }">
+      <input type="text" class="ts-input" :value="text" :placeholder="placeholder || '--:--'" :disabled="disabled"
+        @input="text = ($event.target as HTMLInputElement).value"
+        @keydown.enter.prevent="commitText"
+        @blur="commitText" />
+      <button type="button" class="ts-clock" :disabled="disabled" tabindex="-1" @click="toggle"><i class="pi pi-clock" /></button>
+    </div>
 
     <Popover ref="op" @show="onShow">
       <div class="ts-panel">
@@ -111,11 +142,15 @@ function cancel() { op.value?.hide() }
   transition: border-color .15s, box-shadow .15s;
 }
 .ts-trigger:hover:not(.ts-disabled) { border-color: var(--brand-primary); }
-.ts-trigger:focus-visible { outline: none; border-color: var(--brand-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-primary) 22%, transparent); }
+.ts-trigger:focus-within { border-color: var(--brand-primary); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand-primary) 22%, transparent); }
 .ts-disabled { opacity: .55; cursor: not-allowed; background: #f9fafb; }
-.ts-value { font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: .03em; }
-.ts-placeholder { color: #9ca3af; }
-.ts-icon { color: #94a3b8; font-size: 1rem; }
+.ts-input {
+  flex: 1; min-width: 0; border: none; outline: none; background: transparent; padding: 0;
+  font-size: 14px; color: #1E2157; font-variant-numeric: tabular-nums; letter-spacing: .02em;
+}
+.ts-input::placeholder { color: #9ca3af; letter-spacing: normal; }
+.ts-clock { border: none; background: transparent; color: #94a3b8; cursor: pointer; padding: 0; display: flex; align-items: center; font-size: 1rem; }
+.ts-clock:hover:not(:disabled) { color: var(--brand-primary); }
 
 .ts-panel { width: 190px; padding: 2px 0 0; }
 .ts-cols { display: flex; align-items: stretch; }
