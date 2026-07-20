@@ -2194,7 +2194,9 @@ function chooseEvtFormType(mode: string) {
   if (mode === 'scratch' && !currentEvtFormProfiles.value.length) {
     const firstPerson = evtSubjectTypes.value.find(t => (t.kind || 'person') === 'person')
     if (firstPerson) addEvtProfile(firstPerson)
-    else currentEvtFormProfiles.value = [{ key: 'member', label: 'Member', min: 1, max: 1, kind: 'person', selectsOptions: true } as any]
+    // max:null (unlimited) so the "Add another person" button shows — a single-person
+    // cap here is what hid it on the basic invite.
+    else currentEvtFormProfiles.value = [{ key: 'member', label: 'Member', min: 1, max: null, kind: 'person', selectsOptions: true } as any]
   }
   persistEvtFormConfig()
   // "Invite only" (the simple, no-form, Yes/No path): let a host wizard flip the
@@ -3616,8 +3618,11 @@ defineExpose({ reload })
                       <div v-show="evtSubjectCount(subject.key) === 1 || evtInstanceOpen(subject.key, inst)"
                         class="px-4 pb-4 space-y-3"
                         :class="(evtSubjectCount(subject.key) === 1 && evtPublicPreview) ? 'pt-4' : ''">
-                        <!-- Pinned First/Last Name — always first, never draggable (people only) -->
-                        <div v-if="evtPinnedFields(subject.key).length" class="grid gap-3" :class="evtPreviewDevice === 'mobile' ? 'grid-cols-1' : 'grid-cols-2'">
+                        <!-- Pinned First/Last Name — always first, never draggable (people only).
+                             Hidden in the EMBEDDED (basic/multi wizard) builder: those events
+                             invite KNOWN people, so re-showing name fields is clutter. The live
+                             public form (<FormRenderer>) still collects them for strangers. -->
+                        <div v-if="evtPinnedFields(subject.key).length && !embedded" class="grid gap-3" :class="evtPreviewDevice === 'mobile' ? 'grid-cols-1' : 'grid-cols-2'">
                           <div v-for="field in evtPinnedFields(subject.key)" :key="field.id"
                             class="space-y-1 group rounded-lg px-2 -mx-2 transition-all"
                             :class="evtPublicPreview ? '' : 'cursor-pointer hover:ring-2 hover:ring-[#0e43a3]/20 hover:bg-blue-50/20'"
