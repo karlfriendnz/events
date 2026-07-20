@@ -65,8 +65,8 @@
         </div>
       </template>
 
-      <!-- Tabs -->
-      <div class="flex border-b border-gray-200 px-4 shrink-0">
+      <!-- Tabs — hidden until a new calendar has a name + Next (revealed) -->
+      <div v-if="editingCalendarId || calDetailsRevealed" class="flex border-b border-gray-200 px-4 shrink-0">
         <button v-for="tb in CAL_TABS" :key="tb.key"
           class="px-3 py-2 text-sm border-b-2 -mb-px whitespace-nowrap transition-colors"
           :class="calTab === tb.key ? 'border-primary text-primary font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'"
@@ -87,10 +87,16 @@
               <button v-if="editingCalendarId" class="text-xs text-red-500 hover:text-red-700 hover:underline"
                 @click="deleteCalendar">Delete</button>
             </div>
-            <InputText v-model="newCalendarName" placeholder="Calendar name" class="w-full" />
+            <InputText v-model="newCalendarName" placeholder="Calendar name" class="w-full" @keyup.enter="newCalendarName.trim() && (calDetailsRevealed = true)" />
 
-            <!-- Calendar-specific config (only when defining a NAMED calendar) -->
-            <template v-if="newCalendarName.trim() || editingCalendarId">
+            <!-- New calendar: name first, then Next reveals the rest. -->
+            <Button v-if="!editingCalendarId && !calDetailsRevealed" label="Next" icon="pi pi-arrow-right" icon-pos="right"
+              :disabled="!newCalendarName.trim()" class="mt-2 w-full justify-center"
+              style="background:var(--brand-primary);border-color:var(--brand-primary)"
+              @click="calDetailsRevealed = true" />
+
+            <!-- Calendar-specific config (revealed after Next, or when editing) -->
+            <template v-if="editingCalendarId || calDetailsRevealed">
               <div class="flex flex-col gap-1.5 mt-2">
                 <label class="text-xs font-medium text-gray-600">Categories in this calendar</label>
                 <ChipMultiSelect v-model="newCalendarCategoryIds" :options="allCategories"
@@ -132,6 +138,8 @@
             </template>
           </div>
 
+          <!-- The rest of the Display config reveals with the calendar details -->
+          <template v-if="editingCalendarId || calDetailsRevealed">
           <div class="border-t border-gray-100" />
 
           <div class="flex flex-col gap-2">
@@ -171,6 +179,7 @@
             </div>
             <ToggleSwitch v-model="calSettings.showWeekends" />
           </div>
+          </template>
         </div>
 
         <!-- ── Filter ────────────────────────────────────────────── -->
@@ -1612,6 +1621,9 @@ const newCalendarIcon = ref('')
 const newCalendarColor = ref('')
 const creatingCalendar = ref(false)
 const editingCalendarId = ref<string | null>(null)
+// New-calendar flow: show ONLY the name first; the tabs + all other config reveal after
+// "Next". Editing an existing calendar reveals everything immediately.
+const calDetailsRevealed = ref(false)
 
 // Bumped after any calendar is created/edited/deleted so the left-nav (which
 // loads its own pinned calendars in the layout) reloads them live.
@@ -1638,10 +1650,12 @@ function openCalSettings() {
     editingCalendarId.value = null
   }
   calTab.value = 'display'
+  calDetailsRevealed.value = !!editingCalendarId.value   // editing → everything; new → name first
   showCalSettings.value = true
 }
 
 function selectCalendarForEdit(cal: any) {
+  calDetailsRevealed.value = true
   newCalendarName.value = cal.name
   newCalendarCategoryIds.value = [...(cal.categoryIds ?? [])]
   newCalendarPin.value = !!cal.pin_to_nav

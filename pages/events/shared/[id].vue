@@ -60,7 +60,7 @@ watch(activeTab, t => { if (t === 'reporting' && !reportLoaded.value) loadReport
     <template v-else>
       <!-- Read-only event hero -->
       <div class="card p-0 overflow-hidden">
-        <div class="relative h-40 sm:h-56 bg-gray-100">
+        <div class="relative h-56 sm:h-[400px] bg-gray-100">
           <img v-if="event.bannerUrl" :src="event.bannerUrl" class="absolute inset-0 w-full h-full object-cover" />
           <div v-else class="absolute inset-0" style="background:linear-gradient(100deg,var(--brand-primary),var(--brand-primary-hover))" />
           <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
