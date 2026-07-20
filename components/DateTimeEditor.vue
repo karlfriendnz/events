@@ -145,6 +145,10 @@ function sameDay(a: Date | null, b: Date | null) {
   return a.toDateString() === b.toDateString()
 }
 function plusHour(d: Date) { return new Date(d.getTime() + HOUR) }
+// Compare TIME-OF-DAY only, never the full timestamp: the two time pickers each carry
+// their own calendar day, so `endTime <= startTime` on raw Dates gives wrong answers
+// across days. On a same-day event we only care about the clock time.
+function minsOfDay(d: Date) { return d.getHours() * 60 + d.getMinutes() }
 
 const endDateRef = ref()
 function onStartDate(v: Date | null) {
@@ -171,8 +175,8 @@ function onStartTime(v: Date | null) {
   syncEndTime(v, props.endTime)
 }
 function onEndTime(v: Date | null) {
-  // Reject an end that's before the start on the same day — snap it forward.
-  if (v && props.startTime && sameDay(props.startDate, props.endDate) && v <= props.startTime) {
+  // Reject an end that's at or before the start on the same day — snap it forward.
+  if (v && props.startTime && sameDay(props.startDate, props.endDate) && minsOfDay(v) <= minsOfDay(props.startTime)) {
     emit('update:endTime', plusHour(props.startTime))
     emit('change')
     return
@@ -185,7 +189,7 @@ function onEndTime(v: Date | null) {
 function syncEndTime(start: Date | null, end: Date | null, endDate: Date | null = props.endDate) {
   if (!start || !end) return
   if (!sameDay(props.startDate, endDate)) return
-  if (end > start) return
+  if (minsOfDay(end) > minsOfDay(start)) return
   emit('update:endTime', plusHour(start))
   emit('change')
 }

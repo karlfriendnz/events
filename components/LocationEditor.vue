@@ -10,13 +10,13 @@
         <button class="text-xs text-red-500 hover:text-red-700" @click="remove(locIdx)">Remove</button>
       </div>
 
-      <!-- Type selector -->
-      <div class="grid grid-cols-3 gap-2 sm:gap-3">
+      <!-- Type selector — icon left, label right (compact height) -->
+      <div class="grid gap-2 sm:gap-3" :style="{ gridTemplateColumns: `repeat(${locationTypes.length}, minmax(0, 1fr))` }">
         <div v-for="lt in locationTypes" :key="lt.value"
-          class="border-2 rounded-xl p-3 cursor-pointer flex flex-col items-center gap-2 transition-colors"
+          class="border-2 rounded-xl px-3 py-2 cursor-pointer flex items-center justify-center gap-2 transition-colors"
           :class="loc.type === lt.value ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'"
           @click="setType(locIdx, lt.value as LocationEntry['type'])">
-          <i :class="`pi ${lt.icon} text-xl`" :style="loc.type === lt.value ? 'color:#1D4ED8' : 'color:#9ca3af'" />
+          <i :class="`pi ${lt.icon} text-base`" :style="loc.type === lt.value ? 'color:#1D4ED8' : 'color:#9ca3af'" />
           <span class="text-xs font-medium" :class="loc.type === lt.value ? 'text-blue-700' : 'text-gray-600'">{{ lt.label }}</span>
         </div>
       </div>
@@ -58,10 +58,10 @@
           <template v-for="node in flatVenueTree" :key="node.id">
             <!-- Venue row -->
             <div
-              class="flex items-center gap-2 py-2.5 border-b border-gray-100 cursor-pointer transition-colors"
-              :class="effectiveAvailabilityMap[node.id] === 'booked' ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'"
+              class="flex items-center gap-2 py-2.5 border-b border-gray-100 transition-colors"
+              :class="[effectiveAvailabilityMap[node.id] === 'booked' ? 'opacity-50' : 'hover:bg-gray-50', node._hasChildren ? 'cursor-pointer' : '']"
               :style="{ paddingLeft: `${12 + node._depth * 20}px`, paddingRight: '12px' }"
-              @click="effectiveAvailabilityMap[node.id] !== 'booked' && toggleVenue(locIdx, node.id)">
+              @click="node._hasChildren && toggleExpand(node.id)">
               <button v-if="node._hasChildren"
                 class="w-4 h-4 flex items-center justify-center text-gray-400 hover:text-gray-700 shrink-0"
                 @click.stop="toggleExpand(node.id)">
@@ -77,9 +77,8 @@
                 <i v-if="loc.bookable_ids.includes(node.id)" class="pi pi-check text-white" style="font-size:10px" />
                 <span v-else-if="isPartial(loc, node.id)" class="block w-2 h-0.5 bg-white rounded-full" />
               </span>
-              <span class="flex-1 text-sm"
-                :class="node._depth === 0 ? 'font-semibold text-gray-800' : 'text-gray-700'"
-                @click.stop="effectiveAvailabilityMap[node.id] !== 'booked' && toggleVenue(locIdx, node.id)">{{ node.name }}</span>
+              <span class="flex-1 text-sm select-none"
+                :class="node._depth === 0 ? 'font-semibold text-gray-800' : 'text-gray-700'">{{ node.name }}</span>
               <span v-if="effectiveAvailabilityMap[node.id]"
                 class="text-xs px-2 py-0.5 rounded-full font-medium shrink-0"
                 :class="effectiveAvailabilityMap[node.id] === 'available' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'">
@@ -159,15 +158,21 @@ const emit = defineEmits<{
   'update:summary': [string]
 }>()
 
-const locationTypes = [
-  { value: 'ADDRESS', label: 'Address', icon: 'pi-map-marker' },
-  { value: 'BOOKABLE', label: 'Venue', icon: 'pi-building' },
-  { value: 'ONLINE', label: 'Online', icon: 'pi-video' },
-]
-
 // ---- Bookables ----
 const api = useBookingsApi()
 const allBookables = ref<any[]>([])
+
+// Venue is the FIRST option when the club has venues; hidden entirely when it doesn't
+// (nothing to pick). Address + Online always available.
+const locationTypes = computed(() => {
+  const rest = [
+    { value: 'ADDRESS', label: 'Address', icon: 'pi-map-marker' },
+    { value: 'ONLINE', label: 'Online', icon: 'pi-video' },
+  ]
+  return allBookables.value.length
+    ? [{ value: 'BOOKABLE', label: 'Venue', icon: 'pi-building' }, ...rest]
+    : rest
+})
 const bookablesLoading = ref(false)
 const expandedIds = reactive<Record<string, boolean>>({})
 
@@ -254,6 +259,11 @@ async function saveNewVenue() {
 }
 
 function initExpanded() {
+  // Open to the first child level by default — expand every top-level venue so its
+  // children are visible on first look.
+  for (const b of allBookables.value) {
+    if (!b.parent_id) expandedIds[b.id] = true
+  }
   const selectedIds = props.modelValue
     .filter(l => l.type === 'BOOKABLE')
     .flatMap(l => l.bookable_ids ?? [])
