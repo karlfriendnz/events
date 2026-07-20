@@ -63,7 +63,7 @@ async function ensureOptions() {
     .filter((t: any) => t.kind !== 'entity')
     .map((t: any) => ({ id: t.id, label: t.label }))
   groups.value = (grps as any[])
-    .filter(g => g.kind !== 'membership')
+    .filter(g => !isMembershipGroup(g))
     .map(g => ({ id: g.id, name: g.name, color: g.color }))
   loaded.value = true
 }

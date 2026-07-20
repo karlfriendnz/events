@@ -33,11 +33,13 @@ const codesById = ref<Record<string, any>>({})
 // at the active site.
 const { activeLocationId: lensId, activeLocation: lensLocation } = useActiveLocation()
 const lensHintName = computed(() => lensLocation.value?.name ?? null)
+// A membership shows if it's sold everywhere (no locations) or at the active
+// site. Shared by the desktop sections AND the mobile card list.
+const visibleRows = computed(() => rows.value.filter(r => !lensId.value || !r.locationIds.length || r.locationIds.includes(lensId.value)))
 const sections = computed(() => {
   const byCode: Record<string, Row[]> = {}
   const loose: Row[] = []
-  const visible = rows.value.filter(r => !lensId.value || !r.locationIds.length || r.locationIds.includes(lensId.value))
-  for (const r of visible) (r.codeId ? (byCode[r.codeId] ??= []).push(r) : loose.push(r))
+  for (const r of visibleRows.value) (r.codeId ? (byCode[r.codeId] ??= []).push(r) : loose.push(r))
   const out = Object.entries(byCode).map(([codeId, list]) => ({
     codeId, name: codesById.value[codeId]?.name ?? 'Programme', color: codesById.value[codeId]?.color ?? null, list,
   })).sort((a, b) => a.name.localeCompare(b.name))
@@ -57,7 +59,7 @@ async function load() {
     gc.loadCodes(),
   ])
   const groups = allGroups
-    .filter(g => g.kind === 'membership')
+    .filter(g => isMembershipGroup(g))
     .sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name))
   codesById.value = Object.fromEntries((codes ?? []).map((c: any) => [c.id, c]))
   const memGroupIds = new Set(groups.map(g => g.id))
@@ -311,8 +313,8 @@ async function create() {
     </div>
 
     <!-- Mobile cards -->
-    <div v-if="!loading && rows.length" class="md:hidden bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
-      <NuxtLink v-for="r in rows" :key="r.id" :to="`/memberships/${r.id}`" class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50">
+    <div v-if="!loading && visibleRows.length" class="md:hidden bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
+      <NuxtLink v-for="r in visibleRows" :key="r.id" :to="`/memberships/${r.id}`" class="flex items-center gap-3 px-4 py-3 hover:bg-gray-50">
         <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: r.color || '#94a3b8' }" />
         <div class="flex-1 min-w-0">
           <p class="text-sm font-semibold text-gray-900 truncate">{{ r.name }}</p>

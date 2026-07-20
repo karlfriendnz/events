@@ -17,8 +17,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
   // by email, so a member with no login must still be able to reply) and the
   // website calendar embed (/embed/*, which a club iframes into its own site).
   // Everything else requires a login.
+  // Self-check-in (/events/:id/check-in) is scanned from a printed QR at the door, so
+  // it must work without a login — but ONLY that exact leaf, never the rest of /events.
+  const isEventCheckIn = to.path.startsWith('/events/') && to.path.endsWith('/check-in')
   const isPublic = to.path.startsWith('/book') || to.path.startsWith('/r/') || to.path.startsWith('/rsvp')
-    || to.path.startsWith('/embed')
+    || to.path.startsWith('/embed') || isEventCheckIn
     || to.path === '/set-password' || to.path === '/clubs'
   if (!user.value && to.path !== '/login' && !isPublic) {
     return navigateTo('/login')

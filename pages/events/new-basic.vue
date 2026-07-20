@@ -469,7 +469,7 @@
           <!-- flex column + definite height so FormDesigner's absolute two-panel
                layout resolves (otherwise it collapses to nothing). -->
           <div v-else class="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col" style="height:70vh; min-height:560px">
-            <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax" :gender-restriction="form.genderRestriction" embedded class="flex-1 min-h-0" />
+            <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax" :gender-restriction="form.genderRestriction" embedded class="flex-1 min-h-0" @invite-only="setInviteOnly" />
           </div>
         </div>
 
@@ -881,7 +881,9 @@ const publicOptions = [
 // wouldn't tell you who turned up. Opening the event to them forces the form on.
 // True once <DisciplineLinker> reports it has nothing to link — the Discipline column
 // is then hidden and Category takes the full row.
-const disciplineEmpty = ref(false)
+// Default true so Category/Discipline start as one column and don't flash to
+// two before <DisciplineLinker> mounts (v-if=draftEventId) and reports back.
+const disciplineEmpty = ref(true)
 const attendeeAction = ref<'rsvp' | 'form'>('rsvp')
 
 // RSVP is disabled (not hidden) while the event is public, so the choice stays
@@ -904,6 +906,18 @@ function setInvitePublic(v: boolean) {
   form.is_public = v
   if (v) attendeeAction.value = 'form'             // strangers must identify themselves
   form.use_registration_form = v || attendeeAction.value === 'form'
+}
+
+// "Invite only" — the pure invite path: no strangers (is_public off) and no form at
+// all. RSVP means the answer IS the invitee's status (written at /rsvp/:event/:person),
+// so this reuses the existing RSVP path — use_registration_form stays false, the
+// Registration-form step is gated out, and saveEvent() never writes a form_id (it only
+// ever clears it). Forms' audience chooser calls this when "Invite only" is picked.
+function setInviteOnly() {
+  invitePublic.value = false
+  form.is_public = false
+  attendeeAction.value = 'rsvp'
+  form.use_registration_form = false
 }
 
 // Step 1 needs a name AND a valid date before you can move on (or save). A date
@@ -1464,6 +1478,7 @@ async function saveEvent() {
           modifierType: d.modifier_type,
           applyTo: d.apply_to,
           conditions: JSON.parse(JSON.stringify(d.conditions.filter(c => c.key))),
+          validFrom: d.valid_from_type === 'custom' && d.valid_from ? toIsoDate(d.valid_from) : null,
           expiresAt: d.expires_type === 'custom' && d.expires_at ? toIsoDate(d.expires_at) : null,
         }))
       for (const dr of discountRows) await financesApi.createDiscount(dr as any)

@@ -495,7 +495,9 @@ const steps = [
 const draftEventId = ref<string | null>(null)
 // Hide the Discipline column (Category takes the full row) when the governing body
 // defines no disciplines that apply to an event.
-const disciplineEmpty = ref(false)
+// Default true so Category/Discipline start as one column and don't flash to
+// two before <DisciplineLinker> mounts (v-if=draftEventId) and reports back.
+const disciplineEmpty = ref(true)
 
 async function ensureDraft() {
   if (draftEventId.value) return

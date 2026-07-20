@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { evaluateCondition } from '../../composables/useBookingDiscounts'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
@@ -93,6 +94,72 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, message: 'Slot is no longer available — please pick a different time.' })
   }
 
+  // H3 — re-verify any claimed booking discount server-side. The client sends a
+  // discount id + amount; we never trust that the discount actually APPLIES. Load
+  // the row and confirm it's active, inside its validity window, in scope for this
+  // activity/mode, and that the person/time conditions still pass. If any check
+  // fails, drop the discount (the booking still proceeds). A true amount recompute
+  // isn't possible here — bookings carry no price column, so the base total lives
+  // only on the client — but eligibility (the forge-proof part) is enforced, and the
+  // amount is clamped ≥ 0. Total-based (min_total) + data we don't hold
+  // (postcode / member_years) are left to the client's own check.
+  let verifiedDiscountId: string | null = null
+  let verifiedDiscountAmount: number | null = null
+  if (bookingDiscountId) {
+    const { data: disc } = await supabase
+      .from('booking_discounts')
+      .select('id, is_active, valid_from, valid_until, conditions')
+      .eq('id', bookingDiscountId)
+      .eq('org_id', bookable.org_id)
+      .maybeSingle()
+    let ok = !!disc && disc.is_active === true
+    const now = new Date()
+    if (ok && disc!.valid_from && new Date(disc!.valid_from as any) > now) ok = false
+    if (ok && disc!.valid_until && new Date(disc!.valid_until as any) < now) ok = false
+    // Scope — empty on both join tables = all activities/modes.
+    if (ok) {
+      const [{ data: actRows }, { data: modeRows }] = await Promise.all([
+        supabase.from('booking_discount_activities').select('activity_id').eq('discount_id', bookingDiscountId),
+        supabase.from('booking_discount_activity_modes').select('activity_mode_id').eq('discount_id', bookingDiscountId),
+      ])
+      const actIds = (actRows ?? []).map((r: any) => r.activity_id)
+      const modeIds = (modeRows ?? []).map((r: any) => r.activity_mode_id)
+      if (actIds.length || modeIds.length) {
+        const actOk = activityId ? actIds.includes(activityId) : false
+        const modeOk = activityModeId ? modeIds.includes(activityModeId) : false
+        if (!actOk && !modeOk) ok = false
+      }
+    }
+    // Conditions — re-check the ones derivable from the request + the subject person.
+    if (ok && Array.isArray(disc!.conditions) && disc!.conditions.length) {
+      let person: any = null
+      if (subjectPersonId) {
+        const { data: p } = await supabase.from('persons')
+          .select('dob, gender, membership_type').eq('id', subjectPersonId).maybeSingle()
+        person = p || null
+        if (person) {
+          const { data: gm } = await supabase.from('member_group_memberships')
+            .select('group_id').eq('person_id', subjectPersonId)
+          person.group_ids = (gm ?? []).map((r: any) => r.group_id)
+        }
+      }
+      const ctx = {
+        activityId: activityId || null, activityModeId: activityModeId || null,
+        startAt: new Date(startAt), endAt: new Date(endAt),
+        attendeeCount: attendeeCount ?? null, bookingTotal: 0, addonsTotal: 0, person,
+      }
+      const SKIP = new Set(['min_total', 'postcode', 'member_years'])
+      for (const c of disc!.conditions as any[]) {
+        if (SKIP.has(c?.key)) continue
+        if (!evaluateCondition(c, ctx as any)) { ok = false; break }
+      }
+    }
+    if (ok) {
+      verifiedDiscountId = bookingDiscountId
+      verifiedDiscountAmount = Math.max(0, Number(discountAmount) || 0)
+    }
+  }
+
   // Insert primary first, then children (each linked back via
   // parent_booking_id). The contact + addon payload is identical across
   // all rows so the staff calendar shows one logical booking per slot.
@@ -110,8 +177,8 @@ export default defineEventHandler(async (event) => {
     contact_email: contactEmail,
     contact_phone: contactPhone || null,
     is_all_day: false,
-    booking_discount_id: bookingDiscountId || null,
-    discount_amount: discountAmount ?? null,
+    booking_discount_id: verifiedDiscountId,
+    discount_amount: verifiedDiscountAmount,
     custom_fields: customFields ?? {},
     subject_person_id: subjectPersonId || null,
   }

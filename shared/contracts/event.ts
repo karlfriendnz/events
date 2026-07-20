@@ -313,6 +313,24 @@ export type InviteeForPerson = z.infer<typeof inviteeForPersonSchema>
 
 export const inviteeForPersonListSchema = z.array(inviteeForPersonSchema)
 
+// ── Event org (club) invitees ──
+// Inviting a whole affiliated CLUB to an event (governing-org "Clubs" tab). A club
+// invitee is neither a person nor a group — kept first-class so "this club is
+// invited" is a stored fact, not a fan-out. (migration 280 / mysql 0004)
+export const eventOrgInviteeSchema = z.object({
+  id: z.string(),
+  eventId: z.string(),
+  orgId: z.string(),
+  invitedByOrgId: z.string().nullable(),
+  status: z.string(),
+  invitedAt: z.string().nullable(),
+  updatedAt: z.string().nullable(),
+})
+export type EventOrgInvitee = z.infer<typeof eventOrgInviteeSchema>
+export const eventOrgInviteeWithNameSchema = eventOrgInviteeSchema.extend({ orgName: z.string().nullable() })
+export type EventOrgInviteeWithName = z.infer<typeof eventOrgInviteeWithNameSchema>
+export const eventOrgInviteeListSchema = z.array(eventOrgInviteeWithNameSchema)
+
 // ── Fee components ──
 // A named fee line on an event OR a session (exactly one of eventId/sessionId is set;
 // session fees are keyed by session_id, NOT event_id). Decimal money → string|number.

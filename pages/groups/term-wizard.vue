@@ -531,6 +531,7 @@ const gf = useGroupFees()
 const groupsApi = useGroupsApi()
 const membershipsApi = useMembershipsApi()
 const peopleApi = usePeopleApi()
+const scoped = useScopedRoles()
 
 // A camelCase OrgTerm (from the seam) → this page's snake_case OrgTerm.
 function termCamelToSnake(t: any): OrgTerm {
@@ -590,7 +591,24 @@ const renames = reactive<Record<string, string>>({})
 // moving to the next. Dirty classes write their rows onto their clone at run.
 // Items use the standard FeeLineItem shape so <FeeLineItemsTable> edits them.
 type WizFeeItem = { id: string; name: string; xero_code: string; amount: number | null; _deleted?: boolean }
-type FeeRow = { key: number; name: string; items: WizFeeItem[]; initName?: string; initTotal?: number | null }
+// The source option's charging model (fee_type + its type-specific fields). The
+// wizard edits only names + line-item amounts, so this rides along untouched and
+// is written back at run() — a carried Monthly/Instalment/Concession fee keeps
+// its type instead of being flattened to a one-off upfront charge.
+type FeeMeta = {
+  fee_type: import('~/composables/useGroupFees').FeeType
+  period_unit: 'week' | 'month' | 'year' | null
+  period_count: number
+  auto_renew: boolean
+  instalment_count: number | null
+  session_count: number | null
+  prorata: boolean
+  due_date: string | null
+  deposit_percent: number | null
+  description: string | null
+  status: string
+}
+type FeeRow = { key: number; name: string; items: WizFeeItem[]; initName?: string; initTotal?: number | null; meta?: FeeMeta }
 let feeRowKey = 1
 const feeOptRows = reactive<Record<string, FeeRow[]>>({})   // by class id
 const feeDirtyMap = reactive<Record<string, boolean>>({})   // by class id
@@ -855,8 +873,12 @@ watch(termChoice, async () => {
   pickedTermRegCount.value = 0
   const ids = new Set((await groupsApi.list(orgId.value)).filter(g => g.termId === t.id).map(g => g.id))
   if (ids.size) {
+    await scoped.loadRoleDefs()
     const mems = await groupsApi.membershipsByOrg(orgId.value)
-    const count = mems.filter(m => ids.has(m.groupId)).length
+    // Only actual MEMBERS lock the term's dates — staff (coaches/managers) being
+    // assigned isn't "people have registered".
+    const count = mems.filter(m => ids.has(m.groupId)
+      && !scoped.isStaff('group', scoped.normalizeRoles('group', (m as any).roles, (m as any).role))).length
     pickedTermRegCount.value = count
     pickedTermLocked.value = count > 0
   }
@@ -1075,6 +1097,20 @@ async function load() {
           const row: FeeRow = {
             key: feeRowKey++, name: o.name ?? '',
             items: items.length ? items : [{ id: `wf-${feeRowKey++}`, name: '', xero_code: '', amount: 0 }],
+            // Carry the source option's charging model through untouched.
+            meta: {
+              fee_type: o.fee_type ?? 'upfront',
+              period_unit: o.period_unit ?? null,
+              period_count: o.period_count ?? 1,
+              auto_renew: !!o.auto_renew,
+              instalment_count: o.instalment_count ?? null,
+              session_count: o.session_count ?? null,
+              prorata: !!o.prorata,
+              due_date: o.due_date ?? null,
+              deposit_percent: o.deposit_percent ?? null,
+              description: o.description ?? null,
+              status: o.status ?? 'active',
+            },
           }
           // Remember the carried values so edits can show "was $X" subtly.
           row.initName = row.name
@@ -1201,8 +1237,10 @@ async function run() {
     }
 
     // 3) Fees — classes whose rows were touched get their cloned fee options
-    //    REPLACED by the rows (each row = one upfront fee, with its Xero code);
-    //    untouched classes keep the carried options exactly as they were.
+    //    REPLACED by the rows, each keeping its ORIGINAL charging model (Monthly /
+    //    Instalment / Concession / Upfront) via the row's carried `meta`; a
+    //    wizard-added row with no meta defaults to a one-off upfront fee.
+    //    Untouched classes keep the carried options exactly as they were.
     const dirty = classList.value.filter(g => included[g.id] && feeDirtyMap[g.id])
     if (dirty.length) {
       for (const g of dirty) {
@@ -1212,12 +1250,14 @@ async function run() {
           r.name.trim() || r.items.some(it => it.amount != null || it.name.trim()))
         await gf.saveFeeOptions(cloneId, rows.map((r, i) => {
           const name = r.name.trim() || 'Term fee'
+          const m = r.meta
           return {
-            id: '', name, fee_type: 'upfront',
-            period_unit: null, period_count: null, auto_renew: false,
-            instalment_count: null, session_count: null, prorata: false,
-            due_date: null, deposit_percent: null, description: null,
-            sort_order: i, status: 'active',
+            id: '', name,
+            fee_type: m?.fee_type ?? 'upfront',
+            period_unit: m?.period_unit ?? null, period_count: m?.period_count ?? 1, auto_renew: m?.auto_renew ?? false,
+            instalment_count: m?.instalment_count ?? null, session_count: m?.session_count ?? null, prorata: m?.prorata ?? false,
+            due_date: m?.due_date ?? null, deposit_percent: m?.deposit_percent ?? null, description: m?.description ?? null,
+            sort_order: i, status: m?.status ?? 'active',
             items: r.items
               .filter(it => !it._deleted && (it.amount != null || it.name.trim()))
               .map((it, j) => ({ id: '', name: it.name.trim() || name, amount: it.amount ?? 0, account: it.xero_code.trim() || null, sort_order: j } as any)),

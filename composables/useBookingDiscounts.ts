@@ -64,7 +64,10 @@ function cmp(op: string, actual: number, expected: any): boolean {
   return false
 }
 
-function evaluateCondition(c: DiscountCondition, ctx: BookingContext): boolean {
+// Exported (pure — no Nuxt runtime) so server/api/public-booking can re-verify a
+// claimed discount server-side instead of trusting the client. Mirrors the
+// useEventTokens pattern (one definition, imported by both client and server).
+export function evaluateCondition(c: DiscountCondition, ctx: BookingContext): boolean {
   const { key, operator, value } = c
   if (!key || !operator) return true
 
@@ -127,7 +130,7 @@ function evaluateCondition(c: DiscountCondition, ctx: BookingContext): boolean {
   }
 }
 
-function amountForDiscount(d: BookingDiscount, ctx: BookingContext): number {
+export function amountForDiscount(d: BookingDiscount, ctx: BookingContext): number {
   const base = d.apply_to === 'BOOKING' ? ctx.bookingTotal
     : d.apply_to === 'ADDONS' ? ctx.addonsTotal
     : ctx.bookingTotal + ctx.addonsTotal

@@ -48,6 +48,10 @@ export const APPLY_TO_OPTIONS = [
 
 // Config-driven condition system — each entry maps to {key, operator, value} in JSONB.
 export const CONDITION_DEFS: Record<string, { label: string; group: string; operators: string[]; valueType: string; options?: string[] }> = {
+  // Age min/max are NOT offered in the picker (see ACTIVE_CONDITION_KEYS) —
+  // `participant_age_between` with an open min OR max subsumes both, so they were
+  // redundant. Kept here (and their eval cases in useDiscountEval) so any legacy
+  // stored rows still render + evaluate.
   participant_age_min:                      { label: 'Participant min age',              group: 'Participant',   operators: ['>=', '>'],            valueType: 'number' },
   participant_age_max:                      { label: 'Participant max age',              group: 'Participant',   operators: ['<=', '<'],            valueType: 'number' },
   participant_age_between:                  { label: 'Participant age range',            group: 'Participant',   operators: ['between'],            valueType: 'range'  },
@@ -75,7 +79,6 @@ export const CONDITION_DEFS: Record<string, { label: string; group: string; oper
   day_index:                                { label: 'Event day number',                 group: 'Event/Session', operators: ['in', 'not_in'],       valueType: 'array'  },
   usage_limit_per_discount:                 { label: 'Total uses cap',                   group: 'Limits',        operators: ['<=', '<'],            valueType: 'number' },
   usage_limit_per_participant:              { label: 'Per-person uses cap',              group: 'Limits',        operators: ['<=', '<'],            valueType: 'number' },
-  combinable_with_other_discounts:          { label: 'Combinable with other discounts',  group: 'Limits',        operators: ['is_true', 'is_false'], valueType: 'boolean'},
   // Cross-event eligibility — "if this person is already registered for one of
   // these events, give them the discount". Stored as an array of event ids in
   // cond.value; evaluated at registration time against the registrations table.

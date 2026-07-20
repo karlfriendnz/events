@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
+import { applicableDiscounts, aggregateDiscountLines, discountActive } from '../../composables/useDiscountEval'
+import { ageFromDob } from '../../composables/useAge'
 
 /**
  * Generic, context-agnostic registration-form submission endpoint.
@@ -18,6 +20,9 @@ import { createClient } from '@supabase/supabase-js'
 interface Instance {
   first_name?: string; last_name?: string; email?: string; phone?: string
   fields?: Record<string, any>; sessions?: string[]; fee?: number
+  // fieldList = the authoritative id-keyed answers (so duplicate labels never merge).
+  // `fields` (label-keyed) is kept for a human-readable record + back-compat.
+  fieldList?: { id?: string | null; label: string; connected_to?: string | null; account?: string | null; value: any }[]
   fee_option_id?: string | null   // group fee options — the "how do you want to pay" pick
   groups?: { group_id: string; fee_option_id?: string | null }[]  // form-context class picks
 }
@@ -44,12 +49,14 @@ export default defineEventHandler(async (event) => {
   // ── Resolve org + a human label for the context entity (org derived server-side) ──
   let orgId: string | null = null
   let contextName = ''
+  let eventStartAt: string | null = null   // ages a registrant for discount rules (C1)
+  let oneDiscountOnly = false               // form.discountSettings.one_discount_only (C1)
   if (context.type === 'event' && context.id) {
     const { data: ev } = await supabase.from('events')
-      .select('id, org_id, title, status, hold_spot_enabled').eq('id', context.id).maybeSingle()
+      .select('id, org_id, title, status, hold_spot_enabled, start_at').eq('id', context.id).maybeSingle()
     if (!ev) throw createError({ statusCode: 404, message: 'Event not found' })
     if (ev.status === 'CANCELLED' || ev.status === 'ARCHIVED') throw createError({ statusCode: 409, message: 'Registrations are closed for this event.' })
-    orgId = ev.org_id; contextName = ev.title
+    orgId = ev.org_id; contextName = ev.title; eventStartAt = ev.start_at ?? null
   } else if (context.type === 'group' && context.id) {
     const { data: g } = await supabase.from('member_groups').select('id, org_id, name').eq('id', context.id).maybeSingle()
     if (!g) throw createError({ statusCode: 404, message: 'Group not found' })
@@ -105,6 +112,7 @@ export default defineEventHandler(async (event) => {
   if (effectiveFormId) {
     const { data: fr } = await supabase.from('registration_forms').select('config').eq('id', effectiveFormId).maybeSingle()
     const cfg = (fr?.config ?? {}) as any
+    oneDiscountOnly = !!cfg.discountSettings?.one_discount_only
     for (const fields of Object.values(cfg.groupFields ?? {}) as any[]) {
       for (const f of (fields ?? [])) if (f?.label) fieldConn[f.label] = f.connected_to ?? 'none'
     }
@@ -118,6 +126,13 @@ export default defineEventHandler(async (event) => {
     return !!labelToDefId[label]   // unset → only if it's a defined org/NSO field
   }
 
+  // Read a labelled answer off an instance (id-keyed fieldList first, else the
+  // label-keyed fields object) — used by the C1 discount recompute (e.g. DOB → age).
+  function instVal(inst: Instance, label: string): any {
+    if (Array.isArray(inst.fieldList)) { const e = inst.fieldList.find(x => x.label === label); return e ? e.value : undefined }
+    return (inst.fields ?? {})[label]
+  }
+
   // ── Find-or-create a person per person-kind instance, merging field answers ──
   async function upsertPerson(inst: Instance): Promise<string | null> {
     const first = (inst.first_name || '').trim()
@@ -125,17 +140,26 @@ export default defineEventHandler(async (event) => {
     const email = (inst.email || '').trim().toLowerCase()
     if (!first && !last && !email) return null  // nothing to identify a person by
 
-    const raw = inst.fields ?? {}
-    const dob = raw['Date of Birth'] || null
-    const gender = GENDER_MAP[raw['Gender']] ?? (raw['Gender'] ? 'UNSPECIFIED' : null)
-    // Translate PROFILE-connected answers → definition-id-keyed custom_fields.
-    // Event-connected answers are deliberately dropped here — they live on the
-    // registration (form_answers / form_submissions.answers), not on the person.
+    // Prefer the id-keyed fieldList (two fields sharing a label stay distinct);
+    // fall back to the label-keyed `fields` object for older/legacy payloads.
+    const entries: { id: string | null; label: string; conn: string | null; value: any }[] =
+      Array.isArray(inst.fieldList)
+        ? inst.fieldList.map(e => ({ id: e.id ?? null, label: e.label, conn: e.connected_to ?? null, value: e.value }))
+        : Object.entries(inst.fields ?? {}).map(([label, value]) => ({ id: null, label, conn: null, value }))
+
+    const dob = entries.find(e => e.label === 'Date of Birth')?.value || null
+    const gRaw = entries.find(e => e.label === 'Gender')?.value
+    const gender = GENDER_MAP[gRaw] ?? (gRaw ? 'UNSPECIFIED' : null)
+    // Translate PROFILE-connected answers → custom_fields, keyed by field-definition
+    // id when we know it, else the field's own stable id (NOT its label — that's what
+    // let duplicate labels overwrite each other). Event-connected answers are dropped
+    // here: they live on the registration (form_answers / form_submissions.answers).
     const customFields: Record<string, any> = {}
-    for (const [label, val] of Object.entries(raw)) {
-      if (CORE_LABELS.has(label)) continue
-      if (!goesToProfile(label)) continue
-      customFields[labelToDefId[label] ?? label] = val
+    for (const e of entries) {
+      if (CORE_LABELS.has(e.label)) continue
+      const toProfile = e.conn === 'profile' ? true : e.conn === 'event' ? false : goesToProfile(e.label)
+      if (!toProfile) continue
+      customFields[labelToDefId[e.label] ?? e.id ?? e.label] = e.value
     }
 
     if (email) {
@@ -165,6 +189,7 @@ export default defineEventHandler(async (event) => {
   const personIds: string[] = []
   const feeOptionByPerson: Record<string, string> = {}
   const groupPicksByPerson: Record<string, { group_id: string; fee_option_id?: string | null }[]> = {}
+  const instancePid = new Map<Instance, string>()   // instance → its person id (C1 membership status)
   let primaryPersonId: string | null = null
   for (const s of subjects) {
     if ((s.kind ?? 'person') === 'entity') continue
@@ -172,6 +197,7 @@ export default defineEventHandler(async (event) => {
       const pid = await upsertPerson(inst)
       if (pid) {
         personIds.push(pid)
+        instancePid.set(inst, pid)
         if (inst.fee_option_id) feeOptionByPerson[pid] = inst.fee_option_id
         if (Array.isArray(inst.groups) && inst.groups.length) groupPicksByPerson[pid] = inst.groups
         if (!primaryPersonId) primaryPersonId = pid
@@ -231,13 +257,107 @@ export default defineEventHandler(async (event) => {
     return { waitlisted: false }
   }
 
-  const total = Number(totals?.total) || 0
+  // C1: default to the client's numbers, but for an EVENT we recompute both from
+  // authoritative prices + the real discount rules below and never trust the body.
+  let total = Number(totals?.total) || 0
+  let discountTotal = Number(totals?.discount) || 0
   const fullAnswers = { subjects, payment, termsAccepted, totals }
   let registrationId: string | null = null
   let waitlisted = false
 
   // ── Context-specific materialisation ──
   if (context.type === 'event') {
+    // ── C1: recompute money SERVER-SIDE — never trust the client body totals ──
+    // Prices come from the event's own sessions + fee_components; discounts from the
+    // discounts table (with their real conditions), evaluated per registrant.
+    {
+      const { data: sessRows } = await supabase.from('sessions')
+        .select('id, is_required, start_at').eq('event_id', context.id)
+      const realIds = new Set((sessRows ?? []).map((s: any) => s.id))
+      const requiredIds = (sessRows ?? []).filter((s: any) => s.is_required).map((s: any) => s.id)
+      const startById: Record<string, string | null> = {}
+      for (const s of (sessRows ?? [])) startById[s.id] = s.start_at ?? null
+
+      // Event-level fee lines (session_id null) + per-session components. Only our own
+      // session ids feed the .in() — client ids are intersected with realIds, never
+      // interpolated into a query (no filter injection from the submitted payload).
+      const { data: eventLineRows } = await supabase.from('fee_components')
+        .select('amount').eq('event_id', context.id).is('session_id', null)
+      const eventLines = (eventLineRows ?? []).map((f: any) => Number(f.amount) || 0)
+      const eventBase = eventLines.reduce((a, b) => a + b, 0)
+      const feeBySession: Record<string, number> = {}
+      if (realIds.size) {
+        const { data: sfRows } = await supabase.from('fee_components').select('amount, session_id').in('session_id', [...realIds])
+        for (const f of (sfRows ?? [])) if (f.session_id) feeBySession[f.session_id] = (feeBySession[f.session_id] ?? 0) + (Number(f.amount) || 0)
+      }
+
+      const dayKeyOf = (iso: string | null) => iso ? new Date(iso).toDateString() : ''
+      const weekKeyOf = (iso: string | null) => {
+        if (!iso) return ''
+        const d = new Date(iso); const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+        t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7))
+        const ys = new Date(Date.UTC(t.getUTCFullYear(), 0, 1))
+        return t.getUTCFullYear() + '-' + Math.ceil((((t.getTime() - ys.getTime()) / 86400000) + 1) / 7)
+      }
+      const sessionsByDay: Record<string, string[]> = {}
+      const sessionsByWeek: Record<string, string[]> = {}
+      for (const s of (sessRows ?? [])) {
+        const dk = dayKeyOf(s.start_at); const wk = weekKeyOf(s.start_at)
+        if (dk) (sessionsByDay[dk] ??= []).push(s.id)
+        if (wk) (sessionsByWeek[wk] ??= []).push(s.id)
+      }
+
+      const { data: discRows } = await supabase.from('discounts')
+        .select('name, form_text, modifier_type, modifier_value, conditions, apply_to, valid_from, expires_at, is_active')
+        .eq('event_id', context.id)
+      const activeDiscounts = (discRows ?? []).filter((d: any) => discountActive(d))
+
+      // Membership status per registrant (from persons.membership_type) + the event's
+      // current registration count, for the member / first-N discount conditions.
+      const statusByPid: Record<string, string> = {}
+      if (personIds.length) {
+        const { data: mrows } = await supabase.from('persons').select('id, membership_type').in('id', personIds)
+        for (const p of (mrows ?? [])) statusByPid[p.id] = p.membership_type ? 'member' : 'non_member'
+      }
+      const { count: existingRegs } = await supabase.from('registrations')
+        .select('id', { count: 'exact', head: true }).eq('event_id', context.id)
+
+      const personInstances: Instance[] = []
+      for (const s of subjects) { if ((s.kind ?? 'person') === 'entity') continue; for (const inst of s.instances) personInstances.push(inst) }
+      const refDate = eventStartAt ? new Date(eventStartAt) : new Date()
+
+      let gross = 0
+      let regIdx = existingRegs ?? 0
+      const perPerson: { name: string; formText: string; amount: number }[][] = []
+      for (const inst of personInstances) {
+        regIdx++
+        const picked = new Set<string>([...(inst.sessions ?? []).filter((id: string) => realIds.has(id)), ...requiredIds])
+        const sessionAmounts = [...picked].map(id => feeBySession[id] ?? 0)
+        const personTotal = eventBase + sessionAmounts.reduce((a, b) => a + b, 0)
+        gross += personTotal
+        const positiveAmounts = [...eventLines, ...sessionAmounts].filter(a => a > 0)
+        const dates = [...picked].map(id => startById[id]).filter(Boolean) as string[]
+        const days = new Set(dates.map(dayKeyOf))
+        const fullDay = Object.values(sessionsByDay).some(ids => ids.length > 0 && ids.every(id => picked.has(id)))
+        const fullWeek = Object.values(sessionsByWeek).some(ids => ids.length > 0 && ids.every(id => picked.has(id)))
+        const pid = instancePid.get(inst)
+        perPerson.push(applicableDiscounts(activeDiscounts, {
+          personCount: personInstances.length,
+          personTotal,
+          positiveAmounts,
+          selectedSessionCount: picked.size,
+          dayCount: days.size,
+          fullDay, fullWeek,
+          age: ageFromDob(instVal(inst, 'Date of Birth'), refDate),
+          selectedSessionDates: dates,
+          membershipStatus: pid ? (statusByPid[pid] ?? 'non_member') : 'non_member',
+          registrationIndex: regIdx,
+        }))
+      }
+      discountTotal = aggregateDiscountLines(perPerson, oneDiscountOnly).reduce((sum, d) => sum + (Number(d.amount) || 0), 0)
+      total = Math.max(0, gross - discountTotal)
+    }
+
     const regStatus = 'CONFIRMED'
     const { data: reg, error: rErr } = await supabase.from('registrations').insert({
       event_id: context.id,
@@ -326,7 +446,7 @@ export default defineEventHandler(async (event) => {
     submitter_phone: submitter?.phone || null,
     answers: fullAnswers,
     total_amount: total,
-    discount_total: Number(totals?.discount) || 0,
+    discount_total: discountTotal,
     registration_id: registrationId,
   }).select('id').single()
   if (sErr) throw createError({ statusCode: 500, message: sErr.message })

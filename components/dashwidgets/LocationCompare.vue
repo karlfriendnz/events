@@ -1,7 +1,9 @@
 <!-- Dashboard widget: the club's locations side by side (multi-site only) -->
 <script setup lang="ts">
+import { isMembershipGroup } from '~/composables/useMemberships'
 const groupsApi = useGroupsApi()
 const { orgId } = useOrg()
+const scoped = useScopedRoles()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 const { locations, ensureLocations } = useActiveLocation()
@@ -16,11 +18,16 @@ async function load() {
   const [allGs, mems] = await Promise.all([
     groupsApi.list(orgId.value),
     groupsApi.membershipsByOrg(orgId.value),
+    scoped.loadRoleDefs(),
   ])
-  const gs = allGs.filter(g => g.kind !== 'membership' && g.locationId)
+  const gs = allGs.filter(g => !isMembershipGroup(g) && g.locationId)
     .map(g => ({ id: g.id, capacity: g.capacity, location_id: g.locationId }))
+  // Capacity/utilisation is a MEMBER cap — staff (coaches/managers) don't take a spot.
   const counts: Record<string, number> = {}
-  for (const m of mems) counts[m.groupId] = (counts[m.groupId] || 0) + 1
+  for (const m of mems) {
+    if (scoped.isStaff('group', scoped.normalizeRoles('group', m.roles, m.role))) continue
+    counts[m.groupId] = (counts[m.groupId] || 0) + 1
+  }
   rows.value = locations.value.map(l => {
     const classes = gs.filter((g: any) => g.location_id === l.id)
     const people = new Set(mems.filter((m: any) => m.locationId === l.id).map((m: any) => m.personId))

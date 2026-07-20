@@ -1,7 +1,9 @@
 <!-- Dashboard widget: spots filled vs capacity across classes (lens-aware) -->
 <script setup lang="ts">
+import { isMembershipGroup } from '~/composables/useMemberships'
 const groupsApi = useGroupsApi()
 const { orgId } = useOrg()
+const scoped = useScopedRoles()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 const { inActiveLocation, activeLocationId } = useActiveLocation()
@@ -16,10 +18,15 @@ async function load() {
   const [gs, mems] = await Promise.all([
     groupsApi.list(orgId.value),
     groupsApi.membershipsByOrg(orgId.value),
+    scoped.loadRoleDefs(),
   ])
-  groups.value = gs.filter(g => g.kind !== 'membership').map(g => ({ id: g.id, capacity: g.capacity, location_id: g.locationId }))
+  groups.value = gs.filter(g => !isMembershipGroup(g)).map(g => ({ id: g.id, capacity: g.capacity, location_id: g.locationId }))
   const c: Record<string, number> = {}
-  for (const m of mems) c[m.groupId] = (c[m.groupId] || 0) + 1
+  // Capacity is a MEMBER cap — staff (coaches/managers) don't take a spot.
+  for (const m of mems) {
+    if (scoped.isStaff('group', scoped.normalizeRoles('group', m.roles, m.role))) continue
+    c[m.groupId] = (c[m.groupId] || 0) + 1
+  }
   counts.value = c
   loading.value = false
 }

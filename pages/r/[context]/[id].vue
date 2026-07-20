@@ -163,8 +163,18 @@ async function load() {
         id: s.id, title: s.title, start_at: s.startAt, required: s.required, display: s.display, fee: s.fee,
       }))
       feeLineItems.value = ev.feeLineItems
-      discounts.value = ev.discounts.map((d) => ({
-        name: d.name, form_text: d.formText, modifier_type: d.modifierType, modifier_value: d.modifierValue, is_active: true,
+      // Forward the WHOLE discount (conditions / apply_to / valid_from / expires_at /
+      // is_active) — NOT just the display fields — so useDiscountEval can evaluate each
+      // rule per registrant instead of applying every active discount to everyone.
+      // useDiscountEval reads camelCase too, so the seam fields pass through as-is; we
+      // add the snake aliases the renderer's label + eval expect. (NB: the public event
+      // seam must expose those fields — see the spec handed to the lead.)
+      discounts.value = ev.discounts.map((d: any) => ({
+        ...d,
+        form_text: d.formText,
+        modifier_type: d.modifierType,
+        modifier_value: d.modifierValue,
+        is_active: d.isActive ?? true,
       }))
     } else if (contextType.value === 'group') {
       // The public seam bundles the class meta + fee options + full/waitlist status +

@@ -32,7 +32,7 @@ async function load() {
   // to the snake_case shape this tree's builder reads. (codes come from useGroupCodes.)
   const [codes, groups] = await Promise.all([gc.loadCodes(), listGroups(orgId.value)])
   const allGroups = groups
-    .filter((g) => g.kind !== 'membership')
+    .filter((g) => !isMembershipGroup(g))
     .map((g) => ({ id: g.id, name: g.name, code_id: g.codeId, location_id: g.locationId }))
     .sort((a, b) => a.name.localeCompare(b.name))
   const scope = props.locationIds ?? []

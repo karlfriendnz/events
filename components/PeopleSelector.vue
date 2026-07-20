@@ -27,12 +27,20 @@ const props = withDefaults(defineProps<{
   busyGroupId?: string | null
   /** Wording for the "already chosen" state ("Invited" on an event, "Added" elsewhere). */
   addedLabel?: string
+  /** When the current org is a governing body, reveals an "Internal | Clubs" scope
+   *  tab so it can invite whole affiliated clubs — not just its own people. The host
+   *  decides this (it knows the org level); the selector stays context-free. */
+  showClubs?: boolean
+  /** Clubs already chosen by the host — so a club row flashes on re-add like a person. */
+  addedOrgIds?: string[]
 }>(), {
   invitedPersonIds: () => [],
   addedGroupIds: () => [],
   busyPersonId: null,
   busyGroupId: null,
   addedLabel: 'Added',
+  showClubs: false,
+  addedOrgIds: () => [],
 })
 
 // `who` mirrors the legacy mailer's split Add button (Add ▾ → Members / Staff):
@@ -47,6 +55,10 @@ const emit = defineEmits<{
   (e: 'toggle-code', groupIds: string[], adding: boolean, who: Who): void
   /** Clicked someone already chosen — the host highlights them where they are. */
   (e: 'reveal-person', personId: string): void
+  /** Add a whole affiliated club (from the Clubs tab). Host owns persistence. */
+  (e: 'add-org', org: { id: string; name: string; sport?: string; bodyName?: string }): void
+  /** Clicked a club already chosen — the host flashes it where it is (like reveal-person). */
+  (e: 'reveal-org', orgId: string): void
 }>()
 
 const peopleApi = usePeopleApi()
@@ -55,8 +67,49 @@ const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 const gc = useGroupCodes()
+const { affiliatedClubs } = useAffiliations()
 
 const isChosen = (id: string) => props.invitedPersonIds.includes(id)
+
+// ── SCOPE: Internal (this org's people/classes) vs Clubs (the NSO's affiliated
+// clubs). The tab only exists when the host passes showClubs — a plain club never
+// sees it, and the Internal panel is verbatim what the selector has always shown. ──
+const activeTab = ref<'internal' | 'clubs'>('internal')
+const clubGroups = ref<{ label: string; clubs: any[] }[]>([])
+const clubsFlat = ref<any[]>([])
+const clubsLoading = ref(false)
+let clubsLoaded = false
+
+async function loadClubs() {
+  if (clubsLoaded || !props.showClubs) return
+  clubsLoading.value = true
+  try {
+    const { flat, groups } = await affiliatedClubs()   // approved affiliations across the body's subtree
+    clubsFlat.value = flat
+    clubGroups.value = groups
+    clubsLoaded = true
+  } finally {
+    clubsLoading.value = false
+  }
+}
+
+const isOrgChosen = (id: string) => props.addedOrgIds.includes(id)
+
+// Re-adding a club already chosen flashes it where it is (same catalogue rule as
+// the people list) instead of doing nothing.
+function addOrRevealOrg(c: any) {
+  if (isOrgChosen(c.id)) emit('reveal-org', c.id)
+  else emit('add-org', { id: c.id, name: c.name, sport: c.sport, bodyName: c.bodyName })
+}
+
+// The same search box filters the club list by name, keeping the body groupings.
+const clubSections = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  if (!q) return clubGroups.value
+  return clubGroups.value
+    .map(g => ({ label: g.label, clubs: g.clubs.filter((c: any) => (c.name || '').toLowerCase().includes(q)) }))
+    .filter(g => g.clubs.length)
+})
 
 // The seam returns the whole people directory (camelCase); search + filter run
 // client-side over it (per-club counts are bounded). Loaded once, mapped to the
@@ -256,7 +309,7 @@ async function loadGroups() {
   ])
   allCodes.value = codes ?? []
   allGroups.value = groups
-    .filter((g: any) => g.kind !== 'membership')  // memberships aren't classes
+    .filter((g: any) => !isMembershipGroup(g))  // memberships aren't classes
     .map((g: any) => ({ id: g.id, name: g.name, color: g.color, code_id: g.codeId, sort_order: g.sortOrder, kind: g.kind }))
   groupsLoading.value = false
 }
@@ -330,12 +383,32 @@ function codeMenu(codeId: string) {
 const groupOptions = computed(() =>
   codeSections.value.flatMap(s => s.groups.map(g => ({ label: g.name, value: g.id, code: s.name }))))
 
-onMounted(loadGroups)
+onMounted(() => { loadGroups(); if (props.showClubs) loadClubs() })
+// Load clubs if the host flips showClubs on after mount, and (defensively) when the
+// user opens the Clubs tab — clubsLoaded guards against a double fetch.
+watch(() => props.showClubs, v => { if (v) loadClubs() })
+watch(activeTab, tab => { if (tab === 'clubs') loadClubs() })
 defineExpose({ reloadGroups: loadGroups })
 </script>
 
 <template>
   <div class="space-y-3">
+    <!-- Scope tabs — only for a governing org (host passes showClubs). -->
+    <div v-if="showClubs" class="flex border-b border-gray-200 text-sm">
+      <button type="button" class="px-3 py-2 border-b-2 -mb-px whitespace-nowrap transition-colors"
+        :class="activeTab === 'internal' ? 'border-primary text-primary font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'"
+        @click="activeTab = 'internal'">Internal</button>
+      <button type="button" class="px-3 py-2 border-b-2 -mb-px whitespace-nowrap transition-colors flex items-center gap-1.5"
+        :class="activeTab === 'clubs' ? 'border-primary text-primary font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'"
+        @click="activeTab = 'clubs'">
+        Clubs
+        <span v-if="clubsFlat.length" class="text-[10px] font-bold px-1.5 rounded-full"
+          :class="activeTab === 'clubs' ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-400'">{{ clubsFlat.length }}</span>
+      </button>
+    </div>
+
+    <!-- INTERNAL — this org's own people + classes (the selector's original body). -->
+    <div v-show="!showClubs || activeTab === 'internal'" class="space-y-3">
     <!-- Search + Filter -->
     <div class="flex gap-2">
       <IconField class="flex-1">
@@ -463,6 +536,48 @@ defineExpose({ reloadGroups: loadGroups })
         </template>
       </div>
     </div>
+    </div>
+    <!-- /INTERNAL -->
+
+    <!-- CLUBS — the NSO's affiliated clubs, grouped under the body that approved
+         them, so the picker reads as its hierarchy. A club row is a single Add (no
+         members/staff facet); rows are a catalogue — re-adding flashes, never greys. -->
+    <div v-if="showClubs" v-show="activeTab === 'clubs'" class="space-y-3">
+      <IconField class="w-full">
+        <InputIcon class="pi pi-search" />
+        <InputText v-model="search" placeholder="Search clubs…" size="small" class="w-full" />
+      </IconField>
+
+      <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div v-if="clubsLoading" class="py-8 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-400" /></div>
+        <div v-else-if="!clubSections.length" class="py-6 text-center text-sm text-gray-400">
+          {{ search.trim() ? 'No clubs match.' : 'No affiliated clubs yet.' }}
+        </div>
+        <div v-else>
+          <template v-for="section in clubSections" :key="section.label">
+            <div class="px-3 py-2.5 border-b border-gray-100 bg-gray-50 text-sm font-semibold text-gray-800">
+              {{ section.label }}
+            </div>
+            <div v-for="c in section.clubs" :key="c.id"
+              class="flex items-center gap-2.5 px-3 py-2.5 border-b border-gray-100 last:border-0 bg-white hover:bg-gray-50 transition-colors">
+              <div class="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <i class="pi pi-building text-primary text-xs" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-800 truncate flex items-center gap-1.5">
+                  {{ c.name }}
+                  <i v-if="isOrgChosen(c.id)" v-tooltip.top="addedLabel" class="pi pi-check-circle text-emerald-500 text-xs" />
+                </p>
+                <p v-if="c.sport" class="text-xs text-gray-400 truncate">{{ c.sport }}</p>
+              </div>
+              <Button label="Add" icon="pi pi-plus" size="small" severity="secondary" outlined
+                @click="addOrRevealOrg(c)" />
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+    <!-- /CLUBS -->
 
     <!-- ── Filter dialog: describe the people you want ── -->
     <Dialog v-model:visible="filterOpen" modal header="Find people" :style="{ width: '95vw', maxWidth: '520px' }">

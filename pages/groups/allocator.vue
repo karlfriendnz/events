@@ -139,6 +139,7 @@
 
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
+import { isMembershipGroup } from '~/composables/useMemberships'
 
 const groupsApi = useGroupsApi()
 const { orgId } = useOrg()
@@ -146,6 +147,7 @@ const toast = useToast()
 const tm = useTermsMemberships()
 const codes = useGroupCodes()
 const allocator = useTeamAllocator()
+const scoped = useScopedRoles()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 
@@ -185,7 +187,7 @@ const termOptions = computed(() => [
 const { inActiveLocation: allocInLens } = useActiveLocation()
 function groupInTerm(g: AllocGroup): boolean {
   // Memberships have their own board — the allocator moves people between classes.
-  if ((g as any).kind === 'membership') return false
+  if (isMembershipGroup(g as any)) return false
   // The location lens gates everything the allocator offers (source + destinations).
   if (!allocInLens((g as any).location_id)) return false
   if (term.value === 'all') return true
@@ -248,7 +250,12 @@ const destByCode = computed(() => {
     .map(c => ({ codeId: c.id, codeName: c.name, color: c.color, groups: sortGroups(byCode[c.id]) }))
 })
 
-function groupCount(gid: string) { return peopleByGroup[gid]?.length ?? 0 }
+// Capacity is a MEMBER cap — staff (coaches/managers) don't take a member spot,
+// so they're excluded from every capacity count (label / colour / filter / warn).
+function isStaffPerson(p: AllocPerson) {
+  return scoped.isStaff('group', scoped.normalizeRoles('group', (p as any).roles, (p as any).role))
+}
+function groupCount(gid: string) { return (peopleByGroup[gid] ?? []).filter(p => !isStaffPerson(p)).length }
 
 // A person appearing in 2+ destination groups.
 const duplicateIds = computed(() => {
@@ -376,6 +383,7 @@ async function load() {
     tm.loadTerms(),
     codes.loadCodes(),
     groupsApi.list(orgId.value),
+    scoped.loadRoleDefs(),   // so isStaff resolves custom staff role keys, not just code defaults
   ])
   terms.value = termList ?? []
   codeRows.value = codeList ?? []

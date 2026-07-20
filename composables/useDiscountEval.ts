@@ -18,6 +18,12 @@ export interface DiscountCtx {
   fullWeek: boolean            // this person booked EVERY session in at least one week
   age: number | null           // this person's age (from DOB), or null
   selectedSessionDates?: string[] // ISO start_at of this person's selected sessions (for "within a period")
+  // Resolved from the identified account when known (a signed-in member / staff pick).
+  // ABSENT from raw form state, so the two conditions below FAIL CLOSED when unset —
+  // better to withhold than to grant to everyone (the old `default: return true` bug).
+  // The server re-checks these authoritatively at submit.
+  membershipStatus?: string | null // e.g. 'active_member' | 'member' | 'non_member' | 'inactive_member'
+  registrationIndex?: number | null // this person's 1-based position in the event's registration order
 }
 
 // "N sessions/days within a period" — a rolling window of `windowDays`, or a fixed
@@ -80,23 +86,53 @@ function conditionMet(cond: any, ctx: DiscountCtx): boolean {
     }
     case 'participant_age_min':            return ctx.age != null && op(ctx.age, cond.operator, cond.value)
     case 'participant_age_max':            return ctx.age != null && op(ctx.age, cond.operator, cond.value)
+    // Membership status + first-N: resolvable only from the identified account, not
+    // raw form state. FAIL CLOSED when unknown (don't grant), and the server re-checks
+    // authoritatively — the previous fall-through to `default: return true` handed a
+    // "Member discount" / "First N" to every registrant.
+    case 'participant_member_status': {
+      if (ctx.membershipStatus == null) return false
+      return cond.operator === 'is_not'
+        ? ctx.membershipStatus !== cond.value
+        : ctx.membershipStatus === cond.value
+    }
+    case 'registration_within_first_n_registrations':
+      return ctx.registrationIndex != null && op(ctx.registrationIndex, cond.operator || '<=', cond.value)
     case 'promo_code':                     return false   // no promo-code entry yet
-    // membership / first-N / cross-event → can't tell from form state; server re-checks
+    // Remaining conditions (membership_type/category, event/session/ticket category,
+    // cross-event) aren't offered in the event picker today, so no stored rows use
+    // them; they're treated as met here and re-checked server-side if ever enabled.
     default:                               return true
   }
 }
 
+/**
+ * Is this discount live right now? Enforces is_active AND the validity window
+ * (valid_from ≤ now ≤ expires_at). Tolerant of BOTH the snake_case shape the public
+ * <FormRenderer> is handed and the camelCase seam shape the builder preview passes,
+ * so a caller that forgot to remap doesn't silently skip the window.
+ */
+export function discountActive(disc: any, now: Date = new Date()): boolean {
+  if ((disc.is_active ?? disc.isActive) === false) return false
+  const from = disc.valid_from ?? disc.validFrom
+  const until = disc.expires_at ?? disc.expiresAt
+  if (from && new Date(from) > now) return false
+  if (until && new Date(until) < now) return false
+  return true
+}
+
 /** The discount amount (savings) for one person, or 0 if it doesn't apply. */
 export function discountAmount(disc: any, ctx: DiscountCtx): number {
+  if (!discountActive(disc)) return 0
   for (const cond of (disc.conditions ?? [])) if (!conditionMet(cond, ctx)) return 0
-  const v = Number(disc.modifier_value ?? 0)
-  const type = disc.modifier_type
+  const v = Number(disc.modifier_value ?? disc.modifierValue ?? 0)
+  const type = disc.modifier_type ?? disc.modifierType
   const pos = ctx.positiveAmounts
   const sum = pos.reduce((s, a) => s + a, 0)
   const pct = (base: number) => base * v / 100
   const clampReplace = (base: number) => Math.max(0, base - v)   // set price to v → savings
 
-  switch (disc.apply_to ?? 'registration_total') {
+  switch (disc.apply_to ?? disc.applyTo ?? 'registration_total') {
     case 'per_session':
       return type === 'PERCENT' ? pos.reduce((s, a) => s + pct(a), 0)
            : type === 'REPLACE' ? pos.reduce((s, a) => s + Math.max(0, a - v), 0)
@@ -122,9 +158,9 @@ export function discountAmount(disc: any, ctx: DiscountCtx): number {
 /** Per-person applicable discounts (name/formText/amount), from active discounts. */
 export function applicableDiscounts(discounts: any[], ctx: DiscountCtx): { name: string; formText: string; amount: number }[] {
   const out: { name: string; formText: string; amount: number }[] = []
-  for (const disc of (discounts ?? []).filter((d: any) => d.is_active !== false)) {
+  for (const disc of (discounts ?? []).filter((d: any) => discountActive(d))) {
     const amount = discountAmount(disc, ctx)
-    if (amount > 0) out.push({ name: disc.name, formText: disc.form_text || disc.name, amount })
+    if (amount > 0) out.push({ name: disc.name, formText: disc.form_text || disc.formText || disc.name, amount })
   }
   return out
 }

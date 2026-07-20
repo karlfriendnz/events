@@ -73,6 +73,9 @@
                     <p v-if="row.alreadyRolled" class="text-[11px] text-amber-600 mt-1 ml-4">
                       <i class="pi pi-check-circle mr-1" />Already in {{ targetTermName }}
                     </p>
+                    <p v-else-if="row.discontinued" class="text-[11px] text-gray-500 mt-1 ml-4">
+                      <i class="pi pi-ban mr-1" />Discontinued — not included by default
+                    </p>
                   </div>
                 </div>
               </td>
@@ -181,6 +184,7 @@
 import { useToast } from 'primevue/usetoast'
 import { h } from 'vue'
 import type { OrgTerm } from '~/composables/useTermsMemberships'
+import { sameTermSet } from '~/composables/useTermsMemberships'
 import type { RolloverPlan, RolloverGroup, CarryMode } from '~/composables/useTermRollover'
 
 const { orgId } = useOrg()
@@ -192,7 +196,7 @@ const rollover = useTermRollover()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 
-interface Row extends RolloverPlan { alreadyRolled: boolean }
+interface Row extends RolloverPlan { alreadyRolled: boolean; discontinued: boolean }
 
 const GENDER_LABELS: Record<string, string> = { MALE: 'Male only', FEMALE: 'Female only', NON_BINARY: 'Non-binary only' }
 
@@ -270,7 +274,12 @@ function pickSetAll(v: boolean) {
 }
 
 const termOptions = computed(() => terms.value.map(t => ({ label: t.name, value: t.id })))
-const targetOptions = computed(() => termOptions.value.filter(o => o.value !== sourceTermId.value))
+const sourceTerm = computed(() => terms.value.find(t => t.id === sourceTermId.value) ?? null)
+// Target must be in the SAME term set as the source (migration 232) — you roll a
+// sequence forward within itself, never across sequences.
+const targetOptions = computed(() => terms.value
+  .filter(tr => tr.id !== sourceTermId.value && (!sourceTerm.value || sameTermSet(sourceTerm.value, tr)))
+  .map(tr => ({ label: tr.name, value: tr.id })))
 const targetTermName = computed(() => terms.value.find(t => t.id === targetTermId.value)?.name ?? '')
 const sameTerm = computed(() => !!sourceTermId.value && sourceTermId.value === targetTermId.value)
 const selectedCount = computed(() => rows.value.filter(r => r.include && !r.alreadyRolled).length)
@@ -311,7 +320,7 @@ function nextTermAfter(id: string | null): string | null {
   const src = terms.value.find(t => t.id === id)
   if (!src) return null
   const later = terms.value
-    .filter(t => t.id !== id && (t.start_date ?? '') > (src.start_date ?? ''))
+    .filter(t => t.id !== id && sameTermSet(src, t) && (t.start_date ?? '') > (src.start_date ?? ''))
     .sort((a, b) => (a.start_date ?? '').localeCompare(b.start_date ?? ''))
   return later[0]?.id ?? null
 }
@@ -325,15 +334,18 @@ async function loadRows() {
   ])
   rows.value = groups.map(g => {
     const alreadyRolled = !!g.lineage_id && rolled.has(g.lineage_id)
+    // A class the club ENDED for good (migration 231) — offered but off by default.
+    const discontinued = !!g.discontinued_at
     return {
       source: g,
-      include: !alreadyRolled,
+      include: !alreadyRolled && !discontinued,
       name: g.name,
       staffMode: 'rollover' as CarryMode,
       staffIds: g.staff.map(s => s.id),
       memberMode: 'rollover' as CarryMode,
       memberIds: g.members.map(m => m.id),
       alreadyRolled,
+      discontinued,
     } as Row
   })
   loading.value = false

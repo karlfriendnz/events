@@ -380,6 +380,14 @@ const editing = ref(true)  // profile shows the fields as live inputs (a form), 
 const person = ref<any>(null)
 const allGroups = ref<any[]>([])
 const customFields = ref<any[]>([])
+// The person's FULL stored custom_fields, kept verbatim from load. save() only
+// edits the keys in the current field set (customFields), so it must start from
+// this and overlay — building the column from scratch would silently wipe every
+// value whose field isn't currently resolved: event-only answers written by
+// public-form-submit, and (the sharp one) a governing body's field values after
+// its affiliation is REVOKED, which contradicts "revoke stops the mandate, not
+// the data" (mig 273).
+const rawCustomFields = ref<Record<string, any>>({})
 const activity = ref<any[]>([])
 const initialGroupIds = ref<string[]>([])
 const actionsMenu = ref()
@@ -702,6 +710,7 @@ async function load() {
     initialGroupIds.value = [...form.group_ids]
     // hydrate custom field values (dates → Date objects)
     const raw = p.custom_fields ?? {}
+    rawCustomFields.value = { ...raw }   // keep the full set so save() can merge, not overwrite
     const custom: Record<string, any> = {}
     for (const f of customFields.value) {
       let v = raw[f.id]
@@ -796,11 +805,15 @@ async function save() {
   if (!(form.first_name || '').trim() || !(form.last_name || '').trim()) return
   saving.value = true
 
-  // serialise custom fields
-  const custom: Record<string, any> = {}
+  // serialise custom fields — MERGE, don't overwrite. Start from the full stored
+  // set so values for fields not in the current view survive (event-only answers,
+  // fields of a type the person no longer holds, a revoked body's fields), and edit
+  // only the keys this form actually rendered. An intentionally-cleared field drops
+  // its key (delete), so clearing still works.
+  const custom: Record<string, any> = { ...rawCustomFields.value }
   for (const f of customFields.value) {
     const v = form.custom[f.id]
-    if (v === null || v === undefined || v === '') continue
+    if (v === null || v === undefined || v === '') { delete custom[f.id]; continue }
     custom[f.id] = f.field_type === 'date' ? toIsoDate(v instanceof Date ? v : new Date(v)) : v
   }
 

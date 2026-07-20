@@ -10,6 +10,7 @@
 <script setup lang="ts">
 import type { GroupCode } from '~/composables/useGroupCodes'
 import type { ViewColumnKey } from '~/composables/useGroupViews'
+import { isMembershipGroup } from '~/composables/useMemberships'
 
 const props = withDefaults(defineProps<{
   columns?: ViewColumnKey[]
@@ -67,7 +68,7 @@ const termOptions = computed(() => {
 // A group belongs to the selected term via its code chain (else its own term_id).
 const inTerm = (g: ClassGroup) => termFilter.value === 'all' || gc.effectiveTermId(g, codeById.value) === termFilter.value
 const visibleGroups = computed(() => groups.value.filter(g =>
-  (g as any).kind !== 'membership' &&
+  !isMembershipGroup(g as any) &&
   inTerm(g) && inActiveLocation(g.locationId) &&
   (!boardRestricted.value || boardCanAccess(g.locationId, gc.effectiveSportId({ code_id: g.code_id }, codeById.value)))))
 
@@ -113,7 +114,7 @@ function isMembershipOnlyCode(topId: string): boolean {
   const ids = new Set(subtreeCodes(topId).map(c => c.id))
   ids.add(topId)
   const inSubtree = groups.value.filter(g => g.code_id && ids.has(g.code_id))
-  return inSubtree.length > 0 && inSubtree.every(g => (g as any).kind === 'membership')
+  return inSubtree.length > 0 && inSubtree.every(g => isMembershipGroup(g as any))
 }
 const tabs = computed<Tab[]>(() => {
   const t: Tab[] = topCodes.value.filter(c => !isMembershipOnlyCode(c.id)).map(c => ({ key: c.id, label: c.name }))

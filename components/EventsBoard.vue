@@ -1845,7 +1845,7 @@ const bookingsCalEvents = computed(() => {
 // to the wizard — a live event, or one made in the custom/advanced/multi builders,
 // opens on the full event page. (created_via, migration 257: `style` couldn't tell
 // a wizard draft from a Custom one — both are BASIC.)
-function openEvent(evt: { id: string; status?: string; created_via?: string | null; style?: string }) {
+function openEvent(evt: { id: string; status?: string; created_via?: string | null; style?: string; is_programme?: boolean }) {
   const unfinished = evt.status === 'DRAFT'
 
   // A quick event opens the simple run-the-event view — details, invitees, attendance.
@@ -1863,6 +1863,9 @@ function openEvent(evt: { id: string; status?: string; created_via?: string | nu
     navigateTo(`/events/new-basic?draft=${evt.id}&mode=full`)
     return
   }
+  // A programme opens on its per-week availability (Dates) tab, not Overview —
+  // matching the /programme board's row-click.
+  if (evt.is_programme) { navigateTo(`/events/${evt.id}?tab=dates`); return }
   // Advanced / multi-session keep their own editor.
   navigateTo(`/events/${evt.id}`)
 }

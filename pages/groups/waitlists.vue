@@ -20,6 +20,7 @@ const toGroupRow = (g: any) => ({
 })
 const tm = useTermsMemberships()
 const finder = useClassFinder()
+const scoped = useScopedRoles()
 const { ensureTerms, t } = useTerms()
 void ensureTerms()
 const terms = ref<any[]>([])
@@ -81,6 +82,7 @@ async function load() {
     groupsApi.list(orgId.value).catch(() => [] as any[]),
     tm.loadTerms(),
     gc.loadCodes(),
+    scoped.loadRoleDefs(),   // so isStaff resolves custom staff role keys for the spare-space count
   ])
   waitlists.value = wls
   groupLinks.value = links
@@ -107,7 +109,12 @@ async function loadConnectedCounts() {
   if (!ids.length) return
   const roster = await groupsApi.roster(ids)
   const c: Record<string, number> = {}
-  for (const m of roster ?? []) c[m.groupId] = (c[m.groupId] ?? 0) + 1
+  for (const m of roster ?? []) {
+    // Capacity is a MEMBER cap — staff (coaches/managers) don't take a spot, so
+    // the spare-space count excludes them.
+    if (scoped.isStaff('group', scoped.normalizeRoles('group', (m as any).roles, (m as any).role))) continue
+    c[m.groupId] = (c[m.groupId] ?? 0) + 1
+  }
   connectedCounts.value = c
 }
 // Connected groups that still have room (for the enrol action).

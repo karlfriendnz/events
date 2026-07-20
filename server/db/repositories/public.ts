@@ -291,9 +291,17 @@ export async function publicEvent(id: string): Promise<PublicEventDetail | null>
     fee: feeBySession[s.id] ?? 0,
   }))
 
-  // Active discounts — display-safe fields only.
+  // Active discounts. Carries the eligibility fields (conditions/apply_to/window) so
+  // the client can preview WHICH discounts a registrant qualifies for; money is
+  // recomputed authoritatively server-side in public-form-submit regardless.
   const discRows = await db
-    .select({ name: schema.discounts.name, formText: schema.discounts.formText, modifierType: schema.discounts.modifierType, modifierValue: schema.discounts.modifierValue })
+    .select({
+      name: schema.discounts.name, formText: schema.discounts.formText,
+      modifierType: schema.discounts.modifierType, modifierValue: schema.discounts.modifierValue,
+      conditions: schema.discounts.conditions, applyTo: schema.discounts.applyTo,
+      validFrom: schema.discounts.validFrom, expiresAt: schema.discounts.expiresAt,
+      isActive: schema.discounts.isActive,
+    })
     .from(schema.discounts)
     .where(and(eq(schema.discounts.eventId, id), eq(schema.discounts.isActive, true)))
   const discounts: PublicDiscount[] = discRows.map((d) => ({
@@ -301,6 +309,11 @@ export async function publicEvent(id: string): Promise<PublicEventDetail | null>
     formText: d.formText ?? null,
     modifierType: d.modifierType,
     modifierValue: num(d.modifierValue),
+    conditions: (d.conditions as any) ?? null,
+    applyTo: d.applyTo ?? null,
+    validFrom: toIso(d.validFrom),
+    expiresAt: toIso(d.expiresAt),
+    isActive: d.isActive,
   }))
 
   const form = ev.formId ? await formConfigById(ev.formId) : null

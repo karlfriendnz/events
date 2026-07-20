@@ -2009,6 +2009,7 @@ const allTabs = [
   { key: 'attendance',     label: 'Attendance',     icon: 'pi-check-square' },
   { key: 'reporting',      label: 'Reporting',      icon: 'pi-chart-bar' },
   { key: 'notes',          label: 'Notes & Tasks',  icon: 'pi-clipboard' },
+  { key: 'settings',       label: 'Settings',       icon: 'pi-cog' },
 ]
 
 const basicTabs = ['overview', 'invitees', 'attendance', 'communication', 'notes', 'settings']
@@ -2097,186 +2098,6 @@ onBeforeUnmount(() => document.removeEventListener('click', handleTabGroupClickO
 
 const activeTab = ref((useRoute().query.tab as string) || 'overview')
 const overviewEditing = ref(false)
-
-// ── Notes ────────────────────────────────────────────────────────────
-const eventNotes = ref<{ id: string; title: string | null; content: string; created_at: string }[]>([])
-const editingNoteId = ref<string | null>(null)
-const newNoteMode = ref(false)
-const editingNoteTitle = ref('')
-const editingNoteContent = ref('')
-const savingNote = ref(false)
-
-async function loadEventNotes() {
-  eventNotes.value = (await eventsApi.notes(id)).map(snakeRow)
-}
-
-function startNewNote() {
-  editingNoteId.value = null
-  editingNoteTitle.value = ''
-  editingNoteContent.value = ''
-  newNoteMode.value = true
-}
-
-function cancelNoteEdit() {
-  editingNoteId.value = null
-  newNoteMode.value = false
-}
-
-async function saveNewNote() {
-  savingNote.value = true
-  const data = snakeRow(await eventsApi.createNote(id, {
-    title: editingNoteTitle.value.trim() || null,
-    content: editingNoteContent.value,
-  }))
-  if (data) eventNotes.value.push(data)
-  newNoteMode.value = false
-  savingNote.value = false
-}
-
-function startEditNote(note: any) {
-  editingNoteId.value = note.id
-  editingNoteTitle.value = note.title ?? ''
-  editingNoteContent.value = note.content
-  newNoteMode.value = false
-}
-
-async function saveNoteEdit() {
-  if (!editingNoteId.value) return
-  savingNote.value = true
-  await eventsApi.updateNote(editingNoteId.value, {
-    title: editingNoteTitle.value.trim() || null,
-    content: editingNoteContent.value,
-  })
-  const note = eventNotes.value.find(n => n.id === editingNoteId.value)
-  if (note) { note.title = editingNoteTitle.value.trim() || null; note.content = editingNoteContent.value }
-  editingNoteId.value = null
-  savingNote.value = false
-}
-
-async function deleteEventNote(noteId: string) {
-  await eventsApi.removeNote(noteId)
-  eventNotes.value = eventNotes.value.filter(n => n.id !== noteId)
-}
-
-// ── Tasks ────────────────────────────────────────────────────────────
-const eventTasks = ref<{ id: string; text: string; done: boolean; due_date: string | null; assignee_ids: string[]; is_role: boolean; role_capacity: number }[]>([])
-const newTaskText = ref('')
-const editingTaskId = ref<string | null>(null)
-const editingTaskText = ref('')
-const taskPersonPickerOpen = ref<string | null>(null)
-const taskPersonSearch = ref('')
-const orgPersons = ref<{ id: string; first_name: string; last_name: string }[]>([])
-const orgPersonsLoaded = ref(false)
-
-const filteredTaskPersons = computed(() => {
-  const q = taskPersonSearch.value.toLowerCase()
-  return q ? orgPersons.value.filter(p => `${p.first_name} ${p.last_name}`.toLowerCase().includes(q)) : orgPersons.value
-})
-
-function personInitials(personId: string) {
-  const p = orgPersons.value.find(x => x.id === personId)
-  return p ? `${p.first_name[0]}${p.last_name[0]}`.toUpperCase() : '?'
-}
-
-function personName(personId: string) {
-  const p = orgPersons.value.find(x => x.id === personId)
-  return p ? `${p.first_name} ${p.last_name}` : ''
-}
-
-async function loadOrgPersons() {
-  if (orgPersonsLoaded.value || !orgId.value) return
-  orgPersonsLoaded.value = true
-  orgPersons.value = (await peopleApi.list(orgId.value))
-    .map(p => ({ id: p.id, first_name: p.firstName, last_name: p.lastName }))
-    .sort((a, b) => a.first_name.localeCompare(b.first_name))
-}
-
-async function loadTasks() {
-  const data = (await eventsApi.tasks(id)).map(snakeRow)
-  eventTasks.value = data.map(t => ({ ...t, assignee_ids: t.assignee_ids ?? [], is_role: t.is_role ?? false, role_capacity: t.role_capacity ?? 1 }))
-  loadOrgPersons()
-}
-
-async function addTask() {
-  const text = newTaskText.value.trim()
-  if (!text) return
-  const data = snakeRow(await eventsApi.createTask(id, { text, done: false, assigneeIds: [], isRole: false, roleCapacity: 1 }))
-  if (data) eventTasks.value.push({ ...data, assignee_ids: data.assignee_ids ?? [], is_role: false, role_capacity: 1 })
-  newTaskText.value = ''
-}
-
-async function toggleTask(task: any) {
-  const done = !task.done
-  await eventsApi.updateTask(task.id, { done })
-  task.done = done
-}
-
-function startEditTask(task: any) {
-  editingTaskId.value = task.id
-  editingTaskText.value = task.text
-}
-
-async function saveTaskEdit(task: any) {
-  const text = editingTaskText.value.trim()
-  if (!text) { editingTaskId.value = null; return }
-  await eventsApi.updateTask(task.id, { text })
-  task.text = text
-  editingTaskId.value = null
-}
-
-async function deleteTask(taskId: string) {
-  await eventsApi.removeTask(taskId)
-  eventTasks.value = eventTasks.value.filter(t => t.id !== taskId)
-}
-
-function formatTaskDate(date: string) {
-  return new Date(date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
-}
-
-async function toggleTaskAssignee(task: any, personId: string) {
-  const ids: string[] = task.assignee_ids ?? []
-  const newIds = ids.includes(personId) ? ids.filter((id: string) => id !== personId) : [...ids, personId]
-  await eventsApi.updateTask(task.id, { assigneeIds: newIds })
-  task.assignee_ids = newIds
-}
-
-function toggleTaskPersonPicker(taskId: string) {
-  if (taskPersonPickerOpen.value === taskId) {
-    taskPersonPickerOpen.value = null
-  } else {
-    taskPersonSearch.value = ''
-    taskPersonPickerOpen.value = taskId
-    loadOrgPersons()
-  }
-}
-
-function closeTaskPersonPicker() {
-  taskPersonPickerOpen.value = null
-}
-
-async function toggleTaskRole(task: any) {
-  const is_role = !task.is_role
-  await eventsApi.updateTask(task.id, { isRole: is_role })
-  task.is_role = is_role
-}
-
-async function updateTaskCapacity(task: any, delta: number) {
-  const newCap = Math.max(1, (task.role_capacity ?? 1) + delta)
-  await eventsApi.updateTask(task.id, { roleCapacity: newCap })
-  task.role_capacity = newCap
-}
-
-function taskFillStatus(task: any) {
-  const filled = (task.assignee_ids ?? []).length
-  const cap = task.role_capacity ?? 1
-  return { isFilled: filled >= cap, label: filled >= cap ? 'Filled' : `${filled}/${cap} filled` }
-}
-
-function emptySlotArray(task: any): number[] {
-  const filled = (task.assignee_ids ?? []).length
-  const cap = task.role_capacity ?? 1
-  return Array.from({ length: Math.min(4, Math.max(0, cap - filled)) }, (_, i) => i)
-}
 
 // ---- Per-field inline editing (overview card) ----
 const fieldEditing = reactive<Record<string, boolean>>({})
@@ -2484,21 +2305,6 @@ function copyPublicRegLink() {
   toast.add({ severity: 'success', summary: 'Registration link copied', life: 2000 })
 }
 
-// Per-person notes on the attendance rows (reusable <PersonNotes>). Notes are
-// person_notes rows linked to this event, so they also show on the profile.
-const attNoteLinks = computed(() => [{ type: 'event', id, label: event.value?.title || 'Event' }])
-const attNoteContextLabel = computed(() => event.value?.title || 'Event')
-const attNoteCounts = ref<Record<string, number>>({})
-async function loadAttNoteCounts() {
-  const personIds = invitees.value.map((inv: any) => inv.person_id).filter(Boolean)
-  if (!personIds.length) { attNoteCounts.value = {}; return }
-  // Notes for the invited people (with their `links`) come through the circles seam;
-  // count the ones pinned to THIS event per person.
-  const data = await useCirclesApi().notesForPeople(personIds)
-  const counts: Record<string, number> = {}
-  for (const n of (data ?? [])) if (Array.isArray(n.links) && n.links.some((l: any) => l.type === 'event' && l.id === id)) counts[n.personId] = (counts[n.personId] || 0) + 1
-  attNoteCounts.value = counts
-}
 
 // Scoped per-event roles (manager/coach of this event — or its linked group — can run it).
 const scopedEv = useScopedRoles()
@@ -2772,7 +2578,7 @@ async function loadDiscounts() {
     .map(d => ({
       id: d.id, name: d.name, form_text: d.formText, is_active: d.isActive,
       modifier_value: d.modifierValue, modifier_type: d.modifierType, apply_to: d.applyTo,
-      conditions: d.conditions ?? [], expires_at: d.expiresAt,
+      conditions: d.conditions ?? [], valid_from: d.validFrom, expires_at: d.expiresAt,
     }))
 }
 const showDiscountFlow = ref(false)
@@ -2794,6 +2600,8 @@ function rowToDiscountDraft(d: any): DiscountDraft {
     modifier_value: d.modifier_value ?? null, modifier_type: d.modifier_type ?? 'PERCENT',
     apply_to: d.apply_to ?? 'per_person',
     conditions: JSON.parse(JSON.stringify(d.conditions ?? [])),
+    valid_from_type: d.valid_from ? 'custom' : 'now',
+    valid_from: d.valid_from ? new Date(d.valid_from) : null,
     expires_type: d.expires_at ? 'custom' : 'event',
     expires_at: d.expires_at ? new Date(d.expires_at) : null,
   }
@@ -2810,6 +2618,9 @@ async function onDiscountSave(draft: DiscountDraft) {
   const expiresAt = draft.expires_type === 'custom'
     ? (draft.expires_at instanceof Date ? draft.expires_at.toISOString() : draft.expires_at)
     : null
+  const validFrom = draft.valid_from_type === 'custom'
+    ? (draft.valid_from instanceof Date ? draft.valid_from.toISOString() : draft.valid_from)
+    : null
   const payload = {
     eventId: id,
     type: 'CODE',
@@ -2820,6 +2631,7 @@ async function onDiscountSave(draft: DiscountDraft) {
     modifierType: draft.modifier_type,
     applyTo: draft.apply_to,
     conditions: JSON.parse(JSON.stringify(draft.conditions)),
+    validFrom,
     expiresAt,
   }
   const existing = editingDiscountIdx.value !== null ? eventDiscounts.value[editingDiscountIdx.value] : null
@@ -3292,10 +3104,6 @@ const attendanceSelectAll = ref(false)
 const attendanceSearch = ref('')
 const attendanceSort = ref<{ dir: 'asc' | 'desc' }>({ dir: 'asc' })
 
-function toggleAttendanceSort() {
-  attendanceSort.value.dir = attendanceSort.value.dir === 'asc' ? 'desc' : 'asc'
-}
-
 const filteredSortedAttendees = computed(() => {
   const q = attendanceSearch.value.trim().toLowerCase()
   let result = invitees.value
@@ -3340,10 +3148,6 @@ const attendanceActionMenuItems = computed(() => [
   { separator: true },
   { label: 'Send Email', icon: 'pi pi-envelope', command: () => { showSendComms.value = true } },
 ])
-
-function toggleAttendanceSelectAll() {
-  attendanceSelected.value = attendanceSelectAll.value ? invitees.value.map(i => i.id) : []
-}
 
 async function toggleSignOut(inv: any) {
   if (!isAttendedForContext(inv)) {
@@ -4247,12 +4051,6 @@ async function saveSessions() {
   }
 }
 
-// ---- Notes ----
-const notes = ref<{ text: string; created_at: string }[]>([])
-function addNote() {
-  notes.value.unshift({ text: '', created_at: new Date().toLocaleDateString('en-AU') })
-}
-
 // ---- Banner upload ----
 const { uploadFile } = useUpload()
 const bannerInput = ref<HTMLInputElement | null>(null)
@@ -4423,7 +4221,6 @@ async function loadInvitees() {
   }
   inviteeGroupMap.value = map
   inviteesLoading.value = false
-  loadAttNoteCounts()
   // Once sessions exist, attendance lives entirely in the per-session
   // `attendance` table. Wipe the legacy event-level `attended` flag
   // from local state so it can't bleed into the session-mode UI even
@@ -4776,25 +4573,6 @@ async function setInviteeStatus(inviteeId: string, status: string) {
   loadInvitees()
 }
 
-async function toggleAttendance(inv: any) {
-  // In session mode, attendance is always per-session. Auto-select
-  // the first session when nothing's picked yet so a bare toggle
-  // doesn't accidentally fall through to the event-level flag.
-  if (attendanceInSessionMode.value) {
-    if (!selectedAttendanceSessionId.value) {
-      await selectAttendanceSession(attendanceSessions.value[0].id)
-    }
-    if (selectedAttendanceSessionId.value) {
-      await toggleSessionAttendance(inv, selectedAttendanceSessionId.value)
-      return
-    }
-  }
-  const newVal = !inv.attended
-  await eventsApi.updateInvitee(inv.id, { attended: newVal })
-  inv.attended = newVal
-}
-
-
 async function handleSendComms() {
   if (!newComms.value.subject || !newComms.value.body) return
   sendingComms.value = true
@@ -4847,7 +4625,6 @@ watch(activeTab, (tab, oldTab) => {
   if (tab === 'communication') loadComms()
   if (tab === 'discounts') loadDiscounts()
   if (tab === 'reporting') { if (!sessions.value.length) loadSessions().then(loadReporting); else loadReporting() }
-  if (tab === 'notes') { loadTasks(); loadEventNotes() }
 })
 
 function triggerSessionAutoSave(session: any) {
@@ -4892,7 +4669,6 @@ onBeforeRouteLeave(() => {
 })
 
 onMounted(async () => {
-  document.addEventListener('click', closeTaskPersonPicker)
   scopedEv.load()
 
   // Kick off all independent queries in parallel with the main event load
@@ -4990,7 +4766,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   breadcrumbs.value = []
-  document.removeEventListener('click', closeTaskPersonPicker)
 })
 </script>
 

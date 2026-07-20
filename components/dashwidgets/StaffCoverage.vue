@@ -1,5 +1,6 @@
 <!-- Dashboard widget: staff shortfalls — role minimums + classes with no staff -->
 <script setup lang="ts">
+import { isMembershipGroup } from '~/composables/useMemberships'
 const groupsApi = useGroupsApi()
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
@@ -21,7 +22,7 @@ async function load() {
     groupsApi.list(orgId.value),
     groupsApi.membershipsByOrg(orgId.value),
   ])
-  const gs = allGs.filter(g => g.kind !== 'membership').map(g => ({ id: g.id, code_id: g.codeId }))
+  const gs = allGs.filter(g => !isMembershipGroup(g)).map(g => ({ id: g.id, code_id: g.codeId }))
   const codesById: Record<string, any> = Object.fromEntries((codes ?? []).map((c: any) => [c.id, c]))
   const staffByGroup: Record<string, string[]> = {}
   for (const m of mems) {

@@ -51,6 +51,8 @@ import type {
   GenerateTrainingResult,
   EventCommunication,
   EventCommunicationCreate,
+  EventOrgInvitee,
+  EventOrgInviteeWithName,
 } from '../../../shared/contracts/event'
 
 // Coerce a json column into an array: already an array → use it; a string → parse;
@@ -791,6 +793,54 @@ export async function inviteesForEvent(eventId: string): Promise<InviteeWithPers
 
 export async function deleteInvitee(id: string): Promise<void> {
   await db.delete(schema.invitees).where(eq(schema.invitees.id, id))
+}
+
+// ── Event org (club) invitees ──
+function toEventOrgInvitee(r: typeof schema.eventOrgInvitees.$inferSelect): EventOrgInvitee {
+  return {
+    id: r.id,
+    eventId: r.eventId,
+    orgId: r.orgId,
+    invitedByOrgId: r.invitedByOrgId ?? null,
+    status: r.status,
+    invitedAt: toIso(r.invitedAt),
+    updatedAt: toIso(r.updatedAt),
+  }
+}
+
+/** The clubs invited to an event, oldest first, with the club name joined for display. */
+export async function listEventOrgInvitees(eventId: string): Promise<EventOrgInviteeWithName[]> {
+  const rows = await db
+    .select({ inv: schema.eventOrgInvitees, orgName: schema.organisations.name })
+    .from(schema.eventOrgInvitees)
+    .leftJoin(schema.organisations, eq(schema.organisations.id, schema.eventOrgInvitees.orgId))
+    .where(eq(schema.eventOrgInvitees.eventId, eventId))
+    .orderBy(asc(schema.eventOrgInvitees.invitedAt))
+  return rows.map(r => ({ ...toEventOrgInvitee(r.inv), orgName: r.orgName ?? null }))
+}
+
+/** Invite a club to an event. Idempotent on (event_id, org_id) — re-inviting is a no-op. */
+export async function createEventOrgInvitee(input: {
+  eventId: string; orgId: string; invitedByOrgId?: string | null; status?: string
+}): Promise<EventOrgInvitee> {
+  const [existing] = await db.select().from(schema.eventOrgInvitees)
+    .where(and(eq(schema.eventOrgInvitees.eventId, input.eventId), eq(schema.eventOrgInvitees.orgId, input.orgId)))
+    .limit(1)
+  if (existing) return toEventOrgInvitee(existing)
+  const id = randomUUID()
+  await db.insert(schema.eventOrgInvitees).values({
+    id,
+    eventId: input.eventId,
+    orgId: input.orgId,
+    invitedByOrgId: input.invitedByOrgId ?? null,
+    status: input.status ?? 'INVITED',
+  } as any)
+  const [r] = await db.select().from(schema.eventOrgInvitees).where(eq(schema.eventOrgInvitees.id, id)).limit(1)
+  return toEventOrgInvitee(r)
+}
+
+export async function deleteEventOrgInvitee(id: string): Promise<void> {
+  await db.delete(schema.eventOrgInvitees).where(eq(schema.eventOrgInvitees.id, id))
 }
 
 // ── Registration writes ──

@@ -907,6 +907,18 @@ export const helpArticles = mysqlTable('help_articles', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// A whole affiliated CLUB invited to an event (governing-org "Clubs" tab). Unique
+// (event_id, org_id) is enforced by the migration + the repo's check-then-insert.
+export const eventOrgInvitees = mysqlTable('event_org_invitees', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  eventId: varchar('event_id', { length: 36 }).notNull(),
+  orgId: varchar('org_id', { length: 36 }).notNull(),
+  invitedByOrgId: varchar('invited_by_org_id', { length: 36 }),
+  status: text('status').notNull(),
+  invitedAt: timestamp('invited_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 export const invitees = mysqlTable('invitees', {
   id: varchar('id', { length: 36 }).primaryKey(),
   eventId: varchar('event_id', { length: 36 }).notNull(),

@@ -5,6 +5,7 @@
   memberships board.
 -->
 <script setup lang="ts">
+import { isMembershipGroup } from '~/composables/useMemberships'
 const { orgId } = useOrg()
 const gc = useGroupCodes()
 const groupsApi = useGroupsApi()
@@ -43,7 +44,7 @@ async function load() {
     for (const c of codes) if (c.parent_id && subtree.has(c.parent_id) && !subtree.has(c.id)) { subtree.add(c.id); grew = true }
   }
   // Membership-kind groups on this code or anywhere in its subtree (via the seam).
-  const groups = (await groupsApi.groupsByCodeIds([...subtree])).filter(g => g.kind === 'membership')
+  const groups = (await groupsApi.groupsByCodeIds([...subtree])).filter(g => isMembershipGroup(g))
   tiers.value = groups.map(g => ({ id: g.id, name: g.name, color: g.color }))
   if (!tiers.value.length) { people.value = []; loading.value = false; return }
   const tierIds = new Set(tiers.value.map(g => g.id))

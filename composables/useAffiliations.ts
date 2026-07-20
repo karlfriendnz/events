@@ -26,6 +26,19 @@ export interface AffiliationRow {
   bodyName?: string
 }
 
+/** One club a governing body can invite (e.g. to an event) — an APPROVED affiliation
+ *  aimed anywhere in the body's subtree. `bodyName` is the heading it sits under so
+ *  the picker reads as the NSO's hierarchy (National › Regional › club). */
+export interface AffiliatedClub {
+  id: string            // the club org id
+  name: string
+  sport: string         // which affiliation reached it
+  bodyId: string | null // the governing body it affiliated to (may be a sub-body)
+  bodyName: string
+}
+/** Clubs grouped under the governing body that approved them — the tab's tree shape. */
+export interface AffiliatedClubGroup { label: string; clubs: AffiliatedClub[] }
+
 export const AFFILIATION_LABELS: Record<AffiliationStatus, string> = {
   pending: 'Awaiting approval',
   approved: 'Affiliated',
@@ -105,10 +118,16 @@ export function useAffiliations() {
     if (!row.nso_org_id) return { seeded: 0, linked: 0 }
 
     // The body's + club's person/entity types (types domain, via the seam).
-    const [bodyTypes, clubTypes] = await Promise.all([
+    // Only the body's PUBLISHED types seed/link — a published type is what a body
+    // OFFERS its clubs (mig 275), and this is the SAME set the manual linker
+    // (loadLinkableTypes → listPublishedTypesForOrgs) shows. A body's own internal
+    // Admin/Club-manager types are its staff, never a club's to answer to, so
+    // auto-seeding them would diverge from what the linker ever lets a club pick.
+    const [allBodyTypes, clubTypes] = await Promise.all([
       typesApi.listTypes(row.nso_org_id),
       typesApi.listTypes(row.org_id),
     ])
+    const bodyTypes = allBodyTypes.filter(t => t.isPublished)
     if (!bodyTypes.length) return { seeded: 0, linked: 0 }
 
     const lc = (s: string) => (s || '').toLowerCase()
@@ -133,19 +152,45 @@ export function useAffiliations() {
         }
       }
       if (target.kind !== (bt.kind ?? 'person')) continue   // a Team must not answer to a Player
-      // CROSS-DOMAIN GAP: the types domain has no person_type_link WRITE yet
-      // (usePersonTypesApi.listLinks exists; a createLink/upsert does not). Guarded so
-      // a missing method never crashes the approval — links start flowing the moment
-      // the types domain adds the write. Mirrors the original's error tolerance.
+      // Pre-link the club's type to the body's, so the body's fields flow to the
+      // club's people the moment they're typed. Best-effort: a link failure must
+      // never fail the approval itself — the affiliation is already switched on.
       try {
-        const createLink = (typesApi as any).createLink
-        if (typeof createLink === 'function') {
-          await createLink({ orgId: row.org_id, typeId: target.id, sourceTypeId: bt.id })
-          linked++
-        }
+        await typesApi.createLink({ orgId: row.org_id, typeId: target.id, sourceTypeId: bt.id })
+        linked++
       } catch { /* tolerate — pre-linking is best-effort */ }
     }
     return { seeded, linked }
+  }
+
+  /**
+   * The clubs a governing body may invite — every APPROVED affiliation aimed at the
+   * body or anywhere in its subtree (loadForBody already scopes to the subtree so a
+   * National sees its Regionals' clubs too). Deduped to one entry per club (a club
+   * affiliated for several sports invites once), grouped under the body that
+   * approved it so the picker renders as the NSO's hierarchy.
+   *
+   * READ-ONLY: returns options. It does not write event_org_invitees — the host
+   * (EventInviteeManager) owns persistence, exactly as it does for person invitees.
+   */
+  async function affiliatedClubs(bodyOrgId?: string): Promise<{ flat: AffiliatedClub[]; groups: AffiliatedClubGroup[] }> {
+    const id = bodyOrgId ?? orgId.value
+    if (!id) return { flat: [], groups: [] }
+    const rows = (await loadForBody(id)).filter(r => r.affiliation_status === 'approved' && r.org_id)
+    const byClub = new Map<string, AffiliatedClub>()
+    for (const r of rows) {
+      if (byClub.has(r.org_id)) continue
+      byClub.set(r.org_id, { id: r.org_id, name: r.clubName || '', sport: r.sport, bodyId: r.nso_org_id, bodyName: r.bodyName || '' })
+    }
+    const flat = [...byClub.values()].sort((a, b) => a.name.localeCompare(b.name))
+    const byBody = new Map<string, AffiliatedClub[]>()
+    for (const c of flat) {
+      const key = c.bodyName || 'Affiliated clubs'
+      if (!byBody.has(key)) byBody.set(key, [])
+      byBody.get(key)!.push(c)
+    }
+    const groups: AffiliatedClubGroup[] = [...byBody.entries()].map(([label, clubs]) => ({ label, clubs }))
+    return { flat, groups }
   }
 
   /** Ask a body to affiliate. Nothing inherits until they say yes. */
@@ -165,5 +210,5 @@ export function useAffiliations() {
     return await api.pendingCountForBody(id)
   }
 
-  return { loadForBody, loadForClub, decide, approveAndSeed, request, pendingCountForBody }
+  return { loadForBody, loadForClub, decide, approveAndSeed, request, pendingCountForBody, affiliatedClubs }
 }

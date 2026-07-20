@@ -127,12 +127,15 @@
 import { useToast } from 'primevue/usetoast'
 import type { OrgTerm } from '~/composables/useTermsMemberships'
 import type { GroupFeeOption } from '~/composables/useGroupFees'
+import type { GroupCode } from '~/composables/useGroupCodes'
+import { isMembershipGroup } from '~/composables/useMemberships'
 
 const { orgId } = useOrg()
 const groupsApi = useGroupsApi()
 const financesApi = useFinancesApi()
 const tm = useTermsMemberships()
 const gf = useGroupFees()
+const gc = useGroupCodes()
 const route = useRoute()
 const toast = useToast()
 const { ensureTerms, t } = useTerms()
@@ -140,11 +143,16 @@ void ensureTerms()
 
 const PERIOD_UNITS = [{ label: 'week', value: 'week' }, { label: 'month', value: 'month' }, { label: 'year', value: 'year' }]
 
-interface GroupRow { id: string; name: string; term_id: string | null; color: string | null }
+interface GroupRow { id: string; name: string; term_id: string | null; code_id: string | null; color: string | null }
 
 const terms = ref<OrgTerm[]>([])
 const termFilter = ref<string>('all')
 const groups = ref<GroupRow[]>([])
+const codes = ref<GroupCode[]>([])
+const codeById = computed(() => Object.fromEntries(codes.value.map(c => [c.id, c])) as Record<string, GroupCode>)
+// A group's term is inherited from its code chain (migration 205), falling back
+// to its own term_id — the same resolution the Classes board uses.
+const effTerm = (g: GroupRow) => gc.effectiveTermId(g, codeById.value)
 const optionsByGroup = ref<Record<string, GroupFeeOption[]>>({})
 const orgCurrency = ref('NZD')
 const loading = ref(true)
@@ -157,12 +165,12 @@ const termFilterOptions = computed(() => [
 
 const { inActiveLocation: feesInLens } = useActiveLocation()
 const rows = computed(() => {
-  let gs = groups.value.filter(g => (g as any).kind !== 'membership' && feesInLens((g as any).location_id))
-  if (termFilter.value === 'none') gs = gs.filter(g => !g.term_id)
-  else if (termFilter.value !== 'all') gs = gs.filter(g => g.term_id === termFilter.value)
+  let gs = groups.value.filter(g => !isMembershipGroup(g as any) && feesInLens((g as any).location_id))
+  if (termFilter.value === 'none') gs = gs.filter(g => !effTerm(g))
+  else if (termFilter.value !== 'all') gs = gs.filter(g => effTerm(g) === termFilter.value)
   return gs.map(g => ({
     group: g,
-    term: terms.value.find(t => t.id === g.term_id) || null,
+    term: terms.value.find(t => t.id === effTerm(g)) || null,
     options: optionsByGroup.value[g.id] || [],
   }))
 })
@@ -171,15 +179,17 @@ const withFees = computed(() => rows.value.filter(r => r.options.length).length)
 async function load() {
   if (!orgId.value) return
   loading.value = true
-  const [gr, termList, opts, currency] = await Promise.all([
+  const [gr, termList, opts, currency, codeList] = await Promise.all([
     groupsApi.list(orgId.value),
     tm.loadTerms(),
     groupsApi.feeOptionsByOrg(orgId.value),
     financesApi.orgCurrency(orgId.value).catch(() => null),
+    gc.loadCodes(),
   ])
+  codes.value = codeList
   // Seam returns camelCase; this page reads snake fields.
   groups.value = (gr || []).map((g: any) => ({
-    id: g.id, name: g.name, term_id: g.termId ?? null, color: g.color ?? null,
+    id: g.id, name: g.name, term_id: g.termId ?? null, code_id: g.codeId ?? null, color: g.color ?? null,
     location_id: g.locationId ?? null, kind: g.kind ?? null,
   })).sort((a: any, b: any) => a.name.localeCompare(b.name)) as GroupRow[]
   terms.value = (termList || []) as OrgTerm[]
@@ -212,7 +222,7 @@ async function load() {
   else {
     const today = new Date().toISOString().slice(0, 10)
     const active = terms.value.find(t => (t.start_date ?? '') <= today && (t.end_date ?? '') >= today)
-    termFilter.value = active && groups.value.some(g => g.term_id === active.id) ? active.id : 'all'
+    termFilter.value = active && groups.value.some(g => effTerm(g) === active.id) ? active.id : 'all'
   }
   loading.value = false
 }

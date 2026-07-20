@@ -155,13 +155,20 @@ function instAnswers(key: string, inst: number) {
   if (!answers[key][inst - 1]) answers[key][inst - 1] = {}
   return answers[key][inst - 1]
 }
-function getVal(key: string, inst: number, label: string) { return instAnswers(key, inst)[label] }
-function setVal(key: string, inst: number, label: string, v: any) { instAnswers(key, inst)[label] = v }
+function getVal(key: string, inst: number, fieldKey: string) { return instAnswers(key, inst)[fieldKey] }
+function setVal(key: string, inst: number, fieldKey: string, v: any) { instAnswers(key, inst)[fieldKey] = v }
+// Answers are keyed by the field's stable id (fkey), NOT its label, so two fields
+// that happen to share a label can never overwrite each other. Label-based lookups
+// (visibility conditions, the well-known DOB/Gender/core fields) resolve label →
+// field → id first. fkey falls back to label for any field with no id (old configs).
+function fkey(f: any) { return f?.id ?? f?.label }
+function fieldByLabel(subjectKey: string, label: string) { return allFields(subjectKey).find((f: any) => f.label === label) }
+function valByLabel(key: string, inst: number, label: string) { const fld = fieldByLabel(key, label); return fld ? getVal(key, inst, fkey(fld)) : undefined }
 
 // ── Visibility conditions (same operators as the builder) ─────────────────────
 function condPasses(conds: any[], key: string, inst: number) {
   return (conds ?? []).every((c: any) => {
-    const val = getVal(key, inst, c.field) ?? ''
+    const val = valByLabel(key, inst, c.field) ?? ''
     if (c.operator === 'Is Empty') return !val
     if (c.operator === 'Is Not Empty') return !!val
     if (c.operator === 'Equals') return val === c.value
@@ -334,7 +341,7 @@ const grandTotal = computed(() => {
 // ── Discounts: evaluate the event's discount rules against the live selection ──
 const totalInstances = computed(() => choosers.value.reduce((n, s) => n + count(s.key), 0))
 function instanceAge(key: string, inst: number): number | null {
-  const dob = getVal(key, inst, 'Date of Birth')
+  const dob = valByLabel(key, inst, 'Date of Birth')
   if (!dob) return null
   const d = new Date(dob as any); if (isNaN(d.getTime())) return null
   const ref = props.event?.start_at ? new Date(props.event.start_at) : new Date()
@@ -431,8 +438,8 @@ function validate(): boolean {
       for (const f of allFields(s.key)) {
         if (ELEMENT_TYPES.includes(f.field_type) || f.system) continue
         if (!fieldVisible(f, s.key, inst)) continue
-        const v = getVal(s.key, inst, f.label)
-        if (f.is_required && (v == null || v === '' || v === false)) {
+        const v = getVal(s.key, inst, fkey(f))
+        if (f.is_required && (v == null || v === '' || v === false || (Array.isArray(v) && !v.length))) {
           error.value = `Please complete “${f.label}” for ${s.label}${count(s.key) > 1 ? ' ' + inst : ''}.`
           return false
         }
@@ -451,7 +458,7 @@ function validate(): boolean {
     const refDate = props.event?.start_at ? new Date(props.event.start_at) : new Date()
     for (const s of subjects.value) {
       for (let inst = 1; inst <= count(s.key); inst++) {
-        const age = ageFromDob(getVal(s.key, inst, 'Date of Birth') as any, refDate)
+        const age = ageFromDob(valByLabel(s.key, inst, 'Date of Birth') as any, refDate)
         if (age == null) continue
         const who = `${s.label}${count(s.key) > 1 ? ' ' + inst : ''}`
         if (amin != null && age < amin) { error.value = `${who} must be at least ${amin} year${amin === 1 ? '' : 's'} old for this event.`; return false }
@@ -465,7 +472,7 @@ function validate(): boolean {
     const norm = (v: any) => String(v ?? '').trim().toUpperCase().replace(/[\s-]+/g, '_')
     for (const s of subjects.value) {
       for (let inst = 1; inst <= count(s.key); inst++) {
-        const g = norm(getVal(s.key, inst, 'Gender'))
+        const g = norm(valByLabel(s.key, inst, 'Gender'))
         if (!g) continue
         if (g !== norm(genderReq)) {
           const who = `${s.label}${count(s.key) > 1 ? ' ' + inst : ''}`
@@ -509,14 +516,13 @@ function validate(): boolean {
 // ── Build the normalised payload ─────────────────────────────────────────────
 function instanceIdentity(key: string, inst: number) {
   // Map core (account-tagged / well-known) fields to person columns.
-  const a = instAnswers(key, inst)
   const byAccount: Record<string, string> = {}
-  for (const f of allFields(key)) if (f.account) byAccount[f.account] = a[f.label]
+  for (const f of allFields(key)) if (f.account) byAccount[f.account] = getVal(key, inst, fkey(f))
   return {
-    first_name: byAccount.first ?? a['First Name'] ?? '',
-    last_name: byAccount.last ?? a['Last Name'] ?? '',
-    email: byAccount.email ?? a['Email'] ?? a['Email Address'] ?? '',
-    phone: a['Phone'] ?? a['Phone Number'] ?? '',
+    first_name: byAccount.first ?? valByLabel(key, inst, 'First Name') ?? '',
+    last_name: byAccount.last ?? valByLabel(key, inst, 'Last Name') ?? '',
+    email: byAccount.email ?? valByLabel(key, inst, 'Email') ?? valByLabel(key, inst, 'Email Address') ?? '',
+    phone: valByLabel(key, inst, 'Phone') ?? valByLabel(key, inst, 'Phone Number') ?? '',
   }
 }
 function buildPayload() {
@@ -527,11 +533,16 @@ function buildPayload() {
     instances: Array.from({ length: count(s.key) }, (_, i) => {
       const inst = i + 1
       const identity = isEntity(s) ? {} : instanceIdentity(s.key, inst)
+      // fields = label-keyed (human-readable record); fieldList = the authoritative
+      // id-keyed answers the server maps from (so duplicate labels never merge).
       const fieldsOut: Record<string, any> = {}
+      const fieldList: { id: string | null; label: string; connected_to: string | null; account: string | null; value: any }[] = []
       for (const f of allFields(s.key)) {
         if (ELEMENT_TYPES.includes(f.field_type)) continue
-        const val = getVal(s.key, inst, f.label)
-        if (val !== undefined) fieldsOut[f.label] = val
+        const val = getVal(s.key, inst, fkey(f))
+        if (val === undefined) continue
+        fieldsOut[f.label] = val
+        fieldList.push({ id: f.id ?? null, label: f.label, connected_to: f.connected_to ?? null, account: f.account ?? null, value: val })
       }
       const sess = isChooser(s.key)
         ? visibleSessions.value.filter(x => x.required || sessionSelected(s.key, inst, x.id)).map(x => x.id)
@@ -541,7 +552,7 @@ function buildPayload() {
             .map(g => ({ group_id: g.id, fee_option_id: groupFeeSelected(s.key, inst, g.id) }))
         : []
       return {
-        ...identity, fields: fieldsOut, sessions: sess,
+        ...identity, fields: fieldsOut, fieldList, sessions: sess,
         fee: isChooser(s.key) ? instanceTotal(s.key, inst) : 0,
         fee_option_id: isChooser(s.key) ? feeOptionSelected(s.key, inst) : null,
         groups: groupsOut,
@@ -663,8 +674,8 @@ function prefillPrimary(person: any) {
     else if (label === 'Phone' || label === 'Phone Number') v = person.phone
     else if (label === 'Date of Birth') v = person.dob
     else if (label === 'Gender') v = GENDER_FROM_DB[person.gender] ?? person.gender
-    else v = cf[labelToDefId.value[label]] ?? cf[label]
-    if (v != null && v !== '') setVal(subject.key, 1, label, v)
+    else v = cf[labelToDefId.value[label]] ?? cf[f.id] ?? cf[label]
+    if (v != null && v !== '') setVal(subject.key, 1, fkey(f), v)
   }
   identifiedName.value = [person.first_name, person.last_name].filter(Boolean).join(' ').trim()
 }
@@ -835,8 +846,8 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <!-- Pinned (name) -->
             <FormRendererField v-for="f in leadFields(s.key)" :key="f.id"
-              :field="f" :value="getVal(s.key, inst, f.label)"
-              @update="v => setVal(s.key, inst, f.label, v)" />
+              :field="f" :value="getVal(s.key, inst, fkey(f))"
+              @update="v => setVal(s.key, inst, fkey(f), v)" />
             <!-- Body items + sections -->
             <template v-for="f in bodyItems(s.key)" :key="f.id">
               <div v-if="f.field_type === 'section'" class="col-span-2 mt-2">
@@ -845,13 +856,13 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <FormRendererField v-for="c in sectionChildren(s.key, f.id)" :key="c.id"
                     v-show="fieldVisible(c, s.key, inst)"
-                    :field="c" :value="getVal(s.key, inst, c.label)"
-                    @update="v => setVal(s.key, inst, c.label, v)" />
+                    :field="c" :value="getVal(s.key, inst, fkey(c))"
+                    @update="v => setVal(s.key, inst, fkey(c), v)" />
                 </div>
               </div>
               <FormRendererField v-else v-show="fieldVisible(f, s.key, inst)"
-                :field="f" :value="getVal(s.key, inst, f.label)"
-                @update="v => setVal(s.key, inst, f.label, v)" />
+                :field="f" :value="getVal(s.key, inst, fkey(f))"
+                @update="v => setVal(s.key, inst, fkey(f), v)" />
             </template>
           </div>
 

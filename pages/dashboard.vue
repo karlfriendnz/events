@@ -12,6 +12,7 @@
 <script setup lang="ts">
 import { GridLayout, GridItem } from 'grid-layout-plus'
 import type { RolloverNudge } from '~/composables/useTermRollover'
+import { isMembershipGroup } from '~/composables/useMemberships'
 
 const db = useDb()
 const { orgId } = useOrg()
@@ -489,7 +490,7 @@ async function load() {
     membership_type: p.membershipType, gender: p.gender, dob: p.dob,
     custom_fields: p.customFields, created_at: p.createdAt,
   }))
-  const groupCount = groupsList.filter(g => g.kind !== 'membership').length
+  const groupCount = groupsList.filter(g => !isMembershipGroup(g)).length
 
   orgName.value = orgMeta?.name ?? ''
   isParentOrg.value = isGoverningBody(orgMeta?.orgLevel)
@@ -560,7 +561,7 @@ async function load() {
       useGroupsApi().membershipsByOrg(orgId.value as string),
       useAffiliationsApi().locationStaffByOrg(orgId.value as string),
     ])
-    stats.groups = groupsList.filter(g => g.kind !== 'membership' && g.locationId === lensId).length
+    stats.groups = groupsList.filter(g => !isMembershipGroup(g) && g.locationId === lensId).length
     stats.members = new Set([
       ...lensMships.filter((m: any) => m.locationId === lensId).map((m: any) => m.personId),
       ...lensStaff.filter((s2: any) => s2.locationId === lensId).map((s2: any) => s2.personId),

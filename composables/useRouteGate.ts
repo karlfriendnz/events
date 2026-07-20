@@ -76,6 +76,10 @@ export function isUngatedPath(path: string): boolean {
 }
 
 export function isPublicPath(path: string): boolean {
+  // Event self-check-in (/events/:id/check-in) is a public leaf inside the
+  // otherwise-gated /events area — a printed-QR page a logged-out (or low-access)
+  // member must reach. Match the exact leaf, never the rest of /events.
+  if (path.startsWith('/events/') && path.endsWith('/check-in')) return true
   // '/r/' carries a trailing slash on purpose; the rest match at a boundary.
   return path.startsWith('/r/') ||
     PUBLIC_PREFIXES.some(p => p !== '/r/' && (path === p || path.startsWith(p + '/')))

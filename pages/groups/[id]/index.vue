@@ -1922,19 +1922,30 @@ async function loadGroupDisciplines(gid = group.value?.id ?? (route.params.id as
 const dr = useDisciplineRequirements()
 const { loadFieldCatalogue } = usePersonFields()
 const reqCatalogue = ref<PersonFieldDef[]>([])
-const effectiveReqs = ref<ResolvedRequirement[]>([])
+// The RAW discipline + requirement sets (NOT pre-resolved). Per-person flagging
+// resolves from these INSIDE flagsFor, passing the person's type keys so the
+// type-filter runs BEFORE closest-wins — otherwise a coach-scoped child rule
+// shadows a member-scoped parent rule (same field_key) and the member is left
+// with neither.
+const flagDisciplines = ref<any[]>([])
+const flagRequirements = ref<any[]>([])
+// Memo of the resolved `effective` set per person-type-key signature (many people
+// share the same keys). Cleared whenever the raw sets reload.
+const flagEffMemo = new Map<string, ResolvedRequirement[]>()
 // Our types + their links to the bodies' types (mig 272) — what lets a rule scoped
 // to Football's "Player" find our "Members".
 const clubTypesForFlags = ref<any[]>([])
 const typeLinksForFlags = ref<PersonTypeLink[]>([])
 
 async function loadDisciplineFlags() {
-  if (!groupDisciplineIds.value.length) { effectiveReqs.value = []; return }
+  flagEffMemo.clear()
+  if (!groupDisciplineIds.value.length) { flagDisciplines.value = []; flagRequirements.value = []; disciplineCast.value = []; return }
   const { disciplines, requirements } = await dr.loadForEntity('group', group.value?.id ?? (route.params.id as string))
-  // Union across chains: a group can be linked to disciplines from several bodies,
-  // and neither authority's rules shadow the other's.
-  effectiveReqs.value = effectiveRequirementsForMany(groupDisciplineIds.value, disciplines, requirements).effective
-  if (effectiveReqs.value.length && !reqCatalogue.value.length && orgId.value) {
+  // Keep the RAW sets — flagsFor resolves per person (see the ref comment above),
+  // which is what stops closest-wins from shadowing across person-type scopes.
+  flagDisciplines.value = disciplines ?? []
+  flagRequirements.value = requirements ?? []
+  if (flagRequirements.value.length && !reqCatalogue.value.length && orgId.value) {
     // null typeKey + age: the NSO's fields often target 'gymnast'/'player', not
     // 'member', and a rule can name the virtual Age field.
     reqCatalogue.value = await loadFieldCatalogue(orgId.value, null, { includeAge: true })
@@ -1950,19 +1961,25 @@ async function loadDisciplineFlags() {
     typeLinksForFlags.value = links ?? []
   }
   // Who the linked disciplines say takes part (mig 276) — union across bodies.
-  disciplineCast.value = castForMany(groupDisciplineIds.value, disciplines)
+  disciplineCast.value = castForMany(groupDisciplineIds.value, flagDisciplines.value)
 }
 
 /** What this person fails, for the requirements their types are subject to. */
 const flagsFor = (p: any): Unmet[] => {
-  if (!effectiveReqs.value.length || !p?.person) return []
-  // Expand our type keys through the links before matching: Football says "for
-  // Players", our people are Members, and the link is what says those are the
-  // same people. A coach holds no link to Player, so a players-only rule leaves
-  // them alone — which is the whole point of scoping a rule at all.
+  if (!flagRequirements.value.length || !p?.person) return []
+  // Expand our type keys through the links, THEN resolve per person: passing the
+  // keys INTO effectiveRequirementsForMany runs the type-filter before closest-wins,
+  // so a members-only parent rule isn't shadowed by a coach-only child rule and the
+  // member keeps it. A coach holds no link to Player, so a players-only rule still
+  // leaves them alone — the point of scoping a rule at all.
   const keys = chainForPersonTypes(personTypeKeysOf(p.person), clubTypesForFlags.value, typeLinksForFlags.value)
-  const mine = effectiveReqs.value.filter(r => requirementApplies(r, keys))
-  return unmetFor(p.person, mine, { catalogue: reqCatalogue.value })
+  const memoKey = keys.slice().sort().join('|')
+  let effective = flagEffMemo.get(memoKey)
+  if (!effective) {
+    effective = effectiveRequirementsForMany(groupDisciplineIds.value, flagDisciplines.value, flagRequirements.value, { personTypeKeys: keys }).effective
+    flagEffMemo.set(memoKey, effective)
+  }
+  return unmetFor(p.person, effective, { catalogue: reqCatalogue.value })
 }
 /** Tally for one band — one line per field, so it reads "School (2)".
  *  Runs over BOTH bands: a coach is in the discipline just as a member is, and
@@ -2420,7 +2437,7 @@ watch(() => group.value?.id, async () => {
   msSettings.value = resolveMembershipSettings((group.value as any)?.membership_settings)
   const others = await groupsApi.list(orgId.value)
   otherMembershipOptions.value = others
-    .filter((g: any) => g.kind === 'membership' && g.id !== group.value!.id)
+    .filter((g: any) => isMembershipGroup(g) && g.id !== group.value!.id)
     .map((g: any) => ({ label: g.name, value: g.id }))
     .sort((a, b) => a.label.localeCompare(b.label))
   await nextTick()
@@ -2537,9 +2554,14 @@ const castTypeOptions = computed(() =>
  *  A class with no discipline must not start asking new questions. */
 const addPersonType = ref<string | null>(null)
 const effectiveAddType = computed(() => addPersonType.value ?? groupMemberType.value)
-/** Whose rules these are — so the dialog says where the question came from. */
-const linkedDisciplineNames = computed(() =>
-  [...new Set(effectiveReqs.value.map(r => r.viaDisciplineName))].join(', ') || 'This class\'s discipline')
+/** Whose rules these are — so the dialog says where the question came from.
+ *  Display-only, so it resolves UNSCOPED (naming the disciplines that demand
+ *  anything); per-person flagging still resolves per person in flagsFor. */
+const linkedDisciplineNames = computed(() => {
+  if (!groupDisciplineIds.value.length || !flagRequirements.value.length) return 'This class\'s discipline'
+  const eff = effectiveRequirementsForMany(groupDisciplineIds.value, flagDisciplines.value, flagRequirements.value).effective
+  return [...new Set(eff.map(r => r.viaDisciplineName))].join(', ') || 'This class\'s discipline'
+})
 
 // Head picker: only the group's STAFF (coaches) — a head is a staff member.
 const headPersonOptions = computed(() => {
@@ -3649,7 +3671,11 @@ const addWillBeMember = computed(() => {
 const addPersonFlags = computed<Unmet[]>(() =>
   pendingPerson.value?.id ? flagsFor({ person: pendingPerson.value }) : [])
 
-const groupFull = computed(() => !!group.value?.capacity && members.value.length >= (group.value!.capacity as number))
+// Capacity is a MEMBER cap — someone holding a staff role doesn't take a member
+// spot (even if they also hold a position and so appear in the Members list), so
+// they're excluded from the fullness check.
+const memberCapacityCount = computed(() => members.value.filter(m => !rolesAreStaff(m.allRoles ?? [])).length)
+const groupFull = computed(() => !!group.value?.capacity && memberCapacityCount.value >= (group.value!.capacity as number))
 const addWaitlistWarn = computed(() =>
   !!pendingPerson.value?.id && addWillBeMember.value
   && !members.value.some(m => m.id === pendingPerson.value?.id)
@@ -3742,7 +3768,20 @@ function openAdd(mode: 'member' | 'coach', person?: any) {
   if (person?.id) {
     // Clicking an existing person's name → pre-select them in the picker.
     const name = person.name || `${person.first_name ?? ''} ${person.last_name ?? ''}`.trim()
-    const picked = { id: person.id, name, first_name: person.first_name, last_name: person.last_name, email: person.email, phone: person.phone, label: name }
+    // Carry the full identity (gender/dob/custom_fields/person_types) — same fields
+    // the search path provides — so the gender-restriction check + discipline flags
+    // can evaluate this person BEFORE the add, not only afterwards on the roster.
+    const raw = person.person ?? person
+    const picked = {
+      id: person.id, name, label: name,
+      first_name: person.first_name ?? raw.first_name, last_name: person.last_name ?? raw.last_name,
+      email: person.email ?? raw.email, phone: person.phone ?? raw.phone,
+      gender: raw.gender ?? person.gender ?? null,
+      dob: raw.dob ?? person.dob ?? null,
+      custom_fields: raw.custom_fields ?? person.custom_fields ?? null,
+      person_types: raw.person_types ?? person.person_types ?? null,
+      person_type: raw.person_type ?? person.person_type ?? null,
+    }
     personQuery.value = picked
     pendingPerson.value = picked
   } else {

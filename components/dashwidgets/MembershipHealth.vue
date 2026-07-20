@@ -1,5 +1,6 @@
 <!-- Dashboard widget: memberships by umbrella/tier + new this month -->
 <script setup lang="ts">
+import { isMembershipGroup } from '~/composables/useMemberships'
 const groupsApi = useGroupsApi()
 const { orgId } = useOrg()
 const gc = useGroupCodes()
@@ -18,7 +19,7 @@ async function load() {
     gc.loadCodes(),
     groupsApi.list(orgId.value),
   ])
-  const gs = allGs.filter(g => g.kind === 'membership')
+  const gs = allGs.filter(g => isMembershipGroup(g))
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
     .map(g => ({ id: g.id, name: g.name, color: g.color, code_id: g.codeId }))
   const mems = await groupsApi.membershipsForRetention(gs.map(g => g.id))

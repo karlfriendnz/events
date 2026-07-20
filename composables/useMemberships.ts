@@ -275,8 +275,17 @@ export function useMemberships() {
       : ents.filter(e => e.target_type === 'event' && e.target_id === target.eventId))
       .filter(e => heldIds.has(e.membership_group_id))
     if (!matches.length) return null
-    // Most generous wins: included beats any discount.
-    const best = matches.find(e => (e.benefit_type ?? 'included') === 'included') ?? matches[0]
+    // Most generous wins: an "included" (free) benefit beats every discount;
+    // among competing discounts the LARGER value wins (percent vs amount can't be
+    // ranked without the target price, so a percent is preferred on an equal value).
+    const typeRank = (tp?: string) => (tp ?? 'included') === 'included' ? 2 : 1
+    const best = matches.slice().sort((a, b) => {
+      const ta = typeRank(a.benefit_type), tb = typeRank(b.benefit_type)
+      if (ta !== tb) return tb - ta
+      const va = Number(a.benefit_value ?? 0), vb = Number(b.benefit_value ?? 0)
+      if (vb !== va) return vb - va
+      return (b.benefit_type === 'discount_percent' ? 1 : 0) - (a.benefit_type === 'discount_percent' ? 1 : 0)
+    })[0]
     const m = held.find(h => h.groupId === best.membership_group_id)!
     return { membershipGroupId: m.groupId, membershipName: m.name, benefit: best }
   }

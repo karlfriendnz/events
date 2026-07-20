@@ -827,6 +827,7 @@ async function createEvent() {
         modifierType: d.modifier_type,
         applyTo: d.apply_to,
         conditions: JSON.parse(JSON.stringify(d.conditions.filter(c => c.key))),
+        validFrom: d.valid_from_type === 'custom' && d.valid_from ? toIsoDate(d.valid_from) : null,
         expiresAt: d.expires_type === 'custom' && d.expires_at ? toIsoDate(d.expires_at) : null,
       }))
     for (const dr of discountRows) await financesApi.createDiscount(dr as any)

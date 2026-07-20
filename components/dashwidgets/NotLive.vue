@@ -1,5 +1,6 @@
 <!-- Dashboard widget: classes that can't take public sign-ups yet (no registration form) -->
 <script setup lang="ts">
+import { isMembershipGroup } from '~/composables/useMemberships'
 const groups = useGroupsApi()
 const { orgId } = useOrg()
 const { ensureTerms, t } = useTerms()
@@ -14,7 +15,7 @@ async function load() {
   // Seam read: all groups, then keep non-membership classes with no reg form.
   const all = await groups.list(orgId.value)
   rows.value = all
-    .filter(g => g.kind !== 'membership' && !g.formId)
+    .filter(g => !isMembershipGroup(g) && !g.formId)
     .map(g => ({ id: g.id, name: g.name, color: g.color, location_id: g.locationId }))
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
     .slice(0, 50)

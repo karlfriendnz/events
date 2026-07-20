@@ -1,9 +1,10 @@
 <!--
-  One editable field in <FormRenderer>. Renders a real, fillable input per
-  field_type (the live counterpart to EvtFieldCell, which is preview-only /
-  pointer-events-none). Emits `update` with the new value; the parent owns state.
-  Element types (section/image/textblock/button) are handled by the parent — this
-  component only renders data fields.
+  One item in <FormRenderer>. Renders a real, fillable input per field_type (the
+  live counterpart to EvtFieldCell, which is preview-only / pointer-events-none),
+  AND the presentational layout blocks a designer can drop into a subject —
+  image / textblock / button (their content lives in `options[0..2]`, mirroring
+  EvtFieldCell). Emits `update` with the new value for data fields; the parent owns
+  state. Section blocks are still handled by the parent (they hold child fields).
 -->
 <script setup lang="ts">
 const props = defineProps<{ field: any; value: any }>()
@@ -11,13 +12,52 @@ const emit = defineEmits<{ (e: 'update', v: any): void }>()
 const f = computed(() => props.field)
 const colSpan = computed(() => (f.value.col_span === 2 ? 'sm:col-span-2' : 'col-span-1'))
 function on(e: Event) { emit('update', (e.target as any).value) }
+
+// Multi-select: value is an array of chosen options; toggle keeps it an array.
+function isMultiSelected(opt: string) { return Array.isArray(props.value) && props.value.includes(opt) }
+function toggleMulti(opt: string, checked: boolean) {
+  const cur = Array.isArray(props.value) ? [...props.value] : []
+  const i = cur.indexOf(opt)
+  if (checked && i === -1) cur.push(opt)
+  if (!checked && i !== -1) cur.splice(i, 1)
+  emit('update', cur)
+}
+
+// Button block: only allow safe schemes for the href (club-authored, but guard anyway).
+const buttonHref = computed(() => {
+  const h = String(f.value.options?.[1] ?? '').trim()
+  return /^(https?:|mailto:|\/)/i.test(h) ? h : ''
+})
+
 // Explicit bg + text + placeholder colours: these inputs render on public pages
 // with designed backgrounds (and under OS dark mode), so they must not inherit.
 const inputClass = 'w-full h-9 px-3 text-sm bg-white text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-lg outline-none focus:border-primary transition-colors'
 </script>
 
 <template>
-  <div :class="colSpan" class="space-y-1">
+  <!-- ── Layout blocks (presentational — no value, no label) ── -->
+  <!-- Image -->
+  <div v-if="f.field_type === 'image'" class="sm:col-span-2" :class="'text-' + (f.options?.[2] ?? 'center')">
+    <img v-if="f.options?.[0]" :src="f.options[0]" :alt="f.options?.[1] || ''" class="max-w-full rounded-lg inline-block" />
+  </div>
+
+  <!-- Text block -->
+  <div v-else-if="f.field_type === 'textblock'" class="sm:col-span-2">
+    <p class="text-gray-600 whitespace-pre-wrap" :class="'text-' + (f.options?.[1] ?? 'base')">{{ f.options?.[0] || '' }}</p>
+  </div>
+
+  <!-- Button -->
+  <div v-else-if="f.field_type === 'button'" class="sm:col-span-2">
+    <component :is="buttonHref ? 'a' : 'span'" :href="buttonHref || undefined"
+      :target="buttonHref ? '_blank' : undefined" :rel="buttonHref ? 'noopener noreferrer nofollow' : undefined"
+      class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+      :class="f.options?.[2] === 'secondary' ? 'border border-primary text-primary' : f.options?.[2] === 'link' ? 'text-primary underline' : 'bg-primary text-white'">
+      {{ f.options?.[0] || 'Button' }}<i v-if="buttonHref" class="pi pi-external-link text-sm" />
+    </component>
+  </div>
+
+  <!-- ── Data fields ── -->
+  <div v-else :class="colSpan" class="space-y-1">
     <!-- Checkbox: label sits inline -->
     <label v-if="f.field_type === 'checkbox'" class="flex items-center gap-2.5 cursor-pointer py-1.5">
       <input type="checkbox" class="w-4 h-4 rounded border-gray-300 accent-primary"
@@ -39,11 +79,15 @@ const inputClass = 'w-full h-9 px-3 text-sm bg-white text-gray-900 placeholder:t
         <option v-for="opt in (f.options ?? [])" :key="opt" :value="opt" class="text-gray-900">{{ opt }}</option>
       </select>
 
-      <select v-else-if="f.field_type === 'multiselect'" :value="value" :class="[inputClass, !value && 'text-gray-400']"
-        style="-webkit-appearance:auto;appearance:auto;background:white;" @change="on">
-        <option value="" disabled :selected="!value">{{ f.placeholder || 'Select…' }}</option>
-        <option v-for="opt in (f.options ?? [])" :key="opt" :value="opt" class="text-gray-900">{{ opt }}</option>
-      </select>
+      <!-- Multi-select: real multi-choice (pick any number) rendered as checkboxes -->
+      <div v-else-if="f.field_type === 'multiselect'" class="space-y-1.5 pt-0.5">
+        <label v-for="opt in (f.options ?? [])" :key="opt" class="flex items-center gap-2.5 cursor-pointer">
+          <input type="checkbox" class="w-4 h-4 rounded border-gray-300 accent-primary"
+            :checked="isMultiSelected(opt)" @change="toggleMulti(opt, ($event.target as any).checked)" />
+          <span class="text-sm text-gray-700">{{ opt }}</span>
+        </label>
+        <p v-if="!(f.options ?? []).length" class="text-xs text-gray-400">No options configured.</p>
+      </div>
 
       <input v-else-if="f.field_type === 'date'" type="date" :value="value" :class="inputClass" @input="on" />
 

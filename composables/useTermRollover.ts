@@ -276,11 +276,14 @@ export function useTermRollover() {
 
     for (const { t, left } of candidates) {
       // "The next term" only exists within the same TERM SET (migration 232) —
-      // the Seniors' second half is never the juniors' Term 4.
-      const next = termList.find(n =>
-        n.id !== t.id
-        && ((n as any).set_id ?? null) === ((t as any).set_id ?? null)
-        && (n.start_date ?? '') > (t.start_date ?? '')) ?? null
+      // the Seniors' second half is never the juniors' Term 4 — and is the
+      // EARLIEST-starting such term (list order isn't date order).
+      const next = termList
+        .filter(n =>
+          n.id !== t.id
+          && ((n as any).set_id ?? null) === ((t as any).set_id ?? null)
+          && (n.start_date ?? '') > (t.start_date ?? ''))
+        .sort((a, b) => (a.start_date ?? '').localeCompare(b.start_date ?? ''))[0] ?? null
       const total = byTerm[t.id].count
       if (!next) return { state: 'create-term', currentTerm: t, nextTerm: null, daysLeft: left, total, remaining: total }
       const nextInfo = byTerm[next.id] ?? { lineages: new Set(), rolledFrom: new Set() }

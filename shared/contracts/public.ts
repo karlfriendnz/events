@@ -74,13 +74,20 @@ export const publicFeeLineSchema = z.object({
 export type PublicFeeLine = z.infer<typeof publicFeeLineSchema>
 
 // An active discount surfaced on the registration landing to encourage sign-up.
-// Only the display-safe fields (name / form text / how much) — never eligibility,
-// caps, or usage internals.
+// Carries the eligibility fields too, so the CLIENT can evaluate which discounts a
+// given registrant actually qualifies for (an accurate "save $X" preview) rather
+// than showing every discount unconditionally. Money stays authoritative SERVER-side
+// (public-form-submit recomputes total + discount), so these are display-only.
 export const publicDiscountSchema = z.object({
   name: z.string(),
   formText: z.string().nullable(),
   modifierType: z.string(),
   modifierValue: z.number(),
+  conditions: z.any().nullable().optional(),
+  applyTo: z.string().nullable().optional(),
+  validFrom: z.string().nullable().optional(),
+  expiresAt: z.string().nullable().optional(),
+  isActive: z.boolean().optional(),
 })
 export type PublicDiscount = z.infer<typeof publicDiscountSchema>
 

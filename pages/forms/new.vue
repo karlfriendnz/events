@@ -38,7 +38,7 @@ watch(orgId, async (id) => {
   try { memberTerm.value = term(await resolveTerminology(id), 'member') } catch { /* default */ }
 }, { immediate: true })
 const TYPE_OPTIONS = computed(() => [
-  { id: 'basic', label: 'Basic', icon: 'pi-file-edit', description: 'One quick form — name, contact details, submit.', includes: '' },
+  { id: 'basic', label: 'Invite only', icon: 'pi-file-edit', description: 'Just invite people — no form, no fees; emailed out, they reply Yes/No.', includes: '' },
   { id: 'blank', label: 'Blank', icon: 'pi-file', description: 'Start with a single person and build the form yourself.', includes: '' },
   ...PROFILE_PRESETS.map(p => ({
     id: p.id, label: p.label, icon: p.icon, description: p.description,

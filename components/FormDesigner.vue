@@ -11,7 +11,7 @@ import { applicableDiscounts as evalApplicableDiscounts, type DiscountCtx } from
 
 const props = withDefaults(defineProps<{ eventId: string | null; groupId?: string | null; formId?: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean; embedded?: boolean; ageMin?: number | null; ageMax?: number | null; genderRestriction?: string | null }>(), { groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false, embedded: false, ageMin: null, ageMax: null, genderRestriction: null })
 
-const emit = defineEmits<{ (e: 'building', v: boolean): void }>()
+const emit = defineEmits<{ (e: 'building', v: boolean): void; (e: 'invite-only'): void }>()
 const formsApi = useFormsApi()
 const groupsApi = useGroupsApi()
 const eventsApi = useEventsApi()
@@ -949,6 +949,20 @@ function isEvtFieldAdded(label: string) {
   return evtAlwaysPresentFields.includes(label) || evtVisibleFields.value.some(f => f.label === label)
 }
 
+// Belt-and-braces: keep every NEW field's label unique within its subject. Answers
+// are keyed by field id (so a collision can't merge data), but a distinct label also
+// keeps the human-readable record + the editor unambiguous.
+function uniqueEvtLabel(label: string) {
+  const target = evtFieldTarget.value
+  const existing = new Set((evtFormGroupFields[selectedFormGroupId.value] ?? [])
+    .filter((f: any) => (f.target || '') === target)
+    .map((f: any) => String(f.label)))
+  if (!existing.has(label)) return label
+  let n = 2
+  while (existing.has(`${label} ${n}`)) n++
+  return `${label} ${n}`
+}
+
 function addEvtFormField(label: string, parentSection: string | null = null) {
   if (isEvtFieldAdded(label)) return null
   const meta = evtFieldMeta[label] ?? { field_type: 'text', icon: 'pi-minus', placeholder: '' }
@@ -1138,7 +1152,7 @@ function saveEvtNewField() {
   if (!evtNewFieldDraft.label.trim()) return
   const field: FormField = {
     id: crypto.randomUUID(),
-    label: evtNewFieldDraft.label.trim(),
+    label: uniqueEvtLabel(evtNewFieldDraft.label.trim()),
     field_type: evtNewFieldDraft.field_type,
     is_required: false,
     placeholder: evtNewFieldDraft.placeholder.trim(),
@@ -1224,7 +1238,7 @@ const evtBlockTypes = [
 function evtStartNewField(type: string) {
   if (type === 'field') {
     const id = crypto.randomUUID()
-    ensureEvtGroupFields().push({ id, label: 'New Field', field_type: 'text', is_required: false, placeholder: '', has_placeholder: false, col_span: 1, visibility_conditions: [], financial_rules: [], target: evtFieldTarget.value } as any)
+    ensureEvtGroupFields().push({ id, label: uniqueEvtLabel('New Field'), field_type: 'text', is_required: false, placeholder: '', has_placeholder: false, col_span: 1, visibility_conditions: [], financial_rules: [], target: evtFieldTarget.value } as any)
     evtSelectedFieldId.value = id
   } else {
     evtNewBlockType.value = type as any
@@ -2183,6 +2197,9 @@ function chooseEvtFormType(mode: string) {
     else currentEvtFormProfiles.value = [{ key: 'member', label: 'Member', min: 1, max: 1, kind: 'person', selectsOptions: true } as any]
   }
   persistEvtFormConfig()
+  // "Invite only" (the simple, no-form, Yes/No path): let a host wizard flip the
+  // event to RSVP-only (is_public off, no registration form) — new-basic wires this.
+  if (mode === 'simple') emit('invite-only')
 }
 
 function changeEvtFormType() {
@@ -3375,7 +3392,7 @@ defineExpose({ reload })
               <div v-if="evtChooserStep === 'type'" class="p-5 space-y-2.5">
                 <button type="button" class="w-full flex items-start gap-3 border border-gray-200 rounded-lg px-4 py-3 text-left hover:border-[#182e59] hover:bg-blue-50/30 transition-colors group" @click="chooseEvtFormType('simple')">
                   <div class="shrink-0 w-9 h-9 rounded-lg bg-gray-50 group-hover:bg-blue-50 flex items-center justify-center text-gray-400 group-hover:text-[#182e59]"><i class="pi pi-file-edit text-lg" /></div>
-                  <div><p class="text-sm font-bold text-gray-800">Basic</p><p class="text-xs text-gray-500 mt-0.5">A simple Yes / No registration — no extra fields.</p></div>
+                  <div><p class="text-sm font-bold text-gray-800">Invite only</p><p class="text-xs text-gray-500 mt-0.5">Just invite people — no form or fees. Emailed out; they reply Yes / No.</p></div>
                 </button>
                 <button type="button" class="w-full flex items-start gap-3 border border-gray-200 rounded-lg px-4 py-3 text-left hover:border-[#182e59] hover:bg-blue-50/30 transition-colors group" @click="evtChooserStep = 'template'">
                   <div class="shrink-0 w-9 h-9 rounded-lg bg-gray-50 group-hover:bg-blue-50 flex items-center justify-center text-gray-400 group-hover:text-[#182e59]"><i class="pi pi-plus-circle text-lg" /></div>

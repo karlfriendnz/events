@@ -21,7 +21,11 @@
         @add-people="addManyIndividuals"
         @toggle-group="toggleSelectorGroup"
         @toggle-code="toggleWholeCode"
-        @reveal-person="flashPerson" />
+        @reveal-person="flashPerson"
+        :show-clubs="isGoverning"
+        :added-org-ids="orgInvitees.map(o => o.orgId)"
+        @add-org="addOrg"
+        @reveal-org="flashOrg" />
     </div>
 
     <!-- RIGHT: who's actually invited -->
@@ -67,9 +71,28 @@
         </div>
       </Transition>
 
+      <!-- Invited clubs (governing org) — a club invitee is neither a person nor a
+           group, so it gets its own chip row independent of the people list. -->
+      <div v-if="isGoverning && orgInvitees.length" class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div class="flex items-center gap-2.5 px-4 py-3">
+          <i class="pi pi-building text-gray-400 text-xs shrink-0" />
+          <span class="font-semibold text-gray-800 text-sm">Invited clubs</span>
+          <span class="bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full">{{ orgInvitees.length }}</span>
+        </div>
+        <div class="px-4 pb-3 flex flex-wrap gap-2">
+          <span v-for="o in orgInvitees" :key="o.id"
+            class="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm transition-colors"
+            :class="flashedOrgId === o.orgId ? 'bg-emerald-100 text-emerald-900 ring-2 ring-emerald-400' : 'bg-gray-100 text-gray-700'">
+            <i class="pi pi-building text-xs text-gray-400" />
+            {{ o.orgName ?? o.orgId }}
+            <button class="text-gray-400 hover:text-red-500" @click="removeOrg(o.id)"><i class="pi pi-times-circle text-sm" /></button>
+          </span>
+        </div>
+      </div>
+
       <!-- Loading / empty state -->
       <div v-if="inviteesLoading" class="py-12 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-400 text-xl" /></div>
-      <div v-else-if="!invitees.length && !selectedInviteeGroups.length" class="bg-white rounded-xl border border-gray-200 py-14 text-center text-sm text-gray-400">
+      <div v-else-if="!invitees.length && !selectedInviteeGroups.length && !(isGoverning && orgInvitees.length)" class="bg-white rounded-xl border border-gray-200 py-14 text-center text-sm text-gray-400">
         <i class="pi pi-users text-3xl mb-3 block text-gray-300" />
         Use the selector on the left to add {{ t('group', true, true) }} of people
       </div>
@@ -333,9 +356,9 @@ async function toggleSelectorGroup(value: string, who: 'all' | 'members' | 'staf
 async function addGroupInvitees(groupId: string, who: 'all' | 'members' | 'staff' = 'all') {
   addingGroupId.value = groupId
 
-  const children = allMemberGroups.value.filter(g => g.parent_id === groupId)
-  // If this group has children, pull memberships from children; otherwise use the group itself
-  const groupIds = children.length > 0 ? children.map(g => g.id) : [groupId]
+  // <PeopleSelector> emits leaf group ids (group nesting moved to group_codes in
+  // migration 206, so member_groups.parent_id is retired) — read the group directly.
+  const groupIds = [groupId]
 
   // One memberships read per group (the seam is per-group), flattened + normalised
   // back to the { person_id, roles, role } shape this function expects.
@@ -442,6 +465,38 @@ function flashPerson(personId: string) {
   flashTimer = setTimeout(() => (flashedPersonId.value = null), 900)
 }
 
+// ---- Invited clubs (governing-org "Clubs" tab) ----
+// A body can invite a whole affiliated club to an event. Persisted first-class in
+// event_org_invitees (not fanned out to people), independent of the people list.
+const orgsApi = useOrganisationsApi()
+const isGoverning = ref(false)
+const orgInvitees = ref<any[]>([])
+async function loadOrgInvitees() {
+  if (!isGoverning.value) return
+  orgInvitees.value = await eventsApi.orgInvitees(props.eventId)
+}
+async function addOrg(club: { id: string; name: string; sport?: string; bodyName?: string }) {
+  if (orgInvitees.value.some(o => o.orgId === club.id)) { flashOrg(club.id); return }
+  try {
+    await eventsApi.addOrgInvitee({ eventId: props.eventId, orgId: club.id, invitedByOrgId: orgId.value, status: 'INVITED' })
+    await loadOrgInvitees()   // no toast — the club chip appearing IS the feedback
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Error', detail: e?.data?.message ?? e?.message, life: 4000 })
+  }
+}
+async function removeOrg(id: string) {
+  await eventsApi.removeOrgInvitee(id)
+  await loadOrgInvitees()
+}
+// Re-adding an already-invited club flashes its chip (mirrors flashPerson).
+const flashedOrgId = ref<string | null>(null)
+let orgFlashTimer: ReturnType<typeof setTimeout> | null = null
+function flashOrg(id: string) {
+  if (orgFlashTimer) clearTimeout(orgFlashTimer)
+  flashedOrgId.value = id
+  orgFlashTimer = setTimeout(() => (flashedOrgId.value = null), 900)
+}
+
 // ---- Invitee pill search (highlight only) ----
 // Collapsed to an icon by default; the box slides out when you want it.
 const inviteePillSearch = ref('')
@@ -493,8 +548,8 @@ function copyRsvpLinks() {
 // ---- Invitee action menu ----
 const inviteeActionMenu = ref()
 const inviteeActionMenuItems = [
-  { label: 'Send Message', icon: 'pi pi-comment', command: () => { /* TODO: emit or handle */ } },
-  { label: 'Send Email', icon: 'pi pi-envelope', command: () => { /* TODO: emit or handle */ } },
+  // "Send Message" / "Send Email" were dead no-ops (empty TODO commands) — hidden
+  // until a real comms send is wired (event comms pipeline is a follow-up).
   { label: 'Copy RSVP links', icon: 'pi pi-link', command: () => copyRsvpLinks() },
   { separator: true },
   { label: 'Delete Selected', icon: 'pi pi-trash', command: () => bulkDelete() },
@@ -512,6 +567,12 @@ onMounted(async () => {
   // People power the name-join on each invitee pill — load them before the invitees.
   await loadPeople()
   loadInvitees()
+  // Only a governing body can invite whole affiliated clubs.
+  try {
+    const o = await orgsApi.get(orgId.value)
+    isGoverning.value = isGoverningBody((o as any)?.orgLevel)
+    if (isGoverning.value) loadOrgInvitees()
+  } catch { /* non-fatal — clubs tab just stays hidden */ }
 })
 </script>
 
