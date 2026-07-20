@@ -225,7 +225,8 @@
             <p class="text-sm font-medium text-gray-700">Custom discounts</p>
             <p class="text-xs text-gray-500 mt-0.5">Early bird, members only, promo codes — set who qualifies. Optional.</p>
           </div>
-          <Button label="Create custom discount" icon="pi pi-plus" size="small" severity="secondary" outlined @click="openDiscount" />
+          <Button label="Create custom discount" icon="pi pi-plus" size="small" outlined
+            style="color:var(--brand-primary);border-color:var(--brand-primary)" @click="openDiscount" />
         </div>
         <div v-if="!form.discounts.length" class="text-center py-6 text-sm text-gray-400">
           No custom discounts yet.
