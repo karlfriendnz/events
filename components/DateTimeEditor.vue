@@ -1,5 +1,5 @@
 <template>
-  <div class="divide-y divide-gray-100">
+  <div :class="divider ? 'divide-y divide-gray-100' : ''">
     <!-- When + All day.
          One line on wide screens: [start date][start time] → [end date][end time] [all day].
          Below lg the four pickers can't breathe side by side, so each half
@@ -82,6 +82,9 @@ const props = withDefaults(defineProps<{
   showRepeat?: boolean
   // Hide the time pickers for a date-only range (keeps the date → date arrow).
   showTime?: boolean
+  // Row dividers between When / Repeat / etc. Off for a compact host (the quick modal)
+  // where these already sit among plain rows and the extra line reads as clutter.
+  divider?: boolean
   label?: string
   required?: boolean
   startLabel?: string
@@ -105,6 +108,7 @@ const props = withDefaults(defineProps<{
   showAllDay: true,
   showRepeat: true,
   showTime: true,
+  divider: true,
   label: 'Date',
   required: false,
   startLabel: 'Start',

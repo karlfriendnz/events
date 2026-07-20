@@ -982,19 +982,7 @@
             <ToggleSwitch v-model="editForm.has_waitlist" />
             <span class="text-sm text-gray-600">{{ editForm.has_waitlist ? 'Waitlist enabled' : 'No waitlist' }}</span>
           </div>
-          <div class="pt-3 border-t border-gray-100">
-            <p class="text-sm font-medium text-gray-700 mb-1.5">Age limit</p>
-            <div class="flex items-center gap-2 flex-wrap">
-              <InputNumber v-model="editForm.age_min" :min="0" :max="120" placeholder="Min" class="w-24" inputClass="w-24" />
-              <span class="text-sm text-gray-400">to</span>
-              <InputNumber v-model="editForm.age_max" :min="0" :max="120" placeholder="Max" class="w-24" inputClass="w-24" />
-              <span class="text-xs text-gray-400">years — optional; validated against Date of Birth at signup</span>
-            </div>
-          </div>
-          <div class="pt-3 border-t border-gray-100">
-            <p class="text-sm font-medium text-gray-700 mb-1.5">Gender</p>
-            <Select v-model="editForm.gender_restriction" :options="GENDER_RESTRICTION_OPTIONS" optionLabel="label" optionValue="value" class="w-full sm:w-56" />
-          </div>
+          <!-- Age & gender restrictions removed — captured on the "Who it's for" side. -->
         </div>
 
         <!-- Visibility & Access -->

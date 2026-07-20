@@ -155,6 +155,24 @@
                 </span>
               </div>
             </div>
+            <!-- Sign-up window — moved to the first tab (opens now → event start by default). -->
+            <div class="px-5 py-4 border-b border-gray-100">
+              <DateTimeEditor
+                v-model:startDate="regOpenDate"
+                v-model:startTime="regOpenTime"
+                v-model:endDate="regCloseDate"
+                v-model:endTime="regCloseTime"
+                :show-all-day="false"
+                :show-repeat="false"
+                :min-start-date="today"
+                :min-end-date="regOpenDate ?? today"
+                label="Sign up"
+                start-label="Opens"
+                end-label="Closes"
+                label-width="w-[120px]"
+                label-class="text-gray-800 font-semibold"
+                row-padding="px-0 py-2" />
+            </div>
             <!-- Description -->
             <div class="px-5 py-4 border-b border-gray-100">
               <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
@@ -207,25 +225,7 @@
                 </div>
               </div>
             </div>
-            <!-- Age limit -->
-            <div class="px-5 py-4">
-              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] items-center gap-4'">
-                <label class="field-label">Age limit</label>
-                <div class="flex items-center gap-2 flex-wrap">
-                  <InputNumber v-model="form.ageMin" :min="0" :max="120" placeholder="Min" class="w-24" inputClass="w-24" />
-                  <span class="text-sm text-gray-400">to</span>
-                  <InputNumber v-model="form.ageMax" :min="0" :max="120" placeholder="Max" class="w-24" inputClass="w-24" />
-                  <span class="text-xs text-gray-400">years — optional; validated at signup</span>
-                </div>
-              </div>
-            </div>
-            <!-- Gender restriction -->
-            <div class="px-5 py-4">
-              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] items-center gap-4'">
-                <label class="field-label">Gender</label>
-                <Select v-model="form.genderRestriction" :options="GENDER_RESTRICTION_OPTIONS" optionLabel="label" optionValue="value" class="w-full sm:w-56" />
-              </div>
-            </div>
+            <!-- Age & gender restrictions live on the "Who it's for" step, not here. -->
             <!-- Banner -->
             <div class="px-5 py-4">
               <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
@@ -403,29 +403,7 @@
             </p>
           </div>
 
-          <!-- 3. Sign-up window. No toggle: there is ALWAYS a window, and the sane
-               one is "from now until the event starts" — so that's what it's
-               seeded with (see seedSignupWindow). The user just adjusts it. -->
-          <div class="bg-white rounded-xl border border-gray-200 p-5 mb-4">
-            <p class="text-sm font-medium text-gray-800">When can people sign up?</p>
-            <p class="text-xs text-gray-500 mt-0.5">Open from now until the event starts. Change it if you want a different window.</p>
-            <DateTimeEditor
-              class="mt-3 pt-3 border-t border-gray-100"
-              v-model:startDate="regOpenDate"
-              v-model:startTime="regOpenTime"
-              v-model:endDate="regCloseDate"
-              v-model:endTime="regCloseTime"
-              :show-all-day="false"
-              :show-repeat="false"
-              :min-start-date="today"
-              :min-end-date="regOpenDate ?? today"
-              label="Sign up"
-              start-label="Opens"
-              end-label="Closes"
-              label-width="w-[120px]"
-              row-padding="px-0 py-2" />
-          </div>
-
+          <!-- (Sign-up window moved to the Event info tab.) -->
         </div>
 
         <!-- ─ Choose invitees ─
