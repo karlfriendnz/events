@@ -194,22 +194,15 @@
                   <div class="min-w-0">
                   <label class="field-label block mb-1.5">Category</label>
                   <div class="flex items-center gap-2 min-w-0">
-                    <MultiSelect
-                      v-model="form.category_ids"
-                      :options="categories"
-                      option-label="name"
-                      option-value="id"
-                      placeholder="Choose categories"
-                      class="flex-1 min-w-0"
-                      display="chip"
-                      :max-selected-labels="3"
-                    >
-                      <template #chip="{ value }">
-                        <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-white" :style="{ background: categories.find(c => c.id === value)?.color ?? '#1E2157' }">
-                          {{ categories.find(c => c.id === value)?.name }}
-                        </div>
+                    <ChipMultiSelect v-model="form.category_ids" :options="categories" option-label="name" option-value="id"
+                      placeholder="Choose categories" filter class="flex-1 min-w-0">
+                      <template #option="{ option }">
+                        <span class="inline-flex items-center gap-1.5">
+                          <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: option.color || '#94a3b8' }" />
+                          {{ option.name }}
+                        </span>
                       </template>
-                    </MultiSelect>
+                    </ChipMultiSelect>
                     <Button icon="pi pi-plus" size="small" severity="secondary" outlined v-tooltip.top="'New calendar'" @click="showNewCategoryDialog = true" />
                   </div>
                   </div>
@@ -1376,6 +1369,7 @@ async function saveEvent() {
       description: form.description.trim() || null,
       categoryId: form.category_ids[0] ?? null,
       secondaryCategoryId: form.category_ids[1] ?? null,
+      categoryIds: form.category_ids.length ? form.category_ids : null,
       ageMin: form.ageMin ?? null,
       ageMax: form.ageMax ?? null,
       genderRestriction: form.genderRestriction ?? null,
@@ -1617,8 +1611,10 @@ async function resumeDraft(): Promise<boolean> {
   form.title = evt.title === '(draft)' ? '' : (evt.title ?? '')
   form.description = evt.description ?? ''
   form.banner_url = evt.banner_url ?? ''
-  // Restore the category, or saveEvent would write it back to null on resume.
-  form.category_ids = [evt.category_id, evt.secondary_category_id].filter(Boolean) as string[]
+  // Restore the categories, or saveEvent would write them back to null on resume.
+  // Prefer the full multi-select array; fall back to primary + secondary.
+  const evtCatIds = (evt as any).category_ids ?? (evt as any).categoryIds
+  form.category_ids = (evtCatIds?.length ? evtCatIds : [evt.category_id, evt.secondary_category_id].filter(Boolean)) as string[]
   form.ageMin = evt.age_min ?? null
   form.ageMax = evt.age_max ?? null
   form.genderRestriction = evt.gender_restriction ?? null

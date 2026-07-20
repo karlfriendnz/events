@@ -2096,7 +2096,9 @@ function startFieldEdit(field: string) {
   if (field === 'title') editForm.value.title = event.value.title ?? ''
   if (field === 'description') editForm.value.description = event.value.description ?? ''
   if (field === 'category') {
-    editForm.value.category_ids = [event.value.category_id, event.value.secondary_category_id].filter(Boolean) as string[]
+    editForm.value.category_ids = (((event.value as any).category_ids ?? (event.value as any).categoryIds)?.length
+      ? ((event.value as any).category_ids ?? (event.value as any).categoryIds)
+      : [event.value.category_id, event.value.secondary_category_id].filter(Boolean)) as string[]
   }
   if (field === 'location') {
     const locs = event.value.locations
@@ -2178,6 +2180,7 @@ async function saveField(field: string) {
   if (field === 'category') {
     update.category_id = editForm.value.category_ids[0] ?? null
     update.secondary_category_id = editForm.value.category_ids[1] ?? null
+    update.category_ids = editForm.value.category_ids.length ? editForm.value.category_ids : null
   }
   if (field === 'location') {
     update.locations = editForm.value.locations
@@ -4493,6 +4496,7 @@ async function saveEdit() {
     banner_url: editForm.value.banner_url || null,
     category_id: editForm.value.category_ids[0] ?? null,
     secondary_category_id: editForm.value.category_ids[1] ?? null,
+    category_ids: editForm.value.category_ids.length ? editForm.value.category_ids : null,
     is_all_day: editForm.value.is_all_day,
     start_at: buildDateTime(editForm.value.start_date, editForm.value.start_time),
     end_at: buildDateTime(editForm.value.end_date, editForm.value.end_time),

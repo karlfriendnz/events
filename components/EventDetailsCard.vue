@@ -110,16 +110,16 @@
         <span class="text-sm font-semibold text-gray-700 w-full sm:w-28 shrink-0">Category</span>
         <template v-if="open === 'category'">
           <div class="flex-1 w-full flex flex-col sm:flex-row sm:items-center gap-2 min-w-0" @click.stop>
-            <MultiSelect :modelValue="categoryIds" :options="categories" option-label="name" option-value="id"
-              placeholder="Select categories" class="flex-1 w-full min-w-0" display="chip"
+            <ChipMultiSelect :modelValue="categoryIds" :options="categories" option-label="name" option-value="id"
+              placeholder="Choose categories" filter class="flex-1 w-full min-w-0"
               @update:modelValue="$emit('update:categoryIds', $event)">
-              <template #chip="{ value }">
-                <div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                  :style="{ background: categories.find(c => c.id === value)?.color ?? '#1E2157' }">
-                  {{ categories.find(c => c.id === value)?.name }}
-                </div>
+              <template #option="{ option }">
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: option.color || '#94a3b8' }" />
+                  {{ option.name }}
+                </span>
               </template>
-            </MultiSelect>
+            </ChipMultiSelect>
             <div class="flex gap-2 justify-end shrink-0">
               <Button icon="pi pi-plus" size="small" severity="secondary" outlined v-tooltip.top="'New category'" @click.stop="$emit('new-category')" />
               <Button label="Save" icon="pi pi-check" size="small" :loading="savingField === 'category'"
