@@ -4129,30 +4129,6 @@ function syncFees(items: import('~/composables/useFeeGroups').FeeLineItem[]) {
   }, 600)
 }
 
-async function loadComms() {
-  commsLoading.value = true
-  // Event send-log via the events seam. Map camelCase → the snake shape the tab reads;
-  // the MySQL communications table has no channel/scheduled_at columns (demo-only UI
-  // fields), so real sent rows carry neither.
-  const rows = (await eventsApi.communications(id)).map(c => ({
-    id: c.id, subject: c.subject, body: c.body,
-    recipient_count: c.recipientCount, sent_at: c.sentAt, channel: null, scheduled_at: null,
-  }))
-  if (rows.length) {
-    communications.value = rows
-  } else {
-    // Demo data
-    communications.value = [
-      { id: 'demo-1', channel: 'EMAIL',   subject: 'Invitation',        body: 'A special email list to send to our alumni', recipient_count: 25, sent_at: '2025-01-10T12:32:00Z', scheduled_at: null },
-      { id: 'demo-2', channel: 'APP',     subject: 'Event Reminder',    body: 'Don\'t forget your event is coming up this weekend.', recipient_count: 25, sent_at: '2025-01-12T09:00:00Z', scheduled_at: null },
-      { id: 'demo-3', channel: 'EMAIL',   subject: 'Last Chance to Register', body: 'Registrations close tomorrow — make sure you\'ve signed up.', recipient_count: 40, sent_at: '2025-01-14T08:00:00Z', scheduled_at: null },
-      { id: 'demo-4', channel: 'APP',     subject: 'Invitation',        body: 'A special email list to send to our alumni', recipient_count: 25, sent_at: null, scheduled_at: '2025-01-20T12:32:00Z', schedule_label: '3 hours before event' },
-      { id: 'demo-5', channel: 'EMAIL',   subject: 'Post-Event Survey', body: 'We\'d love your feedback on the event.', recipient_count: 25, sent_at: null, scheduled_at: '2025-01-22T18:00:00Z', schedule_label: '1 day after event' },
-    ]
-  }
-  commsLoading.value = false
-}
-
 async function loadPersons() {
   const existingIds = new Set(invitees.value.map(i => i.person_id))
   const data = (await peopleApi.list(orgId.value))
@@ -4432,31 +4408,6 @@ async function removeInvitee(inviteeId: string) {
 async function setInviteeStatus(inviteeId: string, status: string) {
   await eventsApi.updateInvitee(inviteeId, { status })
   loadInvitees()
-}
-
-async function handleSendComms() {
-  if (!newComms.value.subject || !newComms.value.body) return
-  sendingComms.value = true
-  const audienceCount = newComms.value.audience === 'ALL'
-    ? invitees.value.length
-    : invitees.value.filter(i => i.status === newComms.value.audience).length
-  // Record the send via the events seam (honest row: real recipientCount, status SENT).
-  // The channel is captured in the audienceFilter blob — the log table has no channel
-  // column of its own.
-  try {
-    await eventsApi.sendCommunication(id, {
-      subject: newComms.value.subject, body: newComms.value.body,
-      recipientCount: audienceCount,
-      audienceFilter: { channel: newComms.value.channel, audience: newComms.value.audience },
-    })
-    toast.add({ severity: 'success', summary: 'Message sent', life: 3000 })
-    showSendComms.value = false
-    newComms.value = { channel: 'EMAIL', audience: 'ALL', subject: '', body: '' }
-    loadComms()
-  } catch {
-    // leave the composer open on failure
-  }
-  sendingComms.value = false
 }
 
 // ---- Watch tab changes ----
