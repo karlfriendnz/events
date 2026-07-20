@@ -2422,7 +2422,7 @@ defineExpose({ reload })
         <div class="flex flex-1 min-h-0">
 
         <!-- Left panel (editor; hidden during public preview) -->
-        <div v-if="evtFormGroups.length && !evtPublicPreview" class="w-[420px] shrink-0 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
+        <div v-if="evtFormGroups.length && !evtPublicPreview && evtFormGroupModes[selectedFormGroupId]" class="w-[420px] shrink-0 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
 
           <!-- Group list -->
           <template v-if="!evtFormShowSections">
