@@ -282,7 +282,7 @@
       </div>
 
       <!-- FORMS TAB -->
-      <FormDesigner v-else-if="activeTab === 'forms'" :event-id="id" :sessions="sessions" :org-id="orgId" :discounts="eventDiscounts" :discount-settings="evtDiscountSettings" :fee-line-items="feeLineItems" :ticket-types="ticketTypes" :has-tickets="hasTickets" :age-min="editForm.age_min" :age-max="editForm.age_max" class="flex flex-col flex-1 min-h-0" />
+      <FormDesigner v-else-if="activeTab === 'forms'" :event-id="id" :sessions="sessions" :org-id="orgId" :discounts="eventDiscounts" :discount-settings="evtDiscountSettings" :fee-line-items="feeLineItems" :ticket-types="ticketTypes" :has-tickets="hasTickets" :age-min="editForm.age_min" :age-max="editForm.age_max" :gender-restriction="editForm.gender_restriction" class="flex flex-col flex-1 min-h-0" />
       <div v-else-if="activeTab === 'discounts'" class="overflow-y-auto flex-1 w-full">
         <div class="mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4" style="max-width:1140px">
 
@@ -991,6 +991,10 @@
               <span class="text-xs text-gray-400">years — optional; validated against Date of Birth at signup</span>
             </div>
           </div>
+          <div class="pt-3 border-t border-gray-100">
+            <p class="text-sm font-medium text-gray-700 mb-1.5">Gender</p>
+            <Select v-model="editForm.gender_restriction" :options="GENDER_RESTRICTION_OPTIONS" optionLabel="label" optionValue="value" class="w-full sm:w-56" />
+          </div>
         </div>
 
         <!-- Visibility & Access -->
@@ -1426,7 +1430,7 @@
         </div>
         <div v-if="publishScheduled" class="flex gap-2 mt-1 pl-6">
           <DatePicker v-model="publishAtDate" placeholder="Date" dateFormat="dd/mm/yy" showIcon class="flex-1" />
-          <DatePicker v-model="publishAtTime" placeholder="Time" timeOnly showIcon class="w-32" />
+          <TimeSelect v-model="publishAtTime" placeholder="Time" class="w-32" />
         </div>
         <p v-if="publishScheduled" class="text-xs text-gray-400 pl-6">{{ t('event', false) }} status will stay as Draft until this date and time.</p>
       </div>
@@ -1803,9 +1807,9 @@
             <div class="flex flex-col gap-1.5">
               <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Time</label>
               <div class="flex items-center gap-2">
-                <DatePicker v-model="editingSubSession._startTime" time-only show-icon hour-format="12" placeholder="Start" class="flex-1" />
+                <TimeSelect v-model="editingSubSession._startTime" placeholder="Start" class="flex-1" />
                 <span class="text-gray-400 text-xs shrink-0">–</span>
-                <DatePicker v-model="editingSubSession._endTime" time-only show-icon hour-format="12" placeholder="End" class="flex-1" />
+                <TimeSelect v-model="editingSubSession._endTime" placeholder="End" class="flex-1" />
               </div>
             </div>
           </div>
@@ -2011,6 +2015,7 @@ const basicTabs = ['overview', 'invitees', 'attendance', 'communication', 'notes
 
 import type { LocationEntry } from '~/composables/useLocation'
 import { makeDiscountDraft, type DiscountDraft } from '~/composables/useEventDiscounts'
+import { GENDER_RESTRICTION_OPTIONS } from '~/composables/useEventRestrictions'
 function defaultLocation(): LocationEntry { return { type: 'ADDRESS', venue_name: '', address: '', meeting_link: '', bookable_ids: [] } }
 
 const twoWeeksAgo = new Date()
@@ -2575,6 +2580,7 @@ const editForm = ref<any>({
   capacity_max: null as number | null,
   age_min: null as number | null,
   age_max: null as number | null,
+  gender_restriction: null as string | null,
   custom_terms: [] as string[],
   allow_guests: false,
   phased_registration: false,
@@ -4367,6 +4373,7 @@ async function loadEvent() {
       capacity_max: data.capacity_max,
       age_min: data.age_min ?? null,
       age_max: data.age_max ?? null,
+      gender_restriction: data.gender_restriction ?? null,
       custom_terms: (() => { try { const p = JSON.parse(data.tc_content ?? '[]'); return Array.isArray(p) ? p : [] } catch { return data.tc_content ? [data.tc_content] : [] } })(),
       allow_guests: data.allow_guests ?? false,
       phased_registration: data.phased_registration ?? false,
@@ -4725,6 +4732,7 @@ async function saveEdit() {
     capacity_max: editForm.value.has_capacity ? (editForm.value.capacity_max ?? null) : null,
     age_min: editForm.value.age_min ?? null,
     age_max: editForm.value.age_max ?? null,
+    gender_restriction: editForm.value.gender_restriction ?? null,
     tc_content: editForm.value.custom_terms.filter((t: string) => t.trim()).length
       ? JSON.stringify(editForm.value.custom_terms.filter((t: string) => t.trim()))
       : null,

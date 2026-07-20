@@ -15,7 +15,7 @@
             :min-date="minStartDate"
             :max-date="maxDate ?? undefined"
             @update:model-value="onStartDate" />
-          <DatePicker v-if="showTime" :model-value="startTime" time-only show-icon hour-format="12" :placeholder="`${startLabel} time`" fluid class="flex-1 min-w-0"
+          <TimeSelect v-if="showTime" :model-value="startTime" :placeholder="`${startLabel} time`" class="flex-1 min-w-0"
             :disabled="isAllDay"
             @update:model-value="onStartTime" />
         </div>
@@ -26,7 +26,7 @@
             :min-date="minEndDate ?? startDate ?? undefined"
             :max-date="maxDate ?? undefined"
             @update:model-value="onEndDate" />
-          <DatePicker v-if="showTime" :model-value="endTime" time-only show-icon hour-format="12" :placeholder="`${endLabel} time`" fluid class="flex-1 min-w-0"
+          <TimeSelect v-if="showTime" :model-value="endTime" :placeholder="`${endLabel} time`" class="flex-1 min-w-0"
             :disabled="isAllDay"
             @update:model-value="onEndTime" />
         </div>
