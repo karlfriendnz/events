@@ -225,7 +225,7 @@
                 </div>
               </div>
             </div>
-            <!-- Age & gender restrictions live on the "Who it's for" step, not here. -->
+            <!-- Age & gender restrictions were removed from the basic event. -->
             <!-- Banner -->
             <div class="px-5 py-4">
               <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
@@ -350,16 +350,10 @@
           <EventDiscountDialog v-model:visible="discountFlowOpen" :edit="discountEditDraft" :currency-symbol="currencySymbol" @save="onDiscountSave" />
         </div>
 
-        <!-- ─ Invitees ─ -->
-        <div :class="isStep('invitees') ? 'px-1' : 'hidden'">
-          <div class="mb-3">
-            <h2 class="section-title">Who it's for</h2>
-            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc("Who it's for") }}</p>
-          </div>
-          <!-- One step, four questions, in the order you'd actually ask them:
-               can the public register? → what do they fill in? → when is sign-up
-               open? → and who from the club are we inviting? -->
-
+        <!-- ─ Who it's for + Choose invitees (one step) ─
+             The public-registration toggle + form style sit above the invitee
+             picker; picking the people is the main job of the step. -->
+        <div :class="isStep('people') ? 'px-1' : 'hidden'">
           <!-- 1. Public registrations -->
           <div class="bg-white rounded-xl border border-gray-200 p-5 mb-4">
             <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
@@ -369,8 +363,6 @@
                   Can anyone with the link sign up, or is this for your club only?
                 </p>
               </div>
-              <!-- Same control as Registration form style below — one visual
-                   language for "pick one of two" on this step. -->
               <SelectButton :model-value="invitePublic" :options="publicOptions"
                 option-label="label" option-value="value" :allow-empty="false" class="shrink-0"
                 @update:model-value="setInvitePublic" />
@@ -403,14 +395,7 @@
             </p>
           </div>
 
-          <!-- (Sign-up window moved to the Event info tab.) -->
-        </div>
-
-        <!-- ─ Choose invitees ─
-             Its own step: picking the people is a job in itself (classes,
-             individuals, a searchable roster) and deserves the whole page.
-             No heading here — <EventInviteeManager> brings its own. -->
-        <div :class="isStep('people') ? 'px-1' : 'hidden'">
+          <!-- The invitee picker (classes, individuals, a searchable roster). -->
           <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
             <i class="pi pi-spin pi-spinner text-xl text-gray-300 block mb-2" />
             Setting up invitees…
@@ -1201,11 +1186,9 @@ const ALL_STEPS: { key: string; label: string; desc: string; when?: () => boolea
   { key: 'info',       label: 'Event info',        desc: 'Name the event, set when it runs, and how people find it.' },
   { key: 'location',   label: 'Location',          desc: 'Where is it happening? Pick a venue, an address, or make it online.' },
   { key: 'fees',       label: 'Fees',              desc: 'Add any charges for attending. Leave empty if the event is free.' },
-  // Two steps: the SETTINGS (can the public register? what do they fill in? when
-  // is sign-up open?) then the PEOPLE — picking invitees is a job in itself and
-  // gets the whole page. Club invitees are always available, so it never hides.
-  { key: 'invitees',   label: 'Who it\'s for',     desc: 'Choose who this event is for, and what they need to do to take part.' },
-  { key: 'people',     label: 'Choose invitees',   desc: 'Pick the classes and people to invite.' },
+  // ONE step for the whole "who": can the public register? what form style? then
+  // pick the club invitees. Club invitees are always available, so it never hides.
+  { key: 'people',     label: 'Choose invitees',   desc: 'Who can register, and pick the classes and people to invite.' },
   // Always shown — an RSVP-only event still gets the step, with an "add a form"
   // prompt rather than the builder, so the form step is never silently missing.
   { key: 'form',       label: 'Registration form', desc: 'Build the form people fill in to sign up.' },
