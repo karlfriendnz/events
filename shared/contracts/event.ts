@@ -87,6 +87,15 @@ export const fmEventSchema = z.object({
 })
 export type FMEvent = z.infer<typeof fmEventSchema>
 
+// An event SHARED to a club (accepted event_org_invitee) — a normal event plus who
+// shared it and the discipline scope. Read-only on the club side.
+export const sharedEventSchema = fmEventSchema.extend({
+  sharedFromOrgName: z.string().nullable(),
+  disciplineName: z.string().nullable(),
+})
+export type SharedEvent = z.infer<typeof sharedEventSchema>
+export const sharedEventListSchema = z.array(sharedEventSchema)
+
 export const fmEventListSchema = z.array(fmEventSchema)
 
 // WRITE contracts. Create omits the server-owned id (the repo generates it) and

@@ -243,6 +243,21 @@ export async function listEvents(
   return rows.map(toEvent)
 }
 
+/** Events SHARED to this club (via event_org_invitees) that the club has ACCEPTED —
+ *  owned by another org, so listEvents (org-scoped) never returns them. The calendar
+ *  merges these in as read-only "shared" items, tagged with who shared them + the
+ *  discipline scope. */
+export async function listAcceptedSharedEvents(orgId: string): Promise<(FMEvent & { sharedFromOrgName: string | null; disciplineName: string | null })[]> {
+  const rows = await db
+    .select({ ev: schema.events, fromName: schema.organisations.name, disciplineName: schema.disciplines.name })
+    .from(schema.eventOrgInvitees)
+    .innerJoin(schema.events, eq(schema.events.id, schema.eventOrgInvitees.eventId))
+    .leftJoin(schema.organisations, eq(schema.organisations.id, schema.eventOrgInvitees.invitedByOrgId))
+    .leftJoin(schema.disciplines, eq(schema.disciplines.id, schema.eventOrgInvitees.disciplineId))
+    .where(and(eq(schema.eventOrgInvitees.orgId, orgId), eq(schema.eventOrgInvitees.status, 'ACCEPTED')))
+  return rows.map(r => ({ ...toEvent(r.ev), sharedFromOrgName: r.fromName ?? null, disciplineName: r.disciplineName ?? null }))
+}
+
 /** The dashboard's Upcoming-events widget: events starting at/after `nowIso`, excluding
  *  ARCHIVED/CANCELLED, earliest first, limited — plus the TOTAL matching count (so the
  *  widget can show "N upcoming" beyond the shown few). */

@@ -1843,7 +1843,13 @@ const bookingsCalEvents = computed(() => {
 // to the wizard — a live event, or one made in the custom/advanced/multi builders,
 // opens on the full event page. (created_via, migration 257: `style` couldn't tell
 // a wizard draft from a Custom one — both are BASIC.)
-function openEvent(evt: { id: string; status?: string; created_via?: string | null; style?: string; is_programme?: boolean }) {
+function openEvent(evt: { id: string; status?: string; created_via?: string | null; style?: string; is_programme?: boolean; is_shared?: boolean; shared_from?: string | null }) {
+  // A SHARED event belongs to another org (a national/governing body shared it, this
+  // club accepted) — it's read-only here, so don't route into the club's editor.
+  if (evt.is_shared) {
+    toast.add({ severity: 'info', summary: 'Shared event', detail: `Shared by ${evt.shared_from || 'a governing body'} — view only.`, life: 4000 })
+    return
+  }
   const unfinished = evt.status === 'DRAFT'
 
   // A quick event opens the simple run-the-event view — details, invitees, attendance.
@@ -2225,10 +2231,12 @@ async function load() {
   loading.value = true
   // The org-wide "separate sessions" read (show_as_separate_event, top-level, dated,
   // joined to their event) goes through the events seam. Everything else too.
-  const [evList, cats, sessionData] = await Promise.all([
+  const [evList, cats, sessionData, sharedList] = await Promise.all([
     eventsApi.list(orgId.value),
     eventsApi.categories(orgId.value),
     eventsApi.separateSessions(orgId.value).catch((e: any) => { console.error('sessions load error:', e); return [] }),
+    // Events shared to this club (accepted from a national/governing body) — read-only.
+    eventsApi.sharedEvents(orgId.value).catch(() => [] as any[]),
   ])
   // Seam returns camelCase; map to the snake_case shape the calendar item builder reads.
   const sessions = (sessionData ?? []).map((s: any) => ({
@@ -2239,9 +2247,14 @@ async function load() {
   allCategories.value = cats ?? []
   // The seam returns ALL events newest-first; apply the filters the old query did
   // server-side (this programme mode, not archived) and the start_at ordering.
-  events.value = (evList ?? [])
+  const ownRows = (evList ?? [])
     .filter((e: any) => !!e.isProgramme === isProgramme.value && e.status !== 'ARCHIVED')
     .map(toEventRow)
+  // Shared (accepted) events from a governing body — read-only, tagged with who shared them.
+  const sharedRows = (sharedList ?? [])
+    .filter((e: any) => !!e.isProgramme === isProgramme.value && e.status !== 'ARCHIVED' && e.status !== 'CANCELLED')
+    .map((e: any) => ({ ...toEventRow(e), is_shared: true, shared_from: e.sharedFromOrgName, discipline_name: e.disciplineName }))
+  events.value = [...ownRows, ...sharedRows]
     .sort((a: any, b: any) => {
       // nullsFirst:false — undated events sort to the end.
       if (!a.start_at && !b.start_at) return 0

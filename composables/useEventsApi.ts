@@ -16,6 +16,7 @@ import type {
   SeriesEvent,
   FMEventCreate,
   FMEventPatch,
+  SharedEvent,
   SessionCreate,
   SessionPatch,
   FeeComponent,
@@ -56,6 +57,11 @@ export function useEventsApi() {
     return await $fetch<FMEvent[]>('/api/v1/events', {
       query: { orgId, limit: opts.limit, offset: opts.offset },
     })
+  }
+  /** Events SHARED to this club (accepted event_org_invitees) — owned by another org,
+   *  so `list` never returns them. The calendar merges these in as read-only items. */
+  async function sharedEvents(orgId: string): Promise<SharedEvent[]> {
+    return await $fetch<SharedEvent[]>('/api/v1/events/shared', { query: { orgId } })
   }
   /** The dashboard Upcoming-events widget: events starting at/after `now`, excluding
    *  ARCHIVED/CANCELLED, earliest first, limited, plus the total matching count. */
@@ -377,7 +383,7 @@ export function useEventsApi() {
   }
 
   return {
-    list, upcoming, get, separateSessions, sessions, invitees, inviteesWithPerson, registrations, inviteesForPerson, byMemberGroup, inviteeCountsByOrg,
+    list, sharedEvents, upcoming, get, separateSessions, sessions, invitees, inviteesWithPerson, registrations, inviteesForPerson, byMemberGroup, inviteeCountsByOrg,
     ticketOrders,
     seriesCount, series, generateSeries, deleteSeries, setEventsStatus,
     create, update, remove,
