@@ -12,7 +12,9 @@
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
 
-const props = defineProps<{ eventId: string }>()
+// `fit`: size to content (capped + scroll) instead of filling the parent — for the
+// simple run-the-event view, so a short roster doesn't leave a tall empty box.
+const props = defineProps<{ eventId: string; fit?: boolean }>()
 
 const eventsApi = useEventsApi()
 const attendanceApi = useAttendanceApi()
@@ -62,6 +64,7 @@ const attendanceViewModes = [
   { label: 'By Group', value: 'member_groups', icon: 'pi-th-large' },
 ]
 const attendanceViewMode = ref<'all' | 'sub_groups' | 'member_groups'>('all')
+const inviteOpen = ref(false)
 const expandedMemberGroups = ref<Record<string, boolean>>({})
 const memberGroupsForInvitees = ref<{ personId: string; group: { id: string; name: string; color: string } }[]>([])
 
@@ -469,7 +472,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
 </script>
 
 <template>
-  <div class="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
+  <div class="flex flex-col lg:flex-row min-h-0" :class="fit ? '' : 'flex-1 overflow-hidden'">
 
     <!-- Mobile: session dropdown chooser -->
     <div v-if="attendanceInSessionMode" class="lg:hidden bg-white border-b border-gray-200 px-3 py-2.5 shrink-0">
@@ -513,8 +516,9 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
     </div>
 
     <!-- Right: Attendance table -->
-    <div class="flex-1 min-w-0 flex flex-col overflow-hidden bg-white">
-    <div class="bg-white rounded-xl border border-gray-200 flex flex-col flex-1 overflow-hidden" :class="attendanceInSessionMode ? 'rounded-none border-0' : 'mx-3 sm:mx-6 my-4 sm:my-6 max-w-5xl self-center w-full'">
+    <div class="min-w-0 flex flex-col bg-white" :class="fit ? '' : 'flex-1 overflow-hidden'">
+    <div class="bg-white rounded-xl border border-gray-200 flex flex-col"
+      :class="attendanceInSessionMode ? 'rounded-none border-0 flex-1 overflow-hidden' : (fit ? 'w-full' : 'mx-3 sm:mx-6 my-4 sm:my-6 max-w-5xl self-center w-full flex-1 overflow-hidden')">
 
       <!-- Toolbar -->
       <div class="flex items-center justify-between bg-gray-50 px-4 py-2.5 border-b border-gray-200 shrink-0">
@@ -529,17 +533,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
           </IconField>
         </div>
         <div class="flex items-center">
-          <button class="flex flex-col items-center gap-0.5 px-4 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" @click="openQrDialog">
-            <i class="pi pi-qrcode text-lg" /><span class="text-[10px] font-medium">QR Code</span>
-          </button>
-          <button v-if="attendanceViewMode === 'sub_groups'" class="flex flex-col items-center gap-0.5 px-4 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" @click="showSubGroupsDialog = true">
-            <i class="pi pi-users text-lg" /><span class="text-[10px] font-medium">Add Subgroup</span>
-          </button>
-          <button v-for="mode in attendanceViewModes" :key="mode.value"
-            class="flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-lg transition-colors"
-            :class="attendanceViewMode === mode.value ? 'text-primary bg-[#EFF6FF]' : 'text-gray-600 hover:bg-gray-100'"
-            @click="setAttendanceViewMode(mode.value)">
-            <i :class="`pi ${mode.icon} text-lg`" /><span class="text-[10px] font-medium">{{ mode.label }}</span>
+          <button class="flex flex-col items-center gap-0.5 px-4 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" @click="inviteOpen = true">
+            <i class="pi pi-user-plus text-lg" /><span class="text-[10px] font-medium">Invite</span>
           </button>
           <button class="flex flex-col items-center gap-0.5 px-4 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" @click="printAttendanceRoll">
             <i class="pi pi-print text-lg" /><span class="text-[10px] font-medium">Print Roll</span>
@@ -565,7 +560,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
         <i class="pi pi-users text-3xl mb-3 block" />No invitees yet
       </div>
 
-      <div v-else class="overflow-auto flex-1">
+      <div v-else class="overflow-auto" :class="fit ? 'max-h-[calc(100vh-19rem)]' : 'flex-1'">
         <table class="w-full text-sm">
           <thead class="sticky top-0 z-10 bg-white">
             <tr class="border-b border-gray-200">
@@ -923,6 +918,11 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
         <Button label="Cancel" severity="secondary" text @click="showAddToSubGroupDialog = false" />
         <Button label="Assign" icon="pi pi-check" :disabled="!addToSubGroupTarget || !subGroups.length" @click="executeAddToSubGroup" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
       </template>
+    </Dialog>
+
+    <!-- Invite people — popup; reloads the roster on close -->
+    <Dialog v-model:visible="inviteOpen" modal header="Invite people" :style="{ width: '95vw', maxWidth: '720px' }" @hide="load">
+      <EventInviteeManager :event-id="props.eventId" :show-invite="false" />
     </Dialog>
   </div>
 </template>
