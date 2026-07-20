@@ -68,17 +68,24 @@ function setPrimary(i: number) {
   rows.value.forEach((r, idx) => { r.is_primary = idx === i })
 }
 
-// Connecting a body seeds the canonical sport from its default name (and the
-// display name, if the club hasn't typed one yet).
+// Connecting a body seeds the canonical sport from its default name — or, when the
+// body has none set, from the body's own NAME (never leave it blank, or the row has
+// no canonical value and save() silently drops it). Also seeds the display name if
+// the club hasn't typed one yet.
 function onConnect(r: Row) {
   const body = governingOrgs.value.find(o => o.id === r.nso_org_id)
-  if (body?.default_sport_name) {
-    r.sport = body.default_sport_name
-    if (!r.display_name.trim()) r.display_name = body.default_sport_name
+  const seed = body?.default_sport_name?.trim() || body?.name?.trim() || ''
+  if (seed) {
+    r.sport = seed
+    if (!r.display_name.trim()) r.display_name = seed
   }
 }
-// The canonical sport: from the connected body, else the club's own typed name.
-const canonicalOf = (r: Row) => (r.nso_org_id ? (r.sport || r.display_name) : (r.display_name || r.sport)).trim()
+// The connected body's name — the last-resort canonical value so a row that has a
+// body chosen is NEVER filtered out on save (a blank sport used to drop it silently).
+const bodyNameOf = (r: Row) => governingOrgs.value.find(o => o.id === r.nso_org_id)?.name?.trim() || ''
+// The canonical sport: from the connected body (typed sport → display → body name),
+// else the club's own typed name.
+const canonicalOf = (r: Row) => (r.nso_org_id ? (r.sport || r.display_name || bodyNameOf(r)) : (r.display_name || r.sport)).trim()
 // Show the governed-as hint when the local label differs from the canonical sport.
 const governedHint = (r: Row) => (r.nso_org_id && canonicalOf(r) && r.display_name.trim() && canonicalOf(r) !== r.display_name.trim()) ? canonicalOf(r) : ''
 
