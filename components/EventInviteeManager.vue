@@ -403,7 +403,7 @@ async function addGroupInvitees(groupId: string, who: 'all' | 'members' | 'staff
   const existingIds = new Set(invitees.value.map(i => i.person_id))
   const toInsert = personIds
     .filter(pid => !existingIds.has(pid))
-    .map(pid => { const role = eventRoleByPerson[pid] || 'attendee'; return { personId: pid, status: 'INVITED', role, roles: [role] } })
+    .map(pid => { const role = eventRoleByPerson[pid] || 'attendee'; return { personId: pid, status: 'INVITED', role, roles: [role], clubOrgId: props.clubOrgId } })
 
   if (toInsert.length) {
     try {
