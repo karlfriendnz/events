@@ -8,7 +8,7 @@
       <span class="field-label shrink-0" :class="[labelWidth, labelClass]">
         {{ label }}<span v-if="required && label" class="text-red-400 ml-0.5">*</span>
       </span>
-      <div class="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3 flex-1 w-full min-w-0">
+      <div class="flex flex-col gap-2 flex-1 w-full min-w-0" :class="stack ? '' : 'lg:flex-row lg:items-center lg:gap-3'">
         <!-- Start -->
         <div class="flex items-center gap-2 flex-1 min-w-0">
           <DatePicker :model-value="startDate" :manual-input="false" show-icon date-format="dd/mm/yy" :placeholder="`${startLabel} date`" fluid class="flex-1 min-w-0"
@@ -19,7 +19,7 @@
             :disabled="isAllDay"
             @update:model-value="onStartTime" />
         </div>
-        <span class="text-sm text-gray-300 shrink-0 hidden lg:inline">→</span>
+        <span v-if="!stack" class="text-sm text-gray-300 shrink-0 hidden lg:inline">→</span>
         <!-- End -->
         <div class="flex items-center gap-2 flex-1 min-w-0">
           <DatePicker ref="endDateRef" :model-value="endDate" :manual-input="false" show-icon date-format="dd/mm/yy" :placeholder="`${endLabel} date`" fluid class="flex-1 min-w-0"
@@ -32,7 +32,7 @@
         </div>
         <!-- All day -->
         <div v-if="showAllDay" class="flex items-center gap-2 shrink-0">
-          <span class="text-xs text-gray-500 lg:hidden">All day</span>
+          <span class="text-xs text-gray-500" :class="stack ? '' : 'lg:hidden'">All day</span>
           <ToggleSwitch :model-value="isAllDay" v-tooltip.top="'All day'"
             @update:model-value="emit('update:isAllDay', $event)" />
         </div>
@@ -95,6 +95,10 @@ const props = withDefaults(defineProps<{
   rowPadding?: string
   labelWidth?: string
   labelClass?: string
+  // Force the vertical (start-pair over end-pair) layout regardless of viewport.
+  // For narrow containers on a WIDE viewport (e.g. the compact Quick-event modal),
+  // where the single-row desktop layout would cram the pickers and clip the date.
+  stack?: boolean
 }>(), {
   isAllDay: false,
   repeat: 'NONE',

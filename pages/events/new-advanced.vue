@@ -3,7 +3,7 @@
   <Teleport to="body">
   <div class="app-modal-overlay fixed inset-0 flex items-stretch sm:items-center justify-center sm:p-6 bg-slate-900/45 backdrop-blur-[2px]"
     style="z-index: 1000">
-  <div class="flex flex-col bg-white w-full h-full sm:h-[92vh] sm:max-w-[1200px] sm:rounded-xl shadow-2xl overflow-hidden">
+  <div class="flex flex-col bg-white w-full h-full sm:h-[92vh] sm:max-w-[1400px] sm:rounded-xl shadow-2xl overflow-hidden">
 
     <!-- Step progress header -->
     <div class="bg-white border-b border-gray-200 shrink-0">
@@ -53,7 +53,7 @@
 
     <!-- Step content (scrollable) -->
     <div class="flex-1 overflow-y-auto bg-[#F5F8FA]">
-      <div class="max-w-[1140px] mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6">
+      <div class="max-w-[1340px] mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6">
 
         <!-- Step 0: Event Info — the SAME card as the basic wizard's first step
              (same order, same 120px label column, same date editor, same

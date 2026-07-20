@@ -19,7 +19,7 @@
       : ''"
     :style="stepped ? 'z-index: 1000' : ''">
   <div :class="stepped
-      ? 'flex flex-col bg-white w-full h-full sm:h-[92vh] sm:max-w-[1200px] sm:rounded-xl shadow-2xl overflow-hidden'
+      ? 'flex flex-col bg-white w-full h-full sm:h-[92vh] sm:max-w-[1400px] sm:rounded-xl shadow-2xl overflow-hidden'
       : 'flex flex-col bg-white h-[calc(100vh-3.5rem)]'">
 
     <!-- ── Stepped header (step nav + progress bar) — same brand bar as the

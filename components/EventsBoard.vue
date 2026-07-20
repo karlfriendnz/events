@@ -562,6 +562,19 @@
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <!-- Quick event: name · date · location · invitees, all in one modal.
+               Always enabled (the fast path) — the name is entered in that modal. -->
+          <button type="button"
+            class="sm:col-span-2 text-left border-2 border-primary/40 bg-[#F0F4FF] rounded-xl p-4 transition-colors hover:border-primary hover:bg-[#E7EEFF] flex items-center gap-3"
+            @click="openQuick">
+            <div class="w-9 h-9 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+              <i class="pi pi-bolt text-primary" />
+            </div>
+            <div>
+              <h3 class="text-sm font-semibold text-gray-900">Quick {{ t('event', false, true) }}</h3>
+              <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Name, date, location &amp; invitees — all on one screen.</p>
+            </div>
+          </button>
           <button type="button"
             class="text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
             :disabled="!newEventName.trim()"
@@ -604,6 +617,88 @@
           </button>
         </div>
       </div>
+    </Dialog>
+
+    <!-- Quick event: the whole thing on one screen — name, date, location,
+         invitees — then create. A draft is created on open so the reusable
+         invitee manager can write to a real event id; Create publishes it,
+         Cancel deletes the draft (onQuickClose) so nothing is left behind. -->
+    <Dialog v-model:visible="quickOpen" :header="`Quick ${t('event', false, true)}`" modal
+      :style="{ width: '95vw', maxWidth: '900px' }" @hide="onQuickClose">
+      <div class="space-y-3 pt-1">
+        <!-- Two tiny steps: essentials, then people. Keeps step 1 phone-simple. -->
+        <div class="flex items-center gap-1.5 text-xs mb-1">
+          <span :class="quickStep === 1 ? 'text-primary font-semibold' : 'text-gray-400'">1 · Details</span>
+          <i class="pi pi-angle-right text-[10px] text-gray-300" />
+          <span :class="quickStep === 2 ? 'text-primary font-semibold' : 'text-gray-400'">2 · Invitees</span>
+        </div>
+
+        <!-- Step 1 · Details. Every field shares one w-20 left-label column so
+             Name / When / Location line up (stacks to label-above on mobile). -->
+        <div v-show="quickStep === 1" class="space-y-3">
+          <!-- Name -->
+          <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
+            <span class="field-label shrink-0 sm:w-20">Name <span class="text-red-500">*</span></span>
+            <InputText v-model="quickForm.name" :placeholder="`${t('event', false)} name`" class="flex-1 min-w-0" autofocus
+              @keydown.enter="quickNext" />
+          </div>
+
+          <!-- When -->
+          <DateTimeEditor
+            v-model:startDate="quickForm.start_date"
+            v-model:endDate="quickForm.end_date"
+            v-model:startTime="quickForm.start_time"
+            v-model:endTime="quickForm.end_time"
+            v-model:isAllDay="quickForm.is_all_day"
+            v-model:repeat="quickForm.repeat"
+            v-model:exdates="quickForm.exdates"
+            label="When" required label-width="sm:w-20" row-padding="px-0 py-1" />
+
+          <!-- Location — collapsed to a slim row (label left, pill right) -->
+          <div v-if="!quickShowLocation" class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
+            <span class="field-label shrink-0 sm:w-20">Location</span>
+            <button type="button"
+              class="flex-1 min-w-0 flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2.5 text-sm hover:border-primary hover:bg-[#F0F4FF] transition-colors"
+              @click="quickShowLocation = true">
+              <i class="pi pi-map-marker text-gray-400 shrink-0" />
+              <span class="flex-1 text-left truncate" :class="quickLocationSummary ? 'text-gray-800' : 'text-gray-500'">{{ quickLocationSummary || 'Add location' }}</span>
+              <i class="pi text-gray-300 text-xs" :class="quickLocationSummary ? 'pi-pencil' : 'pi-plus'" />
+            </button>
+          </div>
+          <div v-else class="flex flex-col sm:flex-row sm:gap-4">
+            <span class="field-label shrink-0 sm:w-20 sm:pt-2.5">Location</span>
+            <div class="flex-1 min-w-0">
+              <div class="flex justify-end mb-1">
+                <button type="button" class="text-xs text-gray-400 hover:text-gray-600" @click="quickShowLocation = false">Done</button>
+              </div>
+              <LocationEditor v-model="quickForm.locations" :multi="false" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2 · Invitees (optional — the picker only mounts on this step) -->
+        <div v-show="quickStep === 2">
+          <p class="text-xs text-gray-500 mb-2">Add people now, or skip — you can invite anyone later.</p>
+          <div class="max-h-[55vh] overflow-y-auto -mx-1 px-1">
+            <EventInviteeManager v-if="quickDraftId && quickStep === 2" :event-id="quickDraftId" :show-invite="false" />
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <template v-if="quickStep === 1">
+          <Button label="Cancel" severity="secondary" text @click="quickOpen = false" />
+          <Button label="Next" icon="pi pi-arrow-right" icon-pos="right"
+            :disabled="!quickForm.name.trim() || !quickForm.start_date"
+            style="background:var(--brand-primary);border-color:var(--brand-primary)"
+            @click="quickNext" />
+        </template>
+        <template v-else>
+          <Button label="Back" icon="pi pi-arrow-left" severity="secondary" text @click="quickStep = 1" />
+          <Button label="Create event" icon="pi pi-check" :loading="creatingQuick"
+            style="background:var(--brand-primary);border-color:var(--brand-primary)"
+            @click="createQuickEvent" />
+        </template>
+      </template>
     </Dialog>
 
     <!-- Is the event split into parts people sign up to separately? That — not
@@ -924,6 +1019,123 @@ function startHolidayProgramme() {
   const params = new URLSearchParams({ programme: '1', name: newEventName.value.trim() })
   if (activeCalendarStampCategory.value) params.set('category', activeCalendarStampCategory.value)
   navigateTo(`/events/new-multi?${params}`)
+}
+
+// ── Quick event: name · date · location · invitees, all in one modal ─────────
+// A draft row is created on open (like the wizards' ensureDraft) so the reusable
+// <EventInviteeManager> — which writes invitees against a real event id — can be
+// mounted directly. "Create" flips it to PUBLISHED + saves the details; cancelling
+// deletes the draft (onQuickClose) so an abandoned modal leaves nothing behind.
+const quickOpen = ref(false)
+const creatingQuick = ref(false)
+const quickDraftId = ref<string | null>(null)
+const quickCreated = ref(false)
+const quickForm = reactive<{
+  name: string
+  start_date: Date | null; start_time: Date | null
+  end_date: Date | null; end_time: Date | null
+  is_all_day: boolean
+  repeat: string; exdates: string[]
+  locations: any[]
+}>({
+  name: '', start_date: null, start_time: null, end_date: null, end_time: null,
+  is_all_day: false,
+  repeat: '', exdates: [],
+  locations: [{ type: 'ADDRESS', venue_name: '', address: '', meeting_link: '', bookable_ids: [] }],
+})
+const quickStep = ref(1)                 // 1 = details, 2 = invitees
+const quickShowLocation = ref(false)     // location starts collapsed to a slim row
+const quickLocationSummary = computed(() => {
+  const l: any = quickForm.locations[0]
+  if (!l) return ''
+  if (l.type === 'ONLINE') return l.meeting_link ? 'Online' : ''
+  if (l.type === 'BOOKABLE') return l.venue_name || (l.bookable_ids?.length ? 'Venue booked' : '')
+  return l.address || l.venue_name || ''
+})
+function quickNext() {
+  if (!quickForm.name.trim() || !quickForm.start_date) return
+  quickStep.value = 2
+}
+
+// Merge a separate date + time (the DateTimeEditor's shape) into one ISO string.
+function quickBuildDateTime(date: Date | null, time: Date | null, allDay: boolean): string | null {
+  if (!date) return null
+  const d = new Date(date)
+  if (time && !allDay) d.setHours(time.getHours(), time.getMinutes(), 0, 0)
+  else d.setHours(0, 0, 0, 0)
+  return d.toISOString()
+}
+
+async function openQuick() {
+  if (creatingQuick.value) return
+  quickForm.name = newEventName.value.trim()
+  quickForm.start_date = clickedDate.value ? new Date(clickedDate.value) : null
+  quickForm.start_time = null
+  quickForm.end_date = clickedEndDate.value ? new Date(clickedEndDate.value) : quickForm.start_date
+  quickForm.end_time = null
+  quickForm.is_all_day = false
+  quickForm.repeat = ''
+  quickForm.exdates = []
+  quickForm.locations = [{ type: 'ADDRESS', venue_name: '', address: '', meeting_link: '', bookable_ids: [] }]
+  quickCreated.value = false
+  quickStep.value = 1
+  quickShowLocation.value = false
+  try {
+    const payload: any = {
+      orgId: orgId.value,
+      title: quickForm.name || 'Untitled event',
+      status: 'DRAFT',
+      style: 'BASIC',
+      createdVia: 'quick',
+      isProgramme: isProgramme.value,
+    }
+    if (activeCalendarStampCategory.value) payload.categoryId = activeCalendarStampCategory.value
+    const created = await eventsApi.create(payload)
+    quickDraftId.value = created.id
+    showEventNameModal.value = false
+    quickOpen.value = true
+  } catch (error: any) {
+    toast.add({ severity: 'error', summary: 'Could not start the event', detail: error?.message, life: 4000 })
+  }
+}
+
+async function createQuickEvent() {
+  if (!quickForm.name.trim() || !quickForm.start_date || !quickDraftId.value || creatingQuick.value) return
+  creatingQuick.value = true
+  try {
+    const loc: any = quickForm.locations[0] || {}
+    const patch: any = {
+      title: quickForm.name.trim(),
+      status: 'PUBLISHED',
+      isAllDay: quickForm.is_all_day,
+      startAt: quickBuildDateTime(quickForm.start_date, quickForm.start_time, quickForm.is_all_day),
+      endAt: quickBuildDateTime(quickForm.end_date || quickForm.start_date, quickForm.end_time, quickForm.is_all_day),
+      recurrenceRule: quickForm.repeat || null,
+      exdates: quickForm.exdates ?? [],
+      locations: quickForm.locations,
+      locationType: loc.type ?? 'ADDRESS',
+      address: loc.type === 'ADDRESS' ? (loc.address || null) : null,
+      meetingLink: loc.type === 'ONLINE' ? (loc.meeting_link || null) : null,
+    }
+    await eventsApi.update(quickDraftId.value, patch)
+    quickCreated.value = true
+    const id = quickDraftId.value
+    quickOpen.value = false
+    navigateTo(`/events/view/${id}`)
+  } catch (error: any) {
+    toast.add({ severity: 'error', summary: 'Could not create the event', detail: error?.message, life: 4000 })
+  } finally {
+    creatingQuick.value = false
+  }
+}
+
+// Cancelling (or dismissing) an uncreated quick draft removes it — no orphans.
+async function onQuickClose() {
+  const id = quickDraftId.value
+  quickDraftId.value = null
+  if (!quickCreated.value && id) {
+    try { await eventsApi.remove(id) } catch { /* best-effort cleanup */ }
+  }
 }
 
 function backToNewEvent() {
@@ -1610,6 +1822,9 @@ const bookingsCalEvents = computed(() => {
 // a wizard draft from a Custom one — both are BASIC.)
 function openEvent(evt: { id: string; status?: string; created_via?: string | null; style?: string }) {
   const unfinished = evt.status === 'DRAFT'
+
+  // A quick event opens the simple run-the-event view — details, invitees, attendance.
+  if (evt.created_via === 'quick') { navigateTo(`/events/view/${evt.id}`); return }
 
   // An unfinished wizard draft resumes in the wizard, on the step it was left on.
   if (unfinished && evt.created_via === 'wizard') {

@@ -39,7 +39,7 @@ function onNext() {
   <Teleport to="body">
     <div class="app-modal-overlay fixed inset-0 flex items-stretch sm:items-center justify-center sm:p-6 bg-slate-900/45 backdrop-blur-[2px]"
       style="z-index:1000">
-      <div class="flex flex-col bg-white w-full h-full sm:h-[92vh] sm:max-w-[1200px] sm:rounded-xl shadow-2xl overflow-hidden">
+      <div class="flex flex-col bg-white w-full h-full sm:h-[92vh] sm:max-w-[1400px] sm:rounded-xl shadow-2xl overflow-hidden">
 
         <!-- Header + step path (same brand bar as every dialog) -->
         <div class="shrink-0 bg-white border-b border-gray-200">
@@ -82,7 +82,7 @@ function onNext() {
           <div class="flex-1 min-w-0 bg-[#F5F8FA] flex flex-col" :class="fullBleed ? 'overflow-hidden' : 'overflow-y-auto'">
             <div :class="fullBleed
               ? 'flex-1 min-h-0 flex flex-col p-3 sm:p-4'
-              : 'max-w-[1140px] w-full mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6'">
+              : 'max-w-[1340px] w-full mx-auto px-3 sm:px-6 py-4 sm:py-8 space-y-6'">
               <slot />
             </div>
           </div>
