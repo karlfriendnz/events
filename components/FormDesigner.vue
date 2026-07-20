@@ -2014,16 +2014,45 @@ function addEvtFormGroupViaChooser() {
   selectEvtFormGroup(newId)
 }
 
-// Pick a registration type from the "Create a registration form" chooser: drop into a
-// scratch form, seeding the chosen preset's subjects (or just the default person for blank).
+// Pick a template — seed the chosen preset's subjects (or a default person for Blank),
+// then land on the "subjects" step so the user can set counts + person types BEFORE the
+// builder. (A later main-setting can predefine these and skip straight to the builder.)
 function chooseEvtFormPreset(presetId: string) {
-  chooseEvtFormType('scratch')
+  ensureEvtFormGroupSelected()
   const preset = presetId ? PROFILE_PRESETS.find(p => p.id === presetId) : null
   if (preset) applyEvtProfilePreset(preset)
-  // Default to the Steps wizard for every template except Individual (and Blank,
-  // which is a single person) — those stay Single Page.
+  else {
+    // Blank → a single default person to configure.
+    const firstPerson = evtSubjectTypes.value.find(t => (t.kind || 'person') === 'person')
+    currentEvtFormProfiles.value = firstPerson
+      ? [{ key: firstPerson.key, label: firstPerson.label, min: firstPerson.min_count ?? 1, max: null, kind: 'person', selectsOptions: true } as any]
+      : [{ key: 'member', label: 'Member', min: 1, max: null, kind: 'person', selectsOptions: true } as any]
+  }
+  evtChooserStep.value = 'subjects'
+}
+
+// Subject types offered in the step-3 config + the "add another" picker (unused ones).
+const evtSubjectTypeOptions = computed(() => evtSubjectTypes.value)
+const evtUnusedSubjectTypes = computed(() =>
+  evtSubjectTypes.value.filter(t => !currentEvtFormProfiles.value.some((p: any) => p.key === t.key)))
+// Swap a configured subject's TYPE (before any fields exist, so re-keying is safe).
+function evtSetSubjectType(i: number, key: string) {
+  const t = evtSubjectTypes.value.find(x => x.key === key)
+  if (!t) return
+  const next = currentEvtFormProfiles.value.slice()
+  next[i] = { ...next[i], key: t.key, label: t.label, kind: t.kind }
+  currentEvtFormProfiles.value = next
+}
+function evtAddSubjectType(key: string) {
+  const t = evtSubjectTypes.value.find(x => x.key === key)
+  if (t) addEvtProfile(t)
+}
+// Confirm step-3 → commit the scratch form + default to the Steps wizard, dropping into
+// the builder. chooseEvtFormType won't re-seed (profiles are already set).
+function evtConfirmSubjects() {
+  chooseEvtFormType('scratch')
   const design = evtFormGroupDesigns[selectedFormGroupId.value]
-  if (design) design.style = 'tabs' // registration forms default to Steps (Karl)
+  if (design) design.style = 'tabs'
 }
 
 const formToDelete = ref<string | null>(null)
@@ -2192,7 +2221,7 @@ const evtFormSections = computed(() => {
 const evtFormSectionCompletedCount = computed(() => evtFormSections.value.filter(s => s.complete).length)
 
 // Two-step chooser: 'type' (Basic / Start from scratch / …) → 'template' (who's registering).
-const evtChooserStep = ref<'type' | 'template'>('type')
+const evtChooserStep = ref<'type' | 'template' | 'subjects'>('type')
 
 function selectEvtFormGroup(id: string) {
   selectedFormGroupId.value = id
@@ -3423,7 +3452,7 @@ defineExpose({ reload })
           <div v-if="!evtFormGroups.length || !evtFormGroupModes[selectedFormGroupId]" class="flex items-center justify-center py-16 px-6">
             <div class="bg-white rounded-xl shadow-lg overflow-hidden w-full max-w-[580px]">
               <div class="bg-[#182e59] px-6 py-4 text-center">
-                <h2 class="text-[17px] font-semibold text-white leading-snug">{{ evtChooserStep === 'template' ? 'Choose a template' : 'Choose a registration type' }}</h2>
+                <h2 class="text-[17px] font-semibold text-white leading-snug">{{ evtChooserStep === 'subjects' ? "Who's registering?" : evtChooserStep === 'template' ? 'Choose a template' : 'Choose a registration type' }}</h2>
               </div>
               <!-- Step 1: pick the kind of form -->
               <div v-if="evtChooserStep === 'type'" class="p-5 space-y-2.5">
@@ -3447,7 +3476,7 @@ defineExpose({ reload })
               </div>
 
               <!-- Step 2: choose a template (who's registering) -->
-              <div v-else class="p-5 space-y-2.5 max-h-[68vh] overflow-y-auto">
+              <div v-else-if="evtChooserStep === 'template'" class="p-5 space-y-2.5 max-h-[68vh] overflow-y-auto">
                 <button type="button" class="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#182e59] transition-colors mb-1" @click="evtChooserStep = 'type'">
                   <i class="pi pi-chevron-left text-[10px]" />Back
                 </button>
@@ -3474,6 +3503,44 @@ defineExpose({ reload })
                     <p class="text-xs text-gray-500 mt-0.5">{{ p.description }}</p>
                     <p class="text-[11px] text-gray-400 mt-0.5">Includes {{ evtPresetRoleSummary(p.id) }}</p>
                   </div>
+                </button>
+              </div>
+
+              <!-- Step 3: set how many of each subject register + which person type -->
+              <div v-else-if="evtChooserStep === 'subjects'" class="p-5 space-y-3 max-h-[68vh] overflow-y-auto">
+                <button type="button" class="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#182e59] transition-colors" @click="evtChooserStep = 'template'">
+                  <i class="pi pi-chevron-left text-[10px]" />Back
+                </button>
+                <p class="text-xs text-gray-400 px-1 -mt-1">Set how many of each register and which type they are. You can change all of this later.</p>
+
+                <div v-for="(profile, i) in currentEvtFormProfiles" :key="i" class="border border-gray-200 rounded-lg p-3 space-y-2.5">
+                  <div class="flex items-center gap-2">
+                    <Select :model-value="profile.key" :options="evtSubjectTypeOptions" option-label="label" option-value="key"
+                      class="flex-1" @update:model-value="k => evtSetSubjectType(i, k)" />
+                    <button v-if="currentEvtFormProfiles.length > 1" type="button" class="text-gray-300 hover:text-red-500 shrink-0" @click="removeEvtProfile(i)">
+                      <i class="pi pi-times-circle" />
+                    </button>
+                  </div>
+                  <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs font-medium text-gray-500">Min</span>
+                      <InputNumber :model-value="profile.min" :min="0" :max="99" showButtons buttonLayout="horizontal" class="w-28"
+                        @update:model-value="v => profile.min = v ?? 0" />
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs font-medium text-gray-500">Max</span>
+                      <InputNumber :model-value="profile.max" :min="profile.min || 0" :max="99" showButtons buttonLayout="horizontal" placeholder="No limit" class="w-28"
+                        @update:model-value="v => profile.max = v" />
+                    </div>
+                  </div>
+                </div>
+
+                <Select v-if="evtUnusedSubjectTypes.length" :model-value="null" :options="evtUnusedSubjectTypes" option-label="label" option-value="key"
+                  placeholder="+ Add another type" class="w-full" @update:model-value="k => k && evtAddSubjectType(k)" />
+
+                <button type="button" class="w-full py-2.5 rounded-lg text-white text-sm font-semibold transition-colors"
+                  style="background:var(--brand-primary)" @click="evtConfirmSubjects">
+                  Continue to form builder
                 </button>
               </div>
             </div>
