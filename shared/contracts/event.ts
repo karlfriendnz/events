@@ -334,12 +334,13 @@ export const eventOrgInviteeSchema = z.object({
   invitedByOrgId: z.string().nullable(),
   status: z.string(),
   connections: eventConnectionsSchema.optional(),
+  disciplineId: z.string().nullable().optional(),
   invitedAt: z.string().nullable(),
   updatedAt: z.string().nullable(),
   decidedAt: z.string().nullable(),
 })
 export type EventOrgInvitee = z.infer<typeof eventOrgInviteeSchema>
-export const eventOrgInviteeWithNameSchema = eventOrgInviteeSchema.extend({ orgName: z.string().nullable() })
+export const eventOrgInviteeWithNameSchema = eventOrgInviteeSchema.extend({ orgName: z.string().nullable(), disciplineName: z.string().nullable().optional() })
 export type EventOrgInviteeWithName = z.infer<typeof eventOrgInviteeWithNameSchema>
 export const eventOrgInviteeListSchema = z.array(eventOrgInviteeWithNameSchema)
 
@@ -350,6 +351,7 @@ export const eventOrgInviteForClubSchema = eventOrgInviteeSchema.extend({
   eventStartAt: z.string().nullable(),
   eventBannerUrl: z.string().nullable(),
   invitedByOrgName: z.string().nullable(),
+  disciplineName: z.string().nullable(),
 })
 export type EventOrgInviteForClub = z.infer<typeof eventOrgInviteForClubSchema>
 export const eventOrgInviteForClubListSchema = z.array(eventOrgInviteForClubSchema)

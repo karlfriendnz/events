@@ -70,6 +70,9 @@ const toggle = (inv: any, key: string) =>
           <span class="font-semibold">{{ inv.eventTitle || 'an event' }}</span>
         </p>
         <p class="text-xs text-gray-500 mt-0.5">{{ inv.eventStartAt ? whenLabel(inv.eventStartAt) + ' · ' : '' }}Accept to choose what you connect.</p>
+        <p v-if="inv.disciplineName" class="inline-flex items-center gap-1 text-xs text-primary font-medium mt-1">
+          <i class="pi pi-tag text-[10px]" /> For the {{ inv.disciplineName }} discipline
+        </p>
       </div>
       <div class="flex items-center gap-2 shrink-0">
         <Button label="Decline" severity="secondary" outlined size="small" :disabled="busy === inv.id" @click="decline(inv)" />
@@ -92,6 +95,9 @@ const toggle = (inv: any, key: string) =>
         </div>
         <button class="text-xs text-gray-400 hover:text-rose-500 shrink-0" :disabled="busy === inv.id" @click="decline(inv)">Decline instead</button>
       </div>
+      <p v-if="inv.disciplineName" class="inline-flex items-center gap-1 text-xs text-primary font-medium mb-2">
+        <i class="pi pi-tag text-[10px]" /> For the {{ inv.disciplineName }} discipline
+      </p>
       <p class="text-xs font-medium text-gray-600 mb-2">Choose what to connect from this event:</p>
       <div class="flex flex-col gap-1.5">
         <label v-for="c in CONN" :key="c.key" class="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">

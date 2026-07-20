@@ -13,6 +13,7 @@ const bodySchema = z.object({
   orgId: z.string(),
   invitedByOrgId: z.string().nullable().optional(),
   status: z.string().optional(),
+  disciplineId: z.string().nullable().optional(),
 })
 
 // Fire the invitation email — never throws (a failed email must not fail the invite).

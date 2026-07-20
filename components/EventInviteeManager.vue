@@ -11,6 +11,15 @@
       <div class="h-8 flex items-center">
         <p class="text-sm font-semibold text-gray-800">Choose Invitees</p>
       </div>
+      <!-- Governing body: scope invites to ONE of the event's own disciplines. The
+           chosen scope applies to every club added after it. -->
+      <div v-if="isGoverning && eventDisciplineOptions.length > 1"
+        class="flex items-center gap-2 rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
+        <i class="pi pi-tag text-gray-400 text-xs shrink-0" />
+        <span class="text-xs font-medium text-gray-600 shrink-0">Scope invites to</span>
+        <Select v-model="inviteDiscipline" :options="eventDisciplineOptions" option-label="label" option-value="value"
+          class="flex-1 min-w-0" />
+      </div>
       <PeopleSelector
         :invited-person-ids="invitees.map(i => i.person_id)"
         :added-group-ids="selectedInviteeGroups"
@@ -85,6 +94,7 @@
             :class="flashedOrgId === o.orgId ? 'bg-emerald-100 text-emerald-900 ring-2 ring-emerald-400' : 'bg-gray-100 text-gray-700'">
             <i class="pi pi-building text-xs text-gray-400" />
             {{ o.orgName ?? o.orgId }}
+            <span v-if="o.disciplineName" class="inline-flex items-center gap-0.5 text-xs text-primary">· {{ o.disciplineName }}</span>
             <button class="text-gray-400 hover:text-red-500" @click="removeOrg(o.id)"><i class="pi pi-times-circle text-sm" /></button>
           </span>
         </div>
@@ -471,6 +481,25 @@ function flashPerson(personId: string) {
 const orgsApi = useOrganisationsApi()
 const isGoverning = ref(false)
 const orgInvitees = ref<any[]>([])
+// Optionally scope invites to ONE of the EVENT'S OWN linked disciplines. The chosen
+// scope applies to every club added after it (a body usually shares one event to many
+// clubs for the same discipline). Null = whole event.
+const inviteDiscipline = ref<string | null>(null)
+const eventDisciplineOptions = ref<{ label: string; value: string | null }[]>([{ label: 'Whole event', value: null }])
+async function loadEventDisciplineOptions() {
+  if (!isGoverning.value) return
+  try {
+    const [ids, { flat }] = await Promise.all([
+      eventsApi.eventDisciplineIds(props.eventId),
+      useReachableDisciplines().load('event'),
+    ])
+    const nameById = new Map(flat.map(d => [d.id, d.name]))
+    const linked = ids.filter(id => nameById.has(id)).map(id => ({ label: nameById.get(id)!, value: id as string | null }))
+    eventDisciplineOptions.value = [{ label: 'Whole event', value: null }, ...linked]
+    // Scope no longer valid (discipline unlinked) → fall back to whole event.
+    if (inviteDiscipline.value && !linked.some(o => o.value === inviteDiscipline.value)) inviteDiscipline.value = null
+  } catch { eventDisciplineOptions.value = [{ label: 'Whole event', value: null }] }
+}
 async function loadOrgInvitees() {
   if (!isGoverning.value) return
   orgInvitees.value = await eventsApi.orgInvitees(props.eventId)
@@ -478,7 +507,7 @@ async function loadOrgInvitees() {
 async function addOrg(club: { id: string; name: string; sport?: string; bodyName?: string }) {
   if (orgInvitees.value.some(o => o.orgId === club.id)) { flashOrg(club.id); return }
   try {
-    await eventsApi.addOrgInvitee({ eventId: props.eventId, orgId: club.id, invitedByOrgId: orgId.value, status: 'INVITED' })
+    await eventsApi.addOrgInvitee({ eventId: props.eventId, orgId: club.id, invitedByOrgId: orgId.value, status: 'INVITED', disciplineId: inviteDiscipline.value })
     await loadOrgInvitees()   // no toast — the club chip appearing IS the feedback
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Error', detail: e?.data?.message ?? e?.message, life: 4000 })
@@ -571,7 +600,7 @@ onMounted(async () => {
   try {
     const o = await orgsApi.get(orgId.value)
     isGoverning.value = isGoverningBody((o as any)?.orgLevel)
-    if (isGoverning.value) loadOrgInvitees()
+    if (isGoverning.value) { loadOrgInvitees(); loadEventDisciplineOptions() }
   } catch { /* non-fatal — clubs tab just stays hidden */ }
 })
 </script>

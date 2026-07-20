@@ -170,7 +170,7 @@ export function useEventsApi() {
   async function orgInvitees(eventId: string): Promise<EventOrgInviteeWithName[]> {
     return await $fetch<EventOrgInviteeWithName[]>('/api/v1/event-org-invitees', { query: { eventId } })
   }
-  async function addOrgInvitee(body: { eventId: string; orgId: string; invitedByOrgId?: string | null; status?: string }): Promise<EventOrgInvitee> {
+  async function addOrgInvitee(body: { eventId: string; orgId: string; invitedByOrgId?: string | null; status?: string; disciplineId?: string | null }): Promise<EventOrgInvitee> {
     return await $fetch<EventOrgInvitee>('/api/v1/event-org-invitees', { method: 'POST', body })
   }
   async function removeOrgInvitee(id: string): Promise<void> {

@@ -422,6 +422,9 @@ export async function updateEvent(id: string, patch: FMEventPatch): Promise<FMEv
 }
 
 export async function deleteEvent(id: string): Promise<void> {
+  // Clear any club invitations for this event first — a deleted event must leave no
+  // orphan invite lingering on a club's dashboard.
+  await db.delete(schema.eventOrgInvitees).where(eq(schema.eventOrgInvitees.eventId, id))
   await db.delete(schema.events).where(eq(schema.events.id, id))
 }
 
@@ -806,6 +809,7 @@ function toEventOrgInvitee(r: typeof schema.eventOrgInvitees.$inferSelect): Even
     invitedByOrgId: r.invitedByOrgId ?? null,
     status: r.status,
     connections: (r.connections as EventConnections) ?? null,
+    disciplineId: r.disciplineId ?? null,
     invitedAt: toIso(r.invitedAt),
     updatedAt: toIso(r.updatedAt),
     decidedAt: toIso(r.decidedAt),
@@ -815,18 +819,21 @@ function toEventOrgInvitee(r: typeof schema.eventOrgInvitees.$inferSelect): Even
 /** The clubs invited to an event, oldest first, with the club name joined for display. */
 export async function listEventOrgInvitees(eventId: string): Promise<EventOrgInviteeWithName[]> {
   const rows = await db
-    .select({ inv: schema.eventOrgInvitees, orgName: schema.organisations.name })
+    .select({ inv: schema.eventOrgInvitees, orgName: schema.organisations.name, disciplineName: schema.disciplines.name })
     .from(schema.eventOrgInvitees)
     .leftJoin(schema.organisations, eq(schema.organisations.id, schema.eventOrgInvitees.orgId))
+    .leftJoin(schema.disciplines, eq(schema.disciplines.id, schema.eventOrgInvitees.disciplineId))
     .where(eq(schema.eventOrgInvitees.eventId, eventId))
     .orderBy(asc(schema.eventOrgInvitees.invitedAt))
-  return rows.map(r => ({ ...toEventOrgInvitee(r.inv), orgName: r.orgName ?? null }))
+  return rows.map(r => ({ ...toEventOrgInvitee(r.inv), orgName: r.orgName ?? null, disciplineName: r.disciplineName ?? null }))
 }
 
 /** Invite a club to an event. Idempotent on (event_id, org_id) — re-inviting is a no-op. */
 export async function createEventOrgInvitee(input: {
-  eventId: string; orgId: string; invitedByOrgId?: string | null; status?: string
+  eventId: string; orgId: string; invitedByOrgId?: string | null; status?: string; disciplineId?: string | null
 }): Promise<EventOrgInvitee> {
+  // Idempotent on (event_id, org_id): re-inviting the same club returns the existing
+  // row UNCHANGED, so changing an invite's discipline = remove + re-add (host decision).
   const [existing] = await db.select().from(schema.eventOrgInvitees)
     .where(and(eq(schema.eventOrgInvitees.eventId, input.eventId), eq(schema.eventOrgInvitees.orgId, input.orgId)))
     .limit(1)
@@ -838,6 +845,7 @@ export async function createEventOrgInvitee(input: {
     orgId: input.orgId,
     invitedByOrgId: input.invitedByOrgId ?? null,
     status: input.status ?? 'INVITED',
+    disciplineId: input.disciplineId ?? null,
   } as any)
   const [r] = await db.select().from(schema.eventOrgInvitees).where(eq(schema.eventOrgInvitees.id, id)).limit(1)
   return toEventOrgInvitee(r)
@@ -857,10 +865,14 @@ export async function listEventOrgInvitesForClub(orgId: string): Promise<EventOr
       eventStartAt: schema.events.startAt,
       eventBannerUrl: schema.events.bannerUrl,
       invitedByOrgName: schema.organisations.name,
+      disciplineName: schema.disciplines.name,
     })
     .from(schema.eventOrgInvitees)
-    .leftJoin(schema.events, eq(schema.events.id, schema.eventOrgInvitees.eventId))
+    // INNER join on events: if the host DELETED the event, the invite's orphan row
+    // must NOT show on the club — a deleted event disappears from the club inbox.
+    .innerJoin(schema.events, eq(schema.events.id, schema.eventOrgInvitees.eventId))
     .leftJoin(schema.organisations, eq(schema.organisations.id, schema.eventOrgInvitees.invitedByOrgId))
+    .leftJoin(schema.disciplines, eq(schema.disciplines.id, schema.eventOrgInvitees.disciplineId))
     .where(eq(schema.eventOrgInvitees.orgId, orgId))
     .orderBy(desc(schema.eventOrgInvitees.invitedAt))
   return rows.map(r => ({
@@ -869,6 +881,7 @@ export async function listEventOrgInvitesForClub(orgId: string): Promise<EventOr
     eventStartAt: toIso(r.eventStartAt),
     eventBannerUrl: r.eventBannerUrl ?? null,
     invitedByOrgName: r.invitedByOrgName ?? null,
+    disciplineName: r.disciplineName ?? null,
   }))
 }
 

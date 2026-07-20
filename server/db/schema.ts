@@ -917,6 +917,8 @@ export const eventOrgInvitees = mysqlTable('event_org_invitees', {
   status: text('status').notNull(),
   // What the club chose to connect once it accepts ({event_details,fees,communication}).
   connections: json('connections'),
+  // Optionally scope this invite to ONE discipline (null = the whole event).
+  disciplineId: varchar('discipline_id', { length: 36 }),
   invitedAt: timestamp('invited_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   decidedAt: timestamp('decided_at'),
