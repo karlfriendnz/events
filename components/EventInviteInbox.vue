@@ -36,6 +36,14 @@ function whenLabel(iso: string | null) {
   if (!iso) return ''
   return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
 }
+function whenTime(iso: string | null) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+// Descriptions are rich-text HTML — strip tags for the card snippet.
+function plain(html: string | null) {
+  return (html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+}
 
 async function respond(inv: any, patch: any) {
   busy.value = inv.id
@@ -62,22 +70,42 @@ const toggle = (inv: any, key: string) =>
       <span v-if="pending.length" class="bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{{ pending.length }} new</span>
     </div>
 
-    <!-- Pending — accept or decline. This is the primary action. -->
-    <div v-for="inv in pending" :key="inv.id" class="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-4 border-b border-gray-50 bg-amber-50/40">
-      <div class="flex-1 min-w-0">
-        <p class="text-sm text-gray-900">
-          <span class="font-semibold">{{ inv.invitedByOrgName || 'A governing body' }}</span> has invited your club to
-          <span class="font-semibold">{{ inv.eventTitle || 'an event' }}</span>
-        </p>
-        <p class="text-xs text-gray-500 mt-0.5">{{ inv.eventStartAt ? whenLabel(inv.eventStartAt) + ' · ' : '' }}Accept to choose what you connect.</p>
-        <p v-if="inv.disciplineName" class="inline-flex items-center gap-1 text-xs text-primary font-medium mt-1">
-          <i class="pi pi-tag text-[10px]" /> For the {{ inv.disciplineName }} discipline
-        </p>
-      </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <Button label="Decline" severity="secondary" outlined size="small" :disabled="busy === inv.id" @click="decline(inv)" />
-        <Button label="Accept invitation" icon="pi pi-check" size="small" :loading="busy === inv.id"
-          style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="accept(inv)" />
+    <!-- Pending — a rich card per invite (banner · title · date/time · description · actions). -->
+    <div v-if="pending.length" class="grid gap-3 p-4 sm:grid-cols-2">
+      <div v-for="inv in pending" :key="inv.id" class="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm flex flex-col">
+        <!-- Banner -->
+        <div class="relative h-32 bg-gray-100 shrink-0">
+          <img v-if="inv.eventBannerUrl" :src="inv.eventBannerUrl" class="absolute inset-0 w-full h-full object-cover" />
+          <div v-else class="absolute inset-0" style="background:linear-gradient(100deg,var(--brand-primary),var(--brand-primary-hover))" />
+          <span class="absolute top-2 left-2 inline-flex items-center gap-1 bg-black/45 backdrop-blur text-white text-[11px] font-medium px-2 py-0.5 rounded">
+            <i class="pi pi-share-alt text-[9px]" /> Event invite
+          </span>
+        </div>
+        <!-- Body -->
+        <div class="p-3.5 flex flex-col gap-2 flex-1">
+          <p class="text-sm font-bold text-gray-900 leading-tight">{{ inv.eventTitle || 'an event' }}</p>
+          <div class="flex items-center gap-2 text-xs text-gray-600">
+            <i class="pi pi-calendar text-gray-400 text-[11px]" />
+            <span>{{ whenLabel(inv.eventStartAt) || 'Date TBC' }}</span>
+            <span v-if="whenTime(inv.eventStartAt)" class="text-primary font-semibold ml-auto">{{ whenTime(inv.eventStartAt) }}</span>
+          </div>
+          <div v-if="plain(inv.eventDescription)" class="flex items-start gap-2 text-xs text-gray-500">
+            <i class="pi pi-align-left text-gray-300 text-[11px] mt-0.5 shrink-0" />
+            <span class="line-clamp-2">{{ plain(inv.eventDescription) }}</span>
+          </div>
+          <p v-if="inv.disciplineName" class="inline-flex items-center gap-1 text-xs text-primary font-medium">
+            <i class="pi pi-tag text-[10px]" /> For the {{ inv.disciplineName }} discipline
+          </p>
+          <div class="flex items-center gap-2 flex-wrap mt-auto pt-1">
+            <span v-if="inv.eventStatus" class="inline-flex items-center bg-emerald-100 text-emerald-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wide">{{ inv.eventStatus }}</span>
+            <span class="text-[11px] text-gray-400 truncate">by {{ inv.invitedByOrgName || 'a governing body' }}</span>
+          </div>
+          <div class="flex items-center gap-2 pt-1">
+            <Button label="Decline" severity="secondary" outlined size="small" class="flex-1" :disabled="busy === inv.id" @click="decline(inv)" />
+            <Button label="Accept" icon="pi pi-check" size="small" class="flex-1" :loading="busy === inv.id"
+              style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="accept(inv)" />
+          </div>
+        </div>
       </div>
     </div>
 

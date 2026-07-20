@@ -898,6 +898,8 @@ export async function listEventOrgInvitesForClub(orgId: string): Promise<EventOr
       eventTitle: schema.events.title,
       eventStartAt: schema.events.startAt,
       eventBannerUrl: schema.events.bannerUrl,
+      eventDescription: schema.events.description,
+      eventStatus: schema.events.status,
       invitedByOrgName: schema.organisations.name,
       disciplineName: schema.disciplines.name,
     })
@@ -914,6 +916,8 @@ export async function listEventOrgInvitesForClub(orgId: string): Promise<EventOr
     eventTitle: r.eventTitle ?? null,
     eventStartAt: toIso(r.eventStartAt),
     eventBannerUrl: r.eventBannerUrl ?? null,
+    eventDescription: r.eventDescription ?? null,
+    eventStatus: r.eventStatus ?? null,
     invitedByOrgName: r.invitedByOrgName ?? null,
     disciplineName: r.disciplineName ?? null,
   }))
