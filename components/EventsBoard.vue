@@ -1845,9 +1845,10 @@ const bookingsCalEvents = computed(() => {
 // a wizard draft from a Custom one — both are BASIC.)
 function openEvent(evt: { id: string; status?: string; created_via?: string | null; style?: string; is_programme?: boolean; is_shared?: boolean; shared_from?: string | null }) {
   // A SHARED event belongs to another org (a national/governing body shared it, this
-  // club accepted) — it's read-only here, so don't route into the club's editor.
+  // club accepted). The club must SEE the full event but never edit/delete it (delete is
+  // by id and would remove the owner's event), so open the read-only public event page.
   if (evt.is_shared) {
-    toast.add({ severity: 'info', summary: 'Shared event', detail: `Shared by ${evt.shared_from || 'a governing body'} — view only.`, life: 4000 })
+    navigateTo(`/r/event/${evt.id}`)
     return
   }
   const unfinished = evt.status === 'DRAFT'

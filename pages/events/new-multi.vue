@@ -709,7 +709,9 @@ async function createEvent() {
     const payload = {
       orgId: orgId.value,
       title: form.title.trim(),
-      status: 'DRAFT' as const,
+      // Creating the programme = complete → PUBLISHED (opens the full view, not the
+      // wizard). The in-progress draft stays DRAFT via ensureDraft; isPublic gates public.
+      status: 'PUBLISHED' as const,
       startAt: combineDT(form.startDate, null)!.toISOString(),
       endAt: combineDT(form.endDate, null)!.toISOString(),
       isPublic: true,

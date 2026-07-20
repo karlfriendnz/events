@@ -699,7 +699,10 @@ async function saveEvent() {
       orgId: orgId.value,
       style: 'ADVANCED',
       createdVia: 'advanced',
-      status: 'DRAFT',
+      // Saving the advanced event = complete → PUBLISHED (opens the full view, not the
+      // wizard). The in-progress draft stays DRAFT via ensureDraft; isPublic still gates
+      // public visibility.
+      status: 'PUBLISHED',
       title: form.title.trim(),
       description: form.description.trim() || null,
       categoryId: form.category_ids[0] ?? null,

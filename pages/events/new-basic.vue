@@ -1403,7 +1403,11 @@ async function saveEvent() {
       // clobber it with a stale value. We only ever CLEAR it: the event stopped
       // collecting a form (they picked RSVP-only after building one).
       ...(form.use_registration_form ? {} : { formId: null }),
-      status: 'DRAFT',
+      // "Save Event" = the wizard is COMPLETE → PUBLISHED (a completed event opens the
+      // full view, not the wizard; openEvent treats only DRAFT as unfinished). The
+      // in-progress draft stays DRAFT via ensureDraft; public visibility is still gated
+      // by isPublic, so a Club-only event never leaks to the public embed.
+      status: 'PUBLISHED',
     }
 
     let evtId: string
