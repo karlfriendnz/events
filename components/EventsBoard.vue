@@ -361,8 +361,10 @@
             <span class="text-lg font-bold leading-tight">{{ new Date(ev.start_at).getDate() }}</span>
           </div>
           <div class="min-w-0 flex-1">
-            <p class="font-medium text-gray-800 truncate">{{ ev.notes }}</p>
-            <p class="text-xs text-gray-500 truncate">{{ evWhen(ev.start_at) }}</p>
+            <p class="font-medium text-gray-800 truncate flex items-center gap-1.5">
+              <i v-if="ev.is_shared" class="pi pi-share-alt text-primary text-xs shrink-0" />{{ ev.notes }}
+            </p>
+            <p class="text-xs text-gray-500 truncate">{{ ev.is_shared ? `Shared by ${ev.shared_from || 'a governing body'} · ` : '' }}{{ evWhen(ev.start_at) }}</p>
           </div>
           <i class="pi pi-chevron-right text-gray-300 text-xs shrink-0" />
         </button>
@@ -440,6 +442,7 @@
               <td class="px-4 py-2.5 font-medium text-gray-800">
                 <span class="inline-flex items-center gap-2 min-w-0">
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: categoriesById[e.category_id]?.color ?? '#94a3b8' }" />
+                  <i v-if="e.is_shared" class="pi pi-share-alt text-primary text-xs shrink-0" v-tooltip.top="`Shared by ${e.shared_from || 'a governing body'}`" />
                   <span class="truncate">{{ e.title || 'Untitled' }}</span>
                 </span>
               </td>
@@ -1835,6 +1838,8 @@ const bookingsCalEvents = computed(() => {
     event: { id: e.extendedProps?.id, title: e.title },
     contact_name: null,
     activity_mode: null,
+    is_shared: e.extendedProps?.is_shared ?? false,
+    shared_from: e.extendedProps?.shared_from ?? null,
     extendedProps: e.extendedProps,
   }))
 })
