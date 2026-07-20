@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nuxt dev",
+    "predev": "sh scripts/ensure-db.sh || true",
+  "dev": "nuxt dev --no-fork",
     "build": "nuxt build",
     "generate": "nuxt generate",
     "preview": "nuxt preview",

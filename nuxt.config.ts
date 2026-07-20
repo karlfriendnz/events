@@ -82,7 +82,7 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css', 'primeicons/primeicons.css'],
 
   devServer: {
-    port: 3002,
+    port: 3005,
   },
 
   app: {
