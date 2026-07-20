@@ -1430,7 +1430,7 @@
         </div>
         <div v-if="publishScheduled" class="flex gap-2 mt-1 pl-6">
           <DatePicker v-model="publishAtDate" placeholder="Date" dateFormat="dd/mm/yy" showIcon class="flex-1" />
-          <TimeSelect v-model="publishAtTime" placeholder="Time" class="w-32" />
+          <TimeWheel v-model="publishAtTime" placeholder="Time" class="w-32" />
         </div>
         <p v-if="publishScheduled" class="text-xs text-gray-400 pl-6">{{ t('event', false) }} status will stay as Draft until this date and time.</p>
       </div>
@@ -1807,9 +1807,9 @@
             <div class="flex flex-col gap-1.5">
               <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Time</label>
               <div class="flex items-center gap-2">
-                <TimeSelect v-model="editingSubSession._startTime" placeholder="Start" class="flex-1" />
+                <TimeWheel v-model="editingSubSession._startTime" placeholder="Start" class="flex-1" />
                 <span class="text-gray-400 text-xs shrink-0">–</span>
-                <TimeSelect v-model="editingSubSession._endTime" placeholder="End" class="flex-1" />
+                <TimeWheel v-model="editingSubSession._endTime" placeholder="End" class="flex-1" />
               </div>
             </div>
           </div>

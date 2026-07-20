@@ -15,7 +15,7 @@
             :min-date="minStartDate"
             :max-date="maxDate ?? undefined"
             @update:model-value="onStartDate" />
-          <TimeSelect v-if="showTime" :model-value="startTime" :placeholder="`${startLabel} time`" class="flex-1 min-w-0"
+          <TimeWheel v-if="showTime" :model-value="startTime" :placeholder="`${startLabel} time`" class="flex-1 min-w-0"
             :disabled="isAllDay"
             @update:model-value="onStartTime" />
         </div>
@@ -26,7 +26,7 @@
             :min-date="minEndDate ?? startDate ?? undefined"
             :max-date="maxDate ?? undefined"
             @update:model-value="onEndDate" />
-          <TimeSelect v-if="showTime" :model-value="endTime" :placeholder="`${endLabel} time`" class="flex-1 min-w-0"
+          <TimeWheel v-if="showTime" :model-value="endTime" :placeholder="`${endLabel} time`" class="flex-1 min-w-0"
             :disabled="isAllDay"
             @update:model-value="onEndTime" />
         </div>

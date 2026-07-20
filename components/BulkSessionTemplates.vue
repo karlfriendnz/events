@@ -42,9 +42,9 @@
         <span class="absolute left-3 text-gray-400 text-sm pointer-events-none">$</span>
         <InputNumber v-model="tpl.cost" :min="0" :minFractionDigits="2" :maxFractionDigits="2" placeholder="0.00" class="w-full" inputClass="pl-6 pr-2 h-9 text-sm text-right w-full" />
       </div>
-      <TimeSelect v-model="tpl.startTime" placeholder="9:00 AM" class="w-full"
+      <TimeWheel v-model="tpl.startTime" placeholder="9:00 AM" class="w-full"
         @update:model-value="v => onStartTimeChange(idx, v)" />
-      <TimeSelect v-model="tpl.endTime" placeholder="12:00 PM" class="w-full"
+      <TimeWheel v-model="tpl.endTime" placeholder="12:00 PM" class="w-full"
         @update:model-value="v => onEndTimeChange(idx, v)" />
       <InputNumber v-model="tpl.limit" :min="1" placeholder="∞" inputClass="h-9 text-sm text-right w-full px-2" style="width:60px" />
       <TreeSelect v-if="bookableTree?.length"
@@ -99,10 +99,10 @@
 
           <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
             <label class="text-xs font-semibold text-gray-500 w-16 shrink-0">Time</label>
-            <TimeSelect v-model="tpl.startTime" placeholder="9:00 AM" class="w-32"
+            <TimeWheel v-model="tpl.startTime" placeholder="9:00 AM" class="w-32"
               @update:model-value="v => onStartTimeChange(idx, v)" />
             <span class="text-gray-300 text-sm">→</span>
-            <TimeSelect v-model="tpl.endTime" placeholder="12:00 PM" class="w-32"
+            <TimeWheel v-model="tpl.endTime" placeholder="12:00 PM" class="w-32"
               @update:model-value="v => onEndTimeChange(idx, v)" />
             <label class="text-xs font-semibold text-gray-500 shrink-0 ml-3">Capacity</label>
             <InputNumber v-model="tpl.limit" :min="1" placeholder="∞" class="w-24" inputClass="h-9 text-sm text-center w-full px-2" />
