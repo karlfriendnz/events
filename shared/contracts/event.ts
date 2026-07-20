@@ -348,6 +348,7 @@ export const eventOrgInviteeListSchema = z.array(eventOrgInviteeWithNameSchema)
 export const eventOrgInviteForClubSchema = eventOrgInviteeSchema.extend({
   eventTitle: z.string().nullable(),
   eventStartAt: z.string().nullable(),
+  eventBannerUrl: z.string().nullable(),
   invitedByOrgName: z.string().nullable(),
 })
 export type EventOrgInviteForClub = z.infer<typeof eventOrgInviteForClubSchema>
