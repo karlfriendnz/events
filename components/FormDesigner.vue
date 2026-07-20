@@ -610,7 +610,13 @@ watch(orgId, async (id) => {
 const evtUnusedPeople = computed(() => evtSubjectTypes.value.filter(t => (t.kind || 'person') === 'person' && !currentEvtFormProfiles.value.some(p => p.key === t.key)))
 const evtUnusedEntities = computed(() => evtSubjectTypes.value.filter(t => t.kind === 'entity' && !currentEvtFormProfiles.value.some(p => p.key === t.key)))
 const evtShowAddSubject = ref(false)
-const evtProfilePresets = PROFILE_PRESETS
+// Template order on the chooser: Blank (rendered separately) then Individual,
+// Parent/child, Couple, Family, then the rest (team/company/school) in their own order.
+const EVT_PRESET_ORDER = ['individual', 'parent_child', 'couple', 'family']
+const evtProfilePresets = [...PROFILE_PRESETS].sort((a, b) => {
+  const ia = EVT_PRESET_ORDER.indexOf(a.id), ib = EVT_PRESET_ORDER.indexOf(b.id)
+  return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
+})
 // Short "Includes: 1–2 Parent / Guardian, 1–4 Child, …" summary of a preset's roles.
 function evtPresetRoleSummary(id: string): string {
   const preset = PROFILE_PRESETS.find(p => p.id === id)
@@ -678,11 +684,18 @@ function evtEnsureGlobalFields(subject: any) {
   for (const g of EVT_GLOBAL_FIELDS) {
     if (!g.applies(subject)) continue
     if (fields.some((f: any) => f.label === g.label && (f.target || '') === subject.key)) continue
-    fields.push({
+    const item = {
       id: crypto.randomUUID(), label: g.label, field_type: g.field_type,
       is_required: true, locked: true, placeholder: g.placeholder || '', options: g.options || [],
       col_span: 1, visibility_conditions: [], financial_rules: [], target: subject.key,
-    })
+    }
+    // Land it among the MAIN fields, ABOVE the "Login & communications" section —
+    // "Relationship to member" is a core detail, not a comms/login setting. Appending
+    // (push) dropped it below the section, so it read as part of Login & Communication.
+    const secIdx = fields.findIndex((f: any) => f.target === subject.key
+      && f.field_type === 'section' && f.auto_section === 'parent_account_comms')
+    if (secIdx >= 0) fields.splice(secIdx, 0, item)
+    else fields.push(item)
   }
 }
 // By default, a Parent / Guardian subject gets a "login + communications" section:
@@ -1792,6 +1805,22 @@ const evtDiscountSummaryLines = computed<{ formText: string; amount: number }[]>
   }
   return Array.from(map.values())
 })
+
+// Per-PERSON discount lines for the inline Order Summary shown under a session picker
+// (the block the club actually watches while choosing sessions). Same one_discount_only
+// "best only" collapse as the aggregate, so the per-instance total matches the footer.
+function evtInstanceDiscountLines(personIdx: number) {
+  const list = evtApplicableDiscounts.value[personIdx] ?? []
+  return evtDiscountSettings.one_discount_only && list.length > 1
+    ? [list.reduce((a, b) => a.amount >= b.amount ? a : b)]
+    : list
+}
+function evtInstanceDiscountTotal(personIdx: number) {
+  return evtInstanceDiscountLines(personIdx).reduce((s, d) => s + Number(d.amount ?? 0), 0)
+}
+function evtInstanceGrossTotal(personIdx: number) {
+  return (evtOrderRows.value[personIdx] ?? []).reduce((s: number, r: any) => s + Number(r.amount ?? 0), 0)
+}
 
 // Org field library (field engine) surfaced in the event form palette.
 const { resolveFields: _evtResolveFields } = useOrgFieldPolicy()
@@ -3925,10 +3954,15 @@ defineExpose({ reload })
                               {{ row.amount < 0 ? '-' : '' }}${{ Math.abs(row.amount).toFixed(2) }}
                             </span>
                           </div>
+                          <!-- Discount(s) for this registrant — full-week/day, sibling, etc. -->
+                          <div v-for="d in evtInstanceDiscountLines(evtGIdx(subject.key, inst))" :key="d.name" class="flex items-center text-sm">
+                            <span class="flex-1 text-green-600">{{ d.formText || d.name }}</span>
+                            <span class="tabular-nums w-[72px] text-right mr-9 shrink-0 text-green-600 font-medium">-${{ Math.abs(d.amount).toFixed(2) }}</span>
+                          </div>
                           <div class="flex items-center pt-1.5 border-t border-gray-100 text-sm font-bold">
                             <span class="flex-1 text-gray-700">Total</span>
                             <span class="tabular-nums w-[72px] text-right mr-9 shrink-0 text-primary">
-                              ${{ evtOrderRows[evtGIdx(subject.key, inst)].reduce((s, r) => s + Number(r.amount ?? 0), 0).toFixed(2) }}
+                              ${{ Math.max(0, evtInstanceGrossTotal(evtGIdx(subject.key, inst)) - evtInstanceDiscountTotal(evtGIdx(subject.key, inst))).toFixed(2) }}
                             </span>
                           </div>
                         </div>
