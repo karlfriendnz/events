@@ -54,33 +54,38 @@ const toggle = (inv: any, key: string) =>
       <span v-if="pending.length" class="bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{{ pending.length }} new</span>
     </div>
 
-    <!-- Pending — accept or decline -->
-    <div v-for="inv in pending" :key="inv.id" class="flex flex-col sm:flex-row sm:items-center gap-2 px-4 py-3 border-b border-gray-50">
+    <!-- Pending — accept or decline. This is the primary action. -->
+    <div v-for="inv in pending" :key="inv.id" class="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-4 border-b border-gray-50 bg-amber-50/40">
       <div class="flex-1 min-w-0">
         <p class="text-sm text-gray-900">
-          <span class="font-medium">{{ inv.invitedByOrgName || 'A governing body' }}</span> invited you to
-          <span class="font-medium">{{ inv.eventTitle || 'an event' }}</span>
+          <span class="font-semibold">{{ inv.invitedByOrgName || 'A governing body' }}</span> has invited your club to
+          <span class="font-semibold">{{ inv.eventTitle || 'an event' }}</span>
         </p>
-        <p v-if="inv.eventStartAt" class="text-xs text-gray-400 mt-0.5">{{ whenLabel(inv.eventStartAt) }}</p>
+        <p class="text-xs text-gray-500 mt-0.5">{{ inv.eventStartAt ? whenLabel(inv.eventStartAt) + ' · ' : '' }}Accept to choose what you connect.</p>
       </div>
       <div class="flex items-center gap-2 shrink-0">
-        <Button label="Decline" severity="secondary" text size="small" :disabled="busy === inv.id" @click="decline(inv)" />
-        <Button label="Accept" icon="pi pi-check" size="small" :loading="busy === inv.id"
+        <Button label="Decline" severity="secondary" outlined size="small" :disabled="busy === inv.id" @click="decline(inv)" />
+        <Button label="Accept invitation" icon="pi pi-check" size="small" :loading="busy === inv.id"
           style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="accept(inv)" />
       </div>
     </div>
 
-    <!-- Accepted — choose what's connected -->
-    <div v-for="inv in accepted" :key="inv.id" class="px-4 py-3 border-b border-gray-50 last:border-0">
-      <div class="flex items-center gap-2 mb-2">
-        <i class="pi pi-check-circle text-emerald-500 text-xs" />
-        <p class="text-sm text-gray-800">
-          <span class="font-medium">{{ inv.eventTitle || 'Event' }}</span>
-          <span class="text-gray-400"> · {{ inv.invitedByOrgName }}</span>
-        </p>
+    <!-- Accepted — clearly accepted, then choose what's connected -->
+    <div v-for="inv in accepted" :key="inv.id" class="px-4 py-4 border-b border-gray-50 last:border-0">
+      <div class="flex items-center justify-between gap-2 mb-3">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-xs font-semibold px-2 py-0.5 rounded-full shrink-0">
+            <i class="pi pi-check text-[10px]" /> Accepted
+          </span>
+          <p class="text-sm text-gray-800 truncate">
+            <span class="font-medium">{{ inv.eventTitle || 'Event' }}</span>
+            <span class="text-gray-400"> · {{ inv.invitedByOrgName }}</span>
+          </p>
+        </div>
+        <button class="text-xs text-gray-400 hover:text-rose-500 shrink-0" :disabled="busy === inv.id" @click="decline(inv)">Decline instead</button>
       </div>
-      <p class="text-xs text-gray-500 mb-2 ml-5">Choose what to connect from this event:</p>
-      <div class="ml-5 flex flex-col gap-1.5">
+      <p class="text-xs font-medium text-gray-600 mb-2">Choose what to connect from this event:</p>
+      <div class="flex flex-col gap-1.5">
         <label v-for="c in CONN" :key="c.key" class="flex items-center gap-2.5 text-sm text-gray-700 cursor-pointer">
           <ToggleSwitch :model-value="!!inv.connections?.[c.key]" :disabled="busy === inv.id" @update:model-value="toggle(inv, c.key)" />
           <span>{{ c.label }}</span>
