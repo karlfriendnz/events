@@ -627,7 +627,11 @@ function applyEvtProfilePreset(preset: any) {
 }
 function addEvtProfile(t: { key: string; label: string; kind?: string; min_count?: number; max_count?: number | null }) {
   if (currentEvtFormProfiles.value.some(p => p.key === t.key)) return
-  const profile = { key: t.key, label: t.label, min: t.min_count ?? 1, max: t.max_count ?? null, kind: t.kind }
+  // People default to UNLIMITED registrants (max null) — a form should let as many
+  // people sign up as want to, unless the club deliberately caps it. Entities keep
+  // their type's own max (a "Team" subject is usually one).
+  const max = (t.kind || 'person') === 'person' ? null : (t.max_count ?? null)
+  const profile = { key: t.key, label: t.label, min: t.min_count ?? 1, max, kind: t.kind }
   currentEvtFormProfiles.value = [...currentEvtFormProfiles.value, profile]
   evtEnsureCoreFields(profile)
   evtAddRequiredFieldsFor(t.key)
@@ -2310,7 +2314,9 @@ defineExpose({ reload })
                 <h2 class="text-base font-bold text-gray-900">Registration Forms</h2>
                 <p class="text-xs text-gray-400 mt-0.5">Configure a form for each registration group.</p>
               </div>
-              <button type="button"
+              <!-- Multiple forms are only for ticketed events (one form per ticket type).
+                   Without tickets a single form is enough — hide "Add form" for now. -->
+              <button v-if="hasTickets" type="button"
                 class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg bg-primary hover:bg-[#2a2f6e] text-white transition-colors mt-0.5"
                 v-tooltip.left="'Add form'"
                 @click="addEvtFormGroupViaChooser">
