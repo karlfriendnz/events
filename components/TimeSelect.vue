@@ -73,7 +73,7 @@ function cancel() { op.value?.hide() }
 <template>
   <div class="ts-wrap">
     <button type="button" class="ts-trigger" :class="{ 'ts-disabled': disabled }" :disabled="disabled" @click="toggle">
-      <span :class="display ? 'ts-value' : 'ts-placeholder'">{{ display || placeholder || 'Time' }}</span>
+      <span :class="display ? 'ts-value' : 'ts-placeholder'">{{ display || '--:--' }}</span>
       <i class="pi pi-clock ts-icon" />
     </button>
 
@@ -105,40 +105,39 @@ function cancel() { op.value?.hide() }
 .ts-trigger {
   width: 100%; display: flex; align-items: center; justify-content: space-between; gap: .5rem;
   padding: .5rem .75rem; min-height: 40px; font-size: 14px; line-height: 1.4;
-  background: #fff; border: 1px solid #d1d5db; border-radius: 6px; color: #1f2937; text-align: left;
-  transition: border-color .15s;
+  background: #fff; border: 1px solid #d1d5db; border-radius: 8px; color: #1E2157; text-align: left;
+  transition: border-color .15s, box-shadow .15s;
 }
-.ts-trigger:hover:not(.ts-disabled) { border-color: var(--brand-primary); }
-.ts-trigger:focus-visible { outline: none; border-color: var(--brand-primary); box-shadow: 0 0 0 1px var(--brand-primary); }
+.ts-trigger:hover:not(.ts-disabled) { border-color: #F5A623; }
+.ts-trigger:focus-visible { outline: none; border-color: #F5A623; box-shadow: 0 0 0 2px rgba(245,166,35,.25); }
 .ts-disabled { opacity: .55; cursor: not-allowed; background: #f9fafb; }
-.ts-value { font-variant-numeric: tabular-nums; }
+.ts-value { font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: .03em; }
 .ts-placeholder { color: #9ca3af; }
-.ts-icon { color: #9ca3af; font-size: .85rem; }
+.ts-icon { color: #94a3b8; font-size: 1rem; }
 
-.ts-panel { width: 200px; }
+.ts-panel { width: 236px; padding: 4px 2px 0; }
 .ts-cols { display: flex; align-items: stretch; }
-.ts-colon { display: flex; align-items: center; font-weight: 700; color: #94a3b8; padding: 0 2px; }
+.ts-colon { display: flex; align-items: center; font-weight: 700; font-size: 20px; color: #cbd5e1; padding: 0 2px; }
 .ts-col {
-  flex: 1; height: 208px; overflow-y: auto; scroll-snap-type: y proximity;
-  display: flex; flex-direction: column; gap: 2px; padding: 87px 4px;
+  flex: 1; height: 260px; overflow-y: auto; scroll-snap-type: y mandatory;
+  display: flex; flex-direction: column; gap: 4px; padding: 108px 8px;
   scrollbar-width: none;
 }
 .ts-col::-webkit-scrollbar { width: 0; height: 0; }
 .ts-item {
-  scroll-snap-align: center; flex: 0 0 auto; text-align: center; padding: .4rem 0; border-radius: 8px;
-  font-size: 15px; font-variant-numeric: tabular-nums; color: #334155; background: transparent; border: none; cursor: pointer;
-  transition: background .1s;
+  scroll-snap-align: center; flex: 0 0 auto; text-align: center; padding: .55rem 0; border-radius: 12px;
+  font-size: 19px; font-variant-numeric: tabular-nums; color: #1E2157; background: transparent; border: none; cursor: pointer;
+  transition: background .12s, color .12s;
 }
-.ts-item:hover { background: #f1f5f9; }
-.ts-sel { background: var(--brand-primary); color: #fff; font-weight: 600; }
-.ts-sel:hover { background: var(--brand-primary); }
+.ts-item:hover:not(.ts-sel) { background: #f3f4f6; }
+.ts-sel { background: #F5A623; color: #fff; font-weight: 700; box-shadow: 0 1px 3px rgba(245,166,35,.45); }
 
 .ts-footer {
-  display: flex; justify-content: flex-end; gap: .75rem; align-items: center;
-  padding: .55rem .25rem 0; margin-top: .4rem; border-top: 1px solid #f1f5f9;
+  display: flex; justify-content: flex-end; gap: 1.25rem; align-items: center;
+  padding: .7rem 1rem .35rem; margin-top: .3rem; border-top: 1px solid #f1f5f9;
 }
-.ts-btn-text { color: #6b7280; font-size: 14px; background: none; border: none; cursor: pointer; padding: .25rem .5rem; border-radius: 6px; }
-.ts-btn-text:hover { background: #f3f4f6; }
-.ts-btn-ok { color: var(--brand-primary); font-weight: 600; font-size: 14px; background: none; border: none; cursor: pointer; padding: .25rem .6rem; border-radius: 6px; }
-.ts-btn-ok:hover { background: color-mix(in srgb, var(--brand-primary) 10%, transparent); }
+.ts-btn-text { color: #94a3b8; font-size: 15px; font-weight: 500; background: none; border: none; cursor: pointer; padding: .25rem .3rem; }
+.ts-btn-text:hover { color: #64748b; }
+.ts-btn-ok { color: #64748b; font-weight: 700; font-size: 15px; background: none; border: none; cursor: pointer; padding: .25rem .3rem; }
+.ts-btn-ok:hover { color: #F5A623; }
 </style>
