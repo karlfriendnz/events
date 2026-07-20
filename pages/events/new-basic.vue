@@ -171,7 +171,7 @@
                    controls there's no single left label that can name them. -->
               <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] items-start gap-4'">
                 <span />
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div :class="disciplineEmpty ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-1 lg:grid-cols-2 gap-4'">
                   <!-- Category -->
                   <div class="min-w-0">
                   <label class="field-label block mb-1.5">Category</label>
@@ -195,10 +195,11 @@
                     <Button icon="pi pi-plus" size="small" severity="secondary" outlined v-tooltip.top="'New calendar'" @click="showNewCategoryDialog = true" />
                   </div>
                   </div>
-                  <!-- Discipline -->
-                  <div class="min-w-0">
+                  <!-- Discipline — hidden entirely when the governing body defines
+                       none (Category then takes the full row). -->
+                  <div v-show="!disciplineEmpty" class="min-w-0">
                     <label class="field-label block mb-1.5">Discipline</label>
-                    <DisciplineLinker v-if="draftEventId" entity-type="event" :entity-id="draftEventId" />
+                    <DisciplineLinker v-if="draftEventId" entity-type="event" :entity-id="draftEventId" @empty="disciplineEmpty = $event" />
                     <p v-else class="text-sm text-gray-400 flex items-center gap-2">
                       <i class="pi pi-spin pi-spinner text-xs" /> Preparing…
                     </p>
@@ -433,23 +434,28 @@
         </div>
 
         <!-- ─ Registration form ─
-             Only exists when the event actually collects one — the "what do they
-             need to do?" choice on the Invitees step is what turns it on (either
-             they picked "fill in a form", or the event was opened to the public,
-             which forces one). An RSVP-only event never sees this step. -->
-        <div v-if="form.use_registration_form" :class="isStep('form') ? 'px-1' : 'hidden'">
+             Always shown. An RSVP-only event gets an "add a form" prompt instead of
+             the builder (the "what do they need to do?" choice on the Invitees step
+             turns the form on, or the button below does). Both audiences fill THE
+             SAME form — a member gets it pre-filled, the public gets it blank. -->
+        <div :class="isStep('form') ? 'px-1' : 'hidden'">
           <div class="mb-3">
             <h2 class="section-title">Registration form</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Registration form') }}</p>
           </div>
-          <!-- ONE form, ONE builder. This is the same <FormDesigner> the advanced
-               event uses — it opens with its own "Basic / start from scratch /
-               preset" chooser (so the wizard doesn't need to duplicate it), owns
-               who-registers, the fields and the profile-vs-event connection of
-               each one, and autosaves straight to registration_forms.config +
-               events.form_id. Both audiences fill THIS form: a member simply gets
-               it pre-filled from their profile, the public gets it blank. -->
-          <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
+          <!-- RSVP-only: no form is used yet. Offer to add one rather than hiding the
+               step, so the form step is always reachable. -->
+          <div v-if="!form.use_registration_form" class="bg-white rounded-xl border border-gray-200 p-8 text-center">
+            <i class="pi pi-file-edit text-2xl text-gray-300 block mb-3" />
+            <p class="text-sm text-gray-700 font-medium mb-1">This event just asks for a yes / no reply</p>
+            <p class="text-xs text-gray-400 mb-4 max-w-sm mx-auto">Invitees RSVP — no form needed. Add a registration form if you want to collect more than a yes or no.</p>
+            <Button label="Add a registration form" icon="pi pi-plus" size="small"
+              style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="setAttendeeAction('form')" />
+          </div>
+          <!-- ONE form, ONE builder — the same <FormDesigner> the advanced event uses
+               (its own Basic / scratch / preset chooser, autosaves to
+               registration_forms.config + events.form_id). -->
+          <div v-else-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
             <i class="pi pi-spin pi-spinner text-xl text-gray-300 block mb-2" />
             Setting up the form…
           </div>
@@ -866,6 +872,9 @@ const publicOptions = [
 //            get it blank.
 // The public can't RSVP — a stranger has no profile to look up, so "yes" alone
 // wouldn't tell you who turned up. Opening the event to them forces the form on.
+// True once <DisciplineLinker> reports it has nothing to link — the Discipline column
+// is then hidden and Category takes the full row.
+const disciplineEmpty = ref(false)
 const attendeeAction = ref<'rsvp' | 'form'>('rsvp')
 
 // RSVP is disabled (not hidden) while the event is public, so the choice stays
@@ -1197,8 +1206,9 @@ const ALL_STEPS: { key: string; label: string; desc: string; when?: () => boolea
   // gets the whole page. Club invitees are always available, so it never hides.
   { key: 'invitees',   label: 'Who it\'s for',     desc: 'Choose who this event is for, and what they need to do to take part.' },
   { key: 'people',     label: 'Choose invitees',   desc: 'Pick the classes and people to invite.' },
-  { key: 'form',       label: 'Registration form', desc: 'Build the form people fill in to sign up.',
-    when: () => form.use_registration_form },
+  // Always shown — an RSVP-only event still gets the step, with an "add a form"
+  // prompt rather than the builder, so the form step is never silently missing.
+  { key: 'form',       label: 'Registration form', desc: 'Build the form people fill in to sign up.' },
   { key: 'settings',   label: 'Settings',          desc: 'Visibility, terms, admins, and the finishing touches.' },
 ]
 const mobileSteps = computed(() => ALL_STEPS.filter(s => !s.when || s.when()))

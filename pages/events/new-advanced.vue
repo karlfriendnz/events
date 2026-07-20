@@ -111,7 +111,7 @@
             <div class="px-5 py-4 border-b border-gray-100">
               <div class="grid grid-cols-1 sm:grid-cols-[120px_1fr] items-start gap-1.5 sm:gap-4">
                 <span class="hidden sm:block" />
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div :class="disciplineEmpty ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-1 lg:grid-cols-2 gap-4'">
                   <div class="min-w-0">
                     <label class="block text-sm font-semibold text-gray-800 mb-1.5">Category</label>
                     <div class="flex items-center gap-2 min-w-0">
@@ -127,9 +127,9 @@
                       <Button icon="pi pi-plus" size="small" severity="secondary" outlined v-tooltip.top="'New category'" @click="showNewCategoryDialog = true" />
                     </div>
                   </div>
-                  <div class="min-w-0">
+                  <div v-show="!disciplineEmpty" class="min-w-0">
                     <label class="block text-sm font-semibold text-gray-800 mb-1.5">Discipline</label>
-                    <DisciplineLinker v-if="draftEventId" entity-type="event" :entity-id="draftEventId" />
+                    <DisciplineLinker v-if="draftEventId" entity-type="event" :entity-id="draftEventId" @empty="disciplineEmpty = $event" />
                     <p v-else class="text-sm text-gray-400 flex items-center gap-2">
                       <i class="pi pi-spin pi-spinner text-xs" /> Preparing…
                     </p>
@@ -493,6 +493,9 @@ const steps = [
 // there has to be one to write against. saveEvent() then UPDATES this row rather
 // than inserting a second one.
 const draftEventId = ref<string | null>(null)
+// Hide the Discipline column (Category takes the full row) when the governing body
+// defines no disciplines that apply to an event.
+const disciplineEmpty = ref(false)
 
 async function ensureDraft() {
   if (draftEventId.value) return

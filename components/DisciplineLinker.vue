@@ -24,6 +24,9 @@
 //      → useGroupsApi().groupDisciplineIds/setGroupDisciplines (group) or
 //      useEventsApi().eventDisciplineIds/setEventDisciplines (event).
 const props = defineProps<{ entityType: 'group' | 'event'; entityId: string }>()
+// `empty` = there is nothing to link (no reachable disciplines). A host can hide the
+// whole Discipline field when true rather than showing a "nothing here yet" message.
+const emit = defineEmits<{ (e: 'empty', isEmpty: boolean): void }>()
 const { orgId } = useOrg()
 const affiliationsApi = useAffiliationsApi()
 const disciplinesApi = useDisciplinesApi()
@@ -105,6 +108,7 @@ async function load() {
 
   selected.value = links
   loading.value = false
+  emit('empty', allDisciplines.value.length === 0)
 }
 
 async function save() {
