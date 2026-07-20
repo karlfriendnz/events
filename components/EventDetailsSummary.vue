@@ -7,7 +7,10 @@
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
 const props = defineProps<{ eventId: string }>()
-const emit = defineEmits<{ (e: 'loaded', ev: any): void; (e: 'invite'): void; (e: 'updated', ev: any): void }>()
+const emit = defineEmits<{
+  (e: 'loaded', ev: any): void; (e: 'invite'): void; (e: 'updated', ev: any): void
+  (e: 'deleted'): void; (e: 'duplicated', newId: string): void
+}>()
 
 const eventsApi = useEventsApi()
 const bookingsApi = useBookingsApi()
@@ -110,6 +113,68 @@ function buildDT(date: Date | null, time: Date | null, allDay: boolean): string 
   else d.setHours(0, 0, 0, 0)
   return d.toISOString()
 }
+// ── Copy / Delete (the ⋯ menu) ──
+const menu = ref()
+const busy = ref(false)
+const deleteOpen = ref(false)
+const menuItems = [
+  { label: 'Duplicate', icon: 'pi pi-copy', command: () => duplicate() },
+  { label: 'Delete', icon: 'pi pi-trash', class: 'text-red-600', command: () => { deleteOpen.value = true } },
+]
+function toggleMenu(e: Event) { menu.value?.toggle(e) }
+
+// Copy the event as a new draft (title "Copy of …"), then carry its invitees over.
+async function duplicate() {
+  const ev = event.value
+  if (!ev || busy.value) return
+  busy.value = true
+  try {
+    const created = await eventsApi.create({
+      orgId: orgId.value,
+      title: `Copy of ${ev.title || 'event'}`,
+      status: 'DRAFT',
+      style: ev.style || 'BASIC',
+      createdVia: ev.createdVia || 'quick',
+      isProgramme: !!ev.isProgramme,
+      isAllDay: !!ev.isAllDay,
+      startAt: ev.startAt ?? null,
+      endAt: ev.endAt ?? null,
+      recurrenceRule: ev.recurrenceRule ?? null,
+      exdates: ev.exdates ?? [],
+      categoryId: ev.categoryId ?? null,
+      locations: ev.locations ?? [],
+      locationType: ev.locationType ?? 'ADDRESS',
+      address: ev.address ?? null,
+      meetingLink: ev.meetingLink ?? null,
+    } as any)
+    // Carry the invitees (people only — RSVP status reset to INVITED for the new event).
+    try {
+      const invs = await eventsApi.invitees(props.eventId)
+      for (const inv of invs) {
+        if (!inv.personId) continue
+        await eventsApi.addInvitee(created.id, { personId: inv.personId, roles: (inv as any).roles ?? [], role: (inv as any).role ?? null, status: 'INVITED' })
+      }
+    } catch { /* invitees are best-effort — the copied event still stands */ }
+    toast.add({ severity: 'success', summary: 'Event duplicated', life: 1800 })
+    emit('duplicated', created.id)
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not duplicate', detail: e?.message, life: 4000 })
+  } finally { busy.value = false }
+}
+
+async function doDelete() {
+  if (busy.value) return
+  busy.value = true
+  try {
+    await eventsApi.remove(props.eventId)
+    deleteOpen.value = false
+    toast.add({ severity: 'success', summary: 'Event deleted', life: 1800 })
+    emit('deleted')
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not delete', detail: e?.message, life: 4000 })
+  } finally { busy.value = false }
+}
+
 async function saveDetails() {
   if (!form.title.trim()) return
   saving.value = true
@@ -172,9 +237,22 @@ async function saveDetails() {
             <span class="text-sm text-gray-700">{{ locationSummaryText }}</span>
           </div>
         </div>
-        <button class="text-gray-400 hover:text-primary shrink-0" v-tooltip.left="'Edit details'" @click="startEdit"><i class="pi pi-pencil" /></button>
+        <div class="flex items-center gap-1 shrink-0">
+          <button class="text-gray-400 hover:text-primary w-8 h-8 flex items-center justify-center" v-tooltip.top="'Edit details'" @click="startEdit"><i class="pi pi-pencil" /></button>
+          <button class="text-gray-400 hover:text-primary w-8 h-8 flex items-center justify-center" v-tooltip.top="'More'" @click="toggleMenu" :disabled="busy"><i class="pi pi-ellipsis-v" /></button>
+          <Menu ref="menu" :model="menuItems" :popup="true" />
+        </div>
       </div>
     </template>
+
+    <!-- Delete confirmation -->
+    <Dialog v-model:visible="deleteOpen" modal :draggable="false" header="Delete event?" :style="{ width: '95vw', maxWidth: '400px' }">
+      <p class="text-sm text-gray-600">This permanently deletes <span class="font-medium text-gray-900">{{ event?.title }}</span> and its invitees. This can't be undone.</p>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text size="small" @click="deleteOpen = false" />
+        <Button label="Delete event" icon="pi pi-trash" severity="danger" size="small" :loading="busy" @click="doDelete" />
+      </template>
+    </Dialog>
 
     <!-- Edit mode -->
     <div v-else class="space-y-3">

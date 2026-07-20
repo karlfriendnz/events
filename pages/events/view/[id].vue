@@ -28,7 +28,9 @@ const BODY_TABS = [
 
 <template>
   <div class="p-3 sm:p-6 max-w-5xl mx-auto space-y-4">
-    <EventDetailsSummary :event-id="id" @loaded="onLoaded" />
+    <EventDetailsSummary :event-id="id" @loaded="onLoaded"
+      @deleted="navigateTo('/events')"
+      @duplicated="(newId) => navigateTo(`/events/view/${newId}`)" />
 
     <!-- Two-tab body: Attendance · Notes & tasks -->
     <div class="flex items-center gap-1 border-b border-gray-200">
