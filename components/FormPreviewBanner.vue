@@ -1,5 +1,5 @@
 <template>
-  <div class="relative overflow-hidden" style="height:220px">
+  <div class="relative overflow-hidden" style="height:400px">
     <template v-if="design.header === 'custom'">
       <div v-if="!design.headerImage" class="absolute inset-0 bg-gray-200 flex flex-col items-center justify-center gap-2">
         <i class="pi pi-image text-gray-400 text-sm" />
