@@ -53,6 +53,8 @@ import type {
   EventCommunicationCreate,
   EventOrgInvitee,
   EventOrgInviteeWithName,
+  EventConnections,
+  EventOrgInviteForClub,
 } from '../../../shared/contracts/event'
 
 // Coerce a json column into an array: already an array → use it; a string → parse;
@@ -803,8 +805,10 @@ function toEventOrgInvitee(r: typeof schema.eventOrgInvitees.$inferSelect): Even
     orgId: r.orgId,
     invitedByOrgId: r.invitedByOrgId ?? null,
     status: r.status,
+    connections: (r.connections as EventConnections) ?? null,
     invitedAt: toIso(r.invitedAt),
     updatedAt: toIso(r.updatedAt),
+    decidedAt: toIso(r.decidedAt),
   }
 }
 
@@ -841,6 +845,41 @@ export async function createEventOrgInvitee(input: {
 
 export async function deleteEventOrgInvitee(id: string): Promise<void> {
   await db.delete(schema.eventOrgInvitees).where(eq(schema.eventOrgInvitees.id, id))
+}
+
+/** The invitations aimed AT a club (its own dashboard view) — with the event + the
+ *  inviting body's name joined so it can render "{Body} invited you to {Event}". */
+export async function listEventOrgInvitesForClub(orgId: string): Promise<EventOrgInviteForClub[]> {
+  const rows = await db
+    .select({
+      inv: schema.eventOrgInvitees,
+      eventTitle: schema.events.title,
+      eventStartAt: schema.events.startAt,
+      invitedByOrgName: schema.organisations.name,
+    })
+    .from(schema.eventOrgInvitees)
+    .leftJoin(schema.events, eq(schema.events.id, schema.eventOrgInvitees.eventId))
+    .leftJoin(schema.organisations, eq(schema.organisations.id, schema.eventOrgInvitees.invitedByOrgId))
+    .where(eq(schema.eventOrgInvitees.orgId, orgId))
+    .orderBy(desc(schema.eventOrgInvitees.invitedAt))
+  return rows.map(r => ({
+    ...toEventOrgInvitee(r.inv),
+    eventTitle: r.eventTitle ?? null,
+    eventStartAt: toIso(r.eventStartAt),
+    invitedByOrgName: r.invitedByOrgName ?? null,
+  }))
+}
+
+/** The club accepts/declines (status + decided_at) and/or sets what it connects. */
+export async function respondEventOrgInvitee(
+  id: string, patch: { status?: string; connections?: EventConnections },
+): Promise<EventOrgInvitee | null> {
+  const set: Record<string, any> = { updatedAt: new Date() }
+  if (patch.status !== undefined) { set.status = patch.status; set.decidedAt = new Date() }
+  if (patch.connections !== undefined) set.connections = patch.connections
+  await db.update(schema.eventOrgInvitees).set(set).where(eq(schema.eventOrgInvitees.id, id))
+  const [r] = await db.select().from(schema.eventOrgInvitees).where(eq(schema.eventOrgInvitees.id, id)).limit(1)
+  return r ? toEventOrgInvitee(r) : null
 }
 
 // ── Registration writes ──

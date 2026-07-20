@@ -43,6 +43,8 @@ import type {
   EventCommunicationCreate,
   EventOrgInvitee,
   EventOrgInviteeWithName,
+  EventOrgInviteForClub,
+  EventConnections,
 } from '../shared/contracts/event'
 
 export function useEventsApi() {
@@ -173,6 +175,14 @@ export function useEventsApi() {
   }
   async function removeOrgInvitee(id: string): Promise<void> {
     await $fetch(`/api/v1/event-org-invitees/${id}`, { method: 'DELETE' })
+  }
+  /** The event invitations aimed at a club (its own dashboard), event + inviter joined. */
+  async function orgInvitesForOrg(orgId: string): Promise<EventOrgInviteForClub[]> {
+    return await $fetch<EventOrgInviteForClub[]>('/api/v1/event-org-invitees', { query: { orgId } })
+  }
+  /** The invited club accepts/declines and/or sets what it connects. */
+  async function respondOrgInvite(id: string, patch: { status?: string; connections?: EventConnections }): Promise<EventOrgInvitee> {
+    return await $fetch<EventOrgInvitee>(`/api/v1/event-org-invitees/${id}`, { method: 'PATCH', body: patch })
   }
 
   // ── Registration writes ──
@@ -373,7 +383,7 @@ export function useEventsApi() {
     create, update, remove,
     createSession, updateSession, removeSession, replaceSessionFees, propagateSessionMaster,
     addInvitee, updateInvitee, removeInvitee,
-    orgInvitees, addOrgInvitee, removeOrgInvitee,
+    orgInvitees, addOrgInvitee, removeOrgInvitee, orgInvitesForOrg, respondOrgInvite,
     createRegistration, updateRegistration, removeRegistration,
     registrationSessions, registrationSessionsBySessions, addRegistrationSession,
     feeComponents, createFeeComponent, updateFeeComponent, removeFeeComponent, replaceEventFees,

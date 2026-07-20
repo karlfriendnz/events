@@ -907,6 +907,8 @@ watch(orgId, () => { if (orgId.value) loadOnboardingNudge() }, { immediate: true
 
 <template>
   <div class="p-3 sm:p-6 md:p-8 relative">
+    <!-- Incoming event invitations for this club (accept/decline + choose connections). -->
+    <EventInviteInbox />
     <!-- Affiliation banner — a club has asked to affiliate with this body. -->
     <div v-if="pendingAffiliations.length" class="relative mb-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
       <i class="pi pi-sitemap text-amber-600 shrink-0" />

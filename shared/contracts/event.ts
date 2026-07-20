@@ -317,19 +317,41 @@ export const inviteeForPersonListSchema = z.array(inviteeForPersonSchema)
 // Inviting a whole affiliated CLUB to an event (governing-org "Clubs" tab). A club
 // invitee is neither a person nor a group — kept first-class so "this club is
 // invited" is a stored fact, not a fan-out. (migration 280 / mysql 0004)
+// The three things a club can choose to connect from an event once it accepts.
+// `communication` is a TEMPLATE flag (surfaces the event's comms template — it does
+// not itself send anything).
+export const eventConnectionsSchema = z.object({
+  event_details: z.boolean().optional(),
+  fees: z.boolean().optional(),
+  communication: z.boolean().optional(),
+}).nullable()
+export type EventConnections = z.infer<typeof eventConnectionsSchema>
+
 export const eventOrgInviteeSchema = z.object({
   id: z.string(),
   eventId: z.string(),
   orgId: z.string(),
   invitedByOrgId: z.string().nullable(),
   status: z.string(),
+  connections: eventConnectionsSchema.optional(),
   invitedAt: z.string().nullable(),
   updatedAt: z.string().nullable(),
+  decidedAt: z.string().nullable(),
 })
 export type EventOrgInvitee = z.infer<typeof eventOrgInviteeSchema>
 export const eventOrgInviteeWithNameSchema = eventOrgInviteeSchema.extend({ orgName: z.string().nullable() })
 export type EventOrgInviteeWithName = z.infer<typeof eventOrgInviteeWithNameSchema>
 export const eventOrgInviteeListSchema = z.array(eventOrgInviteeWithNameSchema)
+
+// The club-side view of an invitation: the invite + the event it's for + who sent it,
+// so the invited club can render "{Body} invited you to {Event}" and accept/decline.
+export const eventOrgInviteForClubSchema = eventOrgInviteeSchema.extend({
+  eventTitle: z.string().nullable(),
+  eventStartAt: z.string().nullable(),
+  invitedByOrgName: z.string().nullable(),
+})
+export type EventOrgInviteForClub = z.infer<typeof eventOrgInviteForClubSchema>
+export const eventOrgInviteForClubListSchema = z.array(eventOrgInviteForClubSchema)
 
 // ── Fee components ──
 // A named fee line on an event OR a session (exactly one of eventId/sessionId is set;

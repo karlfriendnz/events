@@ -915,8 +915,11 @@ export const eventOrgInvitees = mysqlTable('event_org_invitees', {
   orgId: varchar('org_id', { length: 36 }).notNull(),
   invitedByOrgId: varchar('invited_by_org_id', { length: 36 }),
   status: text('status').notNull(),
+  // What the club chose to connect once it accepts ({event_details,fees,communication}).
+  connections: json('connections'),
   invitedAt: timestamp('invited_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  decidedAt: timestamp('decided_at'),
 })
 
 export const invitees = mysqlTable('invitees', {
