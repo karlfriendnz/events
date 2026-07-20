@@ -7,5 +7,7 @@ import { inviteeWithPersonListSchema } from '../../../../../shared/contracts/eve
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
   if (!id) throw createError({ statusCode: 400, statusMessage: 'id required' })
-  return inviteeWithPersonListSchema.parse(await inviteesForEvent(id))
+  // ?clubOrgId= scopes to one club's own invitees (a shared event).
+  const clubOrgId = getQuery(event).clubOrgId
+  return inviteeWithPersonListSchema.parse(await inviteesForEvent(id, typeof clubOrgId === 'string' ? clubOrgId : undefined))
 })

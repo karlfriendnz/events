@@ -14,7 +14,7 @@ import { useToast } from 'primevue/usetoast'
 
 // `fit`: size to content (capped + scroll) instead of filling the parent — for the
 // simple run-the-event view, so a short roster doesn't leave a tall empty box.
-const props = defineProps<{ eventId: string; fit?: boolean }>()
+const props = defineProps<{ eventId: string; fit?: boolean; clubOrgId?: string | null }>()
 
 const eventsApi = useEventsApi()
 const attendanceApi = useAttendanceApi()
@@ -436,7 +436,7 @@ async function loadSessions() {
 }
 async function loadInvitees() {
   inviteesLoading.value = true
-  invitees.value = (await eventsApi.inviteesWithPerson(props.eventId)).map((inv: any) => ({
+  invitees.value = (await eventsApi.inviteesWithPerson(props.eventId, props.clubOrgId)).map((inv: any) => ({
     ...inv,
     person_id: inv.personId,
     sub_group_id: inv.subGroupId,

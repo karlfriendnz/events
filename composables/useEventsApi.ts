@@ -94,9 +94,10 @@ export function useEventsApi() {
   async function invitees(eventId: string, clubOrgId?: string | null): Promise<Invitee[]> {
     return await $fetch<Invitee[]>(`/api/v1/events/${eventId}/invitees`, { query: clubOrgId ? { clubOrgId } : {} })
   }
-  /** The invitees of an event joined to their persons row (name/email/dob). */
-  async function inviteesWithPerson(eventId: string): Promise<InviteeWithPerson[]> {
-    return await $fetch<InviteeWithPerson[]>(`/api/v1/events/${eventId}/invitees-with-person`)
+  /** The invitees of an event joined to their persons row (name/email/dob).
+   *  `clubOrgId` scopes to one club's own invitees (shared events). */
+  async function inviteesWithPerson(eventId: string, clubOrgId?: string | null): Promise<InviteeWithPerson[]> {
+    return await $fetch<InviteeWithPerson[]>(`/api/v1/events/${eventId}/invitees-with-person`, { query: clubOrgId ? { clubOrgId } : {} })
   }
   /** The registrations of an event. */
   async function registrations(eventId: string): Promise<Registration[]> {
