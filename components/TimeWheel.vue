@@ -19,6 +19,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{ (e: 'update:modelValue', v: Date | null): void }>()
 
 const op = ref()
+const triggerRef = ref<HTMLElement>()
 const hourColRef = ref<HTMLElement>()
 const minColRef = ref<HTMLElement>()
 
@@ -37,10 +38,16 @@ const selMin = ref<number | null>(null)
 const selMeridiem = ref<'AM' | 'PM'>('AM')
 
 function pad(n: number) { return String(n).padStart(2, '0') }
-// The chosen time reads back in friendly 12-hour form with AM/PM (e.g. "9:00 AM");
-// the wheel columns stay 24-hour so every hour is one scroll.
-const display = computed(() =>
-  props.modelValue ? props.modelValue.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '')
+// The chosen time reads back in friendly 12-hour form with lowercase am/pm (e.g.
+// "8:00 am") — built by hand so the am/pm is always shown (some locales drop it).
+const display = computed(() => {
+  const d = props.modelValue
+  if (!d) return ''
+  const h24 = d.getHours()
+  const mer = h24 >= 12 ? 'pm' : 'am'
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12
+  return `${h12}:${String(d.getMinutes()).padStart(2, '0')} ${mer}`
+})
 
 // The trigger is ALSO a real text input — you can TYPE the time ("9:30", "930",
 // "9:30pm", "21:15") instead of scrolling. `text` mirrors the display; commitText
@@ -80,7 +87,9 @@ function toggle(e: Event) {
   const rawMin = d ? d.getMinutes() : 0
   const step = Math.max(1, Math.floor(props.stepMinutes || 1))
   selMin.value = Math.round(rawMin / step) * step % 60
-  op.value?.toggle(e)
+  // Anchor to the whole field (not the clock button) so the panel drops straight
+  // below the field, left-aligned.
+  op.value?.toggle(e, triggerRef.value)
 }
 
 function scrollToSel(col: HTMLElement | undefined, val: number | null, list: number[]) {
@@ -109,7 +118,7 @@ function cancel() { op.value?.hide() }
 
 <template>
   <div class="ts-wrap">
-    <div class="ts-trigger" :class="{ 'ts-disabled': disabled }">
+    <div ref="triggerRef" class="ts-trigger" :class="{ 'ts-disabled': disabled }">
       <input type="text" class="ts-input" :value="text" :placeholder="placeholder || '--:--'" :disabled="disabled"
         @input="text = ($event.target as HTMLInputElement).value"
         @keydown.enter.prevent="commitText"
