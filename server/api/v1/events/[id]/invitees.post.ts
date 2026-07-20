@@ -9,6 +9,7 @@ const bodySchema = z.object({
   status: z.string().optional(),
   roles: z.array(z.string()).optional(),
   role: z.string().nullable().optional(),
+  clubOrgId: z.string().nullable().optional(),
 })
 
 export default defineEventHandler(async (event) => {

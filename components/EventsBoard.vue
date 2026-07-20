@@ -1845,10 +1845,10 @@ const bookingsCalEvents = computed(() => {
 // a wizard draft from a Custom one — both are BASIC.)
 function openEvent(evt: { id: string; status?: string; created_via?: string | null; style?: string; is_programme?: boolean; is_shared?: boolean; shared_from?: string | null }) {
   // A SHARED event belongs to another org (a national/governing body shared it, this
-  // club accepted). The club must SEE the full event but never edit/delete it (delete is
-  // by id and would remove the owner's event), so open the read-only public event page.
+  // club accepted). The club sees the full event (read-only) AND invites its OWN people
+  // on the club-scoped shared-event page — never the owner's editor.
   if (evt.is_shared) {
-    navigateTo(`/r/event/${evt.id}`)
+    navigateTo(`/events/shared/${evt.id}`)
     return
   }
   const unfinished = evt.status === 'DRAFT'

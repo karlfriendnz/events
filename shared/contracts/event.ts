@@ -237,6 +237,9 @@ export const inviteeSchema = z.object({
   // When the invitation email was actually SENT (distinct from invitedAt = merely
   // ADDED) — the invitation dialog counts already-emailed invitees off this.
   inviteSentAt: z.string().nullable(),
+  // The club that added this invitee (null = the event owner's own). Scopes a shared
+  // event's invitees per club.
+  clubOrgId: z.string().nullable().optional(),
 })
 export type Invitee = z.infer<typeof inviteeSchema>
 

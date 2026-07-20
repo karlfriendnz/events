@@ -90,9 +90,9 @@ export function useEventsApi() {
       query: { masters: opts.masters ? '1' : undefined, parentSessionId: opts.parentSessionId },
     })
   }
-  /** The invitees of an event. */
-  async function invitees(eventId: string): Promise<Invitee[]> {
-    return await $fetch<Invitee[]>(`/api/v1/events/${eventId}/invitees`)
+  /** The invitees of an event. `clubOrgId` scopes to one club's own invitees (shared events). */
+  async function invitees(eventId: string, clubOrgId?: string | null): Promise<Invitee[]> {
+    return await $fetch<Invitee[]>(`/api/v1/events/${eventId}/invitees`, { query: clubOrgId ? { clubOrgId } : {} })
   }
   /** The invitees of an event joined to their persons row (name/email/dob). */
   async function inviteesWithPerson(eventId: string): Promise<InviteeWithPerson[]> {
@@ -154,7 +154,7 @@ export function useEventsApi() {
   /** Invite a person to an event. */
   async function addInvitee(eventId: string, body: {
     personId?: string | null; sessionId?: string | null; status?: string
-    roles?: string[]; role?: string | null
+    roles?: string[]; role?: string | null; clubOrgId?: string | null
   }): Promise<Invitee> {
     return await $fetch<Invitee>(`/api/v1/events/${eventId}/invitees`, { method: 'POST', body })
   }

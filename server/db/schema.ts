@@ -946,6 +946,9 @@ export const invitees = mysqlTable('invitees', {
   role: text('role'),
   respondedAt: timestamp('responded_at'),
   inviteSentAt: timestamp('invite_sent_at'),
+  // The club that added this invitee (null = the event owner's own). Set when a club
+  // invites its people to a SHARED event, so each club sees only its own invitees.
+  clubOrgId: varchar('club_org_id', { length: 36 }),
 })
 
 export const lightZones = mysqlTable('light_zones', {

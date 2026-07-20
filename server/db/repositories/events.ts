@@ -207,6 +207,7 @@ function toInvitee(r: typeof schema.invitees.$inferSelect): Invitee {
     invitedAt: toIso(r.invitedAt),
     respondedAt: toIso(r.respondedAt),
     inviteSentAt: toIso(r.inviteSentAt),
+    clubOrgId: r.clubOrgId ?? null,
   }
 }
 
@@ -621,12 +622,15 @@ export async function deleteSession(id: string): Promise<void> {
   await db.delete(schema.sessions).where(eq(schema.sessions.id, id))
 }
 
-/** The invitees of an event, oldest invite first. */
-export async function listInvitees(eventId: string): Promise<Invitee[]> {
+/** The invitees of an event, oldest invite first. A `clubOrgId` scopes to one club's
+ *  own invitees (shared events); omit it for the owner's full list. */
+export async function listInvitees(eventId: string, clubOrgId?: string | null): Promise<Invitee[]> {
   const rows = await db
     .select()
     .from(schema.invitees)
-    .where(eq(schema.invitees.eventId, eventId))
+    .where(clubOrgId
+      ? and(eq(schema.invitees.eventId, eventId), eq(schema.invitees.clubOrgId, clubOrgId))
+      : eq(schema.invitees.eventId, eventId))
     .orderBy(asc(schema.invitees.invitedAt))
   return rows.map(toInvitee)
 }
@@ -739,7 +743,7 @@ export async function inviteeCountsByOrg(
 // editor needs to create/update/delete them. Repo owns the id; roles is a json array.
 export async function createInvitee(input: {
   eventId: string; personId?: string | null; status?: string; roles?: string[]
-  sessionId?: string | null; role?: string | null
+  sessionId?: string | null; role?: string | null; clubOrgId?: string | null
 }): Promise<Invitee> {
   const id = randomUUID()
   await db.insert(schema.invitees).values({
@@ -750,6 +754,7 @@ export async function createInvitee(input: {
     status: input.status ?? 'INVITED',
     roles: input.roles ?? [],
     role: input.role ?? null,
+    clubOrgId: input.clubOrgId ?? null,
   } as any)
   const [r] = await db.select().from(schema.invitees).where(eq(schema.invitees.id, id)).limit(1)
   return toInvitee(r)
@@ -780,7 +785,12 @@ export async function updateInvitee(id: string, patch: {
  * persons so a guest invitee (null person_id) still comes back with person=null. Oldest
  * invite first. (NEW gap — the mega-file invitees/attendance read.)
  */
-export async function inviteesForEvent(eventId: string): Promise<InviteeWithPerson[]> {
+export async function inviteesForEvent(eventId: string, clubOrgId?: string | null): Promise<InviteeWithPerson[]> {
+  // A club viewing a SHARED event passes its own org id → it sees ONLY its own invitees.
+  // The event owner (no clubOrgId) sees everyone.
+  const whereClause = clubOrgId
+    ? and(eq(schema.invitees.eventId, eventId), eq(schema.invitees.clubOrgId, clubOrgId))
+    : eq(schema.invitees.eventId, eventId)
   const rows = await db
     .select({
       inv: schema.invitees,
@@ -798,7 +808,7 @@ export async function inviteesForEvent(eventId: string): Promise<InviteeWithPers
     })
     .from(schema.invitees)
     .leftJoin(schema.persons, eq(schema.invitees.personId, schema.persons.id))
-    .where(eq(schema.invitees.eventId, eventId))
+    .where(whereClause)
     .orderBy(asc(schema.invitees.invitedAt))
   return rows.map((r) => ({
     ...toInvitee(r.inv),

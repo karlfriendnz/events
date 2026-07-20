@@ -212,7 +212,10 @@ const props = withDefaults(defineProps<{
   /** Show the "Send invitation" button. Off in the create wizard, where sending
       belongs on the final step — you pick people first, decide to tell them last. */
   showInvite?: boolean
-}>(), { showInvite: true })
+  /** When set (a SHARED event), scope invitees to THIS club: new invitees are stamped
+      with it and the list shows only this club's invitees. Null = the owner's full list. */
+  clubOrgId?: string | null
+}>(), { showInvite: true, clubOrgId: null })
 
 const eventsApi = useEventsApi()
 const peopleApi = usePeopleApi()
@@ -260,7 +263,7 @@ const inviteesLoading = ref(false)
 
 async function loadInvitees() {
   inviteesLoading.value = true
-  const rows = await eventsApi.invitees(props.eventId)
+  const rows = await eventsApi.invitees(props.eventId, props.clubOrgId)
   invitees.value = rows.map(toInviteeRow)
   inviteesLoading.value = false
 }
@@ -279,7 +282,7 @@ async function addIndividual(person: any) {
   if (isAlreadyInvited(person.id)) return
   addingPersonId.value = person.id
   try {
-    await eventsApi.addInvitee(props.eventId, { personId: person.id, status: 'INVITED', role: 'attendee', roles: ['attendee'] })
+    await eventsApi.addInvitee(props.eventId, { personId: person.id, status: 'INVITED', role: 'attendee', roles: ['attendee'], clubOrgId: props.clubOrgId })
     // Keep the just-added person available for the name-join before reload.
     if (person.id && !personById.value.has(person.id)) {
       personById.value.set(person.id, { id: person.id, firstName: person.first_name, lastName: person.last_name, email: person.email ?? null })
@@ -299,7 +302,7 @@ async function addManyIndividuals(people: any[]) {
   if (!fresh.length) return
   try {
     for (const p of fresh) {
-      await eventsApi.addInvitee(props.eventId, { personId: p.id, status: 'INVITED', role: 'attendee', roles: ['attendee'] })
+      await eventsApi.addInvitee(props.eventId, { personId: p.id, status: 'INVITED', role: 'attendee', roles: ['attendee'], clubOrgId: props.clubOrgId })
       if (p.id && !personById.value.has(p.id)) {
         personById.value.set(p.id, { id: p.id, firstName: p.first_name, lastName: p.last_name, email: p.email ?? null })
       }
