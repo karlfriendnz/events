@@ -296,11 +296,10 @@ function rebuildLayout() {
 }
 const isParentOrg = ref(false)
 
-// Pending affiliation requests aimed at this governing body — surfaced as a popup so
-// an admin sees "you have a club to approve" the moment they land on the dashboard.
-// (The register + approve/decline lives at /settings/affiliations.)
+// Pending affiliation requests aimed at this governing body — surfaced as a banner at
+// the top of the dashboard so an admin sees "{Club} wants to affiliate to you" the
+// moment they land. (The register + approve/decline lives at /settings/affiliations.)
 const pendingAffiliations = ref<{ id: string; clubName: string; sport: string }[]>([])
-const showAffiliationPopup = ref(false)
 async function checkPendingAffiliations() {
   if (!orgId.value) return
   try {
@@ -308,22 +307,15 @@ async function checkPendingAffiliations() {
     pendingAffiliations.value = rows
       .filter(r => r.affiliation_status === 'pending')
       .map(r => ({ id: r.id, clubName: r.clubName || 'A club', sport: r.display_name || r.sport }))
-  } catch { pendingAffiliations.value = []; return }
-  if (!pendingAffiliations.value.length) { showAffiliationPopup.value = false; return }
-  // Snooze per exact pending set so we don't re-nag every load — but a NEW request
-  // (a different id-set) re-shows it.
-  const sig = pendingAffiliations.value.map(p => p.id).sort().join(',')
-  if (import.meta.client && sessionStorage.getItem('fm_aff_seen_' + orgId.value) === sig) return
-  showAffiliationPopup.value = true
+  } catch { pendingAffiliations.value = [] }
 }
-function dismissAffiliationPopup() {
-  showAffiliationPopup.value = false
-  if (import.meta.client && orgId.value) {
-    const sig = pendingAffiliations.value.map(p => p.id).sort().join(',')
-    sessionStorage.setItem('fm_aff_seen_' + orgId.value, sig)
-  }
-}
-function goToAffiliations() { dismissAffiliationPopup(); navigateTo('/settings/affiliations') }
+const affiliationBannerText = computed(() => {
+  const p = pendingAffiliations.value
+  if (!p.length) return ''
+  if (p.length === 1) return `${p[0].clubName} wants to affiliate to you`
+  const names = p.slice(0, 2).map(x => x.clubName).join(', ')
+  return p.length <= 2 ? `${names} want to affiliate to you` : `${names} and ${p.length - 2} more want to affiliate to you`
+})
 // Parent-only widgets (network overview, leaderboard) never surface for a club.
 function widgetAllowed(key: string) { return isParentOrg.value || !(defById[key]?.parentOnly) }
 const hiddenWidgets = computed(() => config.value.filter(c => !c.enabled && widgetAllowed(c.key)))
@@ -913,32 +905,16 @@ watch(orgId, () => { if (orgId.value) loadOnboardingNudge() }, { immediate: true
 
 <template>
   <div class="p-3 sm:p-6 md:p-8 relative">
-    <!-- Affiliation approval nudge — a club has asked to affiliate with this body. -->
-    <Dialog v-model:visible="showAffiliationPopup" modal :closable="true" :draggable="false"
-      :style="{ width: '95vw', maxWidth: '460px' }" @hide="dismissAffiliationPopup">
-      <template #header>
-        <div class="flex items-center gap-2">
-          <i class="pi pi-sitemap text-primary" />
-          <span class="font-semibold">{{ pendingAffiliations.length === 1 ? 'A club wants to affiliate' : `${pendingAffiliations.length} clubs want to affiliate` }}</span>
-        </div>
-      </template>
-      <p class="text-sm text-gray-600 mb-3">
-        Approve to switch on your fields, disciplines and terminology for their members. Nothing of yours applies to them until you do.
-      </p>
-      <ul class="space-y-1.5 mb-1 max-h-52 overflow-y-auto">
-        <li v-for="a in pendingAffiliations" :key="a.id" class="flex items-center gap-2 text-sm">
-          <i class="pi pi-clock text-amber-500 text-xs" />
-          <span class="font-medium text-gray-900">{{ a.clubName }}</span>
-          <span class="text-gray-400">·</span>
-          <span class="text-gray-500">{{ a.sport }}</span>
-        </li>
-      </ul>
-      <template #footer>
-        <Button label="Later" severity="secondary" text size="small" @click="dismissAffiliationPopup" />
-        <Button label="Review requests" icon="pi pi-arrow-right" size="small"
-          style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="goToAffiliations" />
-      </template>
-    </Dialog>
+    <!-- Affiliation banner — a club has asked to affiliate with this body. -->
+    <div v-if="pendingAffiliations.length" class="relative mb-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+      <i class="pi pi-sitemap text-amber-600 shrink-0" />
+      <p class="flex-1 text-sm text-amber-900">{{ affiliationBannerText }}</p>
+      <NuxtLink to="/settings/affiliations"
+        class="shrink-0 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-white"
+        style="background:var(--brand-primary)">
+        Review<i class="pi pi-arrow-right text-xs" />
+      </NuxtLink>
+    </div>
     <!-- Full-bleed background image sitting BEHIND the top section, fading into the page bg -->
     <div v-if="bannerUrl" class="pointer-events-none absolute top-0 left-0 right-0 h-[440px] overflow-hidden">
       <div class="absolute inset-0 bg-cover bg-center" :style="{ backgroundImage: `url(${bannerUrl})` }" />
