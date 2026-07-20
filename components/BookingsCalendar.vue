@@ -507,18 +507,30 @@ const bookings = computed<any[]>(() => props.customEvents ?? loadedBookings.valu
 const rules = ref<any[]>([])
 
 const draggingBooking = ref<any>(null)
+// Same jittery-click-fires-dragstart problem as the month view (see monthDragMoved):
+// track the dragged booking + whether it actually rescheduled, so onDragEnd can open
+// the event when the "drag" was really a click. (onGridDrop nulls draggingBooking
+// before dragend fires, so we keep our own reference here.)
+let gridDragBooking: any = null
+let gridDragMoved = false
 const dragOffsetMins = ref(0)
 const dropPreview = reactive({ visible: false, day: null as Date | null, startMins: 0, durationMins: 0, valid: false })
 
 // Month-view drag state
 const monthDragBar = ref<any>(null)
 const monthDropTarget = ref<Date | null>(null)
+// A click with a hair of pointer movement fires HTML5 dragstart instead of click,
+// so the bar's @click never fires and the event "sometimes doesn't open". Track
+// whether the drag actually rescheduled anything; if not, dragend treats it as a
+// click and emits booking-click so a jittery click still opens the event.
+let monthDragMoved = false
 
 function stripDate(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()) }
 function stripTimeMs(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() }
 
 function onMonthDragStart(bar: any, e: DragEvent) {
   monthDragBar.value = bar
+  monthDragMoved = false
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move'
     // Set drag data so Firefox/Chrome consistently fire drag events.
@@ -531,8 +543,12 @@ function onMonthDragStart(bar: any, e: DragEvent) {
 }
 
 function onMonthDragEnd() {
+  const bar = monthDragBar.value
   monthDragBar.value = null
   monthDropTarget.value = null
+  // Drag ended without rescheduling → it was really a click (pointer jittered). Open it.
+  if (bar && !monthDragMoved) emit('booking-click', bar.booking)
+  monthDragMoved = false
 }
 
 function onMonthDragLeave(day: Date) {
@@ -557,6 +573,7 @@ function onMonthDrop(day: Date) {
   const newStart = new Date(oldStart); newStart.setDate(newStart.getDate() + dayDelta)
   const newEnd = new Date(oldEnd); newEnd.setDate(newEnd.getDate() + dayDelta)
 
+  monthDragMoved = true   // a real reschedule — dragend must NOT treat this as a click
   emit('booking-drop', b, newStart, newEnd)
 }
 
@@ -588,6 +605,8 @@ function slotRemainingCapacity(rule: any, slot: { from: string; to: string }, da
 
 function onBookingDragStart(booking: any, event: DragEvent) {
   draggingBooking.value = booking
+  gridDragBooking = booking
+  gridDragMoved = false
   const el = event.currentTarget as HTMLElement
   const rect = el.getBoundingClientRect()
   dragOffsetMins.value = Math.round(((event.clientY - rect.top) / HOUR_PX * 60) / 15) * 15
@@ -656,6 +675,7 @@ async function onGridDrop(day: Date, event: DragEvent) {
   event.preventDefault()
   const booking = draggingBooking.value
   if (!booking || !dropPreview.valid) { draggingBooking.value = null; dropPreview.visible = false; return }
+  gridDragMoved = true   // a valid reschedule — dragend must NOT treat this as a click
   const startMins = dropPreview.startMins
   const endMins = startMins + bookingDurationMins(booking)
   const newStart = new Date(day)
@@ -682,6 +702,10 @@ async function onGridDrop(day: Date, event: DragEvent) {
 function onDragEnd() {
   draggingBooking.value = null
   dropPreview.visible = false
+  // Drag ended without a valid reschedule → it was really a click (pointer jittered).
+  if (gridDragBooking && !gridDragMoved) emit('booking-click', gridDragBooking)
+  gridDragBooking = null
+  gridDragMoved = false
 }
 
 
