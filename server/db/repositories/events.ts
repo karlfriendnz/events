@@ -106,6 +106,7 @@ function toEvent(r: typeof schema.events.$inferSelect): FMEvent {
     formId: r.formId ?? null,
     memberGroupId: r.memberGroupId ?? null,
     categoryId: r.categoryId ?? null,
+    categoryIds: (r.categoryIds as string[] | null) ?? null,
     bannerUrl: r.bannerUrl ?? null,
     locationType: r.locationType,
     bookableId: r.bookableId ?? null,
@@ -308,7 +309,10 @@ export async function createEvent(input: FMEventCreate): Promise<FMEvent> {
     isProgramme: input.isProgramme ?? false,
     formId: input.formId ?? null,
     memberGroupId: input.memberGroupId ?? null,
-    categoryId: input.categoryId ?? null,
+    // categoryId stays the primary; category_ids holds the full multi-select. Keep them
+    // consistent: if only one is supplied, derive the other.
+    categoryId: input.categoryId ?? (input.categoryIds?.[0] ?? null),
+    categoryIds: input.categoryIds ?? (input.categoryId ? [input.categoryId] : null),
     bannerUrl: input.bannerUrl ?? null,
     locationType: input.locationType ?? 'ADDRESS',
     bookableId: input.bookableId ?? null,
@@ -372,6 +376,11 @@ export async function updateEvent(id: string, patch: FMEventPatch): Promise<FMEv
   if (patch.formId !== undefined) set.formId = patch.formId
   if (patch.memberGroupId !== undefined) set.memberGroupId = patch.memberGroupId
   if (patch.categoryId !== undefined) set.categoryId = patch.categoryId
+  if (patch.categoryIds !== undefined) {
+    set.categoryIds = patch.categoryIds
+    // Keep the primary in step with the multi-select unless it's being set explicitly.
+    if (patch.categoryId === undefined) set.categoryId = patch.categoryIds?.[0] ?? null
+  }
   if (patch.bannerUrl !== undefined) set.bannerUrl = patch.bannerUrl
   if (patch.locationType !== undefined) set.locationType = patch.locationType
   if (patch.bookableId !== undefined) set.bookableId = patch.bookableId

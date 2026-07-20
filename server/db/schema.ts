@@ -705,6 +705,8 @@ export const events = mysqlTable('events', {
   status: text('status').notNull(),
   categoryId: varchar('category_id', { length: 36 }),
   secondaryCategoryId: varchar('secondary_category_id', { length: 36 }),
+  // Full multi-select of categories; categoryId stays the primary (category_ids[0]).
+  categoryIds: json('category_ids'),
   startAt: timestamp('start_at'),
   endAt: timestamp('end_at'),
   isAllDay: boolean('is_all_day').notNull(),

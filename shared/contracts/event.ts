@@ -30,6 +30,7 @@ export const fmEventSchema = z.object({
   formId: z.string().nullable(),
   memberGroupId: z.string().nullable(),
   categoryId: z.string().nullable(),
+  categoryIds: z.array(z.string()).nullable(),
   bannerUrl: z.string().nullable(),
   // Event-level location (mig: events carry location directly, e.g. group-training
   // events). locationType is a required DB column (open set ADDRESS/BOOKABLE/ONLINE);
@@ -96,7 +97,7 @@ export const fmEventCreateSchema = fmEventSchema
   .partial({
     description: true, style: true, status: true, startAt: true, endAt: true,
     isPublic: true, isProgramme: true, formId: true, memberGroupId: true,
-    categoryId: true, bannerUrl: true, locationType: true, bookableId: true,
+    categoryId: true, categoryIds: true, bannerUrl: true, locationType: true, bookableId: true,
     address: true, meetingLink: true, locations: true, ageMin: true, ageMax: true,
     genderRestriction: true,
     recurrenceRule: true, recurrenceParentId: true, createdVia: true, exdates: true,

@@ -658,22 +658,15 @@
           <!-- Category -->
           <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Category</span>
-            <Select v-model="quickForm.category_id" :options="allCategories" option-label="name" option-value="id"
-              placeholder="No category" show-clear filter class="w-full sm:w-64">
-              <template #value="{ value }">
-                <span v-if="value && categoriesById[value]" class="inline-flex items-center gap-1.5">
-                  <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: categoriesById[value].color || '#94a3b8' }" />
-                  {{ categoriesById[value].name }}
-                </span>
-                <span v-else class="text-gray-400">No category</span>
-              </template>
+            <ChipMultiSelect v-model="quickForm.category_ids" :options="allCategories" option-label="name" option-value="id"
+              placeholder="No category" filter class="w-full sm:w-64">
               <template #option="{ option }">
                 <span class="inline-flex items-center gap-1.5">
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: option.color || '#94a3b8' }" />
                   {{ option.name }}
                 </span>
               </template>
-            </Select>
+            </ChipMultiSelect>
           </div>
 
           <!-- Location — collapsed to a slim row (label left, pill right) -->
@@ -1059,12 +1052,14 @@ const quickForm = reactive<{
   is_all_day: boolean
   repeat: string; exdates: string[]
   category_id: string | null
+  category_ids: string[]
   locations: any[]
 }>({
   name: '', start_date: null, start_time: null, end_date: null, end_time: null,
   is_all_day: false,
   repeat: '', exdates: [],
   category_id: null,
+  category_ids: [] as string[],
   locations: [{ type: 'ADDRESS', venue_name: '', address: '', meeting_link: '', bookable_ids: [] }],
 })
 const quickStep = ref(1)                 // 1 = details, 2 = invitees
@@ -1105,6 +1100,7 @@ async function openQuick() {
   quickStep.value = 1
   quickShowLocation.value = false
   quickForm.category_id = activeCalendarStampCategory.value || null
+  quickForm.category_ids = activeCalendarStampCategory.value ? [activeCalendarStampCategory.value] : []
   try {
     const payload: any = {
       orgId: orgId.value,
@@ -1137,7 +1133,8 @@ async function createQuickEvent() {
       endAt: quickBuildDateTime(quickForm.end_date || quickForm.start_date, quickForm.end_time, quickForm.is_all_day),
       recurrenceRule: quickForm.repeat || null,
       exdates: quickForm.exdates ?? [],
-      categoryId: quickForm.category_id || null,
+      categoryId: quickForm.category_ids[0] || quickForm.category_id || null,
+      categoryIds: quickForm.category_ids.length ? quickForm.category_ids : null,
       locations: quickForm.locations,
       locationType: loc.type ?? 'ADDRESS',
       address: loc.type === 'ADDRESS' ? (loc.address || null) : null,
