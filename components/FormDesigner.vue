@@ -2055,6 +2055,65 @@ function evtConfirmSubjects() {
   if (design) design.style = 'tabs'
 }
 
+// ── Start from a previous form ──────────────────────────────────────────────
+// List the org's designer-shaped forms, preview one live, then clone its first
+// group's profiles/fields/design into the current group and open the builder.
+const prevForms = ref<any[]>([])
+const prevFormsLoading = ref(false)
+const prevPreview = ref<{ id: string; config: any } | null>(null)
+
+async function openPreviousForms() {
+  evtChooserStep.value = 'previous'
+  prevPreview.value = null
+  if (!orgId.value) return
+  prevFormsLoading.value = true
+  const all = await formsApi.list(orgId.value).catch(() => [] as any[])
+  const currentFormId = event.value?.formId ?? event.value?.form_id ?? null
+  // Only designer-shaped forms (have config.groups); never offer THIS form.
+  prevForms.value = all.filter((f: any) =>
+    f.id !== currentFormId && Array.isArray(f.config?.groups) && f.config.groups.length)
+  prevFormsLoading.value = false
+}
+async function previewPrevForm(id: string) {
+  if (prevPreview.value?.id === id) { prevPreview.value = null; return }   // toggle
+  const f = await formsApi.get(id).catch(() => null)
+  if (f) prevPreview.value = { id, config: (f as any).config }
+}
+// Fields carry nested ids (visibility_conditions, financial_rules[.conditions]) —
+// regenerate ALL of them so a clone never shares an id with its source.
+function cloneFieldIds(fields: any[]): any[] {
+  return (fields ?? []).map(fl => ({
+    ...fl,
+    id: crypto.randomUUID(),
+    visibility_conditions: (fl.visibility_conditions ?? []).map((c: any) => ({ ...c, id: crypto.randomUUID() })),
+    financial_rules: (fl.financial_rules ?? []).map((r: any) => ({
+      ...r, id: crypto.randomUUID(),
+      conditions: (r.conditions ?? []).map((c: any) => ({ ...c, id: crypto.randomUUID() })),
+    })),
+  }))
+}
+async function useEvtPreviousForm(formId: string) {
+  const src = prevPreview.value?.id === formId
+    ? prevPreview.value.config
+    : (await formsApi.get(formId).catch(() => null) as any)?.config
+  if (!src?.groups?.length) return
+  const srcGid = src.groups[0].id                 // clone the first group only (v1)
+  const gid = ensureEvtFormGroupSelected()
+  const clone = (v: any) => JSON.parse(JSON.stringify(v ?? null))
+  // Subject KEYS are semantic (join profiles↔fields↔sessions) — keep them; only field ids regen.
+  evtFormGroupProfiles[gid] = clone(src.groupProfiles?.[srcGid] ?? [])
+  evtFormGroupFields[gid] = cloneFieldIds(clone(src.groupFields?.[srcGid] ?? []))
+  evtFormGroupDesigns[gid] = clone(src.designs?.[srcGid]) ?? newGroupDesign()
+  evtFormGroupSessions[gid] = clone(src.sessions?.[srcGid] ?? {})
+  if (src.subjectSessions?.[srcGid]) evtFormSubjectSessions[gid] = clone(src.subjectSessions[srcGid])
+  // Mode LAST so the builder opens.
+  evtFormGroupModes[gid] = src.modes?.[srcGid] || 'scratch'
+  evtFormShowSections.value = true
+  evtSelectedFormSection.value = ''
+  evtChooserStep.value = 'type'
+  persistEvtFormConfig()
+}
+
 const formToDelete = ref<string | null>(null)
 
 function removeEvtFormGroup(id: string) {
@@ -2221,7 +2280,7 @@ const evtFormSections = computed(() => {
 const evtFormSectionCompletedCount = computed(() => evtFormSections.value.filter(s => s.complete).length)
 
 // Two-step chooser: 'type' (Basic / Start from scratch / …) → 'template' (who's registering).
-const evtChooserStep = ref<'type' | 'template' | 'subjects'>('type')
+const evtChooserStep = ref<'type' | 'template' | 'subjects' | 'previous'>('type')
 
 function selectEvtFormGroup(id: string) {
   selectedFormGroupId.value = id
@@ -3452,7 +3511,7 @@ defineExpose({ reload })
           <div v-if="!evtFormGroups.length || !evtFormGroupModes[selectedFormGroupId]" class="flex items-center justify-center py-16 px-6">
             <div class="bg-white rounded-xl shadow-lg overflow-hidden w-full max-w-[580px]">
               <div class="bg-[#182e59] px-6 py-4 text-center">
-                <h2 class="text-[17px] font-semibold text-white leading-snug">{{ evtChooserStep === 'subjects' ? "Who's registering?" : evtChooserStep === 'template' ? 'Choose a template' : 'Choose a registration type' }}</h2>
+                <h2 class="text-[17px] font-semibold text-white leading-snug">{{ evtChooserStep === 'previous' ? 'Start from a previous form' : evtChooserStep === 'subjects' ? "Who's registering?" : evtChooserStep === 'template' ? 'Choose a template' : 'Choose a registration type' }}</h2>
               </div>
               <!-- Step 1: pick the kind of form -->
               <div v-if="evtChooserStep === 'type'" class="p-5 space-y-2.5">
@@ -3465,7 +3524,7 @@ defineExpose({ reload })
                   <div class="flex-1 min-w-0"><p class="text-sm font-bold text-gray-800">Start from scratch</p><p class="text-xs text-gray-500 mt-0.5">Pick who's registering from a template, then customise.</p></div>
                   <i class="pi pi-chevron-right text-gray-300 text-xs mt-1 shrink-0" />
                 </button>
-                <button type="button" class="w-full flex items-start gap-3 border border-gray-200 rounded-lg px-4 py-3 text-left hover:border-[#182e59] hover:bg-blue-50/30 transition-colors group" @click="chooseEvtFormType('scratch')">
+                <button type="button" class="w-full flex items-start gap-3 border border-gray-200 rounded-lg px-4 py-3 text-left hover:border-[#182e59] hover:bg-blue-50/30 transition-colors group" @click="openPreviousForms">
                   <div class="shrink-0 w-9 h-9 rounded-lg bg-gray-50 group-hover:bg-blue-50 flex items-center justify-center text-gray-400 group-hover:text-[#182e59]"><i class="pi pi-history text-lg" /></div>
                   <div><p class="text-sm font-bold text-gray-800">Start from a previous form</p><p class="text-xs text-gray-500 mt-0.5">Reuse a registration form you've built before.</p></div>
                 </button>
@@ -3542,6 +3601,36 @@ defineExpose({ reload })
                   style="background:var(--brand-primary)" @click="evtConfirmSubjects">
                   Continue to form builder
                 </button>
+              </div>
+
+              <!-- Start from a previous form: list + inline preview + clone -->
+              <div v-else-if="evtChooserStep === 'previous'" class="p-5 space-y-3 max-h-[68vh] overflow-y-auto">
+                <button type="button" class="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#182e59] transition-colors" @click="evtChooserStep = 'type'">
+                  <i class="pi pi-chevron-left text-[10px]" />Back
+                </button>
+                <p class="text-xs text-gray-400 px-1 -mt-1">Pick a form you've built before to reuse its questions and layout.</p>
+
+                <div v-if="prevFormsLoading" class="py-8 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-300 text-xl" /></div>
+                <div v-else-if="!prevForms.length" class="py-8 text-center text-sm text-gray-400">No previous forms to reuse yet.</div>
+                <div v-else class="space-y-2">
+                  <div v-for="f in prevForms" :key="f.id" class="border border-gray-200 rounded-lg overflow-hidden">
+                    <button type="button" class="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-blue-50/30 transition-colors" @click="previewPrevForm(f.id)">
+                      <i class="pi pi-file-edit text-gray-300 shrink-0" />
+                      <span class="flex-1 text-sm font-medium text-gray-800 truncate">{{ f.name || 'Untitled form' }}</span>
+                      <span class="text-xs text-gray-400 shrink-0">{{ prevPreview?.id === f.id ? 'Hide' : 'Preview' }}</span>
+                      <i class="pi text-xs text-gray-300 shrink-0" :class="prevPreview?.id === f.id ? 'pi-chevron-up' : 'pi-eye'" />
+                    </button>
+                    <div v-if="prevPreview?.id === f.id" class="border-t border-gray-100 bg-gray-50 p-3 space-y-2.5">
+                      <div class="max-h-[42vh] overflow-y-auto rounded-lg bg-white border border-gray-100 p-1">
+                        <FormRenderer preview :config="prevPreview.config" :context="previewContext" :event="evtDisplayEvent" />
+                      </div>
+                      <button type="button" class="w-full py-2 rounded-lg text-white text-sm font-semibold transition-colors"
+                        style="background:var(--brand-primary)" @click="useEvtPreviousForm(f.id)">
+                        Use this form
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
