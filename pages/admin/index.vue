@@ -166,8 +166,21 @@ const newParentOptions = computed(() => orgs.value
   .map(o => ({ id: o.id, _label: `${o.name} · ${orgLevelLabel(o.org_level)}` }))
   .sort((a, b) => a._label.localeCompare(b._label)))
 
+// editId set = the dialog is EDITING that org; null = creating a new one.
+const editId = ref<string | null>(null)
 function openCreate() {
+  editId.value = null
   newOrg.name = ''; newOrg.org_level = 'CLUB'; newOrg.parent_id = null; newOrg.default_sport_name = ''; newOrg.brand_id = null; newOrg.club_type_ids = []
+  createError.value = ''; showCreate.value = true
+}
+function openEdit(row: OrgRow) {
+  editId.value = row.id
+  newOrg.name = row.name
+  newOrg.org_level = (row.org_level as any) ?? 'CLUB'
+  newOrg.parent_id = row.parent_id ?? null
+  newOrg.default_sport_name = (row as any).default_sport_name ?? ''
+  newOrg.brand_id = row.brand_id ?? null
+  newOrg.club_type_ids = row.club_type_ids ?? []
   createError.value = ''; showCreate.value = true
 }
 async function createOrg() {
@@ -175,14 +188,29 @@ async function createOrg() {
   creating.value = true; createError.value = ''
   const isClub = newOrg.org_level === 'CLUB'
   const typeIds = isClub ? newOrg.club_type_ids : []
+  const type = isGoverningBody(newOrg.org_level) ? 'NSO' : (isClub ? 'CLUB' : 'RST')
+  const defaultSportName = isGoverningBody(newOrg.org_level) ? (newOrg.default_sport_name.trim() || null) : null
+
+  // ── EDIT an existing org ──
+  if (editId.value) {
+    try {
+      await orgsApi.update(editId.value, { name: newOrg.name.trim(), type, orgLevel: newOrg.org_level, defaultSportName, brandId: newOrg.brand_id, clubTypeIds: typeIds } as any)
+      // parentId can't move via the patch (it's omitted on purpose) — use the dedicated route.
+      await orgsApi.setParent(editId.value, newOrg.parent_id).catch(() => {})
+    } catch (e: any) { creating.value = false; createError.value = e?.data?.message || e?.message || 'Could not save organisation'; return }
+    creating.value = false; showCreate.value = false
+    await load(); return
+  }
+
+  // ── CREATE a new org ──
   let createdId: string | null = null
   try {
     createdId = await api.createOrg({
       name: newOrg.name.trim(),
-      type: isGoverningBody(newOrg.org_level) ? 'NSO' : (isClub ? 'CLUB' : 'RST'),
+      type,
       orgLevel: newOrg.org_level,
       parentId: newOrg.parent_id,
-      defaultSportName: isGoverningBody(newOrg.org_level) ? (newOrg.default_sport_name.trim() || null) : null,
+      defaultSportName,
       brandId: newOrg.brand_id,
       clubTypeIds: typeIds,
     })
@@ -341,10 +369,13 @@ onMounted(() => {
         <Column header="Events" headerStyle="text-align:right" bodyStyle="text-align:right">
           <template #body="{ data }"><span class="tabular-nums text-gray-700">{{ data.events }}</span></template>
         </Column>
-        <Column headerStyle="width:8rem" bodyStyle="text-align:right">
+        <Column headerStyle="width:10rem" bodyStyle="text-align:right">
           <template #body="{ data }">
             <div class="inline-flex items-center gap-3">
               <button type="button" class="text-xs font-medium text-primary hover:underline" @click="openOrg(data.id)">Open →</button>
+              <button type="button" class="text-gray-400 hover:text-primary" v-tooltip.left="'Edit organisation'" @click="openEdit(data)">
+                <i class="pi pi-pencil text-xs" />
+              </button>
               <button type="button" class="text-gray-300 hover:text-red-500" v-tooltip.left="'Delete organisation'" @click="openDelete(data)">
                 <i class="pi pi-trash text-xs" />
               </button>
@@ -356,8 +387,8 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Create organisation -->
-    <Dialog v-model:visible="showCreate" modal header="New organisation" :style="{ width: '95vw', maxWidth: '32rem' }">
+    <!-- Create / edit organisation -->
+    <Dialog v-model:visible="showCreate" modal :header="editId ? 'Edit organisation' : 'New organisation'" :style="{ width: '95vw', maxWidth: '32rem' }">
       <div class="flex flex-col gap-4">
         <div class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Name</label>
@@ -408,7 +439,7 @@ onMounted(() => {
       </div>
       <template #footer>
         <Button label="Cancel" severity="secondary" text @click="showCreate = false" />
-        <Button label="Create" :loading="creating" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="createOrg" />
+        <Button :label="editId ? 'Save' : 'Create'" :loading="creating" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="createOrg" />
       </template>
     </Dialog>
 
