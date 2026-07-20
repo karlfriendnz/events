@@ -652,7 +652,7 @@
             v-model:isAllDay="quickForm.is_all_day"
             v-model:repeat="quickForm.repeat"
             v-model:exdates="quickForm.exdates"
-            :divider="false"
+            :divider="false" no-past-today
             label="When" required label-width="sm:w-20" row-padding="px-0 py-1" />
 
           <!-- Category -->

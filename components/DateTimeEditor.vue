@@ -16,7 +16,7 @@
             :max-date="maxDate ?? undefined"
             @update:model-value="onStartDate" />
           <TimeWheel v-if="showTime" :model-value="startTime" :placeholder="`${startLabel} time`" class="flex-1 min-w-0"
-            :disabled="isAllDay"
+            :disabled="isAllDay" :min-time="startMinTime"
             @update:model-value="onStartTime" />
         </div>
         <span v-if="!stack" class="text-sm text-gray-300 shrink-0 hidden lg:inline">→</span>
@@ -27,7 +27,7 @@
             :max-date="maxDate ?? undefined"
             @update:model-value="onEndDate" />
           <TimeWheel v-if="showTime" :model-value="endTime" :placeholder="`${endLabel} time`" class="flex-1 min-w-0"
-            :disabled="isAllDay"
+            :disabled="isAllDay" :min-time="endMinTime"
             @update:model-value="onEndTime" />
         </div>
         <!-- All day -->
@@ -82,6 +82,9 @@ const props = withDefaults(defineProps<{
   showRepeat?: boolean
   // Hide the time pickers for a date-only range (keeps the date → date arrow).
   showTime?: boolean
+  // When the picked date is TODAY, block choosing a time in the past. Opt-in (event
+  // start/end use it; sign-up windows don't — a past "opens" time is valid there).
+  noPastToday?: boolean
   // Row dividers between When / Repeat / etc. Off for a compact host (the quick modal)
   // where these already sit among plain rows and the extra line reads as clutter.
   divider?: boolean
@@ -145,6 +148,14 @@ function sameDay(a: Date | null, b: Date | null) {
   return a.toDateString() === b.toDateString()
 }
 function plusHour(d: Date) { return new Date(d.getTime() + HOUR) }
+// For noPastToday: pass `now` as the time floor when the picked date is today.
+function isToday(d: Date | null) {
+  if (!d) return false
+  const n = new Date()
+  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate()
+}
+const startMinTime = computed(() => (props.noPastToday && isToday(props.startDate)) ? new Date() : null)
+const endMinTime = computed(() => (props.noPastToday && isToday(props.endDate ?? props.startDate)) ? new Date() : null)
 // Compare TIME-OF-DAY only, never the full timestamp: the two time pickers each carry
 // their own calendar day, so `endTime <= startTime` on raw Dates gives wrong answers
 // across days. On a same-day event we only care about the clock time.

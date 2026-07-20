@@ -84,6 +84,7 @@
                 v-model:exdates="form.exdates"
                 :minStartDate="today"
                 :minEndDate="form.start_date ?? today"
+                no-past-today
                 label="Date"
                 required
                 label-width="w-[120px]"

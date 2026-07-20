@@ -14,7 +14,17 @@ const props = withDefaults(defineProps<{
   // Minute granularity of the wheel (1 = every minute, so custom times work; the
   // common quarter-hours are still easy to land on).
   stepMinutes?: number
-}>(), { stepMinutes: 1 })
+  // Earliest allowed time-of-day (its clock time is the floor). The host passes
+  // `now` when the picked date is today, so a today event can't be set in the past.
+  minTime?: Date | null
+}>(), { stepMinutes: 1, minTime: null })
+
+// Floor as minutes-from-midnight (or null = no floor). Only the clock time matters.
+const minMins = computed(() => props.minTime ? props.minTime.getHours() * 60 + props.minTime.getMinutes() : null)
+function hour24(h12: number) { return (h12 % 12) + (selMeridiem.value === 'PM' ? 12 : 0) }
+function hourDisabled(h12: number) { return minMins.value != null && hour24(h12) * 60 + 59 < minMins.value }
+function minDisabled(m: number) { return minMins.value != null && selHour.value != null && hour24(selHour.value) * 60 + m < minMins.value }
+const amDisabled = computed(() => minMins.value != null && minMins.value >= 12 * 60)  // now is PM → AM is fully past
 
 const emit = defineEmits<{ (e: 'update:modelValue', v: Date | null): void }>()
 
@@ -73,8 +83,13 @@ function commitText() {
   const raw = text.value
   if (!raw.trim()) { if (props.modelValue) emit('update:modelValue', null); return }
   const d = parseTyped(raw)
-  if (d) emit('update:modelValue', d)   // the watch reformats `text`
-  else text.value = display.value        // invalid → revert to last good value
+  if (d) {
+    // Typed a past time on a today event → clamp forward to the earliest allowed.
+    if (minMins.value != null && d.getHours() * 60 + d.getMinutes() < minMins.value) {
+      d.setHours(Math.floor(minMins.value / 60), minMins.value % 60, 0, 0)
+    }
+    emit('update:modelValue', d)   // the watch reformats `text`
+  } else text.value = display.value  // invalid → revert to last good value
 }
 
 const panelOpen = ref(false)
@@ -87,6 +102,14 @@ function seedSelection() {
   const rawMin = d ? d.getMinutes() : 0
   const step = Math.max(1, Math.floor(props.stepMinutes || 1))
   selMin.value = Math.round(rawMin / step) * step % 60
+  // Opening on a past time (today event) → seed to the earliest allowed instead.
+  if (minMins.value != null && hour24(selHour.value ?? 0) * 60 + (selMin.value ?? 0) < minMins.value) {
+    const mm = minMins.value
+    const h24 = Math.floor(mm / 60)
+    selMeridiem.value = h24 >= 12 ? 'PM' : 'AM'
+    selHour.value = h24 % 12 === 0 ? 12 : h24 % 12
+    selMin.value = Math.round((mm % 60) / step) * step % 60
+  }
 }
 // Clicking ANYWHERE on the box opens the wheel (anchored under the whole field, not
 // the clock, so it drops straight below left-aligned). Already open → leave it (so
@@ -120,7 +143,9 @@ function ok() {
   const base = props.modelValue ? new Date(props.modelValue) : new Date()
   const h12 = selHour.value ?? 12
   const h24 = (h12 % 12) + (selMeridiem.value === 'PM' ? 12 : 0)
-  base.setHours(h24, selMin.value ?? 0, 0, 0)
+  let mins = h24 * 60 + (selMin.value ?? 0)
+  if (minMins.value != null && mins < minMins.value) mins = minMins.value   // never in the past
+  base.setHours(Math.floor(mins / 60), mins % 60, 0, 0)
   emit('update:modelValue', base)
   op.value?.hide()
 }
@@ -142,16 +167,18 @@ function cancel() { op.value?.hide() }
         <div class="ts-cols">
           <div ref="hourColRef" class="ts-col">
             <button v-for="h in hours" :key="'h' + h" type="button" class="ts-item"
-              :class="{ 'ts-sel': selHour === h }" @click="selHour = h">{{ pad(h) }}</button>
+              :class="{ 'ts-sel': selHour === h, 'ts-past': hourDisabled(h) }" :disabled="hourDisabled(h)"
+              @click="!hourDisabled(h) && (selHour = h)">{{ pad(h) }}</button>
           </div>
           <div class="ts-colon">:</div>
           <div ref="minColRef" class="ts-col">
             <button v-for="m in minutes" :key="'m' + m" type="button" class="ts-item"
-              :class="{ 'ts-sel': selMin === m }" @click="selMin = m">{{ pad(m) }}</button>
+              :class="{ 'ts-sel': selMin === m, 'ts-past': minDisabled(m) }" :disabled="minDisabled(m)"
+              @click="!minDisabled(m) && (selMin = m)">{{ pad(m) }}</button>
           </div>
-          <!-- AM / PM — a fixed pair, not a wheel. -->
+          <!-- AM / PM — a fixed pair, not a wheel. AM is disabled once now is past midday. -->
           <div class="ts-ampm">
-            <button type="button" class="ts-ampm-btn" :class="{ 'ts-sel': selMeridiem === 'AM' }" @click="selMeridiem = 'AM'">AM</button>
+            <button type="button" class="ts-ampm-btn" :class="{ 'ts-sel': selMeridiem === 'AM', 'ts-past': amDisabled }" :disabled="amDisabled" @click="!amDisabled && (selMeridiem = 'AM')">AM</button>
             <button type="button" class="ts-ampm-btn" :class="{ 'ts-sel': selMeridiem === 'PM' }" @click="selMeridiem = 'PM'">PM</button>
           </div>
         </div>
@@ -204,7 +231,9 @@ function cancel() { op.value?.hide() }
   font-size: 15px; font-variant-numeric: tabular-nums; color: #1E2157; background: transparent; border: none; cursor: pointer;
   transition: background .12s, color .12s;
 }
-.ts-item:hover:not(.ts-sel) { background: #f3f4f6; }
+.ts-item:hover:not(.ts-sel):not(.ts-past) { background: #f3f4f6; }
+.ts-past { opacity: .28; cursor: not-allowed; }
+.ts-ampm-btn.ts-past { opacity: .35; cursor: not-allowed; }
 .ts-sel { background: var(--brand-primary); color: #fff; font-weight: 700; box-shadow: 0 1px 3px rgba(30,33,87,.35); }
 
 .ts-footer {

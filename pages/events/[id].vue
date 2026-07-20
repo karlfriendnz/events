@@ -120,7 +120,7 @@
         </div>
 
         <!-- Hero banner (shown when there's an image OR when actively editing) -->
-        <div v-else class="max-w-[1140px] mx-auto relative overflow-hidden group/banner h-44 sm:h-[300px]">
+        <div v-else class="max-w-[1140px] mx-auto relative overflow-hidden group/banner h-44 sm:h-[400px]">
           <!-- Background: image or gradient -->
           <div class="absolute inset-0">
             <img v-if="event?.banner_url && !editForm.hide_banner" :src="event.banner_url" class="w-full h-full object-cover" />

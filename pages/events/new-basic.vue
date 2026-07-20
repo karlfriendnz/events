@@ -139,6 +139,7 @@
                 v-model:exdates="form.exdates"
                 :minStartDate="today"
                 :minEndDate="form.start_date ?? today"
+                no-past-today
                 label="Date"
                 required
                 label-width="w-[120px]"
@@ -1367,6 +1368,7 @@ async function saveEvent() {
     const payload: any = {
       title: form.title.trim(),
       description: form.description.trim() || null,
+      bannerUrl: form.banner_url || null,   // was omitted → the uploaded banner was dropped on save
       categoryId: form.category_ids[0] ?? null,
       secondaryCategoryId: form.category_ids[1] ?? null,
       categoryIds: form.category_ids.length ? form.category_ids : null,
