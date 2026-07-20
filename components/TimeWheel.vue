@@ -77,8 +77,8 @@ function commitText() {
   else text.value = display.value        // invalid → revert to last good value
 }
 
-function toggle(e: Event) {
-  if (props.disabled) return
+const panelOpen = ref(false)
+function seedSelection() {
   const d = props.modelValue
   const h24 = d ? d.getHours() : 9
   selMeridiem.value = h24 >= 12 ? 'PM' : 'AM'
@@ -87,8 +87,19 @@ function toggle(e: Event) {
   const rawMin = d ? d.getMinutes() : 0
   const step = Math.max(1, Math.floor(props.stepMinutes || 1))
   selMin.value = Math.round(rawMin / step) * step % 60
-  // Anchor to the whole field (not the clock button) so the panel drops straight
-  // below the field, left-aligned.
+}
+// Clicking ANYWHERE on the box opens the wheel (anchored under the whole field, not
+// the clock, so it drops straight below left-aligned). Already open → leave it (so
+// clicking into the text to position the cursor while typing doesn't close it).
+function openPanel(e: Event) {
+  if (props.disabled || panelOpen.value) return
+  seedSelection()
+  op.value?.show(e, triggerRef.value)
+}
+// The clock icon toggles (open/close).
+function toggle(e: Event) {
+  if (props.disabled) return
+  seedSelection()
   op.value?.toggle(e, triggerRef.value)
 }
 
@@ -118,15 +129,15 @@ function cancel() { op.value?.hide() }
 
 <template>
   <div class="ts-wrap">
-    <div ref="triggerRef" class="ts-trigger" :class="{ 'ts-disabled': disabled }">
+    <div ref="triggerRef" class="ts-trigger" :class="{ 'ts-disabled': disabled }" @click="openPanel">
       <input type="text" class="ts-input" :value="text" :placeholder="placeholder || '--:--'" :disabled="disabled"
         @input="text = ($event.target as HTMLInputElement).value"
         @keydown.enter.prevent="commitText"
         @blur="commitText" />
-      <button type="button" class="ts-clock" :disabled="disabled" tabindex="-1" @click="toggle"><i class="pi pi-clock" /></button>
+      <button type="button" class="ts-clock" :disabled="disabled" tabindex="-1" @click.stop="toggle"><i class="pi pi-clock" /></button>
     </div>
 
-    <Popover ref="op" @show="onShow">
+    <Popover ref="op" @show="panelOpen = true; onShow()" @hide="panelOpen = false">
       <div class="ts-panel">
         <div class="ts-cols">
           <div ref="hourColRef" class="ts-col">
