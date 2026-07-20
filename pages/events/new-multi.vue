@@ -69,18 +69,17 @@
               <label class="text-sm font-medium text-gray-700">Event Name <span class="text-red-400">*</span></label>
               <InputText v-model="form.title" placeholder="e.g. Easter Holiday Programme" class="w-full" autofocus />
             </div>
+            <!-- Age Limit + Gender on one row -->
             <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1.5 sm:gap-4">
               <label class="text-sm font-medium text-gray-700">Age Limit</label>
-              <div class="flex items-center gap-2">
-                <InputNumber v-model="form.ageMin" :min="0" :max="120" placeholder="Min" class="w-24" inputClass="w-24" />
+              <div class="flex items-center gap-2 flex-wrap">
+                <InputNumber v-model="form.ageMin" :min="0" :max="120" placeholder="Min" class="w-20" inputClass="w-20" />
                 <span class="text-sm text-gray-400">to</span>
-                <InputNumber v-model="form.ageMax" :min="0" :max="120" placeholder="Max" class="w-24" inputClass="w-24" />
+                <InputNumber v-model="form.ageMax" :min="0" :max="120" placeholder="Max" class="w-20" inputClass="w-20" />
                 <span class="text-sm text-gray-500">years</span>
+                <label class="text-sm font-medium text-gray-700 ml-4">Gender</label>
+                <Select v-model="form.genderRestriction" :options="GENDER_RESTRICTION_OPTIONS" optionLabel="label" optionValue="value" class="w-40" />
               </div>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1.5 sm:gap-4">
-              <label class="text-sm font-medium text-gray-700">Gender</label>
-              <Select v-model="form.genderRestriction" :options="GENDER_RESTRICTION_OPTIONS" optionLabel="label" optionValue="value" class="w-full sm:w-56" />
             </div>
           </div>
         </div>
