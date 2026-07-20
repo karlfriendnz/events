@@ -180,6 +180,12 @@ async function loadBookables() {
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
   bookablesLoading.value = false
   initExpanded()
+  // Default a fresh, untouched location to Venue when the club HAS venues; otherwise
+  // it stays on Address. Only flips an empty, single, untouched Address location.
+  if (allBookables.value.length && props.modelValue.length === 1) {
+    const l: any = props.modelValue[0]
+    if (l.type === 'ADDRESS' && !l.address && !l.venue_name && !(l.bookable_ids?.length)) l.type = 'BOOKABLE'
+  }
   if (hasBookableLocation.value) fetchAvailability()
 }
 
