@@ -18,8 +18,11 @@ onMounted(load)
 watch(orgId, load)
 
 const pending = computed(() => invites.value.filter(i => i.status === 'INVITED'))
-// Accepted invites still needing a connection decision surface too, so the club can tune them.
-const accepted = computed(() => invites.value.filter(i => i.status === 'ACCEPTED'))
+// A just-accepted invite stays visible ONLY until the club clicks "Done" on its
+// connection choices. Accepted invites never reappear on a later dashboard load —
+// the dashboard is for things needing action, not a record of past acceptances.
+const configuring = ref<string[]>([])
+const accepted = computed(() => invites.value.filter(i => i.status === 'ACCEPTED' && configuring.value.includes(i.id)))
 const show = computed(() => pending.value.length > 0 || accepted.value.length > 0)
 
 const CONN = [
@@ -39,8 +42,13 @@ async function respond(inv: any, patch: any) {
   try { Object.assign(inv, await eventsApi.respondOrgInvite(inv.id, patch)) }
   finally { busy.value = null }
 }
-// Accepting connects everything by default; the club tunes it below.
-const accept = (inv: any) => respond(inv, { status: 'ACCEPTED', connections: { event_details: true, fees: true, communication: true } })
+// Accepting connects everything by default; the club tunes it, then clicks Done.
+async function accept(inv: any) {
+  await respond(inv, { status: 'ACCEPTED', connections: { event_details: true, fees: true, communication: true } })
+  if (!configuring.value.includes(inv.id)) configuring.value.push(inv.id)
+}
+// Done configuring → drop it from view (it stays ACCEPTED in the DB, just hidden here).
+const done = (inv: any) => { configuring.value = configuring.value.filter(id => id !== inv.id) }
 const decline = (inv: any) => respond(inv, { status: 'DECLINED' })
 const toggle = (inv: any, key: string) =>
   respond(inv, { connections: { ...(inv.connections || {}), [key]: !(inv.connections?.[key]) } })
@@ -91,6 +99,10 @@ const toggle = (inv: any, key: string) =>
           <span>{{ c.label }}</span>
           <span v-if="c.hint" class="text-xs text-gray-400">({{ c.hint }})</span>
         </label>
+      </div>
+      <div class="flex justify-end mt-3">
+        <Button label="Done" icon="pi pi-check" size="small" :disabled="busy === inv.id"
+          style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="done(inv)" />
       </div>
     </div>
   </div>
