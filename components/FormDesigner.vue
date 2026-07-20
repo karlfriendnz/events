@@ -4383,7 +4383,7 @@ defineExpose({ reload })
               <!-- Wizard navigation -->
               <div v-else class="flex items-center gap-2">
                 <button v-if="evtWizardStep > 0" type="button" class="px-4 py-3 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-1.5" @click="evtWizardBack"><i class="pi pi-angle-left text-xs" />Back</button>
-                <button v-if="evtWizardStep < evtWizardTermsIdx" type="button" class="flex-1 py-3 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-[#161a45] transition-colors flex items-center justify-center gap-1.5" @click="evtWizardNext">Next<i class="pi pi-angle-right text-xs" /></button>
+                <button v-if="evtWizardStep < evtWizardTermsIdx" type="button" class="ml-auto px-5 py-2.5 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-[#161a45] transition-colors flex items-center justify-center gap-1.5" @click="evtWizardNext">Next<i class="pi pi-angle-right text-xs" /></button>
                 <button v-else type="button" class="flex-1 py-3 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-[#161a45] transition-colors">Submit Registration</button>
               </div>
             </div>

@@ -234,10 +234,11 @@
             @new-category="showNewCategoryDialog = true"
           />
 
-          <!-- Disciplines (NSO mapping) -->
-          <div v-if="id" class="bg-white rounded-xl border border-gray-200 p-5">
+          <!-- Disciplines (NSO mapping) — hidden when the governing body defines none
+               (discipline now defaults from the event's category). -->
+          <div v-if="id" v-show="!disciplinesEmpty" class="bg-white rounded-xl border border-gray-200 p-5">
             <h3 class="text-sm font-semibold text-gray-800 mb-2">Disciplines</h3>
-            <DisciplineLinker entity-type="event" :entity-id="id" />
+            <DisciplineLinker entity-type="event" :entity-id="id" @empty="disciplinesEmpty = $event" />
           </div>
 
           <!-- Child-of-series banner -->
@@ -1982,6 +1983,8 @@ const toast = useToast()
 const route = useRoute()
 const router = useRouter()
 const id = route.params.id as string
+// Hide the Disciplines card when the governing body defines none (DisciplineLinker @empty).
+const disciplinesEmpty = ref(false)
 
 // ---- Tabs ----
 const allTabs = [
