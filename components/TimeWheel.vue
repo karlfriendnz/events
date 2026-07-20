@@ -22,7 +22,9 @@ const op = ref()
 const hourColRef = ref<HTMLElement>()
 const minColRef = ref<HTMLElement>()
 
-const hours = Array.from({ length: 24 }, (_, i) => i)
+// 12-hour wheel (12, 1, 2 … 11) with a separate AM/PM selector — the display + typed
+// input are both 12-hour, so the wheel matches.
+const hours = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 const minutes = computed(() => {
   const step = Math.max(1, Math.floor(props.stepMinutes || 1))
   const out: number[] = []
@@ -30,8 +32,9 @@ const minutes = computed(() => {
   return out
 })
 
-const selHour = ref<number | null>(null)
+const selHour = ref<number | null>(null)   // 1..12
 const selMin = ref<number | null>(null)
+const selMeridiem = ref<'AM' | 'PM'>('AM')
 
 function pad(n: number) { return String(n).padStart(2, '0') }
 // The chosen time reads back in friendly 12-hour form with AM/PM (e.g. "9:00 AM");
@@ -70,7 +73,9 @@ function commitText() {
 function toggle(e: Event) {
   if (props.disabled) return
   const d = props.modelValue
-  selHour.value = d ? d.getHours() : 9
+  const h24 = d ? d.getHours() : 9
+  selMeridiem.value = h24 >= 12 ? 'PM' : 'AM'
+  selHour.value = h24 % 12 === 0 ? 12 : h24 % 12
   // Snap the seeded minute to the nearest available step so it highlights a real row.
   const rawMin = d ? d.getMinutes() : 0
   const step = Math.max(1, Math.floor(props.stepMinutes || 1))
@@ -93,7 +98,9 @@ function onShow() {
 
 function ok() {
   const base = props.modelValue ? new Date(props.modelValue) : new Date()
-  base.setHours(selHour.value ?? 0, selMin.value ?? 0, 0, 0)
+  const h12 = selHour.value ?? 12
+  const h24 = (h12 % 12) + (selMeridiem.value === 'PM' ? 12 : 0)
+  base.setHours(h24, selMin.value ?? 0, 0, 0)
   emit('update:modelValue', base)
   op.value?.hide()
 }
@@ -121,6 +128,11 @@ function cancel() { op.value?.hide() }
           <div ref="minColRef" class="ts-col">
             <button v-for="m in minutes" :key="'m' + m" type="button" class="ts-item"
               :class="{ 'ts-sel': selMin === m }" @click="selMin = m">{{ pad(m) }}</button>
+          </div>
+          <!-- AM / PM — a fixed pair, not a wheel. -->
+          <div class="ts-ampm">
+            <button type="button" class="ts-ampm-btn" :class="{ 'ts-sel': selMeridiem === 'AM' }" @click="selMeridiem = 'AM'">AM</button>
+            <button type="button" class="ts-ampm-btn" :class="{ 'ts-sel': selMeridiem === 'PM' }" @click="selMeridiem = 'PM'">PM</button>
           </div>
         </div>
         <div class="ts-footer">
@@ -152,9 +164,15 @@ function cancel() { op.value?.hide() }
 .ts-clock { border: none; background: transparent; color: #94a3b8; cursor: pointer; padding: 0; display: flex; align-items: center; font-size: 1rem; }
 .ts-clock:hover:not(:disabled) { color: var(--brand-primary); }
 
-.ts-panel { width: 190px; padding: 2px 0 0; }
+.ts-panel { width: 236px; padding: 2px 0 0; }
 .ts-cols { display: flex; align-items: stretch; }
 .ts-colon { display: flex; align-items: center; font-weight: 700; font-size: 16px; color: #cbd5e1; padding: 0 1px; }
+.ts-ampm { display: flex; flex-direction: column; justify-content: center; gap: 8px; padding: 0 4px 0 8px; }
+.ts-ampm-btn {
+  padding: .45rem .7rem; border-radius: 8px; font-size: 13px; font-weight: 600; letter-spacing: .03em;
+  color: #1E2157; background: #f3f4f6; border: none; cursor: pointer; transition: background .12s, color .12s;
+}
+.ts-ampm-btn:hover:not(.ts-sel) { background: #e5e7eb; }
 .ts-col {
   flex: 1; height: 168px; overflow-y: auto; scroll-snap-type: y mandatory;
   display: flex; flex-direction: column; gap: 2px; padding: 68px 6px;
