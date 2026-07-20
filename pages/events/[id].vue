@@ -1062,102 +1062,7 @@
       </div>
 
       <!-- COMMUNICATION TAB -->
-      <div v-else-if="activeTab === 'communication'" class="max-w-[1140px] mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-8 overflow-y-auto flex-1">
-
-        <!-- Header -->
-        <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-          <div>
-            <h2 class="text-lg font-bold text-gray-900">Send and Schedule Communication</h2>
-            <p class="text-sm text-gray-500 mt-0.5">Below are a list of all communications that have been sent to your invitees</p>
-          </div>
-          <div class="flex flex-wrap items-center gap-2 shrink-0">
-            <Button label="Create email" icon="pi pi-envelope" size="small" severity="secondary" outlined @click="showSendComms = true" />
-            <Button label="Send App notifications" icon="pi pi-send" size="small" @click="showSendComms = true" style="background:#34B66D; border-color:#34B66D" />
-          </div>
-        </div>
-
-        <div v-if="commsLoading" class="py-8 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-400" /></div>
-
-        <template v-else>
-          <!-- Sent Communications -->
-          <div>
-            <h3 class="text-sm font-bold text-gray-800 mb-3">Sent Communication</h3>
-            <div class="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-              <table class="w-full text-sm">
-                <thead>
-                  <tr class="border-b border-gray-200 bg-gray-50">
-                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-600 w-32">Type</th>
-                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-600 w-48">Subject</th>
-                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-600 w-28">
-                      <span class="flex items-center gap-1.5"><i class="pi pi-users text-gray-400" /> Recipients</span>
-                    </th>
-                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-600">Description</th>
-                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-600 w-44">
-                      <span class="flex items-center gap-1.5"><i class="pi pi-calendar text-gray-400" /> Sent</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                  <tr v-if="!sentCommunications.length">
-                    <td colspan="5" class="px-4 py-8 text-center text-sm text-gray-400">No messages sent yet</td>
-                  </tr>
-                  <tr v-for="c in sentCommunications" :key="c.id" class="hover:bg-gray-50 transition-colors">
-                    <td class="px-4 py-3">
-                      <span class="text-sm text-primary font-medium cursor-pointer hover:underline">{{ c.channel === 'EMAIL' ? 'Email' : 'App message' }}</span>
-                    </td>
-                    <td class="px-4 py-3">
-                      <span class="text-sm text-primary cursor-pointer hover:underline">{{ c.subject }}</span>
-                    </td>
-                    <td class="px-4 py-3 text-sm text-gray-700">{{ c.recipient_count ?? '—' }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-600">{{ c.body ? c.body.slice(0, 80) + (c.body.length > 80 ? '…' : '') : '—' }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-600">{{ formatDateTime(c.sent_at) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Scheduled Communications -->
-          <div>
-            <h3 class="text-sm font-bold text-gray-800 mb-3">Scheduled Communication</h3>
-            <div class="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-              <table class="w-full text-sm">
-                <thead>
-                  <tr class="border-b border-gray-200 bg-gray-50">
-                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-600 w-32">Type</th>
-                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-600 w-48">Subject</th>
-                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-600 w-28">
-                      <span class="flex items-center gap-1.5"><i class="pi pi-users text-gray-400" /> Recipients</span>
-                    </th>
-                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-600 w-44">
-                      <span class="flex items-center gap-1.5"><i class="pi pi-calendar text-gray-400" /> Scheduled</span>
-                    </th>
-                    <th class="text-left px-4 py-3 text-xs font-semibold text-gray-600 w-44">
-                      <span class="flex items-center gap-1.5"><i class="pi pi-calendar text-gray-400" /> Date / Time</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                  <tr v-if="!scheduledCommunications.length">
-                    <td colspan="5" class="px-4 py-8 text-center text-sm text-gray-400">No scheduled messages</td>
-                  </tr>
-                  <tr v-for="c in scheduledCommunications" :key="c.id" class="hover:bg-gray-50 transition-colors">
-                    <td class="px-4 py-3">
-                      <span class="text-sm text-primary font-medium cursor-pointer hover:underline">{{ c.channel === 'EMAIL' ? 'Email' : 'App message' }}</span>
-                    </td>
-                    <td class="px-4 py-3">
-                      <span class="text-sm text-primary cursor-pointer hover:underline">{{ c.subject }}</span>
-                    </td>
-                    <td class="px-4 py-3 text-sm text-gray-700">{{ c.recipient_count ?? '—' }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-600">{{ c.schedule_label ?? '—' }}</td>
-                    <td class="px-4 py-3 text-sm text-gray-600">{{ formatDateTime(c.scheduled_at) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </template>
-      </div>
+      <div v-else-if="activeTab === 'communication'" class="max-w-[1140px] mx-auto px-3 sm:px-6 py-4 sm:py-6 overflow-y-auto flex-1"><EventCommunication :event-id="id" /></div>
 
       <!-- ATTENDANCE TAB -->
       <EventAttendance v-else-if="activeTab === 'attendance'" :event-id="event.id" ref="attendanceRef" class="flex-1 min-h-0" />
@@ -1549,35 +1454,6 @@
       <Button label="Add" :disabled="!newInviteePerson" :loading="addingInvitee" @click="handleAddInvitee" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
     </template>
   </Dialog>
-
-  <!-- Send message dialog -->
-  <Dialog v-model:visible="showSendComms" header="Send Message" modal :style="{ width: '95vw', maxWidth: '560px' }">
-    <div class="flex flex-col gap-4 py-2">
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Channel</label>
-          <Select v-model="newComms.channel" :options="[{ label: 'Email', value: 'EMAIL' }, { label: 'SMS', value: 'SMS' }]" option-label="label" option-value="value" class="w-full" />
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium">Send to</label>
-          <Select v-model="newComms.audience" :options="audienceOptions" option-label="label" option-value="value" class="w-full" />
-        </div>
-      </div>
-      <div class="flex flex-col gap-1.5">
-        <label class="text-sm font-medium">Subject</label>
-        <InputText v-model="newComms.subject" placeholder="Message subject" />
-      </div>
-      <div class="flex flex-col gap-1.5">
-        <label class="text-sm font-medium">Message</label>
-        <Textarea v-model="newComms.body" rows="5" placeholder="Write your message…" class="w-full" />
-      </div>
-    </div>
-    <template #footer>
-      <Button label="Cancel" severity="secondary" text @click="showSendComms = false" />
-      <Button label="Send" :loading="sendingComms" :disabled="!newComms.subject || !newComms.body" @click="handleSendComms" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
-    </template>
-  </Dialog>
-
 
   <!-- New Category dialog -->
   <Dialog v-model:visible="showNewCategoryDialog" header="New Category" modal :style="{ width: '95vw', maxWidth: '360px' }">
@@ -2902,10 +2778,6 @@ const feesLoading = ref(false)
 const feeLineItems = ref<import('~/composables/useFeeGroups').FeeLineItem[]>([])
 
 // ---- Communications ----
-const communications = ref<any[]>([])
-const sentCommunications = computed(() => communications.value.filter(c => c.sent_at && !c.scheduled_at))
-const scheduledCommunications = computed(() => communications.value.filter(c => c.scheduled_at && !c.sent_at))
-const commsLoading = ref(false)
 const showSendComms = ref(false)
 
 // Check-in QR Code
@@ -2932,13 +2804,7 @@ function downloadQr() {
 }
 const showSendEmail = ref(false)
 const emailDraft = reactive({ subject: '', body: '' })
-const sendingComms = ref(false)
 const newComms = ref({ channel: 'EMAIL', audience: 'ALL', subject: '', body: '' })
-const audienceOptions = [
-  { label: 'All invitees', value: 'ALL' },
-  { label: 'Confirmed only', value: 'CONFIRMED' },
-  { label: 'Invited (not confirmed)', value: 'INVITED' },
-]
 
 // ---- Session-level attendance ----
 const selectedAttendanceSessionId = ref<string | null>(null)
@@ -4617,7 +4483,6 @@ watch(activeTab, (tab, oldTab) => {
   }
   if (tab === 'forms') { if (!sessions.value.length) loadSessions(); loadDiscounts() }
   if (tab === 'tickets') { loadTicketTypes(); loadTicketOrders(); if (!sessions.value.length) loadSessions() }
-  if (tab === 'communication') loadComms()
   if (tab === 'discounts') loadDiscounts()
   if (tab === 'reporting') { if (!sessions.value.length) loadSessions().then(loadReporting); else loadReporting() }
 })
