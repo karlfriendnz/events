@@ -55,6 +55,9 @@ import type {
   EventOrgInviteeWithName,
   EventConnections,
   EventOrgInviteForClub,
+  CalendarOrgInvitee,
+  CalendarOrgInviteeWithName,
+  CalendarOrgInviteForClub,
 } from '../../../shared/contracts/event'
 
 // Coerce a json column into an array: already an array → use it; a string → parse;
@@ -933,6 +936,131 @@ export async function respondEventOrgInvitee(
   await db.update(schema.eventOrgInvitees).set(set).where(eq(schema.eventOrgInvitees.id, id))
   const [r] = await db.select().from(schema.eventOrgInvitees).where(eq(schema.eventOrgInvitees.id, id)).limit(1)
   return r ? toEventOrgInvitee(r) : null
+}
+
+// ── Calendar org (club) invitees — a whole calendar shared to a club ──
+function toCalendarOrgInvitee(r: typeof schema.calendarOrgInvitees.$inferSelect): CalendarOrgInvitee {
+  return {
+    id: r.id,
+    calendarId: r.calendarId,
+    orgId: r.orgId,
+    invitedByOrgId: r.invitedByOrgId ?? null,
+    status: r.status,
+    connections: (r.connections as EventConnections) ?? null,
+    invitedAt: toIso(r.invitedAt),
+    updatedAt: toIso(r.updatedAt),
+    decidedAt: toIso(r.decidedAt),
+  }
+}
+
+/** The clubs a calendar is shared with (host view), club name joined for display. */
+export async function listCalendarOrgInvitees(calendarId: string): Promise<CalendarOrgInviteeWithName[]> {
+  const rows = await db
+    .select({ inv: schema.calendarOrgInvitees, orgName: schema.organisations.name, calendarName: schema.calendars.name })
+    .from(schema.calendarOrgInvitees)
+    .leftJoin(schema.organisations, eq(schema.organisations.id, schema.calendarOrgInvitees.orgId))
+    .leftJoin(schema.calendars, eq(schema.calendars.id, schema.calendarOrgInvitees.calendarId))
+    .where(eq(schema.calendarOrgInvitees.calendarId, calendarId))
+    .orderBy(asc(schema.calendarOrgInvitees.invitedAt))
+  return rows.map(r => ({ ...toCalendarOrgInvitee(r.inv), orgName: r.orgName ?? null, calendarName: r.calendarName ?? null }))
+}
+
+/** Share a calendar with a club. Idempotent on (calendar_id, org_id) — re-sharing no-ops. */
+export async function createCalendarOrgInvitee(input: {
+  calendarId: string; orgId: string; invitedByOrgId?: string | null; status?: string
+}): Promise<CalendarOrgInvitee> {
+  const [existing] = await db.select().from(schema.calendarOrgInvitees)
+    .where(and(eq(schema.calendarOrgInvitees.calendarId, input.calendarId), eq(schema.calendarOrgInvitees.orgId, input.orgId)))
+    .limit(1)
+  if (existing) return toCalendarOrgInvitee(existing)
+  const id = randomUUID()
+  await db.insert(schema.calendarOrgInvitees).values({
+    id,
+    calendarId: input.calendarId,
+    orgId: input.orgId,
+    invitedByOrgId: input.invitedByOrgId ?? null,
+    status: input.status ?? 'INVITED',
+  } as any)
+  const [r] = await db.select().from(schema.calendarOrgInvitees).where(eq(schema.calendarOrgInvitees.id, id)).limit(1)
+  return toCalendarOrgInvitee(r)
+}
+
+export async function deleteCalendarOrgInvitee(id: string): Promise<void> {
+  await db.delete(schema.calendarOrgInvitees).where(eq(schema.calendarOrgInvitees.id, id))
+}
+
+/** The calendar invitations aimed AT a club (its own dashboard). INNER join calendars so
+ *  a deleted calendar's orphan invite disappears from the inbox (mirrors the event rule). */
+export async function listCalendarOrgInvitesForClub(orgId: string): Promise<CalendarOrgInviteForClub[]> {
+  const rows = await db
+    .select({
+      inv: schema.calendarOrgInvitees,
+      calendarName: schema.calendars.name,
+      calendarColor: schema.calendars.color,
+      calendarIcon: schema.calendars.icon,
+      invitedByOrgName: schema.organisations.name,
+    })
+    .from(schema.calendarOrgInvitees)
+    .innerJoin(schema.calendars, eq(schema.calendars.id, schema.calendarOrgInvitees.calendarId))
+    .leftJoin(schema.organisations, eq(schema.organisations.id, schema.calendarOrgInvitees.invitedByOrgId))
+    .where(eq(schema.calendarOrgInvitees.orgId, orgId))
+    .orderBy(desc(schema.calendarOrgInvitees.invitedAt))
+  return rows.map(r => ({
+    ...toCalendarOrgInvitee(r.inv),
+    calendarName: r.calendarName ?? null,
+    calendarColor: r.calendarColor ?? null,
+    calendarIcon: r.calendarIcon ?? null,
+    invitedByOrgName: r.invitedByOrgName ?? null,
+  }))
+}
+
+/** The club accepts/declines (status + decided_at) and/or sets what it connects. */
+export async function respondCalendarOrgInvitee(
+  id: string, patch: { status?: string; connections?: EventConnections },
+): Promise<CalendarOrgInvitee | null> {
+  const set: Record<string, any> = { updatedAt: new Date() }
+  if (patch.status !== undefined) { set.status = patch.status; set.decidedAt = new Date() }
+  if (patch.connections !== undefined) set.connections = patch.connections
+  await db.update(schema.calendarOrgInvitees).set(set).where(eq(schema.calendarOrgInvitees.id, id))
+  const [r] = await db.select().from(schema.calendarOrgInvitees).where(eq(schema.calendarOrgInvitees.id, id)).limit(1)
+  return r ? toCalendarOrgInvitee(r) : null
+}
+
+/** THE render feed: events reaching this club through an ACCEPTED calendar share. For
+ *  each accepted calendar invite, resolve the calendar → its category set → the source
+ *  org's PUBLISHED events whose category (primary OR any of category_ids) is in that set,
+ *  tagged with who shared them. Deduped by event id (an event on two shared calendars, or
+ *  also shared per-event, appears once). Matches the SharedEvent shape the calendar merges. */
+export async function listAcceptedSharedCalendarEvents(orgId: string): Promise<(FMEvent & { sharedFromOrgName: string | null; disciplineName: string | null })[]> {
+  // Accepted calendar shares aimed at this club, with each calendar's OWNER org (the
+  // source of the events) + its name for the "shared by" label.
+  const accepted = await db
+    .select({ calId: schema.calendarOrgInvitees.calendarId, sourceOrgId: schema.calendars.orgId, fromName: schema.organisations.name })
+    .from(schema.calendarOrgInvitees)
+    .innerJoin(schema.calendars, eq(schema.calendars.id, schema.calendarOrgInvitees.calendarId))
+    .leftJoin(schema.organisations, eq(schema.organisations.id, schema.calendars.orgId))
+    .where(and(eq(schema.calendarOrgInvitees.orgId, orgId), eq(schema.calendarOrgInvitees.status, 'ACCEPTED')))
+  if (!accepted.length) return []
+
+  const byId = new Map<string, FMEvent & { sharedFromOrgName: string | null; disciplineName: string | null }>()
+  for (const cal of accepted) {
+    const cats = await db.select({ categoryId: schema.calendarCategories.categoryId })
+      .from(schema.calendarCategories)
+      .where(eq(schema.calendarCategories.calendarId, cal.calId))
+    const catSet = new Set(cats.map(c => c.categoryId))
+    if (!catSet.size) continue   // an empty calendar shares nothing (never leak ALL events)
+    // Only PUBLISHED events cross an org boundary via a calendar share — a club must not
+    // see the source org's drafts (unlike a per-event invite, which is explicit).
+    const evs = await db.select().from(schema.events)
+      .where(and(eq(schema.events.orgId, cal.sourceOrgId), eq(schema.events.status, 'PUBLISHED')))
+    for (const ev of evs) {
+      const ids: string[] = Array.isArray((ev as any).categoryIds) ? (ev as any).categoryIds : []
+      const primary = (ev as any).categoryId
+      const matches = (primary && catSet.has(primary)) || ids.some(id => catSet.has(id))
+      if (matches && !byId.has(ev.id)) byId.set(ev.id, { ...toEvent(ev), sharedFromOrgName: cal.fromName ?? null, disciplineName: null })
+    }
+  }
+  return [...byId.values()]
 }
 
 // ── Registration writes ──

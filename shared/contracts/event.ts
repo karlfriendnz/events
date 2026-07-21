@@ -371,6 +371,35 @@ export const eventOrgInviteForClubSchema = eventOrgInviteeSchema.extend({
 export type EventOrgInviteForClub = z.infer<typeof eventOrgInviteForClubSchema>
 export const eventOrgInviteForClubListSchema = z.array(eventOrgInviteForClubSchema)
 
+// ── Calendar org (club) invitees — a whole CALENDAR shared to an affiliated club ──
+// Same handshake as an event invite, one level up: accept → every event on that
+// calendar (resolved by its category set) shows read-only on the club's calendar.
+export const calendarOrgInviteeSchema = z.object({
+  id: z.string(),
+  calendarId: z.string(),
+  orgId: z.string(),
+  invitedByOrgId: z.string().nullable(),
+  status: z.string(),
+  connections: eventConnectionsSchema.optional(),
+  invitedAt: z.string().nullable(),
+  updatedAt: z.string().nullable(),
+  decidedAt: z.string().nullable(),
+})
+export type CalendarOrgInvitee = z.infer<typeof calendarOrgInviteeSchema>
+export const calendarOrgInviteeWithNameSchema = calendarOrgInviteeSchema.extend({ orgName: z.string().nullable(), calendarName: z.string().nullable() })
+export type CalendarOrgInviteeWithName = z.infer<typeof calendarOrgInviteeWithNameSchema>
+export const calendarOrgInviteeListSchema = z.array(calendarOrgInviteeWithNameSchema)
+
+// The club-side view: the invite + which calendar + who shared it (for the inbox card).
+export const calendarOrgInviteForClubSchema = calendarOrgInviteeSchema.extend({
+  calendarName: z.string().nullable(),
+  calendarColor: z.string().nullable(),
+  calendarIcon: z.string().nullable(),
+  invitedByOrgName: z.string().nullable(),
+})
+export type CalendarOrgInviteForClub = z.infer<typeof calendarOrgInviteForClubSchema>
+export const calendarOrgInviteForClubListSchema = z.array(calendarOrgInviteForClubSchema)
+
 // ── Fee components ──
 // A named fee line on an event OR a session (exactly one of eventId/sessionId is set;
 // session fees are keyed by session_id, NOT event_id). Decimal money → string|number.

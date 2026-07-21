@@ -46,6 +46,9 @@ import type {
   EventOrgInviteeWithName,
   EventOrgInviteForClub,
   EventConnections,
+  CalendarOrgInvitee,
+  CalendarOrgInviteeWithName,
+  CalendarOrgInviteForClub,
 } from '../shared/contracts/event'
 
 export function useEventsApi() {
@@ -190,6 +193,26 @@ export function useEventsApi() {
   /** The invited club accepts/declines and/or sets what it connects. */
   async function respondOrgInvite(id: string, patch: { status?: string; connections?: EventConnections }): Promise<EventOrgInvitee> {
     return await $fetch<EventOrgInvitee>(`/api/v1/event-org-invitees/${id}`, { method: 'PATCH', body: patch })
+  }
+
+  // ── Calendar org (club) invitees — a whole calendar shared to a club ──
+  /** The clubs a calendar is shared with (host view). */
+  async function calendarInvitees(calendarId: string): Promise<CalendarOrgInviteeWithName[]> {
+    return await $fetch<CalendarOrgInviteeWithName[]>('/api/v1/calendar-org-invitees', { query: { calendarId } })
+  }
+  async function addCalendarInvitee(body: { calendarId: string; orgId: string; invitedByOrgId?: string | null; status?: string }): Promise<CalendarOrgInvitee> {
+    return await $fetch<CalendarOrgInvitee>('/api/v1/calendar-org-invitees', { method: 'POST', body })
+  }
+  async function removeCalendarInvitee(id: string): Promise<void> {
+    await $fetch(`/api/v1/calendar-org-invitees/${id}`, { method: 'DELETE' })
+  }
+  /** The shared-calendar invitations aimed at a club (its own dashboard). */
+  async function calendarInvitesForOrg(orgId: string): Promise<CalendarOrgInviteForClub[]> {
+    return await $fetch<CalendarOrgInviteForClub[]>('/api/v1/calendar-org-invitees', { query: { orgId } })
+  }
+  /** The invited club accepts/declines a shared calendar and/or sets what it connects. */
+  async function respondCalendarInvite(id: string, patch: { status?: string; connections?: EventConnections }): Promise<CalendarOrgInvitee> {
+    return await $fetch<CalendarOrgInvitee>(`/api/v1/calendar-org-invitees/${id}`, { method: 'PATCH', body: patch })
   }
 
   // ── Registration writes ──
@@ -391,6 +414,7 @@ export function useEventsApi() {
     createSession, updateSession, removeSession, replaceSessionFees, propagateSessionMaster,
     addInvitee, updateInvitee, removeInvitee,
     orgInvitees, addOrgInvitee, removeOrgInvitee, orgInvitesForOrg, respondOrgInvite,
+    calendarInvitees, addCalendarInvitee, removeCalendarInvitee, calendarInvitesForOrg, respondCalendarInvite,
     createRegistration, updateRegistration, removeRegistration,
     registrationSessions, registrationSessionsBySessions, addRegistrationSession,
     feeComponents, createFeeComponent, updateFeeComponent, removeFeeComponent, replaceEventFees,

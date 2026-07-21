@@ -927,6 +927,22 @@ export const eventOrgInvitees = mysqlTable('event_org_invitees', {
   decidedAt: timestamp('decided_at'),
 })
 
+// A whole CALENDAR shared to an affiliated CLUB (the calendar-level twin of
+// event_org_invitees). On accept, every event on that calendar — resolved by the
+// calendar's category set — surfaces read-only on the club's own calendar. Unique
+// (calendar_id, org_id) via the migration + the repo's check-then-insert.
+export const calendarOrgInvitees = mysqlTable('calendar_org_invitees', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  calendarId: varchar('calendar_id', { length: 36 }).notNull(),
+  orgId: varchar('org_id', { length: 36 }).notNull(),            // the invited club
+  invitedByOrgId: varchar('invited_by_org_id', { length: 36 }),  // the sharing org
+  status: text('status').notNull(),
+  connections: json('connections'),
+  invitedAt: timestamp('invited_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  decidedAt: timestamp('decided_at'),
+})
+
 export const invitees = mysqlTable('invitees', {
   id: varchar('id', { length: 36 }).primaryKey(),
   eventId: varchar('event_id', { length: 36 }).notNull(),
