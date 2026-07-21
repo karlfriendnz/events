@@ -421,7 +421,7 @@
     </div>
 
     <!-- Calendar view (desktop) -->
-    <div v-if="!isTableView" class="hidden md:flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden flex-1" style="min-height:0">
+    <div v-if="!isTableView" class="hidden md:flex flex-col bg-white rounded-xl border border-gray-200 overflow-hidden flex-1" style="min-height:0" @wheel="onCalendarWheel">
       <BookingsCalendar
         :cal-date="calDate"
         :cal-view="bookingsCalView"
@@ -648,7 +648,7 @@
             <h3 class="text-sm font-semibold text-gray-900">Custom {{ t('event', false, true) }}</h3>
             <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Choose the type and set it up yourself.</p>
           </button>
-          <button type="button"
+          <button v-if="isGoverningOrg" type="button"
             class="text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
             :disabled="!newEventName.trim()"
             @click="startAdvanced">
@@ -832,7 +832,7 @@
           <h3 class="font-semibold text-gray-900 mb-1">Multi Session</h3>
           <p class="text-xs text-gray-500 leading-relaxed">Ideal for holiday programmes. Multiple sessions under one event with shared registration.</p>
         </div>
-        <div
+        <div v-if="isGoverningOrg"
           class="border-2 rounded-xl p-5 cursor-pointer hover:border-primary hover:bg-[#F0F4FF] transition-colors group"
           @click="createAdvancedEvent"
         >
@@ -1531,6 +1531,14 @@ const activeCalendar = computed(() => {
 // A governing org shares the OPEN calendar with the clubs beneath it; each club
 // accepts from its dashboard and the calendar's events surface on its own calendar.
 const { descendants } = useOrgHierarchy()
+// Advanced event creation is limited to governing bodies (non-CLUB) for now.
+const orgsApi = useOrganisationsApi()
+const isGoverningOrg = ref(false)
+async function loadOrgLevel() {
+  if (!orgId.value) { isGoverningOrg.value = false; return }
+  const o = await orgsApi.get(orgId.value).catch(() => null)
+  isGoverningOrg.value = !!o?.orgLevel && o.orgLevel !== 'CLUB'
+}
 const shareClubs = ref<any[]>([])                  // descendant orgs we can share with
 const canShareCalendars = computed(() => shareClubs.value.length > 0)
 const shareRows = ref<any[]>([])                   // calendar_org_invitees for the open calendar
@@ -2330,6 +2338,17 @@ function next() {
 function goToday() {
   calDate.value = new Date()
 }
+// Scroll down on the month calendar → next month, scroll up → previous. Throttled
+// so one flick moves one month, not ten. Month view only (day/week scroll their grid).
+let lastCalWheelAt = 0
+function onCalendarWheel(e: WheelEvent) {
+  if (bookingsCalView.value !== 'month' || Math.abs(e.deltaY) < 8) return
+  e.preventDefault()
+  const now = Date.now()
+  if (now - lastCalWheelAt < 350) return
+  lastCalWheelAt = now
+  e.deltaY > 0 ? next() : prev()
+}
 
 let wheelTimer: ReturnType<typeof setTimeout> | null = null
 let wheelAccum = 0
@@ -2552,7 +2571,7 @@ watch(isProgramme, (prog) => {
 
 onMounted(async () => {
   if (isProgramme.value) calSettings.defaultView = 'table'
-  await Promise.all([load(), loadCalendars(), loadShareClubs()])
+  await Promise.all([load(), loadCalendars(), loadShareClubs(), loadOrgLevel()])
   calendarTitle.value = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
 
   // A "New calendar" intent from the left menu takes priority over the empty-calendar welcome.
