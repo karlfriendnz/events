@@ -2035,13 +2035,50 @@ function chooseEvtFormPreset(presetId: string) {
 const evtSubjectTypeOptions = computed(() => evtSubjectTypes.value)
 const evtUnusedSubjectTypes = computed(() =>
   evtSubjectTypes.value.filter(t => !currentEvtFormProfiles.value.some((p: any) => p.key === t.key)))
-// Swap a configured subject's TYPE (before any fields exist, so re-keying is safe).
+// A subject's NAME (label) is what registrants see; its optional CONNECTION (key = a
+// member/NSO type) is what makes it inherit that type's fields. The two are decoupled:
+// a subject called "Child" can connect to the "Gymnast" type, and the connection is
+// optional. An unconnected subject gets a stable synthetic key so its fields (keyed by
+// the subject's `key` = target) never collide with another subject's.
+const EVT_NO_TYPE = '__none__'
+const evtTypeConnectOptions = computed(() => [
+  { key: EVT_NO_TYPE, label: 'Not connected' },
+  ...evtSubjectTypes.value.map(t => ({ key: t.key, label: t.label })),
+])
+// The Select shows the connected type, or "Not connected" when the key is synthetic.
+function evtConnectedKey(p: any) { return evtSubjectTypes.value.some(t => t.key === p.key) ? p.key : EVT_NO_TYPE }
+function evtSyntheticKey(i: number) { return `custom-${i}-${Math.random().toString(36).slice(2, 8)}` }
+// Change a subject's type CONNECTION (before any fields exist, so re-keying is safe).
 function evtSetSubjectType(i: number, key: string) {
-  const t = evtSubjectTypes.value.find(x => x.key === key)
-  if (!t) return
   const next = currentEvtFormProfiles.value.slice()
-  next[i] = { ...next[i], key: t.key, label: t.label, kind: t.kind }
+  if (key === EVT_NO_TYPE) {
+    // Disconnect — keep the name, drop the type link (unique key so fields stay separate).
+    next[i] = { ...next[i], key: evtSyntheticKey(i), kind: 'person' }
+  } else {
+    const t = evtSubjectTypes.value.find(x => x.key === key)
+    if (!t) return
+    // Connect — keep the user's own name; only borrow the type's label when name is blank.
+    const label = (next[i].label || '').trim() || t.label
+    next[i] = { ...next[i], key: t.key, kind: t.kind, label }
+  }
   currentEvtFormProfiles.value = next
+  // Seed this subject's fields for the (new) key so a connected type inherits its own
+  // fields immediately (mirrors applyEvtProfilePreset); idempotent, so safe to re-run.
+  const p = next[i]
+  evtEnsureCoreFields(p)
+  if (evtConnectedKey(p) !== EVT_NO_TYPE) evtAddRequiredFieldsFor(p.key)
+  evtEnsureParentSectionFields(p)
+}
+// Max: null = unlimited. Toggling off restores a concrete cap (≥ min, ≥ 1).
+function evtSetUnlimited(i: number, on: boolean) {
+  const next = currentEvtFormProfiles.value.slice()
+  next[i] = { ...next[i], max: on ? null : Math.max(1, Number(next[i].min) || 1) }
+  currentEvtFormProfiles.value = next
+}
+// Add an unconnected ("no type") person subject the user can name freely.
+function evtAddCustomSubject() {
+  const list = currentEvtFormProfiles.value
+  currentEvtFormProfiles.value = [...list, { key: evtSyntheticKey(list.length), label: '', min: 1, max: null, kind: 'person', selectsOptions: false } as any]
 }
 function evtAddSubjectType(key: string) {
   const t = evtSubjectTypes.value.find(x => x.key === key)
@@ -3570,32 +3607,57 @@ defineExpose({ reload })
                 <button type="button" class="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#182e59] transition-colors" @click="evtChooserStep = 'template'">
                   <i class="pi pi-chevron-left text-[10px]" />Back
                 </button>
-                <p class="text-xs text-gray-400 px-1 -mt-1">Set how many of each register and which type they are. You can change all of this later.</p>
+                <p class="text-xs text-gray-400 px-1 -mt-1">Name each group registering, say how many, and (optionally) connect it to a member type so it inherits that type's fields. You can change all of this later.</p>
 
-                <div v-for="(profile, i) in currentEvtFormProfiles" :key="i" class="border border-gray-200 rounded-lg p-3 space-y-2.5">
-                  <div class="flex items-center gap-2">
-                    <Select :model-value="profile.key" :options="evtSubjectTypeOptions" option-label="label" option-value="key"
-                      class="flex-1" @update:model-value="k => evtSetSubjectType(i, k)" />
-                    <button v-if="currentEvtFormProfiles.length > 1" type="button" class="text-gray-300 hover:text-red-500 shrink-0" @click="removeEvtProfile(i)">
+                <div v-for="(profile, i) in currentEvtFormProfiles" :key="i" class="border border-gray-200 rounded-lg p-3.5 space-y-3">
+                  <!-- Name -->
+                  <div class="flex items-end gap-2">
+                    <div class="flex-1 min-w-0">
+                      <label class="field-label block mb-1">Name</label>
+                      <InputText :model-value="profile.label" placeholder="e.g. Player, Child, Swimmer" class="w-full"
+                        @update:model-value="v => profile.label = v" />
+                    </div>
+                    <button v-if="currentEvtFormProfiles.length > 1" type="button" class="w-9 h-9 flex items-center justify-center text-gray-300 hover:text-red-500 shrink-0" @click="removeEvtProfile(i)">
                       <i class="pi pi-times-circle" />
                     </button>
                   </div>
-                  <div class="flex items-center gap-4">
-                    <div class="flex items-center gap-2">
-                      <span class="text-xs font-medium text-gray-500">Min</span>
-                      <InputNumber :model-value="profile.min" :min="0" :max="99" showButtons buttonLayout="horizontal" class="w-28"
-                        @update:model-value="v => profile.min = v ?? 0" />
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <span class="text-xs font-medium text-gray-500">Max</span>
-                      <InputNumber :model-value="profile.max" :min="profile.min || 0" :max="99" showButtons buttonLayout="horizontal" placeholder="No limit" class="w-28"
-                        @update:model-value="v => profile.max = v" />
+                  <!-- Optional type connection -->
+                  <div>
+                    <label class="field-label block mb-1">Connect to a member type <span class="text-gray-400 font-normal">— optional</span></label>
+                    <Select :model-value="evtConnectedKey(profile)" :options="evtTypeConnectOptions" option-label="label" option-value="key"
+                      class="w-full" @update:model-value="k => evtSetSubjectType(i, k)" />
+                    <p class="field-help mt-1">{{ evtConnectedKey(profile) === EVT_NO_TYPE ? 'Standalone — this group has only the fields you add.' : 'Inherits the fields defined for this member type.' }}</p>
+                  </div>
+                  <!-- How many -->
+                  <div>
+                    <label class="field-label block mb-1.5">How many register?</label>
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500 w-8">Min</span>
+                        <InputNumber :model-value="profile.min" :min="0" :max="99" showButtons buttonLayout="horizontal" class="w-28"
+                          @update:model-value="v => profile.min = v ?? 0" />
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-500 w-8">Max</span>
+                        <InputNumber v-if="profile.max != null" :model-value="profile.max" :min="profile.min || 1" :max="99" showButtons buttonLayout="horizontal" class="w-28"
+                          @update:model-value="v => profile.max = v" />
+                        <span v-else class="w-28 text-sm text-gray-400">Unlimited</span>
+                        <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
+                          <ToggleSwitch :model-value="profile.max == null" @update:model-value="on => evtSetUnlimited(i, on)" />
+                          Unlimited
+                        </label>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <Select v-if="evtUnusedSubjectTypes.length" :model-value="null" :options="evtUnusedSubjectTypes" option-label="label" option-value="key"
-                  placeholder="+ Add another type" class="w-full" @update:model-value="k => k && evtAddSubjectType(k)" />
+                <div class="flex flex-col sm:flex-row gap-2">
+                  <Select v-if="evtUnusedSubjectTypes.length" :model-value="null" :options="evtUnusedSubjectTypes" option-label="label" option-value="key"
+                    placeholder="+ Add a member type" class="flex-1" @update:model-value="k => k && evtAddSubjectType(k)" />
+                  <button type="button" class="px-3 py-2 rounded-lg border border-dashed border-gray-300 text-xs font-semibold text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors whitespace-nowrap" @click="evtAddCustomSubject">
+                    <i class="pi pi-plus text-[10px] mr-1" />Add a group without a type
+                  </button>
+                </div>
 
                 <button type="button" class="w-full py-2.5 rounded-lg text-white text-sm font-semibold transition-colors"
                   style="background:var(--brand-primary)" @click="evtConfirmSubjects">
