@@ -301,16 +301,26 @@ const allGroups = ref<any[]>([])
 const allCodes = ref<any[]>([])
 const expanded = reactive<Record<string, boolean>>({})
 
+// Term filter — classes exist per term (the same class runs each term), so the browse
+// tree can show duplicates ("Kindergym" × 2). A term selector scopes it to one term.
+const tm = useTermsMemberships()
+const terms = ref<any[]>([])
+const termId = ref<string | null>(null)   // null = all terms
+const codesById = computed(() => Object.fromEntries(allCodes.value.map((c: any) => [c.id, c])))
+const termOptions = computed(() => [{ id: null, name: 'All terms' }, ...terms.value])
+
 async function loadGroups() {
   groupsLoading.value = true
-  const [codes, groups] = await Promise.all([
+  const [codes, groups, termList] = await Promise.all([
     gc.loadCodes(),
     groupsApi.list(orgId.value),
+    tm.loadTerms(orgId.value).catch(() => [] as any[]),
   ])
   allCodes.value = codes ?? []
+  terms.value = termList ?? []
   allGroups.value = groups
     .filter((g: any) => !isMembershipGroup(g))  // memberships aren't classes
-    .map((g: any) => ({ id: g.id, name: g.name, color: g.color, code_id: g.codeId, sort_order: g.sortOrder, kind: g.kind }))
+    .map((g: any) => ({ id: g.id, name: g.name, color: g.color, code_id: g.codeId, term_id: g.termId, sort_order: g.sortOrder, kind: g.kind }))
   groupsLoading.value = false
 }
 
@@ -318,7 +328,8 @@ interface CodeSection { id: string; name: string; color: string | null; depth: n
 
 const codeSections = computed<CodeSection[]>(() => {
   const q = search.value.trim().toLowerCase()
-  const hit = (g: any) => !q || g.name.toLowerCase().includes(q)
+  const hit = (g: any) => (!q || g.name.toLowerCase().includes(q))
+    && (!termId.value || gc.effectiveTermId(g, codesById.value) === termId.value)
 
   const byCode: Record<string, any[]> = {}
   for (const g of allGroups.value) {
@@ -409,6 +420,12 @@ defineExpose({ reloadGroups: loadGroups })
 
     <!-- INTERNAL — this org's own people + classes (the selector's original body). -->
     <div v-show="!showClubs || activeTab === 'internal'" class="space-y-3">
+    <!-- Term scope — classes run every term, so this narrows the tree to one term's classes -->
+    <div v-if="terms.length > 1" class="flex items-center gap-2 mb-2">
+      <i class="pi pi-clock text-gray-400 text-xs shrink-0" />
+      <Select v-model="termId" :options="termOptions" option-label="name" option-value="id"
+        placeholder="All terms" size="small" class="flex-1" />
+    </div>
     <!-- Search + Filter -->
     <div class="flex gap-2">
       <IconField class="flex-1">
