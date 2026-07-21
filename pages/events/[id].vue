@@ -250,17 +250,6 @@
               outlined @click="navigateTo(`/events/${event.recurrence_parent_id}`)" />
           </div>
 
-          <!-- Ticketed event toggle (ADVANCED only) -->
-          <div v-if="event?.style === 'ADVANCED'" class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-            <div class="flex flex-col sm:flex-row sm:items-center px-4 sm:px-6 py-4 gap-2 sm:gap-6">
-              <span class="text-sm font-semibold text-gray-700 w-full sm:w-28 shrink-0">Ticketed {{ t('event', false) }}</span>
-              <div class="flex items-center gap-3 flex-1">
-                <ToggleSwitch v-model="hasTickets" @update:modelValue="saveHasTickets" />
-                <span class="text-sm text-gray-500">{{ hasTickets ? 'Tickets enabled — Tickets tab is active' : `No tickets for this ${t('event', false, true)}` }}</span>
-              </div>
-            </div>
-          </div>
-
         </div>
       </div>
 
@@ -970,6 +959,15 @@
       <!-- SETTINGS TAB -->
       <div v-else-if="activeTab === 'settings'" class="max-w-[1140px] mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-5 overflow-y-auto flex-1">
         <div><h2 class="text-base font-semibold text-gray-900">Settings &amp; Permissions</h2><p class="text-sm text-gray-500 mt-0.5">Control access, capacity, and registration windows.</p></div>
+
+        <!-- Ticketed event (ADVANCED only) -->
+        <div v-if="event?.style === 'ADVANCED'" class="bg-white rounded-xl border border-gray-200 p-5 space-y-2">
+          <h3 class="text-sm font-semibold text-gray-700">Ticketed {{ t('event', false) }}</h3>
+          <div class="flex items-center gap-3">
+            <ToggleSwitch v-model="hasTickets" @update:modelValue="saveHasTickets" />
+            <span class="text-sm text-gray-600">{{ hasTickets ? 'Tickets enabled — Tickets tab is active' : `No tickets for this ${t('event', false, true)}` }}</span>
+          </div>
+        </div>
 
         <!-- Capacity -->
         <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
