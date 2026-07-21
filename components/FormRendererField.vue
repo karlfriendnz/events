@@ -70,7 +70,23 @@ const inputClass = 'w-full h-9 px-3 text-sm bg-white text-gray-900 placeholder:t
         {{ f.label }}<span v-if="f.is_required" class="text-red-400 ml-0.5">*</span>
       </label>
 
-      <textarea v-if="f.field_type === 'textarea'" :value="value" rows="3" :placeholder="f.placeholder || ''"
+      <!-- Account ("Create a login") — a yes/no toggle, not a text box -->
+      <label v-if="f.field_type === 'account'" class="flex items-center gap-2.5 cursor-pointer py-0.5">
+        <input type="checkbox" class="w-4 h-4 rounded border-gray-300 accent-primary"
+          :checked="!!value" @change="emit('update', ($event.target as any).checked)" />
+        <span class="text-sm text-gray-700">Yes — create a login so I can manage this registration</span>
+      </label>
+
+      <!-- Communication preferences — pick which club updates to receive (COMMS_CATEGORIES) -->
+      <div v-else-if="f.field_type === 'comms'" class="space-y-1.5 pt-0.5">
+        <label v-for="c in COMMS_CATEGORIES" :key="c.key" class="flex items-center gap-2.5 cursor-pointer">
+          <input type="checkbox" class="w-4 h-4 rounded border-gray-300 accent-primary"
+            :checked="isMultiSelected(c.key)" @change="toggleMulti(c.key, ($event.target as any).checked)" />
+          <span class="text-sm text-gray-700">{{ c.label }}</span>
+        </label>
+      </div>
+
+      <textarea v-else-if="f.field_type === 'textarea'" :value="value" rows="3" :placeholder="f.placeholder || ''"
         :class="inputClass" class="!h-auto py-2 resize-none" @input="on" />
 
       <select v-else-if="f.field_type === 'select'" :value="value" :class="[inputClass, !value && 'text-gray-400']"

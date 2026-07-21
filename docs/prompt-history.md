@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-331 sessions · 1573 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+331 sessions · 1576 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -27706,7 +27706,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:17** — [Image #1] this is what happens when i run" npm run dev on a new tab - something is broken please fix it
 
 
-## Session 2026-07-20 00:42 (156 prompts)
+## Session 2026-07-20 00:42 (159 prompts)
 
 **00:42** — so i just restarted and now i can't get the server to run again ?
 
@@ -28818,6 +28818,12 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > <status>killed</status>
 > <summary>Background command "Poll prod deploy until ready" was stopped</summary>
 > </task-notification>
+
+**17:40** — can you please do full playright test of setting up and event, set up a calendar, invite someone to register - find all the gaps and list them out - should be a 2 week long holiday programme
+
+**17:44** — create a test account please
+
+**18:12** — we need to fix a few of these then aye
 
 
 ## Session 2026-07-20 17:11 (6 prompts)

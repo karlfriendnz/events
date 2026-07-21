@@ -25,6 +25,9 @@ const toast = useToast()
 
 const loading = ref(true)
 const sending = ref(false)
+// A persistent in-dialog error — a toast is easy to miss, and the send failing
+// silently (e.g. a cold-start 404) reads as "it worked" when it didn't.
+const errorMsg = ref('')
 const subject = ref('')
 const body = ref('')
 const bodyEl = ref<any>(null)
@@ -108,6 +111,7 @@ async function saveAsClubDefault() {
 
 async function send() {
   sending.value = true
+  errorMsg.value = ''
   try {
     await saveWording()   // sending is also a decision to keep this wording
     const res: any = await $fetch('/api/send-event-invitations', {
@@ -123,16 +127,14 @@ async function send() {
       })
       visible.value = false
     } else {
-      toast.add({
-        severity: 'warn',
-        summary: 'Nobody to send to',
-        detail: res.failed ? (res.errors?.[0] ?? 'Every send failed.') : 'Everyone invited has already been sent this invitation.',
-        life: 5000,
-      })
+      const detail = res.failed ? (res.errors?.[0] ?? 'Every send failed.') : 'Everyone invited has already been sent this invitation.'
+      if (res.failed) errorMsg.value = detail
+      toast.add({ severity: 'warn', summary: 'Nobody to send to', detail, life: 5000 })
     }
     await load()
   } catch (e: any) {
-    toast.add({ severity: 'error', summary: 'Could not send', detail: e?.data?.message ?? 'Something went wrong.', life: 5000 })
+    errorMsg.value = e?.data?.message ?? e?.statusMessage ?? 'Something went wrong sending the invitations. Please try again.'
+    toast.add({ severity: 'error', summary: 'Could not send', detail: errorMsg.value, life: 5000 })
   } finally {
     sending.value = false
   }
@@ -221,6 +223,11 @@ watch(visible, v => { if (v) load() })
           Send again to the {{ stats.alreadySent }} already invited
         </label>
       </div>
+    </div>
+
+    <div v-if="errorMsg" class="mx-1 mb-1 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+      <i class="pi pi-exclamation-circle mt-0.5 shrink-0" />
+      <span>{{ errorMsg }} <span class="text-red-500">Nothing was sent — you can try again.</span></span>
     </div>
 
     <template #footer>

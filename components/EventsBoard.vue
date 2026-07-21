@@ -2450,8 +2450,21 @@ onMounted(async () => {
 
   // Show demo data prompt only if no events and not previously dismissed.
   // Never on /programme — an empty programme list is normal, not a blank calendar.
+  // GATE on the app-wide prototype disclaimer being dismissed first: otherwise the two
+  // modals stack and the disclaimer's mask sits over this one's buttons (the disclaimer
+  // is a blocking modal, so this resolves within a couple of seconds).
   if (!isProgramme.value && events.value.length === 0 && !localStorage.getItem(DEMO_PROMPTED_KEY)) {
-    showDemoPrompt.value = true
+    const ackd = () => sessionStorage.getItem('prototype_acknowledged') === '1'
+    if (ackd()) { showDemoPrompt.value = true }
+    else {
+      let tries = 0
+      const t = setInterval(() => {
+        if (ackd() || ++tries > 75) {   // ~30s cap so it never polls forever
+          clearInterval(t)
+          if (!localStorage.getItem(DEMO_PROMPTED_KEY)) showDemoPrompt.value = true
+        }
+      }, 400)
+    }
   }
 })
 </script>

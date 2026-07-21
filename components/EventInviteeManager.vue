@@ -51,7 +51,7 @@
            affordance, not a primary control, so it shouldn't hold a box's worth
            of space until it's wanted. -->
       <div class="h-[34px] flex items-center gap-2">
-        <p class="text-sm font-medium text-gray-700 flex-1">{{ invitees.length }} people invited</p>
+        <p class="text-sm font-medium text-gray-700 flex-1">{{ invitees.length }} {{ invitees.length === 1 ? 'person' : 'people' }} invited</p>
         <Transition name="search-slide">
           <InputText v-if="pillSearchOpen" ref="pillSearchEl" v-model="inviteePillSearch"
             placeholder="Find person…" size="small" class="w-40"
