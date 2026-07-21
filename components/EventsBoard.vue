@@ -616,20 +616,18 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <!-- Quick event: name · date · location · invitees, all in one modal.
-               Always enabled (the fast path) — the name is entered in that modal. -->
+               Always enabled (the fast path); accented so it reads as the quick option. -->
           <button type="button"
-            class="sm:col-span-2 text-left border-2 border-primary/40 bg-[#F0F4FF] rounded-xl p-4 transition-colors hover:border-primary hover:bg-[#E7EEFF] flex items-center gap-3"
+            class="h-full text-left border-2 border-primary/40 bg-[#F0F4FF] rounded-xl p-4 transition-colors hover:border-primary hover:bg-[#E7EEFF]"
             @click="openQuick">
-            <div class="w-9 h-9 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+            <div class="w-9 h-9 rounded-lg bg-primary/15 flex items-center justify-center mb-2">
               <i class="pi pi-bolt text-primary" />
             </div>
-            <div>
-              <h3 class="text-sm font-semibold text-gray-900">Quick {{ t('event', false, true) }}</h3>
-              <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Name, date, location &amp; invitees — all on one screen.</p>
-            </div>
+            <h3 class="text-sm font-semibold text-gray-900">Quick {{ t('event', false, true) }}</h3>
+            <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Name, date, location &amp; invitees — all on one screen.</p>
           </button>
           <button type="button"
-            class="text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
+            class="h-full text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
             :disabled="!newEventName.trim()"
             @click="startWizard">
             <div class="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center mb-2">
@@ -639,7 +637,7 @@
             <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Guided, one step at a time.</p>
           </button>
           <button type="button"
-            class="text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
+            class="h-full text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
             :disabled="!newEventName.trim()"
             @click="startCustom">
             <div class="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center mb-2">
@@ -649,7 +647,7 @@
             <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Choose the type and set it up yourself.</p>
           </button>
           <button v-if="isGoverningOrg" type="button"
-            class="text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
+            class="h-full text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
             :disabled="!newEventName.trim()"
             @click="startAdvanced">
             <div class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center mb-2">
@@ -659,7 +657,7 @@
             <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Sessions, fees, forms, discounts and automation.</p>
           </button>
           <button type="button"
-            class="text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
+            class="h-full text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
             :disabled="!newEventName.trim()"
             @click="startHolidayProgramme">
             <div class="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center mb-2">
