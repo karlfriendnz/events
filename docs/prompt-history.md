@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-331 sessions · 1592 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+331 sessions · 1593 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -27706,7 +27706,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:17** — [Image #1] this is what happens when i run" npm run dev on a new tab - something is broken please fix it
 
 
-## Session 2026-07-20 00:42 (175 prompts)
+## Session 2026-07-20 00:42 (176 prompts)
 
 **00:42** — so i just restarted and now i can't get the server to run again ?
 
@@ -28889,6 +28889,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:36** — can you make the name of the event link as well
 
 **22:30** — [Image #36] make a nice grid of 4 things
+
+**22:40** — deploy the two ready branches live
 
 
 ## Session 2026-07-20 17:11 (6 prompts)
