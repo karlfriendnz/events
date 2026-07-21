@@ -25,7 +25,17 @@ const url = process.env.MYSQL_URL
 // `decimalNumbers: true` — mysql2 returns DECIMAL columns as JS numbers, not strings.
 // Postgres/Supabase returned money as numbers; without this the UI's `amount.toFixed()`
 // / numeric maths break on every fee/price/total. Fixes the whole class at the source.
-const pool = mysql.createPool({ uri: url, decimalNumbers: true })
+//
+// A HOSTED MySQL (PlanetScale / TiDB / managed) requires TLS; the local Docker dev DB
+// (127.0.0.1) does not. Detect by host so dev is untouched and prod connects securely.
+let dbHost = ''
+try { dbHost = new URL(url).hostname } catch { /* keep '' → treated as local */ }
+const isLocalDb = dbHost === '' || dbHost === 'localhost' || dbHost === '127.0.0.1'
+const pool = mysql.createPool({
+  uri: url,
+  decimalNumbers: true,
+  ...(isLocalDb ? {} : { ssl: { rejectUnauthorized: true } }),
+})
 
 export const db = drizzle(pool, { schema, mode: 'default' })
 export { schema }
