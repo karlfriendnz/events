@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-331 sessions · 1597 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+331 sessions · 1599 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -27706,7 +27706,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:17** — [Image #1] this is what happens when i run" npm run dev on a new tab - something is broken please fix it
 
 
-## Session 2026-07-20 00:42 (180 prompts)
+## Session 2026-07-20 00:42 (182 prompts)
 
 **00:42** — so i just restarted and now i can't get the server to run again ?
 
@@ -28905,6 +28905,10 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **23:47** — ok we are working on quick event we need to add some fucntions im just going to load them in and if you can start workng on them that wold be greate
 
 **23:48** — For the published state, can you please remove the green background?
+
+**23:54** — If a group or a person has been added to the invite already, the add button should show as added. However you should still be able to click on the drop down to be able to add their parents if the person has parents.
+
+**23:54** — When filtering somebody and the results come back, please hide the age and email address of the results.
 
 
 ## Session 2026-07-20 17:11 (6 prompts)

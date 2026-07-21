@@ -472,11 +472,8 @@ defineExpose({ reloadGroups: loadGroups })
               {{ p.first_name }} {{ p.last_name }}
               <i v-if="isChosen(p.id)" v-tooltip.top="addedLabel" class="pi pi-check-circle text-emerald-500 text-xs" />
             </p>
-            <p class="text-xs text-gray-400 truncate">
-              <span v-if="ageOf(p.dob) !== null">{{ ageOf(p.dob) }} yrs</span>
-              <span v-if="ageOf(p.dob) !== null && p.email"> · </span>
-              <span v-if="p.email">{{ p.email }}</span>
-            </p>
+            <!-- Age + email deliberately hidden on filter results (privacy: a filtered
+                 list is a broad sweep, not a profile view). -->
           </div>
           <!-- The row is never CONSUMED (no dead "Added" button): re-adding someone
                already in flashes them where they are, rather than doing nothing. -->
@@ -513,8 +510,9 @@ defineExpose({ reloadGroups: loadGroups })
       </div>
     </div>
 
-    <!-- BROWSE — classes, by programme -->
-    <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+    <!-- BROWSE — classes, by programme. Hidden while a filter is active so the
+         match results stand alone (Clear filter brings the tree back). -->
+    <div v-if="!ran && !matching" class="bg-white border border-gray-200 rounded-xl overflow-hidden">
       <div v-if="groupsLoading" class="py-8 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-400" /></div>
       <div v-else-if="!codeSections.length" class="py-6 text-center text-sm text-gray-400">
         No {{ t('group', true, true) }} found
