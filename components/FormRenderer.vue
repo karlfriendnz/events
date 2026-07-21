@@ -367,6 +367,8 @@ function instanceDiscountCtx(key: string, inst: number): DiscountCtx {
     fullDay, fullWeek,
     age: instanceAge(key, inst),
     selectedSessionDates: selected.filter((s: any) => s.start_at).map((s: any) => s.start_at),
+    // This person's custom-field answers (keyed by field id/label) — for the 'custom_field' discount condition.
+    fieldAnswers: { ...(answers[key]?.[inst - 1] ?? {}) },
   }
 }
 const oneDiscountOnly = computed(() => !!props.config?.discountSettings?.one_discount_only)

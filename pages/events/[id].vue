@@ -1338,7 +1338,7 @@
 
 
   <!-- Discount Template Picker -->
-  <EventDiscountDialog v-model:visible="showDiscountFlow" :edit="discountEditDraft" @save="onDiscountSave" />
+  <EventDiscountDialog v-model:visible="showDiscountFlow" :edit="discountEditDraft" :fields="discountFields" @save="onDiscountSave" />
 
   <!-- Ticket Type Dialog -->
   <Dialog v-model:visible="showTicketDialog" :header="editingTicket?.id ? 'Edit Ticket Type' : 'New Ticket Type'" modal :style="{ width: '95vw', maxWidth: '520px' }" @hide="ticketDraft = null">
@@ -2458,6 +2458,16 @@ async function loadDiscounts() {
 const showDiscountFlow = ref(false)
 const editingDiscountIdx = ref<number | null>(null)
 const discountEditDraft = ref<DiscountDraft | null>(null)
+// The org's custom fields feed the discount dialog's "Custom field" condition picker
+// (their ids match how registrant answers are keyed). Loaded lazily on first open.
+const orgFieldPolicy = useOrgFieldPolicy()
+const discountFields = ref<{ id: string; label: string; field_type?: string; options?: string[] }[]>([])
+watch(showDiscountFlow, async (open) => {
+  if (open && !discountFields.value.length && orgId.value) {
+    const fs = await orgFieldPolicy.resolveFields(orgId.value).catch(() => [] as any[])
+    discountFields.value = fs.map((f: any) => ({ id: f.id, label: f.label, field_type: f.field_type, options: f.options }))
+  }
+})
 // Condition-chip labels for the list rows come from the shared model.
 const { conditionLabel } = useEventDiscounts()
 

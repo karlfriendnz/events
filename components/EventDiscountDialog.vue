@@ -13,7 +13,12 @@ const props = withDefaults(defineProps<{
   /** An existing discount draft to edit; null/omitted = start from the template picker. */
   edit?: DiscountDraft | null
   currencySymbol?: string
-}>(), { edit: null, currencySymbol: '$' })
+  /** The event's custom fields, for the "Custom field" condition picker. */
+  fields?: { id: string; label: string; field_type?: string; options?: string[] }[]
+}>(), { edit: null, currencySymbol: '$', fields: () => [] })
+
+const fieldOptions = computed(() => (props.fields ?? []).filter(f => f?.id && f?.label))
+const fieldById = (id: string | null | undefined) => fieldOptions.value.find(f => f.id === id)
 
 const emit = defineEmits<{
   (e: 'update:visible', v: boolean): void
@@ -92,6 +97,16 @@ const PERIOD_WINDOWS = [{ label: 'a rolling number of days', value: 'rolling' },
 function ensurePeriod(cond: any) {
   if (!cond.value || typeof cond.value !== 'object') cond.value = { count: null, unit: 'sessions', window: 'rolling', windowDays: null, from: null, to: null }
   return cond.value
+}
+// custom_field condition value = { fieldId, val }; for the "between" operator val = {min,max}.
+function ensureCustom(cond: any) {
+  if (!cond.value || typeof cond.value !== 'object' || !('fieldId' in cond.value)) cond.value = { fieldId: null, val: null }
+  return cond.value
+}
+function ensureCustomVal(cond: any) {
+  const c = ensureCustom(cond)
+  if (!c.val || typeof c.val !== 'object') c.val = { min: null, max: null }
+  return c.val
 }
 
 function save() {
@@ -260,8 +275,32 @@ function save() {
                 </template>
               </div>
 
+              <!-- Custom field: field picker + operator + value, spanning the op+value cols -->
+              <div v-if="cond.key && getValueType(cond.key) === 'custom_field'"
+                class="py-2 pr-2 pl-3 border-l border-gray-100 flex flex-wrap items-center gap-1.5 text-sm text-gray-600"
+                style="grid-column: 2 / 4">
+                <Select :modelValue="cond.value?.fieldId" @update:modelValue="v => ensureCustom(cond).fieldId = v"
+                  :options="fieldOptions" optionLabel="label" optionValue="id" placeholder="Choose a field…" filter
+                  class="text-sm shrink-0" style="min-width:9rem"
+                  :pt="{ root: { style: 'border: none; box-shadow: none; background: transparent; padding: 0' } }" />
+                <Select v-model="cond.operator" :options="getOperatorOptions(cond.key)" optionLabel="label" optionValue="value"
+                  class="text-sm shrink-0" :pt="{ root: { style: 'border: none; box-shadow: none; background: transparent; padding: 0' } }" />
+                <template v-if="cond.operator === 'between'">
+                  <InputNumber :modelValue="cond.value?.val?.min" @update:modelValue="v => ensureCustomVal(cond).min = v" placeholder="Min" inputClass="h-8 text-sm w-16 text-center px-1" class="shrink-0" />
+                  <span class="shrink-0">–</span>
+                  <InputNumber :modelValue="cond.value?.val?.max" @update:modelValue="v => ensureCustomVal(cond).max = v" placeholder="Max" inputClass="h-8 text-sm w-16 text-center px-1" class="shrink-0" />
+                </template>
+                <Select v-else-if="(fieldById(cond.value?.fieldId)?.options || []).length"
+                  :modelValue="cond.value?.val" @update:modelValue="v => ensureCustom(cond).val = v"
+                  :options="fieldById(cond.value?.fieldId)?.options" placeholder="Value" class="text-sm shrink-0" style="min-width:7rem"
+                  :pt="{ root: { style: 'border: none; box-shadow: none; background: transparent; padding: 0' } }" />
+                <InputNumber v-else-if="fieldById(cond.value?.fieldId)?.field_type === 'number'"
+                  :modelValue="cond.value?.val" @update:modelValue="v => ensureCustom(cond).val = v" placeholder="Value" inputClass="h-8 text-sm w-24 px-2" class="shrink-0" />
+                <InputText v-else :modelValue="cond.value?.val" @update:modelValue="v => ensureCustom(cond).val = v" placeholder="Value" class="text-sm h-8 px-2 w-28 shrink-0" />
+              </div>
+
               <!-- Operator -->
-              <div v-if="!(cond.key && getValueType(cond.key) === 'period')" class="py-2 pr-2 border-l border-gray-100">
+              <div v-if="!(cond.key && (getValueType(cond.key) === 'period' || getValueType(cond.key) === 'custom_field'))" class="py-2 pr-2 border-l border-gray-100">
                 <template v-if="cond.key && getValueType(cond.key) === 'boolean'">
                   <div class="flex rounded-md border border-gray-200 overflow-hidden text-xs font-semibold bg-white">
                     <button type="button" class="flex-1 py-1.5 border-r border-gray-200 transition-all"
@@ -279,7 +318,7 @@ function save() {
               </div>
 
               <!-- Value -->
-              <div v-if="!(cond.key && getValueType(cond.key) === 'period')" class="py-2 pr-2 pl-2 border-l border-gray-100">
+              <div v-if="!(cond.key && (getValueType(cond.key) === 'period' || getValueType(cond.key) === 'custom_field'))" class="py-2 pr-2 pl-2 border-l border-gray-100">
                 <template v-if="cond.key && getValueType(cond.key) !== 'boolean'">
                   <!-- number: full width -->
                   <InputNumber v-if="getValueType(cond.key) === 'number'"

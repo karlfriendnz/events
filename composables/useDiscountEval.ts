@@ -24,6 +24,7 @@ export interface DiscountCtx {
   // The server re-checks these authoritatively at submit.
   membershipStatus?: string | null // e.g. 'active_member' | 'member' | 'non_member' | 'inactive_member'
   registrationIndex?: number | null // this person's 1-based position in the event's registration order
+  fieldAnswers?: Record<string, any> // this person's custom-field answers, keyed by field id (for the 'custom_field' condition)
 }
 
 // "N sessions/days within a period" — a rolling window of `windowDays`, or a fixed
@@ -99,6 +100,21 @@ function conditionMet(cond: any, ctx: DiscountCtx): boolean {
     case 'registration_within_first_n_registrations':
       return ctx.registrationIndex != null && op(ctx.registrationIndex, cond.operator || '<=', cond.value)
     case 'promo_code':                     return false   // no promo-code entry yet
+    case 'custom_field': {
+      // The registrant's answer to a specific custom field. Fail closed when the field
+      // is unanswered (don't grant); the server re-checks authoritatively.
+      const fid = cond.value?.fieldId
+      const ans = fid ? ctx.fieldAnswers?.[fid] : undefined
+      if (ans == null || ans === '') return false
+      const needle = cond.value?.val
+      switch (cond.operator) {
+        case 'equals':   return String(ans) === String(needle)
+        case 'is_not':   return String(ans) !== String(needle)
+        case 'contains': return String(ans).toLowerCase().includes(String(needle ?? '').toLowerCase())
+        case 'between':  return Number(ans) >= Number(needle?.min) && Number(ans) <= Number(needle?.max)
+        default:         return op(Number(ans), cond.operator, needle)
+      }
+    }
     // Remaining conditions (membership_type/category, event/session/ticket category,
     // cross-event) aren't offered in the event picker today, so no stored rows use
     // them; they're treated as met here and re-checked server-side if ever enabled.

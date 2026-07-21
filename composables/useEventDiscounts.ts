@@ -83,6 +83,9 @@ export const CONDITION_DEFS: Record<string, { label: string; group: string; oper
   // these events, give them the discount". Stored as an array of event ids in
   // cond.value; evaluated at registration time against the registrations table.
   registered_for_event:                     { label: 'Already registered for',           group: 'Cross-event',   operators: ['in', 'in_all'],       valueType: 'event_array' },
+  // A registrant's answer to one of the form's CUSTOM FIELDS. value = { fieldId, val }
+  // (fieldId names the field; cond.operator is the comparison; val is the threshold/needle).
+  custom_field:                             { label: 'Custom field answer',              group: 'Participant',   operators: ['equals', 'is_not', '>=', '>', '<=', '<', 'between', 'contains'], valueType: 'custom_field' },
 }
 
 export const OPERATOR_LABELS: Record<string, string> = {
@@ -91,7 +94,7 @@ export const OPERATOR_LABELS: Record<string, string> = {
   'in': 'is one of', 'not_in': 'is not one of',
   'is_true': 'yes', 'is_false': 'no',
   'between': 'between', 'equals': 'equals', 'in_all': 'is registered for all of',
-  'within': 'within',
+  'within': 'within', 'contains': 'contains',
 }
 
 export const DISCOUNT_TEMPLATES = [
@@ -162,6 +165,7 @@ export const ACTIVE_CONDITION_KEYS = [
   'booked_day_count_min',                   // Full days booked (count)
   'booked_session_count_min',               // Sessions booked (count)
   'booked_units_within_period',             // N sessions/days within a period
+  'custom_field',                           // a registrant's answer to a custom field
 ]
 
 export function useEventDiscounts() {
@@ -187,6 +191,7 @@ export function useEventDiscounts() {
     else if (def.valueType === 'string')   cond.value = ''
     else if (def.valueType === 'datetime') cond.value = null
     else if (def.valueType === 'period')   cond.value = { count: null, unit: 'sessions', window: 'rolling', windowDays: null, from: null, to: null }
+    else if (def.valueType === 'custom_field') cond.value = { fieldId: null, val: null }
   }
 
   function conditionLabel(c: DiscountCondition): string {
@@ -202,6 +207,12 @@ export function useEventDiscounts() {
       const fmt = (d: any) => d ? new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '?'
       const win = v.window === 'range' ? `${fmt(v.from)}–${fmt(v.to)}` : `${v.windowDays ?? '?'} days`
       return `${n} ${unit} within ${win}`
+    }
+    // "Custom field ≥ 5" (the field name is resolved by the dialog, not here).
+    if (def.valueType === 'custom_field') {
+      const v = c.value || {}
+      const valStr = c.operator === 'between' ? `${v.val?.min ?? '?'}–${v.val?.max ?? '?'}` : String(v.val ?? '?')
+      return `${def.label} ${opLabel} ${valStr}`
     }
     let valLabel = ''
     if (def.valueType === 'boolean') valLabel = ''
