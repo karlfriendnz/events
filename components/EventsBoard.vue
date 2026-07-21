@@ -65,8 +65,8 @@
         </div>
       </template>
 
-      <!-- Tabs — hidden until a new calendar has a name + Next (revealed) -->
-      <div v-if="editingCalendarId || calDetailsRevealed" class="flex border-b border-gray-200 px-4 shrink-0">
+      <!-- Tabs — always shown for normal settings; hidden only during the name-first step of CREATING a calendar -->
+      <div v-if="editingCalendarId || calDetailsRevealed || !creatingNewCal" class="flex border-b border-gray-200 px-4 shrink-0">
         <button v-for="tb in CAL_TABS" :key="tb.key"
           class="px-3 py-2 text-sm border-b-2 -mb-px whitespace-nowrap transition-colors"
           :class="calTab === tb.key ? 'border-primary text-primary font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'"
@@ -79,18 +79,28 @@
 
         <!-- ── Display ───────────────────────────────────────────── -->
         <div v-if="calTab === 'display'" class="flex flex-col gap-5">
-          <div class="flex flex-col gap-2">
+          <!-- "＋ New calendar" — only offered when NOT already editing/creating one -->
+          <button v-if="!editingCalendarId && !creatingNewCal" type="button"
+            class="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg border border-dashed border-gray-300 text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors"
+            @click="startNewCalendar">
+            <i class="pi pi-plus text-xs" /> New calendar
+          </button>
+
+          <!-- Create / edit a calendar — shown only when editing an existing calendar or creating a new one -->
+          <div v-if="editingCalendarId || creatingNewCal" class="flex flex-col gap-2">
             <div class="flex items-center justify-between">
               <label class="text-sm font-semibold text-gray-700">
                 {{ editingCalendarId ? `Edit "${newCalendarName || 'calendar'}"` : 'New calendar' }}
               </label>
               <button v-if="editingCalendarId" class="text-xs text-red-500 hover:text-red-700 hover:underline"
                 @click="deleteCalendar">Delete</button>
+              <button v-else class="text-xs text-gray-400 hover:text-gray-600 hover:underline"
+                @click="creatingNewCal = false; calDetailsRevealed = false">Cancel</button>
             </div>
             <InputText v-model="newCalendarName" placeholder="Calendar name" class="w-full" @keyup.enter="newCalendarName.trim() && (calDetailsRevealed = true)" />
 
             <!-- New calendar: name first, then Next reveals the rest. -->
-            <Button v-if="!editingCalendarId && !calDetailsRevealed" label="Next" icon="pi pi-arrow-right" icon-pos="right"
+            <Button v-if="creatingNewCal && !calDetailsRevealed" label="Next" icon="pi pi-arrow-right" icon-pos="right"
               :disabled="!newCalendarName.trim()" class="mt-2 w-full justify-center"
               style="background:var(--brand-primary);border-color:var(--brand-primary)"
               @click="calDetailsRevealed = true" />
@@ -138,8 +148,8 @@
             </template>
           </div>
 
-          <!-- The rest of the Display config reveals with the calendar details -->
-          <template v-if="editingCalendarId || calDetailsRevealed">
+          <!-- General display config — shown for normal settings + when editing/creating; hidden only during the name-first create step -->
+          <template v-if="editingCalendarId || calDetailsRevealed || !creatingNewCal">
           <div class="border-t border-gray-100" />
 
           <div class="flex flex-col gap-2">
@@ -305,7 +315,9 @@
       <template #footer>
         <div class="flex items-center justify-between w-full">
           <Button label="Reset to defaults" severity="secondary" text size="small" @click="resetCalSettings" />
-          <Button label="Done" size="small" @click="applyCalSettings"
+          <Button :label="creatingNewCal ? 'Create calendar' : editingCalendarId ? 'Save calendar' : 'Done'"
+            size="small" :loading="creatingCalendar"
+            :disabled="creatingNewCal && !newCalendarName.trim()" @click="applyCalSettings"
             style="background:var(--brand-primary); border-color:var(--brand-primary)" />
         </div>
       </template>
@@ -1621,9 +1633,25 @@ const newCalendarIcon = ref('')
 const newCalendarColor = ref('')
 const creatingCalendar = ref(false)
 const editingCalendarId = ref<string | null>(null)
+// Are we CREATING a new calendar? Opening settings normally shows the current view's
+// display/filter/export settings — the "New calendar" pane appears ONLY when the user
+// explicitly starts creating one (startNewCalendar), so settings ≠ create.
+const creatingNewCal = ref(false)
 // New-calendar flow: show ONLY the name first; the tabs + all other config reveal after
 // "Next". Editing an existing calendar reveals everything immediately.
 const calDetailsRevealed = ref(false)
+
+function startNewCalendar() {
+  editingCalendarId.value = null
+  newCalendarName.value = ''
+  newCalendarCategoryIds.value = []
+  newCalendarPin.value = false
+  newCalendarIcon.value = ''
+  newCalendarColor.value = ''
+  creatingNewCal.value = true
+  calDetailsRevealed.value = false   // name first, then Next
+  calTab.value = 'display'
+}
 
 // Bumped after any calendar is created/edited/deleted so the left-nav (which
 // loads its own pinned calendars in the layout) reloads them live.
@@ -1650,7 +1678,8 @@ function openCalSettings() {
     editingCalendarId.value = null
   }
   calTab.value = 'display'
-  calDetailsRevealed.value = !!editingCalendarId.value   // editing → everything; new → name first
+  creatingNewCal.value = false   // opening settings is NOT creating — show the current view's settings
+  calDetailsRevealed.value = !!editingCalendarId.value   // editing → everything shown
   showCalSettings.value = true
 }
 
@@ -1702,6 +1731,7 @@ async function createNewCalendar() {
   newCalendarIcon.value = ''
   newCalendarColor.value = ''
   editingCalendarId.value = null
+  creatingNewCal.value = false
   await loadCalendars()
   navCalVersion.value++
 }
