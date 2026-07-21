@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-331 sessions · 1580 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+331 sessions · 1581 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -27706,7 +27706,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:17** — [Image #1] this is what happens when i run" npm run dev on a new tab - something is broken please fix it
 
 
-## Session 2026-07-20 00:42 (163 prompts)
+## Session 2026-07-20 00:42 (164 prompts)
 
 **00:42** — so i just restarted and now i can't get the server to run again ?
 
@@ -28852,6 +28852,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 >    - **Sibling checkouts:** `/Users/karl/fm-replumb`, `/Users/karl/fm-events-backups`, `/Users/karl/old fm` — may hold features not in fm-events.
 >    - **Nuxt auto-imports:** named composable exports (COMM
 > … [truncated — 16072 chars total]
+
+**19:05** — the drag is good but there is no indicator to the user can we show somthng/
 
 
 ## Session 2026-07-20 17:11 (6 prompts)

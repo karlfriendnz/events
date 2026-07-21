@@ -1,6 +1,16 @@
 <template>
   <div class="h-full flex flex-col bg-white">
 
+    <!-- Follows the cursor while drag-selecting a date range in the month grid -->
+    <Teleport to="body">
+      <div v-if="rangeSel.moved" class="fixed z-[2000] pointer-events-none flex items-center gap-1.5 rounded-lg bg-primary text-white text-xs font-semibold px-2.5 py-1.5 shadow-lg"
+        :style="{ left: `${rangeCursor.x + 14}px`, top: `${rangeCursor.y + 14}px` }">
+        <i class="pi pi-plus text-[10px]" />
+        <span>New event</span>
+        <span class="opacity-80 font-normal">{{ rangeLabelText }}</span>
+      </div>
+    </Teleport>
+
     <!-- Month view -->
     <div v-if="calView === 'month'" class="p-3 flex-1 flex flex-col overflow-hidden">
       <div class="grid mb-1 shrink-0" :class="gridColsClass">
@@ -17,7 +27,7 @@
                   : day.getMonth() !== calDate.getMonth() ? 'cursor-pointer border-transparent bg-gray-50/50'
                   : 'cursor-pointer border-gray-100 hover:border-gray-200 hover:bg-gray-50',
                 isToday(day) ? '!bg-blue-50 !border-blue-200' : '',
-                inRangeSel(day) ? '!bg-primary/10 !border-primary/40' : '',
+                inRangeSel(day) ? '!bg-primary/15 !border-primary ring-1 ring-primary/50' : '',
                 monthDropTarget && monthDropTarget.getTime() === stripTimeMs(day) ? '!bg-green-50 !border-green-300' : '',
               ]"
               @mousedown="onRangeDown(day, $event)"
@@ -518,12 +528,16 @@ function weekdaysOf(days: Date[]) { return hideWeekends.value ? days.filter((d) 
 // Event-bar HTML5 dragging is untouched (bars sit in their own pointer-events layer,
 // so mousedown never lands on a cell when you grab a bar).
 const rangeSel = reactive<{ start: Date | null; end: Date | null; moved: boolean }>({ start: null, end: null, moved: false })
+const rangeCursor = reactive({ x: 0, y: 0 })
 let rangeSuppressClick = false
 function onRangeDown(day: Date, e: MouseEvent) {
   if (props.wizardMode || e.button !== 0) return
   rangeSel.start = day; rangeSel.end = day; rangeSel.moved = false
+  rangeCursor.x = e.clientX; rangeCursor.y = e.clientY
   window.addEventListener('mouseup', onRangeUp)
+  window.addEventListener('mousemove', onRangeMove)
 }
+function onRangeMove(e: MouseEvent) { rangeCursor.x = e.clientX; rangeCursor.y = e.clientY }
 function onRangeEnter(day: Date) {
   if (!rangeSel.start) return
   rangeSel.end = day
@@ -531,6 +545,7 @@ function onRangeEnter(day: Date) {
 }
 function onRangeUp() {
   window.removeEventListener('mouseup', onRangeUp)
+  window.removeEventListener('mousemove', onRangeMove)
   if (rangeSel.moved && rangeSel.start && rangeSel.end) {
     const a = rangeSel.start, b = rangeSel.end
     rangeSuppressClick = true   // stop the trailing @click firing a single-day
@@ -538,6 +553,15 @@ function onRangeUp() {
   }
   rangeSel.start = null; rangeSel.end = null; rangeSel.moved = false
 }
+// Floating "Aug 4 – Aug 6 · 3 days" pill shown while dragging a range.
+const rangeLabelText = computed(() => {
+  if (!rangeSel.start || !rangeSel.end) return ''
+  const a = rangeSel.start, b = rangeSel.end
+  const lo = a <= b ? a : b, hi = a <= b ? b : a
+  const days = Math.round((stripTimeMs(hi) - stripTimeMs(lo)) / 86400000) + 1
+  const fmt = (d: Date) => d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })
+  return days <= 1 ? fmt(lo) : `${fmt(lo)} – ${fmt(hi)} · ${days} days`
+})
 function onMonthCellClick(day: Date) {
   if (rangeSuppressClick) { rangeSuppressClick = false; return }
   if (!props.wizardMode || (rulesForDate(day).length && !isPast(day))) emit('slot-click', day)
