@@ -3,14 +3,14 @@
 
     <!-- Month view -->
     <div v-if="calView === 'month'" class="p-3 flex-1 flex flex-col overflow-hidden">
-      <div class="grid grid-cols-7 mb-1 shrink-0">
-        <div v-for="d in DAYS" :key="d" class="text-center text-[11px] font-semibold text-gray-400 py-1">{{ d }}</div>
+      <div class="grid mb-1 shrink-0" :class="gridColsClass">
+        <div v-for="d in visibleDayNames" :key="d" class="text-center text-[11px] font-semibold text-gray-400 py-1">{{ d }}</div>
       </div>
       <div class="flex-1 flex flex-col gap-1">
         <div v-for="(week, wi) in monthDays" :key="wi" :ref="el => { if (wi === 0) weekRowRef = el as HTMLElement }" class="flex-1 relative">
           <!-- Day cells -->
-          <div class="absolute inset-0 grid grid-cols-7 gap-1">
-            <div v-for="day in week" :key="day.toISOString()"
+          <div class="absolute inset-0 grid gap-1" :class="gridColsClass">
+            <div v-for="day in weekdaysOf(week)" :key="day.toISOString()"
               class="rounded-lg p-1.5 transition-colors border overflow-hidden"
               :class="[
                 wizardMode && isPast(day) ? 'cursor-not-allowed opacity-40 border-transparent bg-gray-50/50'
@@ -260,7 +260,7 @@
       <div class="flex flex-col flex-1 min-h-0 min-w-[640px]">
       <div class="flex border-b border-gray-100 bg-gray-50 shrink-0">
         <div class="shrink-0 border-r border-gray-100" style="width:52px" />
-        <div v-for="(day, di) in weekDays" :key="di"
+        <div v-for="(day, di) in weekdaysOf(weekDays)" :key="di"
           class="flex-1 text-center py-2 border-r border-gray-100 last:border-r-0"
           :class="isToday(day) ? 'bg-blue-50' : ''">
           <div class="text-[10px] font-semibold text-gray-400 uppercase">{{ DAYS[di] }}</div>
@@ -274,7 +274,7 @@
             :style="{ height: `${HOUR_PX}px`, paddingTop: '3px' }">{{ label }}</div>
         </div>
         <div class="flex flex-1">
-          <div v-for="(day, di) in weekDays" :key="di"
+          <div v-for="(day, di) in weekdaysOf(weekDays)" :key="di"
             class="flex-1 relative border-r border-gray-100 last:border-r-0 cursor-pointer"
             :style="{ height: `${HOUR_LABELS.length * HOUR_PX}px` }"
             @click="onGridClick(day, $event)"
@@ -485,6 +485,8 @@ const props = defineProps<{
   // Generic items mode — when provided, the calendar renders these instead of
   // loading bookings for a bookable. Used by /events to render event rows.
   customEvents?: any[]
+  // Show Saturday & Sunday columns (month + week views). Default true.
+  showWeekends?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -499,6 +501,13 @@ const HOUR_PX = 56
 const GRID_START_MINS = 6 * 60
 const HOUR_LABELS = ['6am','7am','8am','9am','10am','11am','12pm','1pm','2pm','3pm','4pm','5pm','6pm','7pm','8pm','9pm','10pm']
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+// Weekends toggle (month + week views). DAYS is Mon-start, so weekends are the
+// last two labels; day objects are filtered by getDay() (0=Sun, 6=Sat) so it
+// holds regardless of column order.
+const hideWeekends = computed(() => props.showWeekends === false)
+const visibleDayNames = computed(() => (hideWeekends.value ? DAYS.slice(0, 5) : DAYS))
+const gridColsClass = computed(() => (hideWeekends.value ? 'grid-cols-5' : 'grid-cols-7'))
+function weekdaysOf(days: Date[]) { return hideWeekends.value ? days.filter((d) => d.getDay() !== 0 && d.getDay() !== 6) : days }
 
 const weekGridRef = ref<HTMLElement | null>(null)
 const dayGridRef = ref<HTMLElement | null>(null)

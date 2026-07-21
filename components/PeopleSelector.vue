@@ -318,6 +318,8 @@ async function loadGroups() {
   ])
   allCodes.value = codes ?? []
   terms.value = termList ?? []
+  // Default to the current term (running → next → last-finished) — the global rule.
+  termId.value = tm.currentTermId(terms.value)
   allGroups.value = groups
     .filter((g: any) => !isMembershipGroup(g))  // memberships aren't classes
     .map((g: any) => ({ id: g.id, name: g.name, color: g.color, code_id: g.codeId, term_id: g.termId, sort_order: g.sortOrder, kind: g.kind }))

@@ -426,6 +426,7 @@
         :cal-date="calDate"
         :cal-view="bookingsCalView"
         :custom-events="bookingsCalEvents"
+        :show-weekends="calSettings.showWeekends"
         @booking-click="onCalendarEventClick"
         @booking-drop="onCalendarEventDrop"
         @booking-hover="onCalendarEventHover"

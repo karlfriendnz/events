@@ -190,6 +190,30 @@ export function useTermsMemberships() {
     return terms.map(termToSnake)
   }
 
+  // The ONE canonical "which term is current?" rule — used to default EVERY term
+  // selector in the app (see `currentTermId` export). Priority:
+  //   1. the RUNNING term (start ≤ today ≤ end)
+  //   2. else the NEXT upcoming term (earliest start after today)
+  //   3. else the LATEST finished term (most-recent end before today)
+  // so a completed term hands off to the next one, a live term stays selected,
+  // and out-of-season we fall back to the term that just ended.
+  function currentTermId<T extends { id: string; start_date?: string | null; end_date?: string | null }>(
+    terms: T[] | null | undefined,
+    today: Date = new Date(),
+  ): string | null {
+    if (!terms?.length) return null
+    const t = new Date(today); t.setHours(0, 0, 0, 0)
+    const now = t.getTime()
+    const ms = (d?: string | null) => (d ? new Date(d).getTime() : null)
+    const running = terms.filter((x) => (ms(x.start_date) ?? -Infinity) <= now && (ms(x.end_date) ?? Infinity) >= now)
+    if (running.length) return running.sort((a, b) => (ms(a.start_date) ?? 0) - (ms(b.start_date) ?? 0))[0].id
+    const upcoming = terms.filter((x) => (ms(x.start_date) ?? Infinity) > now)
+    if (upcoming.length) return upcoming.sort((a, b) => (ms(a.start_date) ?? 0) - (ms(b.start_date) ?? 0))[0].id
+    const finished = terms.filter((x) => (ms(x.end_date) ?? -Infinity) < now)
+    if (finished.length) return finished.sort((a, b) => (ms(b.end_date) ?? 0) - (ms(a.end_date) ?? 0))[0].id
+    return terms[0].id
+  }
+
   // ---- term sets (migration 232) ----
   async function loadTermSets(org = orgId.value): Promise<TermSet[]> {
     const sets = await api.termSets(org)
@@ -236,6 +260,7 @@ export function useTermsMemberships() {
     addPeriod,
     toIso,
     loadTerms,
+    currentTermId,
     loadTermSets,
     createTermSet,
     renameTermSet,

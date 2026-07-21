@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-331 sessions · 1579 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+331 sessions · 1580 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -27706,7 +27706,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:17** — [Image #1] this is what happens when i run" npm run dev on a new tab - something is broken please fix it
 
 
-## Session 2026-07-20 00:42 (162 prompts)
+## Session 2026-07-20 00:42 (163 prompts)
 
 **00:42** — so i just restarted and now i can't get the server to run again ?
 
@@ -28830,6 +28830,28 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **18:35** — [Image #35]
 
 **18:44** — im in the nso and i can't see any share functionlity - I would expect this to be a tab in the slide out pesae
+
+**18:54** — This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+> 
+> Summary:
+> 1. Primary Request and Intent:
+>    - **Production DB setup:** Set up TiDB "PinkZebra" as the production MySQL database, push the schema, wire Vercel prod, and eventually deploy. (Completed.)
+>    - **Supabase removal (future):** User: "I dont wnat to use superbase any more" then "leave it or do what we need on super base for now - but tomorrow nitght I will leave you to remvoe it all out the platform." Scheduled for night of 2026-07-22. Standing rule: "all new developments shoul dbe on teh new server" (MySQL seam, never Supabase/useDb in new code).
+>    - **Feature builds:** #26 (form chooser name/type decouple — "lets build and tweak"), #15 (share whole calendar to club), #7 (template organisations — clone-a-full-club, config only never PII).
+>    - **Deploy live:** "deploy live" (twice — once for the main batch, once for the seed-panel restore). Deploy = merge to main → Vercel prod build → smoke test. ONLY on literal "deploy live".
+>    - **Seed data restoration:** User insisted a configurable "choose the bits to seed" seeder existed ("i'm pretty pissed off that you have lost this"). It was in `/Users/karl/fm-replumb` sibling checkout — ported it.
+>    - **Playwright walkthrough:** "do full playright test of setting up and event, set up a calendar, invite someone to register - find all the gaps and list them out - should be a 2 week long holiday programme."
+>    - **Fix walkthrough gaps:** User picked all 4 (#5 preview data, #7 login/comms live fields, #6 send failure feedback, #4+#11 polish).
+>    - **Calendar UX fixes:** settings icon showing new-calendar pane, create-calendar not working, term selector on the invitee selector, calendars-in-Events-menu, New-calendar-from-menu, settings-icon-shows-properties, Share as a TAB in the calendar settings slide-out (in progress), weekends toggle not applying live (just reported).
+> 
+> 2. Key Technical Concepts:
+>    - **MySQL seam:** `composables/use*Api.ts` → `server/api/v1/**` (Nitro) → `server/db/repositories/*.ts` → `server/db/client.ts` (drizzle-orm/mysql2). Prod = TiDB; local = Docker `fm-new` on 127.0.0.1:3400.
+>    - **Hybrid app:** TiDB (seam, migrated screens) + Supabase (auth + ~35 useDb screens). Auth = `@nuxtjs/supabase`, `app_metadata.role === 'super_admin'`.
+>    - **TiDB gotchas:** rejects `drizzle-kit push` DDL (TEXT-default + json string-literal default); accepts `json DEFAULT (json_array())` expression form. Serverless cold-starts (~30-60s, ETIMEDOUT); use `connectTimeout: 90000`. TLS mandatory.
+>    - **SFC compile-check pattern:** `@vue/compiler-sfc` parse+compileScript+compileTemplate (never `npm run build` locally except for deploy validation).
+>    - **Sibling checkouts:** `/Users/karl/fm-replumb`, `/Users/karl/fm-events-backups`, `/Users/karl/old fm` — may hold features not in fm-events.
+>    - **Nuxt auto-imports:** named composable exports (COMM
+> … [truncated — 16072 chars total]
 
 
 ## Session 2026-07-20 17:11 (6 prompts)
