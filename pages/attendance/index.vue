@@ -34,7 +34,7 @@
             <template #body="{ data }">
               <span class="flex items-center gap-2.5 min-w-0">
                 <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: data.groupColor || '#94a3b8' }" />
-                <span class="font-semibold text-gray-900 truncate">{{ data.groupName }}</span>
+                <NuxtLink :to="`/events/${data.eventId}?tab=attendance`" class="font-semibold text-gray-900 truncate hover:text-primary hover:underline">{{ data.groupName }}</NuxtLink>
                 <span v-if="data.isToday" class="text-[10px] px-1.5 py-0.5 rounded-full font-semibold shrink-0" style="background:#EAF1FE;color:#2563EB">Today</span>
               </span>
             </template>

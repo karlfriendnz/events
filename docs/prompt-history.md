@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-331 sessions · 1589 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+331 sessions · 1591 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -27706,7 +27706,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:17** — [Image #1] this is what happens when i run" npm run dev on a new tab - something is broken please fix it
 
 
-## Session 2026-07-20 00:42 (172 prompts)
+## Session 2026-07-20 00:42 (174 prompts)
 
 **00:42** — so i just restarted and now i can't get the server to run again ?
 
@@ -28877,6 +28877,16 @@ Every prompt given to Claude Code on this project, extracted from local session 
 
 **20:35** — 500
 > Cannot read properties of null (reading 'id')
+
+**20:54** — <task-notification>
+> <task-id>b0uhs7ncg</task-id>
+> <tool-use-id>toolu_01SA59zkVycYgUQJkxQdwmfM</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/7cdcba7b-7e8e-4d96-9362-e77f900eb9e1/tasks/b0uhs7ncg.output</output-file>
+> <status>completed</status>
+> <summary>Background command "Wait for prod deploy to finish" completed (exit code 0)</summary>
+> </task-notification>
+
+**21:36** — can you make the name of the event link as well
 
 
 ## Session 2026-07-20 17:11 (6 prompts)
