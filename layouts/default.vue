@@ -143,8 +143,10 @@
         <NuxtLink v-for="cal in pinnedCalendars" :key="cal.id" :to="`/events?calendar=${cal.id}`"
           class="group relative flex items-center rounded-xl transition-colors"
           :class="[railBtnClass, isCalActive(cal.id) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white']">
-          <i :class="[calIconClass(cal.icon), 'text-lg']"
-            :style="!isCalActive(cal.id) && cal.color ? { color: cal.color } : undefined" />
+          <!-- Rail icons NEVER take the item's own colour — they inherit the menu
+               colour (white/50 → white) like every other rail item. A calendar's
+               colour only shows in the Events flyout / dropdowns. Global rule. -->
+          <i :class="[calIconClass(cal.icon), 'text-lg']" />
           <span v-if="railExpanded" class="flex-1 text-sm whitespace-nowrap text-left">{{ cal.name }}</span>
           <span v-else class="pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow">{{ cal.name }}</span>
         </NuxtLink>
