@@ -4006,7 +4006,7 @@ function formatMonth(d: string) {
 }
 
 function statusSeverity(s: string) {
-  return { DRAFT: 'secondary', PUBLISHED: 'success', CANCELLED: 'danger', ARCHIVED: 'warn' }[s] ?? 'secondary'
+  return { DRAFT: 'secondary', PUBLISHED: 'secondary', CANCELLED: 'danger', ARCHIVED: 'warn' }[s] ?? 'secondary'
 }
 function inviteeSeverity(s: string) {
   return { CONFIRMED: 'success', INVITED: 'info', DECLINED: 'danger', HOLD: 'warn', INTERESTED: 'secondary' }[s ?? 'INVITED'] ?? 'secondary'
