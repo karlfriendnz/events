@@ -17,6 +17,7 @@ import type {
   AddonCreate,
   ReportingBundle,
   AttendanceSession,
+  AttendanceInboxItem,
   PersonRegistration,
   OutstandingSummary,
   RegistrationTransaction,
@@ -90,6 +91,12 @@ export function useFinancesApi() {
       query: { orgId, from, to },
     })
   }
+  /** Per-user attendance inbox — occurrences for the given groups/events + a derived markedCount. */
+  async function attendanceInbox(orgId: string, opts: { groupIds?: string[]; eventIds?: string[]; from: string; to: string }): Promise<AttendanceInboxItem[]> {
+    return await $fetch<AttendanceInboxItem[]>('/api/v1/finances/attendance-inbox', {
+      query: { orgId, from: opts.from, to: opts.to, groupIds: (opts.groupIds ?? []).join(','), eventIds: (opts.eventIds ?? []).join(',') },
+    })
+  }
   /** One person's registrations (money owed/paid) — profile Financials + member portal. */
   async function registrationsForPerson(personId: string): Promise<PersonRegistration[]> {
     if (!personId) return []
@@ -123,6 +130,7 @@ export function useFinancesApi() {
     orgCurrency,
     reportingBundle,
     attendanceSessions,
+    attendanceInbox,
     registrationsForPerson,
     outstandingByOrg,
     registrationTransactions,

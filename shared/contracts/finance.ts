@@ -214,6 +214,17 @@ export const attendanceSessionSchema = z.object({
 export type AttendanceSession = z.infer<typeof attendanceSessionSchema>
 export const attendanceSessionListSchema = z.array(attendanceSessionSchema)
 
+// ── Attendance inbox (a person's "rolls to complete") ────────────────────────
+// A superset of AttendanceSession scoped to ONE user's own groups/events: adds
+// `markedCount` = distinct people with an attendance row (eventTitle already lives
+// on the base schema), so the page derives Done / Needs-roll / Upcoming without a
+// status column (none exists — completion is inferred).
+export const attendanceInboxItemSchema = attendanceSessionSchema.extend({
+  markedCount: z.number(),
+})
+export type AttendanceInboxItem = z.infer<typeof attendanceInboxItemSchema>
+export const attendanceInboxListSchema = z.array(attendanceInboxItemSchema)
+
 // ── Custom reports (table `custom_reports`) ──────────────────────────────────
 // A club-built people report — filters + columns saved as a json `config`. The
 // config shape (match/filters/columns) is the client's ReportConfig; the boundary

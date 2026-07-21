@@ -254,6 +254,10 @@ export function useScopedRoles() {
 
   const groupsIManage = computed(() => Object.keys(groupRoles.value).filter(id => rolesHaveCap('group', groupRoles.value[id], 'manage')))
   const eventsIManage = computed(() => Object.keys(eventRoles.value).filter(id => rolesHaveCap('event', eventRoles.value[id], 'manage')))
+  // The groups/events THIS user is responsible for taking attendance on (manage OR
+  // an explicit take_attendance cap) — drives the personal "rolls to complete" view.
+  const groupsICanTakeAttendance = computed(() => Object.keys(groupRoles.value).filter(id => canTakeAttendanceGroup(id)))
+  const eventsICanTakeAttendance = computed(() => Object.keys(eventRoles.value).filter(id => canTakeAttendanceEvent(id)))
 
   return {
     SCOPED_ROLES, roleDefs, rolesFor, loadRoleDefs, roleDefsLoaded,
@@ -261,5 +265,6 @@ export function useScopedRoles() {
     load, loaded, personId, rolesOnGroup, rolesOnEvent,
     canManageGroup, canManageEvent, canTakeAttendanceGroup, canTakeAttendanceEvent,
     groupsIManage, eventsIManage,
+    groupsICanTakeAttendance, eventsICanTakeAttendance,
   }
 }
