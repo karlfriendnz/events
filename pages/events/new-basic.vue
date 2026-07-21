@@ -1171,6 +1171,20 @@ const form = reactive({
 // without it the window renders empty until the user happens to touch the date.
 watch(() => [form.start_date, form.start_time, form.is_all_day], () => seedSignupWindow(), { immediate: true })
 
+// Seed a default 9:00–11:00 window whenever the event has a DATE but no time — a basic
+// event created from a calendar day-click arrives with `start_date` (from ?date=) but
+// null times, so the time wheels read empty and step 1 blocks on "set a start and end
+// time" for a window the user never had a reason to open. Only fills a time that's
+// still null (never clobbers a chosen/cleared one — the watcher tracks the DATE, not
+// the times, so editing or clearing a time is never re-seeded). buildDateTime uses only
+// the clock, so the seed's day is irrelevant. MUST stay below `form` (TDZ, as above).
+watch(() => [form.start_date, form.is_all_day], () => {
+  if (form.is_all_day || !form.start_date) return
+  const base = new Date(form.start_date as Date)
+  if (!form.start_time) { const s = new Date(base); s.setHours(9, 0, 0, 0); form.start_time = s }
+  if (!form.end_time)   { const e = new Date(base); e.setHours(11, 0, 0, 0); form.end_time = e }
+}, { immediate: true })
+
 // The wizard's steps. Keyed, not index-based, because the step list is DYNAMIC —
 // the registration-form step only exists when the event actually collects a form
 // (they chose "fill in a form", or opened it to the public, which forces one).
