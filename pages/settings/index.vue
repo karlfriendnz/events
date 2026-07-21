@@ -313,7 +313,7 @@
                 <div class="min-w-0 flex-1">
                   <p class="text-sm font-medium text-surface-800 truncate">{{ cat.name }}</p>
                   <p class="text-xs text-surface-500 truncate">
-                    <span v-if="cat.defaultDisciplineId">{{ discNameById[cat.defaultDisciplineId] || 'Discipline' }} · </span>
+                    <span v-if="cat.disciplineIds?.length || cat.defaultDisciplineId">{{ (cat.disciplineIds?.length ? cat.disciplineIds : [cat.defaultDisciplineId]).map(id => discNameById[id] || 'Discipline').join(', ') }} · </span>
                     <span>Access: {{ catAccessLabel(cat) }}</span>
                   </p>
                 </div>
@@ -472,10 +472,10 @@
           </div>
         </div>
         <div v-if="catHasDisciplines" class="flex flex-col gap-1.5">
-          <label class="text-sm font-medium text-surface-700">Default discipline</label>
-          <Select v-model="catForm.default_discipline_id" :options="discGroups" option-label="name" option-value="id"
-            option-group-label="label" option-group-children="items" show-clear filter
-            placeholder="No default" class="w-full">
+          <label class="text-sm font-medium text-surface-700">Disciplines</label>
+          <ChipMultiSelect v-model="catForm.discipline_ids" :options="discGroups" option-label="name" option-value="id"
+            option-group-label="label" option-group-children="items" filter
+            placeholder="No disciplines" class="w-full">
             <template #optiongroup="{ option }">
               <span class="text-xs font-bold uppercase tracking-wide text-surface-500">{{ option.label }}</span>
             </template>
@@ -485,8 +485,8 @@
                 <span :class="option.depth ? 'text-surface-700' : 'font-medium text-surface-800'">{{ option.name }}</span>
               </div>
             </template>
-          </Select>
-          <p class="text-xs text-surface-400">Events created in this category start linked to this discipline (from your governing body).</p>
+          </ChipMultiSelect>
+          <p class="text-xs text-surface-400">Events created in this category start linked to these disciplines (from your governing body). The first is the default.</p>
         </div>
         <div class="flex flex-col gap-2">
           <label class="text-sm font-medium text-surface-700">Who can access</label>
@@ -730,8 +730,8 @@ const catHasDisciplines = computed(() => discGroups.value.length > 0)
 const showCatDialog = ref(false)
 const catSaving = ref(false)
 const editingCat = ref<any>(null)
-const catForm = reactive<{ name: string; color: string; default_discipline_id: string | null; access_type_keys: string[] }>({
-  name: '', color: '#1E2157', default_discipline_id: null, access_type_keys: [],
+const catForm = reactive<{ name: string; color: string; discipline_ids: string[]; access_type_keys: string[] }>({
+  name: '', color: '#1E2157', discipline_ids: [], access_type_keys: [],
 })
 // Access can also name specific PEOPLE (not just types) — the system-wide rule that a
 // permission target is a person OR a people type. Selected people are held as objects
@@ -758,7 +758,7 @@ async function reloadCategories() {
 }
 function openCatCreate() {
   editingCat.value = null
-  catForm.name = ''; catForm.color = '#1E2157'; catForm.default_discipline_id = null; catForm.access_type_keys = []
+  catForm.name = ''; catForm.color = '#1E2157'; catForm.discipline_ids = []; catForm.access_type_keys = []
   catPersonSel.value = []
   showCatDialog.value = true
 }
@@ -766,7 +766,9 @@ async function openCatEdit(cat: any) {
   editingCat.value = cat
   catForm.name = cat.name
   catForm.color = cat.color ?? '#1E2157'
-  catForm.default_discipline_id = cat.defaultDisciplineId ?? null
+  catForm.discipline_ids = (Array.isArray(cat.disciplineIds) && cat.disciplineIds.length)
+    ? [...cat.disciplineIds]
+    : (cat.defaultDisciplineId ? [cat.defaultDisciplineId] : [])
   catForm.access_type_keys = Array.isArray(cat.accessTypeKeys) ? [...cat.accessTypeKeys] : []
   // Resolve the saved person ids back to objects so they render as chips.
   const ids = Array.isArray(cat.accessPersonIds) ? cat.accessPersonIds : []
@@ -780,7 +782,9 @@ async function saveCat() {
     const personIds = catPersonSel.value.map((p: any) => p.id)
     const payload = {
       name: catForm.name.trim(), color: catForm.color,
-      defaultDisciplineId: catForm.default_discipline_id || null,
+      // The repo derives defaultDisciplineId from disciplineIds[0]; send both for clarity.
+      disciplineIds: catForm.discipline_ids.length ? catForm.discipline_ids : null,
+      defaultDisciplineId: catForm.discipline_ids[0] ?? null,
       accessTypeKeys: catForm.access_type_keys.length ? catForm.access_type_keys : null,
       accessPersonIds: personIds.length ? personIds : null,
     }

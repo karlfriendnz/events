@@ -444,7 +444,8 @@ export const eventCategorySchema = z.object({
   defaultTc: z.string().nullable(),
   defaultFormId: z.string().nullable(),
   defaultXeroCodes: z.any().nullable(),
-  defaultDisciplineId: z.string().nullable(),   // this category's default governing-body discipline (null = none)
+  defaultDisciplineId: z.string().nullable(),   // primary discipline (= disciplineIds[0]) — kept for back-compat
+  disciplineIds: z.array(z.string()).nullable(), // all governing-body disciplines this category links to
   // WHO CAN ACCESS — a permission target is a person TYPE or a specific PERSON (the
   // system-wide rule: any access control may name a people type or an individual).
   // Both null/empty = everyone.
@@ -456,7 +457,7 @@ export type EventCategory = z.infer<typeof eventCategorySchema>
 export const eventCategoryListSchema = z.array(eventCategorySchema)
 export const eventCategoryCreateSchema = eventCategorySchema.omit({ id: true }).partial({
   parentId: true, color: true, icon: true, defaultTc: true, defaultFormId: true,
-  defaultXeroCodes: true, defaultDisciplineId: true, accessTypeKeys: true, accessPersonIds: true, sortOrder: true,
+  defaultXeroCodes: true, defaultDisciplineId: true, disciplineIds: true, accessTypeKeys: true, accessPersonIds: true, sortOrder: true,
 })
 export type EventCategoryCreate = z.infer<typeof eventCategoryCreateSchema>
 export const eventCategoryPatchSchema = eventCategoryCreateSchema.partial()

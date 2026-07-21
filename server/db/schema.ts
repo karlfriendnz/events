@@ -450,6 +450,7 @@ export const categories = mysqlTable('categories', {
   defaultFormId: varchar('default_form_id', { length: 36 }),
   defaultXeroCodes: json('default_xero_codes'),
   defaultDisciplineId: varchar('default_discipline_id', { length: 36 }),
+  disciplineIds: json('discipline_ids'),
   accessTypeKeys: json('access_type_keys'),
   accessPersonIds: json('access_person_ids'),
   sortOrder: int('sort_order').notNull(),

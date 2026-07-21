@@ -1186,6 +1186,7 @@ function toCategory(r: typeof schema.categories.$inferSelect): EventCategory {
     color: r.color ?? null, icon: r.icon ?? null, defaultTc: r.defaultTc ?? null,
     defaultFormId: r.defaultFormId ?? null, defaultXeroCodes: asObj(r.defaultXeroCodes),
     defaultDisciplineId: r.defaultDisciplineId ?? null,
+    disciplineIds: (() => { const a = asArray(r.disciplineIds) as string[]; return a.length ? a : null })(),
     accessTypeKeys: (() => { const a = asArray(r.accessTypeKeys) as string[]; return a.length ? a : null })(),
     accessPersonIds: (() => { const a = asArray(r.accessPersonIds) as string[]; return a.length ? a : null })(),
     sortOrder: r.sortOrder,
@@ -1215,7 +1216,9 @@ export async function createCategory(input: EventCategoryCreate): Promise<EventC
     id, orgId: input.orgId, parentId: input.parentId ?? null, name: input.name,
     color: input.color ?? null, icon: input.icon ?? null, defaultTc: input.defaultTc ?? null,
     defaultFormId: input.defaultFormId ?? null, defaultXeroCodes: input.defaultXeroCodes ?? null,
-    defaultDisciplineId: input.defaultDisciplineId ?? null,
+    // Primary discipline mirrors disciplineIds[0] (or the legacy single field).
+    defaultDisciplineId: (input.disciplineIds && input.disciplineIds.length) ? input.disciplineIds[0] : (input.defaultDisciplineId ?? null),
+    disciplineIds: (input.disciplineIds && input.disciplineIds.length) ? input.disciplineIds : null,
     accessTypeKeys: (input.accessTypeKeys && input.accessTypeKeys.length) ? input.accessTypeKeys : null,
     accessPersonIds: (input.accessPersonIds && input.accessPersonIds.length) ? input.accessPersonIds : null,
     sortOrder: input.sortOrder ?? 0,
@@ -1233,6 +1236,11 @@ export async function updateCategory(id: string, patch: EventCategoryPatch): Pro
   if (patch.defaultFormId !== undefined) set.defaultFormId = patch.defaultFormId
   if (patch.defaultXeroCodes !== undefined) set.defaultXeroCodes = patch.defaultXeroCodes
   if (patch.defaultDisciplineId !== undefined) set.defaultDisciplineId = patch.defaultDisciplineId
+  if (patch.disciplineIds !== undefined) {
+    const arr = (patch.disciplineIds && patch.disciplineIds.length) ? patch.disciplineIds : null
+    set.disciplineIds = arr
+    set.defaultDisciplineId = arr ? arr[0] : null   // keep the primary in step with the array
+  }
   if (patch.accessTypeKeys !== undefined) set.accessTypeKeys = (patch.accessTypeKeys && patch.accessTypeKeys.length) ? patch.accessTypeKeys : null
   if (patch.accessPersonIds !== undefined) set.accessPersonIds = (patch.accessPersonIds && patch.accessPersonIds.length) ? patch.accessPersonIds : null
   if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
