@@ -200,6 +200,7 @@ export type ReportingBundle = z.infer<typeof reportingBundleSchema>
 // (event time + resolved group + resolved bookable name).
 export const attendanceSessionSchema = z.object({
   eventId: z.string(),
+  eventTitle: z.string().nullable(),
   startAt: z.string().nullable(),
   endAt: z.string().nullable(),
   locationType: z.string().nullable(),

@@ -19,7 +19,7 @@
 // money: `modifier_value` is a decimal — mysql2 returns it as a string; it is passed
 // through unchanged (the contract accepts string|number) rather than lossily coerced.
 import { randomUUID } from 'node:crypto'
-import { and, asc, desc, eq, gte, inArray, isNotNull, lt } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, lt } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   Discount,
@@ -388,15 +388,20 @@ export async function reportingBundle(orgId: string): Promise<ReportingBundle> {
 }
 
 // ── Attendance sessions ──────────────────────────────────────────────────────
-// CROSS-DOMAIN READ: group-linked training events in a date window, with the group
-// (member_groups) and bookable name resolved. `member_group_id NOT NULL` is the
-// canonical "training event" filter (independent of event style).
+// CROSS-DOMAIN READ: events in a date window that have a roll to take, with the
+// group (member_groups) + bookable name resolved. Two kinds qualify:
+//   • group-linked training events (member_group_id set — recurring class sessions), and
+//   • STANDALONE events that have a roster (≥1 invitee) — a one-off you'd take
+//     attendance for. An event with no group AND no invitees has nobody to mark, so
+//     it's left out to keep the list to real attendance sessions.
 export async function attendanceSessions(orgId: string, from: string, to: string): Promise<AttendanceSession[]> {
   const fromD = new Date(from)
   const toD = new Date(to)
   const rows = await db
     .select({
       eventId: schema.events.id,
+      eventTitle: schema.events.title,
+      memberGroupId: schema.events.memberGroupId,
       startAt: schema.events.startAt,
       endAt: schema.events.endAt,
       locationType: schema.events.locationType,
@@ -409,18 +414,23 @@ export async function attendanceSessions(orgId: string, from: string, to: string
     })
     .from(schema.events)
     .leftJoin(schema.memberGroups, eq(schema.events.memberGroupId, schema.memberGroups.id))
-    .where(
-      and(
-        eq(schema.events.orgId, orgId),
-        isNotNull(schema.events.memberGroupId),
-        gte(schema.events.startAt, fromD),
-        lt(schema.events.startAt, toD),
-      ),
-    )
+    .where(and(eq(schema.events.orgId, orgId), gte(schema.events.startAt, fromD), lt(schema.events.startAt, toD)))
     .orderBy(asc(schema.events.startAt))
 
+  // Which of these events have a roster? (Standalone events only qualify with one.)
+  const eventIds = rows.map((r) => r.eventId)
+  const hasRoster = new Set<string>()
+  if (eventIds.length) {
+    const inv = await db
+      .select({ eventId: schema.invitees.eventId })
+      .from(schema.invitees)
+      .where(inArray(schema.invitees.eventId, eventIds))
+    for (const i of inv) hasRoster.add(i.eventId)
+  }
+  const kept = rows.filter((r) => r.memberGroupId != null || hasRoster.has(r.eventId))
+
   // Resolve bookable names in one query.
-  const bookableIds = Array.from(new Set(rows.map((r) => r.bookableId).filter((x): x is string => !!x)))
+  const bookableIds = Array.from(new Set(kept.map((r) => r.bookableId).filter((x): x is string => !!x)))
   const names: Record<string, string> = {}
   if (bookableIds.length) {
     const bkbls = await db
@@ -430,8 +440,9 @@ export async function attendanceSessions(orgId: string, from: string, to: string
     for (const b of bkbls) names[b.id] = b.name
   }
 
-  return rows.map((r) => ({
+  return kept.map((r) => ({
     eventId: r.eventId,
+    eventTitle: r.eventTitle ?? null,
     startAt: toIso(r.startAt),
     endAt: toIso(r.endAt),
     locationType: r.locationType ?? null,

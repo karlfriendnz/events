@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-331 sessions · 1583 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+331 sessions · 1588 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -27706,7 +27706,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:17** — [Image #1] this is what happens when i run" npm run dev on a new tab - something is broken please fix it
 
 
-## Session 2026-07-20 00:42 (166 prompts)
+## Session 2026-07-20 00:42 (171 prompts)
 
 **00:42** — so i just restarted and now i can't get the server to run again ?
 
@@ -28858,6 +28858,22 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **19:07** — The menu item should never change colour in the main left menu only in drop downs please make this a global rule
 
 **19:12** — please make it so advanced evetn only shows in NSO for now
+
+**19:17** — commit - deploy live
+
+**19:32** — <task-notification>
+> <task-id>bmaa1zurh</task-id>
+> <tool-use-id>toolu_01LJ1bcnBC8ZomgkRFvgFQnk</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/7cdcba7b-7e8e-4d96-9362-e77f900eb9e1/tasks/bmaa1zurh.output</output-file>
+> <status>completed</status>
+> <summary>Background command "Wait for prod Ready then smoke test" completed (exit code 0)</summary>
+> </task-notification>
+
+**19:55** — Club templates should not show in the club switcher or the list of orgs on the /admin page
+
+**20:03** — why is my attendance not showing for my event i am the admin?
+
+**20:04** — do it '
 
 
 ## Session 2026-07-20 17:11 (6 prompts)

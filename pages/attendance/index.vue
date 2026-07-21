@@ -148,7 +148,7 @@ async function load() {
     return {
       id: e.eventId,
       eventId: e.eventId,
-      groupName: e.groupName ?? 'Attendance',
+      groupName: e.groupName || e.eventTitle || 'Attendance',
       groupColor: e.groupColor ?? null,
       locationId: e.locationId ?? null,
       start,
