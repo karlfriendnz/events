@@ -83,6 +83,7 @@
               </div>
             </div>
             <div class="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+              <Button v-if="shareClubs.length" icon="pi pi-share-alt" severity="secondary" text rounded size="small" v-tooltip.top="'Share with clubs'" @click="openShare(cal)" />
               <Button icon="pi pi-pencil" severity="secondary" text rounded size="small" @click="openCalEdit(cal)" />
               <Button icon="pi pi-trash" severity="danger" text rounded size="small" @click="deleteCalendar(cal)" />
             </div>
@@ -170,6 +171,27 @@
       </template>
     </Dialog>
 
+    <!-- Share a calendar with clubs -->
+    <Dialog v-model:visible="showShareDialog" modal :header="`Share &quot;${shareCal?.name}&quot; with clubs`" :style="{ width: '95vw', maxWidth: '460px' }">
+      <p class="text-xs text-gray-500 mb-3">Pick the clubs that should see this calendar's events. Each club accepts it from their dashboard — nothing shows on their calendar until they do.</p>
+      <div class="space-y-1.5 max-h-[55vh] overflow-y-auto">
+        <div v-for="club in shareClubs" :key="club.id" class="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100">
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-gray-800 truncate">{{ club.name }}</p>
+            <p class="text-xs text-gray-400">{{ orgLevelLabel(club.org_level) }}</p>
+          </div>
+          <span v-if="shareStatusFor(club.id)?.status === 'ACCEPTED'" class="text-[11px] font-semibold text-emerald-600">Accepted</span>
+          <span v-else-if="shareStatusFor(club.id)?.status === 'DECLINED'" class="text-[11px] font-semibold text-rose-500">Declined</span>
+          <span v-else-if="shareStatusFor(club.id)" class="text-[11px] font-semibold text-amber-500">Invited</span>
+          <Button :label="shareStatusFor(club.id) ? 'Unshare' : 'Share'" size="small" :outlined="!!shareStatusFor(club.id)"
+            :severity="shareStatusFor(club.id) ? 'secondary' : undefined" :loading="shareBusy === club.id"
+            :style="shareStatusFor(club.id) ? undefined : 'background:var(--brand-primary);border-color:var(--brand-primary)'"
+            @click="toggleShare(club)" />
+        </div>
+        <p v-if="!shareClubs.length" class="text-sm text-gray-400 text-center py-4">No clubs to share with.</p>
+      </div>
+    </Dialog>
+
     <ConfirmDialog />
     <Toast />
   </div>
@@ -183,7 +205,7 @@ import { useConfirm } from 'primevue/useconfirm'
 // The Calendars section (calendars + calendar_categories: read join + create/update/
 // delete + category links) goes through useWaitlistsApi (calendar WRITES seam); the
 // category list + its per-row event-count badge go through useEventsApi.
-const { categories: apiCategories, categoryEventCounts, createCategory, updateCategory, removeCategory } = useEventsApi()
+const { categories: apiCategories, categoryEventCounts, createCategory, updateCategory, removeCategory, calendarInvitees, addCalendarInvitee, removeCalendarInvitee } = useEventsApi()
 const {
   calendars: apiCalendars,
   createCalendar,
@@ -193,6 +215,38 @@ const {
 } = useWaitlistsApi()
 const toast = useToast()
 const confirm = useConfirm()
+
+// ── Sharing a calendar with clubs ───────────────────────────────
+// A governing org shares a whole calendar with the clubs beneath it; each club
+// accepts from its dashboard and the calendar's events surface on its own calendar.
+// The Share control only appears when this org actually has clubs to share with.
+const { descendants } = useOrgHierarchy()
+const shareClubs = ref<any[]>([])
+async function loadShareClubs() {
+  if (!orgId.value) { shareClubs.value = []; return }
+  shareClubs.value = await descendants(orgId.value).catch(() => [])
+}
+const showShareDialog = ref(false)
+const shareCal = ref<any>(null)
+const shareRows = ref<any[]>([])           // calendar_org_invitees for the open calendar
+const shareBusy = ref<string | null>(null) // clubId whose share is in flight
+const shareStatusFor = (clubId: string) => shareRows.value.find(r => r.orgId === clubId)
+async function openShare(cal: any) {
+  shareCal.value = cal
+  shareRows.value = await calendarInvitees(cal.id).catch(() => [])
+  showShareDialog.value = true
+}
+async function toggleShare(club: any) {
+  const existing = shareStatusFor(club.id)
+  shareBusy.value = club.id
+  try {
+    if (existing) await removeCalendarInvitee(existing.id)
+    else await addCalendarInvitee({ calendarId: shareCal.value.id, orgId: club.id, invitedByOrgId: orgId.value })
+    shareRows.value = await calendarInvitees(shareCal.value.id)
+  } catch (err: any) {
+    toast.add({ severity: 'error', summary: 'Failed to update sharing', detail: err?.message, life: 4000 })
+  } finally { shareBusy.value = null }
+}
 
 // ── Categories ──────────────────────────────────────────────────
 const categories = ref<any[]>([])
@@ -340,5 +394,6 @@ function deleteCalendar(cal: any) {
 onMounted(async () => {
   await loadCategories()
   await loadCalendars()
+  await loadShareClubs()
 })
 </script>
