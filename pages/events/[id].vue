@@ -2374,18 +2374,24 @@ async function saveTicketType(tt: any) {
     description: tt.description || null,
     price: tt.price ?? 0,
     capacity: tt.capacity ?? null,
-    salesOpenAt: tt.sales_open_at ?? null,
-    salesCloseAt: tt.sales_close_at ?? null,
+    // The date pickers hold Date objects; the seam contract wants ISO strings — a raw
+    // Date failed zod validation with a silent 400 (dialog just sat open).
+    salesOpenAt: tt.sales_open_at ? new Date(tt.sales_open_at).toISOString() : null,
+    salesCloseAt: tt.sales_close_at ? new Date(tt.sales_close_at).toISOString() : null,
     isActive: tt.is_active ?? true,
   }
-  if (tt.id) {
-    await eventsApi.updateTicket(tt.id, body)
-  } else {
-    const data = await eventsApi.createTicket(id, body)
-    if (data?.id) tt.id = data.id
+  try {
+    if (tt.id) {
+      await eventsApi.updateTicket(tt.id, body)
+    } else {
+      const data = await eventsApi.createTicket(id, body)
+      if (data?.id) tt.id = data.id
+    }
+    showTicketDialog.value = false
+    await loadTicketTypes()
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not save ticket', detail: e?.data?.message ?? e?.message, life: 4000 })
   }
-  showTicketDialog.value = false
-  await loadTicketTypes()
 }
 
 async function deleteTicketType(id: string) {
