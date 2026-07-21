@@ -157,7 +157,7 @@
     <div class="flex flex-col flex-1 min-w-0 transition-[margin] duration-300 ease-out"
       :class="(reviewPanel || notesPanel) ? 'md:mr-[440px]' : ''">
       <!-- Top header bar -->
-      <header class="h-14 shrink-0 bg-white border-b border-gray-200 flex items-center px-3 sm:px-6 gap-2 sm:gap-4 z-10">
+      <header class="h-14 shrink-0 bg-white border-b border-gray-200 flex items-center px-3 sm:px-6 gap-2 sm:gap-4 z-30 relative">
         <!-- Mobile brand mark (icon rail is hidden on mobile) — tap to go home -->
         <NuxtLink to="/dashboard" class="md:hidden w-8 h-8 shrink-0 rounded-lg flex items-center justify-center overflow-hidden" style="background: var(--brand-primary)" :title="activeOrgName">
           <img v-if="brandMark" :src="brandMark" class="w-full h-full object-cover" />
