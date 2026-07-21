@@ -190,6 +190,7 @@ export const orgAdminRowSchema = z.object({
   logoUrl: z.string().nullable(),
   brandId: z.string().nullable(),
   clubTypeIds: z.array(z.string()),
+  isTemplate: z.boolean(),
   members: z.number().int(),
   events: z.number().int(),
 })

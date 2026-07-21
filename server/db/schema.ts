@@ -1221,6 +1221,9 @@ export const organisations = mysqlTable('organisations', {
   website: text('website'),
   memberPullMode: text('member_pull_mode'),
   isSandbox: boolean('is_sandbox').notNull().default(false),
+  // A fully-configured org marked as a reusable SETUP TEMPLATE: a new club can be
+  // cloned from it (config/structure only — never its people or operational data).
+  isTemplate: boolean('is_template').notNull().default(false),
 })
 
 export const pageComments = mysqlTable('page_comments', {

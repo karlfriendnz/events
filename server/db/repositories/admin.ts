@@ -345,6 +345,7 @@ export async function listOrgsWithCounts(): Promise<OrgAdminRow[]> {
       logoUrl: schema.organisations.logoUrl,
       brandId: schema.organisations.brandId,
       clubTypeIds: schema.organisations.clubTypeIds,
+      isTemplate: schema.organisations.isTemplate,
     }).from(schema.organisations)
       .where(eq(schema.organisations.isSandbox, false))
       .orderBy(asc(schema.organisations.name)),
@@ -363,9 +364,15 @@ export async function listOrgsWithCounts(): Promise<OrgAdminRow[]> {
     logoUrl: o.logoUrl ?? null,
     brandId: o.brandId ?? null,
     clubTypeIds: asArray(o.clubTypeIds),
+    isTemplate: !!o.isTemplate,
     members: memberBy.get(o.id) ?? 0,
     events: eventBy.get(o.id) ?? 0,
   }))
+}
+
+/** Mark/unmark an org as a reusable setup template. */
+export async function setOrgTemplate(id: string, isTemplate: boolean): Promise<void> {
+  await db.update(schema.organisations).set({ isTemplate }).where(eq(schema.organisations.id, id))
 }
 
 /** Create an org from the admin dashboard — the FULL row. Returns its new id. */
@@ -628,6 +635,139 @@ export async function applyClubTypeDefaults(
       id: randomUUID(), orgId, name, color: CAT_PALETTE[i % CAT_PALETTE.length], sortOrder: i,
     }))
     if (catRows.length) await db.insert(schema.categories).values(catRows as any)
+  }
+}
+
+/**
+ * Clone a TEMPLATE org's config/structure into a freshly-created org. Copies ONLY
+ * configuration + structure — never people or operational data. The confirmed allowlist:
+ *   • organisations config columns (modules, terminology, core fields, brand, dashboards)
+ *   • person_target_types (+ their field_definitions + profile_forms layouts)
+ *   • dashboard_templates, categories (event), group_codes (empty structure)
+ *   • scoped_role_defs, org-level permission_groups (overrides)
+ * NEVER: persons, org_members, events/sessions/registrations/invitees, bookings,
+ * member_groups/memberships, transactions, notes, communications, resources, org_terms.
+ *
+ * Uses select-all + spread-override so every column carries across; only id/org_id and a
+ * few FKs into un-cloned operational data are re-mapped or nulled. Runs INSTEAD of
+ * applyClubTypeDefaults when a club is created from a template (the template IS the config).
+ */
+export async function cloneOrgConfig(templateOrgId: string, targetOrgId: string): Promise<void> {
+  if (!templateOrgId || !targetOrgId || templateOrgId === targetOrgId) return
+
+  // 1. organisations — copy config/brand columns only (never identity: name/slug/type/
+  //    parent/level/club-type/is_template/is_sandbox stay the new org's own).
+  const [tpl] = await db.select({
+    enabledModules: schema.organisations.enabledModules,
+    terminology: schema.organisations.terminology,
+    coreFields: schema.organisations.coreFields,
+    brandId: schema.organisations.brandId,
+    brandColor: schema.organisations.brandColor,
+    brandTextColor: schema.organisations.brandTextColor,
+    dashboardConfig: schema.organisations.dashboardConfig,
+    profileDashboard: schema.organisations.profileDashboard,
+    currency: schema.organisations.currency,
+    locale: schema.organisations.locale,
+    defaultMemberPositions: schema.organisations.defaultMemberPositions,
+    peopleColumns: schema.organisations.peopleColumns,
+  }).from(schema.organisations).where(eq(schema.organisations.id, templateOrgId)).limit(1)
+  if (!tpl) return
+  // Build the patch defensively: copy a config field only when it actually has content.
+  // Some legacy rows store '' in a json column (terminology/core_fields) — writing '' to a
+  // JSON column is invalid, and an empty value shouldn't overwrite the target's own default
+  // anyway. Scalars (currency/locale/brand*) copy when non-empty; json cols parse via asJson
+  // (the driver may hand json back as a string) and copy only when non-empty.
+  const orgPatch: Record<string, any> = {}
+  for (const k of ['currency', 'locale', 'brandId', 'brandColor', 'brandTextColor'] as const) {
+    const v = (tpl as any)[k]
+    if (v != null && v !== '') orgPatch[k] = v
+  }
+  for (const k of ['terminology', 'coreFields', 'dashboardConfig', 'profileDashboard', 'peopleColumns', 'defaultMemberPositions', 'enabledModules'] as const) {
+    const v = asJson((tpl as any)[k])
+    const empty = v == null
+      || (Array.isArray(v) && v.length === 0)
+      || (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0)
+    if (!empty) orgPatch[k] = v
+  }
+  if (Object.keys(orgPatch).length) {
+    await db.update(schema.organisations).set(orgPatch as any).where(eq(schema.organisations.id, targetOrgId))
+  }
+
+  // 2. person_target_types — new id + org_id, everything else (permissions/slots/menu/
+  //    landing/kind) carried across. Type KEYS are what fields target, so they stay stable.
+  const ptypes = await db.select().from(schema.personTargetTypes).where(eq(schema.personTargetTypes.orgId, templateOrgId))
+  if (ptypes.length) {
+    await db.insert(schema.personTargetTypes).values(
+      ptypes.map(r => ({ ...r, id: randomUUID(), orgId: targetOrgId })) as any)
+  }
+
+  // 3. field_definitions — the types' own custom fields. target/targets are type KEYS
+  //    (identical in the clone), so no remap. default_form_id would point at an un-cloned
+  //    form → not present on field_definitions, nothing to null.
+  const fdefs = await db.select().from(schema.fieldDefinitions).where(eq(schema.fieldDefinitions.orgId, templateOrgId))
+  if (fdefs.length) {
+    await db.insert(schema.fieldDefinitions).values(
+      fdefs.map(r => ({ ...r, id: randomUUID(), orgId: targetOrgId })) as any)
+  }
+
+  // 4. profile_forms — per-type form LAYOUT (pk org_id+type_key, no id).
+  const pforms = await db.select().from(schema.profileForms).where(eq(schema.profileForms.orgId, templateOrgId))
+  if (pforms.length) {
+    await db.insert(schema.profileForms).values(
+      pforms.map(r => ({ ...r, orgId: targetOrgId })) as any)
+  }
+
+  // 5. dashboard_templates — per-role starting dashboards (pk org_id+user_type, no id).
+  const dtpls = await db.select().from(schema.dashboardTemplates).where(eq(schema.dashboardTemplates.orgId, templateOrgId))
+  if (dtpls.length) {
+    await db.insert(schema.dashboardTemplates).values(
+      dtpls.map(r => ({ ...r, orgId: targetOrgId })) as any)
+  }
+
+  // 6. categories (event) — remap self parent_id; null default_form_id (form not cloned)
+  //    and access_person_ids (points at TEMPLATE persons — never carry PII across).
+  const cats = await db.select().from(schema.categories).where(eq(schema.categories.orgId, templateOrgId))
+  if (cats.length) {
+    const idMap = new Map(cats.map(c => [c.id, randomUUID()]))
+    await db.insert(schema.categories).values(cats.map(c => ({
+      ...c,
+      id: idMap.get(c.id)!,
+      orgId: targetOrgId,
+      parentId: c.parentId ? (idMap.get(c.parentId) ?? null) : null,
+      defaultFormId: null,
+      accessPersonIds: [],
+    })) as any)
+  }
+
+  // 7. group_codes — EMPTY structure (no member_groups cloned). Remap self parent_id;
+  //    null term_id/sport_id/lineage_id (org_terms + org_sports are not cloned).
+  const codes = await db.select().from(schema.groupCodes).where(eq(schema.groupCodes.orgId, templateOrgId))
+  if (codes.length) {
+    const idMap = new Map(codes.map(c => [c.id, randomUUID()]))
+    await db.insert(schema.groupCodes).values(codes.map(c => ({
+      ...c,
+      id: idMap.get(c.id)!,
+      orgId: targetOrgId,
+      parentId: c.parentId ? (idMap.get(c.parentId) ?? null) : null,
+      termId: null,
+      sportId: null,
+      lineageId: null,
+    })) as any)
+  }
+
+  // 8. scoped_role_defs — the org's scoped role catalogue.
+  const sroles = await db.select().from(schema.scopedRoleDefs).where(eq(schema.scopedRoleDefs.orgId, templateOrgId))
+  if (sroles.length) {
+    await db.insert(schema.scopedRoleDefs).values(
+      sroles.map(r => ({ ...r, id: randomUUID(), orgId: targetOrgId })) as any)
+  }
+
+  // 9. permission_groups — the org's OWN overrides only (org_id=template). source_group_id
+  //    points at a platform CORE group (org_id=null, shared) so it stays valid.
+  const pgroups = await db.select().from(schema.permissionGroups).where(eq(schema.permissionGroups.orgId, templateOrgId))
+  if (pgroups.length) {
+    await db.insert(schema.permissionGroups).values(
+      pgroups.map(r => ({ ...r, id: randomUUID(), orgId: targetOrgId })) as any)
   }
 }
 

@@ -18,7 +18,7 @@ const isSuper = computed(() => ((user.value as any)?.app_metadata?.role) === 'su
 
 interface OrgRow {
   id: string; name: string; org_level: string; parent_id: string | null; logo_url: string | null
-  brand_id: string | null; club_type_ids: string[] | null
+  brand_id: string | null; club_type_ids: string[] | null; is_template: boolean
   members: number; events: number; depth: number
 }
 
@@ -104,6 +104,7 @@ async function load() {
     logo_url: o.logoUrl,
     brand_id: o.brandId,
     club_type_ids: o.clubTypeIds,
+    is_template: o.isTemplate,
     members: o.members,
     events: o.events,
     depth: 0,
@@ -157,8 +158,11 @@ const showCreate = ref(false)
 const creating = ref(false)
 const createError = ref('')
 const { applyClubTypeDefaults } = useClubTypes()
-const newOrg = reactive<{ name: string; org_level: 'CLUB' | 'REGIONAL' | 'ASSOCIATION' | 'NATIONAL' | 'RST'; parent_id: string | null; default_sport_name: string; brand_id: string | null; club_type_ids: string[] }>({
-  name: '', org_level: 'CLUB', parent_id: null, default_sport_name: '', brand_id: null, club_type_ids: [],
+const { cloneOrgConfig, setOrgTemplate } = useAdminApi()
+// Orgs marked as reusable setup templates — offered as a "start from" option on create.
+const templateOrgs = computed(() => orgs.value.filter(o => o.is_template))
+const newOrg = reactive<{ name: string; org_level: 'CLUB' | 'REGIONAL' | 'ASSOCIATION' | 'NATIONAL' | 'RST'; parent_id: string | null; default_sport_name: string; brand_id: string | null; club_type_ids: string[]; from_template_id: string | null; is_template: boolean }>({
+  name: '', org_level: 'CLUB', parent_id: null, default_sport_name: '', brand_id: null, club_type_ids: [], from_template_id: null, is_template: false,
 })
 // Parents must sit higher in the hierarchy than the new org.
 const newParentOptions = computed(() => orgs.value
@@ -171,6 +175,7 @@ const editId = ref<string | null>(null)
 function openCreate() {
   editId.value = null
   newOrg.name = ''; newOrg.org_level = 'CLUB'; newOrg.parent_id = null; newOrg.default_sport_name = ''; newOrg.brand_id = null; newOrg.club_type_ids = []
+  newOrg.from_template_id = null; newOrg.is_template = false
   createError.value = ''; showCreate.value = true
 }
 function openEdit(row: OrgRow) {
@@ -181,6 +186,7 @@ function openEdit(row: OrgRow) {
   newOrg.default_sport_name = (row as any).default_sport_name ?? ''
   newOrg.brand_id = row.brand_id ?? null
   newOrg.club_type_ids = row.club_type_ids ?? []
+  newOrg.from_template_id = null; newOrg.is_template = row.is_template
   createError.value = ''; showCreate.value = true
 }
 async function createOrg() {
@@ -197,6 +203,7 @@ async function createOrg() {
       await orgsApi.update(editId.value, { name: newOrg.name.trim(), type, orgLevel: newOrg.org_level, defaultSportName, brandId: newOrg.brand_id, clubTypeIds: typeIds } as any)
       // parentId can't move via the patch (it's omitted on purpose) — use the dedicated route.
       await orgsApi.setParent(editId.value, newOrg.parent_id).catch(() => {})
+      await setOrgTemplate(editId.value, newOrg.is_template).catch(() => {})
     } catch (e: any) { creating.value = false; createError.value = e?.data?.message || e?.message || 'Could not save organisation'; return }
     creating.value = false; showCreate.value = false
     await load(); return
@@ -215,8 +222,11 @@ async function createOrg() {
       clubTypeIds: typeIds,
     })
   } catch (e: any) { creating.value = false; createError.value = e?.data?.message || e?.message || 'Could not create organisation'; return }
-  // Seed the new club from its club types' defaults (modules / people types / terminology).
-  if (createdId && typeIds.length) {
+  // Seed the new club: from a TEMPLATE org (full config/structure clone) when chosen,
+  // else from its club types' defaults (modules / people types / terminology).
+  if (createdId && newOrg.from_template_id) {
+    try { await cloneOrgConfig(newOrg.from_template_id, createdId) } catch (e) { /* non-fatal — org still created */ }
+  } else if (createdId && typeIds.length) {
     try { await applyClubTypeDefaults(createdId, typeIds) } catch (e) { /* non-fatal — org still created */ }
   }
   creating.value = false
@@ -429,6 +439,21 @@ onMounted(() => {
           <MultiSelect v-model="newOrg.club_type_ids" :options="clubTypes" option-label="name" option-value="id"
             placeholder="No type" display="chip" filter class="w-full" />
           <p v-if="newOrg.club_type_ids.length" class="text-xs text-gray-400">The club will be seeded with this type's default modules, people types and terminology.</p>
+        </div>
+        <!-- Start from a template org (clone its full config) — create mode, CLUB level -->
+        <div v-if="!editId && newOrg.org_level === 'CLUB' && templateOrgs.length" class="flex flex-col gap-1.5">
+          <label class="text-sm font-medium">Start from a template <span class="text-gray-400 font-normal">(optional)</span></label>
+          <Select v-model="newOrg.from_template_id" :options="templateOrgs" option-label="name" option-value="id"
+            placeholder="Don't use a template" showClear filter class="w-full" />
+          <p v-if="newOrg.from_template_id" class="text-xs text-gray-400">Clones this template's full setup — modules, people types &amp; fields, dashboards, categories, codes, roles. No people or events are copied. Takes precedence over the club type above.</p>
+        </div>
+        <!-- Mark this org as a reusable template — edit mode -->
+        <div v-if="editId" class="flex items-center justify-between gap-3 pt-1">
+          <div>
+            <label class="text-sm font-medium">Reusable setup template</label>
+            <p class="text-xs text-gray-400">New clubs can be created as a clone of this org's config.</p>
+          </div>
+          <ToggleSwitch v-model="newOrg.is_template" />
         </div>
         <div v-if="isGoverningBody(newOrg.org_level)" class="flex flex-col gap-1.5">
           <label class="text-sm font-medium">Default sport name <span class="text-gray-400 font-normal">(optional)</span></label>

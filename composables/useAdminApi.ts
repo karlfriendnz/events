@@ -147,6 +147,14 @@ export function useAdminApi() {
   async function applyClubTypeDefaults(orgId: string, typeIds: string[]): Promise<void> {
     await $fetch('/api/v1/admin/apply-club-type-defaults', { method: 'POST', body: { orgId, typeIds } })
   }
+  /** Clone a template org's config/structure into a freshly-created org (config only). */
+  async function cloneOrgConfig(templateOrgId: string, targetOrgId: string): Promise<void> {
+    await $fetch('/api/v1/admin/clone-org-config', { method: 'POST', body: { templateOrgId, targetOrgId } })
+  }
+  /** Mark/unmark an org as a reusable setup template. */
+  async function setOrgTemplate(id: string, isTemplate: boolean): Promise<void> {
+    await $fetch('/api/v1/admin/set-org-template', { method: 'POST', body: { id, isTemplate } })
+  }
   /** The Template Sandbox org's id (dashboard-template preview canvas), or null. */
   async function sandboxOrgId(): Promise<string | null> {
     const r = await $fetch<{ id: string | null }>('/api/v1/admin/sandbox-org')
@@ -178,7 +186,7 @@ export function useAdminApi() {
     createBrand, updateBrand, deleteBrand,
     getClubType, createClubType, updateClubType, deleteClubType, saveClubTypeDefaults, overallDefaultClubTypeId,
     corePermissionGroups, createCorePermissionGroup, updateCorePermissionGroup, deleteCorePermissionGroup, reorderCorePermissionGroups,
-    orgsWithCounts, createOrg, setOrgLevel, setOrgClubTypes, setOrgBrand, orgClubTypeIds, applyClubTypeDefaults, sandboxOrgId,
+    orgsWithCounts, createOrg, setOrgLevel, setOrgClubTypes, setOrgBrand, orgClubTypeIds, applyClubTypeDefaults, cloneOrgConfig, setOrgTemplate, sandboxOrgId,
     orgModules, setOrgModules,
     orgAncestors, orgDescendants, orgGoverning,
   }
