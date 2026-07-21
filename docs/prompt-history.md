@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-331 sessions · 1583 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+331 sessions · 1584 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -27706,7 +27706,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:17** — [Image #1] this is what happens when i run" npm run dev on a new tab - something is broken please fix it
 
 
-## Session 2026-07-20 00:42 (166 prompts)
+## Session 2026-07-20 00:42 (167 prompts)
 
 **00:42** — so i just restarted and now i can't get the server to run again ?
 
@@ -28858,6 +28858,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **19:07** — The menu item should never change colour in the main left menu only in drop downs please make this a global rule
 
 **19:12** — please make it so advanced evetn only shows in NSO for now
+
+**19:17** — commit - deploy live
 
 
 ## Session 2026-07-20 17:11 (6 prompts)

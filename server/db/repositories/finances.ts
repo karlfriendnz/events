@@ -19,7 +19,7 @@
 // money: `modifier_value` is a decimal — mysql2 returns it as a string; it is passed
 // through unchanged (the contract accepts string|number) rather than lossily coerced.
 import { randomUUID } from 'node:crypto'
-import { and, asc, desc, eq, gte, inArray, isNotNull, lt } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   Discount,
@@ -32,6 +32,7 @@ import type {
   AddonCreate,
   ReportingBundle,
   AttendanceSession,
+  AttendanceInboxItem,
   CustomReport,
   CustomReportCreate,
   CustomReportPatch,
@@ -441,6 +442,81 @@ export async function attendanceSessions(orgId: string, from: string, to: string
     groupName: r.groupName ?? null,
     groupColor: r.groupColor ?? null,
     locationId: r.locationId ?? null,
+  }))
+}
+
+// ── Attendance inbox ─────────────────────────────────────────────────────────
+// Per-user "rolls to complete": occurrences in [from, to) for the given group ids
+// (training events) OR event ids (standalone events the user is on), each with a
+// derived `markedCount` (distinct people with an attendance row) so the page can
+// show Done / Needs-roll without a status column. Scoping is the CALLER's job —
+// with no ids this returns nothing (never org-wide, unlike attendanceSessions).
+export async function attendanceInbox(
+  orgId: string,
+  groupIds: string[],
+  eventIds: string[],
+  from: string,
+  to: string,
+): Promise<AttendanceInboxItem[]> {
+  if (!groupIds.length && !eventIds.length) return []
+  const fromD = new Date(from)
+  const toD = new Date(to)
+  const scope = []
+  if (groupIds.length) scope.push(inArray(schema.events.memberGroupId, groupIds))
+  if (eventIds.length) scope.push(inArray(schema.events.id, eventIds))
+  const rows = await db
+    .select({
+      eventId: schema.events.id,
+      eventTitle: schema.events.title,
+      startAt: schema.events.startAt,
+      endAt: schema.events.endAt,
+      locationType: schema.events.locationType,
+      bookableId: schema.events.bookableId,
+      address: schema.events.address,
+      meetingLink: schema.events.meetingLink,
+      groupName: schema.memberGroups.name,
+      groupColor: schema.memberGroups.color,
+      locationId: schema.memberGroups.locationId,
+    })
+    .from(schema.events)
+    .leftJoin(schema.memberGroups, eq(schema.events.memberGroupId, schema.memberGroups.id))
+    .where(and(eq(schema.events.orgId, orgId), or(...scope), gte(schema.events.startAt, fromD), lt(schema.events.startAt, toD)))
+    .orderBy(asc(schema.events.startAt))
+
+  const eventIdSet = Array.from(new Set(rows.map((r) => r.eventId)))
+  // Distinct people marked per event — training rolls are event-level (session_id null).
+  const marked: Record<string, number> = {}
+  if (eventIdSet.length) {
+    const counts = await db
+      .select({ eventId: schema.attendance.eventId, n: sql<number>`count(distinct ${schema.attendance.personId})` })
+      .from(schema.attendance)
+      .where(inArray(schema.attendance.eventId, eventIdSet))
+      .groupBy(schema.attendance.eventId)
+    for (const c of counts) marked[c.eventId] = Number(c.n)
+  }
+  const bookableIds = Array.from(new Set(rows.map((r) => r.bookableId).filter((x): x is string => !!x)))
+  const names: Record<string, string> = {}
+  if (bookableIds.length) {
+    const bkbls = await db
+      .select({ id: schema.bookables.id, name: schema.bookables.name })
+      .from(schema.bookables)
+      .where(inArray(schema.bookables.id, bookableIds))
+    for (const b of bkbls) names[b.id] = b.name
+  }
+
+  return rows.map((r) => ({
+    eventId: r.eventId,
+    eventTitle: r.eventTitle ?? null,
+    startAt: toIso(r.startAt),
+    endAt: toIso(r.endAt),
+    locationType: r.locationType ?? null,
+    bookableName: r.bookableId ? names[r.bookableId] ?? null : null,
+    address: r.address ?? null,
+    meetingLink: r.meetingLink ?? null,
+    groupName: r.groupName ?? null,
+    groupColor: r.groupColor ?? null,
+    locationId: r.locationId ?? null,
+    markedCount: marked[r.eventId] ?? 0,
   }))
 }
 
