@@ -599,6 +599,7 @@ function onBookablesLeave() {
 }
 
 // ---- Calendars ----
+const calendarApi = useWaitlistsApi() // calendars live on the MySQL seam, not Supabase
 const calendars = ref<{ id: string; name: string; color: string | null; pin_to_nav: boolean; icon: string | null }[]>([])
 // Calendars a club has chosen to promote to the main left menu (their own item).
 const pinnedCalendars = computed(() => calendars.value.filter(c => c.pin_to_nav))
@@ -606,8 +607,8 @@ const pinnedCalendars = computed(() => calendars.value.filter(c => c.pin_to_nav)
 async function loadCalendars() {
   if (!orgId.value) { calendars.value = []; return }
   // Scope to the active org — otherwise the menu pools every org's calendars.
-  const { data } = await (db.from as any)('calendars').select('id, name, pin_to_nav, icon, color').eq('org_id', orgId.value).order('sort_order')
-  calendars.value = (data ?? []).map((c: any) => ({ id: c.id, name: c.name, color: c.color ?? null, pin_to_nav: !!c.pin_to_nav, icon: c.icon ?? null }))
+  const rows = await calendarApi.calendars(orgId.value).catch(() => [] as any[])
+  calendars.value = rows.map((c: any) => ({ id: c.id, name: c.name, color: c.color ?? null, pin_to_nav: !!c.pinToNav, icon: c.icon ?? null }))
 }
 
 onMounted(() => { loadMenuBookables() })
@@ -684,9 +685,13 @@ async function loadGroupViews() {
 }
 watch(orgId, loadGroupViews, { immediate: true })
 
+// Shared signal so the "New calendar" menu item drops straight into the create flow on
+// the events board (which owns the settings drawer) — even from another page.
+const navNewCalendar = useState('nav-new-calendar', () => false)
 function openNewCalendarModal() {
   eventsHover.value = false
-  calSettingsOpen.value = true
+  navNewCalendar.value = true
+  navigateTo('/events')
 }
 
 // ---- Nav ----

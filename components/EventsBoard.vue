@@ -1641,6 +1641,17 @@ const creatingNewCal = ref(false)
 // "Next". Editing an existing calendar reveals everything immediately.
 const calDetailsRevealed = ref(false)
 
+// The left-menu "New calendar" item sets this; drop into the create flow + open the drawer.
+const navNewCalendar = useState('nav-new-calendar', () => false)
+function handleNavNewCalendar() {
+  if (!navNewCalendar.value) return
+  navNewCalendar.value = false
+  showDemoPrompt.value = false
+  startNewCalendar()
+  showCalSettings.value = true
+}
+watch(navNewCalendar, handleNavNewCalendar)
+
 function startNewCalendar() {
   editingCalendarId.value = null
   newCalendarName.value = ''
@@ -2478,12 +2489,16 @@ onMounted(async () => {
   await Promise.all([load(), loadCalendars()])
   calendarTitle.value = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
 
+  // A "New calendar" intent from the left menu takes priority over the empty-calendar welcome.
+  const openingNewCal = navNewCalendar.value
+  handleNavNewCalendar()
+
   // Show demo data prompt only if no events and not previously dismissed.
   // Never on /programme — an empty programme list is normal, not a blank calendar.
   // GATE on the app-wide prototype disclaimer being dismissed first: otherwise the two
   // modals stack and the disclaimer's mask sits over this one's buttons (the disclaimer
   // is a blocking modal, so this resolves within a couple of seconds).
-  if (!isProgramme.value && events.value.length === 0 && !localStorage.getItem(DEMO_PROMPTED_KEY)) {
+  if (!openingNewCal && !isProgramme.value && events.value.length === 0 && !localStorage.getItem(DEMO_PROMPTED_KEY)) {
     const ackd = () => sessionStorage.getItem('prototype_acknowledged') === '1'
     if (ackd()) { showDemoPrompt.value = true }
     else {
