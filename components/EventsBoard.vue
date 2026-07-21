@@ -253,7 +253,7 @@
         </div>
 
         <!-- ── Export — an accordion, one panel per way of getting the data out ── -->
-        <div v-else class="flex flex-col gap-2">
+        <div v-else-if="calTab === 'export'" class="flex flex-col gap-2">
           <p class="text-sm text-gray-600 mb-1">
             Everything here follows the calendar as you've filtered it —
             <span class="font-semibold text-gray-800">{{ exportRows.length }}</span>
@@ -309,6 +309,34 @@
               </template>
             </div>
           </div>
+        </div>
+
+        <!-- ── Share — a governing/parent org shares this calendar with the clubs beneath it ── -->
+        <div v-else-if="calTab === 'share'" class="flex flex-col gap-3">
+          <p class="text-xs text-gray-500">
+            Share a calendar with the clubs beneath you — each club accepts it from their dashboard and its
+            {{ t('event', true, true) }} appear on their own calendar. Nothing shows for them until they accept.
+          </p>
+          <div v-if="!activeCalendar" class="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+            <i class="pi pi-info-circle text-amber-500 text-xs mt-0.5" />
+            <p class="text-xs text-amber-700">Open one of your calendars first (from the menu or the tabs), then share it here. The combined "all events" view can't be shared.</p>
+          </div>
+          <template v-else>
+            <p class="text-xs font-semibold text-gray-600">Sharing "{{ activeCalendar.name }}" with:</p>
+            <div v-for="club in shareClubs" :key="club.id" class="flex items-center gap-3 px-3 py-2 rounded-lg border border-gray-100">
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-gray-800 truncate">{{ club.name }}</p>
+                <p class="text-xs text-gray-400">{{ orgLevelLabel(club.org_level) }}</p>
+              </div>
+              <span v-if="shareStatusFor(club.id)?.status === 'ACCEPTED'" class="text-[11px] font-semibold text-emerald-600">Accepted</span>
+              <span v-else-if="shareStatusFor(club.id)?.status === 'DECLINED'" class="text-[11px] font-semibold text-rose-500">Declined</span>
+              <span v-else-if="shareStatusFor(club.id)" class="text-[11px] font-semibold text-amber-500">Invited</span>
+              <Button :label="shareStatusFor(club.id) ? 'Unshare' : 'Share'" size="small" :outlined="!!shareStatusFor(club.id)"
+                :severity="shareStatusFor(club.id) ? 'secondary' : undefined" :loading="shareBusy === club.id"
+                :style="shareStatusFor(club.id) ? undefined : 'background:var(--brand-primary);border-color:var(--brand-primary)'"
+                @click="toggleCalendarShare(club)" />
+            </div>
+          </template>
         </div>
       </div>
 
@@ -1294,11 +1322,13 @@ const calSettings = reactive({
 // The "New …" button text: the club's custom label, else the default.
 const newButtonText = computed(() => calSettings.newButtonLabel?.trim() || `New ${t('event', false)}`)
 
-const CAL_TABS = [
+// Share tab only for a governing/parent org that actually has clubs beneath it.
+const CAL_TABS = computed(() => [
   { key: 'display', label: 'Display', icon: 'pi-sliders-h' },
   { key: 'filter', label: 'Filter', icon: 'pi-filter' },
   { key: 'export', label: 'Export', icon: 'pi-download' },
-]
+  ...(canShareCalendars.value ? [{ key: 'share', label: 'Share', icon: 'pi-share-alt' }] : []),
+])
 const calTab = ref('display')
 
 const FILTER_DEFS = [
@@ -1495,6 +1525,41 @@ const activeCalendar = computed(() => {
   if (!calId) return null
   return namedCalendars.value.find(c => c.id === calId) ?? null
 })
+
+// ── Share this calendar with clubs (governing/parent orgs) ──────────────────
+// A governing org shares the OPEN calendar with the clubs beneath it; each club
+// accepts from its dashboard and the calendar's events surface on its own calendar.
+const { descendants } = useOrgHierarchy()
+const shareClubs = ref<any[]>([])                  // descendant orgs we can share with
+const canShareCalendars = computed(() => shareClubs.value.length > 0)
+const shareRows = ref<any[]>([])                   // calendar_org_invitees for the open calendar
+const shareBusy = ref<string | null>(null)
+const shareStatusFor = (clubId: string) => shareRows.value.find(r => r.orgId === clubId)
+async function loadShareClubs() {
+  if (!orgId.value) { shareClubs.value = []; return }
+  shareClubs.value = await descendants(orgId.value).catch(() => [])
+}
+async function loadCalendarShares() {
+  const calId = activeCalendar.value?.id
+  if (!calId) { shareRows.value = []; return }
+  shareRows.value = await eventsApi.calendarInvitees(calId).catch(() => [])
+}
+async function toggleCalendarShare(club: any) {
+  const calId = activeCalendar.value?.id
+  if (!calId) return
+  const existing = shareStatusFor(club.id)
+  shareBusy.value = club.id
+  try {
+    if (existing) await eventsApi.removeCalendarInvitee(existing.id)
+    else await eventsApi.addCalendarInvitee({ calendarId: calId, orgId: club.id, invitedByOrgId: orgId.value })
+    await loadCalendarShares()
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Failed to update sharing', detail: e?.message, life: 4000 })
+  } finally { shareBusy.value = null }
+}
+// Load the invitee list when the Share tab is opened for a calendar.
+watch(calTab, (tab) => { if (tab === 'share') loadCalendarShares() })
+watch(() => activeCalendar.value?.id, () => { if (calTab.value === 'share') loadCalendarShares() })
 
 async function loadCalendars() {
   // The `calendars` + `calendar_categories` read/writes go through the waitlists-domain
@@ -2486,7 +2551,7 @@ watch(isProgramme, (prog) => {
 
 onMounted(async () => {
   if (isProgramme.value) calSettings.defaultView = 'table'
-  await Promise.all([load(), loadCalendars()])
+  await Promise.all([load(), loadCalendars(), loadShareClubs()])
   calendarTitle.value = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
 
   // A "New calendar" intent from the left menu takes priority over the empty-calendar welcome.

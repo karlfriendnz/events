@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-331 sessions · 1578 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+331 sessions · 1579 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -27706,7 +27706,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:17** — [Image #1] this is what happens when i run" npm run dev on a new tab - something is broken please fix it
 
 
-## Session 2026-07-20 00:42 (161 prompts)
+## Session 2026-07-20 00:42 (162 prompts)
 
 **00:42** — so i just restarted and now i can't get the server to run again ?
 
@@ -28828,6 +28828,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **18:27** — when i click on the settings icon on an event its showing the new claendar pane - it should only show this pane when creating a calendar
 
 **18:35** — [Image #35]
+
+**18:44** — im in the nso and i can't see any share functionlity - I would expect this to be a tab in the slide out pesae
 
 
 ## Session 2026-07-20 17:11 (6 prompts)
