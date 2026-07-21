@@ -11,7 +11,7 @@ definePageMeta({ layout: 'default' })
 const route = useRoute()
 const id = computed(() => route.params.id as string)
 const breadcrumbs = useBreadcrumbs()
-const activeTab = ref<'attendance' | 'notes'>('attendance')
+const activeTab = ref<'attendance' | 'communication' | 'notes'>('attendance')
 void useToast() // ensure the Toast service is available to child components
 
 // The details component owns the event; it hands us the loaded event for the breadcrumb.
@@ -22,6 +22,7 @@ onUnmounted(() => { breadcrumbs.value = [] })
 
 const BODY_TABS = [
   { k: 'attendance', l: 'Attendance', i: 'pi-check-square' },
+  { k: 'communication', l: 'Communication', i: 'pi-envelope' },
   { k: 'notes', l: 'Notes & tasks', i: 'pi-clipboard' },
 ]
 </script>
@@ -44,6 +45,9 @@ const BODY_TABS = [
 
     <div v-show="activeTab === 'attendance'">
       <EventAttendance :event-id="id" fit />
+    </div>
+    <div v-show="activeTab === 'communication'">
+      <EventCommunication :event-id="id" />
     </div>
     <div v-show="activeTab === 'notes'">
       <EventNotesTab :event-id="id" />
