@@ -15,6 +15,9 @@ import * as affiliations from '../repositories/affiliations'
 import * as admin from '../repositories/admin'
 import * as disciplines from '../repositories/disciplines'
 import * as personTypes from '../repositories/personTypes'
+import * as memberships from '../repositories/memberships'
+import * as circles from '../repositories/circles'
+import { resolveFlavour, type FlavourData } from './flavours'
 
 export interface SeedRepos {
   organisations: typeof organisations
@@ -28,6 +31,8 @@ export interface SeedRepos {
   admin: typeof admin
   disciplines: typeof disciplines
   personTypes: typeof personTypes
+  memberships: typeof memberships
+  circles: typeof circles
 }
 
 export class SeedContext {
@@ -35,14 +40,17 @@ export class SeedContext {
   // until they create one (they don't rely on this).
   orgId: string
   readonly repos: SeedRepos
+  // The resolved "club style" that themes block names (programmes/venues/events/sport).
+  readonly flavour: FlavourData
   private readonly counts: Record<string, number> = {}
   private readonly logs: string[] = []
 
-  constructor(orgId: string | null) {
+  constructor(orgId: string | null, flavourKey?: string | null) {
     this.orgId = orgId ?? ''
+    this.flavour = resolveFlavour(flavourKey)
     this.repos = {
       organisations, events, bookings, groups, people, forms,
-      finances, affiliations, admin, disciplines, personTypes,
+      finances, affiliations, admin, disciplines, personTypes, memberships, circles,
     }
   }
 

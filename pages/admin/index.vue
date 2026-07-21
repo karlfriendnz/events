@@ -383,6 +383,9 @@ onMounted(() => {
           <template #body="{ data }">
             <div class="inline-flex items-center gap-3">
               <button type="button" class="text-xs font-medium text-primary hover:underline" @click="openOrg(data.id)">Open →</button>
+              <NuxtLink :to="`/admin/organisations/${data.id}`" class="text-gray-400 hover:text-primary" v-tooltip.left="'Details & seed data'">
+                <i class="pi pi-database text-xs" />
+              </NuxtLink>
               <button type="button" class="text-gray-400 hover:text-primary" v-tooltip.left="'Edit organisation'" @click="openEdit(data)">
                 <i class="pi pi-pencil text-xs" />
               </button>

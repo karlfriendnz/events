@@ -125,6 +125,69 @@ export async function resetOrgData(orgId: string): Promise<void> {
   await delOrg(s.auditLog, s.auditLog.orgId, orgId)
 }
 
+// Clear all the DATA in one org but KEEP the org row and its SETUP config (person
+// types, fields, terminology, modules, sports, locations). This is the "empty the
+// club so I can re-seed it" reset — unlike resetOrgData it also removes people,
+// classes, codes, terms, memberships, waitlists, disciplines and entities. Children
+// are deleted before their parents so an enforced FK never blocks the delete.
+export async function clearOrgContent(orgId: string): Promise<void> {
+  if (!orgId) return
+
+  // Operational data first (events / venues / activities / forms / bookings / …).
+  await resetOrgData(orgId)
+
+  // ── Member-group subtree ───────────────────────────────────────
+  const groupIds = await idsOf(s.memberGroups, s.memberGroups.id, s.memberGroups.orgId, orgId)
+  const feeOptIds = await idsIn(s.groupFeeOptions, s.groupFeeOptions.id, s.groupFeeOptions.groupId, groupIds)
+  await delIn(s.groupFeeOptionItems, s.groupFeeOptionItems.optionId, feeOptIds)
+  await delOrg(s.groupFeeOptions, s.groupFeeOptions.orgId, orgId)
+  await delIn(s.memberGroupTerms, s.memberGroupTerms.groupId, groupIds)
+  await delIn(s.memberGroupPlans, s.memberGroupPlans.groupId, groupIds) // no org_id column — scope by group
+  await delIn(s.memberGroupDisciplines, s.memberGroupDisciplines.groupId, groupIds)
+  await delOrg(s.membershipEntitlements, s.membershipEntitlements.orgId, orgId)
+  await delIn(s.memberGroupMemberships, s.memberGroupMemberships.groupId, groupIds)
+  await delOrg(s.memberGroupSchedules, s.memberGroupSchedules.orgId, orgId)
+  const wlIds = await idsOf(s.waitlists, s.waitlists.id, s.waitlists.orgId, orgId)
+  await delIn(s.waitlistEntries, s.waitlistEntries.waitlistId, wlIds)
+  await delOrg(s.waitlists, s.waitlists.orgId, orgId)
+  await delOrg(s.groupViews, s.groupViews.orgId, orgId)
+
+  // ── People-scoped (before persons + disciplines it references) ─
+  await delOrg(s.personMemberships, s.personMemberships.orgId, orgId)
+  const circleIds = await idsOf(s.circles, s.circles.id, s.circles.orgId, orgId)
+  await delIn(s.circleMembers, s.circleMembers.circleId, circleIds)
+  await delOrg(s.circles, s.circles.orgId, orgId)
+  await delOrg(s.entityMembers, s.entityMembers.orgId, orgId)
+  await delOrg(s.entities, s.entities.orgId, orgId)
+  await delOrg(s.personNotes, s.personNotes.orgId, orgId)
+
+  // ── Now the group + membership-plan roots ──────────────────────
+  await delOrg(s.memberGroups, s.memberGroups.orgId, orgId)
+  await delOrg(s.groupCodes, s.groupCodes.orgId, orgId)
+  const planIds = await idsOf(s.membershipPlans, s.membershipPlans.id, s.membershipPlans.orgId, orgId)
+  await delIn(s.membershipPlanOptions, s.membershipPlanOptions.planId, planIds)
+  await delOrg(s.membershipPlans, s.membershipPlans.orgId, orgId)
+  await delOrg(s.orgTerms, s.orgTerms.orgId, orgId)
+  await delOrg(s.termSets, s.termSets.orgId, orgId)
+
+  // ── Disciplines (seeded by the disciplines block) ──────────────
+  const discIds = await idsOf(s.disciplines, s.disciplines.id, s.disciplines.orgId, orgId)
+  await delIn(s.disciplineRequirements, s.disciplineRequirements.disciplineId, discIds)
+  await delOrg(s.disciplines, s.disciplines.orgId, orgId)
+
+  // ── Finally the people themselves ──────────────────────────────
+  await delOrg(s.persons, s.persons.orgId, orgId)
+
+  // ── Person types + their links/layouts ─────────────────────────
+  // These are seeded per club style, so a re-seed with a different flavour must start
+  // clean (otherwise gymnastics types linger under a football seed). The org's own
+  // identity + settings (name/level/brand/currency/terminology/modules/sports) stay
+  // on the organisations row and are kept.
+  await delOrg(s.personTypeLinks, s.personTypeLinks.orgId, orgId)
+  await delOrg(s.profileForms, s.profileForms.orgId, orgId)
+  await delOrg(s.personTargetTypes, s.personTargetTypes.orgId, orgId)
+}
+
 // The whole subtree rooted at `orgId` — descendants deepest-first, then the org
 // itself. For each org: clear its operational data (resetOrgData), then its people +
 // member-group data, then the organisations row. Additive-safe: only touches tables

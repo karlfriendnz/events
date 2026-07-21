@@ -2,7 +2,7 @@
 // refused in production unless ALLOW_DEV_SEED=1 (the real gate — super-admin auth —
 // is the backend team's later).
 import { resetRequestSchema, resetSummarySchema } from '../../../../shared/contracts/devSeed'
-import { resetOrgData, deleteOrgTree } from '../../../db/seed/reset'
+import { resetOrgData, clearOrgContent, deleteOrgTree } from '../../../db/seed/reset'
 
 export default defineEventHandler(async (event) => {
   if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEV_SEED !== '1') {
@@ -10,6 +10,7 @@ export default defineEventHandler(async (event) => {
   }
   const { orgId, mode } = resetRequestSchema.parse(await readBody(event))
   if (mode === 'org-tree') await deleteOrgTree(orgId)
+  else if (mode === 'org-content') await clearOrgContent(orgId)
   else await resetOrgData(orgId)
   return resetSummarySchema.parse({ ok: true, mode })
 })
