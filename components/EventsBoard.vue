@@ -136,7 +136,7 @@
               <div v-if="newCalendarPin" class="flex items-end gap-3 mt-1">
                 <div class="flex flex-col gap-1.5 flex-1 min-w-0">
                   <label class="text-xs font-medium text-gray-600">Menu icon</label>
-                  <PrimeIconPicker v-model="newCalendarIcon" :accent="newCalendarColor || undefined" />
+                  <IconPicker v-model="newCalendarIcon" />
                 </div>
                 <div class="flex flex-col gap-1.5">
                   <label class="text-xs font-medium text-gray-600">Colour</label>

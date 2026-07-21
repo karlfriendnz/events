@@ -32,7 +32,7 @@
               <NuxtLink v-if="menuSubVisible('/events')" to="/events" class="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50" @click="eventsHover = false"><i class="pi pi-calendar text-gray-400 text-xs" />View Events</NuxtLink>
               <template v-if="calendars.length"><div class="border-t border-gray-100" /><div class="py-1">
                 <NuxtLink v-for="cal in calendars" :key="cal.id" :to="`/events?calendar=${cal.id}`" class="flex items-center gap-2.5 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50" @click="eventsHover = false">
-                  <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: cal.color ?? '#94a3b8' }" />
+                  <i :class="[calIconClass(cal.icon), 'text-xs shrink-0 w-3.5 text-center']" :style="{ color: cal.color ?? '#94a3b8' }" />
                   <span :class="cal.name ? '' : 'italic text-gray-400'">{{ cal.name || 'Untitled calendar' }}</span>
                 </NuxtLink></div></template>
               <div class="border-t border-gray-100" />
@@ -143,7 +143,7 @@
         <NuxtLink v-for="cal in pinnedCalendars" :key="cal.id" :to="`/events?calendar=${cal.id}`"
           class="group relative flex items-center rounded-xl transition-colors"
           :class="[railBtnClass, isCalActive(cal.id) ? 'bg-white/20 text-white' : 'text-white/50 hover:bg-white/10 hover:text-white']">
-          <i :class="['pi', cal.icon || 'pi-calendar', 'text-lg']"
+          <i :class="[calIconClass(cal.icon), 'text-lg']"
             :style="!isCalActive(cal.id) && cal.color ? { color: cal.color } : undefined" />
           <span v-if="railExpanded" class="flex-1 text-sm whitespace-nowrap text-left">{{ cal.name }}</span>
           <span v-else class="pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1 text-xs font-medium text-white opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow">{{ cal.name }}</span>
@@ -603,6 +603,15 @@ const calendarApi = useWaitlistsApi() // calendars live on the MySQL seam, not S
 const calendars = ref<{ id: string; name: string; color: string | null; pin_to_nav: boolean; icon: string | null }[]>([])
 // Calendars a club has chosen to promote to the main left menu (their own item).
 const pinnedCalendars = computed(() => calendars.value.filter(c => c.pin_to_nav))
+// A calendar's icon may be a full Font Awesome class (new picker, e.g.
+// "fa-solid fa-futbol") or a legacy PrimeIcons suffix ("pi-calendar" / "calendar").
+// Render both correctly, defaulting to a calendar glyph.
+function calIconClass(icon?: string | null) {
+  if (!icon) return 'pi pi-calendar'
+  if (icon.includes('fa-')) return icon
+  if (icon.startsWith('pi-')) return `pi ${icon}`
+  return `pi pi-${icon}`
+}
 
 async function loadCalendars() {
   if (!orgId.value) { calendars.value = []; return }
