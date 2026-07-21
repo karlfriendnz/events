@@ -29,6 +29,7 @@ onMounted(async () => {
   // Seam read: every organisation; map to the snake shape the list renders.
   const data = await orgsApi.list()
   orgs.value = data
+    .filter(o => !o.isTemplate)   // templates are setup blueprints, not switchable clubs
     .map(o => ({ id: o.id, name: o.name, org_level: o.orgLevel }))
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
 })

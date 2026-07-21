@@ -36,6 +36,7 @@ function toDomain(r: typeof schema.organisations.$inferSelect): Organisation {
     slug: r.slug ?? null,
     orgLevel: r.orgLevel as Organisation['orgLevel'],
     parentId: r.parentId ?? null,
+    isTemplate: !!r.isTemplate,
     createdAt: created.toISOString(),
   }
 }

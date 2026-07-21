@@ -28,11 +28,16 @@ const brands = ref<{ id: string; name: string; logo_url: string | null; color: s
 const brandById = computed<Record<string, { id: string; name: string; logo_url: string | null; color: string | null }>>(
   () => Object.fromEntries(brands.value.map(b => [b.id, b])))
 
+// Template orgs are setup blueprints, not real clubs — kept out of the hierarchy,
+// the level tabs and the totals, and surfaced only under their own "Templates" tab.
+// (templateOrgs itself is declared below, near the create dialog that also uses it.)
+const realOrgs = computed(() => orgs.value.filter(o => !o.is_template))
+
 // Roots-first depth-ordered traversal so children render indented under parents.
 const orderedOrgs = computed<OrgRow[]>(() => {
   const byParent = new Map<string | null, OrgRow[]>()
-  for (const o of orgs.value) {
-    const k = o.parent_id && orgs.value.some(x => x.id === o.parent_id) ? o.parent_id : null
+  for (const o of realOrgs.value) {
+    const k = o.parent_id && realOrgs.value.some(x => x.id === o.parent_id) ? o.parent_id : null
     if (!byParent.has(k)) byParent.set(k, [])
     byParent.get(k)!.push(o)
   }
@@ -54,34 +59,39 @@ const orderedOrgs = computed<OrgRow[]>(() => {
 // hierarchy; a specific level shows a flat alphabetical list of just that level.
 const levelTab = ref<string>('ALL')
 const levelTabs = computed(() => {
-  const present = (ORG_TYPE_OPTIONS as readonly string[]).filter(l => orgs.value.some(o => o.org_level === l))
-  return [{ value: 'ALL', label: 'All', count: orgs.value.length },
-    ...present.map(l => ({ value: l, label: orgLevelLabel(l), count: orgs.value.filter(o => o.org_level === l).length }))]
+  const present = (ORG_TYPE_OPTIONS as readonly string[]).filter(l => realOrgs.value.some(o => o.org_level === l))
+  return [
+    { value: 'ALL', label: 'All', count: realOrgs.value.length },
+    ...present.map(l => ({ value: l, label: orgLevelLabel(l), count: realOrgs.value.filter(o => o.org_level === l).length })),
+    ...(templateOrgs.value.length ? [{ value: 'TEMPLATE', label: 'Templates', count: templateOrgs.value.length }] : []),
+  ]
 })
 const search = ref('')
 const displayedOrgs = computed<OrgRow[]>(() => {
   const q = search.value.trim().toLowerCase()
+  const isTpl = levelTab.value === 'TEMPLATE'
+  const source = isTpl ? templateOrgs.value : realOrgs.value
   // A search flattens to alphabetical name matches (the tree can't survive a filter);
   // no search + "All" keeps the indented hierarchy.
   if (q) {
-    return orgs.value
-      .filter(o => (levelTab.value === 'ALL' || o.org_level === levelTab.value) && o.name.toLowerCase().includes(q))
+    return source
+      .filter(o => (isTpl || levelTab.value === 'ALL' || o.org_level === levelTab.value) && o.name.toLowerCase().includes(q))
       .map(o => ({ ...o, depth: 0 }))
       .sort((a, b) => a.name.localeCompare(b.name))
   }
   if (levelTab.value === 'ALL') return orderedOrgs.value
-  return orgs.value
-    .filter(o => o.org_level === levelTab.value)
+  return source
+    .filter(o => isTpl || o.org_level === levelTab.value)
     .map(o => ({ ...o, depth: 0 }))
     .sort((a, b) => a.name.localeCompare(b.name))
 })
 
 const totals = computed(() => ({
-  orgs: orgs.value.length,
-  members: orgs.value.reduce((s, o) => s + o.members, 0),
-  events: orgs.value.reduce((s, o) => s + o.events, 0),
+  orgs: realOrgs.value.length,
+  members: realOrgs.value.reduce((s, o) => s + o.members, 0),
+  events: realOrgs.value.reduce((s, o) => s + o.events, 0),
   byLevel: (ORG_LEVELS as readonly string[]).map(l => ({
-    level: l, label: orgLevelLabel(l), count: orgs.value.filter(o => o.org_level === l).length,
+    level: l, label: orgLevelLabel(l), count: realOrgs.value.filter(o => o.org_level === l).length,
   })).filter(x => x.count > 0),
 }))
 

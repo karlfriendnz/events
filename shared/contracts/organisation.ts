@@ -18,6 +18,9 @@ export const organisationSchema = z.object({
   slug: z.string().nullable(),
   orgLevel: orgLevelSchema,
   parentId: z.string().nullable(),
+  // Reusable setup template (migration 0011) — hidden from the club switcher and
+  // shown in its own tab on /admin, never mixed in with real clubs.
+  isTemplate: z.boolean().default(false),
   // ISO 8601 — the transport form. The DB stores a timestamp; the repo serialises.
   createdAt: z.string(),
 })
