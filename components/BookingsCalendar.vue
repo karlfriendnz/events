@@ -11,15 +11,18 @@
           <!-- Day cells -->
           <div class="absolute inset-0 grid gap-1" :class="gridColsClass">
             <div v-for="day in weekdaysOf(week)" :key="day.toISOString()"
-              class="rounded-lg p-1.5 transition-colors border overflow-hidden"
+              class="rounded-lg p-1.5 transition-colors border overflow-hidden select-none"
               :class="[
                 wizardMode && isPast(day) ? 'cursor-not-allowed opacity-40 border-transparent bg-gray-50/50'
                   : day.getMonth() !== calDate.getMonth() ? 'cursor-pointer border-transparent bg-gray-50/50'
                   : 'cursor-pointer border-gray-100 hover:border-gray-200 hover:bg-gray-50',
                 isToday(day) ? '!bg-blue-50 !border-blue-200' : '',
+                inRangeSel(day) ? '!bg-primary/10 !border-primary/40' : '',
                 monthDropTarget && monthDropTarget.getTime() === stripTimeMs(day) ? '!bg-green-50 !border-green-300' : '',
               ]"
-              @click="(!wizardMode || (rulesForDate(day).length && !isPast(day))) && $emit('slot-click', day)"
+              @mousedown="onRangeDown(day, $event)"
+              @mouseenter="onRangeEnter(day)"
+              @click="onMonthCellClick(day)"
               @dragover.prevent="!wizardMode && (monthDropTarget = stripDate(day))"
               @dragleave="onMonthDragLeave(day)"
               @drop.prevent="!wizardMode && onMonthDrop(day)">
@@ -508,6 +511,42 @@ const hideWeekends = computed(() => props.showWeekends === false)
 const visibleDayNames = computed(() => (hideWeekends.value ? DAYS.slice(0, 5) : DAYS))
 const gridColsClass = computed(() => (hideWeekends.value ? 'grid-cols-5' : 'grid-cols-7'))
 function weekdaysOf(days: Date[]) { return hideWeekends.value ? days.filter((d) => d.getDay() !== 0 && d.getDay() !== 6) : days }
+
+// ── Drag-to-select a date RANGE in the month grid → create an event for it ──
+// Mouse-down on a day, drag across days, release: emits slot-click(start, end).
+// A plain click (no drag) still emits a single-day slot-click via onMonthCellClick.
+// Event-bar HTML5 dragging is untouched (bars sit in their own pointer-events layer,
+// so mousedown never lands on a cell when you grab a bar).
+const rangeSel = reactive<{ start: Date | null; end: Date | null; moved: boolean }>({ start: null, end: null, moved: false })
+let rangeSuppressClick = false
+function onRangeDown(day: Date, e: MouseEvent) {
+  if (props.wizardMode || e.button !== 0) return
+  rangeSel.start = day; rangeSel.end = day; rangeSel.moved = false
+  window.addEventListener('mouseup', onRangeUp)
+}
+function onRangeEnter(day: Date) {
+  if (!rangeSel.start) return
+  rangeSel.end = day
+  if (stripTimeMs(day) !== stripTimeMs(rangeSel.start)) rangeSel.moved = true
+}
+function onRangeUp() {
+  window.removeEventListener('mouseup', onRangeUp)
+  if (rangeSel.moved && rangeSel.start && rangeSel.end) {
+    const a = rangeSel.start, b = rangeSel.end
+    rangeSuppressClick = true   // stop the trailing @click firing a single-day
+    emit('slot-click', a <= b ? a : b, a <= b ? b : a)
+  }
+  rangeSel.start = null; rangeSel.end = null; rangeSel.moved = false
+}
+function onMonthCellClick(day: Date) {
+  if (rangeSuppressClick) { rangeSuppressClick = false; return }
+  if (!props.wizardMode || (rulesForDate(day).length && !isPast(day))) emit('slot-click', day)
+}
+function inRangeSel(day: Date) {
+  if (!rangeSel.start || !rangeSel.end || !rangeSel.moved) return false
+  const t = stripTimeMs(day), a = stripTimeMs(rangeSel.start), b = stripTimeMs(rangeSel.end)
+  return t >= Math.min(a, b) && t <= Math.max(a, b)
+}
 
 const weekGridRef = ref<HTMLElement | null>(null)
 const dayGridRef = ref<HTMLElement | null>(null)
