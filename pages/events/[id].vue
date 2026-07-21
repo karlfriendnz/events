@@ -1063,7 +1063,7 @@
       <div v-else-if="activeTab === 'communication'" class="max-w-[1140px] mx-auto px-3 sm:px-6 py-4 sm:py-6 overflow-y-auto flex-1"><EventCommunication :event-id="id" /></div>
 
       <!-- ATTENDANCE TAB -->
-      <EventAttendance v-else-if="activeTab === 'attendance'" :event-id="event.id" ref="attendanceRef" class="flex-1 min-h-0" />
+      <EventAttendance v-else-if="activeTab === 'attendance'" :event-id="id" ref="attendanceRef" class="flex-1 min-h-0" />
 
       <!-- Reporting tab -->
       <div v-else-if="activeTab === 'reporting'" class="max-w-[1140px] mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-5 overflow-y-auto flex-1">
