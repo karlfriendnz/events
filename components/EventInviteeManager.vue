@@ -141,6 +141,7 @@
                     : (bulkSelected.includes(inv.id) ? 'pi-times-circle text-white/70' : 'pi-times-circle text-gray-400')" />
                 {{ inv.person?.first_name }} {{ inv.person?.last_name }}
                 <span v-if="inviteeRole(inv) !== 'attendee'" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2494D2]/15 text-[#2494D2] font-semibold">{{ eventRoleLabel(inviteeRole(inv)) }}</span>
+                <span v-if="inv.club_org_id && inv.club_org_id !== orgId" class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">from {{ clubNameById.get(inv.club_org_id) ?? 'club' }}</span>
                 <button class="transition-colors" :class="bulkSelected.includes(inv.id) ? 'text-white/60 hover:text-white' : 'text-gray-400 hover:text-red-500'" @click.stop="removeInvitee(inv.id)">
                   <i class="pi pi-times-circle text-sm" />
                 </button>
@@ -183,6 +184,7 @@
                     : (bulkSelected.includes(inv.id) ? 'pi-times-circle text-white/70' : 'pi-times-circle text-gray-400')" />
                 {{ inv.person?.first_name }} {{ inv.person?.last_name }}
                 <span v-if="inviteeRole(inv) !== 'attendee'" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2494D2]/15 text-[#2494D2] font-semibold">{{ eventRoleLabel(inviteeRole(inv)) }}</span>
+                <span v-if="inv.club_org_id && inv.club_org_id !== orgId" class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">from {{ clubNameById.get(inv.club_org_id) ?? 'club' }}</span>
                 <button class="transition-colors" :class="bulkSelected.includes(inv.id) ? 'text-white/60 hover:text-white' : 'text-gray-400 hover:text-red-500'" @click.stop="removeInvitee(inv.id)">
                   <i class="pi pi-times-circle text-sm" />
                 </button>
@@ -232,7 +234,9 @@ async function loadPeople() {
 // Map a seam Invitee (camelCase, no person join) back to the snake_case shape the
 // template reads, attaching the joined person.
 function toInviteeRow(inv: any) {
-  const p = inv.personId ? personById.value.get(inv.personId) : null
+  // Prefer the SERVER-joined person (resolves names cross-org, e.g. a club's people on
+  // an NSO event); fall back to the same-org map for the optimistic pre-reload window.
+  const p = inv.person ?? (inv.personId ? personById.value.get(inv.personId) : null)
   return {
     id: inv.id,
     person_id: inv.personId,
@@ -241,7 +245,21 @@ function toInviteeRow(inv: any) {
     role: inv.roles?.[0] ?? null,
     attended: inv.attended,
     responded_at: inv.respondedAt,
+    club_org_id: inv.clubOrgId ?? null,
     person: p ? { id: p.id, first_name: p.firstName, last_name: p.lastName, email: p.email } : null,
+  }
+}
+// Resolve club_org_id → club name for the "from {club}" chip on cross-club invitees.
+const clubNameById = ref<Map<string, string>>(new Map())
+async function ensureClubNames() {
+  // Seed from the already-loaded org invitees (they carry the resolved orgName).
+  for (const o of orgInvitees.value) if (o.orgId && o.orgName) clubNameById.value.set(o.orgId, o.orgName)
+  const missing = [...new Set(invitees.value
+    .map(i => i.club_org_id)
+    .filter((x: any): x is string => !!x && x !== orgId.value && !clubNameById.value.has(x)))]
+  if (missing.length) {
+    const orgs = await Promise.all(missing.map(mid => orgsApi.get(mid).catch(() => null)))
+    orgs.forEach((o, i) => { if (o?.name) clubNameById.value.set(missing[i], o.name) })
   }
 }
 
@@ -263,9 +281,11 @@ const inviteesLoading = ref(false)
 
 async function loadInvitees() {
   inviteesLoading.value = true
-  const rows = await eventsApi.invitees(props.eventId, props.clubOrgId)
+  // inviteesWithPerson joins persons server-side (cross-org names) + carries clubOrgId.
+  const rows = await eventsApi.inviteesWithPerson(props.eventId, props.clubOrgId)
   invitees.value = rows.map(toInviteeRow)
   inviteesLoading.value = false
+  ensureClubNames()
 }
 
 async function removeInvitee(inviteeId: string) {
