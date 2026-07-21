@@ -1163,8 +1163,10 @@ export const organisations = mysqlTable('organisations', {
   parentId: varchar('parent_id', { length: 36 }),
   slug: text('slug'),
   logoUrl: text('logo_url'),
-  currency: text('currency').notNull().default('NZD'),
-  locale: text('locale').notNull().default('en-NZ'),
+  // varchar (not text): TiDB forbids a DEFAULT on TEXT/BLOB columns, and these are
+  // short fixed-format codes ('NZD', 'en-NZ') that should never have been text.
+  currency: varchar('currency', { length: 16 }).notNull().default('NZD'),
+  locale: varchar('locale', { length: 16 }).notNull().default('en-NZ'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   defaultPaymentOptions: json('default_payment_options').notNull().default([]),
