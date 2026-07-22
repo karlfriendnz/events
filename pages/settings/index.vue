@@ -502,6 +502,12 @@
           </div>
           <p class="text-xs text-surface-400">Leave both empty for everyone. Otherwise access is limited to the chosen people types and people.</p>
         </div>
+        <div class="flex flex-col gap-2">
+          <label class="text-sm font-medium text-surface-700">Default attendance columns</label>
+          <ChipMultiSelect v-model="catForm.default_columns" :options="ROLL_COLUMN_OPTIONS" option-label="label" option-value="key"
+            placeholder="Roll's own defaults" class="w-full" />
+          <p class="text-xs text-surface-400">Columns the attendance roll shows by default for events in this category. Leave empty to use the roll's own defaults. (Custom fields can be added later.)</p>
+        </div>
       </div>
       <template #footer>
         <Button label="Cancel" severity="secondary" text @click="showCatDialog = false" />
@@ -730,9 +736,19 @@ const catHasDisciplines = computed(() => discGroups.value.length > 0)
 const showCatDialog = ref(false)
 const catSaving = ref(false)
 const editingCat = ref<any>(null)
-const catForm = reactive<{ name: string; color: string; discipline_ids: string[]; access_type_keys: string[] }>({
-  name: '', color: '#1E2157', discipline_ids: [], access_type_keys: [],
+const catForm = reactive<{ name: string; color: string; discipline_ids: string[]; access_type_keys: string[]; default_columns: string[] }>({
+  name: '', color: '#1E2157', discipline_ids: [], access_type_keys: [], default_columns: [],
 })
+// Attendee-roll columns a category can default. Keys match <EventAttendance>'s allColumns
+// (core person details); custom fields (cf:<id>) are a follow-up.
+const ROLL_COLUMN_OPTIONS = [
+  { key: 'email', label: 'Email' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'roles', label: 'Roles' },
+  { key: 'age', label: 'Age' },
+  { key: 'gender', label: 'Gender' },
+  { key: 'membership', label: 'Membership' },
+]
 // Access can also name specific PEOPLE (not just types) — the system-wide rule that a
 // permission target is a person OR a people type. Selected people are held as objects
 // (for the chips); saved as their ids.
@@ -758,7 +774,7 @@ async function reloadCategories() {
 }
 function openCatCreate() {
   editingCat.value = null
-  catForm.name = ''; catForm.color = '#1E2157'; catForm.discipline_ids = []; catForm.access_type_keys = []
+  catForm.name = ''; catForm.color = '#1E2157'; catForm.discipline_ids = []; catForm.access_type_keys = []; catForm.default_columns = []
   catPersonSel.value = []
   showCatDialog.value = true
 }
@@ -770,6 +786,7 @@ async function openCatEdit(cat: any) {
     ? [...cat.disciplineIds]
     : (cat.defaultDisciplineId ? [cat.defaultDisciplineId] : [])
   catForm.access_type_keys = Array.isArray(cat.accessTypeKeys) ? [...cat.accessTypeKeys] : []
+  catForm.default_columns = Array.isArray(cat.defaultColumns) ? [...cat.defaultColumns] : []
   // Resolve the saved person ids back to objects so they render as chips.
   const ids = Array.isArray(cat.accessPersonIds) ? cat.accessPersonIds : []
   catPersonSel.value = ids.length ? await peopleApi.byIds(ids).catch(() => []) : []
@@ -787,6 +804,7 @@ async function saveCat() {
       defaultDisciplineId: catForm.discipline_ids[0] ?? null,
       accessTypeKeys: catForm.access_type_keys.length ? catForm.access_type_keys : null,
       accessPersonIds: personIds.length ? personIds : null,
+      defaultColumns: catForm.default_columns.length ? catForm.default_columns : null,
     }
     if (editingCat.value) await eventsApi.updateCategory(editingCat.value.id, payload)
     else await eventsApi.createCategory({ orgId: orgId.value, ...payload })

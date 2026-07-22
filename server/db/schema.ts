@@ -453,6 +453,7 @@ export const categories = mysqlTable('categories', {
   disciplineIds: json('discipline_ids'),
   accessTypeKeys: json('access_type_keys'),
   accessPersonIds: json('access_person_ids'),
+  defaultColumns: json('default_columns'),
   sortOrder: int('sort_order').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
