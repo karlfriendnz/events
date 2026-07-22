@@ -54,6 +54,17 @@ function snakeRow(r: any) {
   return out
 }
 
+// Non-configurable invite Status (NOT in the Columns picker): where each invitee sits
+// in the invite → response lifecycle, derived from the row (no extra load):
+//   CONFIRMED → Accepted · DECLINED → Declined · sent-not-answered → Invited · else Not sent.
+function inviteStatus(inv: any): { label: string; cls: string } {
+  const s = String(inv?.status || '').toUpperCase()
+  if (s === 'CONFIRMED') return { label: 'Accepted', cls: 'bg-emerald-100 text-emerald-700' }
+  if (s === 'DECLINED') return { label: 'Declined', cls: 'bg-red-100 text-red-600' }
+  if (inv?.invite_sent_at) return { label: 'Invited', cls: 'bg-blue-100 text-blue-700' }
+  return { label: 'Not sent', cls: 'bg-gray-100 text-gray-500' }
+}
+
 // ---- Session-level attendance ----
 const selectedAttendanceSessionId = ref<string | null>(null)
 const sessionAttendanceData = ref<Record<string, Record<string, any>>>({}) // sessionId → inviteeId → row
@@ -245,8 +256,8 @@ function colVisible(key: string) {
 }
 function toggleCol(key: string) { colOverride[key] = !colVisible(key) }
 const visibleColumns = computed(() => allColumns.value.filter(c => colVisible(c.key)))
-// Fixed cols: drag + select + Members + Signed-in + Out + actions = 6, plus the visible optional cols.
-const colCount = computed(() => 6 + visibleColumns.value.length)
+// Fixed cols: drag + select + Members + Status + Signed-in + Out + actions = 7, plus the visible optional cols.
+const colCount = computed(() => 7 + visibleColumns.value.length)
 
 function toggleAttendanceSelectAll() {
   attendanceSelected.value = attendanceSelectAll.value ? invitees.value.map(i => i.id) : []
@@ -586,6 +597,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                   <i :class="`pi text-[10px] ${attendanceSort.dir === 'asc' ? 'pi-sort-up-fill text-primary' : 'pi-sort-down-fill text-primary'}`" />
                 </button>
               </th>
+              <th class="py-3 pr-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-24">Status</th>
               <th v-for="col in visibleColumns" :key="col.key" class="py-3 pr-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{{ col.label }}</th>
               <th class="py-3 pr-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide w-20">Signed In</th>
               <th class="py-3 pr-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide w-16">Out</th>
@@ -613,6 +625,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                   <td class="pl-3 pr-1 py-2.5 text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
                   <td class="pl-1 pr-2 py-2.5"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
                   <td class="py-2.5 pr-3 font-medium"><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></td>
+                  <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
                   <td v-for="col in visibleColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600">
                     <template v-if="col.type === 'photo'">
                       <img v-if="col.get(inv)" :src="col.get(inv)" class="w-7 h-7 rounded-full object-cover" />
@@ -654,6 +667,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               <td class="pl-3 pr-1 py-2.5 text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
               <td class="pl-1 pr-2 py-2.5"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
               <td class="py-2.5 pr-3 font-medium"><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></td>
+              <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
               <td v-for="col in visibleColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600">
                 <template v-if="col.type === 'photo'">
                   <img v-if="col.get(inv)" :src="col.get(inv)" class="w-7 h-7 rounded-full object-cover" />
@@ -711,6 +725,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                 <td class="pl-3 pr-1 py-2.5 text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
                 <td class="pl-1 pr-2 py-2.5"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
                 <td class="py-2.5 pr-3 font-medium"><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></td>
+                <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
                 <td v-for="col in visibleColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600">
                   <template v-if="col.type === 'photo'">
                     <img v-if="col.get(inv)" :src="col.get(inv)" class="w-7 h-7 rounded-full object-cover" />
@@ -760,6 +775,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                 <td class="pl-3 pr-1 py-2.5 text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
                 <td class="pl-1 pr-2 py-2.5"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
                 <td class="py-2.5 pr-3 font-medium"><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></td>
+                <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
                 <td v-for="col in visibleColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600">
                   <template v-if="col.type === 'photo'">
                     <img v-if="col.get(inv)" :src="col.get(inv)" class="w-7 h-7 rounded-full object-cover" />
