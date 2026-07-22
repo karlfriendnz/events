@@ -2915,8 +2915,14 @@ defineExpose({ reload })
                     <span class="flex-1 min-w-0 truncate text-sm text-gray-800">
                       {{ f.label }}<span v-if="f.is_required" class="text-red-400 ml-0.5">*</span>
                     </span>
+                    <!-- Same badge the library uses, so "on the form" looks the same
+                         wherever you see it — including on locked fields, which are on
+                         the form precisely BECAUSE they can't be taken off. -->
+                    <span class="inline-flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-100 px-1.5 py-0.5 rounded shrink-0">
+                      <i class="pi pi-check text-[8px]" />Added
+                    </span>
                     <!-- A locked field is a name — editable, never removable. -->
-                    <i v-if="f.locked" class="pi pi-lock text-[10px] text-gray-300 shrink-0" v-tooltip.left="'Always collected'" />
+                    <i v-if="f.locked" class="pi pi-lock text-[10px] text-gray-300 shrink-0" v-tooltip.left="'Always collected — can’t be removed'" />
                     <i class="pi pi-chevron-right text-gray-300 text-xs shrink-0" />
                   </button>
                   <!-- ONE affordance for adding, rather than the whole library sitting
