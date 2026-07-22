@@ -177,7 +177,7 @@ export function useEventsApi() {
   }
   // ── Event coordinators (admins + their notification prefs) ──
   async function eventCoordinators(eventId: string): Promise<EventCoordinator[]> {
-    return await $fetch<EventCoordinator[]>(`/api/v1/events/${eventId}/coordinators`)
+    return await $fetch<EventCoordinator[]>(`/api/v1/events/${eventId}/coordinators`, { timeout: 15000 })
   }
   async function addEventCoordinator(eventId: string, personId: string, notifications: string[]): Promise<EventCoordinator> {
     return await $fetch<EventCoordinator>(`/api/v1/events/${eventId}/coordinators`, { method: 'POST', body: { personId, notifications } })
