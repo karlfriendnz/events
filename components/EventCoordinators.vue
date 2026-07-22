@@ -135,27 +135,42 @@ onMounted(load)
     </div>
 
     <template v-else>
-      <div class="space-y-2">
-        <div v-for="c in coordinators" :key="c.id" class="border border-gray-200 rounded-lg px-3 py-2.5">
-          <div class="flex items-center justify-between gap-2">
-            <div class="text-sm font-medium text-gray-800 truncate">{{ coName(c) }}</div>
-            <Button text rounded size="small" severity="danger" icon="pi pi-times"
-              v-tooltip.top="'Remove'" @click="remove(c)" />
-          </div>
-          <div class="flex flex-wrap gap-1.5 mt-2">
-            <button v-for="o in NOTIF_OPTIONS" :key="o.key" type="button"
-              class="px-2 py-0.5 rounded-full text-xs border transition-colors"
-              :class="has(c, o.key)
-                ? 'bg-primary/10 border-primary/30 text-primary'
-                : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'"
-              @click="toggleNotif(c, o.key)">
-              {{ o.label }}
-            </button>
-          </div>
-        </div>
-
-        <div v-if="!coordinators.length" class="text-sm text-gray-400 py-1">No coordinators yet.</div>
+      <!-- ONE ROW PER PERSON: name in one column, their notifications in the next.
+           The old stacked card put the pills UNDER the name, so four coordinators
+           read as four blocks instead of a list you can scan down. -->
+      <div v-if="coordinators.length" class="overflow-x-auto">
+        <table class="w-full min-w-[420px] text-sm">
+          <thead>
+            <tr class="text-xs font-bold uppercase tracking-wide text-gray-400">
+              <th class="text-left font-bold py-1.5 pr-3">Person</th>
+              <th class="text-left font-bold py-1.5 pr-3">Notify about</th>
+              <th class="w-8" />
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            <tr v-for="c in coordinators" :key="c.id" class="align-middle">
+              <td class="py-2 pr-3 text-sm font-medium text-gray-800 whitespace-nowrap">{{ coName(c) }}</td>
+              <td class="py-2 pr-3">
+                <div class="flex flex-wrap gap-1.5">
+                  <button v-for="o in NOTIF_OPTIONS" :key="o.key" type="button"
+                    class="px-2 py-0.5 rounded-full text-xs border transition-colors"
+                    :class="has(c, o.key)
+                      ? 'bg-primary/10 border-primary/30 text-primary'
+                      : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'"
+                    @click="toggleNotif(c, o.key)">
+                    {{ o.label }}
+                  </button>
+                </div>
+              </td>
+              <td class="py-2 text-right">
+                <Button text rounded size="small" severity="danger" icon="pi pi-times"
+                  v-tooltip.top="'Remove'" @click="remove(c)" />
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
+      <div v-else class="text-sm text-gray-400 py-1">No coordinators yet.</div>
 
       <div class="mt-3">
         <AutoComplete v-model="search" :suggestions="suggestions" optionLabel="_name"
