@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-331 sessions · 1607 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+331 sessions · 1608 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -27706,7 +27706,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:17** — [Image #1] this is what happens when i run" npm run dev on a new tab - something is broken please fix it
 
 
-## Session 2026-07-20 00:42 (190 prompts)
+## Session 2026-07-20 00:42 (191 prompts)
 
 **00:42** — so i just restarted and now i can't get the server to run again ?
 
@@ -28971,6 +28971,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > </task-notification>
 
 **00:43** — well i just tried the quick event and i would consider the at step wizard but its not 150 px from top ?
+
+**00:48** — yes please please show me a list of things you have done in a sub agent so i can check them all - please don't close sub agent till i ask you
 
 
 ## Session 2026-07-20 17:11 (6 prompts)

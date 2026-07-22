@@ -228,6 +228,25 @@ body {
   backdrop-filter: blur(2px);
 }
 
+/* GLOBAL RULE — every modal sits a fixed distance from the TOP of the window (never
+   vertically centred), so it never jumps around: 100px desktop / 60px tablet / 30px
+   mobile. Covers PrimeVue dialogs + page-as-modal shells (.app-modal-overlay). */
+.p-dialog-mask.p-overlay-mask { align-items: flex-start; }
+.p-dialog-mask.p-overlay-mask > .p-dialog { margin-top: 100px; margin-bottom: 24px; }
+.app-modal-overlay.app-modal-overlay { align-items: flex-start; padding-top: 100px; }
+.app-modal-overlay > * { max-height: calc(100dvh - 124px); }
+@media (max-width: 1024px) {
+  .p-dialog-mask.p-overlay-mask > .p-dialog { margin-top: 60px; }
+  .app-modal-overlay.app-modal-overlay { padding-top: 60px; }
+  .app-modal-overlay > * { max-height: calc(100dvh - 84px); }
+}
+@media (max-width: 640px) {
+  .p-dialog-mask.p-overlay-mask > .p-dialog { margin-top: 30px; }
+  /* Page-as-modal shells stay full-bleed on phones (they're designed h-full there). */
+  .app-modal-overlay.app-modal-overlay { align-items: stretch; padding-top: 0; }
+  .app-modal-overlay > * { max-height: none; }
+}
+
 /* ── Print: attendance roll ──────────────────────────────────────────────────
    printAttendanceRoll() adds .printing-roll to <body>. Print ONLY the roster table
    (.roll-print-area): hide the rest of the page, drop the drag(1st) / select(2nd) /

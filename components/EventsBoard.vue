@@ -674,11 +674,9 @@
          invitees — then create. A draft is created on open so the reusable
          invitee manager can write to a real event id; Create publishes it,
          Cancel deletes the draft (onQuickClose) so nothing is left behind. -->
-    <!-- Stepped workflow modal: 1000px + top-anchored 150px so it doesn't jump between steps (global rule). -->
+    <!-- 1000px; top-anchoring comes from the global modal rule in main.css. -->
     <Dialog v-model:visible="quickOpen" :header="`Quick ${t('event', false, true)}`" modal
-      :style="{ width: '95vw', maxWidth: '1000px' }"
-      :pt="{ mask: { style: 'align-items: flex-start' }, root: { style: 'margin-top: 150px' } }"
-      @hide="onQuickClose">
+      :style="{ width: '95vw', maxWidth: '1000px' }" @hide="onQuickClose">
       <div class="space-y-3 pt-1">
         <!-- Two tiny steps: essentials, then people. Keeps step 1 phone-simple. -->
         <div class="flex items-center gap-1.5 text-xs mb-1">
