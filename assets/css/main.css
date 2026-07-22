@@ -227,3 +227,28 @@ body {
   background: rgb(15 23 42 / 0.45);
   backdrop-filter: blur(2px);
 }
+
+/* ── Print: attendance roll ──────────────────────────────────────────────────
+   printAttendanceRoll() adds .printing-roll to <body>. Print ONLY the roster table
+   (.roll-print-area): hide the rest of the page, drop the drag(1st) / select(2nd) /
+   actions(last) columns, keep the group-header rows (.roll-group-row, colspan) whole,
+   and repeat the table header on every page (sticky positioning would suppress that). */
+@media print {
+  body.printing-roll { visibility: hidden; }
+  body.printing-roll .roll-print-area,
+  body.printing-roll .roll-print-area * { visibility: visible; }
+  body.printing-roll .roll-print-area {
+    position: absolute; left: 0; top: 0; width: 100%;
+    max-height: none !important; overflow: visible !important;
+  }
+  body.printing-roll .roll-print-title { display: block !important; font-size: 16px; font-weight: 700; margin-bottom: 10px; }
+  body.printing-roll .roll-print-area thead { display: table-header-group; }
+  body.printing-roll .roll-print-area thead th { position: static !important; background: #fff !important; }
+  /* drop the checkbox / drag / actions columns — header + data rows only, not group headers */
+  body.printing-roll .roll-print-area thead th:nth-child(1),
+  body.printing-roll .roll-print-area thead th:nth-child(2),
+  body.printing-roll .roll-print-area thead th:last-child { display: none; }
+  body.printing-roll .roll-print-area tbody tr:not(.roll-group-row) > td:nth-child(1),
+  body.printing-roll .roll-print-area tbody tr:not(.roll-group-row) > td:nth-child(2),
+  body.printing-roll .roll-print-area tbody tr:not(.roll-group-row) > td:last-child { display: none; }
+}

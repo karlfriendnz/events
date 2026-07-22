@@ -300,7 +300,15 @@ function openInviteeEmail(inv: any) {
   if (email) window.location.href = `mailto:${email}`
   else toast.add({ severity: 'warn', summary: 'No email', detail: 'This person has no email on file.', life: 3000 })
 }
-function printAttendanceRoll() { window.print() }
+// Print ONLY the roll table: a body class scopes the @media print rules (main.css)
+// that hide the rest of the page + the checkbox/drag/actions columns, and repeat the
+// header on every page. Class is cleared after printing (or on cancel via afterprint).
+function printAttendanceRoll() {
+  document.body.classList.add('printing-roll')
+  const done = () => { document.body.classList.remove('printing-roll'); window.removeEventListener('afterprint', done) }
+  window.addEventListener('afterprint', done)
+  window.print()
+}
 
 // ---- Attendance action menu ----
 const attendanceActionMenu = ref()
@@ -577,7 +585,9 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
         <i class="pi pi-users text-3xl mb-3 block" />No invitees yet
       </div>
 
-      <div v-else class="overflow-auto" :class="fit ? 'max-h-[calc(100vh-19rem)]' : 'flex-1'">
+      <div v-else class="overflow-auto roll-print-area" :class="fit ? 'max-h-[calc(100vh-19rem)]' : 'flex-1'">
+        <!-- Only shows on the printed roll (a bare title so the sheet has context). -->
+        <div class="roll-print-title hidden">{{ event?.title }}</div>
         <table class="w-full text-sm">
           <thead class="sticky top-0 z-10 bg-white">
             <tr class="border-b border-gray-200">
@@ -608,7 +618,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
           <!-- Member group view -->
           <template v-if="attendanceViewMode === 'member_groups'">
             <tbody v-for="mg in memberGroupAttendanceSections" :key="mg.group?.id ?? '__none__'" class="divide-y divide-gray-100">
-              <tr class="border-b border-gray-200 cursor-pointer select-none" :style="{ background: (mg.group?.color ?? '#94a3b8') + '18' }"
+              <tr class="roll-group-row border-b border-gray-200 cursor-pointer select-none" :style="{ background: (mg.group?.color ?? '#94a3b8') + '18' }"
                 @click="expandedMemberGroups[mg.group?.id ?? '__none__'] = !expandedMemberGroups[mg.group?.id ?? '__none__']">
                 <td :colspan="colCount" class="px-4 py-2">
                   <div class="flex items-center gap-2">
@@ -706,7 +716,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               @dragover.prevent @drop.prevent="onDropOnGroup(section.group.id)"
               @dragenter="dragOverGroupId = section.group.id" @dragleave="dragOverGroupId = '__none__'"
               class="divide-y divide-gray-100">
-              <tr class="border-b border-gray-200 transition-colors cursor-pointer select-none"
+              <tr class="roll-group-row border-b border-gray-200 transition-colors cursor-pointer select-none"
                 :class="dragOverGroupId === section.group.id ? 'brightness-95' : ''" :style="{ background: section.group.color + '18' }"
                 @click="expandedSubGroups[section.group.id] = !expandedSubGroups[section.group.id]">
                 <td :colspan="colCount" class="px-4 py-2">
@@ -760,7 +770,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
 
             <tbody @dragover.prevent @drop.prevent="onDropOnGroup(null)"
               @dragenter="dragOverGroupId = 'ungrouped'" @dragleave="dragOverGroupId = '__none__'" class="divide-y divide-gray-100">
-              <tr class="border-b border-gray-200 transition-colors" :class="dragOverGroupId === 'ungrouped' ? 'bg-blue-50' : 'bg-gray-50'">
+              <tr class="roll-group-row border-b border-gray-200 transition-colors" :class="dragOverGroupId === 'ungrouped' ? 'bg-blue-50' : 'bg-gray-50'">
                 <td :colspan="colCount" class="px-4 py-2">
                   <div class="flex items-center gap-2">
                     <span class="w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0" />
