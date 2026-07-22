@@ -240,6 +240,7 @@ function toInviteeRow(inv: any) {
   return {
     id: inv.id,
     person_id: inv.personId,
+    invited_via_group_id: inv.invitedViaGroupId ?? null,
     status: inv.status,
     roles: inv.roles ?? [],
     role: inv.roles?.[0] ?? null,
@@ -284,8 +285,23 @@ async function loadInvitees() {
   // inviteesWithPerson joins persons server-side (cross-org names) + carries clubOrgId.
   const rows = await eventsApi.inviteesWithPerson(props.eventId, props.clubOrgId)
   invitees.value = rows.map(toInviteeRow)
+  rebuildGroupsFromInvitees()
   inviteesLoading.value = false
   ensureClubNames()
+}
+
+// The "invited via {class}" grouping is now PERSISTED on each invitee row
+// (invited_via_group_id), so it survives a reload regardless of current membership.
+// Rebuild the local display maps from that stored field.
+function rebuildGroupsFromInvitees() {
+  const map: Record<string, string[]> = {}
+  for (const i of invitees.value) {
+    const g = i.invited_via_group_id
+    if (!g) continue
+    ;(map[g] ??= []).push(i.person_id)
+  }
+  groupMembershipsMap.value = map
+  selectedInviteeGroups.value = Object.keys(map)
 }
 
 async function removeInvitee(inviteeId: string) {
@@ -423,7 +439,7 @@ async function addGroupInvitees(groupId: string, who: 'all' | 'members' | 'staff
   const existingIds = new Set(invitees.value.map(i => i.person_id))
   const toInsert = personIds
     .filter(pid => !existingIds.has(pid))
-    .map(pid => { const role = eventRoleByPerson[pid] || 'attendee'; return { personId: pid, status: 'INVITED', role, roles: [role], clubOrgId: props.clubOrgId } })
+    .map(pid => { const role = eventRoleByPerson[pid] || 'attendee'; return { personId: pid, status: 'INVITED', role, roles: [role], clubOrgId: props.clubOrgId, invitedViaGroupId: groupId } })
 
   if (toInsert.length) {
     try {

@@ -160,6 +160,7 @@ export function useEventsApi() {
   async function addInvitee(eventId: string, body: {
     personId?: string | null; sessionId?: string | null; status?: string
     roles?: string[]; role?: string | null; clubOrgId?: string | null
+    invitedViaGroupId?: string | null
   }): Promise<Invitee> {
     return await $fetch<Invitee>(`/api/v1/events/${eventId}/invitees`, { method: 'POST', body })
   }

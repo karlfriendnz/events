@@ -10,6 +10,7 @@ const bodySchema = z.object({
   roles: z.array(z.string()).optional(),
   role: z.string().nullable().optional(),
   clubOrgId: z.string().nullable().optional(),
+  invitedViaGroupId: z.string().nullable().optional(),
 })
 
 export default defineEventHandler(async (event) => {

@@ -247,6 +247,8 @@ export const inviteeSchema = z.object({
   // The club that added this invitee (null = the event owner's own). Scopes a shared
   // event's invitees per club.
   clubOrgId: z.string().nullable().optional(),
+  // The group/class this person was invited THROUGH (null = added individually).
+  invitedViaGroupId: z.string().nullable().optional(),
 })
 export type Invitee = z.infer<typeof inviteeSchema>
 

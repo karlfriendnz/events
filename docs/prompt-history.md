@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-331 sessions · 1619 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+331 sessions · 1620 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -27706,7 +27706,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:17** — [Image #1] this is what happens when i run" npm run dev on a new tab - something is broken please fix it
 
 
-## Session 2026-07-20 00:42 (202 prompts)
+## Session 2026-07-20 00:42 (203 prompts)
 
 **00:42** — so i just restarted and now i can't get the server to run again ?
 
@@ -29054,6 +29054,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **01:47** — [Image #62] this is very unfinished
 
 **01:55** — When creating an event and attaching attendees can you please make it so that the attendees are added to all events. When you click add person inside the event and you choose to add a person please make it so that you can ask whether you want to add to this event or all events following.
+
+**01:59** — You seem to be missing alot of thigns im tell you ... why ? please go back through all our conversatons throughly over the last 2 hours and check  and see whast needs to be still done
 
 
 ## Session 2026-07-20 17:11 (6 prompts)

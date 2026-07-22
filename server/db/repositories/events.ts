@@ -216,6 +216,7 @@ function toInvitee(r: typeof schema.invitees.$inferSelect): Invitee {
     respondedAt: toIso(r.respondedAt),
     inviteSentAt: toIso(r.inviteSentAt),
     clubOrgId: r.clubOrgId ?? null,
+    invitedViaGroupId: r.invitedViaGroupId ?? null,
   }
 }
 
@@ -760,6 +761,7 @@ export async function inviteeCountsByOrg(
 export async function createInvitee(input: {
   eventId: string; personId?: string | null; status?: string; roles?: string[]
   sessionId?: string | null; role?: string | null; clubOrgId?: string | null
+  invitedViaGroupId?: string | null
 }): Promise<Invitee> {
   const id = randomUUID()
   await db.insert(schema.invitees).values({
@@ -771,6 +773,7 @@ export async function createInvitee(input: {
     roles: input.roles ?? [],
     role: input.role ?? null,
     clubOrgId: input.clubOrgId ?? null,
+    invitedViaGroupId: input.invitedViaGroupId ?? null,
   } as any)
   const [r] = await db.select().from(schema.invitees).where(eq(schema.invitees.id, id)).limit(1)
   return toInvitee(r)
