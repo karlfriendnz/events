@@ -2017,6 +2017,11 @@ function onCalendarEventClick(item: any) {
 }
 
 function onCalendarSlotClick(date: Date, endDate?: Date) {
+  // Events can only be created from today onward — clicking or drag-selecting a PAST
+  // day never opens the New-event modal (today itself is allowed).
+  const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0)
+  const clickedMid = new Date(date); clickedMid.setHours(0, 0, 0, 0)
+  if (clickedMid.getTime() < todayMid.getTime()) return
   // Format as YYYY-MM-DD using local components (no timezone shift).
   const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   const startStr = fmt(date)
