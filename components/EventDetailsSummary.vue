@@ -180,7 +180,20 @@ function startEdit() {
 // event and pressing Save asked "this / following / all" about no change at all,
 // then wrote (and possibly rebuilt the series) for nothing.
 const snapshot = ref('')
-const isDirty = computed(() => editing.value && JSON.stringify(form) !== snapshot.value)
+// Coordinators are staged (defer mode) and committed by Save, so their pending state
+// counts as unsaved work too — otherwise Cancel would look harmless while Save had
+// nothing to do.
+const coordinatorsRef = ref<any>(null)
+const coordinatorsDirty = ref(false)
+const isDirty = computed(() => editing.value
+  && (JSON.stringify(form) !== snapshot.value || coordinatorsDirty.value))
+
+// Cancel throws the staged coordinator changes away with everything else.
+function cancelEdit() {
+  coordinatorsRef.value?.reset?.()
+  coordinatorsDirty.value = false
+  editing.value = false
+}
 
 // The repeat is only editable on the MASTER of a series — changing the pattern from
 // one occurrence would be ambiguous (does it move that day, or the whole run?).
@@ -319,10 +332,26 @@ const SAVE_SCOPES = [
   { value: 'all', label: 'All events in the series', desc: 'Every occurrence, past and future.' },
 ] as const
 
-function saveDetails() {
+async function saveDetails() {
   if (!form.title.trim()) return
   // Untouched → just close. No dialog, no write, no series rebuild.
   if (!isDirty.value) { editing.value = false; return }
+  // ONLY coordinators changed: they belong to this occurrence, so there's nothing to
+  // ask about and nothing to propagate — commit them and close without touching the
+  // event row or prompting for a series scope.
+  if (JSON.stringify(form) === snapshot.value) {
+    saving.value = true
+    try {
+      await coordinatorsRef.value?.commit?.()
+      coordinatorsDirty.value = false
+      await loadCoordinators()
+      editing.value = false
+      toast.add({ severity: 'success', summary: 'Saved', life: 1800 })
+    } catch (e: any) {
+      toast.add({ severity: 'error', summary: 'Could not save', detail: e?.message, life: 4000 })
+    } finally { saving.value = false }
+    return
+  }
   if (isRecurring.value) {
     saveScope.value = repeatChanged.value ? 'all' : 'this'
     saveScopeOpen.value = true
@@ -367,6 +396,10 @@ async function applySave(scope: 'this' | 'following' | 'all') {
     // changed details across. (After a regenerate there's nothing to carry — the
     // children were just rebuilt from this master.)
     else if (scope !== 'this' && isRecurring.value) await propagate(scope, patch, startAt, endAt)
+    // Staged coordinator adds/removes/notification changes land with the event.
+    await coordinatorsRef.value?.commit?.()
+    coordinatorsDirty.value = false
+    await loadCoordinators()
     event.value = updated
     resolveVenue()
     editing.value = false
@@ -573,10 +606,12 @@ async function rebuildSeries(startAt: string | null, endAt: string | null, rule:
         v-model:person-ids="form.visibility_person_ids" />
       <!-- Coordinators live inside the edit box (only mounts when editing → no load on the plain view). -->
       <div class="pt-3 border-t border-gray-100">
-        <EventCoordinators :event-id="eventId" embedded :allow-seed="!event?.recurrenceParentId" @changed="coordinatorNames = $event" />
+        <EventCoordinators ref="coordinatorsRef" :event-id="eventId" embedded defer
+          :allow-seed="!event?.recurrenceParentId"
+          @changed="coordinatorNames = $event" @dirty="coordinatorsDirty = $event" />
       </div>
       <div class="flex justify-end gap-2 pt-1">
-        <Button label="Cancel" severity="secondary" text size="small" @click="editing = false" />
+        <Button label="Cancel" severity="secondary" text size="small" @click="cancelEdit" />
         <!-- Enabled whenever the box is open: coordinators (and anything else that
              saves itself) leave the event's own fields untouched, and a greyed-out
              Save after you've just changed something reads as broken. Pressing it

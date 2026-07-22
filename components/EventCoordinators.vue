@@ -16,13 +16,20 @@ const props = withDefaults(defineProps<{
    * at generation, so seeding here would make whoever OPENED that date its coordinator.
    */
   allowSeed?: boolean
-}>(), { allowSeed: true })
+  /**
+   * DEFER writes until the host calls commit(). Used where this card sits inside a
+   * form with its own Save button — adding someone the moment you pick them, in a box
+   * you haven't saved yet, is a surprise (and un-undoable by Cancel). Left OFF where
+   * the card stands alone and there is nothing to save it with.
+   */
+  defer?: boolean
+}>(), { allowSeed: true, defer: false })
 // Tell the host when the roster changes — the event summary shows the names, and
 // without this it kept whatever it loaded on mount (add a second coordinator, still
 // see one).
 // First/last go across separately so the host can shorten them — the summary panel
 // shows "Karl F.", the table here shows the full name.
-const emit = defineEmits<{ (e: 'changed', people: { id: string; first: string; last: string }[]): void }>()
+const emit = defineEmits<{ (e: 'changed', people: { id: string; first: string; last: string }[]): void; (e: 'dirty', v: boolean): void }>()
 function announce() {
   emit('changed', coordinators.value.map(c => ({
     id: c.personId,
@@ -73,7 +80,7 @@ async function load() {
   } finally {
     loading.value = false
   }
-  if (!error.value && !coordinators.value.length && props.allowSeed) await seedCreator()
+  if (!error.value && !coordinators.value.length && props.allowSeed && !props.defer) await seedCreator()
   else announce()
 }
 
@@ -126,6 +133,14 @@ async function onPick(e: { value: any }) {
   search.value = ''
   suggestions.value = []
   if (!p?.id) return
+  if (props.defer) {
+    const row = { id: `new:${p.id}`, personId: p.id, notifications: [...ALL], person: { firstName: p.firstName ?? null, lastName: p.lastName ?? null } }
+    coordinators.value.push(row)
+    pendingAdds.value.push(row)
+    adding.value = false
+    announce()
+    return
+  }
   try {
     const created: any = await eventsApi.addEventCoordinator(props.eventId, p.id, [...ALL])
     if (!created || typeof created !== 'object' || !created.id) throw new Error('bad response')
@@ -145,12 +160,56 @@ async function onPick(e: { value: any }) {
 // showing something the database doesn't have.
 const savingId = ref<string | null>(null)
 const savedId = ref<string | null>(null)
+
+// ── Staged changes (defer mode) ─────────────────────────────────────────────
+// Nothing is written until commit(). Rows added locally get a temporary id so the
+// table can key + edit them before they exist; removals are remembered so commit()
+// can delete them.
+const pendingAdds = ref<any[]>([])      // rows not yet created (id starts 'new:')
+const pendingRemovals = ref<string[]>([])   // real ids to delete on commit
+const pendingNotifs = ref<Record<string, string[]>>({})  // real id -> notifications
+const isNew = (c: any) => typeof c?.id === 'string' && c.id.startsWith('new:')
+const dirty = computed(() =>
+  pendingAdds.value.length > 0 || pendingRemovals.value.length > 0 || Object.keys(pendingNotifs.value).length > 0)
+watch(dirty, v => emit('dirty', v))
+
+/** Write everything staged. Safe to call when nothing is staged. */
+async function commit() {
+  for (const id of pendingRemovals.value) {
+    try { await eventsApi.removeEventCoordinator(id) } catch { /* best-effort per row */ }
+  }
+  for (const [id, notifs] of Object.entries(pendingNotifs.value)) {
+    try { await eventsApi.updateEventCoordinator(id, notifs) } catch { /* best-effort */ }
+  }
+  for (const row of pendingAdds.value) {
+    try { await eventsApi.addEventCoordinator(props.eventId, row.personId, row.notifications ?? [...ALL]) }
+    catch { /* best-effort */ }
+  }
+  pendingAdds.value = []
+  pendingRemovals.value = []
+  pendingNotifs.value = {}
+  await load()
+}
+/** Throw the staged changes away and show what's actually stored. */
+async function reset() {
+  pendingAdds.value = []
+  pendingRemovals.value = []
+  pendingNotifs.value = {}
+  await load()
+}
+defineExpose({ commit, reset })
 async function toggleNotif(c: any, key: string) {
   const before = Array.isArray(c.notifications) ? [...c.notifications] : []
   const set = new Set<string>(before)
   set.has(key) ? set.delete(key) : set.add(key)
   const next = ALL.filter(k => set.has(k))
   c.notifications = next
+  if (props.defer) {
+    // A row that doesn't exist yet carries its own notifications into the create.
+    if (!isNew(c)) pendingNotifs.value = { ...pendingNotifs.value, [c.id]: next }
+    else { const row = pendingAdds.value.find(r => r.id === c.id); if (row) row.notifications = next }
+    return
+  }
   savingId.value = c.id
   try {
     await eventsApi.updateEventCoordinator(c.id, next)
@@ -164,6 +223,17 @@ async function toggleNotif(c: any, key: string) {
   }
 }
 async function remove(c: any) {
+  if (props.defer) {
+    coordinators.value = coordinators.value.filter(x => x.id !== c.id)
+    if (isNew(c)) pendingAdds.value = pendingAdds.value.filter(r => r.id !== c.id)
+    else {
+      pendingRemovals.value = [...pendingRemovals.value, c.id]
+      const { [c.id]: _drop, ...rest } = pendingNotifs.value
+      pendingNotifs.value = rest
+    }
+    announce()
+    return
+  }
   try {
     await eventsApi.removeEventCoordinator(c.id)
     coordinators.value = coordinators.value.filter(x => x.id !== c.id)
@@ -182,7 +252,7 @@ onMounted(load)
     <div class="flex items-start justify-between gap-3 mb-3">
       <div class="min-w-0">
         <h3 class="section-title">Coordinators</h3>
-        <p class="field-help">People who administer this event and get notified about it. Changes here save on their own — the event's Save button doesn't cover them.</p>
+        <p class="field-help">{{ defer ? 'People who administer this event and get notified about it. Saved with the event.' : 'People who administer this event and get notified about it. Changes here save on their own.' }}</p>
       </div>
       <Button v-if="!loading && !error && !adding" label="Add coordinator" icon="pi pi-plus" size="small" outlined
         class="shrink-0" style="color:var(--brand-primary);border-color:var(--brand-primary)" @click="startAdd" />
