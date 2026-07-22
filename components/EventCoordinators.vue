@@ -11,9 +11,15 @@ const props = defineProps<{ eventId: string; embedded?: boolean }>()
 // Tell the host when the roster changes — the event summary shows the names, and
 // without this it kept whatever it loaded on mount (add a second coordinator, still
 // see one).
-const emit = defineEmits<{ (e: 'changed', people: { id: string; name: string }[]): void }>()
+// First/last go across separately so the host can shorten them — the summary panel
+// shows "Karl F.", the table here shows the full name.
+const emit = defineEmits<{ (e: 'changed', people: { id: string; first: string; last: string }[]): void }>()
 function announce() {
-  emit('changed', coordinators.value.map(c => ({ id: c.personId, name: coName(c) })))
+  emit('changed', coordinators.value.map(c => ({
+    id: c.personId,
+    first: c?.person?.firstName ?? '',
+    last: c?.person?.lastName ?? '',
+  })))
 }
 
 const eventsApi = useEventsApi()

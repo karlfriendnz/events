@@ -53,17 +53,24 @@ const visibilityLabel = computed(() => {
 // Names only — the full editor is the <EventCoordinators> card further down. Guarded
 // like that component is: an unregistered API route answers with SPA HTML, and a
 // string would be iterated character by character.
-const coordinatorNames = ref<{ id: string; name: string }[]>([])
+// Shown as "Karl F." — the summary is a one-line glance, and full surnames push a
+// second coordinator off the end of the row. The full names live in the
+// <EventCoordinators> table below (and in each link's tooltip).
+const coordinatorNames = ref<{ id: string; first: string; last: string }[]>([])
+function shortName(c: { first: string; last: string }) {
+  const initial = c.last ? `${c.last.trim().charAt(0).toUpperCase()}.` : ''
+  return [c.first, initial].filter(Boolean).join(' ').trim()
+}
+function fullName(c: { first: string; last: string }) {
+  return [c.first, c.last].filter(Boolean).join(' ').trim()
+}
 async function loadCoordinators() {
   try {
     const rows = await eventsApi.eventCoordinators(props.eventId)
     coordinatorNames.value = Array.isArray(rows)
       ? rows
-        .map((c: any) => ({
-          id: c?.personId,
-          name: [c?.person?.firstName, c?.person?.lastName].filter(Boolean).join(' ').trim(),
-        }))
-        .filter((c: any) => c.name)
+        .map((c: any) => ({ id: c?.personId, first: c?.person?.firstName ?? '', last: c?.person?.lastName ?? '' }))
+        .filter((c: any) => c.first || c.last)
       : []
   } catch { coordinatorNames.value = [] }
 }
@@ -469,9 +476,10 @@ async function rebuildSeries(startAt: string | null, endAt: string | null, rule:
           <div v-if="coordinatorNames.length" class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Coordinators</span>
             <span class="text-sm text-gray-700 min-w-0">
-              <template v-for="(c, i) in coordinatorNames" :key="c.id || c.name">
-                <NuxtLink v-if="c.id" :to="`/people/${c.id}`" class="text-primary hover:underline">{{ c.name }}</NuxtLink>
-                <span v-else>{{ c.name }}</span><span v-if="i < coordinatorNames.length - 1">, </span>
+              <template v-for="(c, i) in coordinatorNames" :key="c.id || shortName(c)">
+                <NuxtLink v-if="c.id" :to="`/people/${c.id}`" class="text-primary hover:underline"
+                  v-tooltip.top="fullName(c)">{{ shortName(c) }}</NuxtLink>
+                <span v-else>{{ shortName(c) }}</span><span v-if="i < coordinatorNames.length - 1">, </span>
               </template>
             </span>
           </div>
