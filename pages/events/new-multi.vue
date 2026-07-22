@@ -202,6 +202,12 @@
               <div class="min-w-0">
                 <p class="text-sm font-semibold text-gray-800">{{ q.label }}</p>
                 <p class="text-xs text-gray-500 mt-0.5">{{ q.description }}</p>
+                <!-- Priced in plain English once it's on, so the club can see the deal
+                     they're actually offering rather than just the setting. -->
+                <p v-if="q.enabled" class="text-xs mt-1"
+                  :class="dayPrice ? 'text-emerald-700 font-medium' : 'text-amber-600'">
+                  {{ quickMeaning(q) }}
+                </p>
               </div>
             </div>
             <div v-if="q.enabled" class="flex items-center gap-2 shrink-0">
@@ -501,6 +507,49 @@ const sessionDays = computed(() => {
 const namedTemplates = computed(() => templates.filter(t => t.name.trim()))
 
 const totalSessions = computed(() => sessionDays.value.length * namedTemplates.value.length)
+
+// ── "What does this actually mean?" ──────────────────────────────────────────
+// A quick discount reads as jargon until it's priced: "Set price $200" says nothing,
+// "A full week is normally $500 — they'd pay $200 and save $300" says everything.
+// Priced off the session templates' own fee line items, so the sentence moves as the
+// club edits the fees. With no fees captured there's nothing to compare against, and
+// we say THAT rather than printing a confident $0.
+function templateFeeTotal(t: any) {
+  return (t.fees ?? []).reduce((sum: number, f: any) => sum + (Number(f.amount) || 0), 0)
+}
+const dayPrice = computed(() => namedTemplates.value.reduce((sum, t) => sum + templateFeeTotal(t), 0))
+// A "week" = the days the programme actually runs in one week, never more than the
+// programme itself (a 3-day Easter programme's "full week" is 3 days).
+const weekDayCount = computed(() => Math.min(sessionDays.value.length || 0, form.includeWeekends ? 7 : 5))
+const weekPrice = computed(() => dayPrice.value * weekDayCount.value)
+
+// (money() — the org-currency formatter — is declared further down; it's only ever
+// called from render, so the later const is resolved by then.)
+// What the registrant is left paying, per discount type.
+function pricedAt(base: number, type: string, value: number) {
+  if (type === 'REPLACE') return value              // set price — the new price IS the value
+  if (type === 'PERCENT') return base * (1 - value / 100)
+  return base - value                               // FLAT = money off
+}
+// The plain-English line under each quick discount.
+function quickMeaning(q: QuickDiscount): string {
+  const value = Number(q.modifier_value) || 0
+  const type = String(q.modifier_type || 'PERCENT')
+  const week = q.key === 'full_week'
+  const base = week || q.key === 'sibling' ? weekPrice.value : dayPrice.value
+  const what = week ? `A full week (${weekDayCount.value} day${weekDayCount.value !== 1 ? 's' : ''})`
+    : q.key === 'sibling' ? 'A second child' : 'A full day'
+
+  if (!base) return 'Add session fees on the previous step to see what this saves.'
+  const pay = pricedAt(base, type, value)
+  const saving = base - pay
+  if (saving <= 0) {
+    return type === 'REPLACE' && pay >= base
+      ? `${what} is normally ${money(base)} — this price is higher, so nobody saves.`
+      : `${what} is normally ${money(base)} — no saving at this amount yet.`
+  }
+  return `${what} is normally ${money(base)} — they'd pay ${money(pay)} and save ${money(saving)}.`
+}
 
 // ── Context fed to the embedded <FormDesigner> so the builder reflects the
 //    programme being defined (session view / fees / discounts). Sessions are
