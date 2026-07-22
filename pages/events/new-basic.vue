@@ -116,7 +116,7 @@
           </div>
           <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <!-- Title -->
-            <div class="px-5 py-4 border-b border-gray-100">
+            <div class="px-5 py-2 border-b border-gray-100">
               <!-- Label sits LEFT of the field, in the stepped view too (it only
                    stacks on a genuinely narrow screen). -->
               <div class="grid grid-cols-1 sm:grid-cols-[120px_1fr] items-center gap-1.5 sm:gap-4">
@@ -125,8 +125,10 @@
               </div>
             </div>
             <!-- Date (lives on step 1, right after the name).
-                 py-2 not py-4: the editor's own rows carry py-2, so this block would
-                 otherwise be padded twice and sit lower than the Title row above it. -->
+                 ONE padding source per gap: every block is py-4 (16px), so any two
+                 neighbouring rows are 32px apart; the editor's own rows carry NO
+                 padding and are spaced by space-y-8 (32px) instead, so a two-row
+                 editor keeps exactly the same rhythm as a one-row field. -->
             <div class="px-5 py-2 border-b border-gray-100">
               <!-- No accordion: the fields ARE the summary. Each editor row carries
                    its own 120px label column, matching the card's, so every input
@@ -146,7 +148,8 @@
                 required
                 label-width="w-[120px]"
                 label-class="text-gray-800 font-semibold"
-                row-padding="px-0 py-2"
+                row-padding="px-0 py-0"
+                class="space-y-4"
               />
               <!-- Why you can't proceed — a disabled button with no reason is a
                    dead end. Only nags once the user has engaged with the form. -->
@@ -175,10 +178,10 @@
                 end-label="Closes"
                 label-width="w-[120px]"
                 label-class="text-gray-800 font-semibold"
-                row-padding="px-0 py-2" />
+                row-padding="px-0 py-0" class="space-y-4" />
             </div>
             <!-- Description -->
-            <div class="px-5 py-4 border-b border-gray-100">
+            <div class="px-5 py-2 border-b border-gray-100">
               <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
                 <label class="field-label pt-1">Description</label>
                 <RichTextEditor v-model="form.description" placeholder="Describe your event here…" />
@@ -188,7 +191,7 @@
                  Disciplines come from the governing body (club's sport → its NSO
                  chain), NOT a local list. <DisciplineLinker> resolves + persists
                  to event_disciplines itself, so it needs the draft event row. -->
-            <div class="px-5 py-4 border-b border-gray-100">
+            <div class="px-5 py-2 border-b border-gray-100">
               <!-- With BOTH controls each is titled above its own field — no single
                    left label can name two side-by-side things. But when the governing
                    body defines no disciplines there's only ONE field left, so it takes
@@ -227,7 +230,7 @@
             </div>
             <!-- Age & gender restrictions were removed from the basic event. -->
             <!-- Banner -->
-            <div class="px-5 py-4">
+            <div class="px-5 py-2">
               <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
                 <label class="field-label pt-1">Banner</label>
                 <div>

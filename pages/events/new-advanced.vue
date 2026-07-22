@@ -66,7 +66,7 @@
           </div>
           <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <!-- Title -->
-            <div class="px-5 py-4 border-b border-gray-100">
+            <div class="px-5 py-2 border-b border-gray-100">
               <div class="grid grid-cols-1 sm:grid-cols-[120px_1fr] items-center gap-1.5 sm:gap-4">
                 <label class="text-sm font-semibold text-gray-800">Event Title <span class="text-red-400">*</span></label>
                 <InputText v-model="form.title" placeholder="Enter the name of your event" class="w-full" autofocus />
@@ -90,7 +90,8 @@
                 required
                 label-width="w-[120px]"
                 label-class="text-gray-800 font-semibold"
-                row-padding="px-0 py-2"
+                row-padding="px-0 py-0"
+                class="space-y-4"
               />
               <!-- Why you can't proceed — a disabled Next with no reason is a dead end. -->
               <div v-if="dateInvalidReason && (form.title.trim() || form.start_date)" class="py-1 sm:pl-[136px]">
@@ -101,7 +102,7 @@
               </div>
             </div>
             <!-- Description -->
-            <div class="px-5 py-4 border-b border-gray-100">
+            <div class="px-5 py-2 border-b border-gray-100">
               <div class="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-1.5 sm:gap-4">
                 <label class="text-sm font-semibold text-gray-800 pt-1">Description</label>
                 <RichTextEditor v-model="form.description" placeholder="Describe your event here…" />
@@ -110,7 +111,7 @@
             <!-- Category + Discipline. Disciplines come from the governing body
                  (club's sport → its NSO chain), NOT a local list — <DisciplineLinker>
                  resolves + persists event_disciplines itself, so it needs the draft row. -->
-            <div class="px-5 py-4 border-b border-gray-100">
+            <div class="px-5 py-2 border-b border-gray-100">
               <div class="grid grid-cols-1 sm:grid-cols-[120px_1fr] items-start gap-1.5 sm:gap-4">
                 <span class="hidden sm:block" />
                 <div :class="disciplineEmpty ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-1 lg:grid-cols-2 gap-4'">
