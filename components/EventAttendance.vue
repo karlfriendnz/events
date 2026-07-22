@@ -400,6 +400,27 @@ async function markSelectedIn() {
   attendanceSelectAll.value = false
 }
 
+// Only people who are actually signed IN (and not already out) can be signed out —
+// signing out someone who never arrived is meaningless, which is exactly what the
+// single-row action refuses to do. So the bulk button appears only when the
+// selection contains someone it can act on, and it silently skips the rest.
+const selectedSignedIn = computed(() => invitees.value.filter(
+  i => attendanceSelected.value.includes(i.id) && isAttendedForContext(i) && !i.signed_out,
+))
+async function markSelectedOut() {
+  const targets = selectedSignedIn.value
+  if (!targets.length) return
+  await Promise.all(targets.map(inv => eventsApi.updateInvitee(inv.id, { signedOut: true })))
+  targets.forEach(inv => { inv.signed_out = true })
+  toast.add({
+    severity: 'success',
+    summary: `Signed out ${targets.length} ${targets.length === 1 ? 'person' : 'people'}`,
+    life: 2000,
+  })
+  attendanceSelected.value = []
+  attendanceSelectAll.value = false
+}
+
 function openInviteeEmail(inv: any) {
   const email = inv.person?.email
   if (email) window.location.href = `mailto:${email}`
@@ -483,6 +504,7 @@ watch(inviteOpen, v => { if (v) { showFullInvite.value = false; quickSel.value =
 const attendanceActionMenu = ref()
 const attendanceActionMenuItems = computed(() => [
   { label: 'Mark Selected In', icon: 'pi pi-check', command: markSelectedIn },
+  { label: 'Sign Selected Out', icon: 'pi pi-sign-out', command: markSelectedOut, disabled: !selectedSignedIn.value.length },
   { separator: true },
   { label: 'Assign to Sub-group', icon: 'pi pi-user-plus', command: () => { showAddToSubGroupDialog.value = true } },
 ])
@@ -1048,6 +1070,11 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
           <span class="text-sm font-semibold whitespace-nowrap">{{ attendanceSelected.length }} selected</span>
           <span class="mx-1.5 w-px h-5 bg-white/25" />
           <button class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/15 transition-colors whitespace-nowrap" @click="markSelectedIn"><i class="pi pi-check text-xs" />Mark in</button>
+          <!-- Only offered once the selection actually contains someone signed in. -->
+          <button v-if="selectedSignedIn.length"
+            class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/15 transition-colors whitespace-nowrap"
+            v-tooltip.top="`Sign out ${selectedSignedIn.length} of ${attendanceSelected.length}`"
+            @click="markSelectedOut"><i class="pi pi-sign-out text-xs" />Sign out</button>
           <button class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/15 transition-colors whitespace-nowrap" @click="showAddToSubGroupDialog = true"><i class="pi pi-user-plus text-xs" />Sub-group</button>
           <button class="w-8 h-8 rounded-full hover:bg-white/15 flex items-center justify-center shrink-0" v-tooltip.top="'Clear selection'" @click="clearAttendanceSelection"><i class="pi pi-times text-sm" /></button>
         </div>
