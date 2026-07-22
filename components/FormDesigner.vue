@@ -882,6 +882,25 @@ const evtWizardSteps = computed(() => [
   { type: 'terms', key: '__terms', label: 'Terms', kind: '' },
 ])
 const evtWizardStep = ref(0)
+
+// ── Left list → preview ──────────────────────────────────────────────────────
+// Clicking a subject (or Terms) on the left should SHOW you that part of the form:
+// in Steps mode by switching to its step, otherwise by scrolling to it. Without this
+// the panel you're editing and the panel you're looking at were unrelated.
+const evtFocusedAnchor = ref('')
+function evtFocusPreview(key: string) {
+  if (evtIsWizard.value) {
+    const idx = evtWizardSteps.value.findIndex(s => s.key === key)
+    if (idx >= 0) evtWizardStep.value = idx
+  }
+  evtFocusedAnchor.value = key
+  nextTick(() => {
+    document.querySelector(`[data-preview-anchor="${CSS.escape(key)}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+  // The ring is a pointer, not a state — it fades once you've been shown where to look.
+  setTimeout(() => { if (evtFocusedAnchor.value === key) evtFocusedAnchor.value = '' }, 1600)
+}
 const evtWizardTermsIdx = computed(() => evtWizardSteps.value.length - 1)
 // Wizard step index offset for subjects when the mobile details step is present.
 const evtMobileSteps = computed(() => evtIsWizard.value && evtPreviewDevice.value === 'mobile')
@@ -2654,7 +2673,7 @@ defineExpose({ reload })
                   <div ref="evtSubjectListEl" class="space-y-1.5">
                     <div v-for="(p, i) in currentEvtFormProfiles" :key="p.key" :data-subject-key="p.key"
                       class="group/sub flex items-center gap-2 px-3 py-2.5 rounded-xl border border-gray-100 hover:border-primary/30 hover:bg-gray-50/60 transition-all cursor-pointer"
-                      @click="openEvtSubjectSettings(p.key)">
+                      @click="openEvtSubjectSettings(p.key); evtFocusPreview(p.key)">
                       <span class="subject-drag-handle shrink-0 -ml-1 w-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 transition-colors" v-tooltip.top="'Drag to reorder'" @click.stop>
                         <i class="pi pi-bars text-[11px]" />
                       </span>
@@ -2687,7 +2706,8 @@ defineExpose({ reload })
                 </div>
 
                 <!-- Form Design / Sessions / Terms / Payment -->
-                <FormSectionList :sections="evtFormSections" @select="(id: string) => evtSelectedFormSection = id" />
+                <FormSectionList :sections="evtFormSections"
+                  @select="(id: string) => { evtSelectedFormSection = id; if (id === 'terms' || id === 'payment') evtFocusPreview('__terms') }" />
                 <!-- Final step: preview the form — matches the FormSectionList item style -->
                 <div class="px-3 pb-3 -mt-1">
                   <button type="button" class="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50/60 transition-all text-left group"
@@ -3891,7 +3911,9 @@ defineExpose({ reload })
                      In Steps mode, only the current step's subject group is shown. -->
                 <div v-for="(subject, sIdx) in evtPreviewSubjects" :key="subject.key"
                   v-show="!evtIsWizard || evtWizardStep === sIdx + evtSubjectStepOffset"
-                  class="space-y-3">
+                  :data-preview-anchor="subject.key"
+                  class="space-y-3 scroll-mt-4 rounded-xl transition-shadow"
+                  :class="evtFocusedAnchor === subject.key ? 'ring-2 ring-primary/40' : ''">
 
                   <!-- Inline-editable step heading (separate from the display name; defaults to
                        "{singular} register") + optional intro text. (Subjects are removed from the
@@ -4287,7 +4309,10 @@ defineExpose({ reload })
             </div>
 
             <!-- Terms & Conditions: interactive individual checkbox per term (own step in wizard) -->
-            <div v-show="!evtIsWizard || evtWizardStep === evtWizardTermsIdx" class="px-6 py-8 space-y-3">
+            <div v-show="!evtIsWizard || evtWizardStep === evtWizardTermsIdx"
+              data-preview-anchor="__terms"
+              class="px-6 py-8 space-y-3 scroll-mt-4 rounded-xl transition-shadow"
+              :class="evtFocusedAnchor === '__terms' ? 'ring-2 ring-primary/40' : ''">
               <h3 class="text-xl font-bold text-gray-800">Terms and Conditions</h3>
               <FormsTermsConsentBlock
                 v-for="tc in evtFormTermsShown" :key="tc.label"
