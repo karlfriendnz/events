@@ -7,7 +7,16 @@
   Rebuilt lean: a guarded one-time creator-seed (can never loop), robust
   load/error/finally, and lightweight toggle pills (no per-row expand grid).
 */
-const props = defineProps<{ eventId: string; embedded?: boolean }>()
+const props = withDefaults(defineProps<{
+  eventId: string
+  embedded?: boolean
+  /**
+   * Seed the signed-in user as the default coordinator when the list is empty.
+   * OFF for an occurrence of a series: its coordinators are inherited from the master
+   * at generation, so seeding here would make whoever OPENED that date its coordinator.
+   */
+  allowSeed?: boolean
+}>(), { allowSeed: true })
 // Tell the host when the roster changes — the event summary shows the names, and
 // without this it kept whatever it loaded on mount (add a second coordinator, still
 // see one).
@@ -64,7 +73,7 @@ async function load() {
   } finally {
     loading.value = false
   }
-  if (!error.value && !coordinators.value.length) await seedCreator()
+  if (!error.value && !coordinators.value.length && props.allowSeed) await seedCreator()
   else announce()
 }
 

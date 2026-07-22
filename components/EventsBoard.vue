@@ -1178,6 +1178,21 @@ function quickBuildDateTime(date: Date | null, time: Date | null, allDay: boolea
   return d.toISOString()
 }
 
+// Best-effort: resolve the signed-in user to a person and make them a coordinator of
+// the event. Never blocks creation — an event without a coordinator is fine, an event
+// that failed to save because of one is not.
+async function ensureCreatorCoordinator(eventId: string) {
+  try {
+    const email = useSupabaseUser().value?.email
+    if (!email || !orgId.value) return
+    const person = await usePeopleApi().findByEmail(orgId.value, email)
+    if (!person?.id) return
+    const existing = await eventsApi.eventCoordinators(eventId)
+    if (Array.isArray(existing) && existing.some((c: any) => c.personId === person.id)) return
+    await eventsApi.addEventCoordinator(eventId, person.id, ['registration', 'payment', 'cancellation', 'capacity'])
+  } catch { /* a missing coordinator must never fail the create */ }
+}
+
 async function openQuick() {
   if (creatingQuick.value) return
   quickForm.name = newEventName.value.trim()
@@ -1243,6 +1258,10 @@ async function createQuickEvent() {
       meetingLink: loc.type === 'ONLINE' ? (loc.meeting_link || null) : null,
     }
     await eventsApi.update(quickDraftId.value, patch)
+    // The person creating it coordinates it — added to the MASTER before the series is
+    // generated, so generateSeries carries them onto every occurrence. (The event page
+    // seeds lazily on first open; that's too late for children created here.)
+    await ensureCreatorCoordinator(quickDraftId.value)
     // Recurring? Materialise the occurrence series (master + child rows) — a repeat
     // rule alone created NOTHING before, so a no-end-date recurring event vanished.
     // Mirrors the event page's Generate Series; bounded to +1yr when the rule has no

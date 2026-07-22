@@ -1563,6 +1563,11 @@ export async function generateSeriesOccurrences(
   // recurring event belongs to the whole series. Only the person-level facts carry;
   // per-occurrence state (attendance, sign-out, responses, sent flags) starts fresh.
   const masterInvitees = await db.select().from(schema.invitees).where(eq(schema.invitees.eventId, masterId))
+  // Coordinators ride along too, for the same reason: whoever runs the series runs
+  // every occurrence of it. Without this each occurrence started with nobody, and the
+  // client's creator-seed then made whoever OPENED it that occurrence's coordinator.
+  // Each occurrence keeps its own row, so notifications can still differ per date.
+  const masterCoordinators = await db.select().from(schema.eventCoordinators).where(eq(schema.eventCoordinators.eventId, masterId))
   await deleteSeriesChildren(masterId)
   for (const occ of occurrences) {
     const childId = randomUUID()
@@ -1586,6 +1591,16 @@ export async function generateSeriesOccurrences(
         subGroupId: inv.subGroupId ?? null,
         ticketType: inv.ticketType ?? null,
         clubOrgId: inv.clubOrgId ?? null,
+      })) as any)
+    }
+    if (masterCoordinators.length) {
+      await db.insert(schema.eventCoordinators).values(masterCoordinators.map((c: any) => ({
+        id: randomUUID(),
+        eventId: childId,
+        personId: c.personId,
+        // The master's notification choices are the starting point; an occurrence can
+        // be changed afterwards without touching the rest of the series.
+        notifications: c.notifications ?? [],
       })) as any)
     }
   }

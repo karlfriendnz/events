@@ -573,7 +573,7 @@ async function rebuildSeries(startAt: string | null, endAt: string | null, rule:
         v-model:person-ids="form.visibility_person_ids" />
       <!-- Coordinators live inside the edit box (only mounts when editing → no load on the plain view). -->
       <div class="pt-3 border-t border-gray-100">
-        <EventCoordinators :event-id="eventId" embedded @changed="coordinatorNames = $event" />
+        <EventCoordinators :event-id="eventId" embedded :allow-seed="!event?.recurrenceParentId" @changed="coordinatorNames = $event" />
       </div>
       <div class="flex justify-end gap-2 pt-1">
         <Button label="Cancel" severity="secondary" text size="small" @click="editing = false" />
