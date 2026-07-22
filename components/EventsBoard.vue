@@ -547,9 +547,9 @@
             </div>
           </div>
           <div class="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between">
-            <span class="text-xs px-2 py-0.5 rounded-full font-medium"
-              :class="tooltip.event?.status === 'PUBLISHED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'">
-              {{ tooltip.event?.status }}
+            <span class="text-xs text-gray-500 flex items-center gap-1.5">
+              <i class="pi pi-users w-3.5" />
+              {{ attendeeCount(tooltip.event?.id) }} {{ attendeeCount(tooltip.event?.id) === 1 ? 'attendee' : 'attendees' }}
             </span>
             <span class="text-xs text-gray-400">Click to open</span>
           </div>
@@ -1611,6 +1611,16 @@ async function loadOrgLevel() {
   const o = await orgsApi.get(orgId.value).catch(() => null)
   isGoverningOrg.value = !!o?.orgLevel && o.orgLevel !== 'CLUB'
 }
+// Per-event attendee (invitee) totals for the calendar hover tooltip.
+const inviteeCountsMap = ref<Record<string, number>>({})
+function attendeeCount(id?: string | null) { return id ? (inviteeCountsMap.value[id] ?? 0) : 0 }
+async function loadInviteeCounts() {
+  if (!orgId.value) return
+  const rows = await eventsApi.inviteeCountsByOrg(orgId.value).catch(() => [] as any[])
+  const m: Record<string, number> = {}
+  for (const r of rows) m[r.eventId] = r.total
+  inviteeCountsMap.value = m
+}
 const shareClubs = ref<any[]>([])                  // descendant orgs we can share with
 const canShareCalendars = computed(() => shareClubs.value.length > 0)
 const shareRows = ref<any[]>([])                   // calendar_org_invitees for the open calendar
@@ -2648,7 +2658,7 @@ watch(isProgramme, (prog) => {
 
 onMounted(async () => {
   if (isProgramme.value) calSettings.defaultView = 'table'
-  await Promise.all([load(), loadCalendars(), loadShareClubs(), loadOrgLevel()])
+  await Promise.all([load(), loadCalendars(), loadShareClubs(), loadOrgLevel(), loadInviteeCounts()])
   calendarTitle.value = new Date().toLocaleDateString('en-AU', { month: 'long', year: 'numeric' })
 
   // A "New calendar" intent from the left menu takes priority over the empty-calendar welcome.
