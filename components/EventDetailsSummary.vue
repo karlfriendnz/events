@@ -90,8 +90,14 @@ const saving = ref(false)
 const form = reactive<{
   title: string; status: string; is_all_day: boolean
   start_date: Date | null; start_time: Date | null; end_date: Date | null; end_time: Date | null
-  category_id: string | null; locations: any[]
-}>({ title: '', status: 'PUBLISHED', is_all_day: false, start_date: null, start_time: null, end_date: null, end_time: null, category_id: null, locations: [] })
+  category_id: string | null; locations: any[]; repeat: string; exdates: string[]
+}>({ title: '', status: 'PUBLISHED', is_all_day: false, start_date: null, start_time: null, end_date: null, end_time: null, category_id: null, locations: [], repeat: 'NONE', exdates: [] })
+
+// What the repeat looked like when editing began — regenerating the series is
+// destructive (it delete-then-inserts the child occurrences), so it only runs when
+// the pattern or the start actually moved.
+const originalRepeat = ref('NONE')
+const originalStart = ref<string | null>(null)
 
 function startEdit() {
   const ev = event.value
@@ -104,8 +110,19 @@ function startEdit() {
   form.end_date = ev.endAt ? new Date(ev.endAt) : (ev.startAt ? new Date(ev.startAt) : null)
   form.end_time = ev.endAt && !ev.isAllDay ? new Date(ev.endAt) : null
   form.locations = [{ type: ev.locationType || 'ADDRESS', venue_name: '', address: ev.address || '', meeting_link: ev.meetingLink || '', bookable_ids: [] }]
+  form.repeat = ev.recurrenceRule || 'NONE'
+  form.exdates = Array.isArray(ev.exdates) ? [...ev.exdates] : []
+  originalRepeat.value = form.repeat
+  originalStart.value = ev.startAt ?? null
   editing.value = true
 }
+
+// The repeat is only editable on the MASTER of a series — changing the pattern from
+// one occurrence would be ambiguous (does it move that day, or the whole run?).
+const canEditRepeat = computed(() => !event.value?.recurrenceParentId)
+const repeatChanged = computed(() =>
+  editing.value && (form.repeat !== originalRepeat.value
+    || buildDT(form.start_date, form.start_time, form.is_all_day) !== originalStart.value))
 function buildDT(date: Date | null, time: Date | null, allDay: boolean): string | null {
   if (!date) return null
   const d = new Date(date)
@@ -229,19 +246,28 @@ async function saveDetails() {
   if (!form.title.trim()) return
   saving.value = true
   const loc: any = form.locations[0] || {}
+  const rule = canEditRepeat.value ? (form.repeat && form.repeat !== 'NONE' ? form.repeat : null) : undefined
+  const mustRegenerate = canEditRepeat.value && repeatChanged.value
   try {
-    const updated = await eventsApi.update(props.eventId, {
+    const startAt = buildDT(form.start_date, form.start_time, form.is_all_day)
+    const endAt = buildDT(form.end_date || form.start_date, form.end_time, form.is_all_day)
+    const patch: any = {
       title: form.title.trim(),
       status: form.status,
       categoryId: form.category_id || null,
       isAllDay: form.is_all_day,
-      startAt: buildDT(form.start_date, form.start_time, form.is_all_day),
-      endAt: buildDT(form.end_date || form.start_date, form.end_time, form.is_all_day),
+      startAt,
+      endAt,
       locations: form.locations,
       locationType: loc.type ?? 'ADDRESS',
       address: loc.type === 'ADDRESS' ? (loc.address || null) : null,
       meetingLink: loc.type === 'ONLINE' ? (loc.meeting_link || null) : null,
-    } as any)
+    }
+    if (rule !== undefined) { patch.recurrenceRule = rule; patch.exdates = form.exdates }
+    const updated = await eventsApi.update(props.eventId, patch)
+    // The rule alone materialises nothing — the occurrences are real rows. Same
+    // expansion the quick-create path uses, so an edited series matches a new one.
+    if (mustRegenerate) await rebuildSeries(startAt, endAt, rule)
     event.value = updated
     resolveVenue()
     editing.value = false
@@ -251,6 +277,29 @@ async function saveDetails() {
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Could not save', detail: e?.message, life: 4000 })
   } finally { saving.value = false }
+}
+
+// Re-materialise the child occurrences after the pattern (or the start) moved.
+// generateSeries delete-then-inserts, so this REPLACES the upcoming occurrences —
+// which is why it only runs when something actually changed.
+async function rebuildSeries(startAt: string | null, endAt: string | null, rule: string | null | undefined) {
+  try {
+    if (!rule || !startAt) { await eventsApi.deleteSeries(props.eventId); return }
+    const { expandRrule, dateKey } = await import('~/composables/useRecurrence')
+    const startDt = new Date(startAt)
+    const duration = endAt ? new Date(endAt).getTime() - startDt.getTime() : 0
+    const windowEnd = new Date(startDt); windowEnd.setFullYear(windowEnd.getFullYear() + 1)
+    const exdateSet = new Set(form.exdates ?? [])
+    const masterKey = dateKey(startDt)
+    const occ = expandRrule(rule, startDt, windowEnd, 200)
+      .filter(d => { const k = dateKey(d); return k !== masterKey && !exdateSet.has(k) })
+      .map(d => {
+        const cs = new Date(d); cs.setHours(startDt.getHours(), startDt.getMinutes(), 0, 0)
+        return { startAt: cs.toISOString(), endAt: endAt ? new Date(cs.getTime() + duration).toISOString() : null }
+      })
+    if (occ.length) await eventsApi.generateSeries(props.eventId, occ)
+    else await eventsApi.deleteSeries(props.eventId)
+  } catch { /* best-effort — the event itself is already saved */ }
 }
 </script>
 
@@ -310,11 +359,25 @@ async function saveDetails() {
         <span class="field-label shrink-0 sm:w-20">Name</span>
         <InputText v-model="form.title" placeholder="Event name" class="flex-1 min-w-0" />
       </div>
+      <!-- Repeat IS editable here (it used to be :show-repeat="false", so a repeating
+           event could be created and never changed). Only on the series master —
+           editing the pattern from one occurrence is ambiguous. -->
       <DateTimeEditor
         v-model:startDate="form.start_date" v-model:endDate="form.end_date"
         v-model:startTime="form.start_time" v-model:endTime="form.end_time"
-        v-model:isAllDay="form.is_all_day" :show-repeat="false"
+        v-model:isAllDay="form.is_all_day"
+        v-model:repeat="form.repeat" v-model:exdates="form.exdates"
+        :show-repeat="canEditRepeat"
         label="When" label-width="sm:w-20" row-padding="px-0 py-1" />
+      <div v-if="!canEditRepeat && isRecurring" class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
+        <span class="field-label shrink-0 sm:w-20">Repeats</span>
+        <span class="text-sm text-gray-500">{{ recurringSummary }} — edit the repeat on the series.</span>
+      </div>
+      <!-- Say what saving will DO: the occurrences are real rows, so changing the
+           pattern replaces the upcoming ones rather than quietly editing a rule. -->
+      <p v-if="repeatChanged && canEditRepeat" class="text-xs text-amber-600 sm:ml-24">
+        Saving rebuilds the upcoming occurrences to match — any changes made to an individual occurrence will be lost.
+      </p>
       <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
         <span class="field-label shrink-0 sm:w-20">Status</span>
         <Select v-model="form.status" :options="STATUS_OPTIONS" option-label="label" option-value="value" class="w-full sm:w-52" />
