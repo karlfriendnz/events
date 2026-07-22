@@ -19,7 +19,9 @@
         <i class="pi pi-dollar text-gray-400 text-sm mt-0.5 shrink-0" />
         <div class="text-sm">
           <p class="font-semibold text-gray-600">Cost:</p>
-          <p class="text-gray-500">{{ live ? (cost || 'Free') : (event?.is_paid ? 'Paid' : 'Set by your fees') }}</p>
+          <!-- A real cost wins wherever it's known — the builder used to say "Set by
+               your fees" even once the fees were set. -->
+          <p class="text-gray-500">{{ cost || (live ? 'Free' : (event?.is_paid ? 'Paid' : 'Set by your fees')) }}</p>
         </div>
       </div>
       <div v-if="design.icons?.location && (!live || event?.location)" class="flex items-start gap-2">

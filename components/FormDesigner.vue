@@ -46,12 +46,45 @@ const evtGenderCriteria = computed(() => {
 })
 const evtRestrictionCriteria = computed(() =>
   [evtAgeCriteria.value, evtGenderCriteria.value].filter(Boolean).join(' · '))
-// Event object for the preview header, with age + gender folded into `criteria`
-// when the event has no explicit criteria of its own.
+// Where it happens, as one line — the header shows a string, not a location object.
+const evtLocationLabel = computed(() => {
+  const e: any = event.value
+  if (!e) return ''
+  const l0 = Array.isArray(e.locations) && e.locations.length ? e.locations[0] : null
+  if (l0) {
+    if (l0.type === 'ONLINE') return l0.meeting_link ? 'Online' : ''
+    if (l0.type === 'BOOKABLE') return l0.venue_name || 'Venue'
+    return [l0.venue_name, l0.address].filter(Boolean).join(', ')
+  }
+  if (e.locationType === 'ONLINE') return e.meetingLink ? 'Online' : ''
+  return e.address || ''
+})
+// What it costs, from the fees actually captured: the event's own line items first,
+// then per-session fees ("From $X" — they vary by session). Empty = nothing priced
+// yet, and the header keeps its placeholder rather than claiming Free.
+function evtMoney(n: number) {
+  try { return new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD' }).format(n) }
+  catch { return '$' + n.toFixed(2) }
+}
+const evtCostLabel = computed(() => {
+  const base = (feeLineItems.value ?? []).reduce((sum: number, f: any) => sum + (Number(f.amount) || 0), 0)
+  if (base > 0) return evtMoney(base)
+  const sessionFees = (sessions.value ?? [])
+    .map((s: any) => Number(sessionFeeAmount(s)) || 0)
+    .filter((n: number) => n > 0)
+  if (sessionFees.length) return `From ${evtMoney(Math.min(...sessionFees))}`
+  return ''
+})
+// Event object for the preview header: real date/location, with age + gender folded
+// into `criteria` when the event has no explicit criteria of its own.
 const evtDisplayEvent = computed(() => {
   const e = event.value
-  if (!e || e.criteria || !evtRestrictionCriteria.value) return e
-  return { ...e, criteria: evtRestrictionCriteria.value }
+  if (!e) return e
+  return {
+    ...e,
+    location: e.location || evtLocationLabel.value || null,
+    ...(e.criteria || !evtRestrictionCriteria.value ? {} : { criteria: evtRestrictionCriteria.value }),
+  }
 })
 // ── WYSIWYG preview: the "Preview" mode renders the REAL <FormRenderer> off the
 //    live config, so what you build is exactly what registrants get. ──
@@ -2439,7 +2472,15 @@ async function reload() {
   // event.value (form_id / is_programme / age_min / age_max / title) — alias them.
   const data = await eventsApi.get(props.eventId).catch(() => null)
   event.value = data
-    ? { ...data, form_id: data.formId, is_programme: data.isProgramme, age_min: data.ageMin, age_max: data.ageMax, title: data.title }
+    ? {
+      ...data,
+      form_id: data.formId, is_programme: data.isProgramme,
+      age_min: data.ageMin, age_max: data.ageMax, title: data.title,
+      // The preview header reads these too — without the aliases it fell back to
+      // "Your event date" / "Your event venue" on an event that has both.
+      start_at: data.startAt, end_at: data.endAt, is_all_day: data.isAllDay,
+      gender_restriction: data.genderRestriction,
+    }
     : null
   await loadEvtFormConfig()
 }
@@ -3747,7 +3788,7 @@ defineExpose({ reload })
             <FormPreviewBanner :design="currentEvtFormDesign" :event="event" />
             <!-- Full event details (icons + description): always, except in mobile Steps where they're only the first (details) step -->
             <template v-if="!evtMobileSteps || evtOnDetailsStep">
-              <FormPreviewInfoIcons :design="currentEvtFormDesign" :event="evtDisplayEvent" :mobile="evtPreviewDevice === 'mobile'" />
+              <FormPreviewInfoIcons :design="currentEvtFormDesign" :event="evtDisplayEvent" :cost="evtCostLabel" :mobile="evtPreviewDevice === 'mobile'" />
               <FormPreviewDescription :design="currentEvtFormDesign" :event="event" :readonly="evtPublicPreview" />
             </template>
 
