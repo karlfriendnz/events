@@ -68,8 +68,37 @@ const { ensureTerms, t } = useTerms()
 void ensureTerms()
 const gc = useGroupCodes()
 const { affiliatedClubs } = useAffiliations()
+const peopleLinks = usePeopleLinks()
 
 const isChosen = (id: string) => props.invitedPersonIds.includes(id)
+
+// Family circles (loaded once) — used to offer a chosen person's PARENTS/guardians on
+// the split-button caret. A person's guardians = the `guardian` members of every family
+// circle they belong to as a `dependent`.
+const circles = ref<any[]>([])
+function parentsOf(personId: string): any[] {
+  const out: any[] = []
+  const seen = new Set<string>()
+  for (const c of circles.value) {
+    if (c.kind !== 'family') continue
+    if (!c.members?.some((m: any) => m.person_id === personId && m.role === 'dependent')) continue
+    for (const m of c.members) {
+      if (m.role === 'guardian' && m.person && !seen.has(m.person_id)) {
+        seen.add(m.person_id)
+        out.push({ id: m.person.id, first_name: m.person.first_name, last_name: m.person.last_name, email: m.person.email, gender: m.person.gender ?? null, dob: m.person.dob ?? null })
+      }
+    }
+  }
+  return out
+}
+// Caret menu: "Add {parent}" per guardian (re-adding an already-chosen one flashes them).
+function parentsMenu(p: any) {
+  return parentsOf(p.id).map(par => ({
+    label: `Add ${((par.first_name || '') + ' ' + (par.last_name || '')).trim() || 'parent'}`,
+    icon: isChosen(par.id) ? 'pi pi-check' : 'pi pi-user-plus',
+    command: () => addOrReveal(par),
+  }))
+}
 
 // ── SCOPE: Internal (this org's people/classes) vs Clubs (the NSO's affiliated
 // clubs). The tab only exists when the host passes showClubs — a plain club never
@@ -396,7 +425,11 @@ function codeMenu(codeId: string) {
 const groupOptions = computed(() =>
   codeSections.value.flatMap(s => s.groups.map(g => ({ label: g.name, value: g.id, code: s.name }))))
 
-onMounted(() => { loadGroups(); if (props.showClubs) loadClubs() })
+onMounted(() => {
+  loadGroups()
+  if (props.showClubs) loadClubs()
+  peopleLinks.loadCircles().then(c => { circles.value = c }).catch(() => { /* parents caret just stays empty */ })
+})
 // Load clubs if the host flips showClubs on after mount, and (defensively) when the
 // user opens the Clubs tab — clubsLoaded guards against a double fetch.
 watch(() => props.showClubs, v => { if (v) loadClubs() })
@@ -475,10 +508,19 @@ defineExpose({ reloadGroups: loadGroups })
             <!-- Age + email deliberately hidden on filter results (privacy: a filtered
                  list is a broad sweep, not a profile view). -->
           </div>
-          <!-- The row is never CONSUMED (no dead "Added" button): re-adding someone
-               already in flashes them where they are, rather than doing nothing. -->
-          <Button label="Add" :icon="busyPersonId === p.id ? 'pi pi-spin pi-spinner' : 'pi pi-plus'"
-            size="small" severity="secondary" outlined
+          <!-- A chosen person's primary shows "Added" (still clickable → flashes them
+               where they already are). When they have parents/guardians the split caret
+               lets you add those too; rows without parents are a plain button. -->
+          <SplitButton v-if="parentsOf(p.id).length"
+            :label="isChosen(p.id) ? addedLabel : 'Add'"
+            :icon="busyPersonId === p.id ? 'pi pi-spin pi-spinner' : (isChosen(p.id) ? 'pi pi-check' : 'pi pi-plus')"
+            size="small" :severity="isChosen(p.id) ? 'success' : 'secondary'" outlined
+            :model="parentsMenu(p)" :disabled="busyPersonId === p.id"
+            @click="addOrReveal(p)" />
+          <Button v-else
+            :label="isChosen(p.id) ? addedLabel : 'Add'"
+            :icon="busyPersonId === p.id ? 'pi pi-spin pi-spinner' : (isChosen(p.id) ? 'pi pi-check' : 'pi pi-plus')"
+            size="small" :severity="isChosen(p.id) ? 'success' : 'secondary'" outlined
             :disabled="busyPersonId === p.id"
             @click="addOrReveal(p)" />
         </div>
@@ -503,8 +545,16 @@ defineExpose({ reloadGroups: loadGroups })
           </p>
           <p v-if="p.email" class="text-xs text-gray-400 truncate">{{ p.email }}</p>
         </div>
-        <Button label="Add" :icon="busyPersonId === p.id ? 'pi pi-spin pi-spinner' : 'pi pi-plus'"
-          size="small" severity="secondary" outlined
+        <SplitButton v-if="parentsOf(p.id).length"
+          :label="isChosen(p.id) ? addedLabel : 'Add'"
+          :icon="busyPersonId === p.id ? 'pi pi-spin pi-spinner' : (isChosen(p.id) ? 'pi pi-check' : 'pi pi-plus')"
+          size="small" :severity="isChosen(p.id) ? 'success' : 'secondary'" outlined
+          :model="parentsMenu(p)" :disabled="busyPersonId === p.id"
+          @click="addOrReveal(p)" />
+        <Button v-else
+          :label="isChosen(p.id) ? addedLabel : 'Add'"
+          :icon="busyPersonId === p.id ? 'pi pi-spin pi-spinner' : (isChosen(p.id) ? 'pi pi-check' : 'pi pi-plus')"
+          size="small" :severity="isChosen(p.id) ? 'success' : 'secondary'" outlined
           :disabled="busyPersonId === p.id"
           @click="addOrReveal(p)" />
       </div>
@@ -599,6 +649,14 @@ defineExpose({ reloadGroups: loadGroups })
     <!-- ── Filter dialog: describe the people you want ── -->
     <Dialog v-model:visible="filterOpen" modal header="Find people" :style="{ width: '95vw', maxWidth: '520px' }">
       <div class="space-y-5">
+        <!-- Term scopes which classes the "In {group}" picker offers (per-term instances),
+             sharing the same termId as the top-bar selector so the two stay in sync. -->
+        <div v-if="terms.length > 1">
+          <p class="text-sm font-medium text-gray-800 mb-2">{{ t('term') }}</p>
+          <Select v-model="termId" :options="termOptions" option-label="name" option-value="id"
+            placeholder="All terms" class="w-full" />
+        </div>
+
         <div>
           <p class="text-sm font-medium text-gray-800 mb-2">Gender</p>
           <div class="flex flex-wrap gap-2">
