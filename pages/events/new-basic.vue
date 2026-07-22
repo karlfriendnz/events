@@ -390,11 +390,9 @@
              the builder (the "what do they need to do?" choice on the Invitees step
              turns the form on, or the button below does). Both audiences fill THE
              SAME form — a member gets it pre-filled, the public gets it blank. -->
+        <!-- No heading here: the step path above already says "Registration form",
+             and the builder fills the panel — a title + blurb just pushed it down. -->
         <div :class="isStep('form') ? 'px-1' : 'hidden'">
-          <div class="mb-3">
-            <h2 class="section-title">Registration form</h2>
-            <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Registration form') }}</p>
-          </div>
           <!-- RSVP-only: no form is used yet. Offer to add one rather than hiding the
                step, so the form step is always reachable. -->
           <div v-if="!form.use_registration_form" class="bg-white rounded-xl border border-gray-200 p-8 text-center">

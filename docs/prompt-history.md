@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1664 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1666 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (43 prompts)
+## Session 2026-07-22 02:42 (45 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29177,4 +29177,9 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **11:35** — ok great now can you please fix this [Image #17] the drop downs look averagem and the unlimited doens't make sence please create a radio group button with unlimnted and set and then abiliyt to set number - make it sexy
 
 **11:37** — please do it everywhere
+
+**11:58** — deploy
+
+**19:04** — remove this please - Registration form
+> Build the form people fill in to sign up. fromt eh basic event wizard
 
