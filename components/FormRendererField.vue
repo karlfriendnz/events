@@ -10,7 +10,7 @@
 const props = defineProps<{ field: any; value: any }>()
 const emit = defineEmits<{ (e: 'update', v: any): void }>()
 const f = computed(() => props.field)
-const colSpan = computed(() => (f.value.col_span === 2 ? 'sm:col-span-2' : 'col-span-1'))
+const colSpan = computed(() => (f.value.col_span === 2 ? 'col-span-full' : 'col-span-1'))
 function on(e: Event) { emit('update', (e.target as any).value) }
 
 // Multi-select: value is an array of chosen options; toggle keeps it an array.
@@ -37,17 +37,17 @@ const inputClass = 'w-full h-9 px-3 text-sm bg-white text-gray-900 placeholder:t
 <template>
   <!-- ── Layout blocks (presentational — no value, no label) ── -->
   <!-- Image -->
-  <div v-if="f.field_type === 'image'" class="sm:col-span-2" :class="'text-' + (f.options?.[2] ?? 'center')">
+  <div v-if="f.field_type === 'image'" class="col-span-full" :class="'text-' + (f.options?.[2] ?? 'center')">
     <img v-if="f.options?.[0]" :src="f.options[0]" :alt="f.options?.[1] || ''" class="max-w-full rounded-lg inline-block" />
   </div>
 
   <!-- Text block -->
-  <div v-else-if="f.field_type === 'textblock'" class="sm:col-span-2">
+  <div v-else-if="f.field_type === 'textblock'" class="col-span-full">
     <p class="text-gray-600 whitespace-pre-wrap" :class="'text-' + (f.options?.[1] ?? 'base')">{{ f.options?.[0] || '' }}</p>
   </div>
 
   <!-- Button -->
-  <div v-else-if="f.field_type === 'button'" class="sm:col-span-2">
+  <div v-else-if="f.field_type === 'button'" class="col-span-full">
     <component :is="buttonHref ? 'a' : 'span'" :href="buttonHref || undefined"
       :target="buttonHref ? '_blank' : undefined" :rel="buttonHref ? 'noopener noreferrer nofollow' : undefined"
       class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"

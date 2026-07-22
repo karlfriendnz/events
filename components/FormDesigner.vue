@@ -3812,7 +3812,7 @@ defineExpose({ reload })
                     </button>
                     <div v-if="prevPreview?.id === f.id" class="border-t border-gray-100 bg-gray-50 p-3 space-y-2.5">
                       <div class="max-h-[42vh] overflow-y-auto rounded-lg bg-white border border-gray-100 p-1">
-                        <FormRenderer preview :config="prevPreview.config" :context="previewContext" :event="evtDisplayEvent" />
+                        <FormRenderer preview narrow :config="prevPreview.config" :context="previewContext" :event="evtDisplayEvent" />
                       </div>
                       <button type="button" class="w-full py-2 rounded-lg text-white text-sm font-semibold transition-colors"
                         style="background:var(--brand-primary)" @click="useEvtPreviousForm(f.id)">
@@ -3840,6 +3840,7 @@ defineExpose({ reload })
           <div v-else-if="evtPublicPreview" class="relative z-10 mx-auto my-6 w-full"
             :class="evtPreviewDevice === 'mobile' ? 'max-w-[390px]' : 'max-w-[1000px]'">
             <FormRenderer preview :config="previewConfig" :context="previewContext" :event="evtDisplayEvent"
+              :narrow="evtPreviewDevice === 'mobile'"
               :sessions="previewSessions" :fee-line-items="feeLineItems" />
           </div>
 
