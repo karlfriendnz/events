@@ -67,7 +67,7 @@
           <div class="px-5 py-4 space-y-4">
             <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1.5 sm:gap-4">
               <label class="text-sm font-medium text-gray-700">Event Name <span class="text-red-400">*</span></label>
-              <InputText v-model="form.title" placeholder="e.g. Easter Holiday Programme" class="w-full" autofocus />
+              <InputText ref="titleInput" v-model="form.title" placeholder="e.g. Easter Holiday Programme" class="w-full" />
             </div>
             <!-- Age Limit + Gender on one row -->
             <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1.5 sm:gap-4">
@@ -609,7 +609,12 @@ const currencySymbol = computed(() => {
   const parts = new Intl.NumberFormat('en-NZ', { style: 'currency', currency: orgCurrency.value || 'NZD' }).formatToParts(0)
   return parts.find(p => p.type === 'currency')?.value ?? '$'
 })
+// The name is the first thing you'd type, so the cursor starts there. The plain
+// `autofocus` attribute doesn't fire — the modal mounts on a client-side route
+// change, not a page load — so focus it explicitly once it's painted.
+const titleInput = ref<any>(null)
 onMounted(async () => {
+  nextTick(() => titleInput.value?.$el?.focus?.())
   await ensureDraft()
   try { orgCurrency.value = (await financesApi.orgCurrency(orgId.value)) || 'NZD' } catch { /* keep default */ }
 })

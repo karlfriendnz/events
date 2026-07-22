@@ -121,7 +121,7 @@
                    stacks on a genuinely narrow screen). -->
               <div class="grid grid-cols-1 sm:grid-cols-[120px_1fr] items-center gap-1.5 sm:gap-4">
                 <label class="field-label">Event Title <span class="text-red-400">*</span></label>
-                <InputText v-model="form.title" placeholder="Enter the name of your event" class="w-full" autofocus />
+                <InputText ref="titleInput" v-model="form.title" placeholder="Enter the name of your event" class="w-full" />
               </div>
             </div>
             <!-- Date (lives on step 1, right after the name) -->
@@ -569,8 +569,10 @@
 
     <!-- ── Live summary rail — what the event looks like so far. Mirrors the
          booking wizard's invoice panel. Hidden on narrow screens, where the
-         form itself needs the full width. ── -->
-    <aside v-if="stepped" class="hidden lg:flex w-80 shrink-0 flex-col border-l border-gray-200 bg-white overflow-y-auto">
+         form itself needs the full width — and on the Registration form step,
+         where the form BUILDER needs it (same call new-multi makes by running
+         that step full-bleed). ── -->
+    <aside v-if="stepped && !isStep('form')" class="hidden lg:flex w-80 shrink-0 flex-col border-l border-gray-200 bg-white overflow-y-auto">
       <!-- Banner -->
       <div v-if="form.banner_url" class="h-28 shrink-0 bg-gray-100">
         <img :src="form.banner_url" class="w-full h-full object-cover" />
@@ -1494,7 +1496,12 @@ async function saveEvent() {
   }
 }
 
+// The title is the first thing you'd type, so the cursor starts there. The plain
+// `autofocus` attribute doesn't fire — the modal mounts on a client-side route
+// change, not a page load — so focus it explicitly once it's painted.
+const titleInput = ref<any>(null)
 onMounted(async () => {
+  nextTick(() => titleInput.value?.$el?.focus?.())
   financesApi.orgCurrency(orgId.value)
     .then((c: string) => { orgCurrency.value = c || 'NZD' })
     .catch(() => {})
