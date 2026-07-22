@@ -1,5 +1,11 @@
 <template>
-  <div class="rich-text-editor border border-gray-200 rounded-lg overflow-hidden" :class="{ 'opacity-60 pointer-events-none bg-gray-50': readonly }">
+  <div class="rich-text-editor"
+    :class="[
+      inline
+        ? 'inline-rte cursor-text rounded-none border-0 border-b border-transparent hover:border-gray-300 focus-within:border-[#0e43a3] transition-colors'
+        : 'border border-gray-200 rounded-lg overflow-hidden',
+      { 'opacity-60 pointer-events-none bg-gray-50': readonly },
+    ]">
     <!-- Floating bubble menu (bubble mode only) — appears when text is selected -->
     <BubbleMenu v-if="bubble && editor" :editor="editor"
       class="flex items-center gap-0.5 px-1 py-1 bg-white border border-gray-200 rounded-lg shadow-lg">
@@ -109,6 +115,8 @@ const props = defineProps<{
   readonly?: boolean
   /** When true, hide the always-on toolbar and show a floating menu on text selection. */
   bubble?: boolean
+  /** Inline heading/description style: no box, hover shows an underline + text cursor. */
+  inline?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -132,7 +140,7 @@ const editor = useEditor({
     attributes: {
       // Bubble mode (inline description): start at one line and grow with content.
       // Default mode keeps a comfortable minimum editing area.
-      class: 'outline-none text-sm text-gray-800 ' + (props.bubble ? 'px-3 py-2 min-h-[2.25rem]' : 'px-4 py-3 min-h-[120px]'),
+      class: 'outline-none text-sm text-gray-800 ' + (props.inline ? 'px-0 py-1.5 min-h-[2rem]' : props.bubble ? 'px-3 py-2 min-h-[2.25rem]' : 'px-4 py-3 min-h-[120px]'),
     },
   },
 })
@@ -181,6 +189,14 @@ onBeforeUnmount(() => editor.value?.destroy())
   font-size: 1rem;
   font-weight: 600;
   margin-bottom: 0.25rem;
+}
+
+/* Inline heading variant: an <h2> reads as the page/section heading (big + bold). */
+.rich-text-editor.inline-rte .tiptap h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 0;
+  color: #1f2937;
 }
 
 .rich-text-editor .tiptap hr {

@@ -58,7 +58,10 @@ const activeGroupId = computed(() => {
   return (pub ?? groups.value[0])?.id ?? ''
 })
 
-const design = computed(() => props.config?.designs?.[activeGroupId.value] ?? {})
+// Fall back to the 'general' design (the builder's own default key) — a single-form
+// event keeps its design under 'general', so reading strictly by group id returned {}
+// and the preview lost its info-icons / description / wizard steps.
+const design = computed(() => props.config?.designs?.[activeGroupId.value] ?? props.config?.designs?.general ?? {})
 const isWizard = computed(() => design.value?.style === 'tabs')
 // The club's own brand colours (Settings → General → Branding). A form inherits them
 // so it looks like the club by default; Form Design can override per form.
@@ -78,7 +81,14 @@ const stepTextColor = computed(() => withHash(brand.value.text) || '#ffffff')
 function stepLabel(st: any) {
   return st.kind === 'summary' ? 'Summary & payment' : st.kind === 'terms' ? 'Terms & conditions' : st.subject.label
 }
-const formHeading = computed(() => design.value?.formHeading || 'Fill in the form to register')
+// Rich heading: a plain-text value is wrapped in <h2> so it keeps the big/bold look;
+// once it's real HTML (formatted in the builder) it's rendered as-is.
+const formHeading = computed(() => {
+  const h = String(design.value?.formHeading ?? '')
+  if (h.includes('<')) return h
+  const esc = (h || 'Fill in the form to register').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return `<h2>${esc}</h2>`
+})
 
 // Designed header chrome — banner / info-icons / description / background, the same
 // pieces the builder preview shows, so the live form looks like what was designed.
@@ -822,7 +832,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
     <div class="px-4 sm:px-6 py-6">
     <!-- LANDING: details + sessions (data table) → "Register" opens the auth modal -->
     <div v-if="!authResolved">
-      <h2 class="text-lg font-bold text-gray-900 mb-3">{{ formHeading }}</h2>
+      <div class="prose prose-sm max-w-none text-gray-900 mb-3" v-html="formHeading" />
 
       <!-- What's on offer, as a table (desktop) / stacked cards (mobile) -->
       <div v-if="weekSummary.length" class="sm:hidden space-y-2">
@@ -892,7 +902,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
       <button type="button" class="text-xs font-semibold text-gray-500 hover:text-gray-700" @click="changeIdentity">Change</button>
     </div>
 
-    <h2 class="text-lg font-bold text-gray-900 mb-4">{{ formHeading }}</h2>
+    <div class="prose prose-sm max-w-none text-gray-900 mb-4" v-html="formHeading" />
 
     <!-- Step indicator — segments, not a row of dots-and-chevrons: each step gets its
          number and its NAME, and the one you're on is filled with the form's own step
@@ -912,8 +922,10 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
     <template v-for="(s, si) in subjects" :key="s.key">
       <section v-if="!isWizard || (steps[step] && steps[step].kind === 'subject' && steps[step].subject.key === s.key)"
         class="mb-7">
-        <h3 class="text-base font-semibold text-gray-800">{{ s.heading || (s.label + ' register') }}</h3>
-        <div v-if="s.intro" class="text-sm text-gray-500 mt-1 mb-2" v-html="s.intro" />
+        <!-- Heading + description are one rich-text field (intro). Fall back to the
+             legacy separate heading for forms built before the merge. -->
+        <div v-if="s.intro && s.intro.trim()" class="prose prose-sm max-w-none text-gray-800 mb-2" v-html="s.intro" />
+        <h3 v-else class="text-base font-semibold text-gray-800">{{ s.heading || (s.label + ' register') }}</h3>
 
         <!-- Instances -->
         <div v-for="inst in count(s.key)" :key="inst"
@@ -931,7 +943,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
           <!-- ONE field per row, full width — on the live form and in Preview. A
                two-column form makes every field half a line long and reads as cramped
                at any width. -->
-          <div class="grid grid-cols-1 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <!-- Pinned (name) -->
             <FormRendererField v-for="f in leadFields(s.key)" :key="f.id"
               :field="f" :value="getVal(s.key, inst, fkey(f))"
@@ -939,12 +951,17 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
             <!-- Body items + sections -->
             <template v-for="f in bodyItems(s.key)" :key="f.id">
               <div v-if="f.field_type === 'section'" class="col-span-2 mt-2">
-                <p class="text-sm font-bold text-gray-700">{{ f.label }}</p>
-                <p v-if="f.placeholder" class="text-xs text-gray-400 mb-2">{{ f.placeholder }}</p>
+                <!-- Heading + description are one rich-text field (intro); fall back to
+                     the legacy label/description for sections built before the merge. -->
+                <div v-if="f.intro && f.intro.trim()" class="prose prose-sm max-w-none text-gray-800 mb-2" v-html="f.intro" />
+                <template v-else>
+                  <p class="text-sm font-bold text-gray-700">{{ f.label }}</p>
+                  <p v-if="f.placeholder" class="text-xs text-gray-400 mb-2">{{ f.placeholder }}</p>
+                </template>
                 <!-- ONE field per row, full width — on the live form and in Preview. A
                two-column form makes every field half a line long and reads as cramped
                at any width. -->
-          <div class="grid grid-cols-1 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <FormRendererField v-for="c in sectionChildren(s.key, f.id)" :key="c.id"
                     v-show="fieldVisible(c, s.key, inst)"
                     :field="c" :value="getVal(s.key, inst, fkey(c))"

@@ -8,6 +8,7 @@
 import { useToast } from 'primevue/usetoast'
 import { genderRestrictionLabel } from '~/composables/useEventRestrictions'
 import { applicableDiscounts as evalApplicableDiscounts, type DiscountCtx } from '~/composables/useDiscountEval'
+import { conditionsPass } from '~/composables/useFormConditions'
 
 const props = withDefaults(defineProps<{ eventId: string | null; groupId?: string | null; formId?: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean; embedded?: boolean; ageMin?: number | null; ageMax?: number | null; genderRestriction?: string | null;
   /** The host's in-progress event details (wizard) — override the stored draft row. */
@@ -549,6 +550,12 @@ const EVT_CORE_FIELDS: { label: string; field_type: string; account: string | nu
 const evtPreviewAccount: Record<string, string> = { first: '', last: '', email: '' }
 function evtIsPrimaryRegistrant(_subjectKey: string, _inst: number) { return false }
 function evtCoreReadOnly(_subjectKey: string, _inst: number, _field: any) { return false }
+// "Enter Child first name" — the placeholder names the subject so a multi-person form
+// (Child / Parent / Emergency contact) never leaves you guessing whose name goes where.
+function evtNamePlaceholder(cf: { label: string }, subject: any) {
+  const who = (subject?.label || subject?.key || 'their').toString().trim()
+  return `Enter ${who} ${cf.label.toLowerCase()}`
+}
 // Seed the core fields onto a (person) subject — mirrors evtEnsureGlobalFields.
 function evtEnsureCoreFields(subject: any) {
   if (!subject?.key || (subject.kind ?? '') === 'entity') return
@@ -569,13 +576,15 @@ function evtEnsureCoreFields(subject: any) {
         existing.locked = true
         existing.core = true
         existing.is_required = true
+        // Re-assert the placeholder so a renamed subject ("Child") keeps the hint fresh.
+        existing.placeholder = evtNamePlaceholder(cf, subject)
       }
       continue
     }
     seed.push({
       id: crypto.randomUUID(), label: cf.label, field_type: cf.field_type,
       is_required: true, locked: true, core: true, pinned: !!cf.pinned, account: cf.account,
-      placeholder: cf.placeholder || '', options: cf.options || [],
+      placeholder: cf.pinned ? evtNamePlaceholder(cf, subject) : (cf.placeholder || ''), options: cf.options || [],
       col_span: 1, visibility_conditions: [], financial_rules: [], target: subject.key,
     })
   }
@@ -716,10 +725,17 @@ function evtAddRequiredFieldsFor(key: string) {
   for (const d of evtRequiredDefsFor(key)) {
     // Core fields are rendered by the account block, not as dynamic fields.
     if (evtAlwaysPresentFields.includes(d.label)) continue
-    if (fields.some((f: any) => f.label === d.label && (f.target || '') === key)) continue
+    const already = fields.find((f: any) => f.label === d.label && (f.target || '') === key)
+    if (already) {
+      // A form built before required fields were locked keeps a removable copy — lock it.
+      already.locked = true; already.is_required = true
+      continue
+    }
     const meta = evtFieldMeta[d.label] ?? { field_type: 'text', icon: 'pi-minus', placeholder: '' }
     const inherited = inheritedFieldLabels.value.includes(d.label)
-    fields.push({ id: crypto.randomUUID(), label: d.label, field_type: meta.field_type, is_required: true, placeholder: meta.placeholder, options: meta.options, col_span: 1, visibility_conditions: [], financial_rules: [], target: key, ...(inherited ? { connected_to: 'profile' } : {}) })
+    // Required fields are ALWAYS on the form — locked so they can't be dragged off or
+    // deleted (the field editor hides delete + keeps Required on for locked fields).
+    fields.push({ id: crypto.randomUUID(), label: d.label, field_type: meta.field_type, is_required: true, locked: true, placeholder: meta.placeholder, options: meta.options, col_span: 1, visibility_conditions: [], financial_rules: [], target: key, connected_to: inherited ? 'profile' : evtDefaultConnectedTo.value })
   }
 }
 // ── Global / locked fields ────────────────────────────────────────────────────
@@ -789,10 +805,11 @@ function evtEnsureParentSectionFields(subject: any) {
     col_span: 2, visibility_conditions: [], financial_rules: [], target: subject.key, parent_section: sectionId,
   } as any)
 }
-// Keep global/locked fields present for every subject (covers add, preset, and load),
-// and full-width: they were seeded half-width, which cramped both of them.
+// Keep global/locked + REQUIRED fields present for every subject (covers add, preset,
+// load, AND a required field created later — it seeds itself in as soon as the org's
+// field defs arrive). Also re-asserts full-width on the account/comms pair.
 watch(currentEvtFormProfiles, () => {
-  for (const p of currentEvtFormProfiles.value) { evtEnsureCoreFields(p); evtEnsureGlobalFields(p) }
+  for (const p of currentEvtFormProfiles.value) { evtEnsureCoreFields(p); evtAddRequiredFieldsFor(p.key); evtEnsureGlobalFields(p) }
   for (const f of currentEvtFormFields.value) {
     if ((f.field_type === 'account' || f.field_type === 'comms') && f.col_span !== 2) f.col_span = 2
   }
@@ -1089,7 +1106,11 @@ const evtConditionFieldOptions = computed(() => {
     }
   })
   const added = currentEvtFormFields.value.filter((f: any) => !evtAlwaysPresentFields.includes(f.label))
-  return [...always, ...added]
+  // Only fields that hold an ANSWER can drive a condition. Account (a login toggle),
+  // Communication preferences, and the layout blocks (section/image/text/button/tabs)
+  // have nothing to test, so they're never offered as a condition source.
+  const nonAnswerable = new Set(['account', 'comms', 'section', 'image', 'textblock', 'button', 'tabs'])
+  return [...always, ...added].filter((f: any) => !nonAnswerable.has(f.field_type))
 })
 
 function ensureEvtGroupFields() {
@@ -1118,6 +1139,11 @@ function uniqueEvtLabel(label: string) {
   return `${label} ${n}`
 }
 
+// Where a newly-added field's data lives by default: on an EVENT form it's specific to
+// this event ('event'); on a group registration (or a standalone form that connects to
+// groups) it's the member's profile ('profile'). Inherited fields always stay 'profile'.
+const evtDefaultConnectedTo = computed(() => (props.eventId ? 'event' : 'profile'))
+
 function addEvtFormField(label: string, parentSection: string | null = null) {
   if (isEvtFieldAdded(label)) return null
   const meta = evtFieldMeta[label] ?? { field_type: 'text', icon: 'pi-minus', placeholder: '' }
@@ -1125,7 +1151,8 @@ function addEvtFormField(label: string, parentSection: string | null = null) {
   // National (inherited) fields keep their data wired to the subject's profile —
   // the club can't reassign where it lives.
   const inherited = inheritedFieldLabels.value.includes(label)
-  ensureEvtGroupFields().push({ id, label, field_type: meta.field_type, is_required: false, placeholder: meta.placeholder, options: meta.options, col_span: 1, visibility_conditions: [], financial_rules: [], target: evtFieldTarget.value, parent_section: parentSection, ...(inherited ? { connected_to: 'profile' } : {}) })
+  const ph = meta.placeholder || `Enter ${label.toLowerCase()}`
+  ensureEvtGroupFields().push({ id, label, system_name: evtNameFromLabel(label), field_type: meta.field_type, is_required: false, has_placeholder: true, placeholder: ph, options: meta.options, col_span: 1, visibility_conditions: [], financial_rules: [], target: evtFieldTarget.value, parent_section: parentSection, connected_to: inherited ? 'profile' : evtDefaultConnectedTo.value })
   return id
 }
 
@@ -1289,6 +1316,9 @@ const evtEditingFieldInherited = computed(() => {
   const f = evtEditingField.value
   return !!f && !!f.label && inheritedFieldLabels.value.includes(f.label)
 })
+// First / Last Name are fixed: every person has one, it's required, and it can't be
+// renamed / retyped / conditioned. So the field editor shows nothing editable for them.
+const evtEditingNameLocked = computed(() => !!evtEditingField.value?.pinned)
 // Whether the field's OPTIONS may be edited here. Locked for NSO-inherited fields AND
 // for global/core fields (Gender, DOB…) — a standard field's choices are defined once
 // centrally, not per form, so editing them here would silently diverge from everyone else.
@@ -1315,18 +1345,23 @@ function evtEnsureOptions(field: any, n: number, defaults: string[] = []) {
 
 function saveEvtNewField() {
   if (!evtNewFieldDraft.label.trim()) return
+  const label = uniqueEvtLabel(evtNewFieldDraft.label.trim())
   const field: FormField = {
     id: crypto.randomUUID(),
-    label: uniqueEvtLabel(evtNewFieldDraft.label.trim()),
+    label,
+    // Name defaults to the label with spaces removed.
+    system_name: evtNameFromLabel(label),
     field_type: evtNewFieldDraft.field_type,
     is_required: false,
-    placeholder: evtNewFieldDraft.placeholder.trim(),
-    connected_to: 'none',
+    // Placeholder ON by default, seeded from the label.
+    has_placeholder: true,
+    placeholder: evtNewFieldDraft.placeholder.trim() || `Enter ${label.toLowerCase()}`,
+    connected_to: evtDefaultConnectedTo.value,
     col_span: 1,
     visibility_conditions: [],
     financial_rules: [],
     target: evtFieldTarget.value,
-  }
+  } as any
   ensureEvtGroupFields().push(field)
   evtNewFieldDraft.label = ''
   evtNewFieldDraft.placeholder = ''
@@ -1379,6 +1414,17 @@ function evtInputTypesFor(_field: FormField) {
 }
 function evtSetFieldOptions(field: any, text: string) {
   field.options = (text || '').split('\n').map(s => s.trim()).filter(Boolean)
+}
+// The system NAME defaults to the label with spaces removed (e.g. "Food Preference" →
+// "FoodPreference") — until the user edits Name themselves, it tracks the label.
+const evtNameFromLabel = (label: string) => String(label ?? '').trim().replace(/\s+/g, '')
+function evtOnLabelInput() {
+  const f: any = evtEditingField.value
+  if (f && !f._nameTouched) f.system_name = evtNameFromLabel(f.label)
+}
+function evtOnNameInput() {
+  const f: any = evtEditingField.value
+  if (f) f._nameTouched = true
 }
 
 const connectionOptions = [
@@ -1765,6 +1811,25 @@ function evtSetSubjectIntro(key: string, val: string) {
   const i = evtProfileIndexOf(key)
   if (i >= 0) patchEvtProfile(i, { intro: val } as any)
 }
+// The subject heading + description are ONE rich-text field now — the heading is just
+// the first line (an H2). `intro` holds the whole thing; when it's empty we synthesize
+// the default heading so the block never renders blank, and the first edit migrates it in.
+function evtSubjectBody(s: any): string {
+  const intro = evtSubjectIntro(s.key)
+  if (intro && intro.trim()) return intro
+  const esc = String(evtSubjectHeading(s)).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return `<h2>${esc}</h2>`
+}
+// A SECTION's heading + description as ONE rich-text field (same as a subject). `intro`
+// holds the whole thing; when empty we build it from the legacy label/description so
+// existing sections keep showing, and the first inline edit migrates it in.
+const escHtml = (v: string) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+function evtSectionBody(field: any): string {
+  if (field?.intro && String(field.intro).trim()) return field.intro
+  const head = `<h2>${escHtml(field?.label || 'Section')}</h2>`
+  return field?.placeholder ? `${head}<p>${escHtml(field.placeholder)}</p>` : head
+}
+function evtSetSectionBody(field: any, v: string) { field.intro = v }
 
 // Linear index map: `${subject.key}#${inst}` (inst 1-based) → global 0-based slot.
 const evtInstanceIndex = computed(() => {
@@ -1819,14 +1884,13 @@ function getEvtPersonFieldValue(personIdx: number, fieldLabel: string): string {
 }
 
 function evaluateEvtConditions(conditions: FieldCondition[], personIdx: number): boolean {
-  return conditions.every(c => {
-    const val = getEvtPersonFieldValue(personIdx, c.field)
-    if (c.operator === 'Is Empty') return !val
-    if (c.operator === 'Is Not Empty') return !!val
-    if (c.operator === 'Equals') return val === c.value
-    if (c.operator === 'Is Not') return val !== c.value
-    if (c.operator === 'Contains') return val.includes(c.value)
-    return true
+  // Use the ONE shared evaluator (same as the live form) so every operator — incl.
+  // "Is ticked" / ranges / "Is any of" — is handled identically. The old inline copy
+  // only knew 5 operators and fell through to `true`, so e.g. a "gluten free is ticked"
+  // fee applied even when the box was unchecked.
+  return conditionsPass(conditions as any, {
+    answer: (label: string) => getEvtPersonFieldValue(personIdx, label),
+    unknownPersonPasses: false,   // the builder can't know age/membership/etc.
   })
 }
 // A field is visible when it has no conditions, or its conditions pass for this
@@ -1986,6 +2050,12 @@ const _EVT_ICON: Record<string, string> = { text: 'pi-font', textarea: 'pi-align
 // Org/NSO field definitions (each carries a `target` = the subject type it's
 // about, e.g. a "National Cricket ID" targets the member/player, not a Team).
 const evtOrgFieldDefs = ref<any[]>([])
+// A required field created in Settings → Fields must land on EVERY form that already
+// exists, not just new ones — so when the org's defs load/change, seed any missing
+// required field onto each subject (idempotent; declared here, after evtOrgFieldDefs).
+watch(evtOrgFieldDefs, () => {
+  for (const p of currentEvtFormProfiles.value) evtAddRequiredFieldsFor(p.key)
+}, { deep: true })
 watch(orgId, async (id) => {
   orgFieldLabels.value = []; inheritedFieldLabels.value = []; evtOrgFieldDefs.value = []
   if (!id) return
@@ -2020,15 +2090,29 @@ const evtExistingGroups = computed<Record<string, string[]>>(() => {
   // configured — a member field (e.g. National Cricket ID) won't appear on a Team.
   const sortA = (a: string[]) => [...a].sort((x, y) => x.localeCompare(y))
   const t = evtFieldTarget.value || ''
-  const own = evtOrgFieldDefs.value.filter(d => !d.inherited && evtDefApplies(d, t)).map(d => d.label)
-  const inh = evtOrgFieldDefs.value.filter(d => d.inherited && evtDefApplies(d, t)).map(d => d.label)
+  // A field already on the form drops out of the library — you can't add it twice, so
+  // showing it there is just noise (it's already in the list above).
+  const own = evtOrgFieldDefs.value.filter(d => !d.inherited && evtDefApplies(d, t) && !evtFieldOnForm(d.label)).map(d => d.label)
+  const inh = evtOrgFieldDefs.value.filter(d => d.inherited && evtDefApplies(d, t) && !evtFieldOnForm(d.label)).map(d => d.label)
   const g: Record<string, string[]> = {}
   if (own.length) g['Organisation fields'] = sortA(own)
   if (inh.length) g['Inherited (NSO) fields'] = sortA(inh)
   return g
 })
-// Search filter for the field library (find a field on the fields page).
+// Search filter for the field library (find a field on the fields page). Also filters
+// the on-the-form list above it, so one box searches everything.
 const evtFieldSearch = ref('')
+const evtMatchesSearch = (label: string) => {
+  const q = evtFieldSearch.value.trim().toLowerCase()
+  return !q || String(label).toLowerCase().includes(q)
+}
+// The search only earns its place once there's enough to hunt through — on-the-form
+// fields + the library. Under 10, everything's visible at a glance.
+const evtSearchWorthwhile = computed(() => {
+  const onForm = evtFieldsForSubject(evtFieldTarget.value).length
+  const inLibrary = Object.values(evtExistingGroups.value).reduce((n, a) => n + a.length, 0)
+  return onForm + inLibrary > 10
+})
 const evtExistingGroupsFiltered = computed<Record<string, string[]>>(() => {
   const q = evtFieldSearch.value.trim().toLowerCase()
   if (!q) return evtExistingGroups.value
@@ -2093,6 +2177,18 @@ watch(orgId, async (id) => {
 }, { immediate: true })
 
 const currentEvtFormDesign = computed(() => evtFormGroupDesigns[selectedFormGroupId.value] ?? evtFormGroupDesigns['general'])
+// The form heading as rich text: a plain-text default becomes an <h2> so it keeps the
+// big/bold "Fill in the form to register" look, but the editor's TipTap controls can
+// then format it / add lines. Once it holds real HTML it's used as-is.
+const evtFormHeadingBody = computed({
+  get() {
+    const h = String(currentEvtFormDesign.value?.formHeading ?? '')
+    if (h.includes('<')) return h
+    const esc = (h || 'Fill in the form to register').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    return `<h2>${esc}</h2>`
+  },
+  set(v: string) { if (currentEvtFormDesign.value) currentEvtFormDesign.value.formHeading = v },
+})
 // Active step fill — club-settable in Form Design (design.stepColor).
 // The builder previews what the club will actually see: their brand colours unless
 // this form overrides them (Form Design → Step colour).
@@ -2280,6 +2376,7 @@ function evtSyntheticKey(i: number) { return `custom-${i}-${Math.random().toStri
 // Change a subject's type CONNECTION (before any fields exist, so re-keying is safe).
 function evtSetSubjectType(i: number, key: string) {
   const next = currentEvtFormProfiles.value.slice()
+  const oldKey = next[i].key
   if (key === EVT_NO_TYPE) {
     // Disconnect — keep the name, drop the type link (unique key so fields stay separate).
     next[i] = { ...next[i], key: evtSyntheticKey(i), kind: 'person' }
@@ -2289,6 +2386,12 @@ function evtSetSubjectType(i: number, key: string) {
     // Connect — keep the user's own name; only borrow the type's label when name is blank.
     const label = (next[i].label || '').trim() || t.label
     next[i] = { ...next[i], key: t.key, kind: t.kind, label }
+  }
+  const newKey = next[i].key
+  // Re-point this subject's existing fields at the new key so changing the connection
+  // (e.g. from the Settings tab, after fields exist) never orphans what's on the form.
+  if (oldKey && newKey !== oldKey) {
+    for (const f of currentEvtFormFields.value) if ((f.target || '') === oldKey) f.target = newKey
   }
   currentEvtFormProfiles.value = next
   // Seed this subject's fields for the (new) key so a connected type inherits its own
@@ -2856,9 +2959,6 @@ defineExpose({ reload })
                         </p>
                       </div>
                       <i v-if="evtSubjectMissingRequired(p.key)" v-tooltip.top="'Required fields missing for this ' + ((p.kind ?? '') === 'entity' ? 'entity' : 'person')" class="pi pi-exclamation-triangle text-amber-500 text-sm shrink-0" />
-                      <button type="button"
-                        class="shrink-0 w-6 h-6 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover/sub:opacity-100 transition-all"
-                        @click.stop="removeEvtProfile(i)"><i class="pi pi-trash text-xs" /></button>
                       <i class="pi pi-chevron-right text-gray-300 text-xs shrink-0" />
                     </div>
                   </div>
@@ -2945,12 +3045,33 @@ defineExpose({ reload })
                       <i class="pi pi-info-circle text-[10px] text-gray-300 cursor-help"
                         v-tooltip.top="`What this ${(currentEvtSubject.kind ?? '') === 'entity' ? 'entity' : 'person'} is called on the form — e.g. rename “Member” to “Swimmer”. The plural is used for headings and buttons.`" />
                     </span>
-                    <div class="flex-1 min-w-0 flex items-center gap-2">
-                      <InputText :modelValue="currentEvtSubject.label" :maxlength="20" placeholder="Swimmer" class="flex-1 min-w-0"
-                        @update:modelValue="v => patchEvtProfile(currentEvtSubjectIndex, { label: v || '' })" />
-                      <InputText :modelValue="(currentEvtSubject as any).labelPlural || ''" :maxlength="20"
-                        :placeholder="(currentEvtSubject.label || 'Swimmer') + 's'" class="flex-1 min-w-0"
-                        @update:modelValue="v => patchEvtProfile(currentEvtSubjectIndex, { labelPlural: v || '' })" />
+                    <div class="flex-1 min-w-0 flex items-start gap-2">
+                      <div class="flex-1 min-w-0">
+                        <label class="field-help block mb-0.5 text-gray-400">Singular</label>
+                        <InputText :modelValue="currentEvtSubject.label" :maxlength="20" placeholder="Swimmer" class="w-full"
+                          @update:modelValue="v => patchEvtProfile(currentEvtSubjectIndex, { label: v || '' })" />
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <label class="field-help block mb-0.5 text-gray-400">Plural</label>
+                        <InputText :modelValue="(currentEvtSubject as any).labelPlural || ''" :maxlength="20"
+                          :placeholder="(currentEvtSubject.label || 'Swimmer') + 's'" class="w-full"
+                          @update:modelValue="v => patchEvtProfile(currentEvtSubjectIndex, { labelPlural: v || '' })" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Type — connect this subject to a person type so it inherits that
+                       type's fields. Only shown when the club actually has person types. -->
+                  <div v-if="evtHasSubjectTypes && (currentEvtSubject.kind ?? '') !== 'entity'" class="px-5 py-3 flex items-center gap-3">
+                    <span class="text-sm text-gray-600 w-24 shrink-0 flex items-center gap-1">
+                      Type
+                      <i class="pi pi-info-circle text-[10px] text-gray-300 cursor-help"
+                        v-tooltip.top="'Connect this subject to a person type — it then inherits that type’s fields (and required fields). “Not connected” keeps it standalone.'" />
+                    </span>
+                    <div class="flex-1 min-w-0">
+                      <Select :model-value="evtConnectedKey(currentEvtSubject)" :options="evtTypeConnectOptions"
+                        option-label="label" option-value="key" class="w-full"
+                        @update:model-value="v => evtSetSubjectType(currentEvtSubjectIndex, v)" />
                     </div>
                   </div>
 
@@ -2991,11 +3112,36 @@ defineExpose({ reload })
                     @click="openEvtSubjectSessions(currentEvtSubject.key)">
                     <span>Choose which sessions</span><i class="pi pi-chevron-right text-xs" />
                   </button>
+
+                  <!-- Remove this subject — lives here (not on the list row) so it can't be
+                       hit by accident. -->
+                  <div class="px-5 py-4">
+                    <button type="button"
+                      class="inline-flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg px-2.5 py-1.5 transition-colors"
+                      @click="removeEvtProfile(currentEvtSubjectIndex); evtSelectedFormSection = ''">
+                      <i class="pi pi-trash text-[11px]" />Remove {{ currentEvtSubject.label }} from this form
+                    </button>
+                  </div>
                 </div>
 
                 <!-- ── Fields tab: what this subject collects ── -->
-                <div v-else-if="!evtFieldAdderOpen" class="divide-y divide-gray-100">
-                  <button v-for="f in evtFieldsForSubject(currentEvtSubject.key)" :key="f.id" type="button"
+                <!-- Fields tab: the form's current fields AND everything you can add,
+                     together in one scroller (no separate add-mode). -->
+                <div v-else class="overflow-y-auto flex-1">
+                <template v-if="!evtNewBlockType">
+                <!-- Search sits above everything — find a field whether it's already on
+                     the form or still in the library. Only shown once there's enough
+                     to search (>10 fields). -->
+                <div v-if="evtSearchWorthwhile" class="px-4 pt-3 pb-1">
+                  <div class="relative">
+                    <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-xs" />
+                    <input v-model="evtFieldSearch" type="text" placeholder="Search fields…"
+                      class="w-full h-9 pl-8 pr-8 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
+                    <button v-if="evtFieldSearch" type="button" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500" @click="evtFieldSearch = ''"><i class="pi pi-times text-xs" /></button>
+                  </div>
+                </div>
+                <div class="divide-y divide-gray-100">
+                  <button v-for="f in evtFieldsForSubject(currentEvtSubject.key).filter(f => evtMatchesSearch(f.label))" :key="f.id" type="button"
                     class="w-full flex items-center gap-2.5 px-5 py-2.5 hover:bg-blue-50/40 transition-colors text-left"
                     @click="openEvtFieldEditor(f.id)">
                     <i class="pi text-xs text-gray-400 shrink-0" :class="evtFieldIcon(f)" />
@@ -3011,26 +3157,10 @@ defineExpose({ reload })
                     </span>
                     <i class="pi pi-chevron-right text-gray-300 text-xs shrink-0" />
                   </button>
-                  <!-- ONE affordance for adding, rather than the whole library sitting
-                       under the list permanently. -->
-                  <button type="button"
-                    class="w-full flex items-center gap-2.5 px-5 py-3 text-sm font-semibold text-[#0e43a3] hover:bg-blue-50/40 transition-colors"
-                    @click="evtFieldAdderOpen = true">
-                    <i class="pi pi-plus text-[10px]" />Add field
-                  </button>
                 </div>
 
-                <!-- ── Fields tab · ADD mode: everything you can put on the form ── -->
-                <template v-else>
-                  <div class="flex items-center gap-2 px-5 py-2.5 border-b border-gray-100 bg-gray-50/60">
-                    <button type="button" class="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#0e43a3] transition-colors"
-                      @click="evtFieldAdderOpen = false; evtNewBlockType = null">
-                      <i class="pi pi-chevron-left text-[10px]" />Back
-                    </button>
-                    <span class="flex-1 text-xs text-gray-400 truncate">Add to {{ currentEvtSubject.label }}</span>
-                  </div>
-                <!-- Single fields view: add-new options + existing fields -->
-                <div v-if="!evtNewBlockType" class="px-4 py-3 space-y-4">
+                <!-- ── Add to the form: blocks, system fields, reusable library ── -->
+                <div class="px-4 py-4 space-y-4 border-t border-gray-100">
                   <!-- Add new field / block -->
                   <div>
                     <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Add new</p>
@@ -3064,13 +3194,6 @@ defineExpose({ reload })
                         <i v-else class="pi pi-plus text-xs text-gray-300 group-hover:text-[#0e43a3] shrink-0" />
                       </button>
                     </div>
-                  </div>
-                  <!-- Search / filter existing fields -->
-                  <div class="relative">
-                    <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-xs" />
-                    <input v-model="evtFieldSearch" type="text" placeholder="Search fields…"
-                      class="w-full h-9 pl-8 pr-8 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
-                    <button v-if="evtFieldSearch" type="button" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500" @click="evtFieldSearch = ''"><i class="pi pi-times text-xs" /></button>
                   </div>
                   <p v-if="!Object.keys(evtExistingGroupsFiltered).length" class="text-xs text-gray-400 italic text-center py-3">
                     {{ evtFieldSearch ? `No fields match “${evtFieldSearch}”.` : 'No reusable fields for this subject yet. Add a one-off with “Field” above, or create reusable fields in Settings → Fields.' }}
@@ -3114,8 +3237,10 @@ defineExpose({ reload })
                   </div>
                 </div>
 
+                </template>
+
                 <!-- BLOCK EDITOR PAGE (its own page, like the field editor) -->
-                <div v-if="evtNewBlockType && evtNewBlockType !== 'field'" class="overflow-y-auto flex-1 flex flex-col">
+                <div v-else class="overflow-y-auto flex-1 flex flex-col">
                   <div class="flex items-center gap-3 px-4 py-4 border-b border-gray-100 shrink-0">
                     <button type="button" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-500" @click="evtNewBlockType = null">
                       <i class="pi pi-chevron-left text-sm" />
@@ -3164,7 +3289,7 @@ defineExpose({ reload })
                     </div>
                   </div>
                 </div>
-                </template>
+                </div>
               </div>
               <div class="px-5 pb-5 pt-3 border-t border-gray-100 shrink-0">
                 <button type="button" class="w-full py-2.5 rounded-lg bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors" @click="evtSelectedFormSection = ''">Done</button>
@@ -3252,8 +3377,16 @@ defineExpose({ reload })
                   </button>
                 </div>
 
+                <!-- First/Last name: nothing is editable — one clear notice, no tabs. -->
+                <div v-if="evtEditingNameLocked" class="px-4 py-6">
+                  <div class="flex items-start gap-2.5 rounded-lg bg-gray-50 border border-gray-100 px-3 py-3">
+                    <i class="pi pi-lock text-gray-400 text-sm mt-0.5" />
+                    <p class="text-sm text-gray-500">This is a required name field — every person needs one, so its settings can't be changed.</p>
+                  </div>
+                </div>
+
                 <!-- Tabs: Details / Advanced -->
-                <div class="flex border-b border-gray-100 shrink-0">
+                <div v-if="!evtEditingNameLocked" class="flex border-b border-gray-100 shrink-0">
                   <button type="button"
                     class="flex-1 py-2.5 text-xs font-semibold transition-colors border-b-2"
                     :class="evtFieldEditorTab === 'details' ? 'text-primary border-primary' : 'text-gray-400 hover:text-gray-600 border-transparent'"
@@ -3265,6 +3398,7 @@ defineExpose({ reload })
                 </div>
 
                 <!-- Details tab -->
+                <template v-if="!evtEditingNameLocked">
                 <div v-if="evtFieldEditorTab === 'details'" class="overflow-y-auto flex-1 px-4 py-4 space-y-5">
                   <!-- ── Layout element editors (Section / Image / Text / Button) ── -->
                   <template v-if="evtEditingIsElement">
@@ -3338,7 +3472,7 @@ defineExpose({ reload })
                   <!-- Label (shown to registrants) -->
                   <div class="space-y-1.5">
                     <label class="text-sm font-semibold text-gray-800">Label <span class="text-red-400">*</span></label>
-                    <input v-model="evtEditingField.label" type="text" :readonly="evtEditingFieldInherited" :class="evtEditingFieldInherited ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''" placeholder="Displayed to registrants" class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
+                    <input v-model="evtEditingField.label" @input="evtOnLabelInput" type="text" :readonly="evtEditingFieldInherited" :class="evtEditingFieldInherited ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''" placeholder="Displayed to registrants" class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
                   </div>
                   <!-- Name (system / reporting) -->
                   <div class="space-y-1.5">
@@ -3346,7 +3480,7 @@ defineExpose({ reload })
                       <label class="text-sm font-semibold text-gray-800">Name <span class="text-red-400">*</span></label>
                       <i class="pi pi-info-circle text-gray-300 text-xs" title="Used in reporting and system exports" />
                     </div>
-                    <input v-model="evtEditingField.system_name" type="text" :readonly="evtEditingFieldInherited" :class="evtEditingFieldInherited ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''" placeholder="e.g. email_address" class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
+                    <input v-model="evtEditingField.system_name" @input="evtOnNameInput" type="text" :readonly="evtEditingFieldInherited" :class="evtEditingFieldInherited ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''" placeholder="e.g. email_address" class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
                   </div>
                   <!-- Input Type (dropdown) — hidden for system fields (account/comms/…) -->
                   <div v-if="!evtEditingField.system" class="space-y-1.5">
@@ -3424,8 +3558,9 @@ defineExpose({ reload })
                       @input="evtEditingFieldLockedOptions ? null : evtSetFieldOptions(evtEditingField, $event.target.value)" />
                     <p v-if="evtEditingFieldLockedOptions" class="text-[11px] text-gray-400 flex items-center gap-1"><i class="pi pi-lock text-[9px]" />Options are set by {{ evtEditingFieldOptionsOwner }}.</p>
                   </div>
-                  <!-- Connected to -->
-                  <div class="space-y-2">
+                  <!-- Connected to — hidden for global/inherited/core fields: their data
+                       always lives on the person's profile, so there's no choice to make. -->
+                  <div v-if="!evtEditingFieldLockedOptions" class="space-y-2">
                     <div class="flex items-center gap-1.5">
                       <label class="text-sm font-semibold text-gray-800">Connected to <span class="text-red-400">*</span></label>
                       <i class="pi pi-info-circle text-gray-300 text-xs" />
@@ -3454,6 +3589,7 @@ defineExpose({ reload })
                   :field="evtEditingField"
                   :condition-field-options="evtConditionFieldOptions"
                   :group-options="evtGroupOptions" :person-type-options="evtPersonTypeOptions" />
+                </template>
               </template>
 
               <!-- ── FIELD LIBRARY: shown when no field is selected ── -->
@@ -4033,8 +4169,9 @@ defineExpose({ reload })
           </div>
 
           <!-- Rich form preview (simple + scratch) -->
-          <!-- Public preview: the ACTUAL live form component (WYSIWYG). -->
-          <div v-else-if="evtPublicPreview" class="relative z-10 mx-auto my-6 w-full"
+          <!-- Public preview: the ACTUAL live form component (WYSIWYG) — same white card
+               chrome as the builder preview so it reads identically, just non-submittable. -->
+          <div v-else-if="evtPublicPreview" class="relative z-10 mx-auto my-6 bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"
             :class="evtPreviewDevice === 'mobile' ? 'max-w-[390px]' : 'max-w-[1000px]'">
             <FormRenderer preview :config="previewConfig" :context="previewContext" :event="evtDisplayEvent"
               :sessions="previewSessions" :fee-line-items="feeLineItems" />
@@ -4084,14 +4221,14 @@ defineExpose({ reload })
             <!-- Form fields: accordion preview (scratch mode only) -->
             <div v-if="evtFormGroupModes[selectedFormGroupId] === 'scratch'" :class="{ 'evt-public-preview': evtPublicPreview }">
 
-              <!-- Heading (hidden on the mobile details step — the event details fill it) -->
-              <div v-if="!evtOnDetailsStep" class="px-6 pt-8 pb-3">
-                <!-- Public preview / read-only: static. Builder: always-editable inline
-                     input — same treatment as a subject's "… register" heading. -->
-                <h3 v-if="evtPublicPreview" class="text-xl font-bold text-gray-800">{{ currentEvtFormDesign.formHeading || 'Fill in the form to register' }}</h3>
-                <input v-else :value="currentEvtFormDesign.formHeading" maxlength="80" placeholder="Fill in the form to register"
-                  class="w-full text-xl font-bold text-gray-800 bg-transparent border-0 border-b border-transparent hover:border-gray-200 focus:border-[#0e43a3] outline-none px-0 py-0.5 transition-colors"
-                  @input="currentEvtFormDesign.formHeading = ($event.target as any).value" @click.stop />
+              <!-- Heading (hidden on the mobile details step — the event details fill it).
+                   Big/bold "Fill in the form to register" look, editable rich text with
+                   TipTap controls — same treatment as a subject's "… register" heading. -->
+              <div v-if="!evtOnDetailsStep" class="px-6 pt-8 pb-3 evt-heading-body">
+                <div v-if="evtPublicPreview" class="prose prose-sm max-w-none text-gray-800" v-html="evtFormHeadingBody" />
+                <div v-else @click.stop>
+                  <RichTextEditor v-model="evtFormHeadingBody" bubble inline placeholder="Fill in the form to register" />
+                </div>
               </div>
 
               <!-- Wizard step indicator (Form Style = Steps) — hidden on the mobile details step -->
@@ -4142,26 +4279,18 @@ defineExpose({ reload })
                   class="space-y-3 scroll-mt-4 rounded-xl transition-shadow"
                   :class="evtFocusedAnchor === subject.key ? 'ring-2 ring-primary/40' : ''">
 
-                  <!-- Inline-editable step heading (separate from the display name; defaults to
-                       "{singular} register") + optional intro text. (Subjects are removed from the
-                       left "Who is registering" list, not here.) -->
-                  <div v-if="currentEvtFormProfiles.length" class="space-y-1.5">
-                    <!-- Public preview: static heading + description -->
-                    <template v-if="evtPublicPreview">
-                      <h2 class="text-lg font-bold text-gray-800 py-0.5">{{ evtSubjectHeading(subject) }}</h2>
-                      <div v-if="evtSubjectIntro(subject.key)" class="prose prose-sm max-w-none text-gray-600" v-html="evtSubjectIntro(subject.key)" />
-                    </template>
-                    <!-- Builder: inline-editable heading + description -->
-                    <template v-else>
-                      <input :value="evtSubjectHeading(subject)" maxlength="60" :placeholder="evtSubjectHeadingDefault(subject)"
-                        class="w-full text-lg font-bold text-gray-800 bg-transparent border-0 border-b border-transparent hover:border-gray-200 focus:border-[#0e43a3] outline-none px-0 py-0.5 transition-colors"
-                        @input="evtSubjectHeadingInput(subject.key, $event)" @click.stop />
-                      <div @click.stop>
-                        <RichTextEditor :modelValue="evtSubjectIntro(subject.key)" bubble
-                          placeholder="Add an optional description for this section…"
-                          @update:modelValue="v => evtSetSubjectIntro(subject.key, v)" />
-                      </div>
-                    </template>
+                  <!-- ONE rich-text field = heading (first line, style it as a heading) +
+                       any description below. Multi-line, formattable. (Subjects are removed
+                       from the left "Who is registering" list, not here.) -->
+                  <div v-if="currentEvtFormProfiles.length" class="evt-subject-body">
+                    <!-- Public preview: static -->
+                    <div v-if="evtPublicPreview" class="prose prose-sm max-w-none text-gray-800" v-html="evtSubjectBody(subject)" />
+                    <!-- Builder: editable rich text (heading + description in one) -->
+                    <div v-else @click.stop>
+                      <RichTextEditor :modelValue="evtSubjectBody(subject)" bubble inline
+                        placeholder="Heading + optional description for this section…"
+                        @update:modelValue="v => evtSetSubjectIntro(subject.key, v)" />
+                    </div>
                   </div>
 
                   <div v-for="inst in evtSubjectCount(subject.key)" :key="subject.key + '#' + inst"
@@ -4232,10 +4361,16 @@ defineExpose({ reload })
                               <span class="field-drag-handle absolute right-0 top-3 w-5 h-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity z-10" v-tooltip.top="'Drag section'" @click.stop @mousedown.stop>
                                 <i class="pi pi-arrows-alt text-[11px]" />
                               </span>
-                              <!-- Heading + description above the fields (click to edit) -->
-                              <div class="cursor-pointer mb-4" @click="openEvtFieldEditor(field.id)">
-                                <p class="text-lg font-bold text-gray-800">{{ field.label || 'Section' }}</p>
-                                <p v-if="field.placeholder" class="text-sm text-gray-500 mt-1 leading-relaxed">{{ field.placeholder }}</p>
+                              <!-- Heading + description = ONE inline rich-text editor
+                                   (same as the form heading + subject headings): no box,
+                                   hover shows an underline + text cursor, TipTap on edit. -->
+                              <div class="mb-4 evt-heading-body">
+                                <div v-if="evtPublicPreview" class="prose prose-sm max-w-none text-gray-800" v-html="evtSectionBody(field)" />
+                                <div v-else @click.stop>
+                                  <RichTextEditor :modelValue="evtSectionBody(field)" bubble inline
+                                    placeholder="Section heading + optional description…"
+                                    @update:modelValue="v => evtSetSectionBody(field, v)" />
+                                </div>
                               </div>
                               <!-- The section's own fields (drag here) -->
                               <div :ref="(el) => registerSectionDropzone(el, evtGIdx(subject.key, inst) + ':' + subject.key, field.id, subject.key)" data-evt-dropzone

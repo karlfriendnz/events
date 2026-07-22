@@ -6,7 +6,7 @@
       <div class="flex items-center justify-between">
         <div>
           <p class="text-sm font-semibold text-gray-800">Visibility Conditions</p>
-          <p class="text-[11px] text-gray-400">Only show this field when other answers match.</p>
+          <p class="text-sm text-gray-500">Only show this field when other answers match.</p>
         </div>
         <ToggleSwitch :modelValue="!!field.has_visibility_conditions" @update:modelValue="onToggleVisibility" />
       </div>
@@ -92,7 +92,7 @@
       <div class="flex items-center justify-between">
         <div>
           <p class="text-sm font-semibold text-gray-800">Financial Rules</p>
-          <p class="text-[11px] text-gray-400">Add a fee or discount when conditions match.</p>
+          <p class="text-sm text-gray-500">Add a fee or discount when conditions match.</p>
         </div>
         <ToggleSwitch :modelValue="!!field.has_financial_increase" @update:modelValue="onToggleFinancial" />
       </div>

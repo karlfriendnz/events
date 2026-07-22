@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1712 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1723 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (91 prompts)
+## Session 2026-07-22 02:42 (102 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29294,4 +29294,27 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **22:53** — if the feild is a global feild you should not be able to modify the options of that feild on the left ie gender
 
 **22:55** — [Image #47] I like the child register editing style, not the fill in form editing style. Please do that on the event description to fill in form and child register so it's all consistent.
+
+**23:00** — [Image #49] remvoe these options form our visibliyt conditions
+
+**23:04** — should not be abel to change any settings on the first and last name
+> Please change place hodler to enter [subject types] first name
+
+**23:14** — [Image #54] there a requird feild and its nto ont eh form and it should be in the top list of feilds
+
+**23:19** — if the feilds is a global feild you should not be able to see the connected to box
+
+**23:22** — ok so if a feilds has been added from teh organisation feilds then it should not show in teh organsitaoins feilds - move the search to the top of all teh feilds
+
+**23:24** — [Image #55] if person types exisit then please make it so you can see it here
+
+**23:26** — [Image #56] i want the fill in form look and feel but the have tip tap controls pelase - this shoudl be the same for sections as well
+
+**23:31** — [Image #57] Okay, all of these things should interact exactly the same. By default, when you're looking at the page, there is no box around them. When you hover on them, it shows a line underneath and a typing cursor symbol so that you can click to change the content. When you change the content, you can use tip-tap and you can create multiple lines.
+
+**23:34** — the feilds should not be 2 lines by defaut
+
+**23:43** — [Image #62] They split the name out into singular label and plural label.
+
+**23:45** — this [Image #63] is very very differnet to [Image #64] these should be the same - same functions everyting the differnce is one is edit one is live.. the shold be ideentical. colours font, feilds, design, pricing info discoutns everything
 
