@@ -762,6 +762,10 @@ export const events = mysqlTable('events', {
   ageMin: int('age_min'),
   ageMax: int('age_max'),
   genderRestriction: text('gender_restriction'),
+  visibility: varchar('visibility', { length: 20 }),
+  visibilityTypeKeys: json('visibility_type_keys'),
+  visibilityPersonIds: json('visibility_person_ids'),
+  visibilityGroupIds: json('visibility_group_ids'),
 })
 
 export const feeComponents = mysqlTable('fee_components', {
