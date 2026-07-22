@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-331 sessions · 1604 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+331 sessions · 1607 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -27706,7 +27706,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:17** — [Image #1] this is what happens when i run" npm run dev on a new tab - something is broken please fix it
 
 
-## Session 2026-07-20 00:42 (187 prompts)
+## Session 2026-07-20 00:42 (190 prompts)
 
 **00:42** — so i just restarted and now i can't get the server to run again ?
 
@@ -28919,6 +28919,58 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:30** — Time well basically means that 10.00am should all be in line and then the excess should be either side. So if I then change it to 10.15am, 14.13 should be above it and below 15 should be the rest of the numbers.
 
 **00:35** — yes keep going but if you can split them in to sub agents do that
+
+**00:42** — <task-notification>
+> <task-id>a0f90823fa9884c29</task-id>
+> <tool-use-id>toolu_01GJA54oVGevETsMU3DZDGQz</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/7cdcba7b-7e8e-4d96-9362-e77f900eb9e1/tasks/a0f90823fa9884c29.output</output-file>
+> <status>completed</status>
+> <summary>Agent "PeopleSelector added-state + term filter" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Done. Both tasks implemented in `components/PeopleSelector.vue`, compiled clean, committed (not pushed).
+> 
+> **Branch:** `worktree-agent-a0f90823fa9884c29` · **Commit:** `7940064`
+> Merge from `feat/event-page-batch` with: `git merge worktree-agent-a0f90823fa9884c29`
+> 
+> **#12 — Added-state + parents caret** (both the filter-results list and the search-results list):
+> - A person already chosen renders the primary as **`addedLabel`** ("Added"/"Invited" per host context) with a check icon and green `success` styling, still clickable so re-clicking flashes them where they already are (unchanged `reveal-person` behaviour).
+> - It's a `&lt;SplitButton&gt;` whose caret lists **"Add {parent}"** for each of the person's parents/guardians — resolved from family circles (`usePeopleLinks().loadCircles()`, loaded once on mount: the `guardian` members of every family circle the person belongs to as a `dependent`).
+> - Rows with **no parents** fall back to a plain `&lt;Button&gt;` (no dead caret). Group/class rows keep the never-consumed catalogue behaviour — I only touched the person rows.
+> 
+> **#11 — term selector in the filter**: a Term `&lt;Select&gt;` inside the "Find people" dialog, bound to the component's existing `termId` (so it's in sync with the top-bar term and defaults to the previously-selected/current term). It scopes which per-term class instances the "In {group}" picker offers, so filtering by class honours the chosen term.
+> 
+> **Notes / caveats:**
+> - Guardians come only from **family-kind circles** (role `guardian` → `dependent`); non-family "circle" members aren't treated as parents (correct per the capability model).
+> - I used `t('term')` for the dialog label to follow the terminology rule — assumes `'term'` is a valid `useTerms` key (it's used elsewhere in the app), so it renders the club's term wording.
+> - The little check-circle icon next to a chosen person's **name** is now somewhat redundant with the "Added" button, but I left it (out of scope to restyle the name row).</result>
+> <usage><subagent_tokens>928485</subagent_tokens><tool_uses>10</tool_uses><duration_ms>227816</duration_ms></usage>
+> <worktree><worktreePath>/Users/karl/fm-events/.claude/worktrees/agent-a0f90823fa9884c29</worktreePath><worktreeBranch>worktree-agent-a0f90823fa9884c29</worktreeBranch></worktree>
+> </task-notification>
+
+**00:42** — <task-notification>
+> <task-id>a1c0e81dda40742a4</task-id>
+> <tool-use-id>toolu_01E8hAGrNNRsq4DLsMxJD28q</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/7cdcba7b-7e8e-4d96-9362-e77f900eb9e1/tasks/a1c0e81dda40742a4.output</output-file>
+> <status>completed</status>
+> <summary>Agent "DateTimeEditor date/time defaults" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Done. Implemented #22 (end-date/time defaults) and #20 (auto-advance) in `DateTimeEditor.vue` + `TimeWheel.vue` only.
+> 
+> **Summary**
+> - `TimeWheel.vue` — exposed a programmatic `open()` (`defineExpose`) that seeds + pops the wheel anchored to its trigger; added at the end of the script, away from the centering region, so it won't conflict with the parent's centering commit on the branch.
+> - `DateTimeEditor.vue` — added `startTimeRef`/`endTimeRef`; **#22**: start date fills a blank end date with the start date, start time fills a blank end time with start + 1h (blanks only, never overwrites); **#20**: each set advances the chain — start date → start-time wheel → end-date picker → end-time wheel (a date-only range, `showTime:false`, skips straight to the end date), all-day is skipped.
+> 
+> **Branch:** `worktree-agent-a1c0e81dda40742a4` · **Commit:** `b7921d1` (not pushed). Merge from `feat/event-page-batch` with `git merge worktree-agent-a1c0e81dda40742a4`.
+> 
+> **UX notes / compromises**
+> - End-date auto-open uses `.focus()` on the DatePicker input (the same mechanism the previous code used to pop the calendar); if a build of PrimeVue doesn't open on focus, that one hop is a no-op while the wheels still open reliably via `open()`.
+> - Because #22 pre-fills the end date, the end-date step opens already holding the start date — the user confirms or changes it, matching the requested "each box opens in turn" flow.
+> - Auto-advance only fires when a value was just set (`v` truthy) and the relevant wheels exist (`showTime &amp;&amp; !isAllDay`), so it doesn't fight all-day or date-only cases.</result>
+> <usage><subagent_tokens>916461</subagent_tokens><tool_uses>9</tool_uses><duration_ms>195421</duration_ms></usage>
+> <worktree><worktreePath>/Users/karl/fm-events/.claude/worktrees/agent-a1c0e81dda40742a4</worktreePath><worktreeBranch>worktree-agent-a1c0e81dda40742a4</worktreeBranch></worktree>
+> </task-notification>
+
+**00:43** — well i just tried the quick event and i would consider the at step wizard but its not 150 px from top ?
 
 
 ## Session 2026-07-20 17:11 (6 prompts)
