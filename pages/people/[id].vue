@@ -299,6 +299,10 @@
       <div v-show="activeTab === 'links'">
         <PersonCirclesEditor v-if="person" :person-id="person.id" />
       </div>
+
+      <div v-show="activeTab === 'events'">
+        <EventsProfileView v-if="person" :person-id="person.id" />
+      </div>
     </template>
 
     <Toast />
@@ -363,8 +367,9 @@ const TABS = computed(() => [
   { key: 'profile', label: 'Profile', icon: 'pi-user' },
   { key: 'links', label: `${t('contact', true)} & Circles`, icon: 'pi-sitemap' },
   { key: 'membership', label: 'Membership', icon: 'pi-users' },
+  { key: 'events', label: 'Events', icon: 'pi-calendar' },
 ])
-const VALID_TABS = ['dashboard', 'profile', 'links', 'membership']
+const VALID_TABS = ['dashboard', 'profile', 'links', 'membership', 'events']
 
 const GENDER_OPTIONS = [
   { label: 'Male', value: 'MALE' },
