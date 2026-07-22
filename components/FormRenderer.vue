@@ -415,6 +415,22 @@ function instanceTotal(key: string, inst: number) {
   for (const s of visibleSessions.value) {
     if (s.required || sessionSelected(key, inst, s.id)) total += Number(s.fee) || 0
   }
+  // ── Field-level financial rules ──
+  // "Add $20 when they tick Needs a uniform." These were captured in the builder and
+  // applied NOWHERE — the price a club designed and the price a registrant paid could
+  // differ. A rule only counts when its own field is visible: a hidden question can't
+  // charge you.
+  for (const f of allFields(key)) {
+    if (!f.has_financial_increase || !(f.financial_rules ?? []).length) continue
+    if (!fieldVisible(f, key, inst)) continue
+    for (const rule of f.financial_rules) {
+      const amount = Number(rule.amount) || 0
+      if (!amount) continue
+      if (!condPasses(rule.conditions ?? [], key, inst)) continue
+      const signed = rule.fee_type === 'discount' ? -amount : amount
+      rows.push({ label: rule.fee_name || (rule.fee_type === 'discount' ? `${f.label} discount` : f.label), amount: signed })
+    }
+  }
   const optId = feeOptionSelected(key, inst)
   if (optId) total += Number(feeOptions.value.find(o => o.id === optId)?.total) || 0
   for (const g of groupOptions.value) {

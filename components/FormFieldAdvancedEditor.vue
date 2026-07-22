@@ -102,10 +102,16 @@
           <div v-for="(cond, idx) in rule.conditions" :key="cond.id" class="space-y-2">
             <p class="text-xs font-semibold text-gray-500">{{ idx === 0 ? 'When' : 'and when' }}</p>
             <div class="flex items-center gap-2">
-              <select v-model="cond.field"
-                class="flex-1 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700">
+              <select :value="cond.field"
+                class="flex-1 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700"
+                @change="cond.field = ($event.target as HTMLSelectElement).value; onConditionFieldChange(cond)">
                 <option value="" disabled>Select field…</option>
-                <option v-for="f in financialFieldOptions" :key="f._optKey" :value="f.label">{{ f._display }}</option>
+                <optgroup label="Answers on this form">
+                  <option v-for="f in financialFieldOptions" :key="f._optKey" :value="f.label">{{ f._display }}</option>
+                </optgroup>
+                <optgroup label="About the person">
+                  <option v-for="pc in PERSON_CONDITIONS" :key="pc.key" :value="pc.key">{{ pc.label }}</option>
+                </optgroup>
               </select>
               <button type="button"
                 class="w-6 h-6 flex items-center justify-center rounded text-gray-300 hover:text-red-500 transition-colors shrink-0"
@@ -113,14 +119,41 @@
                 <i class="pi pi-times text-xs" />
               </button>
             </div>
+            <!-- Identical controls to the visibility conditions above: a financial
+                 rule is no less deserving of knowing what a date or a dropdown is. -->
             <div class="flex items-center gap-2">
-              <select v-model="cond.operator"
-                class="w-28 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700 shrink-0">
-                <option v-for="op in operators" :key="op" :value="op">{{ op }}</option>
+              <select v-model="cond.operator" @change="onConditionOperatorChange(cond)"
+                class="w-32 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700 shrink-0">
+                <option v-for="op in operatorOptionsFor(cond)" :key="op" :value="op">{{ op }}</option>
               </select>
-              <input v-if="!['Is Empty','Is Not Empty'].includes(cond.operator)" v-model="cond.value"
-                type="text" placeholder="Value"
-                class="flex-1 h-9 px-3 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
+              <template v-if="!NO_VALUE_OPS.includes(cond.operator)">
+                <select v-if="valueKindFor(cond.field, cond.operator) === 'choice'" v-model="cond.value"
+                  class="flex-1 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700">
+                  <option value="" disabled>Choose…</option>
+                  <option v-for="o in valueOptionsFor(cond.field)" :key="o.value" :value="o.value">{{ o.label }}</option>
+                </select>
+                <template v-else-if="valueKindFor(cond.field, cond.operator) === 'range'">
+                  <input :value="rangeVal(cond, 'from')" :type="fieldDef(cond.field)?.field_type === 'date' ? 'date' : 'number'"
+                    placeholder="From" class="flex-1 h-9 px-3 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]"
+                    @input="setRangeVal(cond, 'from', ($event.target as HTMLInputElement).value)" />
+                  <span class="text-xs text-gray-400 shrink-0">and</span>
+                  <input :value="rangeVal(cond, 'to')" :type="fieldDef(cond.field)?.field_type === 'date' ? 'date' : 'number'"
+                    placeholder="To" class="flex-1 h-9 px-3 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]"
+                    @input="setRangeVal(cond, 'to', ($event.target as HTMLInputElement).value)" />
+                </template>
+                <input v-else-if="valueKindFor(cond.field, cond.operator) !== 'multi'" v-model="cond.value"
+                  :type="valueKindFor(cond.field, cond.operator) === 'date' ? 'date' : valueKindFor(cond.field, cond.operator) === 'number' ? 'number' : 'text'"
+                  :placeholder="cond.field === 'person:age' ? 'Years' : 'Value'"
+                  class="flex-1 h-9 px-3 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
+              </template>
+            </div>
+            <div v-if="valueKindFor(cond.field, cond.operator) === 'multi'" class="flex flex-wrap gap-1.5 pl-1">
+              <button v-for="o in valueOptionsFor(cond.field)" :key="o.value" type="button"
+                class="px-2 py-1 rounded-full text-[11px] font-medium border transition-colors"
+                :class="isPicked(cond, o.value) ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'"
+                @click="togglePicked(cond, o.value)">
+                <i v-if="isPicked(cond, o.value)" class="pi pi-check text-[8px] mr-1" />{{ o.label }}
+              </button>
             </div>
           </div>
           <button type="button"
