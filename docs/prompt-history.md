@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1679 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1680 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (58 prompts)
+## Session 2026-07-22 02:42 (59 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29208,4 +29208,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **20:53** — [Image #21]
 
 **20:55** — On the mobile form, please make the fields go the full width. There should only be one field per row.
+
+**21:00** — ok so i didnt wnat the right hand panel to be in movbile - rever that i was talking about when its live or when your actually previewing the form please make it full row
 

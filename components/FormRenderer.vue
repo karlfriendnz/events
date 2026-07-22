@@ -43,12 +43,6 @@ const props = defineProps<{
   discounts?: any[]             // active discounts, shown on the landing to encourage registration
   hideHeader?: boolean          // embed: hide the banner/info/description header
   registerToLogin?: boolean     // embed: "Register" sends the visitor to the system login, then back here
-  /**
-   * Render as if on a phone — ONE field per row. Tailwind's `sm:` is viewport-based,
-   * so inside the builder's 390px phone preview (on a desktop screen) the two-column
-   * layout still applied and the preview lied about what a phone gets.
-   */
-  narrow?: boolean
 }>()
 const emit = defineEmits<{ (e: 'submit', payload: any): void }>()
 
@@ -855,7 +849,10 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
             </button>
           </div>
 
-          <div class="grid gap-3" :class="narrow ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'">
+          <!-- ONE field per row, full width — on the live form and in Preview. A
+               two-column form makes every field half a line long and reads as cramped
+               at any width. -->
+          <div class="grid grid-cols-1 gap-3">
             <!-- Pinned (name) -->
             <FormRendererField v-for="f in leadFields(s.key)" :key="f.id"
               :field="f" :value="getVal(s.key, inst, fkey(f))"
@@ -865,7 +862,10 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
               <div v-if="f.field_type === 'section'" class="col-span-2 mt-2">
                 <p class="text-sm font-bold text-gray-700">{{ f.label }}</p>
                 <p v-if="f.placeholder" class="text-xs text-gray-400 mb-2">{{ f.placeholder }}</p>
-                <div class="grid gap-3" :class="narrow ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2'">
+                <!-- ONE field per row, full width — on the live form and in Preview. A
+               two-column form makes every field half a line long and reads as cramped
+               at any width. -->
+          <div class="grid grid-cols-1 gap-3">
                   <FormRendererField v-for="c in sectionChildren(s.key, f.id)" :key="c.id"
                     v-show="fieldVisible(c, s.key, inst)"
                     :field="c" :value="getVal(s.key, inst, fkey(c))"
