@@ -112,7 +112,7 @@
           <div class="flex-1 w-full flex flex-col sm:flex-row sm:items-center gap-2 min-w-0" @click.stop>
             <ChipMultiSelect :modelValue="categoryIds" :options="categories" option-label="name" option-value="id"
               placeholder="Choose categories" filter class="flex-1 w-full min-w-0"
-              @update:modelValue="$emit('update:categoryIds', $event)">
+              @update:modelValue="$emit('update:categoryIds', $event)" :show-toggle-all="false">
               <template #option="{ option }">
                 <span class="inline-flex items-center gap-1.5">
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: option.color || '#94a3b8' }" />

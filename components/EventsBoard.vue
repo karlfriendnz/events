@@ -678,7 +678,7 @@
           <!-- Name -->
           <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Name <span class="text-red-500">*</span></span>
-            <InputText v-model="quickForm.name" :placeholder="`${t('event', false)} name`" class="flex-1 min-w-0" autofocus
+            <InputText ref="quickNameInput" v-model="quickForm.name" :placeholder="`${t('event', false)} name`" class="flex-1 min-w-0"
               @keydown.enter="quickNext" />
           </div>
 
@@ -712,7 +712,7 @@
           <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Category</span>
             <ChipMultiSelect v-model="quickForm.category_ids" :options="allCategories" option-label="name" option-value="id"
-              placeholder="No category" filter class="w-full sm:w-64">
+              placeholder="No category" filter class="w-full sm:w-64" :show-toggle-all="false">
               <template #option="{ option }">
                 <span class="inline-flex items-center gap-1.5">
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: option.color || '#94a3b8' }" />
@@ -1128,6 +1128,7 @@ function startHolidayProgramme() {
 // mounted directly. "Create" flips it to PUBLISHED + saves the details; cancelling
 // deletes the draft (onQuickClose) so an abandoned modal leaves nothing behind.
 const quickOpen = ref(false)
+const quickNameInput = ref<any>(null)
 const creatingQuick = ref(false)
 const quickDraftId = ref<string | null>(null)
 const quickCreated = ref(false)
@@ -1234,6 +1235,9 @@ async function openQuick() {
     quickDraftId.value = created.id
     showEventNameModal.value = false
     quickOpen.value = true
+    // Cursor lands on the name — the first thing you'd type. `autofocus` doesn't
+    // fire here (the dialog mounts long after page load), so focus it by hand.
+    nextTick(() => quickNameInput.value?.$el?.focus?.())
   } catch (error: any) {
     toast.add({ severity: 'error', summary: 'Could not start the event', detail: error?.message, life: 4000 })
   }
