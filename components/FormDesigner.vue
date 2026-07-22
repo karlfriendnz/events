@@ -846,6 +846,7 @@ const evtSettingsSubjectIndex = computed(() => currentEvtFormProfiles.value.find
 function openEvtSubjectSettings(key: string) {
   evtFieldTarget.value = key
   evtSelectedFormSection.value = 'settings'
+  evtSubjectPane.value = 'fields'
   // Never land in another subject's add-mode.
   evtFieldAdderOpen.value = false
   evtNewBlockType.value = null
@@ -2092,7 +2093,7 @@ const evtFormGroups = computed(() =>
 // straight into that form's sections and hides the "All Forms" way back to it.
 // Which TAB of a subject's page is open — Settings (what this tab IS) or Fields (what
 // it collects). One at a time; both are the same subject seen two ways.
-const evtSubjectPane = ref<'settings' | 'fields'>('settings')
+const evtSubjectPane = ref<'settings' | 'fields'>('fields')
 // The Fields tab shows what you collect; ADDING is a mode on top of it, not a permanent
 // block — two field lists stacked in one scroller (yours, and everything addable) read
 // as one confusing list.
@@ -2829,10 +2830,9 @@ defineExpose({ reload })
                   </div>
                   <p class="flex-1 min-w-0 text-sm font-bold text-gray-900 truncate">{{ currentEvtSubject.label }}</p>
                 </div>
+                <!-- Fields first: what the form ASKS is the job; the subject's own
+                     settings are the occasional trip. -->
                 <div class="flex px-5">
-                  <button type="button" class="px-3 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors"
-                    :class="evtSubjectPane === 'settings' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
-                    @click="evtSubjectTab('settings')">Settings</button>
                   <button type="button" class="px-3 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors flex items-center gap-1.5"
                     :class="evtSubjectPane === 'fields' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
                     @click="evtSubjectTab('fields')">
@@ -2840,6 +2840,9 @@ defineExpose({ reload })
                     <span class="text-[10px] font-bold px-1.5 rounded-full"
                       :class="evtSubjectPane === 'fields' ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-400'">{{ evtTargetFieldCount(currentEvtSubject.key) }}</span>
                   </button>
+                  <button type="button" class="px-3 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors"
+                    :class="evtSubjectPane === 'settings' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    @click="evtSubjectTab('settings')">Settings</button>
                 </div>
               </div>
               <!-- ONE scroller for the whole pane; the tabs above decide what's in it. -->
