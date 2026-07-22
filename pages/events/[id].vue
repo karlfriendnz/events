@@ -3016,7 +3016,7 @@ async function executeAddToSubGroup() {
 // ---- Attendance action menu ----
 const attendanceActionMenu = ref()
 const attendanceActionMenuItems = computed(() => [
-  { label: 'Mark Selected In', icon: 'pi pi-check', command: markSelectedIn },
+  { label: 'Sign Selected In', icon: 'pi pi-check', command: markSelectedIn },
   { separator: true },
   { label: 'Assign to Sub-group', icon: 'pi pi-user-plus', command: () => { showAddToSubGroupDialog.value = true } },
   { separator: true },

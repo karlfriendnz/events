@@ -407,7 +407,7 @@ async function markSelectedIn() {
   }
   toast.add({
     severity: 'success',
-    summary: `Marked in ${count} ${count === 1 ? 'person' : 'people'}`,
+    summary: `Signed in ${count} ${count === 1 ? 'person' : 'people'}`,
     life: 2000,
   })
   attendanceSelected.value = []
@@ -517,7 +517,7 @@ watch(inviteOpen, v => { if (v) { showFullInvite.value = false; quickSel.value =
 // ---- Attendance action menu ----
 const attendanceActionMenu = ref()
 const attendanceActionMenuItems = computed(() => [
-  { label: 'Mark Selected In', icon: 'pi pi-check', command: markSelectedIn, disabled: !selectedNotIn.value.length },
+  { label: 'Sign Selected In', icon: 'pi pi-check', command: markSelectedIn, disabled: !selectedNotIn.value.length },
   { label: 'Sign Selected Out', icon: 'pi pi-sign-out', command: markSelectedOut, disabled: !selectedSignedIn.value.length },
   { separator: true },
   { label: 'Assign to Sub-group', icon: 'pi pi-user-plus', command: () => { showAddToSubGroupDialog.value = true } },
@@ -1088,8 +1088,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                that is. -->
           <button v-if="selectedNotIn.length"
             class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/15 transition-colors whitespace-nowrap"
-            v-tooltip.top="`Mark in ${selectedNotIn.length} of ${attendanceSelected.length}`"
-            @click="markSelectedIn"><i class="pi pi-check text-xs" />Mark in</button>
+            v-tooltip.top="`Sign in ${selectedNotIn.length} of ${attendanceSelected.length}`"
+            @click="markSelectedIn"><i class="pi pi-check text-xs" />Sign in</button>
           <!-- Only offered once the selection actually contains someone signed in. -->
           <button v-if="selectedSignedIn.length"
             class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/15 transition-colors whitespace-nowrap"
