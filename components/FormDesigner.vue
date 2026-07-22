@@ -4014,7 +4014,7 @@ defineExpose({ reload })
             <!-- Full event details (icons + description): always, except in mobile Steps where they're only the first (details) step -->
             <template v-if="!evtMobileSteps || evtOnDetailsStep">
               <FormPreviewInfoIcons :design="currentEvtFormDesign" :event="evtDisplayEvent" :cost="evtCostLabel" :mobile="evtPreviewDevice === 'mobile'" />
-              <FormPreviewDescription :design="currentEvtFormDesign" :event="event" :readonly="evtPublicPreview" />
+              <FormPreviewDescription :design="currentEvtFormDesign" :event="evtDisplayEvent" :readonly="evtPublicPreview" />
             </template>
 
             <!-- Ticket picker (shown when event has tickets enabled) -->

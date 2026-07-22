@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1701 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1702 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (80 prompts)
+## Session 2026-07-22 02:42 (81 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29252,4 +29252,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **22:16** — [Image #33] these colours scheme should come from [Image #34]
 
 **22:29** — When you click to edit the description please make it so you start with te events description or and have a clear button
+
+**22:30** — By deafult it should shwo the events description contnet there
 

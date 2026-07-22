@@ -408,7 +408,8 @@
           <div v-else class="bg-white overflow-hidden flex flex-col"
             :class="formFullBleed ? 'flex-1 min-h-0' : 'rounded-xl border border-gray-200'"
             :style="formFullBleed ? '' : 'height:70vh; min-height:560px'">
-            <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax" :gender-restriction="form.genderRestriction" :live-event="liveEventForForm" embedded class="flex-1 min-h-0" @invite-only="setInviteOnly" />
+            <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax" :gender-restriction="form.genderRestriction" :live-event="liveEventForForm"
+              :fee-line-items="form.is_paid ? form.fees : []" embedded class="flex-1 min-h-0" @invite-only="setInviteOnly" />
           </div>
         </div>
 
