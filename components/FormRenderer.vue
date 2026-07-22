@@ -63,11 +63,11 @@ const formHeading = computed(() => design.value?.formHeading || 'Fill in the for
 
 // Designed header chrome — banner / info-icons / description / background, the same
 // pieces the builder preview shows, so the live form looks like what was designed.
-// An image or nothing — a title alone used to render the gradient block. (The banner
-// component enforces the same rule; this keeps the surrounding chrome honest too.)
+// Show the header block when there's an image OR a title: with an image it's the
+// banner, without one it's a plain title row. <FormPreviewBanner> picks which.
 const showBanner = computed(() => (design.value?.header === 'custom'
   ? !!design.value?.headerImage
-  : !!props.event?.banner_url))
+  : !!props.event?.banner_url) || !!props.event?.title)
 const hasInfoIcons = computed(() => {
   const ic = design.value?.icons || {}
   return !!props.event && (ic.date || ic.time || ic.cost || ic.location || ic.criteria)

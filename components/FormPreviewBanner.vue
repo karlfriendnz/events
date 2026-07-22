@@ -11,6 +11,11 @@
       <p class="text-white text-sm font-bold drop-shadow">{{ event?.title || 'Event Title' }}</p>
     </div>
   </div>
+  <!-- No image: the form still needs to say what it's FOR, so the title becomes a
+       plain row instead of riding on a picture. -->
+  <div v-else-if="event?.title" class="px-4 sm:px-6 py-3.5 border-b border-gray-100">
+    <p class="text-base font-semibold text-gray-900">{{ event.title }}</p>
+  </div>
 </template>
 
 <script setup lang="ts">
