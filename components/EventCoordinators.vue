@@ -8,6 +8,13 @@
   load/error/finally, and lightweight toggle pills (no per-row expand grid).
 */
 const props = defineProps<{ eventId: string; embedded?: boolean }>()
+// Tell the host when the roster changes — the event summary shows the names, and
+// without this it kept whatever it loaded on mount (add a second coordinator, still
+// see one).
+const emit = defineEmits<{ (e: 'changed', names: string[]): void }>()
+function announce() {
+  emit('changed', coordinators.value.map(c => coName(c)))
+}
 
 const eventsApi = useEventsApi()
 const peopleApi = usePeopleApi()
@@ -52,6 +59,7 @@ async function load() {
     loading.value = false
   }
   if (!error.value && !coordinators.value.length) await seedCreator()
+  else announce()
 }
 
 // Seed the signed-in user (the creator, in practice) as the default coordinator —
@@ -68,6 +76,7 @@ async function seedCreator() {
     if (!created || typeof created !== 'object' || !created.id) return
     created.person = { firstName: person.firstName ?? null, lastName: person.lastName ?? null }
     coordinators.value = [created]
+    announce()
   } catch { /* best-effort seed */ }
 }
 
@@ -108,6 +117,7 @@ async function onPick(e: { value: any }) {
     created.person = { firstName: p.firstName ?? null, lastName: p.lastName ?? null }
     coordinators.value.push(created)
     adding.value = false
+    announce()
   } catch {
     toast.add({ severity: 'error', summary: 'Could not add coordinator', life: 3000 })
   }
@@ -126,6 +136,7 @@ async function remove(c: any) {
   try {
     await eventsApi.removeEventCoordinator(c.id)
     coordinators.value = coordinators.value.filter(x => x.id !== c.id)
+    announce()
   } catch {
     toast.add({ severity: 'error', summary: 'Could not remove', life: 3000 })
   }

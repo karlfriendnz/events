@@ -146,8 +146,15 @@ function startEdit() {
   form.visibility_person_ids = ev.visibilityPersonIds ?? []
   originalRepeat.value = form.repeat
   originalStart.value = ev.startAt ?? null
+  snapshot.value = JSON.stringify(form)
   editing.value = true
 }
+
+// Nothing typed = nothing to save. Without this, opening the editor on a repeating
+// event and pressing Save asked "this / following / all" about no change at all,
+// then wrote (and possibly rebuilt the series) for nothing.
+const snapshot = ref('')
+const isDirty = computed(() => editing.value && JSON.stringify(form) !== snapshot.value)
 
 // The repeat is only editable on the MASTER of a series — changing the pattern from
 // one occurrence would be ambiguous (does it move that day, or the whole run?).
@@ -288,6 +295,8 @@ const SAVE_SCOPES = [
 
 function saveDetails() {
   if (!form.title.trim()) return
+  // Untouched → just close. No dialog, no write, no series rebuild.
+  if (!isDirty.value) { editing.value = false; return }
   if (isRecurring.value) {
     saveScope.value = repeatChanged.value ? 'all' : 'this'
     saveScopeOpen.value = true
@@ -530,11 +539,11 @@ async function rebuildSeries(startAt: string | null, endAt: string | null, rule:
         v-model:person-ids="form.visibility_person_ids" />
       <!-- Coordinators live inside the edit box (only mounts when editing → no load on the plain view). -->
       <div class="pt-3 border-t border-gray-100">
-        <EventCoordinators :event-id="eventId" embedded />
+        <EventCoordinators :event-id="eventId" embedded @changed="coordinatorNames = $event" />
       </div>
       <div class="flex justify-end gap-2 pt-1">
         <Button label="Cancel" severity="secondary" text size="small" @click="editing = false" />
-        <Button label="Save" icon="pi pi-check" size="small" :loading="saving" :disabled="!form.title.trim()"
+        <Button label="Save" icon="pi pi-check" size="small" :loading="saving" :disabled="!form.title.trim() || !isDirty"
           style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveDetails" />
       </div>
     </div>
