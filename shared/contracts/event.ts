@@ -275,6 +275,21 @@ export const inviteeWithPersonSchema = inviteeSchema.extend({
 export type InviteeWithPerson = z.infer<typeof inviteeWithPersonSchema>
 export const inviteeWithPersonListSchema = z.array(inviteeWithPersonSchema)
 
+// ── Event coordinators ───────────────────────────────────────────────────────
+// A person who administers an event + which notifications they receive about it.
+// `notifications` = array of keys (registration / payment / cancellation / capacity).
+// `person` is the joined name for display. Captured only — sending is a follow-up.
+export const eventCoordinatorSchema = z.object({
+  id: z.string(),
+  eventId: z.string(),
+  personId: z.string(),
+  notifications: z.array(z.string()),
+  person: z.object({ id: z.string(), firstName: z.string().nullable(), lastName: z.string().nullable() }).nullable(),
+  createdAt: z.string().nullable(),
+})
+export type EventCoordinator = z.infer<typeof eventCoordinatorSchema>
+export const eventCoordinatorListSchema = z.array(eventCoordinatorSchema)
+
 // A registration against an event. Money columns are MySQL decimals → strings from
 // the driver, so amounts accept string | number at the boundary. guestName/guestEmail
 // (a registrant with no persons row) + createdAt are read by the reporting tab

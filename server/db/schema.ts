@@ -973,6 +973,16 @@ export const invitees = mysqlTable('invitees', {
   clubOrgId: varchar('club_org_id', { length: 36 }),
 })
 
+// People who administer an event + the notifications they receive about it (json array
+// of keys: registration / payment / cancellation / capacity). Captured only for now.
+export const eventCoordinators = mysqlTable('event_coordinators', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  eventId: varchar('event_id', { length: 36 }).notNull(),
+  personId: varchar('person_id', { length: 36 }).notNull(),
+  notifications: json('notifications'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const lightZones = mysqlTable('light_zones', {
   id: varchar('id', { length: 36 }).primaryKey(),
   orgId: varchar('org_id', { length: 36 }).notNull(),

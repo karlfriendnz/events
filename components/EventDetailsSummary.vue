@@ -253,6 +253,7 @@ async function saveDetails() {
 </script>
 
 <template>
+  <div class="space-y-4">
   <div class="card p-4 sm:p-5">
     <div v-if="loading" class="text-sm text-gray-400 py-2">Loading…</div>
     <div v-else-if="!event" class="text-sm text-gray-400 py-2">Event not found.</div>
@@ -390,5 +391,7 @@ async function saveDetails() {
         <Button label="Cancel" severity="secondary" text size="small" @click="convertOpen = false" />
       </template>
     </Dialog>
+  </div>
+  <EventCoordinators v-if="event" :event-id="eventId" />
   </div>
 </template>

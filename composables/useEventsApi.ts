@@ -10,6 +10,7 @@ import type {
   SeparateSession,
   Invitee,
   InviteeWithPerson,
+  EventCoordinator,
   Registration,
   InviteeForPerson,
   TicketOrder,
@@ -173,6 +174,19 @@ export function useEventsApi() {
   /** Remove an invitee. */
   async function removeInvitee(id: string): Promise<void> {
     await $fetch(`/api/v1/invitees/${id}`, { method: 'DELETE' })
+  }
+  // ── Event coordinators (admins + their notification prefs) ──
+  async function eventCoordinators(eventId: string): Promise<EventCoordinator[]> {
+    return await $fetch<EventCoordinator[]>(`/api/v1/events/${eventId}/coordinators`)
+  }
+  async function addEventCoordinator(eventId: string, personId: string, notifications: string[]): Promise<EventCoordinator> {
+    return await $fetch<EventCoordinator>(`/api/v1/events/${eventId}/coordinators`, { method: 'POST', body: { personId, notifications } })
+  }
+  async function updateEventCoordinator(id: string, notifications: string[]): Promise<EventCoordinator> {
+    return await $fetch<EventCoordinator>(`/api/v1/coordinators/${id}`, { method: 'PATCH', body: { notifications } })
+  }
+  async function removeEventCoordinator(id: string): Promise<void> {
+    await $fetch(`/api/v1/coordinators/${id}`, { method: 'DELETE' })
   }
 
   // ── Event org (club) invitees — the governing-org "Clubs" tab ──
@@ -413,6 +427,7 @@ export function useEventsApi() {
     create, update, remove,
     createSession, updateSession, removeSession, replaceSessionFees, propagateSessionMaster,
     addInvitee, updateInvitee, removeInvitee,
+    eventCoordinators, addEventCoordinator, updateEventCoordinator, removeEventCoordinator,
     orgInvitees, addOrgInvitee, removeOrgInvitee, orgInvitesForOrg, respondOrgInvite,
     calendarInvitees, addCalendarInvitee, removeCalendarInvitee, calendarInvitesForOrg, respondCalendarInvite,
     createRegistration, updateRegistration, removeRegistration,

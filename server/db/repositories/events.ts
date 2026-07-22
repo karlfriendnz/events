@@ -20,6 +20,7 @@ import type {
   SeparateSession,
   Invitee,
   InviteeWithPerson,
+  EventCoordinator,
   Registration,
   InviteeForPerson,
   TicketOrder,
@@ -773,6 +774,42 @@ export async function createInvitee(input: {
   } as any)
   const [r] = await db.select().from(schema.invitees).where(eq(schema.invitees.id, id)).limit(1)
   return toInvitee(r)
+}
+
+// ── Event coordinators ──
+function normalizeNotifs(v: any): string[] {
+  if (Array.isArray(v)) return v.map(String)
+  if (typeof v === 'string') { try { const p = JSON.parse(v); return Array.isArray(p) ? p.map(String) : [] } catch { return [] } }
+  return []
+}
+function toEventCoordinator(r: typeof schema.eventCoordinators.$inferSelect): EventCoordinator {
+  return { id: r.id, eventId: r.eventId, personId: r.personId, notifications: normalizeNotifs(r.notifications), person: null, createdAt: toIso(r.createdAt) }
+}
+export async function listEventCoordinators(eventId: string): Promise<EventCoordinator[]> {
+  const rows = await db
+    .select({ c: schema.eventCoordinators, pid: schema.persons.id, firstName: schema.persons.firstName, lastName: schema.persons.lastName })
+    .from(schema.eventCoordinators)
+    .leftJoin(schema.persons, eq(schema.eventCoordinators.personId, schema.persons.id))
+    .where(eq(schema.eventCoordinators.eventId, eventId))
+    .orderBy(asc(schema.eventCoordinators.createdAt))
+  return rows.map((r) => ({
+    ...toEventCoordinator(r.c),
+    person: r.pid ? { id: r.pid, firstName: r.firstName ?? null, lastName: r.lastName ?? null } : null,
+  }))
+}
+export async function addEventCoordinator(eventId: string, personId: string, notifications: string[]): Promise<EventCoordinator> {
+  const id = randomUUID()
+  await db.insert(schema.eventCoordinators).values({ id, eventId, personId, notifications: notifications ?? [] } as any)
+  const [r] = await db.select().from(schema.eventCoordinators).where(eq(schema.eventCoordinators.id, id)).limit(1)
+  return toEventCoordinator(r)
+}
+export async function updateEventCoordinator(id: string, notifications: string[]): Promise<EventCoordinator | null> {
+  await db.update(schema.eventCoordinators).set({ notifications: notifications ?? [] } as any).where(eq(schema.eventCoordinators.id, id))
+  const [r] = await db.select().from(schema.eventCoordinators).where(eq(schema.eventCoordinators.id, id)).limit(1)
+  return r ? toEventCoordinator(r) : null
+}
+export async function removeEventCoordinator(id: string): Promise<void> {
+  await db.delete(schema.eventCoordinators).where(eq(schema.eventCoordinators.id, id))
 }
 
 export async function updateInvitee(id: string, patch: {
