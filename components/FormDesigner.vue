@@ -2070,6 +2070,11 @@ const evtFormGroups = computed(() =>
   })
 )
 
+// True when there's exactly one form and no way to add another — then the forms LIST
+// is a dead end (one row, click it to get on with the job), so the designer opens
+// straight into that form's sections and hides the "All Forms" way back to it.
+const evtSingleFormOnly = computed(() => !hasTickets.value && evtFormGroups.value.length <= 1)
+
 const showAddFormDialog = ref(false)
 const newFormName = ref('')
 const newFormAudience = ref<'all' | 'members' | 'public'>('all')
@@ -2578,7 +2583,11 @@ defineExpose({ reload })
         <div v-if="evtFormGroups.length && !evtPublicPreview && evtFormGroupModes[selectedFormGroupId]" class="w-[420px] shrink-0 bg-white border-r border-gray-200 flex flex-col overflow-hidden">
 
           <!-- Group list -->
-          <template v-if="!evtFormShowSections">
+          <!-- The "Registration Forms" list is only worth showing when there IS a
+               choice: several forms, or the ability to add one (ticketed events, one
+               form per ticket type). With a single form it was a list of one you had
+               to click through to reach the sections. -->
+          <template v-if="!evtFormShowSections && !evtSingleFormOnly">
             <div class="px-5 pt-5 pb-3 flex items-start justify-between gap-2">
               <div>
                 <h2 class="text-base font-bold text-gray-900">Registration Forms</h2>
@@ -2661,7 +2670,7 @@ defineExpose({ reload })
             <template v-if="!evtSelectedFormSection">
               <!-- Header -->
               <div class="px-5 pt-5 pb-4 border-b border-gray-100">
-                <button type="button" class="flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#0e43a3] transition-colors mb-2" @click="evtFormShowSections = false">
+                <button v-if="!evtSingleFormOnly" type="button" class="flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#0e43a3] transition-colors mb-2" @click="evtFormShowSections = false">
                   <i class="pi pi-chevron-left text-[10px]" />
                   All Forms
                 </button>
