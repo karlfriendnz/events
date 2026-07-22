@@ -256,6 +256,21 @@ function colVisible(key: string) {
 }
 function toggleCol(key: string) { colOverride[key] = !colVisible(key) }
 const visibleColumns = computed(() => allColumns.value.filter(c => colVisible(c.key)))
+
+// Column choices persist per club (localStorage) once SAVED — an explicit Save so a
+// one-off tweak isn't remembered against the user's wishes; reloaded on mount.
+const colsKey = () => `fm_attendance_cols_${orgId.value || ''}`
+function loadSavedColumns() {
+  try {
+    const raw = localStorage.getItem(colsKey())
+    if (raw) Object.assign(colOverride, JSON.parse(raw))
+  } catch { /* ignore bad json */ }
+}
+function saveColumns() {
+  try { localStorage.setItem(colsKey(), JSON.stringify(colOverride)) } catch { /* ignore */ }
+  toast.add({ severity: 'success', summary: 'Columns saved', life: 2000 })
+  colMenu.value?.hide?.()
+}
 // Fixed cols: drag + select + Members + Status + Signed-in + Out + actions = 7, plus the visible optional cols.
 const colCount = computed(() => 7 + visibleColumns.value.length)
 
@@ -305,7 +320,17 @@ function openInviteeEmail(inv: any) {
 // header on every page. Class is cleared after printing (or on cancel via afterprint).
 function printAttendanceRoll() {
   document.body.classList.add('printing-roll')
-  const done = () => { document.body.classList.remove('printing-roll'); window.removeEventListener('afterprint', done) }
+  // Landscape by default (more room for columns) — injected + removed per print so it
+  // doesn't affect any other printing.
+  const style = document.createElement('style')
+  style.id = 'roll-print-page'
+  style.textContent = '@page { size: landscape; margin: 12mm; }'
+  document.head.appendChild(style)
+  const done = () => {
+    document.body.classList.remove('printing-roll')
+    document.getElementById('roll-print-page')?.remove()
+    window.removeEventListener('afterprint', done)
+  }
   window.addEventListener('afterprint', done)
   window.print()
 }
@@ -488,7 +513,8 @@ async function load() {
     await selectAttendanceSession(attendanceSessions.value[0].id)
   }
 }
-onMounted(() => { rbacNotes.load(); load() })
+onMounted(() => { rbacNotes.load(); loadSavedColumns(); load() })
+watch(orgId, () => loadSavedColumns())
 watch(() => props.eventId, () => load())
 
 // Let a parent drive the session (event page's "Take attendance") or force a reload
@@ -575,6 +601,9 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                 <Checkbox :model-value="colVisible(c.key)" binary @change="toggleCol(c.key)" />
                 {{ c.label }}
               </label>
+              <div class="border-t border-gray-100 mt-1 pt-1.5 px-2">
+                <button class="w-full text-center text-sm font-semibold text-primary hover:underline py-1" @click="saveColumns">Save as my default</button>
+              </div>
             </div>
           </Popover>
         </div>
