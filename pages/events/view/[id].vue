@@ -28,12 +28,13 @@ const BODY_TABS = [
 </script>
 
 <template>
-  <div class="p-3 sm:p-6 max-w-5xl mx-auto space-y-4">
-    <EventDetailsSummary :event-id="id" @loaded="onLoaded"
+  <div class="p-3 sm:p-6 max-w-5xl mx-auto">
+    <EventDetailsSummary class="block mb-4" :event-id="id" @loaded="onLoaded"
       @deleted="navigateTo('/events')"
       @duplicated="(newId) => navigateTo(`/events/view/${newId}`)" />
 
-    <!-- Two-tab body: Attendance · Notes & tasks -->
+    <!-- Two-tab body: Attendance · Notes & tasks. No space-y so the tabs sit directly
+         above the content (removes the gap under the tab strip). -->
     <div class="flex items-center gap-1 border-b border-gray-200">
       <button v-for="tb in BODY_TABS" :key="tb.k"
         class="px-4 py-2 text-sm border-b-2 -mb-px flex items-center gap-1.5 transition-colors"
