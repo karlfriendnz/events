@@ -141,9 +141,11 @@ const CONVERT_TARGETS = [
   { key: 'advanced', label: 'Advanced event', desc: 'Sessions, forms and the full builder', icon: 'pi pi-sliders-h' },
   { key: 'programme', label: 'Programme', desc: 'A multi-day programme with a date grid', icon: 'pi pi-th-large' },
 ]
+const converting = ref('')   // the kind mid-convert — drives the per-button spinner
 async function convertTo(kind: string) {
   if (busy.value) return
   busy.value = true
+  converting.value = kind
   try {
     let patch: any; let dest: string
     if (kind === 'advanced') { patch = { createdVia: 'advanced', isProgramme: false }; dest = `/events/${props.eventId}` }
@@ -154,7 +156,7 @@ async function convertTo(kind: string) {
     navigateTo(dest)
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Could not convert', detail: e?.message, life: 4000 })
-  } finally { busy.value = false }
+  } finally { busy.value = false; converting.value = '' }
 }
 
 // Copy the event as a new draft (title "Copy of …"), then carry its invitees over.
@@ -270,11 +272,12 @@ async function saveDetails() {
             <span class="field-label shrink-0 sm:w-20">When</span>
             <span class="inline-flex items-center gap-2 text-sm text-gray-700">
               {{ whenLabel }}
-              <span v-if="isRecurring"
-                class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary/10 text-primary text-xs font-medium"
-                v-tooltip.top="recurringSummary">
+              <button v-if="isRecurring" type="button"
+                class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors cursor-pointer"
+                v-tooltip.top="recurringSummary"
+                @click="navigateTo(`/events/series/${masterId}`)">
                 <i class="pi pi-replay text-[10px]" /> Repeats
-              </span>
+              </button>
             </span>
           </div>
           <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
@@ -379,11 +382,11 @@ async function saveDetails() {
           class="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 text-left transition-colors disabled:opacity-60"
           @click="convertTo(t.key)">
           <span class="w-9 h-9 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-500 shrink-0">
-            <i :class="t.icon" />
+            <i :class="converting === t.key ? 'pi pi-spin pi-spinner text-primary' : t.icon" />
           </span>
           <span class="min-w-0">
             <span class="block text-sm font-medium text-gray-800">{{ t.label }}</span>
-            <span class="block text-xs text-gray-500">{{ t.desc }}</span>
+            <span class="block text-xs text-gray-500">{{ converting === t.key ? 'Converting…' : t.desc }}</span>
           </span>
         </button>
       </div>

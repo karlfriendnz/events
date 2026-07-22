@@ -774,7 +774,9 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               </th>
               <th class="pl-1 pr-2 py-3 w-8 text-center align-middle"><Checkbox v-model="attendanceSelectAll" binary @change="toggleAttendanceSelectAll" /></th>
               <th class="py-3 pr-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-40">
-                <button class="flex items-center gap-1 hover:text-gray-900 transition-colors" @click="toggleAttendanceSort">
+                <!-- Print-only plain text: a <button>'s label doesn't repaint on repeated thead pages in Chrome, so page 2+ came up blank (#54). -->
+                <span class="roll-print-members hidden">Members</span>
+                <button class="roll-sort-btn flex items-center gap-1 hover:text-gray-900 transition-colors" @click="toggleAttendanceSort">
                   Members
                   <i :class="`pi text-[10px] ${attendanceSort.dir === 'asc' ? 'pi-sort-up-fill text-primary' : 'pi-sort-down-fill text-primary'}`" />
                 </button>

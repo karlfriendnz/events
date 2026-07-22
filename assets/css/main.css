@@ -263,7 +263,11 @@ body {
   body.printing-roll .roll-print-area { max-height: none !important; overflow: visible !important; }
   body.printing-roll .roll-print-title { display: block !important; font-size: 16px; font-weight: 700; margin-bottom: 10px; }
   body.printing-roll .roll-print-area thead { display: table-header-group; }
-  body.printing-roll .roll-print-area thead th { position: static !important; background: #fff !important; }
+  body.printing-roll .roll-print-area thead th { position: static !important; background: #fff !important; border-bottom: 2px solid #9ca3af !important; }
+  /* #54 — the Members header is a <button>; its label goes blank on repeated thead pages
+     in Chrome. Swap it for the plain-text twin so it prints on every page. */
+  body.printing-roll .roll-print-area .roll-sort-btn { display: none !important; }
+  body.printing-roll .roll-print-area .roll-print-members { display: inline !important; }
   body.printing-roll .roll-print-area tr { break-inside: avoid; }
   body.printing-roll .roll-print-area td, body.printing-roll .roll-print-area th { padding-top: 6px; padding-bottom: 6px; }
   /* drop the checkbox(2) / drag(1) / actions(last) columns — header + data rows, not group headers */
