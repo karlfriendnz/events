@@ -376,7 +376,14 @@ async function toggleSignOut(inv: any) {
   await eventsApi.updateInvitee(inv.id, { signedOut: newVal })
   inv.signed_out = newVal
 }
+// The twin of selectedSignedIn: who in the selection is NOT in yet. Marking someone
+// in who's already in is a no-op, so the button only offers what it can actually do.
+const selectedNotIn = computed(() => invitees.value.filter(
+  i => attendanceSelected.value.includes(i.id) && !isAttendedForContext(i),
+))
 async function markSelectedIn() {
+  const count = selectedNotIn.value.length
+  if (!count) return
   if (attendanceInSessionMode.value && selectedAttendanceSessionId.value) {
     const sid = selectedAttendanceSessionId.value
     const map = sessionAttendanceData.value[sid] ?? {}
@@ -393,9 +400,16 @@ async function markSelectedIn() {
       sessionAttendanceData.value = { ...sessionAttendanceData.value, [sid]: next }
     }
   } else {
-    await Promise.all(attendanceSelected.value.map(invId => eventsApi.updateInvitee(invId, { attended: true })))
-    invitees.value.forEach(i => { if (attendanceSelected.value.includes(i.id)) i.attended = true })
+    // Only the ones not already in — the old version re-wrote every selected row.
+    const targets = selectedNotIn.value
+    await Promise.all(targets.map(inv => eventsApi.updateInvitee(inv.id, { attended: true })))
+    targets.forEach(inv => { inv.attended = true })
   }
+  toast.add({
+    severity: 'success',
+    summary: `Marked in ${count} ${count === 1 ? 'person' : 'people'}`,
+    life: 2000,
+  })
   attendanceSelected.value = []
   attendanceSelectAll.value = false
 }
@@ -503,7 +517,7 @@ watch(inviteOpen, v => { if (v) { showFullInvite.value = false; quickSel.value =
 // ---- Attendance action menu ----
 const attendanceActionMenu = ref()
 const attendanceActionMenuItems = computed(() => [
-  { label: 'Mark Selected In', icon: 'pi pi-check', command: markSelectedIn },
+  { label: 'Mark Selected In', icon: 'pi pi-check', command: markSelectedIn, disabled: !selectedNotIn.value.length },
   { label: 'Sign Selected Out', icon: 'pi pi-sign-out', command: markSelectedOut, disabled: !selectedSignedIn.value.length },
   { separator: true },
   { label: 'Assign to Sub-group', icon: 'pi pi-user-plus', command: () => { showAddToSubGroupDialog.value = true } },
@@ -1069,7 +1083,13 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
         <div class="pointer-events-auto flex items-center gap-1 rounded-full pl-4 pr-1.5 py-1.5 text-white shadow-2xl" style="background:var(--brand-primary)">
           <span class="text-sm font-semibold whitespace-nowrap">{{ attendanceSelected.length }} selected</span>
           <span class="mx-1.5 w-px h-5 bg-white/25" />
-          <button class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/15 transition-colors whitespace-nowrap" @click="markSelectedIn"><i class="pi pi-check text-xs" />Mark in</button>
+          <!-- Both actions behave the same way: shown only when the selection contains
+               someone they can act on, and the tooltip says how many of the selection
+               that is. -->
+          <button v-if="selectedNotIn.length"
+            class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/15 transition-colors whitespace-nowrap"
+            v-tooltip.top="`Mark in ${selectedNotIn.length} of ${attendanceSelected.length}`"
+            @click="markSelectedIn"><i class="pi pi-check text-xs" />Mark in</button>
           <!-- Only offered once the selection actually contains someone signed in. -->
           <button v-if="selectedSignedIn.length"
             class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/15 transition-colors whitespace-nowrap"
