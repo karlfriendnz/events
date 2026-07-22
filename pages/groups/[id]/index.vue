@@ -1569,12 +1569,12 @@
           <!-- billing-specific -->
           <div v-if="o.fee_type === 'recurring'" class="flex flex-wrap items-center gap-2 text-sm text-gray-600">
             <span>Every</span>
-            <InputNumber v-model="o.period_count" :min="1" class="w-16" :useGrouping="false" showButtons />
+            <InputNumber v-model="o.period_count" :min="1" class="w-20" :input-class="'w-20 text-center'" :useGrouping="false" />
             <Select v-model="o.period_unit" :options="PERIOD_UNITS" optionLabel="label" optionValue="value" class="w-28" />
             <label class="flex items-center gap-2 ml-2"><ToggleSwitch v-model="o.auto_renew" /> Auto-renew</label>
           </div>
-          <div v-else-if="o.fee_type === 'instalment'" class="flex items-center gap-2 text-sm text-gray-600"><span>Split into</span><InputNumber v-model="o.instalment_count" :min="1" class="w-20" :useGrouping="false" showButtons /><span>payments</span></div>
-          <div v-else-if="o.fee_type === 'concession' || o.fee_type === 'per_session'" class="flex items-center gap-2 text-sm text-gray-600"><InputNumber v-model="o.session_count" :min="1" class="w-20" :useGrouping="false" showButtons /><span>sessions</span></div>
+          <div v-else-if="o.fee_type === 'instalment'" class="flex items-center gap-2 text-sm text-gray-600"><span>Split into</span><InputNumber v-model="o.instalment_count" :min="1" class="w-20" :input-class="'w-20 text-center'" :useGrouping="false" /><span>payments</span></div>
+          <div v-else-if="o.fee_type === 'concession' || o.fee_type === 'per_session'" class="flex items-center gap-2 text-sm text-gray-600"><InputNumber v-model="o.session_count" :min="1" class="w-20" :input-class="'w-20 text-center'" :useGrouping="false" /><span>sessions</span></div>
           <label v-else-if="o.fee_type === 'upfront'" class="flex items-center gap-2 text-sm text-gray-600"><ToggleSwitch v-model="o.prorata" /> Pro-rata <span class="text-gray-400">(reduce the fee when joining mid-term)</span></label>
 
           <!-- line items — Xero-style grid -->

@@ -1332,11 +1332,11 @@ watch(orgId, () => { if (orgId.value) loadOnboardingNudge() }, { immediate: true
         <div v-if="settingsDraft.chartType === 'bar'" class="grid grid-cols-2 gap-3">
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium">Y-axis min</label>
-            <InputNumber v-model="settingsDraft.yMin" :min="0" placeholder="Auto" showButtons class="w-full" />
+            <InputNumber v-model="settingsDraft.yMin" :min="0" placeholder="Auto" class="w-full" :use-grouping="false" />
           </div>
           <div class="flex flex-col gap-1.5">
             <label class="text-sm font-medium">Y-axis max</label>
-            <InputNumber v-model="settingsDraft.yMax" :min="0" placeholder="Auto" showButtons class="w-full" />
+            <InputNumber v-model="settingsDraft.yMax" :min="0" placeholder="Auto" class="w-full" :use-grouping="false" />
           </div>
         </div>
       </div>

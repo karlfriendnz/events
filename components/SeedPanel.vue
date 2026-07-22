@@ -36,7 +36,7 @@
             <div v-if="picked[b.key] && b.options.length" class="mt-3 ml-8 flex flex-wrap gap-x-6 gap-y-2">
               <div v-for="opt in b.options" :key="opt.key" class="flex items-center gap-2">
                 <label class="text-xs text-gray-500">{{ opt.label }}</label>
-                <InputNumber v-if="opt.type === 'number'" v-model="optValues[b.key][opt.key]" :min="0" showButtons class="w-28" inputClass="w-16" />
+                <InputNumber v-if="opt.type === 'number'" v-model="optValues[b.key][opt.key]" :min="0" class="w-24" :input-class="'w-24 text-center'" :use-grouping="false" />
                 <ToggleSwitch v-else-if="opt.type === 'boolean'" v-model="optValues[b.key][opt.key]" />
                 <Select v-else-if="opt.type === 'select'" v-model="optValues[b.key][opt.key]" :options="opt.choices" optionLabel="label" optionValue="value" class="w-56" />
                 <InputText v-else v-model="optValues[b.key][opt.key]" class="w-56" />

@@ -306,9 +306,9 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
                   </span>
                 </td>
                 <td class="px-4 py-2 align-middle">
-                  <InputNumber :modelValue="positionMins[row.name] ?? null" :min="0" :max="99" showButtons buttonLayout="horizontal"
+                  <InputNumber :modelValue="positionMins[row.name] ?? null" :min="0" :max="99"
                     :placeholder="inheritedPositionMin(row.name) != null ? String(inheritedPositionMin(row.name)) : 'None'"
-                    class="w-32" :inputStyle="{ width: '3.5rem' }"
+                    class="w-20" :input-class="'w-20 text-center'" :use-grouping="false"
                     @update:modelValue="v => setPositionMin(row.name, v)" />
                 </td>
                 <td class="px-3 py-2 text-center align-middle">
@@ -322,8 +322,8 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
                   <InputText v-model="newPosition" placeholder="Add a position (e.g. Captain)" class="w-full" @keydown.enter.prevent="addPosition" />
                 </td>
                 <td class="px-4 py-2.5 align-middle">
-                  <InputNumber v-model="newPositionMin" :min="0" :max="99" showButtons buttonLayout="horizontal"
-                    placeholder="None" class="w-32" :inputStyle="{ width: '3.5rem' }" @keydown.enter.prevent="addPosition" />
+                  <InputNumber v-model="newPositionMin" :min="0" :max="99"
+                    placeholder="None" class="w-20" :input-class="'w-20 text-center'" :use-grouping="false" @keydown.enter.prevent="addPosition" />
                 </td>
                 <td class="px-3 py-2.5 text-center align-middle">
                   <Button icon="pi pi-plus" text rounded size="small" :disabled="!newPosition.trim()" title="Add position" @click="addPosition" />
@@ -356,9 +356,9 @@ watch(orgId, () => { if (orgId.value) load() }, { immediate: true })
                     </template>
                   </p>
                 </div>
-                <InputNumber v-if="role.key" :modelValue="roleMins[role.key] ?? null" :min="0" :max="99" showButtons
+                <InputNumber v-if="role.key" :modelValue="roleMins[role.key] ?? null" :min="0" :max="99"
                   :placeholder="inheritedMin(role.key) != null ? String(inheritedMin(role.key)) : 'None'"
-                  class="w-28 shrink-0" :inputStyle="{ width: '5rem' }"
+                  class="w-20 shrink-0" :input-class="'w-20 text-center'" :use-grouping="false"
                   @update:modelValue="v => setRoleMin(role.key, v)" />
                 <span v-else class="text-[11px] text-gray-400 shrink-0">Save the role first</span>
               </div>

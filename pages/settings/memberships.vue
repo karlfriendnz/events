@@ -354,7 +354,7 @@ watch(orgId, v => { if (v) load() })
                     </div>
                     <div v-for="(o, oi) in p.options" :key="oi"
                       class="grid grid-cols-2 sm:grid-cols-[80px_1fr_140px_120px_40px] gap-2 items-center">
-                      <InputNumber v-model="o.period_count" :min="1" :max="60" class="w-full" showButtons buttonLayout="stacked" :inputStyle="{ width: '3rem' }" />
+                      <InputNumber v-model="o.period_count" :min="1" :max="60" class="w-20" :input-class="'w-20 text-center'" :use-grouping="false" />
                       <Select v-model="o.period_unit" :options="UNITS" optionLabel="label" optionValue="value" class="w-full" />
                       <InputNumber v-model="o.price" mode="currency" :currency="currency" locale="en-NZ" :min="0" placeholder="Price" class="w-full" />
                       <div class="flex items-center gap-2">

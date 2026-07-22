@@ -84,11 +84,11 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Select v-model="bulkOption.fee_type" :options="gf.FEE_TYPES" optionLabel="label" optionValue="value" class="w-full" />
             <div v-if="bulkOption.fee_type === 'recurring'" class="flex gap-2">
-              <InputNumber v-model="bulkOption.period_count" :min="1" class="w-16" :useGrouping="false" showButtons />
+              <InputNumber v-model="bulkOption.period_count" :min="1" class="w-20" :input-class="'w-20 text-center'" :useGrouping="false" />
               <Select v-model="bulkOption.period_unit" :options="PERIOD_UNITS" optionLabel="label" optionValue="value" class="flex-1" />
             </div>
-            <InputNumber v-else-if="bulkOption.fee_type === 'instalment'" v-model="bulkOption.instalment_count" :min="1" placeholder="Number of payments" class="w-full" :useGrouping="false" showButtons />
-            <InputNumber v-else-if="bulkOption.fee_type === 'concession' || bulkOption.fee_type === 'per_session'" v-model="bulkOption.session_count" :min="1" placeholder="Number of sessions" class="w-full" :useGrouping="false" showButtons />
+            <InputNumber v-else-if="bulkOption.fee_type === 'instalment'" v-model="bulkOption.instalment_count" :min="1" placeholder="Number of payments" class="w-full" :useGrouping="false" />
+            <InputNumber v-else-if="bulkOption.fee_type === 'concession' || bulkOption.fee_type === 'per_session'" v-model="bulkOption.session_count" :min="1" placeholder="Number of sessions" class="w-full" :useGrouping="false" />
           </div>
           <div v-if="bulkOption.fee_type === 'recurring'" class="flex items-center gap-2 text-sm text-gray-600">
             <ToggleSwitch v-model="bulkOption.auto_renew" /> Auto-renew each period

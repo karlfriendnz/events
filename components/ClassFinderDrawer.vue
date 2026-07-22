@@ -110,7 +110,7 @@ function addPersonToClass(c: FinderClass) { finder.close(); navigateTo(`/groups/
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="text-xs font-medium text-gray-500 block mb-1">Age</label>
-                <InputNumber v-model="params.age" :min="0" :max="99" placeholder="Any" showButtons buttonLayout="stacked" class="w-full" inputClass="w-full" />
+                <InputNumber v-model="params.age" :min="0" :max="99" placeholder="Any" class="w-full" inputClass="w-full" :use-grouping="false" />
               </div>
               <div>
                 <label class="text-xs font-medium text-gray-500 block mb-1">Gender</label>
