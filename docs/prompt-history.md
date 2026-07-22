@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-331 sessions · 1613 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+331 sessions · 1615 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -27706,7 +27706,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:17** — [Image #1] this is what happens when i run" npm run dev on a new tab - something is broken please fix it
 
 
-## Session 2026-07-20 00:42 (196 prompts)
+## Session 2026-07-20 00:42 (198 prompts)
 
 **00:42** — so i just restarted and now i can't get the server to run again ?
 
@@ -29029,6 +29029,23 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > 2. **DUPLICATE `.roll-print-title` risk:** the parent already has a `.roll-print-title` element. Mine is a *second* one. On merge, **replace the parent's plain `.roll-print-title` inner content with my two-column version and keep only ONE** — the script plumbing (`orgLogoUrl`/`loadOrgLogo`/`rollHeaderWhen` + the onMounted wiring) merges clean and works with either element. Also verify my header sits inside the parent's `.roll-print-area` so it prints (it's at the top of the roster card).</result>
 > <usage><subagent_tokens>578846</subagent_tokens><tool_u
 > … [truncated — 3259 chars total]
+
+**01:30** — please put the status column in the other coloumns in print preview [Image #55]
+
+**01:34** — This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+> 
+> Summary:
+> 1. Primary Request and Intent:
+> The user rapid-fired a very large backlog (~50+ numbered items) of changes to the FriendlyManager events module, wanting each built on branch `feat/event-page-batch` (nothing deployed). Explicit requests, in order encountered:
+> - Continue/deploy prior batch of calendar/nav fixes (weekends, current-term, z-index, FA icons, drag-to-create, etc.) — "deploy live" was said, prod deploy done earlier.
+> - Attendees roll (`<EventAttendance>`): rename "Invite"→"Add person" (#2); non-configurable Status column showing invite-sent/accepted/declined (#3); Print roll = only the table, hide left checkboxes + right move icons, repeat table header on pages 2/3 (#4/#5), landscape default (#23); save selected columns (#17→ later made auto-save, remove Save button #29); in-app print preview + right config slide-out (#25); slide-up bottom action bar on selection (#30); align drag/checkbox columns (#44); remove header-row drag handle only (#49); print header: event name/date/time LEFT, club logo RIGHT — global (#50); multi-page print not working — fix pagination (#38); Status toggle-off in print (#37); Signed-In/Out as sign+time or tick boxes in print (#36); inline add-person row (Add person opens a search row with Add + "More" opens full modal) (#48); invite modal needs a clear Done confirm (#46); invite modal 1000px (#9/#33); remove extra white space below roll footer (#40); move actions to a sticky bottom slide-up bar (#28→#30); **move Status-column toggle into the Columns list in print preview (#53, most recent)**.
+> - PeopleSelector: hide age/email on filter results (#13); hide class tree while filtering + Clear (#14); term selector in filter defaulting to previously-selected term (#11); Added-state + parents caret (#12); group Add button → "Added" state (#45); invite-by-group persistence (#15).
+> - Published status: remove green from header chip (#1); event view "Published" as plain text (#26).
+> - Recurring events: fix bug where recurring event with no end date creates nothing (#6); recurring indicator + list view (#7); recurring indicator on view card (#41); recurring delete scope this/following/all (#42); can't create events on past dates (#19).
+> - Modals: global rule — ALL modals 100px from top desktop / 60px tablet / 30px mobile (#35, superseded earlier #10); wizard Back button on right (#39).
+> - DateTimeEditor: end date defaults to start, end time = start+1h if blank (#22); auto-advance date→time→date→time (#20); TimeWheel selection centered on middle line (#21).
+> - Other: events profile view /account/events (#24); Events tab on person profile (#31); default roll columns per event category (#34); calendar tooltip shows attendees/location/time not Published (#43); convert event type (#8); event coordinators — name + per-person notifications, multiple, all types, creator=default 
+> … [truncated — 19828 chars total]
 
 
 ## Session 2026-07-20 17:11 (6 prompts)

@@ -1214,10 +1214,6 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               :class="printOrientation === o ? 'border-primary text-primary bg-primary/5 font-semibold' : 'border-gray-200 text-gray-600 hover:border-gray-300'"
               @click="printOrientation = (o as any)">{{ o }}</button>
           </div>
-          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Status column</p>
-          <label class="flex items-center gap-2 mb-5 cursor-pointer text-sm text-gray-700">
-            <Checkbox v-model="printStatus" binary /> Include the Status column
-          </label>
           <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Signed in / out</p>
           <div class="flex gap-2 mb-5">
             <button type="button" class="flex-1 text-sm py-1.5 rounded-lg border transition-colors"
@@ -1228,6 +1224,9 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               @click="printSignStyle = 'sign'">Sign + time</button>
           </div>
           <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Columns</p>
+          <label class="flex items-center gap-2 py-1 cursor-pointer text-sm text-gray-700">
+            <Checkbox v-model="printStatus" binary /> Status
+          </label>
           <label v-for="c in allColumns" :key="c.key" class="flex items-center gap-2 py-1 cursor-pointer text-sm text-gray-700">
             <Checkbox :model-value="colVisible(c.key)" binary @change="toggleCol(c.key)" />{{ c.label }}
           </label>
