@@ -390,26 +390,16 @@
         </div>
 
         <!-- ─ Registration form ─
-             Always shown. An RSVP-only event gets an "add a form" prompt instead of
-             the builder (the "what do they need to do?" choice on the Invitees step
-             turns the form on, or the button below does). Both audiences fill THE
-             SAME form — a member gets it pre-filled, the public gets it blank. -->
+             Straight into the builder's own "Choose a registration type" chooser —
+             which already offers Invite only (the yes/no path) as its first option.
+             An extra "this event just asks for a yes/no reply" screen in front of it
+             was a step that asked the same question with fewer answers. -->
         <!-- No heading here: the step path above already says "Registration form",
              and the builder fills the panel — a title + blurb just pushed it down. -->
         <div :class="isStep('form') ? (formFullBleed ? 'flex-1 min-h-0 flex flex-col' : 'px-1') : 'hidden'">
-          <!-- RSVP-only: no form is used yet. Offer to add one rather than hiding the
-               step, so the form step is always reachable. -->
-          <div v-if="!form.use_registration_form" class="bg-white rounded-xl border border-gray-200 p-8 text-center">
-            <i class="pi pi-file-edit text-2xl text-gray-300 block mb-3" />
-            <p class="text-sm text-gray-700 font-medium mb-1">This event just asks for a yes / no reply</p>
-            <p class="text-xs text-gray-400 mb-4 max-w-sm mx-auto">Invitees RSVP — no form needed. Add a registration form if you want to collect more than a yes or no.</p>
-            <Button label="Add a registration form" icon="pi pi-plus" size="small"
-              style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="setAttendeeAction('form')" />
-          </div>
           <!-- ONE form, ONE builder — the same <FormDesigner> the advanced event uses
-               (its own Basic / scratch / preset chooser, autosaves to
-               registration_forms.config + events.form_id). -->
-          <div v-else-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
+               (its own chooser, autosaves to registration_forms.config + events.form_id). -->
+          <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
             <i class="pi pi-spin pi-spinner text-xl text-gray-300 block mb-2" />
             Setting up the form…
           </div>
@@ -798,13 +788,6 @@ const publicOptions = [
 // two before <DisciplineLinker> mounts (v-if=draftEventId) and reports back.
 const disciplineEmpty = ref(true)
 const attendeeAction = ref<'rsvp' | 'form'>('rsvp')
-
-function setAttendeeAction(a: 'rsvp' | 'form') {
-  if (!a) return                                   // SelectButton can emit null
-  if (a === 'rsvp' && invitePublic.value) return   // not offerable — see above
-  attendeeAction.value = a
-  form.use_registration_form = a === 'form'
-}
 
 function setInvitePublic(v: boolean) {
   if (v === null || v === undefined) return        // SelectButton can emit null
