@@ -636,6 +636,7 @@ function openEvtSubject(key: string) {
   // separate fields page to send anyone to any more.
   evtSelectedFormSection.value = 'settings'
   evtSubjectPane.value = 'fields'
+  evtFieldAdderOpen.value = false
 }
 function patchEvtProfile(i: number, patch: Partial<{ min: number; max: number | null; selectsOptions: boolean; label: string; labelPlural: string; intro: string; heading: string }>) {
   const next = currentEvtFormProfiles.value.slice()
@@ -845,6 +846,9 @@ const evtSettingsSubjectIndex = computed(() => currentEvtFormProfiles.value.find
 function openEvtSubjectSettings(key: string) {
   evtFieldTarget.value = key
   evtSelectedFormSection.value = 'settings'
+  // Never land in another subject's add-mode.
+  evtFieldAdderOpen.value = false
+  evtNewBlockType.value = null
 }
 // Index of the subject currently being edited (drives the inline settings cards
 // shown on the subject's page = the fields panel).
@@ -1355,6 +1359,9 @@ function evtStartNewField(type: string) {
     const id = crypto.randomUUID()
     ensureEvtGroupFields().push({ id, label: uniqueEvtLabel('New Field'), field_type: 'text', is_required: false, placeholder: '', has_placeholder: false, col_span: 1, visibility_conditions: [], financial_rules: [], target: evtFieldTarget.value } as any)
     evtSelectedFieldId.value = id
+    // Hand over to the field editor (its Back returns to the subject's Fields tab).
+    evtSelectedFormSection.value = 'fields'
+    evtFieldAdderOpen.value = false
   } else {
     evtNewBlockType.value = type as any
   }
@@ -1379,6 +1386,7 @@ function saveEvtNewSection() {
   })
   Object.assign(evtNewSectionDraft, { label: '', description: '', has_visibility: false, conditions: [] })
   evtNewBlockType.value = null
+  evtFieldAdderOpen.value = false
 }
 
 function saveEvtNewBlock(type: 'image' | 'text' | 'button') {
@@ -1403,6 +1411,7 @@ function saveEvtNewBlock(type: 'image' | 'text' | 'button') {
   if (type === 'text') Object.assign(evtNewTextDraft, { content: '', size: 'base' })
   if (type === 'button') Object.assign(evtNewButtonDraft, { label: '', url: '', style: 'primary' })
   evtNewBlockType.value = null
+  evtFieldAdderOpen.value = false
 }
 
 // ── Per-subject instance preview ──────────────────────────────────────────────
@@ -2081,9 +2090,17 @@ const evtFormGroups = computed(() =>
 // True when there's exactly one form and no way to add another — then the forms LIST
 // is a dead end (one row, click it to get on with the job), so the designer opens
 // straight into that form's sections and hides the "All Forms" way back to it.
-// Which pane of a subject's page is open — Settings (what this tab IS) or Fields
-// (what it collects). One at a time; both are the same subject seen two ways.
+// Which TAB of a subject's page is open — Settings (what this tab IS) or Fields (what
+// it collects). One at a time; both are the same subject seen two ways.
 const evtSubjectPane = ref<'settings' | 'fields'>('settings')
+// The Fields tab shows what you collect; ADDING is a mode on top of it, not a permanent
+// block — two field lists stacked in one scroller (yours, and everything addable) read
+// as one confusing list.
+const evtFieldAdderOpen = ref(false)
+function evtSubjectTab(tab: 'settings' | 'fields') {
+  evtSubjectPane.value = tab
+  evtFieldAdderOpen.value = false
+}
 // Icon for a field row: the known-label meta first, then the input type.
 const EVT_TYPE_ICONS: Record<string, string> = {
   text: 'pi-pencil', email: 'pi-envelope', tel: 'pi-phone', number: 'pi-hashtag',
@@ -2793,37 +2810,41 @@ defineExpose({ reload })
 
             <!-- PER-SUBJECT PAGE (settings + configure form) -->
             <template v-else-if="evtSelectedFormSection === 'settings' && currentEvtSubject && currentEvtSubjectIndex >= 0">
-              <div class="flex items-center gap-3 px-5 py-4 border-b border-gray-100 shrink-0">
-                <button type="button" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-500" @click="evtSelectedFormSection = ''">
-                  <i class="pi pi-chevron-left text-sm" />
-                </button>
-                <div class="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center"
-                  :class="(currentEvtSubject.kind ?? '') === 'entity' ? 'bg-violet-50' : 'bg-blue-50'">
-                  <i :class="['pi', evtSubjectIcon(currentEvtSubject), 'text-base', (currentEvtSubject.kind ?? '') === 'entity' ? 'text-violet-500' : 'text-[#0e43a3]']" />
+              <!-- One subject, one pane: title, then TABS. (No "Person registering"
+                   subtitle — the icon and the nav row already say it, and it became a
+                   third line right above the tabs.) -->
+              <div class="shrink-0 border-b border-gray-100">
+                <div class="flex items-center gap-3 px-5 pt-4 pb-2.5">
+                  <button type="button" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-500" @click="evtSelectedFormSection = ''">
+                    <i class="pi pi-chevron-left text-sm" />
+                  </button>
+                  <div class="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center"
+                    :class="(currentEvtSubject.kind ?? '') === 'entity' ? 'bg-violet-50' : 'bg-blue-50'">
+                    <i :class="['pi', evtSubjectIcon(currentEvtSubject), 'text-sm', (currentEvtSubject.kind ?? '') === 'entity' ? 'text-violet-500' : 'text-[#0e43a3]']" />
+                  </div>
+                  <p class="flex-1 min-w-0 text-sm font-bold text-gray-900 truncate">{{ currentEvtSubject.label }}</p>
                 </div>
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-bold text-gray-900 truncate">{{ currentEvtSubject.label }}</p>
-                  <p class="text-xs text-gray-400">{{ (currentEvtSubject.kind ?? '') === 'entity' ? 'Entity' : 'Person' }} registering</p>
+                <div class="flex px-5">
+                  <button type="button" class="px-3 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors"
+                    :class="evtSubjectPane === 'settings' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    @click="evtSubjectTab('settings')">Settings</button>
+                  <button type="button" class="px-3 py-2 text-xs font-semibold border-b-2 -mb-px transition-colors flex items-center gap-1.5"
+                    :class="evtSubjectPane === 'fields' ? 'border-primary text-primary' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    @click="evtSubjectTab('fields')">
+                    Fields
+                    <span class="text-[10px] font-bold px-1.5 rounded-full"
+                      :class="evtSubjectPane === 'fields' ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-400'">{{ evtTargetFieldCount(currentEvtSubject.key) }}</span>
+                  </button>
                 </div>
               </div>
-              <!-- Two panes for one subject, as an accordion: SETTINGS (what this tab
-                   is) and FIELDS (what it collects). They were a stack of cards plus a
-                   "Configure form fields →" button that navigated away, so the two
-                   halves of the same subject lived on different screens. -->
+              <!-- ONE scroller for the whole pane; the tabs above decide what's in it. -->
               <div class="flex-1 overflow-y-auto">
 
-                <!-- ── Settings ── -->
-                <button type="button"
-                  class="w-full flex items-center gap-2 px-5 py-3.5 border-b border-gray-100 text-left hover:bg-gray-50/60 transition-colors"
-                  @click="evtSubjectPane = evtSubjectPane === 'settings' ? '' : 'settings'">
-                  <i class="pi pi-chevron-right text-[10px] text-gray-400 transition-transform" :class="evtSubjectPane === 'settings' ? 'rotate-90' : ''" />
-                  <span class="flex-1 text-sm font-bold text-gray-800">Settings</span>
-                  <span class="text-xs text-gray-400">min {{ currentEvtSubject.min }}<span v-if="currentEvtSubject.max"> · max {{ currentEvtSubject.max }}</span></span>
-                </button>
-                <!-- Divider-separated rows, not cards. Each row is label + control on
-                     one line; the explanation moves into an (i) tooltip so it's there
+                <!-- ── Settings tab ──
+                     Divider-separated rows, not cards. Each row is label + control on
+                     one line; the explanation lives in an (i) tooltip so it's there
                      when wanted and out of the way when not. -->
-                <div v-if="evtSubjectPane === 'settings'" class="border-b border-gray-100 divide-y divide-gray-100">
+                <div v-if="evtSubjectPane === 'settings'" class="divide-y divide-gray-100">
 
                   <!-- Name -->
                   <div class="px-5 py-3 flex items-center gap-3">
@@ -2880,15 +2901,8 @@ defineExpose({ reload })
                   </button>
                 </div>
 
-                <!-- ── Fields ── -->
-                <button type="button"
-                  class="w-full flex items-center gap-2 px-5 py-3.5 border-b border-gray-100 text-left hover:bg-gray-50/60 transition-colors"
-                  @click="evtSubjectPane = evtSubjectPane === 'fields' ? '' : 'fields'">
-                  <i class="pi pi-chevron-right text-[10px] text-gray-400 transition-transform" :class="evtSubjectPane === 'fields' ? 'rotate-90' : ''" />
-                  <span class="flex-1 text-sm font-bold text-gray-800">Fields</span>
-                  <span class="text-xs text-gray-400">{{ evtTargetFieldCount(currentEvtSubject.key) }}</span>
-                </button>
-                <div v-if="evtSubjectPane === 'fields'" class="border-b border-gray-100 divide-y divide-gray-100">
+                <!-- ── Fields tab: what this subject collects ── -->
+                <div v-else-if="!evtFieldAdderOpen" class="divide-y divide-gray-100">
                   <button v-for="f in evtFieldsForSubject(currentEvtSubject.key)" :key="f.id" type="button"
                     class="w-full flex items-center gap-2.5 px-5 py-2.5 hover:bg-blue-50/40 transition-colors text-left"
                     @click="openEvtFieldEditor(f.id)">
@@ -2900,11 +2914,26 @@ defineExpose({ reload })
                     <i v-if="f.locked" class="pi pi-lock text-[10px] text-gray-300 shrink-0" v-tooltip.left="'Always collected'" />
                     <i class="pi pi-chevron-right text-gray-300 text-xs shrink-0" />
                   </button>
-                  <!-- The field LIBRARY lives here now, not on a separate page: the
-                       list of what you collect and the means of adding to it are the
-                       same job, and splitting them meant leaving the subject to do it. -->
+                  <!-- ONE affordance for adding, rather than the whole library sitting
+                       under the list permanently. -->
+                  <button type="button"
+                    class="w-full flex items-center gap-2.5 px-5 py-3 text-sm font-semibold text-[#0e43a3] hover:bg-blue-50/40 transition-colors"
+                    @click="evtFieldAdderOpen = true">
+                    <i class="pi pi-plus text-[10px]" />Add field
+                  </button>
+                </div>
+
+                <!-- ── Fields tab · ADD mode: everything you can put on the form ── -->
+                <template v-else>
+                  <div class="flex items-center gap-2 px-5 py-2.5 border-b border-gray-100 bg-gray-50/60">
+                    <button type="button" class="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#0e43a3] transition-colors"
+                      @click="evtFieldAdderOpen = false; evtNewBlockType = null">
+                      <i class="pi pi-chevron-left text-[10px]" />Back
+                    </button>
+                    <span class="flex-1 text-xs text-gray-400 truncate">Add to {{ currentEvtSubject.label }}</span>
+                  </div>
                 <!-- Single fields view: add-new options + existing fields -->
-                <div v-if="!evtNewBlockType" class="px-4 py-3 overflow-y-auto space-y-4 max-h-[46vh]">
+                <div v-if="!evtNewBlockType" class="px-4 py-3 space-y-4">
                   <!-- Add new field / block -->
                   <div>
                     <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Add new</p>
@@ -3031,7 +3060,7 @@ defineExpose({ reload })
                     </div>
                   </div>
                 </div>
-                </div>
+                </template>
               </div>
               <div class="px-5 pb-5 pt-3 border-t border-gray-100 shrink-0">
                 <button type="button" class="w-full py-2.5 rounded-lg bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors" @click="evtSelectedFormSection = ''">Done</button>
