@@ -49,3 +49,4 @@ test-results/
 
 # graphify generated knowledge graph
 graphify-out/
+.env*

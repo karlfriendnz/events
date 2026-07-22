@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1657 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1662 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (36 prompts)
+## Session 2026-07-22 02:42 (41 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29163,4 +29163,14 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **10:16** — deploy live
 
 **11:02** — when we deploy live the  MySQL/TiDB should allways get what it needs to work - please update this as  global rule
+
+**11:05** — please run it so it works
+
+**11:16** — [Image #15] this design is not good - boxes are overlapping the switch doesnt tell me what it it is cna we please make ththe swithc a radio group button unlimted or set number
+
+**11:16** — why can't you reach prod - this is crazy! yuou need to be abelt odo that
+
+**11:27** — i dont want to do this again - so it will fix things right?
+
+**11:29** — mysql://3CgigAbsmzQ9S7d.root:ZL5T3C0AdzodBwxO@gateway01.ap-southeast-1.prod.aws.tidbcloud.com:4000/fm
 
