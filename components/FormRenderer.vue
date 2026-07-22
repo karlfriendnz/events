@@ -21,6 +21,7 @@
     • design.style === 'tabs' → step wizard; else single page
 -->
 <script setup lang="ts">
+import { conditionsPass, type ConditionCtx } from '~/composables/useFormConditions'
 const props = defineProps<{
   config: any
   groupId?: string
@@ -185,108 +186,27 @@ function valByLabel(key: string, inst: number, label: string) { const fld = fiel
 const identifiedPerson = ref<any>(null)
 const identifiedGroupIds = ref<string[]>([])
 
-const condList = (v: any): string[] => (Array.isArray(v) ? v.map(String) : v ? String(v).split(',').filter(Boolean) : [])
-// The editor's wording changed (Equals → Is, Greater Than → Is more than, …) but rows
-// saved earlier still carry the old strings, so both are understood.
-const OP_ALIASES: Record<string, string> = {
-  'Equals': 'is', 'Is': 'is',
-  'Is Not': 'is not', 'Is not': 'is not',
-  'Contains': 'contains', 'Starts with': 'starts with',
-  'Is Empty': 'empty', 'Is empty': 'empty', 'Is not ticked': 'empty', 'Is not uploaded': 'empty',
-  'Is Not Empty': 'not empty', 'Is not empty': 'not empty', 'Is ticked': 'not empty', 'Is uploaded': 'not empty',
-  'Greater Than': 'more than', 'Is more than': 'more than',
-  'Less Than': 'less than', 'Is less than': 'less than',
-  'Before': 'before', 'Is before': 'before',
-  'After': 'after', 'Is after': 'after',
-  'Is on': 'is', 'Is between': 'between',
-  'Is any of': 'any of', 'Is none of': 'none of',
+// Conditions are evaluated by the SHARED pure evaluator (composables/useFormConditions),
+// which the server imports too — the price shown here and the price stored on submit
+// have to come from the same rules.
+function condCtx(key: string, inst: number): ConditionCtx {
+  const chosenGroups = Object.entries(groupSel[key]?.[inst - 1] ?? {}).filter(([, on]) => on).map(([id]) => id)
+  const p: any = identifiedPerson.value
+  return {
+    answer: (label: string) => valByLabel(key, inst, label),
+    // Age from the DOB answered on THIS form when it asks (works for a guest),
+    // falling back to the person's stored date of birth.
+    age: ageFromDob((valByLabel(key, inst, 'Date of Birth') as any) || p?.dob || null),
+    // A form that asks them to pick a class answers "are they in X" itself.
+    groupIds: groupOptions.value.length ? chosenGroups : (p ? identifiedGroupIds.value : undefined),
+    personTypes: p ? (p.person_types ?? []) : undefined,
+    memberStatus: p
+      ? String(p.membership_status ?? (p.membership_type ? 'active_member' : 'non_member'))
+      : '',
+  }
 }
-const opOf = (o: string) => OP_ALIASES[o] ?? String(o ?? '').toLowerCase()
-const rangeOf = (v: any) => (v && typeof v === 'object' && !Array.isArray(v)) ? v : { from: '', to: '' }
-
-function personCondPasses(c: any, key: string, inst: number): boolean {
-  const want = String(c.value ?? '')
-  const wanted = condList(c.value)
-  const op = opOf(c.operator)
-  const negate = op === 'is not' || op === 'none of'
-  const many = op === 'any of' || op === 'none of'
-  const yes = (v: boolean) => (negate ? !v : v)
-  const hits = (has: (v: string) => boolean) => yes(many ? wanted.some(has) : has(want))
-
-  // Age comes from the DOB they've typed on THIS form when it asks for one (no sign-in
-  // needed), falling back to the person's stored date of birth.
-  if (c.field === 'person:age') {
-    const dob = valByLabel(key, inst, 'Date of Birth') || identifiedPerson.value?.dob
-    const age = ageFromDob(dob ?? null)
-    if (age == null) return false                 // can't be told → don't show
-    if (op === 'between') {
-      const { from, to } = rangeOf(c.value)
-      return (from === '' || age >= Number(from)) && (to === '' || age <= Number(to))
-    }
-    const n = Number(c.value)
-    if (op === 'more than') return age > n
-    if (op === 'less than') return age < n
-    return age === n
-  }
-
-  if (c.field === 'person:group') {
-    const chosen = Object.entries(groupSel[key]?.[inst - 1] ?? {}).filter(([, on]) => on).map(([id]) => id)
-    // A form that asks which class they're joining answers this itself.
-    if (groupOptions.value.length) return yes(chosen.includes(want))
-    if (!identifiedPerson.value) return negate      // unknown → hide (unless "Is Not")
-    return yes(identifiedGroupIds.value.includes(want))
-  }
-
-  if (!identifiedPerson.value) return negate        // unknown → hide
-  if (c.field === 'person:person_type') {
-    const types: string[] = (identifiedPerson.value.person_types ?? []).map(String)
-    return hits(v => types.includes(v))
-  }
-  if (c.field === 'person:member_status') {
-    const p = identifiedPerson.value
-    const status = String(p.membership_status ?? (p.membership_type ? 'active_member' : 'non_member')).toLowerCase()
-    const matches = (v: string) => {
-      if (v === 'non_member') return status === 'non_member' || !p.membership_type
-      if (v === 'active_member') return status === 'active_member' || status === 'active'
-      if (v === 'inactive_member') return ['inactive_member', 'inactive', 'lapsed', 'expired'].includes(status)
-      return !!p.membership_type                    // 'member' — any membership at all
-    }
-    return hits(matches)
-  }
-  return true
-}
-
 function condPasses(conds: any[], key: string, inst: number) {
-  return (conds ?? []).every((c: any) => {
-    if (typeof c.field === 'string' && c.field.startsWith('person:')) return personCondPasses(c, key, inst)
-    const val = valByLabel(key, inst, c.field) ?? ''
-    const op = opOf(c.operator)
-    if (op === 'empty') return !val || val === false
-    if (op === 'not empty') return !!val && val !== false
-    if (op === 'is') return String(val) === String(c.value)
-    if (op === 'is not') return String(val) !== String(c.value)
-    // OR, within one row — separate rows are ANDed, so this is the only way to say
-    // "gender is male or female".
-    if (op === 'any of') return condList(c.value).includes(String(val))
-    if (op === 'none of') return !condList(c.value).includes(String(val))
-    if (op === 'contains') return String(val).toLowerCase().includes(String(c.value).toLowerCase())
-    if (op === 'starts with') return String(val).toLowerCase().startsWith(String(c.value).toLowerCase())
-    if (op === 'before') return !!val && new Date(String(val)) < new Date(String(c.value))
-    if (op === 'after') return !!val && new Date(String(val)) > new Date(String(c.value))
-    if (op === 'more than') return Number(val) > Number(c.value)
-    if (op === 'less than') return Number(val) < Number(c.value)
-    if (op === 'between') {
-      const { from, to } = rangeOf(c.value)
-      const isDate = String(val).includes('-') && Number.isNaN(Number(val))
-      if (isDate) {
-        const d = new Date(String(val))
-        return (!from || d >= new Date(String(from))) && (!to || d <= new Date(String(to)))
-      }
-      const n = Number(val)
-      return (from === '' || n >= Number(from)) && (to === '' || n <= Number(to))
-    }
-    return true
-  })
+  return conditionsPass(conds, condCtx(key, inst))
 }
 function fieldVisible(field: any, key: string, inst: number) {
   return condPasses(field.visibility_conditions ?? [], key, inst)

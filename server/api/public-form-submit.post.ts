@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { applicableDiscounts, aggregateDiscountLines, discountActive } from '../../composables/useDiscountEval'
 import { ageFromDob } from '../../composables/useAge'
+// The SAME evaluator the form uses on screen — see useFormConditions' header for why.
+import { conditionsPass } from '../../composables/useFormConditions'
 
 /**
  * Generic, context-agnostic registration-form submission endpoint.
@@ -109,12 +111,19 @@ export default defineEventHandler(async (event) => {
   // org/NSO field is by definition profile data. A bespoke question nobody defined
   // stays on the registration instead of littering the person with label-keyed junk.
   const fieldConn: Record<string, string> = {}
+  // Field-level financial rules ("+$20 when they tick Needs a uniform"), kept for the
+  // C1 recompute below. The client applies them to what it SHOWS; the server has to
+  // apply them too or the stored total silently drops them.
+  const financialFields: any[] = []
   if (effectiveFormId) {
     const { data: fr } = await supabase.from('registration_forms').select('config').eq('id', effectiveFormId).maybeSingle()
     const cfg = (fr?.config ?? {}) as any
     oneDiscountOnly = !!cfg.discountSettings?.one_discount_only
     for (const fields of Object.values(cfg.groupFields ?? {}) as any[]) {
-      for (const f of (fields ?? [])) if (f?.label) fieldConn[f.label] = f.connected_to ?? 'none'
+      for (const f of (fields ?? [])) {
+        if (f?.label) fieldConn[f.label] = f.connected_to ?? 'none'
+        if (f?.has_financial_increase && (f.financial_rules ?? []).length) financialFields.push(f)
+      }
     }
     // Legacy flat-shaped forms (config.fieldMeta) carry the same flag.
     for (const f of (cfg.fieldMeta ?? []) as any[]) if (f?.label) fieldConn[f.label] = f.connected_to ?? 'none'
@@ -323,7 +332,12 @@ export default defineEventHandler(async (event) => {
         .select('id', { count: 'exact', head: true }).eq('event_id', context.id)
 
       const personInstances: Instance[] = []
-      for (const s of subjects) { if ((s.kind ?? 'person') === 'entity') continue; for (const inst of s.instances) personInstances.push(inst) }
+      for (const s of subjects) {
+        if ((s.kind ?? 'person') === 'entity') continue
+        // A field belongs to ONE subject; remember which instance came from where so a
+        // Player's fee rule can't be charged against a Parent.
+        for (const inst of s.instances) { (inst as any).__subjectKey = s.key; personInstances.push(inst) }
+      }
       const refDate = eventStartAt ? new Date(eventStartAt) : new Date()
 
       let gross = 0
@@ -333,7 +347,30 @@ export default defineEventHandler(async (event) => {
         regIdx++
         const picked = new Set<string>([...(inst.sessions ?? []).filter((id: string) => realIds.has(id)), ...requiredIds])
         const sessionAmounts = [...picked].map(id => feeBySession[id] ?? 0)
-        const personTotal = eventBase + sessionAmounts.reduce((a, b) => a + b, 0)
+        let personTotal = eventBase + sessionAmounts.reduce((a, b) => a + b, 0)
+        // Field-level financial rules. A rule only counts when its own field is
+        // VISIBLE (a hidden question can't charge you) — the same rule the form applies
+        // on screen, so the price shown and the price stored agree.
+        const instKey = (inst as any).__subjectKey ?? ''
+        const fctx = {
+          answer: (label: string) => instVal(inst, label),
+          age: ageFromDob(instVal(inst, 'Date of Birth'), refDate),
+          memberStatus: instancePid.get(inst) ? (statusByPid[instancePid.get(inst) as string] ?? 'non_member') : '',
+          groupIds: Array.isArray((inst as any).groups) ? (inst as any).groups.map((g: any) => g?.group_id ?? g).filter(Boolean) : undefined,
+          // personTypes isn't loaded here — a rule that turns on someone's person type
+          // can't be verified server-side, so it simply doesn't charge (see below).
+        }
+        for (const f of financialFields) {
+          if ((f.target || '') !== instKey) continue
+          if (!conditionsPass(f.visibility_conditions ?? [], fctx)) continue
+          for (const rule of (f.financial_rules ?? [])) {
+            const amt = Number(rule.amount) || 0
+            if (!amt) continue
+            if (!conditionsPass(rule.conditions ?? [], fctx)) continue
+            personTotal += rule.fee_type === 'discount' ? -amt : amt
+          }
+        }
+        personTotal = Math.max(0, personTotal)
         gross += personTotal
         const positiveAmounts = [...eventLines, ...sessionAmounts].filter(a => a > 0)
         const dates = [...picked].map(id => startById[id]).filter(Boolean) as string[]

@@ -1327,6 +1327,7 @@ function saveEvtNewFieldBlock() {
 function openEvtFieldEditor(id: string) {
   if (evtPublicPreview.value) return  // no editing in the public preview
   evtSelectedFieldId.value = id
+  evtFieldEditorTab.value = 'details'   // always start on Details, never last-used
   evtSelectedFormSection.value = 'fields'
   // Make sure layout elements have their options array sized for the editor.
   const f: any = currentEvtFormFields.value.find(x => x.id === id)
@@ -1389,6 +1390,7 @@ function evtStartNewField(type: string) {
     const id = crypto.randomUUID()
     ensureEvtGroupFields().push({ id, label: uniqueEvtLabel('New Field'), field_type: 'text', is_required: false, placeholder: '', has_placeholder: false, col_span: 1, visibility_conditions: [], financial_rules: [], target: evtFieldTarget.value } as any)
     evtSelectedFieldId.value = id
+    evtFieldEditorTab.value = 'details'
     // Hand over to the field editor (its Back returns to the subject's Fields tab).
     evtSelectedFormSection.value = 'fields'
     evtFieldAdderOpen.value = false
