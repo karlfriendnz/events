@@ -150,6 +150,15 @@ function ok() {
   op.value?.hide()
 }
 function cancel() { op.value?.hide() }
+
+// Programmatic open — lets a parent (DateTimeEditor's date→time→date→time auto-advance)
+// pop this wheel. Anchors to the trigger, so no real click event is needed.
+function open() {
+  if (props.disabled || panelOpen.value) return
+  seedSelection()
+  op.value?.show({ currentTarget: triggerRef.value } as any, triggerRef.value)
+}
+defineExpose({ open })
 </script>
 
 <template>
