@@ -229,7 +229,7 @@ body {
 }
 
 /* GLOBAL RULE — every modal sits a fixed distance from the TOP of the window (never
-   vertically centred), so it never jumps around: 100px tall desktop / 56px–28px as the
+   vertically centred), so it never jumps around: 50px desktop / 40px–24px as the
    window gets shorter / 60px tablet / 30px mobile.
    Covers PrimeVue dialogs + page-as-modal shells (.app-modal-overlay). */
 /* !important + descendant selector: PrimeVue's own mask CSS loads after this file and
@@ -239,10 +239,10 @@ body {
    100px desktop inset — the modal sat too low AND had barely any height left to be
    readable in. Ordering matters: the height rules come FIRST so the narrow-screen
    rules still win last on a phone (which is both short and narrow). */
-:root { --modal-top: 100px; --modal-gap: 24px; }
-@media (max-height: 900px) { :root { --modal-top: 56px; } }
-@media (max-height: 780px) { :root { --modal-top: 28px; --modal-gap: 16px; } }
-@media (max-width: 1024px) { :root { --modal-top: 60px; --modal-gap: 24px; } }
+:root { --modal-top: 50px; --modal-gap: 24px; }
+@media (max-height: 900px) { :root { --modal-top: 40px; } }
+@media (max-height: 780px) { :root { --modal-top: 24px; --modal-gap: 16px; } }
+@media (max-width: 1024px) { :root { --modal-top: 40px; --modal-gap: 24px; } }
 @media (max-width: 640px)  { :root { --modal-top: 30px; } }
 
 .p-dialog-mask.p-overlay-mask { align-items: flex-start !important; }

@@ -225,23 +225,29 @@ defineExpose({ open })
 .ts-clock { border: none; background: transparent; color: #94a3b8; cursor: pointer; padding: 0; display: flex; align-items: center; font-size: 1rem; }
 .ts-clock:hover:not(:disabled) { color: var(--brand-primary); }
 
-.ts-panel { width: 236px; padding: 2px 0 0; }
+/* One row height + one end-padding shared by the wheels AND the AM/PM pair, so every
+   column's first row sits on the same line. --ts-pad + half a row = the snap centre. */
+.ts-panel { width: 236px; padding: 2px 0 0; --ts-row: 30px; --ts-pad: 68px; }
 .ts-cols { display: flex; align-items: stretch; }
 .ts-colon { display: flex; align-items: center; font-weight: 700; font-size: 16px; color: #cbd5e1; padding: 0 1px; }
-.ts-ampm { display: flex; flex-direction: column; justify-content: center; gap: 8px; padding: 0 4px 0 8px; }
+/* Top-aligned, NOT centred: centring the pair put the GAP between AM and PM on the
+   selected row, which is why AM read as sitting a row too high. */
+.ts-ampm { display: flex; flex-direction: column; justify-content: flex-start; gap: 2px; padding: var(--ts-pad) 4px var(--ts-pad) 8px; }
 .ts-ampm-btn {
-  padding: .45rem .7rem; border-radius: 8px; font-size: 13px; font-weight: 600; letter-spacing: .03em;
+  height: var(--ts-row); display: flex; align-items: center; justify-content: center;
+  padding: 0 .7rem; border-radius: 8px; font-size: 13px; font-weight: 600; letter-spacing: .03em;
   color: #1E2157; background: #f3f4f6; border: none; cursor: pointer; transition: background .12s, color .12s;
 }
 .ts-ampm-btn:hover:not(.ts-sel) { background: #e5e7eb; }
 .ts-col {
   flex: 1; height: 168px; overflow-y: auto; scroll-snap-type: y mandatory;
-  display: flex; flex-direction: column; gap: 2px; padding: 68px 6px;
+  display: flex; flex-direction: column; gap: 2px; padding: var(--ts-pad) 6px;
   scrollbar-width: none;
 }
 .ts-col::-webkit-scrollbar { width: 0; height: 0; }
 .ts-item {
-  scroll-snap-align: center; flex: 0 0 auto; text-align: center; padding: .35rem 0; border-radius: 8px;
+  scroll-snap-align: center; flex: 0 0 auto; height: var(--ts-row);
+  display: flex; align-items: center; justify-content: center; border-radius: 8px;
   font-size: 15px; font-variant-numeric: tabular-nums; color: #1E2157; background: transparent; border: none; cursor: pointer;
   transition: background .12s, color .12s;
 }
