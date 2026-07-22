@@ -81,10 +81,10 @@ onMounted(() => { if (props.modelValue === 'custom') loadOptions() })
       <div v-if="modelValue === 'custom'" class="space-y-2 rounded-lg border border-gray-200 p-3 bg-gray-50/60">
         <p class="field-help">Pick who can see it — any combination of types, groups or people.</p>
         <ChipMultiSelect :model-value="typeKeys" :options="typeOptions" option-label="label" option-value="value"
-          placeholder="People types" filter class="w-full" :show-toggle-all="false"
+          placeholder="People types"   class="w-full" :show-toggle-all="false"
           @update:model-value="emit('update:typeKeys', $event)" />
         <ChipMultiSelect :model-value="groupIds" :options="groupOptions" option-label="label" option-value="value"
-          placeholder="Groups" filter class="w-full" :show-toggle-all="false"
+          placeholder="Groups"   class="w-full" :show-toggle-all="false"
           @update:model-value="emit('update:groupIds', $event)">
           <template #option="{ option }">
             <span class="inline-flex items-center gap-1.5">
@@ -93,7 +93,7 @@ onMounted(() => { if (props.modelValue === 'custom') loadOptions() })
           </template>
         </ChipMultiSelect>
         <ChipMultiSelect :model-value="personIds" :options="peopleOptions" option-label="label" option-value="value"
-          placeholder="Specific people" filter class="w-full" :show-toggle-all="false"
+          placeholder="Specific people"   class="w-full" :show-toggle-all="false"
           @update:model-value="emit('update:personIds', $event)" />
       </div>
     </div>

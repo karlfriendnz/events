@@ -111,7 +111,7 @@
         <template v-if="open === 'category'">
           <div class="flex-1 w-full flex flex-col sm:flex-row sm:items-center gap-2 min-w-0" @click.stop>
             <ChipMultiSelect :modelValue="categoryIds" :options="categories" option-label="name" option-value="id"
-              placeholder="Choose categories" filter class="flex-1 w-full min-w-0"
+              placeholder="Choose categories"   class="flex-1 w-full min-w-0"
               @update:modelValue="$emit('update:categoryIds', $event)" :show-toggle-all="false">
               <template #option="{ option }">
                 <span class="inline-flex items-center gap-1.5">

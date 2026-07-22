@@ -13,6 +13,11 @@ const props = withDefaults(defineProps<{
   // list of groups and the flat option list is derived from their children.
   optionGroupLabel?: string
   optionGroupChildren?: string
+  /**
+   * SYSTEM RULE — a search box only appears once a list is long enough to need one
+   * (see SEARCH_THRESHOLD below). Leave this UNSET and the component decides; pass
+   * true/false only to force it for a specific list.
+   */
   filter?: boolean
   disabled?: boolean
   /** Field on an option that marks it unpickable (PrimeVue's optionDisabled). */
@@ -23,7 +28,7 @@ const props = withDefaults(defineProps<{
   optionLabel: 'label',
   optionValue: 'key',
   placeholder: 'Select…',
-  filter: false,
+  // filter deliberately has NO default — undefined means "decide from the count".
   disabled: false,
   showToggleAll: true,
 })
@@ -34,6 +39,11 @@ const flatOptions = computed<any[]>(() => {
   if (!props.optionGroupChildren) return props.options ?? []
   return (props.options ?? []).flatMap((g: any) => g[props.optionGroupChildren!] ?? [])
 })
+
+// SYSTEM RULE — searching a handful of options is noise; only show the filter box
+// once the list is long enough that scanning it stops being instant.
+const SEARCH_THRESHOLD = 10
+const showFilter = computed(() => props.filter ?? flatOptions.value.length > SEARCH_THRESHOLD)
 
 const emit = defineEmits<{ (e: 'update:modelValue', v: any[]): void }>()
 
@@ -94,7 +104,7 @@ onBeforeUnmount(() => { ro?.disconnect(); ro = null })
     @update:modelValue="emit('update:modelValue', $event)"
     :options="options" :optionLabel="optionLabel" :optionValue="optionValue"
     :optionGroupLabel="optionGroupLabel" :optionGroupChildren="optionGroupChildren"
-    :filter="filter" :disabled="disabled" :optionDisabled="optionDisabled"
+    :filter="showFilter" :disabled="disabled" :optionDisabled="optionDisabled"
     :placeholder="placeholder" :showToggleAll="showToggleAll" class="w-full">
     <!-- Let hosts own the group header (e.g. click a code to select all its classes). -->
     <template v-if="$slots.optiongroup" #optiongroup="sp">

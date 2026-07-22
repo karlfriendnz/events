@@ -129,7 +129,7 @@
                  neighbouring rows are 32px apart; the editor's own rows carry NO
                  padding and are spaced by space-y-8 (32px) instead, so a two-row
                  editor keeps exactly the same rhythm as a one-row field. -->
-            <div class="px-5 py-2 border-b border-gray-100">
+            <div class="px-5 py-0 border-b border-gray-100">
               <!-- No accordion: the fields ARE the summary. Each editor row carries
                    its own 120px label column, matching the card's, so every input
                    lines up with Event Title. -->
@@ -148,8 +148,8 @@
                 required
                 label-width="w-[120px]"
                 label-class="text-gray-800 font-semibold"
-                row-padding="px-0 py-0"
-                class="space-y-4"
+                row-padding="px-0 py-2"
+                divider
               />
               <!-- Why you can't proceed — a disabled button with no reason is a
                    dead end. Only nags once the user has engaged with the form. -->
@@ -163,7 +163,7 @@
             </div>
             <!-- Sign-up window — moved to the first tab (opens now → event start by default).
                  py-2 for the same reason as the Date block above. -->
-            <div class="px-5 py-2 border-b border-gray-100">
+            <div class="px-5 py-0 border-b border-gray-100">
               <DateTimeEditor
                 v-model:startDate="regOpenDate"
                 v-model:startTime="regOpenTime"
@@ -178,7 +178,7 @@
                 end-label="Closes"
                 label-width="w-[120px]"
                 label-class="text-gray-800 font-semibold"
-                row-padding="px-0 py-0" class="space-y-4" />
+                row-padding="px-0 py-2" />
             </div>
             <!-- Description -->
             <div class="px-5 py-2 border-b border-gray-100">
@@ -205,7 +205,7 @@
                   <label v-if="!disciplineEmpty" class="field-label block mb-1.5">Category</label>
                   <div class="flex items-center gap-2 min-w-0">
                     <ChipMultiSelect v-model="form.category_ids" :options="categories" option-label="name" option-value="id"
-                      placeholder="Choose categories" filter class="flex-1 min-w-0" :show-toggle-all="false">
+                      placeholder="Choose categories"   class="flex-1 min-w-0" :show-toggle-all="false">
                       <template #option="{ option }">
                         <span class="inline-flex items-center gap-1.5">
                           <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: option.color || '#94a3b8' }" />
@@ -529,32 +529,11 @@
               <Button icon="pi pi-plus" label="Add Terms" size="small" severity="secondary" outlined @click="form.custom_terms.push('')" />
             </div>
 
-            <!-- Event Administrators -->
-            <div class="border-t border-gray-100 pt-5">
-              <h3 class="text-sm font-semibold text-gray-800 mb-1">Event Administrators</h3>
-              <p class="text-xs text-gray-500 mb-3">Choose the required access level for each event admin</p>
-              <div class="border border-gray-200 rounded-xl overflow-hidden mb-3">
-                <div class="grid px-4 py-2.5 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide" style="grid-template-columns:1fr 100px 100px 100px 40px">
-                  <span>Name</span><span class="text-center">Registrations</span><span class="text-center">Changes</span><span class="text-center">Notes</span><span />
-                </div>
-                <div v-for="(admin, idx) in form.admins" :key="idx" class="grid px-4 py-2.5 border-b border-gray-100 last:border-0 items-center" style="grid-template-columns:1fr 100px 100px 100px 40px">
-                  <span class="text-sm text-blue-600 font-medium cursor-pointer hover:underline">{{ admin.name }}</span>
-                  <div class="flex justify-center"><Checkbox v-model="admin.registrations" binary /></div>
-                  <div class="flex justify-center">
-                    <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center cursor-pointer" :class="admin.changes ? 'border-primary bg-primary' : 'border-gray-300'" @click="admin.changes = !admin.changes">
-                      <div v-if="admin.changes" class="w-1.5 h-1.5 rounded-full bg-white" />
-                    </div>
-                  </div>
-                  <div class="flex justify-center">
-                    <div class="w-4 h-4 rounded-full border-2 flex items-center justify-center cursor-pointer" :class="admin.notes ? 'border-primary bg-primary' : 'border-gray-300'" @click="admin.notes = !admin.notes">
-                      <div v-if="admin.notes" class="w-1.5 h-1.5 rounded-full bg-white" />
-                    </div>
-                  </div>
-                  <Button icon="pi pi-times" text severity="danger" size="small" rounded @click="form.admins.splice(idx, 1)" />
-                </div>
-                <div v-if="!form.admins.length" class="px-4 py-4 text-sm text-gray-400 text-center">No administrators added</div>
-              </div>
-              <Button icon="pi pi-plus" label="Add Coordinator" size="small" severity="secondary" outlined @click="showAddAdminDialog = true" />
+            <!-- Coordinators — the REAL thing (event_coordinators), the same
+                 <EventCoordinators> the event page uses. What stood here was a mock:
+                 a local form.admins list rendered as a table and never saved. -->
+            <div v-if="draftEventId" class="border-t border-gray-100 pt-5">
+              <EventCoordinators :event-id="draftEventId" embedded />
             </div>
 
             <!-- ── Tell them ──
@@ -707,33 +686,6 @@
   </Teleport>
 
   <!-- Add Admin Dialog -->
-  <Dialog v-model:visible="showAddAdminDialog" header="Add Event Administrator" modal :style="{ width: '95vw', maxWidth: '360px' }">
-    <div class="flex flex-col gap-3 py-2">
-      <div class="flex flex-col gap-1.5">
-        <label class="text-sm font-medium">Name</label>
-        <InputText v-model="adminDraft.name" placeholder="Search members..." autofocus />
-      </div>
-      <div class="space-y-2">
-        <label class="text-sm font-medium">Permissions</label>
-        <div class="flex items-center gap-2">
-          <Checkbox v-model="adminDraft.registrations" binary input-id="adminReg" />
-          <label for="adminReg" class="text-sm text-gray-700 cursor-pointer">View Registrations</label>
-        </div>
-        <div class="flex items-center gap-2">
-          <Checkbox v-model="adminDraft.changes" binary input-id="adminChg" />
-          <label for="adminChg" class="text-sm text-gray-700 cursor-pointer">Make Changes</label>
-        </div>
-        <div class="flex items-center gap-2">
-          <Checkbox v-model="adminDraft.notes" binary input-id="adminNotes" />
-          <label for="adminNotes" class="text-sm text-gray-700 cursor-pointer">Add Notes</label>
-        </div>
-      </div>
-    </div>
-    <template #footer>
-      <Button label="Cancel" severity="secondary" text @click="showAddAdminDialog = false" />
-      <Button label="Add" :disabled="!adminDraft.name.trim()" @click="addAdmin" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
-    </template>
-  </Dialog>
 
   <!-- New Category Dialog -->
   <Dialog v-model:visible="showNewCategoryDialog" header="New Category" modal :style="{ width: '95vw', maxWidth: '360px' }">
@@ -786,7 +738,6 @@ const orgCurrency = ref('NZD')
 const saving = ref(false)
 const draftEventId = ref<string | null>(null)
 const categories = ref<any[]>([])
-const showAddAdminDialog = ref(false)
 const showNewCategoryDialog = ref(false)
 const newCategoryName = ref('')
 const newCategoryColor = ref('#1E2157')
@@ -1037,13 +988,7 @@ const visibilityOptions = [
   { key: 'hold_spot_enabled',   label: 'Hold-spot registration', desc: 'Holds a spot while payment or approval is pending, instead of releasing it.' },
 ]
 
-const adminDraft = reactive({ name: '', registrations: true, changes: false, notes: false })
 
-function addAdmin() {
-  form.admins.push({ ...adminDraft })
-  Object.assign(adminDraft, { name: '', registrations: true, changes: false, notes: false })
-  showAddAdminDialog.value = false
-}
 
 // Pre-fill date from query param
 function parseDateParam(str: string | null): Date | null {
@@ -1183,7 +1128,6 @@ const form = reactive({
   // Settings
   banner_url: '',
   custom_terms: [] as string[],
-  admins: [] as { name: string; registrations: boolean; changes: boolean; notes: boolean }[],
   // Does this event collect a form at all? (RSVP-only events don't.) The form
   // itself is NOT drafted here — <FormDesigner> owns it and autosaves against the
   // draft event, exactly as it does on the advanced event.

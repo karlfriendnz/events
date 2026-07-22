@@ -474,7 +474,7 @@
         <div v-if="catHasDisciplines" class="flex flex-col gap-1.5">
           <label class="text-sm font-medium text-surface-700">Disciplines</label>
           <ChipMultiSelect v-model="catForm.discipline_ids" :options="discGroups" option-label="name" option-value="id"
-            option-group-label="label" option-group-children="items" filter
+            option-group-label="label" option-group-children="items"
             placeholder="No disciplines" class="w-full">
             <template #optiongroup="{ option }">
               <span class="text-xs font-bold uppercase tracking-wide text-surface-500">{{ option.label }}</span>
@@ -493,7 +493,7 @@
           <div class="flex flex-col gap-1">
             <span class="text-xs text-surface-500">People types</span>
             <ChipMultiSelect v-model="catForm.access_type_keys" :options="catPersonTypes" option-label="label" option-value="key"
-              filter placeholder="Any type" class="w-full" />
+                placeholder="Any type" class="w-full" />
           </div>
           <div class="flex flex-col gap-1">
             <span class="text-xs text-surface-500">Specific people</span>

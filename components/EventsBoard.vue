@@ -110,7 +110,7 @@
               <div class="flex flex-col gap-1.5 mt-2">
                 <label class="text-xs font-medium text-gray-600">Categories in this calendar</label>
                 <ChipMultiSelect v-model="newCalendarCategoryIds" :options="allCategories"
-                  option-label="name" option-value="id" placeholder="Any category" filter class="w-full">
+                  option-label="name" option-value="id" placeholder="Any category"   class="w-full">
                   <template #option="{ option }">
                     <div class="flex items-center gap-2">
                       <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: option.color ?? '#94a3b8' }" />
@@ -718,7 +718,7 @@
           <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Category</span>
             <ChipMultiSelect v-model="quickForm.category_ids" :options="allCategories" option-label="name" option-value="id"
-              placeholder="No category" filter class="w-full sm:w-64" :show-toggle-all="false">
+              placeholder="No category"   class="w-full sm:w-64" :show-toggle-all="false">
               <template #option="{ option }">
                 <span class="inline-flex items-center gap-1.5">
                   <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: option.color || '#94a3b8' }" />

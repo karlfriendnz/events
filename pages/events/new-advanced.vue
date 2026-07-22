@@ -74,7 +74,7 @@
             </div>
             <!-- Date. py-2 not py-4: the editor's rows carry their own py-2, so this
                  block would otherwise be padded twice and sit lower than Event Title. -->
-            <div class="px-5 py-2 border-b border-gray-100">
+            <div class="px-5 py-0 border-b border-gray-100">
               <DateTimeEditor
                 v-model:startDate="form.start_date"
                 v-model:endDate="form.end_date"
@@ -90,8 +90,8 @@
                 required
                 label-width="w-[120px]"
                 label-class="text-gray-800 font-semibold"
-                row-padding="px-0 py-0"
-                class="space-y-4"
+                row-padding="px-0 py-2"
+                divider
               />
               <!-- Why you can't proceed — a disabled Next with no reason is a dead end. -->
               <div v-if="dateInvalidReason && (form.title.trim() || form.start_date)" class="py-1 sm:pl-[136px]">
@@ -119,7 +119,7 @@
                     <label class="block text-sm font-semibold text-gray-800 mb-1.5">Category</label>
                     <div class="flex items-center gap-2 min-w-0">
                       <ChipMultiSelect v-model="form.category_ids" :options="categories" option-label="name" option-value="id"
-                        placeholder="Choose categories" filter class="flex-1 min-w-0" :show-toggle-all="false">
+                        placeholder="Choose categories"   class="flex-1 min-w-0" :show-toggle-all="false">
                         <template #option="{ option }">
                           <span class="inline-flex items-center gap-1.5">
                             <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: option.color || '#94a3b8' }" />
@@ -327,6 +327,11 @@
                 <p class="text-xs text-gray-400 mt-0.5">{{ opt.desc }}</p>
               </div>
               <ToggleSwitch v-model="form[opt.key]" />
+            </div>
+            <!-- Who administers it — the same <EventCoordinators> the event page and
+                 the basic wizard use, writing real event_coordinators rows. -->
+            <div v-if="draftEventId" class="px-5 py-4">
+              <EventCoordinators :event-id="draftEventId" embedded />
             </div>
           </div>
         </template>
