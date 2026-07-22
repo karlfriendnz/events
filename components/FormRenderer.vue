@@ -59,6 +59,11 @@ const activeGroupId = computed(() => {
 
 const design = computed(() => props.config?.designs?.[activeGroupId.value] ?? {})
 const isWizard = computed(() => design.value?.style === 'tabs')
+// The active step's fill — club-settable in Form Design, brand navy by default.
+const stepColor = computed(() => design.value?.stepColor || '#111827')
+function stepLabel(st: any) {
+  return st.kind === 'summary' ? 'Summary & payment' : st.kind === 'terms' ? 'Terms & conditions' : st.subject.label
+}
 const formHeading = computed(() => design.value?.formHeading || 'Fill in the form to register')
 
 // Designed header chrome — banner / info-icons / description / background, the same
@@ -883,17 +888,18 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
 
     <h2 class="text-lg font-bold text-gray-900 mb-4">{{ formHeading }}</h2>
 
-    <!-- Step indicator -->
-    <div v-if="isWizard" class="flex items-center gap-2 mb-5 flex-wrap">
-      <template v-for="(st, i) in steps" :key="i">
-        <button type="button" class="flex items-center gap-1.5 text-xs font-semibold transition-colors"
-          :class="i === step ? 'text-primary' : 'text-gray-400'" @click="step = i">
-          <span class="w-5 h-5 rounded-full flex items-center justify-center text-[11px]"
-            :class="i === step ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500'">{{ i + 1 }}</span>
-          {{ st.kind === 'summary' ? 'Summary &amp; payment' : st.kind === 'terms' ? 'Terms' : st.subject.label }}
-        </button>
-        <span v-if="i < steps.length - 1" class="text-gray-300">›</span>
-      </template>
+    <!-- Step indicator — segments, not a row of dots-and-chevrons: each step gets its
+         number and its NAME, and the one you're on is filled with the form's own step
+         colour (Form Design → Step colour). -->
+    <div v-if="isWizard" class="mb-5 rounded-xl border border-gray-200 overflow-hidden flex divide-x divide-gray-200">
+      <button v-for="(st, i) in steps" :key="i" type="button"
+        class="flex-1 min-w-0 px-3 py-2.5 text-center transition-colors"
+        :class="i === step ? 'text-white' : 'hover:bg-gray-50'"
+        :style="i === step ? { background: stepColor } : undefined"
+        @click="step = i">
+        <span class="block text-xs font-bold" :class="i === step ? 'text-white' : 'text-gray-700'">Step {{ i + 1 }}</span>
+        <span class="block text-[11px] truncate" :class="i === step ? 'text-white/80' : 'text-gray-400'">{{ stepLabel(st) }}</span>
+      </button>
     </div>
 
     <!-- Subjects -->

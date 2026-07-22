@@ -119,6 +119,19 @@
         </div>
       </div>
 
+      <!-- Steps (Form Style = Steps) -->
+      <div>
+        <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Step colour</p>
+        <div class="flex items-center gap-2 p-2 border border-gray-200 rounded-xl">
+          <input type="color" :value="design.stepColor || '#111827'" class="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white"
+            @input="design.stepColor = ($event.target as HTMLInputElement).value" />
+          <span class="text-xs text-gray-500 font-mono flex-1">{{ design.stepColor || '#111827' }}</span>
+          <button type="button" class="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            @click="design.stepColor = '#111827'">Reset</button>
+        </div>
+        <p class="text-[11px] text-gray-400 mt-1">Fills the step you're on in the progress bar.</p>
+      </div>
+
       <!-- Background -->
       <div>
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Page Background</p>

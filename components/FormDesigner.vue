@@ -2064,6 +2064,8 @@ const evtFormGroupDesigns = reactive<Record<string, any>>({
   'general': { style: 'tabs', header: 'event', headerImage: '', icons: { date: true, time: true, cost: true, location: true, criteria: true }, description: 'event', customDescription: '', background: 'default', backgroundImage: '', backgroundColor: '#fefefe', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', backgroundOverlay: 1, sponsors: 'show', showSessions: true, sessionsHeading: 'Sessions', sessionsLayout: 'list', sessionsGroupLabel: '', formHeading: 'Fill in the form to register', addPersonColor: '#0e43a3' },
 })
 const currentEvtFormDesign = computed(() => evtFormGroupDesigns[selectedFormGroupId.value] ?? evtFormGroupDesigns['general'])
+// Active step fill — club-settable in Form Design (design.stepColor).
+const evtStepColor = computed(() => currentEvtFormDesign.value?.stepColor || '#111827')
 
 // A new form's design — a programme defaults its session view to the date × session
 // data table (best for multi-day programmes); everything else stays a list.
@@ -4045,21 +4047,17 @@ defineExpose({ reload })
                     <i v-if="p.pos === 'next'" class="pi pi-angle-right text-[10px] shrink-0 opacity-70" />
                   </button>
                 </div>
-                <!-- Desktop: full pill list with numbers -->
-                <div v-else class="flex items-center gap-1 flex-wrap">
-                  <template v-for="(st, idx) in evtWizardSteps" :key="st.key">
-                    <button type="button"
-                      class="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors"
-                      :class="idx === evtWizardStep ? 'bg-primary text-white' : idx < evtWizardStep ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-400'"
-                      @click="evtOpenEditorForStep(idx)">
-                      <span class="w-4 h-4 rounded-full flex items-center justify-center text-[9px] shrink-0"
-                        :class="idx === evtWizardStep ? 'bg-white/25' : idx < evtWizardStep ? 'bg-primary/15' : 'bg-white'">
-                        <i v-if="idx < evtWizardStep" class="pi pi-check text-[7px]" /><template v-else>{{ idx + 1 }}</template>
-                      </span>
-                      {{ st.label }}
-                    </button>
-                    <i v-if="idx < evtWizardSteps.length - 1" class="pi pi-angle-right text-gray-300 text-[10px]" />
-                  </template>
+                <!-- Desktop: segmented steps — number + name, active filled with the
+                     form's own step colour (matches <FormRenderer> exactly). -->
+                <div v-else class="rounded-xl border border-gray-200 overflow-hidden flex divide-x divide-gray-200">
+                  <button v-for="(st, idx) in evtWizardSteps" :key="st.key" type="button"
+                    class="flex-1 min-w-0 px-3 py-2.5 text-center transition-colors"
+                    :class="idx === evtWizardStep ? 'text-white' : 'hover:bg-gray-50'"
+                    :style="idx === evtWizardStep ? { background: evtStepColor } : undefined"
+                    @click="evtOpenEditorForStep(idx)">
+                    <span class="block text-xs font-bold" :class="idx === evtWizardStep ? 'text-white' : 'text-gray-700'">Step {{ idx + 1 }}</span>
+                    <span class="block text-[11px] truncate" :class="idx === evtWizardStep ? 'text-white/80' : 'text-gray-400'">{{ st.label }}</span>
+                  </button>
                 </div>
               </div>
 
