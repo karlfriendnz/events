@@ -30,19 +30,15 @@
             :disabled="isAllDay" :min-time="endMinTime"
             @update:model-value="onEndTime" />
         </div>
-        <!-- All day -->
-        <div v-if="showAllDay" class="flex items-center gap-2 shrink-0">
+        <!-- All day — only sits ON the date line when there's no Repeat row to put it
+             on. It's a real flex child, so keeping it here made this row's four
+             pickers narrower than an otherwise-identical row without a toggle (the
+             Date row vs the Sign-up row under it) — they neither lined up nor had
+             room. With a Repeat row present it moves down there instead. -->
+        <div v-if="showAllDay && !showRepeat" class="flex items-center gap-2 shrink-0">
           <span class="text-xs text-gray-500" :class="stack ? '' : 'lg:hidden'">All day</span>
           <ToggleSwitch :model-value="isAllDay" v-tooltip.top="'All day'"
             @update:model-value="emit('update:isAllDay', $event)" />
-        </div>
-        <!-- …and when there ISN'T one, hold its space. The toggle is a real flex child,
-             so an editor with it splits the row into narrower columns than one without
-             — which is why the Date row and the Sign-up row below it didn't line up.
-             Only from lg, where the row is a single line (below that it stacks and
-             there's nothing to align to). -->
-        <div v-else-if="!stack" aria-hidden="true" class="hidden lg:flex items-center gap-2 shrink-0 invisible pointer-events-none">
-          <ToggleSwitch :model-value="false" />
         </div>
       </div>
     </div>
@@ -54,18 +50,30 @@
         <span class="text-xs text-gray-400">Allow a date outside the event's range</span>
       </div>
     </div>
-    <!-- Repeat (dropdown + exclusions calendar) -->
+    <!-- Repeat (dropdown + exclusions calendar).
+         The label's top offset centres it against the 40px control on its first line
+         (10px = (40 − 20)/2); it used to be pt-2, which only looked right while the
+         row carried its own padding. -->
     <div v-if="showRepeat" class="flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-4" :class="rowPadding">
-      <span class="field-label shrink-0 sm:pt-2" :class="labelWidth">Repeat</span>
-      <RepeatField
-        :model-value="repeat"
-        :exdates="exdates"
-        :base-date="startDate"
-        :range-end="maxDate ?? null"
-        :show-custom="showCustomRepeat"
-        @update:model-value="emit('update:repeat', $event)"
-        @update:exdates="emit('update:exdates', $event)"
-        @customRepeat="emit('customRepeat')" />
+      <span class="field-label shrink-0 sm:pt-2.5" :class="labelWidth">Repeat</span>
+      <div class="flex-1 min-w-0 flex items-start gap-3">
+        <RepeatField
+          class="flex-1 min-w-0"
+          :model-value="repeat"
+          :exdates="exdates"
+          :base-date="startDate"
+          :range-end="maxDate ?? null"
+          :show-custom="showCustomRepeat"
+          @update:model-value="emit('update:repeat', $event)"
+          @update:exdates="emit('update:exdates', $event)"
+          @customRepeat="emit('customRepeat')" />
+        <!-- All day lives here (see the date row above) — it keeps the four date
+             pickers full-width and identical to a row that has no toggle at all. -->
+        <label v-if="showAllDay" class="flex items-center gap-2 shrink-0 h-10 cursor-pointer select-none">
+          <span class="text-xs text-gray-500">All day</span>
+          <ToggleSwitch :model-value="isAllDay" @update:model-value="emit('update:isAllDay', $event)" />
+        </label>
+      </div>
     </div>
     <!-- Outside dates warning -->
     <div v-if="showOutsideEventDates && outsideEventDates" class="flex items-center gap-2 mx-5 my-3 rounded-lg bg-orange-50 border border-orange-200 px-3 py-2">

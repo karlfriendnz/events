@@ -312,6 +312,15 @@
             <p class="text-sm text-gray-500">Control who can see and interact with this event.</p>
           </div>
           <div class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
+            <!-- WHO CAN SEE IT — the shared picker, same as the quick + basic paths. -->
+            <div class="px-5 py-4">
+              <EventVisibilityPicker
+                v-model="form.visibility"
+                v-model:type-keys="form.visibility_type_keys"
+                v-model:group-ids="form.visibility_group_ids"
+                v-model:person-ids="form.visibility_person_ids"
+                label="Who can see it" label-width="sm:w-32" />
+            </div>
             <div v-for="opt in visibilityOptions" :key="opt.key" class="flex items-center gap-4 px-5 py-4">
               <div class="flex-1">
                 <p class="text-sm font-medium text-gray-700">{{ opt.label }}</p>
@@ -567,6 +576,11 @@ const form = reactive({
   public_opens_at: null as Date | null,
   // Visibility
   is_public: false,
+  // Who can see it (mig 287) — same model as the quick + basic paths.
+  visibility: 'internal',
+  visibility_type_keys: [] as string[],
+  visibility_group_ids: [] as string[],
+  visibility_person_ids: [] as string[],
   is_featured: false,
   show_attendee_list: false,
   show_attendee_count: true,
@@ -730,6 +744,10 @@ async function saveEvent() {
       memberWindowDays: form.member_window_days,
       publicOpensAt: form.public_opens_at ?? null,
       isPublic: form.is_public,
+      visibility: form.visibility || 'internal',
+      visibilityTypeKeys: form.visibility === 'custom' && form.visibility_type_keys.length ? form.visibility_type_keys : null,
+      visibilityGroupIds: form.visibility === 'custom' && form.visibility_group_ids.length ? form.visibility_group_ids : null,
+      visibilityPersonIds: form.visibility === 'custom' && form.visibility_person_ids.length ? form.visibility_person_ids : null,
       isFeatured: form.is_featured,
       showAttendeeList: form.show_attendee_list,
       showAttendeeCount: form.show_attendee_count,
@@ -756,6 +774,10 @@ async function saveEvent() {
           capacityMax: tpl.limit ?? null,
           isRequired: false,
           isPublic: form.is_public,
+      visibility: form.visibility || 'internal',
+      visibilityTypeKeys: form.visibility === 'custom' && form.visibility_type_keys.length ? form.visibility_type_keys : null,
+      visibilityGroupIds: form.visibility === 'custom' && form.visibility_group_ids.length ? form.visibility_group_ids : null,
+      visibilityPersonIds: form.visibility === 'custom' && form.visibility_person_ids.length ? form.visibility_person_ids : null,
           displayOnForm: true,
           isMaster: true,
           masterId: null,
@@ -773,6 +795,10 @@ async function saveEvent() {
               capacityMax: tpl.limit ?? null,
               isRequired: false,
               isPublic: form.is_public,
+      visibility: form.visibility || 'internal',
+      visibilityTypeKeys: form.visibility === 'custom' && form.visibility_type_keys.length ? form.visibility_type_keys : null,
+      visibilityGroupIds: form.visibility === 'custom' && form.visibility_group_ids.length ? form.visibility_group_ids : null,
+      visibilityPersonIds: form.visibility === 'custom' && form.visibility_person_ids.length ? form.visibility_person_ids : null,
               displayOnForm: true,
               isMaster: false,
               masterId: master.id,

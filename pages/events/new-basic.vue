@@ -451,6 +451,17 @@
           <div class="mb-4">
             <h3 class="text-sm font-semibold text-gray-800 mb-3">Visibility</h3>
           <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <!-- WHO CAN SEE IT — the same control the quick event uses (shared
+                 <EventVisibilityPicker>), so all three creation paths write the one
+                 model instead of this wizard only knowing a public/not-public flag. -->
+            <div class="pb-4 mb-4 border-b border-gray-100">
+              <EventVisibilityPicker
+                v-model="form.visibility"
+                v-model:type-keys="form.visibility_type_keys"
+                v-model:group-ids="form.visibility_group_ids"
+                v-model:person-ids="form.visibility_person_ids"
+                label="Who can see it" label-width="sm:w-32" />
+            </div>
             <!-- Honesty notice: these choices are saved but not yet enforced. -->
             <div class="flex items-start gap-2 mb-4 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
               <i class="pi pi-info-circle text-amber-500 text-xs mt-0.5" />
@@ -1150,6 +1161,11 @@ const form = reactive({
   capacity_max: null as number | null,
   // Visibility
   is_public: false,
+  // Who can see it (mig 287) — same model as the quick event.
+  visibility: 'internal',
+  visibility_type_keys: [] as string[],
+  visibility_group_ids: [] as string[],
+  visibility_person_ids: [] as string[],
   is_featured: false,
   show_attendee_list: false,
   show_attendee_count: true,
@@ -1412,6 +1428,10 @@ async function saveEvent() {
       capacityMax: form.has_capacity ? (form.capacity_max ?? null) : null,
       hasWaitlist: form.has_waitlist,
       isPublic: form.is_public,
+      visibility: form.visibility || 'internal',
+      visibilityTypeKeys: form.visibility === 'custom' && form.visibility_type_keys.length ? form.visibility_type_keys : null,
+      visibilityGroupIds: form.visibility === 'custom' && form.visibility_group_ids.length ? form.visibility_group_ids : null,
+      visibilityPersonIds: form.visibility === 'custom' && form.visibility_person_ids.length ? form.visibility_person_ids : null,
       isFeatured: form.is_featured,
       showAttendeeList: form.show_attendee_list,
       showAttendeeCount: form.show_attendee_count,
@@ -1630,6 +1650,10 @@ async function resumeDraft(): Promise<boolean> {
     reg_open_at: ev.regOpenAt,
     reg_close_at: ev.regCloseAt,
     is_public: ev.isPublic,
+    visibility: ev.visibility,
+    visibility_type_keys: ev.visibilityTypeKeys,
+    visibility_group_ids: ev.visibilityGroupIds,
+    visibility_person_ids: ev.visibilityPersonIds,
     form_id: ev.formId,
   } : null
 
@@ -1671,6 +1695,10 @@ async function resumeDraft(): Promise<boolean> {
   // already built would lose the form step entirely (the step is gated on
   // use_registration_form). A linked form_id IS the evidence they chose "form".
   form.is_public = !!evt.is_public
+  form.visibility = evt.visibility || (evt.is_public ? 'public' : 'internal')
+  form.visibility_type_keys = evt.visibility_type_keys ?? []
+  form.visibility_group_ids = evt.visibility_group_ids ?? []
+  form.visibility_person_ids = evt.visibility_person_ids ?? []
   invitePublic.value = !!evt.is_public
   form.use_registration_form = !!evt.form_id || !!evt.is_public
   attendeeAction.value = form.use_registration_form ? 'form' : 'rsvp'
