@@ -706,6 +706,20 @@
             :divider="false" no-past-today
             label="When" required label-width="sm:w-20" row-padding="px-0 py-1" />
 
+          <!-- Recurring indicator — shows the rule when the event repeats; click to
+               preview every occurrence that will be created (the series). -->
+          <div v-if="quickForm.repeat" class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
+            <span class="field-label shrink-0 sm:w-20" />
+            <button type="button"
+              class="inline-flex items-center gap-1.5 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/15 rounded-full pl-2.5 pr-2.5 py-1 transition-colors w-max"
+              @click="openSeriesPreview">
+              <i class="pi pi-sync text-[10px]" />
+              {{ quickRepeatSummary }}
+              <span class="text-primary/60">· view series</span>
+              <i class="pi pi-chevron-right text-[9px]" />
+            </button>
+          </div>
+
           <!-- Category -->
           <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Category</span>
@@ -765,6 +779,27 @@
             @click="createQuickEvent" />
         </template>
       </template>
+    </Dialog>
+
+    <!-- Series preview — the occurrences a recurring quick event will create. -->
+    <Dialog v-model:visible="seriesPreviewOpen" modal
+      :header="`Series · ${seriesPreviewRows.length} ${seriesPreviewRows.length === 1 ? t('event', false) : t('event', true)}`"
+      :style="{ width: '95vw', maxWidth: '520px' }">
+      <p class="text-xs text-gray-500 mb-3">{{ quickRepeatSummary }} — these occurrences are created when you add the {{ t('event', false, true) }}.</p>
+      <div class="border border-gray-200 rounded-lg overflow-hidden max-h-[60vh] overflow-y-auto">
+        <table class="w-full text-sm">
+          <tbody class="divide-y divide-gray-100">
+            <tr v-for="(d, i) in seriesPreviewRows" :key="i" class="hover:bg-gray-50">
+              <td class="px-3 py-2 text-gray-400 w-10 text-right tabular-nums">{{ i + 1 }}</td>
+              <td class="px-3 py-2 font-medium text-gray-800">{{ d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) }}</td>
+              <td v-if="!quickForm.is_all_day && quickForm.start_time" class="px-3 py-2 text-gray-500 text-right whitespace-nowrap">
+                {{ quickForm.start_time.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) }}
+              </td>
+            </tr>
+            <tr v-if="!seriesPreviewRows.length"><td class="px-3 py-6 text-center text-gray-400">No occurrences in the next year.</td></tr>
+          </tbody>
+        </table>
+      </div>
     </Dialog>
 
     <!-- Is the event split into parts people sign up to separately? That — not
@@ -1192,6 +1227,27 @@ async function createQuickEvent() {
       meetingLink: loc.type === 'ONLINE' ? (loc.meeting_link || null) : null,
     }
     await eventsApi.update(quickDraftId.value, patch)
+    // Recurring? Materialise the occurrence series (master + child rows) — a repeat
+    // rule alone created NOTHING before, so a no-end-date recurring event vanished.
+    // Mirrors the event page's Generate Series; bounded to +1yr when the rule has no
+    // UNTIL/COUNT (never infinite). generateSeries delete-then-inserts → re-run safe.
+    if (quickForm.repeat && patch.startAt) {
+      try {
+        const { expandRrule, dateKey } = await import('~/composables/useRecurrence')
+        const startDt = new Date(patch.startAt)
+        const duration = patch.endAt ? (new Date(patch.endAt).getTime() - startDt.getTime()) : 0
+        const windowEnd = new Date(startDt); windowEnd.setFullYear(windowEnd.getFullYear() + 1)
+        const exdateSet = new Set(quickForm.exdates ?? [])
+        const masterKey = dateKey(startDt)
+        const occ = expandRrule(quickForm.repeat, startDt, windowEnd, 200)
+          .filter((d) => { const k = dateKey(d); return k !== masterKey && !exdateSet.has(k) })
+          .map((d) => {
+            const cs = new Date(d); cs.setHours(startDt.getHours(), startDt.getMinutes(), 0, 0)
+            return { startAt: cs.toISOString(), endAt: patch.endAt ? new Date(cs.getTime() + duration).toISOString() : null }
+          })
+        if (occ.length) await eventsApi.generateSeries(quickDraftId.value, occ)
+      } catch { /* best-effort — the master event is already created */ }
+    }
     quickCreated.value = true
     const id = quickDraftId.value
     quickOpen.value = false
@@ -1201,6 +1257,23 @@ async function createQuickEvent() {
   } finally {
     creatingQuick.value = false
   }
+}
+
+// Recurring chip → the occurrences this quick event will create (the "series").
+// Reuses the same expandRrule the create path uses, so the preview matches exactly.
+const quickRepeatSummary = computed(() => (quickForm.repeat ? rruleToSummary(quickForm.repeat) : ''))
+const seriesPreviewOpen = ref(false)
+const seriesPreviewRows = ref<Date[]>([])
+async function openSeriesPreview() {
+  if (!quickForm.repeat) return
+  const startIso = quickBuildDateTime(quickForm.start_date, quickForm.start_time, quickForm.is_all_day)
+  if (!startIso) return
+  const { expandRrule, dateKey } = await import('~/composables/useRecurrence')
+  const startDt = new Date(startIso)
+  const windowEnd = new Date(startDt); windowEnd.setFullYear(windowEnd.getFullYear() + 1)
+  const exdateSet = new Set(quickForm.exdates ?? [])
+  seriesPreviewRows.value = expandRrule(quickForm.repeat, startDt, windowEnd, 200).filter((d) => !exdateSet.has(dateKey(d)))
+  seriesPreviewOpen.value = true
 }
 
 // Cancelling (or dismissing) an uncreated quick draft removes it — no orphans.
