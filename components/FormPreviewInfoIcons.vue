@@ -1,18 +1,12 @@
 <template>
   <div class="px-4 sm:px-6 pt-7 pb-5">
     <div class="grid gap-3" :class="mobile ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-3'">
-      <div v-if="design.icons?.date && (!live || event?.start_at)" class="flex items-start gap-2">
+      <!-- When (date + time as one fact) → Cost → Location. -->
+      <div v-if="(design.icons?.date || design.icons?.time) && (!live || event?.start_at)" class="flex items-start gap-2">
         <i class="pi pi-calendar text-gray-400 text-sm mt-0.5 shrink-0" />
         <div class="text-sm">
-          <p class="font-semibold text-gray-600">Date:</p>
-          <p class="text-gray-500">{{ event?.start_at ? new Date(event.start_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Your event date' }}</p>
-        </div>
-      </div>
-      <div v-if="design.icons?.time && (!live || event?.start_at)" class="flex items-start gap-2">
-        <i class="pi pi-clock text-gray-400 text-sm mt-0.5 shrink-0" />
-        <div class="text-sm">
-          <p class="font-semibold text-gray-600">Time:</p>
-          <p class="text-gray-500">{{ event?.start_at ? new Date(event.start_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'Your event time' }}</p>
+          <p class="font-semibold text-gray-600">When:</p>
+          <p class="text-gray-500">{{ whenLabel }}</p>
         </div>
       </div>
       <div v-if="design.icons?.cost" class="flex items-start gap-2">
@@ -31,20 +25,12 @@
           <p class="text-gray-500">{{ event?.location || (live ? '' : 'Your event venue') }}</p>
         </div>
       </div>
-      <!-- Criteria copy is illustrative on the builder preview; hidden on the live form unless a real value is supplied. -->
-      <div v-if="design.icons?.criteria && (!live || event?.criteria)" class="flex items-start gap-2">
-        <i class="pi pi-user text-gray-400 text-sm mt-0.5 shrink-0" />
-        <div class="text-sm">
-          <p class="font-semibold text-gray-600">Invitee Restrictions:</p>
-          <p class="text-gray-500">{{ event?.criteria || 'Any age' }}</p>
-        </div>
-      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
   design: { icons?: { date?: boolean; time?: boolean; cost?: boolean; location?: boolean; criteria?: boolean } }
   event: { start_at?: string | null; is_paid?: boolean; location?: string | null; criteria?: string | null } | null
   /** When true (phone preview), stack each detail full-width. */
@@ -54,4 +40,15 @@ defineProps<{
   /** Real cost label for the live form. */
   cost?: string
 }>()
+
+// Date + time in one line — only the parts whose icon is enabled, joined by a dot.
+const whenLabel = computed(() => {
+  const at = props.event?.start_at
+  if (!at) return props.live ? '' : 'Your event date'
+  const d = new Date(at)
+  const parts: string[] = []
+  if (props.design?.icons?.date) parts.push(d.toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' }))
+  if (props.design?.icons?.time) parts.push(d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true }))
+  return parts.join(' · ')
+})
 </script>

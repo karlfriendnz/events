@@ -73,14 +73,14 @@ const inert = computed(() => (interactive.value ? '' : 'pointer-events-none'))
   <!-- Regular data field -->
   <div v-else
     :data-field-key="field.id"
-    :class="[field.col_span === 2 ? 'col-span-2' : '', interactive ? '' : 'cursor-pointer hover:ring-2 hover:ring-[#0e43a3]/20 hover:bg-blue-50/20']"
-    class="space-y-1 group rounded-lg px-2 -mx-2 transition-all relative"
+    :class="[field.col_span === 2 ? 'col-span-2' : '', interactive ? '' : 'cursor-pointer hover:bg-gray-50/70 hover:border-gray-200']"
+    class="space-y-1 group rounded-lg border border-transparent px-2 -mx-2 py-1.5 transition-colors relative"
     @click="edit">
     <span v-if="!interactive" class="field-drag-handle absolute right-0 top-0 w-5 h-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity z-10" v-tooltip.top="'Drag to reorder'" @click.stop @mousedown.stop>
       <i class="pi pi-arrows-alt text-[11px]" />
     </span>
-    <!-- Label (hidden for checkboxes — text is inline) -->
-    <div v-if="field.field_type !== 'checkbox'" class="flex items-center gap-1" :class="interactive ? '' : 'cursor-pointer'" @click="edit">
+    <!-- Label (hidden for checkboxes + account/comms — those say it inline in one row) -->
+    <div v-if="!['checkbox','account','comms'].includes(field.field_type)" class="flex items-center gap-1" :class="interactive ? '' : 'cursor-pointer'" @click="edit">
       <label class="text-sm font-semibold text-gray-600" :class="interactive ? '' : 'cursor-pointer'">{{ field.label }}<span v-if="field.is_required" class="text-red-400 ml-0.5">*</span></label>
       <span v-if="readOnly" class="text-[10px] font-normal text-gray-400 inline-flex items-center gap-0.5"><i class="pi pi-lock text-[9px]" />from your account</span>
       <i v-if="!interactive" class="pi pi-pencil text-[9px] text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity ml-0.5" />
@@ -113,21 +113,23 @@ const inert = computed(() => (interactive.value ? '' : 'pointer-events-none'))
       <i class="pi pi-upload text-xs" />{{ field.placeholder || 'Choose a file…' }}
     </div>
     <!-- Account: "Would you like X to login?" -->
-    <div v-else-if="field.field_type === 'account'" class="space-y-1.5" @click.stop>
+    <div v-else-if="field.field_type === 'account'" @click.stop>
       <label class="flex items-center justify-between gap-3 min-h-[2.25rem] cursor-pointer">
         <span class="text-sm text-gray-700">Create a login for <span class="font-semibold">{{ ctx.instanceFirstName(subjectKey, inst) || ctx.subjectLabel(subjectKey) }}</span>?</span>
         <ToggleSwitch :modelValue="ctx.accountLogin(field, inst)" @update:modelValue="ctx.toggleAccountLogin(field, inst)" />
       </label>
-      <p class="text-[11px] text-gray-400 flex items-center gap-1.5"><i class="pi pi-info-circle text-[10px]" />If yes, they get <span class="font-medium text-gray-500">{{ ctx.permissionGroupName(field) }}</span> access.</p>
     </div>
     <!-- Communication preferences -->
-    <div v-else-if="field.field_type === 'comms'" @click.stop class="flex items-center gap-2">
+    <div v-else-if="field.field_type === 'comms'" @click.stop class="space-y-1.5">
+      <p class="text-sm text-gray-700">Select who <span class="font-semibold">{{ ctx.instanceFirstName(subjectKey, inst) || ctx.subjectLabel(subjectKey) }}</span> receives communications on behalf of</p>
+      <div class="flex items-center gap-2">
       <MultiSelect :modelValue="ctx.commsPeople()" @update:modelValue="ctx.setCommsPeople($event)" :options="ctx.commsOptions()"
         optionLabel="label" optionValue="id" display="chip" :showToggleAll="false"
-        placeholder="Select who receives communications" class="flex-1 min-w-0" />
+        placeholder="Select people…" class="flex-1 min-w-0" />
       <button type="button" class="shrink-0 inline-flex items-center gap-1.5 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white hover:border-primary text-gray-600 transition-colors" @click.stop="ctx.openCommsDialog()">
         <i class="pi pi-sliders-h text-xs" />Customise
       </button>
+      </div>
     </div>
     <!-- Text / Email / Tel / Number -->
     <input v-else :type="field.field_type" :value="get()" @input="set(($event.target as any).value)" :placeholder="field.placeholder || ''"

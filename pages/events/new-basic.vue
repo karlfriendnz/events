@@ -409,7 +409,7 @@
             :class="formFullBleed ? 'flex-1 min-h-0' : 'rounded-xl border border-gray-200'"
             :style="formFullBleed ? '' : 'height:70vh; min-height:560px'">
             <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax" :gender-restriction="form.genderRestriction" :live-event="liveEventForForm"
-              :fee-line-items="form.is_paid ? form.fees : []" embedded class="flex-1 min-h-0" @invite-only="setInviteOnly" />
+              :fee-line-items="form.is_paid ? form.fees : []" embedded class="flex-1 min-h-0" @invite-only="setInviteOnly" @update:event="onFormEventEdit" />
           </div>
         </div>
 
@@ -1232,6 +1232,13 @@ const summaryFees = computed(() => form.fees.filter(f => (f.name || '').trim() |
 
 // The event as it stands in THIS wizard — the draft row lags behind what's typed, so
 // the form preview reads these instead of the stored values.
+// The form banner lets you rename the event / set its banner from the preview; mirror
+// those back into the wizard so its own fields (and the final save) agree.
+function onFormEventEdit(patch: { title?: string; banner_url?: string | null }) {
+  if (patch.title != null) form.title = patch.title
+  if ('banner_url' in patch) form.banner_url = patch.banner_url || ''
+}
+
 const liveEventForForm = computed(() => ({
   title: form.title?.trim() || null,
   start_at: form.start_date ? buildDateTime(form.start_date, form.is_all_day ? null : form.start_time) : null,

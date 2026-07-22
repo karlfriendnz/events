@@ -56,6 +56,9 @@
           <button type="button" class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors"
             :class="design.header === 'custom' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'"
             @click="design.header = 'custom'">Custom Upload</button>
+          <button type="button" class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+            :class="design.header === 'none' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'"
+            @click="design.header = 'none'">None</button>
         </div>
         <div v-if="design.header === 'custom'">
           <label class="flex items-center gap-3 border border-dashed border-gray-200 rounded-xl p-3 cursor-pointer hover:border-[#0e43a3] hover:bg-blue-50/30 transition-colors">

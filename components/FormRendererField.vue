@@ -66,7 +66,8 @@ const inputClass = 'w-full h-9 px-3 text-sm bg-white text-gray-900 placeholder:t
     </label>
 
     <template v-else>
-      <label class="text-sm font-semibold text-gray-600">
+      <!-- account/comms say what they are inline, so the header label would just repeat it -->
+      <label v-if="!['account','comms'].includes(f.field_type)" class="text-sm font-semibold text-gray-600">
         {{ f.label }}<span v-if="f.is_required" class="text-red-400 ml-0.5">*</span>
       </label>
 
@@ -79,6 +80,7 @@ const inputClass = 'w-full h-9 px-3 text-sm bg-white text-gray-900 placeholder:t
 
       <!-- Communication preferences — pick which club updates to receive (COMMS_CATEGORIES) -->
       <div v-else-if="f.field_type === 'comms'" class="space-y-1.5 pt-0.5">
+        <p class="text-sm text-gray-700">Which club updates would you like to receive?</p>
         <label v-for="c in COMMS_CATEGORIES" :key="c.key" class="flex items-center gap-2.5 cursor-pointer">
           <input type="checkbox" class="w-4 h-4 rounded border-gray-300 accent-primary"
             :checked="isMultiSelected(c.key)" @change="toggleMulti(c.key, ($event.target as any).checked)" />

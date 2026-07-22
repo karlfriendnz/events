@@ -7,7 +7,6 @@
     <div v-if="readonly" class="text-sm text-gray-600 leading-relaxed" v-html="event?.description || ''" />
     <button v-else type="button"
       class="group w-full text-left rounded-lg -m-1 p-1 transition-colors hover:bg-blue-50/40 hover:ring-2 hover:ring-[#0e43a3]/20"
-      v-tooltip.top="'Click to write a different description for this form'"
       @click="startCustom">
       <span class="block text-sm text-gray-600 leading-relaxed" v-html="event?.description || ''" />
       <span v-if="!event?.description" class="block text-sm text-gray-400">

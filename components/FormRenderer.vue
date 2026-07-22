@@ -822,7 +822,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
     <div class="px-4 sm:px-6 py-6">
     <!-- LANDING: details + sessions (data table) → "Register" opens the auth modal -->
     <div v-if="!authResolved">
-      <h2 class="text-lg font-bold text-gray-900 mb-3">{{ formHeading }}</h2>
+      <h2 class="text-lg font-bold text-gray-900 mb-3" v-html="formHeading" />
 
       <!-- What's on offer, as a table (desktop) / stacked cards (mobile) -->
       <div v-if="weekSummary.length" class="sm:hidden space-y-2">
@@ -892,7 +892,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
       <button type="button" class="text-xs font-semibold text-gray-500 hover:text-gray-700" @click="changeIdentity">Change</button>
     </div>
 
-    <h2 class="text-lg font-bold text-gray-900 mb-4">{{ formHeading }}</h2>
+    <h2 class="text-lg font-bold text-gray-900 mb-4" v-html="formHeading" />
 
     <!-- Step indicator — segments, not a row of dots-and-chevrons: each step gets its
          number and its NAME, and the one you're on is filled with the form's own step

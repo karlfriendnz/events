@@ -14,7 +14,11 @@ const props = withDefaults(defineProps<{ eventId: string | null; groupId?: strin
   liveEvent?: Record<string, any> | null }>(), {
   liveEvent: null, groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false, embedded: false, ageMin: null, ageMax: null, genderRestriction: null })
 
-const emit = defineEmits<{ (e: 'building', v: boolean): void; (e: 'invite-only'): void }>()
+const emit = defineEmits<{ (e: 'building', v: boolean): void; (e: 'invite-only'): void; (e: 'update:event', v: { title?: string; banner_url?: string | null }): void }>()
+
+// The form's own heading ("Fill in the form to register") is click-to-edit in the
+// builder — rich text like the description, so a club can make it their own words.
+const evtEditingHeading = ref(false)
 const formsApi = useFormsApi()
 const groupsApi = useGroupsApi()
 const eventsApi = useEventsApi()
@@ -781,17 +785,21 @@ function evtEnsureParentSectionFields(subject: any) {
   fields.push({
     id: crypto.randomUUID(), label: 'Create a login', field_type: 'account',
     system: true, is_required: false, placeholder: '', options: [],
-    col_span: 1, visibility_conditions: [], financial_rules: [], target: subject.key, parent_section: sectionId,
+    col_span: 2, visibility_conditions: [], financial_rules: [], target: subject.key, parent_section: sectionId,
   } as any)
   fields.push({
     id: crypto.randomUUID(), label: 'Communication preferences', field_type: 'comms',
     system: true, is_required: false, placeholder: '', options: [],
-    col_span: 1, visibility_conditions: [], financial_rules: [], target: subject.key, parent_section: sectionId,
+    col_span: 2, visibility_conditions: [], financial_rules: [], target: subject.key, parent_section: sectionId,
   } as any)
 }
-// Keep global/locked fields present for every subject (covers add, preset, and load).
+// Keep global/locked fields present for every subject (covers add, preset, and load),
+// and full-width: they were seeded half-width, which cramped both of them.
 watch(currentEvtFormProfiles, () => {
   for (const p of currentEvtFormProfiles.value) { evtEnsureCoreFields(p); evtEnsureGlobalFields(p) }
+  for (const f of currentEvtFormFields.value) {
+    if ((f.field_type === 'account' || f.field_type === 'comms') && f.col_span !== 2) f.col_span = 2
+  }
 }, { deep: true })
 
 // True when a subject has required (NSO/club) fields that aren't on the form yet.
@@ -2110,6 +2118,26 @@ async function handleEvtFormImageUpload(field: 'headerImage' | 'backgroundImage'
     console.error('[evt form image upload]', err)
   } finally {
     input.value = ''  // allow re-uploading the same file
+  }
+}
+
+// The banner is editable in the builder — rename the event + upload its banner from the
+// form preview. Writes to the event row when there is one, and always emits up so a
+// wizard host (whose form.title / banner_url are the live source) stays in sync.
+function onEvtBannerTitle(title: string) {
+  const t = (title ?? '').trim()
+  if (event.value) event.value.title = t
+  if (props.eventId) eventsApi.update(props.eventId, { title: t }).catch((e: any) => console.error('[evt banner title]', e))
+  emit('update:event', { title: t })
+}
+async function onEvtBannerUpload(file: File) {
+  try {
+    const url = await uploadFile(file)
+    if (event.value) event.value.banner_url = url
+    if (props.eventId) await eventsApi.update(props.eventId, { bannerUrl: url }).catch((e: any) => console.error('[evt banner upload]', e))
+    emit('update:event', { banner_url: url })
+  } catch (err) {
+    console.error('[evt banner upload]', err)
   }
 }
 
@@ -4010,7 +4038,8 @@ defineExpose({ reload })
             :class="evtPreviewDevice === 'mobile' ? 'max-w-[390px]' : 'max-w-[1000px]'">
 
             <!-- Banner + title: always at the top of every step -->
-            <FormPreviewBanner :design="currentEvtFormDesign" :event="event" />
+            <FormPreviewBanner :design="currentEvtFormDesign" :event="evtDisplayEvent" :editable="!evtPublicPreview"
+              @update:title="onEvtBannerTitle" @upload="onEvtBannerUpload" />
             <!-- Full event details (icons + description): always, except in mobile Steps where they're only the first (details) step -->
             <template v-if="!evtMobileSteps || evtOnDetailsStep">
               <FormPreviewInfoIcons :design="currentEvtFormDesign" :event="evtDisplayEvent" :cost="evtCostLabel" :mobile="evtPreviewDevice === 'mobile'" />
@@ -4051,7 +4080,22 @@ defineExpose({ reload })
 
               <!-- Heading (hidden on the mobile details step — the event details fill it) -->
               <div v-if="!evtOnDetailsStep" class="px-6 pt-8 pb-3">
-                <h3 class="text-xl font-bold text-gray-800">{{ currentEvtFormDesign.formHeading || 'Fill in the form to register' }}</h3>
+                <!-- Public preview / read-only: static. Builder: click to edit as rich text. -->
+                <div v-if="evtPublicPreview" class="text-xl font-bold text-gray-800 prose prose-sm max-w-none" v-html="currentEvtFormDesign.formHeading || 'Fill in the form to register'" />
+                <div v-else-if="evtEditingHeading">
+                  <RichTextEditor v-model="currentEvtFormDesign.formHeading" bubble placeholder="Fill in the form to register" />
+                  <button type="button" class="mt-1 text-[11px] text-gray-400 hover:text-[#0e43a3] transition-colors" @click="evtEditingHeading = false">
+                    <i class="pi pi-check text-[9px] mr-1" />Done
+                  </button>
+                </div>
+                <button v-else type="button"
+                  class="group w-full text-left rounded-lg -m-1 p-1 transition-colors hover:bg-blue-50/40 hover:ring-2 hover:ring-[#0e43a3]/20"
+                  @click="evtEditingHeading = true">
+                  <span class="block text-xl font-bold text-gray-800 prose prose-sm max-w-none" v-html="currentEvtFormDesign.formHeading || 'Fill in the form to register'" />
+                  <span class="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-[#0e43a3] opacity-0 group-hover:opacity-100 transition-opacity">
+                    <i class="pi pi-pencil text-[9px]" />Edit this heading
+                  </span>
+                </button>
               </div>
 
               <!-- Wizard step indicator (Form Style = Steps) — hidden on the mobile details step -->
@@ -4125,8 +4169,8 @@ defineExpose({ reload })
                   </div>
 
                   <div v-for="inst in evtSubjectCount(subject.key)" :key="subject.key + '#' + inst"
-                    class="rounded-xl border transition-all"
-                    :class="subject.key === evtFieldTarget ? 'border-[#0e43a3]/40 ring-1 ring-[#0e43a3]/20' : 'border-gray-150'"
+                    class="rounded-xl transition-all"
+                    :class="(!evtPublicPreview && subject.key === evtFieldTarget) ? 'ring-1 ring-[#0e43a3]/10 bg-[#0e43a3]/[0.01]' : ''"
                     @click="evtFieldTarget = subject.key"
                     @dragover.prevent="dropZoneActive = true; evtDropTarget = subject.key"
                     @dragleave="dropZoneActive = false"
@@ -4163,8 +4207,8 @@ defineExpose({ reload })
                              a form that didn't match the one registrants get. -->
                         <div v-if="evtPinnedFields(subject.key).length" class="grid gap-3" :class="evtPreviewDevice === 'mobile' ? 'grid-cols-1' : 'grid-cols-2'">
                           <div v-for="field in evtPinnedFields(subject.key)" :key="field.id"
-                            class="space-y-1 group rounded-lg px-2 -mx-2 transition-all"
-                            :class="evtPublicPreview ? '' : 'cursor-pointer hover:ring-2 hover:ring-[#0e43a3]/20 hover:bg-blue-50/20'"
+                            class="space-y-1 group rounded-lg border border-transparent px-2 -mx-2 py-1.5 transition-colors"
+                            :class="evtPublicPreview ? '' : 'cursor-pointer hover:border-gray-200 hover:bg-gray-50/70'"
                             @click="evtPublicPreview ? null : openEvtFieldEditor(field.id)">
                             <div class="flex items-center gap-1">
                               <label class="text-sm font-semibold text-gray-600" :class="evtPublicPreview ? '' : 'cursor-pointer'">{{ field.label }} <span v-if="field.is_required" class="text-red-400 ml-0.5">*</span></label>

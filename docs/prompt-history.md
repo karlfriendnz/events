@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1702 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1710 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (81 prompts)
+## Session 2026-07-22 02:42 (89 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29254,4 +29254,40 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **22:29** — When you click to edit the description please make it so you start with te events description or and have a clear button
 
 **22:30** — By deafult it should shwo the events description contnet there
+
+**22:35** — [Image #37] please make full rows by default
+
+**22:40** — This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+> 
+> Summary:
+> 1. **Primary Request and Intent:**
+> 
+> This was a long, fast-moving UI/UX refinement session on the FriendlyManager events platform (`/Users/karl/fm-events`, branch `feat/event-page-batch`). Karl issued dozens of small-to-medium requests, mostly driven by screenshots. Major threads:
+> 
+> - **Event creation modals**: remove the "Event name" field from the New-event chooser; fix modal sizing (too small/too low on laptop); wizard max-width 1200px; focus the name field on open; hide the summary rail on the Registration form step; hide "Select all" on category dropdowns; redesign the chooser as a 2×2 grid with hairline dividers; make the Registration form step full-bleed.
+> - **Coordinators**: table layout (name column + notifications column); green "on" pills; "Add coordinator" button beside the heading; clickable names linking to profiles; "Karl F." short names on the summary panel; staged (defer) editing so nothing is written before Save; coordinators inherited by every occurrence of a repeating series, with the creator seeded at creation.
+> - **Repeating events**: make repeat editable from the event edit box (was `:show-repeat="false"`); ask "this / this and following / all" when saving; don't prompt when nothing changed.
+> - **Attendance**: bulk Sign in/Sign out with "N of M" semantics; rename Mark in → Sign in; print fixes (gap between signature columns, Sign In/Sign Out column names, "Signature" option, and finally **monochrome printing — "there should be no colour except for a logo"**).
+> - **Deployment/infrastructure**: three "deploy live" cycles; a new **global rule that "deploy live" must also apply pending MySQL/TiDB and Supabase migrations**; setting up permanent prod-DB access.
+> - **Form designer overhaul**: subject pane as tabs (Fields first, then Settings); field library merged into the Fields tab behind an "+ Add field" mode; compact divider rows with (i) tooltips; "Added" badges; rename "Advanced" tab → "Conditions".
+> - **Conditions engine (major)**: person-based conditions (membership status, class/group, person type, age); operators dynamic per field type with plain wording; dropdown fields offering their own values; "Is any of" for OR; ranges; and **financial rules that actually charge — client and server**.
+> - **Branding**: form step bar inherits `organisations.brand_color`/`brand_text_color` with a per-form override.
+> - **Live preview accuracy**: preview header must show the event's real date/time/cost/location/restrictions live from the wizard; click the event description to make it this form's own custom description with a Clear button; wizard fees must reach the builder.
+> - **Final (not started)**: screenshot of "Login & communications" showing "Create a login" and "Communication preferences" side by side — "please make full rows by default".
+> 
+> 2. **Key Technical Concepts:**
+> - Nuxt 3 (`s
+> … [truncated — 21478 chars total]
+
+**22:49** — [Image #46] i dont like the outside boxes - the feilds are amazing!
+
+**22:50** — please put our beautiyf feild on hover border back
+
+**22:51** — now on the subject box - remvoe backgroudn ad border for now
+
+**22:51** — nah put it back
+
+**22:52** — its too intence can we drop it by 50%
+
+**22:52** — commit
 
