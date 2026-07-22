@@ -2108,6 +2108,11 @@ const EVT_TYPE_ICONS: Record<string, string> = {
   color: 'pi-palette', file: 'pi-paperclip', section: 'pi-folder', image: 'pi-image',
   textblock: 'pi-align-left', button: 'pi-bookmark',
 }
+// "On the form" means on THIS SUBJECT's form — isEvtFieldAdded is deliberately
+// subject-scoped, because the same field (Date of Birth, say) can be collected for
+// several subjects. A form-wide check would mark it added here because it exists on
+// another subject, which is what the old "Added" chip did.
+const evtFieldOnForm = (label: string) => isEvtFieldAdded(label)
 function evtFieldIcon(f: any) {
   return evtFieldMeta[f?.label]?.icon || EVT_TYPE_ICONS[f?.field_type] || 'pi-pencil'
 }
@@ -2985,21 +2990,28 @@ defineExpose({ reload })
                         v-for="f in fields" :key="f"
                         :draggable="!isEvtFieldAdded(f)"
                         class="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-transparent transition-all group"
-                        :class="isEvtFieldAdded(f)
-                          ? 'opacity-40 cursor-default'
+                        :class="evtFieldOnForm(f)
+                          ? 'bg-green-50/60 border-green-100 cursor-default'
                           : requiredOrgFields.has(f)
                             ? 'bg-red-50 border-red-200 hover:bg-red-100/70 cursor-grab active:cursor-grabbing'
                             : 'hover:bg-blue-50/40 hover:border-blue-100 cursor-grab active:cursor-grabbing'"
                         @dragstart="startEvtFieldDrag($event, f)"
                         @dragend="onEvtFieldDragEnd">
                         <i class="pi pi-bars text-gray-300 text-xs" :class="{ 'opacity-0': isEvtFieldAdded(f) }" />
-                        <i class="pi text-xs shrink-0" :class="[evtFieldMeta[f]?.icon ?? 'pi-minus', isEvtFieldAdded(f) ? 'text-green-400' : 'text-gray-300']" />
-                        <span class="flex-1 text-sm" :class="isEvtFieldAdded(f) ? 'text-gray-500' : 'text-gray-700'">{{ f }}</span>
+                        <i class="pi text-xs shrink-0" :class="[evtFieldMeta[f]?.icon ?? 'pi-minus', evtFieldOnForm(f) ? 'text-green-500' : 'text-gray-300']" />
+                        <span class="flex-1 text-sm" :class="evtFieldOnForm(f) ? 'text-green-800' : 'text-gray-700'">{{ f }}</span>
                         <span v-if="requiredOrgFields.has(f)" :title="'Required by ' + (requiredByOrg[f] || 'your governing body')" class="text-[9px] font-bold uppercase tracking-wide text-red-500 bg-red-100 px-1.5 py-0.5 rounded shrink-0 cursor-help">Required</span>
-                        <span v-if="evtAlwaysPresentFields.includes(f)" class="text-[10px] text-gray-400">Always</span>
-                        <span v-else-if="currentEvtFormFields.some(x => x.label === f)" class="text-[10px] text-green-500 font-medium">Added</span>
+                        <!-- ON THE FORM is one signal, whatever the reason: a core field
+                             used to show "Always" and never "Added", so the two states
+                             read as unrelated. Added chip first, then the padlock for the
+                             ones that can't be removed. -->
+                        <span v-if="evtFieldOnForm(f)"
+                          class="inline-flex items-center gap-1 text-[10px] font-semibold text-green-700 bg-green-100 px-1.5 py-0.5 rounded shrink-0">
+                          <i class="pi pi-check text-[8px]" />Added
+                        </span>
+                        <i v-if="evtAlwaysPresentFields.includes(f)" class="pi pi-lock text-[10px] text-gray-400 shrink-0" v-tooltip.left="'Always collected — can’t be removed'" />
                         <button
-                          v-else
+                          v-else-if="!evtFieldOnForm(f)"
                           type="button"
                           class="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-[#0e43a3] opacity-0 group-hover:opacity-100 transition-all rounded hover:bg-blue-50"
                           @click="addEvtFormField(f)">
