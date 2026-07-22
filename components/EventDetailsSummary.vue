@@ -242,8 +242,30 @@ async function doDelete() {
   } finally { busy.value = false }
 }
 
-async function saveDetails() {
+// ── Save scope (repeating events) ───────────────────────────────────────────
+// Editing one occurrence of a series is ambiguous — is this week's change just this
+// week, or every week? Ask, the same way deleting already does. A change to the
+// REPEAT itself is series-level by definition, so that case is forced to 'all'.
+const saveScopeOpen = ref(false)
+const saveScope = ref<'this' | 'following' | 'all'>('this')
+const SAVE_SCOPES = [
+  { value: 'this', label: 'This event only', desc: 'Just this occurrence — the rest of the series is untouched.' },
+  { value: 'following', label: 'This and following events', desc: 'This occurrence and every later one.' },
+  { value: 'all', label: 'All events in the series', desc: 'Every occurrence, past and future.' },
+] as const
+
+function saveDetails() {
   if (!form.title.trim()) return
+  if (isRecurring.value) {
+    saveScope.value = repeatChanged.value ? 'all' : 'this'
+    saveScopeOpen.value = true
+    return
+  }
+  applySave('this')
+}
+
+async function applySave(scope: 'this' | 'following' | 'all') {
+  saveScopeOpen.value = false
   saving.value = true
   const loc: any = form.locations[0] || {}
   const rule = canEditRepeat.value ? (form.repeat && form.repeat !== 'NONE' ? form.repeat : null) : undefined
@@ -268,6 +290,10 @@ async function saveDetails() {
     // The rule alone materialises nothing — the occurrences are real rows. Same
     // expansion the quick-create path uses, so an edited series matches a new one.
     if (mustRegenerate) await rebuildSeries(startAt, endAt, rule)
+    // Not regenerating but the edit covers more than this occurrence → carry the
+    // changed details across. (After a regenerate there's nothing to carry — the
+    // children were just rebuilt from this master.)
+    else if (scope !== 'this' && isRecurring.value) await propagate(scope, patch, startAt, endAt)
     event.value = updated
     resolveVenue()
     editing.value = false
@@ -277,6 +303,45 @@ async function saveDetails() {
   } catch (e: any) {
     toast.add({ severity: 'error', summary: 'Could not save', detail: e?.message, life: 4000 })
   } finally { saving.value = false }
+}
+
+// Carry this occurrence's edited details across the rest of the series.
+// The date is deliberately NOT copied — every occurrence keeps its OWN day and only
+// takes the new TIME OF DAY and duration, or "all events" would collapse the whole
+// series onto one date.
+async function propagate(
+  scope: 'following' | 'all',
+  patch: any,
+  startAt: string | null,
+  endAt: string | null,
+) {
+  try {
+    const rows = await eventsApi.series(masterId.value)
+    const thisStart = event.value?.startAt ? new Date(event.value.startAt).getTime() : 0
+    const targets = rows.filter(r => r.id !== props.eventId
+      && (scope === 'all' || (r.startAt && new Date(r.startAt).getTime() >= thisStart)))
+    if (!targets.length) return
+
+    const newStart = startAt ? new Date(startAt) : null
+    const duration = startAt && endAt ? new Date(endAt).getTime() - new Date(startAt).getTime() : null
+    // Everything except the date itself — recurrence fields stay with the master.
+    const shared: any = {
+      title: patch.title, status: patch.status, categoryId: patch.categoryId,
+      isAllDay: patch.isAllDay, locations: patch.locations, locationType: patch.locationType,
+      address: patch.address, meetingLink: patch.meetingLink,
+    }
+    for (const r of targets) {
+      const p: any = { ...shared }
+      if (newStart && r.startAt) {
+        const s = new Date(r.startAt)
+        s.setHours(newStart.getHours(), newStart.getMinutes(), 0, 0)
+        p.startAt = s.toISOString()
+        p.endAt = duration != null ? new Date(s.getTime() + duration).toISOString() : null
+      }
+      try { await eventsApi.update(r.id, p) } catch { /* best-effort per occurrence */ }
+    }
+    toast.add({ severity: 'success', summary: `Updated ${targets.length + 1} events`, life: 2200 })
+  } catch { /* the edited occurrence is already saved */ }
 }
 
 // Re-materialise the child occurrences after the pattern (or the start) moved.
@@ -438,6 +503,39 @@ async function rebuildSeries(startAt: string | null, endAt: string | null, rule:
       <template #footer>
         <Button label="Cancel" severity="secondary" text size="small" @click="deleteOpen = false" />
         <Button label="Delete event" icon="pi pi-trash" severity="danger" size="small" :loading="busy" @click="doDelete" />
+      </template>
+    </Dialog>
+
+    <!-- Repeating events ask WHICH occurrences an edit applies to (the twin of the
+         delete dialog above). A repeat-pattern change is series-level by definition,
+         so the choice is locked to "all" and says why. -->
+    <Dialog v-model:visible="saveScopeOpen" modal :draggable="false" header="Save changes to…" :style="{ width: '95vw', maxWidth: '440px' }">
+      <p class="text-sm text-gray-600">This is a repeating event.</p>
+      <p v-if="repeatChanged" class="text-xs text-amber-600 mt-1">
+        You changed how it repeats, so the change applies to the whole series and the upcoming occurrences are rebuilt.
+      </p>
+      <div class="mt-3 space-y-1.5">
+        <label v-for="opt in SAVE_SCOPES" :key="opt.value"
+          class="flex items-start gap-2.5 p-2 rounded-lg border transition-colors"
+          :class="[
+            saveScope === opt.value ? 'border-primary bg-primary/5' : 'border-gray-200 hover:bg-gray-50',
+            repeatChanged && opt.value !== 'all' ? 'opacity-45 cursor-not-allowed' : 'cursor-pointer',
+          ]">
+          <RadioButton v-model="saveScope" :value="opt.value" :inputId="`save-${opt.value}`" class="mt-0.5"
+            :disabled="repeatChanged && opt.value !== 'all'" />
+          <span class="min-w-0">
+            <span class="block text-sm font-medium text-gray-800">{{ opt.label }}</span>
+            <span class="block text-xs text-gray-500">{{ opt.desc }}</span>
+          </span>
+        </label>
+      </div>
+      <p v-if="saveScope !== 'this'" class="text-xs text-gray-500 mt-2">
+        Each occurrence keeps its own date — only the time, and the details you changed, are carried across.
+      </p>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text size="small" @click="saveScopeOpen = false" />
+        <Button label="Save" icon="pi pi-check" size="small" :loading="saving"
+          style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="applySave(saveScope)" />
       </template>
     </Dialog>
 
