@@ -113,15 +113,49 @@ function buildDT(date: Date | null, time: Date | null, allDay: boolean): string 
   else d.setHours(0, 0, 0, 0)
   return d.toISOString()
 }
-// ── Copy / Delete (the ⋯ menu) ──
+// ── Recurring (indicator + delete scope) ──
+const isRecurring = computed(() => !!(event.value?.recurrenceRule || event.value?.recurrenceParentId))
+const recurringSummary = computed(() => {
+  const rule = event.value?.recurrenceRule
+  return rule ? rruleToSummary(rule) : 'Part of a repeating series'
+})
+// The master of the series — this event when it IS the master, else its parent.
+const masterId = computed(() => event.value?.recurrenceParentId || props.eventId)
+
+// ── Copy / Convert / Delete (the ⋯ menu) ──
 const menu = ref()
 const busy = ref(false)
 const deleteOpen = ref(false)
+const deleteScope = ref<'this' | 'following' | 'all'>('this')
+const convertOpen = ref(false)
 const menuItems = [
   { label: 'Duplicate', icon: 'pi pi-copy', command: () => duplicate() },
-  { label: 'Delete', icon: 'pi pi-trash', class: 'text-red-600', command: () => { deleteOpen.value = true } },
+  { label: 'Convert type', icon: 'pi pi-sync', command: () => { convertOpen.value = true } },
+  { label: 'Delete', icon: 'pi pi-trash', class: 'text-red-600', command: () => { deleteScope.value = 'this'; deleteOpen.value = true } },
 ]
 function toggleMenu(e: Event) { menu.value?.toggle(e) }
+
+// #8 — convert a (usually quick) event into a fuller type, then open the right editor.
+const CONVERT_TARGETS = [
+  { key: 'basic', label: 'Basic event', desc: 'A single event edited on one page', icon: 'pi pi-calendar' },
+  { key: 'advanced', label: 'Advanced event', desc: 'Sessions, forms and the full builder', icon: 'pi pi-sliders-h' },
+  { key: 'programme', label: 'Programme', desc: 'A multi-day programme with a date grid', icon: 'pi pi-th-large' },
+]
+async function convertTo(kind: string) {
+  if (busy.value) return
+  busy.value = true
+  try {
+    let patch: any; let dest: string
+    if (kind === 'advanced') { patch = { createdVia: 'advanced', isProgramme: false }; dest = `/events/${props.eventId}` }
+    else if (kind === 'programme') { patch = { createdVia: 'multi', isProgramme: true }; dest = `/events/${props.eventId}?tab=dates` }
+    else { patch = { createdVia: 'custom', style: 'BASIC', isProgramme: false }; dest = `/events/new-basic?draft=${props.eventId}&mode=full` }
+    await eventsApi.update(props.eventId, patch as any)
+    convertOpen.value = false
+    navigateTo(dest)
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not convert', detail: e?.message, life: 4000 })
+  } finally { busy.value = false }
+}
 
 // Copy the event as a new draft (title "Copy of …"), then carry its invitees over.
 async function duplicate() {
@@ -166,7 +200,21 @@ async function doDelete() {
   if (busy.value) return
   busy.value = true
   try {
-    await eventsApi.remove(props.eventId)
+    if (isRecurring.value && deleteScope.value !== 'this') {
+      // series() = master + every child. 'all' removes them all; 'following' removes
+      // this occurrence and every later one (by start date).
+      const rows = await eventsApi.series(masterId.value)
+      const thisStart = event.value?.startAt ? new Date(event.value.startAt).getTime() : 0
+      const ids = new Set(
+        deleteScope.value === 'all'
+          ? rows.map(r => r.id)
+          : rows.filter(r => !r.startAt || new Date(r.startAt).getTime() >= thisStart).map(r => r.id),
+      )
+      ids.add(props.eventId) // always include the occurrence the user acted on
+      for (const rid of ids) { try { await eventsApi.remove(rid) } catch { /* best-effort per row */ } }
+    } else {
+      await eventsApi.remove(props.eventId)
+    }
     deleteOpen.value = false
     toast.add({ severity: 'success', summary: 'Event deleted', life: 1800 })
     emit('deleted')
@@ -219,7 +267,14 @@ async function saveDetails() {
           </div>
           <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">When</span>
-            <span class="text-sm text-gray-700">{{ whenLabel }}</span>
+            <span class="inline-flex items-center gap-2 text-sm text-gray-700">
+              {{ whenLabel }}
+              <span v-if="isRecurring"
+                class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary/10 text-primary text-xs font-medium"
+                v-tooltip.top="recurringSummary">
+                <i class="pi pi-replay text-[10px]" /> Repeats
+              </span>
+            </span>
           </div>
           <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Status</span>
@@ -291,11 +346,48 @@ async function saveDetails() {
     </div>
 
     <!-- Delete confirmation -->
-    <Dialog v-model:visible="deleteOpen" modal :draggable="false" header="Delete event?" :style="{ width: '95vw', maxWidth: '400px' }">
+    <Dialog v-model:visible="deleteOpen" modal :draggable="false" header="Delete event?" :style="{ width: '95vw', maxWidth: '420px' }">
       <p class="text-sm text-gray-600">This permanently deletes <span class="font-medium text-gray-900">{{ event?.title }}</span> and its invitees. This can't be undone.</p>
+      <!-- #42 — recurring events ask WHICH occurrences to delete -->
+      <div v-if="isRecurring" class="mt-3 space-y-1.5">
+        <label v-for="opt in [
+          { value: 'this', label: 'This event', desc: 'Only this occurrence' },
+          { value: 'following', label: 'This and following events', desc: 'This and every later occurrence' },
+          { value: 'all', label: 'All events in the series', desc: 'Every occurrence, past and future' },
+        ]" :key="opt.value"
+          class="flex items-start gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors"
+          :class="deleteScope === opt.value ? 'border-primary bg-primary/5' : 'border-gray-200 hover:bg-gray-50'">
+          <RadioButton v-model="deleteScope" :value="opt.value" :inputId="`del-${opt.value}`" class="mt-0.5" />
+          <span class="min-w-0">
+            <span class="block text-sm font-medium text-gray-800">{{ opt.label }}</span>
+            <span class="block text-xs text-gray-500">{{ opt.desc }}</span>
+          </span>
+        </label>
+      </div>
       <template #footer>
         <Button label="Cancel" severity="secondary" text size="small" @click="deleteOpen = false" />
         <Button label="Delete event" icon="pi pi-trash" severity="danger" size="small" :loading="busy" @click="doDelete" />
+      </template>
+    </Dialog>
+
+    <!-- #8 — convert event type -->
+    <Dialog v-model:visible="convertOpen" modal :draggable="false" header="Convert event type" :style="{ width: '95vw', maxWidth: '440px' }">
+      <p class="text-sm text-gray-600 mb-3">Choose how this event should work. You'll be taken to the matching editor.</p>
+      <div class="space-y-2">
+        <button v-for="t in CONVERT_TARGETS" :key="t.key" :disabled="busy"
+          class="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 text-left transition-colors disabled:opacity-60"
+          @click="convertTo(t.key)">
+          <span class="w-9 h-9 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-gray-500 shrink-0">
+            <i :class="t.icon" />
+          </span>
+          <span class="min-w-0">
+            <span class="block text-sm font-medium text-gray-800">{{ t.label }}</span>
+            <span class="block text-xs text-gray-500">{{ t.desc }}</span>
+          </span>
+        </button>
+      </div>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text size="small" @click="convertOpen = false" />
       </template>
     </Dialog>
   </div>
