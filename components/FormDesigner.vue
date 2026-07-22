@@ -901,6 +901,18 @@ function evtFocusPreview(key: string) {
   // The ring is a pointer, not a state — it fades once you've been shown where to look.
   setTimeout(() => { if (evtFocusedAnchor.value === key) evtFocusedAnchor.value = '' }, 1600)
 }
+
+// …and the reverse: picking a step in the preview opens its editor on the left, so the
+// two panels always describe the same thing whichever side you drive from.
+function evtOpenEditorForStep(idx: number) {
+  evtWizardStep.value = idx
+  const step: any = evtWizardSteps.value[idx]
+  if (!step) return
+  if (step.type === 'terms') { evtSelectedFormSection.value = 'terms'; return }
+  if (step.type === 'subject') { openEvtSubjectSettings(step.key); return }
+  // The mobile "Details" step is the event header — Form Design owns that.
+  if (step.type === 'details') evtSelectedFormSection.value = 'design'
+}
 const evtWizardTermsIdx = computed(() => evtWizardSteps.value.length - 1)
 // Wizard step index offset for subjects when the mobile details step is present.
 const evtMobileSteps = computed(() => evtIsWizard.value && evtPreviewDevice.value === 'mobile')
@@ -3870,7 +3882,7 @@ defineExpose({ reload })
                   <button v-for="p in evtMobilePills" :key="p.key" type="button"
                     class="flex-1 min-w-0 flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold transition-colors"
                     :class="p.pos === 'current' ? 'bg-primary text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'"
-                    @click="evtWizardStep = p.idx">
+                    @click="evtOpenEditorForStep(p.idx)">
                     <i v-if="p.pos === 'prev'" class="pi pi-angle-left text-[10px] shrink-0 opacity-70" />
                     <span class="truncate">{{ p.label }}</span>
                     <i v-if="p.pos === 'next'" class="pi pi-angle-right text-[10px] shrink-0 opacity-70" />
@@ -3882,7 +3894,7 @@ defineExpose({ reload })
                     <button type="button"
                       class="flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors"
                       :class="idx === evtWizardStep ? 'bg-primary text-white' : idx < evtWizardStep ? 'bg-primary/10 text-primary' : 'bg-gray-100 text-gray-400'"
-                      @click="evtWizardStep = idx">
+                      @click="evtOpenEditorForStep(idx)">
                       <span class="w-4 h-4 rounded-full flex items-center justify-center text-[9px] shrink-0"
                         :class="idx === evtWizardStep ? 'bg-white/25' : idx < evtWizardStep ? 'bg-primary/15' : 'bg-white'">
                         <i v-if="idx < evtWizardStep" class="pi pi-check text-[7px]" /><template v-else>{{ idx + 1 }}</template>
