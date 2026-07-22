@@ -4602,50 +4602,10 @@ defineExpose({ reload })
             <!-- Accept / Decline / Maybe (simple registration mode) -->
             <div v-if="evtFormGroupModes[selectedFormGroupId] === 'simple'" class="border-t border-gray-100">
 
-              <!-- People table -->
-              <div class="px-6 pt-6">
-                <div class="border border-gray-200 rounded-xl overflow-hidden">
-                  <!-- Header row -->
-                  <div class="grid gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wide"
-                    :class="evtBaseRegistrationFee > 0 ? 'grid-cols-[1fr_1fr_auto_auto]' : 'grid-cols-[1fr_1fr_auto]'">
-                    <span>First Name</span>
-                    <span>Last Name</span>
-                    <span v-if="evtBaseRegistrationFee > 0" class="w-16 text-right">Fee</span>
-                    <span class="w-6" />
-                  </div>
-                  <!-- Person rows -->
-                  <div v-for="(person, idx) in simplePersonNames" :key="idx"
-                    class="grid gap-2 items-center px-3 py-1.5 border-b border-gray-100 last:border-0"
-                    :class="evtBaseRegistrationFee > 0 ? 'grid-cols-[1fr_1fr_auto_auto]' : 'grid-cols-[1fr_1fr_auto]'">
-                    <input v-model="person.first" type="text" placeholder="First name"
-                      class="h-8 px-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors w-full" />
-                    <input v-model="person.last" type="text" placeholder="Last name"
-                      class="h-8 px-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors w-full" />
-                    <span v-if="evtBaseRegistrationFee > 0" class="w-16 text-right text-sm tabular-nums text-gray-700">${{ evtBaseRegistrationFee.toFixed(2) }}</span>
-                    <button
-                      v-if="simplePersonNames.length > 1"
-                      type="button"
-                      class="w-6 h-6 flex items-center justify-center rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                      @click="simplePersonNames.splice(idx, 1); simplePersonCount--">
-                      <i class="pi pi-times text-xs" />
-                    </button>
-                    <div v-else class="w-6" />
-                  </div>
-                </div>
-              </div>
-
-              <!-- Add Person button -->
-              <div class="px-6 py-4">
-                <button
-                  type="button"
-                  class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-colors"
-                  :style="`background:${currentEvtFormDesign.addPersonColor || '#0e43a3'}`"
-                  @click="simplePersonCount++">
-                  <i class="pi pi-plus text-xs" />
-                  Add Another Person
-                </button>
-              </div>
-
+              <!-- No people table, no "Add another person": Invite only is NOT a form.
+                   The invitee is someone you already invited, and all they do is reply —
+                   asking them to type their own name back is the form we said we weren't
+                   collecting. Their response is the whole interaction. -->
               <!-- Discounts + Total (only shown when there is a fee) -->
               <template v-if="evtBaseRegistrationFee > 0">
                 <template v-if="evtTotalDiscountSavings > 0">

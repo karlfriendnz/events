@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1698 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1699 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (77 prompts)
+## Session 2026-07-22 02:42 (78 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29246,4 +29246,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **22:06** — Financial rules were captured and never applied - can this be fixed please
 
 **22:12** — [Image #29] don't show this - it should go strait to [Image #30]
+
+**22:15** — ok if you choose invite only you should nto see[Image #32] its simply a basic form
 
