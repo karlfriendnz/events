@@ -14,6 +14,13 @@ const breadcrumbs = useBreadcrumbs()
 const activeTab = ref<'attendance' | 'communication' | 'notes'>('attendance')
 void useToast() // ensure the Toast service is available to child components
 
+// Lazy-mount the body tabs: only the tab you've opened fetches + renders. Mounting all
+// three at once made this the heaviest page in the app (three data loads on open) and
+// could tip a loaded machine's renderer over. Once opened a tab stays mounted (v-show)
+// so re-visiting doesn't refetch.
+const opened = reactive(new Set<string>(['attendance']))
+function openTab(k: 'attendance' | 'communication' | 'notes') { activeTab.value = k; opened.add(k) }
+
 // The details component owns the event; it hands us the loaded event for the breadcrumb.
 function onLoaded(ev: any) {
   breadcrumbs.value = [{ label: 'Events', to: '/events' }, { label: ev?.title || 'Event' }]
@@ -39,7 +46,7 @@ const BODY_TABS = [
       <button v-for="tb in BODY_TABS" :key="tb.k"
         class="px-4 py-2 text-sm border-b-2 -mb-px flex items-center gap-1.5 transition-colors"
         :class="activeTab === tb.k ? 'border-primary text-primary font-medium' : 'border-transparent text-gray-500 hover:text-gray-800'"
-        @click="activeTab = (tb.k as any)">
+        @click="openTab(tb.k as any)">
         <i :class="`pi ${tb.i} text-xs`" />{{ tb.l }}
       </button>
     </div>
@@ -47,13 +54,13 @@ const BODY_TABS = [
     <div v-show="activeTab === 'attendance'">
       <!-- No `fit`: let the roll grow to its content so the PAGE is the only scroller
            (fit caps the table's own height, which produced a second scrollbar). -->
-      <EventAttendance :event-id="id" />
+      <EventAttendance v-if="opened.has('attendance')" :event-id="id" />
     </div>
     <div v-show="activeTab === 'communication'">
-      <EventCommunication :event-id="id" />
+      <EventCommunication v-if="opened.has('communication')" :event-id="id" />
     </div>
     <div v-show="activeTab === 'notes'">
-      <EventNotesTab :event-id="id" />
+      <EventNotesTab v-if="opened.has('notes')" :event-id="id" />
     </div>
     <Toast />
   </div>

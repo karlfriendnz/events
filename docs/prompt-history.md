@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-331 sessions · 1615 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+331 sessions · 1617 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -27706,7 +27706,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:17** — [Image #1] this is what happens when i run" npm run dev on a new tab - something is broken please fix it
 
 
-## Session 2026-07-20 00:42 (198 prompts)
+## Session 2026-07-20 00:42 (200 prompts)
 
 **00:42** — so i just restarted and now i can't get the server to run again ?
 
@@ -29046,6 +29046,10 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > - DateTimeEditor: end date defaults to start, end time = start+1h if blank (#22); auto-advance date→time→date→time (#20); TimeWheel selection centered on middle line (#21).
 > - Other: events profile view /account/events (#24); Events tab on person profile (#31); default roll columns per event category (#34); calendar tooltip shows attendees/location/time not Published (#43); convert event type (#8); event coordinators — name + per-person notifications, multiple, all types, creator=default 
 > … [truncated — 19828 chars total]
+
+**01:40** — http://localhost:3000/events/view/9d5aecc2-db1d-4898-9c63-6bdbca46d10e this page is very very slow
+
+**01:42** — [Image #60]
 
 
 ## Session 2026-07-20 17:11 (6 prompts)
