@@ -45,6 +45,12 @@ export const fmEventSchema = z.object({
   ageMin: z.number().int().nullable(),
   ageMax: z.number().int().nullable(),
   genderRestriction: z.string().nullable(),
+  // Who can see this event: public | internal | all_members | custom (null = internal).
+  // For custom, the arrays name the extra audience (people type / person / group).
+  visibility: z.string().nullable(),
+  visibilityTypeKeys: z.array(z.string()).nullable(),
+  visibilityPersonIds: z.array(z.string()).nullable(),
+  visibilityGroupIds: z.array(z.string()).nullable(),
   recurrenceRule: z.string().nullable(),
   recurrenceParentId: z.string().nullable(),
   createdVia: z.string().nullable(),
@@ -109,6 +115,7 @@ export const fmEventCreateSchema = fmEventSchema
     categoryId: true, categoryIds: true, bannerUrl: true, locationType: true, bookableId: true,
     address: true, meetingLink: true, locations: true, ageMin: true, ageMax: true,
     genderRestriction: true,
+    visibility: true, visibilityTypeKeys: true, visibilityPersonIds: true, visibilityGroupIds: true,
     recurrenceRule: true, recurrenceParentId: true, createdVia: true, exdates: true,
     isAllDay: true, secondaryCategoryId: true, capacityMin: true, capacityMax: true,
     showAttendeeList: true, showAttendeeCount: true, allowInterest: true, allowGuests: true,

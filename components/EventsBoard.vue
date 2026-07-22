@@ -735,6 +735,24 @@
             </ChipMultiSelect>
           </div>
 
+          <!-- Visibility — who can see this event (defaults to Internal) -->
+          <div class="flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-4">
+            <span class="field-label shrink-0 sm:w-20 sm:pt-1.5">Visibility</span>
+            <div class="flex-1 min-w-0 space-y-2">
+              <SelectButton v-model="quickForm.visibility" :options="VISIBILITY_OPTIONS" option-label="label" option-value="value" :allow-empty="false" size="small" />
+              <div v-if="quickForm.visibility === 'custom'" class="space-y-2 rounded-lg border border-gray-200 p-3 bg-gray-50/60">
+                <p class="field-help">Pick who can see it — any combination of types, groups or people.</p>
+                <ChipMultiSelect v-model="quickForm.visibility_type_keys" :options="visTypeOptions" option-label="label" option-value="value" placeholder="People types" filter class="w-full" />
+                <ChipMultiSelect v-model="quickForm.visibility_group_ids" :options="visGroupOptions" option-label="label" option-value="value" placeholder="Groups" filter class="w-full">
+                  <template #option="{ option }">
+                    <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: option.color || '#94a3b8' }" />{{ option.label }}</span>
+                  </template>
+                </ChipMultiSelect>
+                <ChipMultiSelect v-model="quickForm.visibility_person_ids" :options="visPeopleOptions" option-label="label" option-value="value" placeholder="Specific people" filter class="w-full" />
+              </div>
+            </div>
+          </div>
+
           <!-- Location — collapsed to a slim row (label left, pill right) -->
           <div v-if="!quickShowLocation" class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Location</span>
@@ -1140,6 +1158,10 @@ const quickForm = reactive<{
   repeat: string; exdates: string[]
   category_id: string | null
   category_ids: string[]
+  visibility: string
+  visibility_type_keys: string[]
+  visibility_person_ids: string[]
+  visibility_group_ids: string[]
   locations: any[]
 }>({
   name: '', start_date: null, start_time: null, end_date: null, end_time: null,
@@ -1147,8 +1169,37 @@ const quickForm = reactive<{
   repeat: '', exdates: [],
   category_id: null,
   category_ids: [] as string[],
+  visibility: 'internal',   // a quick event defaults to internal
+  visibility_type_keys: [] as string[],
+  visibility_person_ids: [] as string[],
+  visibility_group_ids: [] as string[],
   locations: [{ type: 'ADDRESS', venue_name: '', address: '', meeting_link: '', bookable_ids: [] }],
 })
+
+// ── Event visibility (who can see it) — the Custom picker lazy-loads its options. ──
+const VISIBILITY_OPTIONS = [
+  { label: 'Public', value: 'public' },
+  { label: 'Internal', value: 'internal' },
+  { label: 'All members', value: 'all_members' },
+  { label: 'Custom', value: 'custom' },
+]
+const visTypeOptions = ref<{ value: string; label: string }[]>([])
+const visGroupOptions = ref<{ value: string; label: string; color?: string }[]>([])
+const visPeopleOptions = ref<{ value: string; label: string }[]>([])
+let visLoaded = false
+async function loadVisibilityOptions() {
+  if (visLoaded || !orgId.value) return
+  visLoaded = true
+  const [types, groups, people] = await Promise.all([
+    useOrgFieldPolicy().loadOrgTypes(orgId.value).catch(() => [] as any[]),
+    useGroupsApi().list(orgId.value).catch(() => [] as any[]),
+    usePeopleApi().list(orgId.value).catch(() => [] as any[]),
+  ])
+  visTypeOptions.value = (types as any[]).filter(t => (t.kind ?? 'person') === 'person').map(t => ({ value: t.key, label: t.label }))
+  visGroupOptions.value = (groups as any[]).map(g => ({ value: g.id, label: g.name, color: g.color }))
+  visPeopleOptions.value = (people as any[]).map(p => ({ value: p.id, label: `${p.firstName ?? ''} ${p.lastName ?? ''}`.trim() || p.email || 'Unnamed' }))
+}
+watch(() => quickForm.visibility, v => { if (v === 'custom') loadVisibilityOptions() })
 const quickStep = ref(1)                 // 1 = details, 2 = invitees
 const quickShowLocation = ref(false)     // location starts collapsed to a slim row
 const quickLocationSummary = computed(() => {
@@ -1222,6 +1273,10 @@ async function createQuickEvent() {
       exdates: quickForm.exdates ?? [],
       categoryId: quickForm.category_ids[0] || quickForm.category_id || null,
       categoryIds: quickForm.category_ids.length ? quickForm.category_ids : null,
+      visibility: quickForm.visibility || 'internal',
+      visibilityTypeKeys: quickForm.visibility === 'custom' && quickForm.visibility_type_keys.length ? quickForm.visibility_type_keys : null,
+      visibilityPersonIds: quickForm.visibility === 'custom' && quickForm.visibility_person_ids.length ? quickForm.visibility_person_ids : null,
+      visibilityGroupIds: quickForm.visibility === 'custom' && quickForm.visibility_group_ids.length ? quickForm.visibility_group_ids : null,
       locations: quickForm.locations,
       locationType: loc.type ?? 'ADDRESS',
       address: loc.type === 'ADDRESS' ? (loc.address || null) : null,

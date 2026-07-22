@@ -119,6 +119,10 @@ function toEvent(r: typeof schema.events.$inferSelect): FMEvent {
     ageMin: r.ageMin ?? null,
     ageMax: r.ageMax ?? null,
     genderRestriction: r.genderRestriction ?? null,
+    visibility: r.visibility ?? null,
+    visibilityTypeKeys: (() => { const a = asArray(r.visibilityTypeKeys) as string[]; return a.length ? a : null })(),
+    visibilityPersonIds: (() => { const a = asArray(r.visibilityPersonIds) as string[]; return a.length ? a : null })(),
+    visibilityGroupIds: (() => { const a = asArray(r.visibilityGroupIds) as string[]; return a.length ? a : null })(),
     recurrenceRule: r.recurrenceRule ?? null,
     recurrenceParentId: r.recurrenceParentId ?? null,
     createdVia: r.createdVia ?? null,
@@ -341,6 +345,10 @@ export async function createEvent(input: FMEventCreate): Promise<FMEvent> {
     ageMin: input.ageMin ?? null,
     ageMax: input.ageMax ?? null,
     genderRestriction: input.genderRestriction ?? null,
+    visibility: input.visibility ?? null,
+    visibilityTypeKeys: (input.visibilityTypeKeys && input.visibilityTypeKeys.length) ? input.visibilityTypeKeys : null,
+    visibilityPersonIds: (input.visibilityPersonIds && input.visibilityPersonIds.length) ? input.visibilityPersonIds : null,
+    visibilityGroupIds: (input.visibilityGroupIds && input.visibilityGroupIds.length) ? input.visibilityGroupIds : null,
     recurrenceRule: input.recurrenceRule ?? null,
     recurrenceParentId: input.recurrenceParentId ?? null,
     createdVia: input.createdVia ?? null,
@@ -409,6 +417,10 @@ export async function updateEvent(id: string, patch: FMEventPatch): Promise<FMEv
   if (patch.ageMin !== undefined) set.ageMin = patch.ageMin
   if (patch.ageMax !== undefined) set.ageMax = patch.ageMax
   if (patch.genderRestriction !== undefined) set.genderRestriction = patch.genderRestriction
+  if (patch.visibility !== undefined) set.visibility = patch.visibility
+  if (patch.visibilityTypeKeys !== undefined) set.visibilityTypeKeys = (patch.visibilityTypeKeys && patch.visibilityTypeKeys.length) ? patch.visibilityTypeKeys : null
+  if (patch.visibilityPersonIds !== undefined) set.visibilityPersonIds = (patch.visibilityPersonIds && patch.visibilityPersonIds.length) ? patch.visibilityPersonIds : null
+  if (patch.visibilityGroupIds !== undefined) set.visibilityGroupIds = (patch.visibilityGroupIds && patch.visibilityGroupIds.length) ? patch.visibilityGroupIds : null
   if (patch.recurrenceRule !== undefined) set.recurrenceRule = patch.recurrenceRule
   if (patch.recurrenceParentId !== undefined) set.recurrenceParentId = patch.recurrenceParentId
   if (patch.createdVia !== undefined) set.createdVia = patch.createdVia
