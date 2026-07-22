@@ -976,7 +976,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
     </Dialog>
 
     <!-- Invite people — popup; reloads the roster on close -->
-    <Dialog v-model:visible="inviteOpen" modal header="Invite people" :style="{ width: '95vw', maxWidth: '720px' }" @hide="load">
+    <Dialog v-model:visible="inviteOpen" modal header="Invite people" :style="{ width: '95vw', maxWidth: '1000px' }" @hide="load">
       <EventInviteeManager :event-id="props.eventId" :show-invite="false" />
     </Dialog>
   </div>
