@@ -2073,6 +2073,20 @@ const evtFormGroups = computed(() =>
 // True when there's exactly one form and no way to add another — then the forms LIST
 // is a dead end (one row, click it to get on with the job), so the designer opens
 // straight into that form's sections and hides the "All Forms" way back to it.
+// Which pane of a subject's page is open — Settings (what this tab IS) or Fields
+// (what it collects). One at a time; both are the same subject seen two ways.
+const evtSubjectPane = ref<'settings' | 'fields'>('settings')
+// Icon for a field row: the known-label meta first, then the input type.
+const EVT_TYPE_ICONS: Record<string, string> = {
+  text: 'pi-pencil', email: 'pi-envelope', tel: 'pi-phone', number: 'pi-hashtag',
+  date: 'pi-calendar', select: 'pi-list', checkbox: 'pi-check-square', textarea: 'pi-align-left',
+  color: 'pi-palette', file: 'pi-paperclip', section: 'pi-folder', image: 'pi-image',
+  textblock: 'pi-align-left', button: 'pi-bookmark',
+}
+function evtFieldIcon(f: any) {
+  return evtFieldMeta[f?.label]?.icon || EVT_TYPE_ICONS[f?.field_type] || 'pi-pencil'
+}
+
 const evtSingleFormOnly = computed(() => !hasTickets.value && evtFormGroups.value.length <= 1)
 
 const showAddFormDialog = ref(false)
@@ -2784,61 +2798,94 @@ defineExpose({ reload })
                   <p class="text-xs text-gray-400">{{ (currentEvtSubject.kind ?? '') === 'entity' ? 'Entity' : 'Person' }} registering</p>
                 </div>
               </div>
-              <div class="flex-1 overflow-y-auto px-5 py-5 space-y-4">
-                <!-- Display name (singular + plural) -->
-                <div class="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
-                  <p class="text-sm font-bold text-gray-800">Display name</p>
-                  <p class="text-xs text-gray-400 -mt-1">What this {{ (currentEvtSubject.kind ?? '') === 'entity' ? 'entity' : 'person' }} is called on this form — e.g. rename “Member / Player” to “Swimmer” or “Player”.</p>
-                  <div class="grid grid-cols-2 gap-2">
-                    <div class="space-y-1">
-                      <label class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Singular</label>
-                      <InputText :modelValue="currentEvtSubject.label" :maxlength="20" placeholder="Swimmer" class="w-full" @update:modelValue="v => patchEvtProfile(currentEvtSubjectIndex, { label: v || '' })" />
-                    </div>
-                    <div class="space-y-1">
-                      <label class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Plural</label>
-                      <InputText :modelValue="(currentEvtSubject as any).labelPlural || ''" :maxlength="20" :placeholder="(currentEvtSubject.label || 'Swimmer') + 's'" class="w-full" @update:modelValue="v => patchEvtProfile(currentEvtSubjectIndex, { labelPlural: v || '' })" />
-                    </div>
-                  </div>
-                </div>
-                <!-- Configure form (primary action) -->
-                <button type="button" class="w-full text-left rounded-xl border-2 border-primary/15 bg-primary/[0.04] p-4 hover:border-primary hover:bg-primary/[0.07] hover:shadow-sm transition-all flex items-center gap-3.5 group"
-                  @click="openEvtSubject(currentEvtSubject.key)">
-                  <div class="shrink-0 w-11 h-11 rounded-xl bg-primary flex items-center justify-center shadow-sm"><i class="pi pi-pencil text-white text-base" /></div>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-bold text-primary">Configure form fields →</p>
-                    <p class="text-xs text-gray-500">Choose what you collect about each {{ currentEvtSubject.label.toLowerCase() }} · <span class="font-semibold text-gray-700">{{ evtTargetFieldCount(currentEvtSubject.key) }} {{ evtTargetFieldCount(currentEvtSubject.key) === 1 ? 'field' : 'fields' }}</span></p>
-                  </div>
-                  <i class="pi pi-chevron-right text-primary/40 group-hover:text-primary text-sm transition-colors" />
+              <!-- Two panes for one subject, as an accordion: SETTINGS (what this tab
+                   is) and FIELDS (what it collects). They were a stack of cards plus a
+                   "Configure form fields →" button that navigated away, so the two
+                   halves of the same subject lived on different screens. -->
+              <div class="flex-1 overflow-y-auto">
+
+                <!-- ── Settings ── -->
+                <button type="button"
+                  class="w-full flex items-center gap-2 px-5 py-3.5 border-b border-gray-100 text-left hover:bg-gray-50/60 transition-colors"
+                  @click="evtSubjectPane = evtSubjectPane === 'settings' ? '' : 'settings'">
+                  <i class="pi pi-chevron-right text-[10px] text-gray-400 transition-transform" :class="evtSubjectPane === 'settings' ? 'rotate-90' : ''" />
+                  <span class="flex-1 text-sm font-bold text-gray-800">Settings</span>
+                  <span class="text-xs text-gray-400">min {{ currentEvtSubject.min }}<span v-if="currentEvtSubject.max"> · max {{ currentEvtSubject.max }}</span></span>
                 </button>
+                <div v-if="evtSubjectPane === 'settings'" class="px-5 py-4 space-y-4 border-b border-gray-100 bg-gray-50/40">
+                  <!-- Display name (singular + plural) -->
+                  <div class="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
+                    <p class="text-sm font-bold text-gray-800">Display name</p>
+                    <p class="text-xs text-gray-400 -mt-1">What this {{ (currentEvtSubject.kind ?? '') === 'entity' ? 'entity' : 'person' }} is called on this form — e.g. rename “Member / Player” to “Swimmer” or “Player”.</p>
+                    <div class="grid grid-cols-2 gap-2">
+                      <div class="space-y-1">
+                        <label class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Singular</label>
+                        <InputText :modelValue="currentEvtSubject.label" :maxlength="20" placeholder="Swimmer" class="w-full" @update:modelValue="v => patchEvtProfile(currentEvtSubjectIndex, { label: v || '' })" />
+                      </div>
+                      <div class="space-y-1">
+                        <label class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Plural</label>
+                        <InputText :modelValue="(currentEvtSubject as any).labelPlural || ''" :maxlength="20" :placeholder="(currentEvtSubject.label || 'Swimmer') + 's'" class="w-full" @update:modelValue="v => patchEvtProfile(currentEvtSubjectIndex, { labelPlural: v || '' })" />
+                      </div>
+                    </div>
+                  </div>
 
-                <!-- How many -->
-                <div class="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-                  <p class="text-sm font-bold text-gray-800">How many</p>
-                  <p class="text-xs text-gray-400 -mt-2">How many of this {{ (currentEvtSubject.kind ?? '') === 'entity' ? 'entity' : 'person' }} a single registration can include.</p>
-                  <div class="flex items-center gap-6">
-                    <label class="flex items-center gap-2"><span class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Min</span>
-                      <InputNumber :modelValue="currentEvtSubject.min" :min="0" :input-class="'!w-16 text-center'" @update:modelValue="v => patchEvtProfile(currentEvtSubjectIndex, { min: v })" /></label>
-                    <label class="flex items-center gap-2"><span class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Max</span>
-                      <InputNumber :modelValue="currentEvtSubject.max" :min="0" placeholder="∞" :input-class="'!w-16 text-center'" @update:modelValue="v => patchEvtProfile(currentEvtSubjectIndex, { max: v })" /></label>
+                  <!-- How many -->
+                  <div class="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+                    <p class="text-sm font-bold text-gray-800">How many</p>
+                    <p class="text-xs text-gray-400 -mt-2">How many of this {{ (currentEvtSubject.kind ?? '') === 'entity' ? 'entity' : 'person' }} a single registration can include.</p>
+                    <div class="flex items-center gap-6">
+                      <label class="flex items-center gap-2"><span class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Min</span>
+                        <InputNumber :modelValue="currentEvtSubject.min" :min="0" :input-class="'!w-16 text-center'" @update:modelValue="v => patchEvtProfile(currentEvtSubjectIndex, { min: v })" /></label>
+                      <label class="flex items-center gap-2"><span class="text-[11px] font-bold text-gray-400 uppercase tracking-wide">Max</span>
+                        <InputNumber :modelValue="currentEvtSubject.max" :min="0" placeholder="∞" :input-class="'!w-16 text-center'" @update:modelValue="v => patchEvtProfile(currentEvtSubjectIndex, { max: v })" /></label>
+                    </div>
+                  </div>
+
+                  <!-- Sessions & fees -->
+                  <div class="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+                    <p class="text-sm font-bold text-gray-800">Sessions &amp; fees</p>
+                    <label class="flex items-center justify-between gap-3 cursor-pointer">
+                      <span class="text-sm text-gray-700">Chooses the sessions / classes / fees</span>
+                      <ToggleSwitch :modelValue="evtSubjectSelectsOptions(currentEvtSubject)" @update:modelValue="v => patchEvtProfile(currentEvtSubjectIndex, { selectsOptions: v })" />
+                    </label>
+                    <button v-if="evtSubjectSelectsOptions(currentEvtSubject) && sessions.length" type="button"
+                      class="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border border-gray-200 hover:border-[#0e43a3] hover:bg-blue-50/30 transition-all text-sm font-semibold text-[#0e43a3]"
+                      @click="openEvtSubjectSessions(currentEvtSubject.key)">
+                      <span>Choose which sessions {{ currentEvtSubject.label }} can pick</span><i class="pi pi-chevron-right text-xs" />
+                    </button>
+                    <p v-else-if="!sessions.length" class="text-xs text-gray-400">This event has no sessions to choose from.</p>
                   </div>
                 </div>
 
-                <!-- Sessions & fees -->
-                <div class="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-                  <p class="text-sm font-bold text-gray-800">Sessions &amp; fees</p>
-                  <label class="flex items-center justify-between gap-3 cursor-pointer">
-                    <span class="text-sm text-gray-700">Chooses the sessions / classes / fees</span>
-                    <ToggleSwitch :modelValue="evtSubjectSelectsOptions(currentEvtSubject)" @update:modelValue="v => patchEvtProfile(currentEvtSubjectIndex, { selectsOptions: v })" />
-                  </label>
-                  <button v-if="evtSubjectSelectsOptions(currentEvtSubject) && sessions.length" type="button"
-                    class="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border border-gray-200 hover:border-[#0e43a3] hover:bg-blue-50/30 transition-all text-sm font-semibold text-[#0e43a3]"
-                    @click="openEvtSubjectSessions(currentEvtSubject.key)">
-                    <span>Choose which sessions {{ currentEvtSubject.label }} can pick</span><i class="pi pi-chevron-right text-xs" />
+                <!-- ── Fields ── -->
+                <button type="button"
+                  class="w-full flex items-center gap-2 px-5 py-3.5 border-b border-gray-100 text-left hover:bg-gray-50/60 transition-colors"
+                  @click="evtSubjectPane = evtSubjectPane === 'fields' ? '' : 'fields'">
+                  <i class="pi pi-chevron-right text-[10px] text-gray-400 transition-transform" :class="evtSubjectPane === 'fields' ? 'rotate-90' : ''" />
+                  <span class="flex-1 text-sm font-bold text-gray-800">Fields</span>
+                  <span class="text-xs text-gray-400">{{ evtTargetFieldCount(currentEvtSubject.key) }}</span>
+                </button>
+                <div v-if="evtSubjectPane === 'fields'" class="px-5 py-4 space-y-2 border-b border-gray-100 bg-gray-50/40">
+                  <p class="text-xs text-gray-400">Everything collected about each {{ currentEvtSubject.label.toLowerCase() }}. Click one to edit it.</p>
+                  <div class="space-y-1.5">
+                    <button v-for="f in evtFieldsForSubject(currentEvtSubject.key)" :key="f.id" type="button"
+                      class="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border border-gray-200 bg-white hover:border-primary hover:bg-blue-50/30 transition-all text-left"
+                      @click="openEvtFieldEditor(f.id)">
+                      <i class="pi text-xs text-gray-400 shrink-0" :class="evtFieldIcon(f)" />
+                      <span class="flex-1 min-w-0 truncate text-sm font-medium text-gray-800">
+                        {{ f.label }}<span v-if="f.is_required" class="text-red-400 ml-0.5">*</span>
+                      </span>
+                      <!-- A locked field is a name — it can be edited but never removed. -->
+                      <i v-if="f.locked" class="pi pi-lock text-[10px] text-gray-300 shrink-0" v-tooltip.left="'Always collected'" />
+                      <i class="pi pi-chevron-right text-gray-300 text-xs shrink-0" />
+                    </button>
+                  </div>
+                  <button type="button"
+                    class="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-gray-300 text-xs font-semibold text-gray-500 hover:border-primary hover:text-primary transition-all"
+                    @click="openEvtSubject(currentEvtSubject.key)">
+                    <i class="pi pi-plus text-[10px]" />Add or arrange fields
                   </button>
-                  <p v-else-if="!sessions.length" class="text-xs text-gray-400">This event has no sessions to choose from.</p>
                 </div>
-
-                <p class="text-[11px] text-gray-300 text-center pt-1">More {{ currentEvtSubject.label }} settings coming soon.</p>
               </div>
               <div class="px-5 pb-5 pt-3 border-t border-gray-100 shrink-0">
                 <button type="button" class="w-full py-2.5 rounded-lg bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors" @click="evtSelectedFormSection = ''">Done</button>
