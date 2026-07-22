@@ -342,6 +342,10 @@ async function saveDetails() {
         <span class="field-label shrink-0 sm:w-20 sm:pt-2.5">Location</span>
         <div class="flex-1 min-w-0"><LocationEditor v-model="form.locations" :multi="false" /></div>
       </div>
+      <!-- Coordinators live inside the edit box (only mounts when editing → no load on the plain view). -->
+      <div class="pt-3 border-t border-gray-100">
+        <EventCoordinators :event-id="eventId" embedded />
+      </div>
       <div class="flex justify-end gap-2 pt-1">
         <Button label="Cancel" severity="secondary" text size="small" @click="editing = false" />
         <Button label="Save" icon="pi pi-check" size="small" :loading="saving" :disabled="!form.title.trim()"
@@ -395,6 +399,5 @@ async function saveDetails() {
       </template>
     </Dialog>
   </div>
-  <EventCoordinators v-if="event" :event-id="eventId" />
   </div>
 </template>

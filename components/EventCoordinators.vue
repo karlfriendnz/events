@@ -7,7 +7,7 @@
   Every event type gets this. The event's creator is seeded as the default
   coordinator (all notifications on) the first time the card loads with none.
 */
-const props = defineProps<{ eventId: string }>()
+const props = defineProps<{ eventId: string; embedded?: boolean }>()
 
 const eventsApi = useEventsApi()
 const peopleApi = usePeopleApi()
@@ -117,7 +117,7 @@ watch(() => props.eventId, loadCoordinators)
 </script>
 
 <template>
-  <div class="card p-4 sm:p-5">
+  <div :class="embedded ? '' : 'card p-4 sm:p-5'">
     <div class="flex items-center justify-between mb-1">
       <h3 class="section-title">Coordinators</h3>
     </div>
