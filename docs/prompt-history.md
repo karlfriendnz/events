@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1630 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1631 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (9 prompts)
+## Session 2026-07-22 02:42 (10 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29107,4 +29107,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **03:13** — please focus on the event name feild when you open the modal
 
 **06:23** — on the cateory drop down lets hide the select all box please
+
+**06:25** — [Image #4] can we make these a bit more sexy maybe use deviders instead of gray buttons?
 

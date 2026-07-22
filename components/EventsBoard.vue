@@ -605,53 +605,73 @@
 
         <!-- Just pick how you want to build it — the name is asked for inside
              each builder, so asking here first was a gate for no reason. -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <!-- Quick event: name · date · location · invitees, all in one modal.
-               Always enabled (the fast path); accented so it reads as the quick option. -->
-          <button type="button"
-            class="h-full text-left border-2 border-primary/40 bg-[#F0F4FF] rounded-xl p-4 transition-colors hover:border-primary hover:bg-[#E7EEFF]"
+        <!-- ONE list separated by hairlines, not a grid of bordered tiles: four boxes
+             each drawing their own border read as four competing buttons. A divided
+             list reads as one question with four answers, and the chevron says these
+             go somewhere. Quick event leads (the fast path) and carries the accent. -->
+        <div class="divide-y divide-gray-100 border-t border-gray-100">
+          <!-- Quick event: name · date · location · invitees, all in one modal. -->
+          <button type="button" class="group w-full flex items-center gap-3.5 px-2 rounded-lg py-3.5 text-left transition-colors hover:bg-[#F5F8FA]"
             @click="openQuick">
-            <div class="w-9 h-9 rounded-lg bg-primary/15 flex items-center justify-center mb-2">
-              <i class="pi pi-bolt text-primary" />
-            </div>
-            <h3 class="text-sm font-semibold text-gray-900">Quick {{ t('event', false, true) }}</h3>
-            <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Name, date, location &amp; invitees — all on one screen.</p>
+            <span class="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 transition-colors group-hover:bg-primary/15">
+              <i class="pi pi-bolt text-primary text-sm" />
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="flex items-center gap-2">
+                <span class="text-sm font-semibold text-gray-900">Quick {{ t('event', false, true) }}</span>
+                <span class="text-xs font-medium text-primary bg-primary/10 rounded-full px-2 py-0.5">Fastest</span>
+              </span>
+              <span class="block text-xs text-gray-500 mt-0.5 leading-relaxed">Name, date, location &amp; invitees — all on one screen.</span>
+            </span>
+            <i class="pi pi-chevron-right text-xs text-gray-300 shrink-0 transition-colors group-hover:text-primary" />
           </button>
-          <button type="button"
-            class="h-full text-left border-2 rounded-xl p-4 transition-colors hover:border-primary hover:bg-[#F0F4FF]"
+
+          <button type="button" class="group w-full flex items-center gap-3.5 px-2 rounded-lg py-3.5 text-left transition-colors hover:bg-[#F5F8FA]"
             @click="startWizard">
-            <div class="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center mb-2">
-              <i class="pi pi-list-check text-primary" />
-            </div>
-            <h3 class="text-sm font-semibold text-gray-900">Create by wizard</h3>
-            <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Guided, one step at a time.</p>
+            <span class="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+              <i class="pi pi-list-check text-primary text-sm" />
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm font-semibold text-gray-900">Create by wizard</span>
+              <span class="block text-xs text-gray-500 mt-0.5 leading-relaxed">Guided, one step at a time.</span>
+            </span>
+            <i class="pi pi-chevron-right text-xs text-gray-300 shrink-0 transition-colors group-hover:text-primary" />
           </button>
-          <button type="button"
-            class="h-full text-left border-2 rounded-xl p-4 transition-colors hover:border-primary hover:bg-[#F0F4FF]"
+
+          <button type="button" class="group w-full flex items-center gap-3.5 px-2 rounded-lg py-3.5 text-left transition-colors hover:bg-[#F5F8FA]"
             @click="startCustom">
-            <div class="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center mb-2">
-              <i class="pi pi-sliders-h text-purple-700" />
-            </div>
-            <h3 class="text-sm font-semibold text-gray-900">Custom {{ t('event', false, true) }}</h3>
-            <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Choose the type and set it up yourself.</p>
+            <span class="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
+              <i class="pi pi-sliders-h text-purple-700 text-sm" />
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm font-semibold text-gray-900">Custom {{ t('event', false, true) }}</span>
+              <span class="block text-xs text-gray-500 mt-0.5 leading-relaxed">Choose the type and set it up yourself.</span>
+            </span>
+            <i class="pi pi-chevron-right text-xs text-gray-300 shrink-0 transition-colors group-hover:text-primary" />
           </button>
-          <button v-if="isGoverningOrg" type="button"
-            class="h-full text-left border-2 rounded-xl p-4 transition-colors hover:border-primary hover:bg-[#F0F4FF]"
+
+          <button v-if="isGoverningOrg" type="button" class="group w-full flex items-center gap-3.5 px-2 rounded-lg py-3.5 text-left transition-colors hover:bg-[#F5F8FA]"
             @click="startAdvanced">
-            <div class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center mb-2">
-              <i class="pi pi-sliders-v text-amber-700" />
-            </div>
-            <h3 class="text-sm font-semibold text-gray-900">Advanced {{ t('event', false, true) }}</h3>
-            <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Sessions, fees, forms, discounts and automation.</p>
+            <span class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+              <i class="pi pi-sliders-v text-amber-700 text-sm" />
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm font-semibold text-gray-900">Advanced {{ t('event', false, true) }}</span>
+              <span class="block text-xs text-gray-500 mt-0.5 leading-relaxed">Sessions, fees, forms, discounts and automation.</span>
+            </span>
+            <i class="pi pi-chevron-right text-xs text-gray-300 shrink-0 transition-colors group-hover:text-primary" />
           </button>
-          <button type="button"
-            class="h-full text-left border-2 rounded-xl p-4 transition-colors hover:border-primary hover:bg-[#F0F4FF]"
+
+          <button type="button" class="group w-full flex items-center gap-3.5 px-2 rounded-lg py-3.5 text-left transition-colors hover:bg-[#F5F8FA]"
             @click="startHolidayProgramme">
-            <div class="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center mb-2">
-              <i class="pi pi-sun text-emerald-700" />
-            </div>
-            <h3 class="text-sm font-semibold text-gray-900">Programme</h3>
-            <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Runs across many days — book sessions per day.</p>
+            <span class="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+              <i class="pi pi-sun text-emerald-700 text-sm" />
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm font-semibold text-gray-900">Programme</span>
+              <span class="block text-xs text-gray-500 mt-0.5 leading-relaxed">Runs across many days — book sessions per day.</span>
+            </span>
+            <i class="pi pi-chevron-right text-xs text-gray-300 shrink-0 transition-colors group-hover:text-primary" />
           </button>
         </div>
       </div>
