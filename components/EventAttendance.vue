@@ -94,21 +94,57 @@ async function searchInlinePeople(e: { query: string }) {
     .filter((p: any) => !have.has(p.id))
     .map((p: any) => ({ id: p.id, name: [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email || 'Unnamed', email: p.email }))
 }
-async function addInlinePerson() {
-  const p = inlineAddPerson.value
-  if (!p || typeof p !== 'object' || !p.id || inlineAddBusy.value) return
+// A recurring event = a master + weekly children. Adding a person can target just this
+// occurrence or this + every following one, so the invitee lands on the whole series.
+const isRecurring = computed(() => !!(event.value?.recurrence_rule || event.value?.recurrence_parent_id))
+const addScopeOpen = ref(false)
+const addScope = ref<'this' | 'following'>('following')   // default = the whole run
+const pendingAddPerson = ref<any>(null)
+
+async function addInviteeToEvents(p: any, eventIds: string[]): Promise<number> {
+  let ok = 0
+  for (const eid of eventIds) {
+    // best-effort per event — a person already on an occurrence just no-ops
+    try { await eventsApi.addInvitee(eid, { personId: p.id, status: 'INVITED', clubOrgId: props.clubOrgId }); ok++ }
+    catch { /* already invited on that occurrence */ }
+  }
+  return ok
+}
+async function doAddInline(p: any, eventIds: string[]) {
   inlineAddBusy.value = true
   try {
-    await eventsApi.addInvitee(props.eventId, { personId: p.id, status: 'INVITED', clubOrgId: props.clubOrgId })
+    const ok = await addInviteeToEvents(p, eventIds)
     inlineAddPerson.value = null
     inlineAddOptions.value = []
+    addScopeOpen.value = false
+    pendingAddPerson.value = null
     await loadInvitees()
-    toast.add({ severity: 'success', summary: 'Added', detail: `${p.name} added`, life: 2000 })
+    toast.add({ severity: 'success', summary: 'Added', detail: eventIds.length > 1 ? `${p.name} added to ${ok} events` : `${p.name} added`, life: 2500 })
   } catch (err: any) {
     toast.add({ severity: 'error', summary: 'Could not add person', detail: err?.message || 'Please try again', life: 4000 })
   } finally {
     inlineAddBusy.value = false
   }
+}
+async function addInlinePerson() {
+  const p = inlineAddPerson.value
+  if (!p || typeof p !== 'object' || !p.id || inlineAddBusy.value) return
+  if (isRecurring.value) { pendingAddPerson.value = p; addScope.value = 'following'; addScopeOpen.value = true; return }
+  await doAddInline(p, [props.eventId])
+}
+// Resolve the chosen scope into a concrete list of event ids, then add.
+async function confirmAddScope() {
+  const p = pendingAddPerson.value
+  if (!p) return
+  if (addScope.value === 'this') { await doAddInline(p, [props.eventId]); return }
+  const master = event.value?.recurrence_parent_id || props.eventId
+  const rows = await eventsApi.series(master).catch(() => [] as any[])
+  const cur = event.value?.start_at || event.value?.startAt || null
+  const ids = rows
+    .filter((r: any) => !cur || !r.startAt || r.startAt >= cur)   // this occurrence + every later one
+    .map((r: any) => r.id)
+  if (!ids.includes(props.eventId)) ids.push(props.eventId)
+  await doAddInline(p, ids.length ? ids : [props.eventId])
 }
 function openMoreInvite() { inviteOpen.value = true }
 
@@ -1134,40 +1170,38 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
 
     <!-- Invite people — popup; reloads the roster on close -->
     <Dialog v-model:visible="inviteOpen" modal header="Invite people" :style="{ width: '95vw', maxWidth: '1000px' }" @hide="load">
-      <!-- Quick add: pick ONE person by name and add them straight away. -->
-      <div v-if="!showFullInvite" class="space-y-4">
-        <div>
-          <p class="text-sm font-semibold text-gray-800 mb-1.5">Add a person</p>
-          <div class="flex flex-col sm:flex-row gap-2">
-            <AutoComplete v-model="quickSel" :suggestions="quickPeople" @complete="searchQuickPeople"
-              option-label="firstName" placeholder="Search by name…" class="flex-1" input-class="w-full"
-              @keydown.enter="addQuickPerson">
-              <template #option="{ option }">
-                <span>{{ ((option.firstName || '') + ' ' + (option.lastName || '')).trim() }}</span>
-                <span v-if="option.email" class="text-xs text-gray-400 ml-2">{{ option.email }}</span>
-              </template>
-            </AutoComplete>
-            <Button label="Add" icon="pi pi-plus" :loading="quickAdding"
-              :disabled="!quickSel || typeof quickSel !== 'object'"
-              style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="addQuickPerson" />
-          </div>
-        </div>
-        <div class="pt-3 border-t border-gray-100">
-          <button type="button" class="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline"
-            @click="showFullInvite = true">
-            <i class="pi pi-users" />Choose a group of people
-          </button>
-          <p class="text-xs text-gray-400 mt-1">Add whole classes, filter, or pick several at once.</p>
-        </div>
-      </div>
-      <!-- Full multi-select picker, revealed on demand. -->
-      <EventInviteeManager v-else :event-id="props.eventId" :show-invite="false" />
+      <!-- "More" opens straight to the standard people selector (classes + people). -->
+      <EventInviteeManager :event-id="props.eventId" :show-invite="false" />
       <template #footer>
         <div class="flex items-center justify-between gap-3 w-full">
           <span class="text-xs text-gray-400">People are added as you pick them — no need to save.</span>
           <Button label="Done" icon="pi pi-check" @click="inviteOpen = false"
             style="background:var(--brand-primary);border-color:var(--brand-primary)" />
         </div>
+      </template>
+    </Dialog>
+
+    <!-- Recurring add scope — add to just this occurrence or this + every following one -->
+    <Dialog v-model:visible="addScopeOpen" modal :draggable="false" header="Add to the series?" :style="{ width: '95vw', maxWidth: '440px' }">
+      <p class="text-sm text-gray-600 mb-3">This event repeats. Add <span class="font-medium text-gray-900">{{ pendingAddPerson?.name }}</span> to just this occurrence, or this and every following one?</p>
+      <div class="space-y-1.5">
+        <label v-for="opt in [
+          { value: 'this', label: 'This event only', desc: 'Just this occurrence' },
+          { value: 'following', label: 'This and following events', desc: 'This occurrence and every later one in the series' },
+        ]" :key="opt.value"
+          class="flex items-start gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors"
+          :class="addScope === opt.value ? 'border-primary bg-primary/5' : 'border-gray-200 hover:bg-gray-50'">
+          <RadioButton v-model="addScope" :value="opt.value" :inputId="`addscope-${opt.value}`" class="mt-0.5" />
+          <span class="min-w-0">
+            <span class="block text-sm font-medium text-gray-800">{{ opt.label }}</span>
+            <span class="block text-xs text-gray-500">{{ opt.desc }}</span>
+          </span>
+        </label>
+      </div>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text size="small" @click="addScopeOpen = false" />
+        <Button label="Add" icon="pi pi-check" size="small" :loading="inlineAddBusy"
+          style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="confirmAddScope" />
       </template>
     </Dialog>
 
