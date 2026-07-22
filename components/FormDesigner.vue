@@ -2070,6 +2070,11 @@ function evtSetSubjectType(i: number, key: string) {
   evtEnsureParentSectionFields(p)
 }
 // Max: null = unlimited. Toggling off restores a concrete cap (≥ min, ≥ 1).
+// The Maximum choice, spelled out — a bare switch didn't say what it switched.
+const EVT_MAX_MODES = [
+  { label: 'Unlimited', value: 'unlimited' },
+  { label: 'Set a number', value: 'set' },
+]
 function evtSetUnlimited(i: number, on: boolean) {
   const next = currentEvtFormProfiles.value.slice()
   next[i] = { ...next[i], max: on ? null : Math.max(1, Number(next[i].min) || 1) }
@@ -3628,24 +3633,31 @@ defineExpose({ reload })
                       class="w-full" @update:model-value="k => evtSetSubjectType(i, k)" />
                     <p class="field-help mt-1">{{ evtConnectedKey(profile) === EVT_NO_TYPE ? 'Standalone — this group has only the fields you add.' : 'Inherits the fields defined for this member type.' }}</p>
                   </div>
-                  <!-- How many -->
-                  <div>
-                    <label class="field-label block mb-1.5">How many register?</label>
-                    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-                      <div class="flex items-center gap-2">
-                        <span class="text-xs text-gray-500 w-8">Min</span>
-                        <InputNumber :model-value="profile.min" :min="0" :max="99" showButtons buttonLayout="horizontal" class="w-28"
+                  <!-- How many.
+                       Was: two horizontal-button InputNumbers (their +/- chevrons read
+                       as dropdowns and collided) plus a bare ToggleSwitch that never
+                       said what it toggled. Now: a labelled Minimum row, and a Maximum
+                       row where the CHOICE is explicit — Unlimited vs Set a number —
+                       with the number only present when it means something. -->
+                  <div class="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2.5">
+                    <label class="field-label block mb-2">How many register?</label>
+                    <div class="space-y-2">
+                      <div class="flex items-center gap-3">
+                        <span class="text-xs text-gray-500 w-16 shrink-0">Minimum</span>
+                        <InputNumber :model-value="profile.min" :min="0" :max="99" class="w-20"
+                          :input-class="'w-20 text-center'" :use-grouping="false"
                           @update:model-value="v => profile.min = v ?? 0" />
                       </div>
-                      <div class="flex items-center gap-2">
-                        <span class="text-xs text-gray-500 w-8">Max</span>
-                        <InputNumber v-if="profile.max != null" :model-value="profile.max" :min="profile.min || 1" :max="99" showButtons buttonLayout="horizontal" class="w-28"
+                      <div class="flex items-center gap-3 flex-wrap">
+                        <span class="text-xs text-gray-500 w-16 shrink-0">Maximum</span>
+                        <SelectButton :model-value="profile.max == null ? 'unlimited' : 'set'"
+                          :options="EVT_MAX_MODES" option-label="label" option-value="value"
+                          :allow-empty="false" size="small"
+                          @update:model-value="m => evtSetUnlimited(i, m === 'unlimited')" />
+                        <InputNumber v-if="profile.max != null" :model-value="profile.max"
+                          :min="profile.min || 1" :max="99" class="w-20"
+                          :input-class="'w-20 text-center'" :use-grouping="false"
                           @update:model-value="v => profile.max = v" />
-                        <span v-else class="w-28 text-sm text-gray-400">Unlimited</span>
-                        <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
-                          <ToggleSwitch :model-value="profile.max == null" @update:model-value="on => evtSetUnlimited(i, on)" />
-                          Unlimited
-                        </label>
                       </div>
                     </div>
                   </div>
