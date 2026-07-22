@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1691 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1692 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (70 prompts)
+## Session 2026-07-22 02:42 (71 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29232,4 +29232,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:42** — lets adde a "added" badge [Image #24] here to show that it has been added even if its locked
 
 **21:43** — remvoe the lock on this view i htink
+
+**21:45** — [Image #25] change Advanced to conditions
 

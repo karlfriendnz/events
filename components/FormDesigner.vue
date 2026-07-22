@@ -3173,7 +3173,7 @@ defineExpose({ reload })
                   <button type="button"
                     class="flex-1 py-2.5 text-xs font-semibold transition-colors border-b-2"
                     :class="evtFieldEditorTab === 'advanced' ? 'text-primary border-primary' : 'text-gray-400 hover:text-gray-600 border-transparent'"
-                    @click="evtFieldEditorTab = 'advanced'">Advanced</button>
+                    @click="evtFieldEditorTab = 'advanced'">Conditions</button>
                 </div>
 
                 <!-- Details tab -->
