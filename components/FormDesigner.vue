@@ -3618,7 +3618,11 @@ defineExpose({ reload })
                 </button>
                 <p class="text-xs text-gray-400 px-1 -mt-1">Name each group registering, say how many, and (optionally) connect it to a member type so it inherits that type's fields. You can change all of this later.</p>
 
-                <div v-for="(profile, i) in currentEvtFormProfiles" :key="i" class="border border-gray-200 rounded-lg p-3.5 space-y-3">
+                <!-- Divider-separated rows, not a stack of bordered cards: three or four
+                     boxes down a narrow panel read as clutter, and each border stole
+                     height the panel doesn't have. -->
+                <div v-for="(profile, i) in currentEvtFormProfiles" :key="i"
+                  class="py-3 space-y-2.5 border-t border-gray-100 first-of-type:border-t-0">
                   <!-- Name -->
                   <div class="flex items-end gap-2">
                     <div class="flex-1 min-w-0">
@@ -3643,27 +3647,21 @@ defineExpose({ reload })
                        said what it toggled. Now: a labelled Minimum row, and a Maximum
                        row where the CHOICE is explicit — Unlimited vs Set a number —
                        with the number only present when it means something. -->
-                  <div class="rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2.5">
-                    <label class="field-label block mb-2">How many register?</label>
-                    <div class="space-y-2">
-                      <div class="flex items-center gap-3">
-                        <span class="text-xs text-gray-500 w-16 shrink-0">Minimum</span>
-                        <InputNumber :model-value="profile.min" :min="0" :max="99" class="w-20"
-                          :input-class="'w-20 text-center'" :use-grouping="false"
-                          @update:model-value="v => profile.min = v ?? 0" />
-                      </div>
-                      <div class="flex items-center gap-3 flex-wrap">
-                        <span class="text-xs text-gray-500 w-16 shrink-0">Maximum</span>
-                        <SelectButton :model-value="profile.max == null ? 'unlimited' : 'set'"
-                          :options="EVT_MAX_MODES" option-label="label" option-value="value"
-                          :allow-empty="false" size="small"
-                          @update:model-value="m => evtSetUnlimited(i, m === 'unlimited')" />
-                        <InputNumber v-if="profile.max != null" :model-value="profile.max"
-                          :min="profile.min || 1" :max="99" class="w-20"
-                          :input-class="'w-20 text-center'" :use-grouping="false"
-                          @update:model-value="v => profile.max = v" />
-                      </div>
-                    </div>
+                  <div class="flex flex-wrap items-center gap-x-2.5 gap-y-2">
+                    <label class="field-label shrink-0">How many register?</label>
+                    <span class="text-xs text-gray-500 shrink-0">Min</span>
+                    <InputNumber :model-value="profile.min" :min="0" :max="99" class="w-14"
+                      :input-class="'w-14 text-center'" :use-grouping="false"
+                      @update:model-value="v => profile.min = v ?? 0" />
+                    <span class="text-xs text-gray-500 shrink-0">Max</span>
+                    <SelectButton :model-value="profile.max == null ? 'unlimited' : 'set'"
+                      :options="EVT_MAX_MODES" option-label="label" option-value="value"
+                      :allow-empty="false" size="small"
+                      @update:model-value="m => evtSetUnlimited(i, m === 'unlimited')" />
+                    <InputNumber v-if="profile.max != null" :model-value="profile.max"
+                      :min="profile.min || 1" :max="99" class="w-14"
+                      :input-class="'w-14 text-center'" :use-grouping="false"
+                      @update:model-value="v => profile.max = v" />
                   </div>
                 </div>
 
