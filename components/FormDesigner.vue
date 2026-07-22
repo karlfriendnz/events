@@ -2327,6 +2327,11 @@ const evtFormSectionCompletedCount = computed(() => evtFormSections.value.filter
 
 // Two-step chooser: 'type' (Basic / Start from scratch / …) → 'template' (who's registering).
 const evtChooserStep = ref<'type' | 'template' | 'subjects' | 'previous'>('type')
+// Where the header's Back goes from here — null on the first step (nothing behind it).
+const evtChooserBackTo = computed(() =>
+  evtChooserStep.value === 'subjects' ? 'template'
+    : evtChooserStep.value === 'type' ? null
+      : 'type')
 
 function selectEvtFormGroup(id: string) {
   selectedFormGroupId.value = id
@@ -3556,7 +3561,15 @@ defineExpose({ reload })
           <!-- Choose a registration type — the first step (also shown when no forms exist) -->
           <div v-if="!evtFormGroups.length || !evtFormGroupModes[selectedFormGroupId]" class="flex items-center justify-center py-16 px-6">
             <div class="bg-white rounded-xl shadow-lg overflow-hidden w-full max-w-[580px]">
-              <div class="bg-[#182e59] px-6 py-4 text-center">
+              <!-- Back sits in the header beside the title — it's navigation, and one
+                   button in a fixed place beats the same button repeated inside each
+                   step's scrolling body (where it moved with the content). -->
+              <div class="relative bg-[#182e59] px-6 py-4 text-center">
+                <button v-if="evtChooserBackTo" type="button"
+                  class="absolute left-3 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold text-white/75 hover:text-white hover:bg-white/15 transition-colors"
+                  @click="evtChooserStep = evtChooserBackTo">
+                  <i class="pi pi-chevron-left text-[10px]" />Back
+                </button>
                 <h2 class="text-[17px] font-semibold text-white leading-snug">{{ evtChooserStep === 'previous' ? 'Start from a previous form' : evtChooserStep === 'subjects' ? "Who's registering?" : evtChooserStep === 'template' ? 'Choose a template' : 'Choose a registration type' }}</h2>
               </div>
               <!-- Step 1: pick the kind of form -->
@@ -3582,9 +3595,6 @@ defineExpose({ reload })
 
               <!-- Step 2: choose a template (who's registering) -->
               <div v-else-if="evtChooserStep === 'template'" class="p-5 space-y-2.5 max-h-[68vh] overflow-y-auto">
-                <button type="button" class="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#182e59] transition-colors mb-1" @click="evtChooserStep = 'type'">
-                  <i class="pi pi-chevron-left text-[10px]" />Back
-                </button>
                 <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide px-1">Choose a template</p>
                 <p class="text-xs text-gray-400 px-1 -mt-1">Pick a starting point — every setting is fully configurable afterwards.</p>
 
@@ -3613,9 +3623,6 @@ defineExpose({ reload })
 
               <!-- Step 3: set how many of each subject register + which person type -->
               <div v-else-if="evtChooserStep === 'subjects'" class="p-5 space-y-3 max-h-[68vh] overflow-y-auto">
-                <button type="button" class="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#182e59] transition-colors" @click="evtChooserStep = 'template'">
-                  <i class="pi pi-chevron-left text-[10px]" />Back
-                </button>
                 <p class="text-xs text-gray-400 px-1 -mt-1">Name each group registering, say how many, and (optionally) connect it to a member type so it inherits that type's fields. You can change all of this later.</p>
 
                 <!-- Divider-separated rows, not a stack of bordered cards: three or four
@@ -3685,9 +3692,6 @@ defineExpose({ reload })
 
               <!-- Start from a previous form: list + inline preview + clone -->
               <div v-else-if="evtChooserStep === 'previous'" class="p-5 space-y-3 max-h-[68vh] overflow-y-auto">
-                <button type="button" class="flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-[#182e59] transition-colors" @click="evtChooserStep = 'type'">
-                  <i class="pi pi-chevron-left text-[10px]" />Back
-                </button>
                 <p class="text-xs text-gray-400 px-1 -mt-1">Pick a form you've built before to reuse its questions and layout.</p>
 
                 <div v-if="prevFormsLoading" class="py-8 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-300 text-xl" /></div>
