@@ -36,6 +36,14 @@
           <ToggleSwitch :model-value="isAllDay" v-tooltip.top="'All day'"
             @update:model-value="emit('update:isAllDay', $event)" />
         </div>
+        <!-- …and when there ISN'T one, hold its space. The toggle is a real flex child,
+             so an editor with it splits the row into narrower columns than one without
+             — which is why the Date row and the Sign-up row below it didn't line up.
+             Only from lg, where the row is a single line (below that it stacks and
+             there's nothing to align to). -->
+        <div v-else-if="!stack" aria-hidden="true" class="hidden lg:flex items-center gap-2 shrink-0 invisible pointer-events-none">
+          <ToggleSwitch :model-value="false" />
+        </div>
       </div>
     </div>
     <!-- Outside event dates (session-only affordance) -->

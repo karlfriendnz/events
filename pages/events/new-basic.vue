@@ -186,14 +186,17 @@
                  chain), NOT a local list. <DisciplineLinker> resolves + persists
                  to event_disciplines itself, so it needs the draft event row. -->
             <div class="px-5 py-4 border-b border-gray-100">
-              <!-- Both columns are titled above their field: with two side-by-side
-                   controls there's no single left label that can name them. -->
+              <!-- With BOTH controls each is titled above its own field — no single
+                   left label can name two side-by-side things. But when the governing
+                   body defines no disciplines there's only ONE field left, so it takes
+                   the normal left label like every other row. -->
               <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] items-start gap-4'">
-                <span />
+                <span v-if="disciplineEmpty" class="field-label sm:pt-2">Category</span>
+                <span v-else />
                 <div :class="disciplineEmpty ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-1 lg:grid-cols-2 gap-4'">
                   <!-- Category -->
                   <div class="min-w-0">
-                  <label class="field-label block mb-1.5">Category</label>
+                  <label v-if="!disciplineEmpty" class="field-label block mb-1.5">Category</label>
                   <div class="flex items-center gap-2 min-w-0">
                     <ChipMultiSelect v-model="form.category_ids" :options="categories" option-label="name" option-value="id"
                       placeholder="Choose categories" filter class="flex-1 min-w-0" :show-toggle-all="false">
