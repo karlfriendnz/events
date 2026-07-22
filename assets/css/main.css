@@ -283,11 +283,19 @@ body {
   body.printing-roll .roll-print-area .roll-sort-btn { display: none !important; }
   body.printing-roll .roll-print-area .roll-print-members { display: inline !important; }
   body.printing-roll .roll-print-area tr { break-inside: avoid; }
-  /* A printed roll is a blank sheet to write on: the green "already signed in" row
-     tint has no meaning on paper and prints as a green box wherever the browser has
-     background graphics enabled. Group header rows keep their colour (they're how you
-     find your class on the page). */
-  body.printing-roll .roll-print-area tbody tr:not(.roll-group-row) { background: #fff !important; }
+  /* MONOCHROME — a printed roll carries NO colour except the club logo. Screen tints
+     (the green "already signed in" row, status pills, category dots, group-header
+     bands, brand-coloured text) mean nothing on paper and print as stray boxes
+     wherever the browser has background graphics on. Everything is black on white;
+     <img> is the one exception, so the logo prints as itself. */
+  body.printing-roll .roll-print-area *:not(img) {
+    color: #000 !important;
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+    border-color: #9ca3af !important;
+  }
+  body.printing-roll .roll-print-area tbody tr { background: #fff !important; }
   body.printing-roll .roll-print-area td, body.printing-roll .roll-print-area th { padding-top: 6px; padding-bottom: 6px; }
   /* drop the checkbox(2) / drag(1) / actions(last) columns — header + data rows, not group headers */
   body.printing-roll .roll-print-area thead th:nth-child(1),
@@ -311,13 +319,13 @@ body {
   body.printing-roll.print-sign-time .roll-print-area tbody tr:not(.roll-group-row) > td:nth-last-child(2),
   body.printing-roll.print-sign-time .roll-print-area tbody tr:not(.roll-group-row) > td:nth-last-child(3) {
     min-width: 110px; height: 30px; padding-right: 16px;
-    background-image: linear-gradient(#444, #444);
-    background-repeat: no-repeat;
-    background-position: left bottom 4px;
-    background-size: calc(100% - 16px) 1px;
-    /* exact = print the ruled line at all (Chrome drops backgrounds otherwise) — but
-       it would ALSO print the green "attended" tint these cells carry on screen, so
-       the fill is explicitly cleared. Line yes, green box no. */
+    /* !important because the monochrome rule above blanks every background — this
+       black rule is the one background that must survive it (it's the line you sign
+       on, not decoration). The fill stays cleared, so no tinted box comes with it. */
+    background-image: linear-gradient(#000, #000) !important;
+    background-repeat: no-repeat !important;
+    background-position: left bottom 4px !important;
+    background-size: calc(100% - 16px) 1px !important;
     background-color: transparent !important;
     -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
