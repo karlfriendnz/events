@@ -50,10 +50,12 @@ describe('resolvePreset against full NZC subject types', () => {
     ])
   })
 
-  it('Parent / child → child first + guardian + emergency contact', () => {
+  // Children and guardians are UNLIMITED (max null) — a parent signing up several
+  // kids, or two guardians on one form, is the normal case.
+  it('Parent / child → child first + guardian + emergency contact, both unlimited', () => {
     expect(simplify(resolvePreset(NZC_TYPES, preset('parent_child')))).toEqual([
-      { key: 'member', label: 'Child', min: 1, max: 1, kind: 'person' },
-      { key: 'guardian', label: 'Parent / Guardian', min: 1, max: 1, kind: 'person' },
+      { key: 'member', label: 'Child', min: 1, max: null, kind: 'person' },
+      { key: 'guardian', label: 'Parent / Guardian', min: 1, max: null, kind: 'person' },
       { key: 'contact', label: 'Emergency Contact', min: 1, max: 2, kind: 'person' },
     ])
   })

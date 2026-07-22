@@ -15,9 +15,12 @@ export const PROFILE_PRESETS: { id: string; label: string; icon: string; descrip
     { match: ['member', 'player'], label: 'Member', min: 2, max: 2, selects: true },
     { match: ['contact', 'emergency'], label: 'Emergency Contact', min: 1, max: 2, synthKey: 'contact' },
   ] },
-  { id: 'parent_child', label: 'Parent / child', icon: 'pi-users', description: 'A parent or guardian registering one child.', roles: [
-    { match: ['member', 'player', 'child'], label: 'Child', min: 1, max: 1, selects: true },
-    { match: ['guardian', 'parent'], label: 'Parent / Guardian', min: 1, max: 1 },
+  // Children AND guardians are unlimited (max: null): a parent signing up two or three
+  // kids, or two guardians on one form, is the normal case — capping it at one each
+  // forced them through the form again.
+  { id: 'parent_child', label: 'Parent / child', icon: 'pi-users', description: 'A parent or guardian registering their children.', roles: [
+    { match: ['member', 'player', 'child'], label: 'Child', min: 1, max: null, selects: true },
+    { match: ['guardian', 'parent'], label: 'Parent / Guardian', min: 1, max: null },
     { match: ['contact', 'emergency'], label: 'Emergency Contact', min: 1, max: 2, synthKey: 'contact' },
   ] },
   { id: 'family', label: 'Family', icon: 'pi-home', description: '1–2 guardians registering up to 4 children at once.', roles: [

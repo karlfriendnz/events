@@ -3559,10 +3559,11 @@ defineExpose({ reload })
 
 
           <!-- Choose a registration type — the first step (also shown when no forms exist) -->
-          <!-- Fills the panel: the chooser IS the step, so a 580px card floating in a
-               half-empty box just wasted the space the options need. -->
-          <div v-if="!evtFormGroups.length || !evtFormGroupModes[selectedFormGroupId]" class="flex min-h-full">
-            <div class="bg-white overflow-hidden w-full flex flex-col">
+          <!-- A centred card, NOT full width: a list of short choices stretched across
+               a wide panel is harder to scan, not easier. (The panel behind it is
+               full-bleed; that's the part that needed the room.) -->
+          <div v-if="!evtFormGroups.length || !evtFormGroupModes[selectedFormGroupId]" class="flex items-start justify-center py-10 px-6">
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden w-full max-w-[580px] flex flex-col max-h-[calc(100%-2rem)]">
               <!-- Back sits in the header beside the title — it's navigation, and one
                    button in a fixed place beats the same button repeated inside each
                    step's scrolling body (where it moved with the content). -->
