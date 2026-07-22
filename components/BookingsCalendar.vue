@@ -23,16 +23,16 @@
             <div v-for="day in weekdaysOf(week)" :key="day.toISOString()"
               class="rounded-lg p-1.5 transition-colors border overflow-hidden select-none"
               :class="[
-                wizardMode && isPast(day) ? 'cursor-not-allowed opacity-40 border-transparent bg-gray-50/50'
+                isPast(day) ? 'cursor-not-allowed opacity-50 border-transparent bg-gray-50/50'
                   : day.getMonth() !== calDate.getMonth() ? 'cursor-pointer border-transparent bg-gray-50/50'
                   : 'cursor-pointer border-gray-100 hover:border-gray-200 hover:bg-gray-50',
                 isToday(day) ? '!bg-blue-50 !border-blue-200' : '',
                 inRangeSel(day) ? '!bg-primary/15 !border-primary ring-1 ring-primary/50' : '',
                 monthDropTarget && monthDropTarget.getTime() === stripTimeMs(day) ? '!bg-green-50 !border-green-300' : '',
               ]"
-              @mousedown="onRangeDown(day, $event)"
+              @mousedown="!isPast(day) && onRangeDown(day, $event)"
               @mouseenter="onRangeEnter(day)"
-              @click="onMonthCellClick(day)"
+              @click="!isPast(day) && onMonthCellClick(day)"
               @dragover.prevent="!wizardMode && (monthDropTarget = stripDate(day))"
               @dragleave="onMonthDragLeave(day)"
               @drop.prevent="!wizardMode && onMonthDrop(day)">
