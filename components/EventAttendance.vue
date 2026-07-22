@@ -855,8 +855,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               </th>
               <th class="py-3 pr-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-24">Status</th>
               <th v-for="col in visibleColumns" :key="col.key" class="py-3 pr-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{{ col.label }}</th>
-              <th class="py-3 pr-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide w-20">Signed In</th>
-              <th class="py-3 pr-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide w-16">Out</th>
+              <th class="py-3 pr-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide w-20">Sign In</th>
+              <th class="py-3 pr-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide w-20">Sign Out</th>
               <th class="py-3 w-20" />
             </tr>
           </thead>
@@ -1265,8 +1265,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                   <th class="py-2 pr-3">{{ t('member') }}</th>
                   <th v-if="printStatus" class="py-2 pr-3">Status</th>
                   <th v-for="col in visibleColumns" :key="col.key" class="py-2 pr-3 whitespace-nowrap">{{ col.label }}</th>
-                  <th class="py-2 pr-3 text-center">Signed In</th>
-                  <th class="py-2 text-center">Out</th>
+                  <th class="py-2 pr-3 text-center">Sign In</th>
+                  <th class="py-2 text-center">Sign Out</th>
                 </tr>
               </thead>
               <tbody>
@@ -1297,14 +1297,14 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               :class="printOrientation === o ? 'border-primary text-primary bg-primary/5 font-semibold' : 'border-gray-200 text-gray-600 hover:border-gray-300'"
               @click="printOrientation = (o as any)">{{ o }}</button>
           </div>
-          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Signed in / out</p>
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Sign in / Sign out</p>
           <div class="flex gap-2 mb-5">
             <button type="button" class="flex-1 text-sm py-1.5 rounded-lg border transition-colors"
               :class="printSignStyle === 'tick' ? 'border-primary text-primary bg-primary/5 font-semibold' : 'border-gray-200 text-gray-600 hover:border-gray-300'"
               @click="printSignStyle = 'tick'">Tick boxes</button>
             <button type="button" class="flex-1 text-sm py-1.5 rounded-lg border transition-colors"
               :class="printSignStyle === 'sign' ? 'border-primary text-primary bg-primary/5 font-semibold' : 'border-gray-200 text-gray-600 hover:border-gray-300'"
-              @click="printSignStyle = 'sign'">Sign + time</button>
+              @click="printSignStyle = 'sign'">Signature</button>
           </div>
           <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Columns</p>
           <label class="flex items-center gap-2 py-1 cursor-pointer text-sm text-gray-700">

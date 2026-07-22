@@ -300,8 +300,19 @@ body {
   body.printing-roll.print-sign-time .roll-print-area td:nth-last-child(3) .p-checkbox,
   body.printing-roll.print-sign-time .roll-print-area td:nth-last-child(2) .print-tick,
   body.printing-roll.print-sign-time .roll-print-area td:nth-last-child(3) .print-tick { display: none; }
+  /* The rule is drawn as a BACKGROUND that stops short of the cell's right edge, not
+     as a border-bottom — two neighbouring borders touch and print as ONE continuous
+     line, so Sign In and Sign Out ran together with nowhere to tell them apart. */
   body.printing-roll.print-sign-time .roll-print-area tbody tr:not(.roll-group-row) > td:nth-last-child(2),
   body.printing-roll.print-sign-time .roll-print-area tbody tr:not(.roll-group-row) > td:nth-last-child(3) {
-    border-bottom: 1px solid #444; min-width: 96px; height: 30px;
+    min-width: 110px; height: 30px; padding-right: 16px;
+    background-image: linear-gradient(#444, #444);
+    background-repeat: no-repeat;
+    background-position: left bottom 4px;
+    background-size: calc(100% - 16px) 1px;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
+  /* …and the same breathing room in the header so the two labels don't collide. */
+  body.printing-roll.print-sign-time .roll-print-area thead th:nth-last-child(2),
+  body.printing-roll.print-sign-time .roll-print-area thead th:nth-last-child(3) { padding-right: 16px; }
 }
