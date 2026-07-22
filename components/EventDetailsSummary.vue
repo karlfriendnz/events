@@ -53,12 +53,17 @@ const visibilityLabel = computed(() => {
 // Names only — the full editor is the <EventCoordinators> card further down. Guarded
 // like that component is: an unregistered API route answers with SPA HTML, and a
 // string would be iterated character by character.
-const coordinatorNames = ref<string[]>([])
+const coordinatorNames = ref<{ id: string; name: string }[]>([])
 async function loadCoordinators() {
   try {
     const rows = await eventsApi.eventCoordinators(props.eventId)
     coordinatorNames.value = Array.isArray(rows)
-      ? rows.map((c: any) => [c?.person?.firstName, c?.person?.lastName].filter(Boolean).join(' ').trim()).filter(Boolean)
+      ? rows
+        .map((c: any) => ({
+          id: c?.personId,
+          name: [c?.person?.firstName, c?.person?.lastName].filter(Boolean).join(' ').trim(),
+        }))
+        .filter((c: any) => c.name)
       : []
   } catch { coordinatorNames.value = [] }
 }
@@ -463,7 +468,12 @@ async function rebuildSeries(startAt: string | null, endAt: string | null, rule:
           <!-- Who runs it. Names only — the editor is the Coordinators card below. -->
           <div v-if="coordinatorNames.length" class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Coordinators</span>
-            <span class="text-sm text-gray-700 truncate" :title="coordinatorNames.join(', ')">{{ coordinatorNames.join(', ') }}</span>
+            <span class="text-sm text-gray-700 min-w-0">
+              <template v-for="(c, i) in coordinatorNames" :key="c.id || c.name">
+                <NuxtLink v-if="c.id" :to="`/people/${c.id}`" class="text-primary hover:underline">{{ c.name }}</NuxtLink>
+                <span v-else>{{ c.name }}</span><span v-if="i < coordinatorNames.length - 1">, </span>
+              </template>
+            </span>
           </div>
           <div v-if="locationSummaryText" class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Location</span>

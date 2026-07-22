@@ -11,9 +11,9 @@ const props = defineProps<{ eventId: string; embedded?: boolean }>()
 // Tell the host when the roster changes — the event summary shows the names, and
 // without this it kept whatever it loaded on mount (add a second coordinator, still
 // see one).
-const emit = defineEmits<{ (e: 'changed', names: string[]): void }>()
+const emit = defineEmits<{ (e: 'changed', people: { id: string; name: string }[]): void }>()
 function announce() {
-  emit('changed', coordinators.value.map(c => coName(c)))
+  emit('changed', coordinators.value.map(c => ({ id: c.personId, name: coName(c) })))
 }
 
 const eventsApi = useEventsApi()
@@ -189,7 +189,13 @@ onMounted(load)
           </thead>
           <tbody class="divide-y divide-gray-100">
             <tr v-for="c in coordinators" :key="c.id" class="align-middle hover:bg-gray-50/60">
-              <td class="px-3 py-2 text-sm font-medium text-gray-800 whitespace-nowrap">{{ coName(c) }}</td>
+              <td class="px-3 py-2 text-sm font-medium whitespace-nowrap">
+                <!-- The name is the way through to the person — a coordinator is a
+                     real member, and their profile is one click away. -->
+                <NuxtLink v-if="c.personId" :to="`/people/${c.personId}`"
+                  class="text-primary hover:underline">{{ coName(c) }}</NuxtLink>
+                <span v-else class="text-gray-800">{{ coName(c) }}</span>
+              </td>
               <td class="px-3 py-2">
                 <!-- ON is GREEN: these are switches, and green/grey says on/off at a
                      glance where brand-tint vs grey read as two shades of the same. -->
