@@ -389,15 +389,6 @@ const formPanelSessionsWithHeaders = computed(() => {
   return result
 })
 
-const simplePersonCount = ref(1)
-const simpleOpenIdx = ref(0)
-const simplePersonNames = ref<{ first: string; last: string }[]>([{ first: '', last: '' }])
-
-watch(simplePersonCount, (n, prev) => {
-  while (simplePersonNames.value.length < n) simplePersonNames.value.push({ first: '', last: '' })
-  if (simplePersonNames.value.length > n) simplePersonNames.value.splice(n)
-  if (n > prev) simpleOpenIdx.value = n - 1
-})
 function toggleEvtPreviewAgree(label: string) {
   const s = new Set(evtPreviewTermsAgreed.value)
   if (s.has(label)) s.delete(label); else s.add(label)
@@ -4618,38 +4609,10 @@ defineExpose({ reload })
             <!-- Accept / Decline / Maybe (simple registration mode) -->
             <div v-if="evtFormGroupModes[selectedFormGroupId] === 'simple'" class="border-t border-gray-100">
 
-              <!-- No people table, no "Add another person": Invite only is NOT a form.
-                   The invitee is someone you already invited, and all they do is reply —
-                   asking them to type their own name back is the form we said we weren't
-                   collecting. Their response is the whole interaction. -->
-              <!-- Discounts + Total (only shown when there is a fee) -->
-              <template v-if="evtBaseRegistrationFee > 0">
-                <template v-if="evtTotalDiscountSavings > 0">
-                  <div class="px-6 pt-4 border-t border-gray-100 space-y-1">
-                    <div v-for="disc in evtDiscountSummaryLines" :key="disc.formText"
-                      class="flex items-center text-sm text-green-600">
-                      <span class="flex-1 flex items-center gap-1.5"><i class="pi pi-tag text-xs" />{{ disc.formText }}</span>
-                      <span class="tabular-nums w-[72px] text-right mr-[53px] shrink-0 font-medium">−${{ Number(disc.amount).toFixed(2) }}</span>
-                    </div>
-                    <div class="flex items-center pt-1 border-t border-dashed border-gray-200 text-sm font-semibold text-green-700">
-                      <span class="flex-1">Total savings</span>
-                      <span class="tabular-nums w-[72px] text-right mr-[53px] shrink-0">−${{ evtTotalDiscountSavings.toFixed(2) }}</span>
-                    </div>
-                  </div>
-                  <div class="px-6 pb-5 flex items-center border-t border-gray-100 pt-4">
-                    <span class="flex-1 text-sm font-bold text-gray-900">Total</span>
-                    <span class="tabular-nums w-[72px] text-right mr-[53px] text-sm font-bold text-primary">${{ Math.max(0, evtBaseRegistrationFee * simplePersonCount - evtTotalDiscountSavings).toFixed(2) }}</span>
-                  </div>
-                </template>
-                <div v-else class="px-6 pb-5 flex items-center border-t border-gray-100 pt-4">
-                  <span class="flex-1 text-sm font-bold text-gray-900">Total</span>
-                  <span class="tabular-nums w-[72px] text-right mr-[53px] text-sm font-bold text-primary">${{ (evtBaseRegistrationFee * simplePersonCount).toFixed(2) }}</span>
-                </div>
-              </template>
-
-              <!-- Payment options (simple mode) -->
-              <FormPreviewPayment :payment="evtFormPayment" v-model:selected="evtPreviewPayment" />
-
+              <!-- Invite only is ONE person and no details: someone you already invited,
+                   replying. No name fields, no fees, no payment — the response IS the
+                   whole interaction. (Anything to collect or charge means one of the
+                   other registration types.) -->
               <!-- Response -->
               <div class="px-6 pb-6 space-y-2">
                 <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Your Response</p>
