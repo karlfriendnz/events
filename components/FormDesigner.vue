@@ -556,39 +556,57 @@ function evtNamePlaceholder(cf: { label: string }, subject: any) {
   const who = (subject?.label || subject?.key || 'their').toString().trim()
   return `Enter ${who} ${cf.label.toLowerCase()}`
 }
-// Seed the core fields onto a (person) subject — mirrors evtEnsureGlobalFields.
+// The five overarching-account (SSO) fields. First/Last are IDENTITY — always on a
+// person, required, non-removable. Email/DOB/Gender are the club's to decide per person
+// type (a Child needn't collect email; a Teenager type might) — so they seed as OPTIONAL
+// + REMOVABLE and are NOT re-added on load once a club removes them. They only become
+// mandatory at REGISTRATION for a person who opts into a login (handled by the live form,
+// which also auto-captures any that aren't on the form and sends them to the SSO layer).
+const EVT_SSO_CORE_LABELS = ['First Name', 'Last Name', 'Email', 'Date of Birth', 'Gender']
+const EVT_OPTIONAL_CORE_LABELS = ['Email', 'Date of Birth', 'Gender']
+
+// Runs on EVERY load: guarantees First/Last (identity) and keeps the optional cores
+// removable. Does NOT re-seed Email/DOB/Gender — that's a one-time creation seed below.
 function evtEnsureCoreFields(subject: any) {
   if (!subject?.key || (subject.kind ?? '') === 'entity') return
   const fields = ensureEvtGroupFields()
-  // Insert core fields at the front (before required org fields) on first seed, so
-  // a fresh subject reads name → email → … top-down; reordering is free afterwards.
   const seed: any[] = []
-  for (const cf of EVT_CORE_FIELDS) {
+  for (const cf of EVT_CORE_FIELDS.filter(c => c.pinned)) {
     const existing = fields.find((f: any) => f.label === cf.label && (f.target || '') === subject.key)
     if (existing) {
-      // A NAME is not optional and not movable — on ANY person subject (member,
-      // parent/guardian, emergency contact, child, or a group with no type at all).
-      // Seeding alone wasn't enough: a form built before this, or from a preset that
-      // set them loosely, kept First/Last draggable and un-required because the seed
-      // skips fields that already exist. So the flags are re-asserted every load.
-      if (cf.pinned) {
-        existing.pinned = true
-        existing.locked = true
-        existing.core = true
-        existing.is_required = true
-        // Re-assert the placeholder so a renamed subject ("Child") keeps the hint fresh.
-        existing.placeholder = evtNamePlaceholder(cf, subject)
-      }
+      existing.pinned = true; existing.locked = true; existing.core = true; existing.is_required = true
+      existing.placeholder = evtNamePlaceholder(cf, subject)
       continue
     }
     seed.push({
       id: crypto.randomUUID(), label: cf.label, field_type: cf.field_type,
-      is_required: true, locked: true, core: true, pinned: !!cf.pinned, account: cf.account,
-      placeholder: cf.pinned ? evtNamePlaceholder(cf, subject) : (cf.placeholder || ''), options: cf.options || [],
+      is_required: true, locked: true, core: true, pinned: true, account: cf.account,
+      placeholder: evtNamePlaceholder(cf, subject), options: cf.options || [],
       col_span: 1, visibility_conditions: [], financial_rules: [], target: subject.key,
     })
   }
   if (seed.length) fields.unshift(...seed)
+  // Migrate: Email/DOB/Gender used to be locked+forced-required. Unlock them so the club
+  // can remove / un-require them (their required-ness is now the club's choice).
+  for (const f of fields as any[]) {
+    if ((f.target || '') === subject.key && EVT_OPTIONAL_CORE_LABELS.includes(f.label) && f.locked) f.locked = false
+  }
+}
+
+// Seeds Email/DOB/Gender ONCE, when a subject is first added. Optional + removable, so a
+// club can permanently drop them for a person type without them reappearing on reload.
+function evtSeedOptionalCoreFields(subject: any) {
+  if (!subject?.key || (subject.kind ?? '') === 'entity') return
+  const fields = ensureEvtGroupFields()
+  for (const cf of EVT_CORE_FIELDS.filter(c => !c.pinned)) {
+    if (fields.some((f: any) => f.label === cf.label && (f.target || '') === subject.key)) continue
+    fields.push({
+      id: crypto.randomUUID(), label: cf.label, field_type: cf.field_type, system_name: evtNameFromLabel(cf.label),
+      is_required: false, locked: false, core: true, account: cf.account,
+      has_placeholder: true, placeholder: cf.placeholder || '', options: cf.options || [],
+      col_span: 1, visibility_conditions: [], financial_rules: [], target: subject.key, connected_to: 'profile',
+    } as any)
+  }
 }
 // Core field labels are always-present (marked "Always" in the library, not
 // re-addable, available as condition targets).
@@ -703,7 +721,7 @@ function evtPresetRoleSummary(id: string): string {
 function applyEvtProfilePreset(preset: any) {
   if (!preset) return
   currentEvtFormProfiles.value = resolvePreset(evtSubjectTypes.value, preset, { memberTerm: evtMemberTerm.value })
-  currentEvtFormProfiles.value.forEach(p => { evtEnsureCoreFields(p); evtAddRequiredFieldsFor(p.key); evtEnsureParentSectionFields(p) })
+  currentEvtFormProfiles.value.forEach(p => { evtEnsureCoreFields(p); evtSeedOptionalCoreFields(p); evtAddRequiredFieldsFor(p.key); evtEnsureParentSectionFields(p) })
 }
 function addEvtProfile(t: { key: string; label: string; kind?: string; min_count?: number; max_count?: number | null }) {
   if (currentEvtFormProfiles.value.some(p => p.key === t.key)) return
@@ -714,6 +732,7 @@ function addEvtProfile(t: { key: string; label: string; kind?: string; min_count
   const profile = { key: t.key, label: t.label, min: t.min_count ?? 1, max, kind: t.kind }
   currentEvtFormProfiles.value = [...currentEvtFormProfiles.value, profile]
   evtEnsureCoreFields(profile)
+  evtSeedOptionalCoreFields(profile)
   evtAddRequiredFieldsFor(t.key)
   evtEnsureParentSectionFields(profile)
   evtShowAddSubject.value = false
@@ -2347,7 +2366,7 @@ function chooseEvtFormPreset(presetId: string) {
     currentEvtFormProfiles.value = firstPerson
       ? [{ key: firstPerson.key, label: firstPerson.label, min: firstPerson.min_count ?? 1, max: null, kind: 'person', selectsOptions: true } as any]
       : [{ key: 'member', label: 'Member', min: 1, max: null, kind: 'person', selectsOptions: true } as any]
-    currentEvtFormProfiles.value.forEach(p => evtEnsureCoreFields(p))
+    currentEvtFormProfiles.value.forEach(p => { evtEnsureCoreFields(p); evtSeedOptionalCoreFields(p) })
   }
   evtChooserStep.value = 'subjects'
 }
@@ -2398,6 +2417,7 @@ function evtSetSubjectType(i: number, key: string) {
   // fields immediately (mirrors applyEvtProfilePreset); idempotent, so safe to re-run.
   const p = next[i]
   evtEnsureCoreFields(p)
+  evtSeedOptionalCoreFields(p)
   if (evtConnectedKey(p) !== EVT_NO_TYPE) evtAddRequiredFieldsFor(p.key)
   evtEnsureParentSectionFields(p)
 }
@@ -2698,7 +2718,7 @@ function chooseEvtFormType(mode: string) {
     // cap here is what hid it on the basic invite.
     else {
       currentEvtFormProfiles.value = [{ key: 'member', label: 'Member', min: 1, max: null, kind: 'person', selectsOptions: true } as any]
-      currentEvtFormProfiles.value.forEach(p => evtEnsureCoreFields(p))
+      currentEvtFormProfiles.value.forEach(p => { evtEnsureCoreFields(p); evtSeedOptionalCoreFields(p) })
     }
   }
   persistEvtFormConfig()
