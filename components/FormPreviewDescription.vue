@@ -24,10 +24,18 @@
     <template v-else>
       <RichTextEditor v-model="design.customDescription" bubble
         placeholder="Enter a custom description for this registration form..." />
-      <button type="button" class="mt-1 text-[11px] text-gray-400 hover:text-[#0e43a3] transition-colors"
-        @click="design.description = 'event'">
-        <i class="pi pi-undo text-[9px] mr-1" />Use the event's description instead
-      </button>
+      <div class="mt-1 flex items-center gap-3">
+        <!-- Clear empties the text but STAYS custom — otherwise clearing would snap
+             back to the event's description, which is the opposite of what you asked. -->
+        <button v-if="design.customDescription" type="button" class="text-[11px] text-gray-400 hover:text-red-500 transition-colors"
+          @click="design.customDescription = ''">
+          <i class="pi pi-times text-[9px] mr-1" />Clear
+        </button>
+        <button type="button" class="text-[11px] text-gray-400 hover:text-[#0e43a3] transition-colors"
+          @click="design.description = 'event'">
+          <i class="pi pi-undo text-[9px] mr-1" />Use the event's description instead
+        </button>
+      </div>
     </template>
   </div>
 </template>
@@ -40,8 +48,9 @@ const props = defineProps<{
   readonly?: boolean
 }>()
 
-// Seed the custom copy from the event so editing starts from what's already written,
-// rather than blanking the page and making you retype it.
+// Start from the event's own words — editing usually means "this, but different", and
+// blanking the page would make you retype what's already written. An existing custom
+// description is left alone (it's your work, not a default to overwrite).
 function startCustom() {
   if (!props.design.customDescription) props.design.customDescription = props.event?.description || ''
   props.design.description = 'custom'
