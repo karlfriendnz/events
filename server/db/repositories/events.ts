@@ -1556,17 +1556,35 @@ export async function generateSeriesOccurrences(
   // Everything worth cloning except the row identity, timestamps, and the recurrence
   // fields (children are single occurrences: no rule, no exdates, own parent).
   const { id: _id, createdAt: _c, updatedAt: _u, recurrenceRule: _rr, recurrenceParentId: _rp, exdates: _ex, ...cloneable } = master as any
+  // The master's invitees ride along to every occurrence — an attendee added to a
+  // recurring event belongs to the whole series. Only the person-level facts carry;
+  // per-occurrence state (attendance, sign-out, responses, sent flags) starts fresh.
+  const masterInvitees = await db.select().from(schema.invitees).where(eq(schema.invitees.eventId, masterId))
   await deleteSeriesChildren(masterId)
   for (const occ of occurrences) {
+    const childId = randomUUID()
     await db.insert(schema.events).values({
       ...cloneable,
-      id: randomUUID(),
+      id: childId,
       recurrenceParentId: masterId,
       recurrenceRule: null,
       exdates: [],
       startAt: occ.startAt ? new Date(occ.startAt) : null,
       endAt: occ.endAt ? new Date(occ.endAt) : null,
     } as any)
+    if (masterInvitees.length) {
+      await db.insert(schema.invitees).values(masterInvitees.map((inv: any) => ({
+        id: randomUUID(),
+        eventId: childId,
+        personId: inv.personId,
+        status: 'INVITED',
+        roles: inv.roles ?? null,
+        role: inv.role ?? null,
+        subGroupId: inv.subGroupId ?? null,
+        ticketType: inv.ticketType ?? null,
+        clubOrgId: inv.clubOrgId ?? null,
+      })) as any)
+    }
   }
   return occurrences.length
 }
