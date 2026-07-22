@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1710 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1712 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (89 prompts)
+## Session 2026-07-22 02:42 (91 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29290,4 +29290,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **22:52** — its too intence can we drop it by 50%
 
 **22:52** — commit
+
+**22:53** — if the feild is a global feild you should not be able to modify the options of that feild on the left ie gender
+
+**22:55** — [Image #47] I like the child register editing style, not the fill in form editing style. Please do that on the event description to fill in form and child register so it's all consistent.
 

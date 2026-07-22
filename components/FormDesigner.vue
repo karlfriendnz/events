@@ -15,10 +15,6 @@ const props = withDefaults(defineProps<{ eventId: string | null; groupId?: strin
   liveEvent: null, groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false, embedded: false, ageMin: null, ageMax: null, genderRestriction: null })
 
 const emit = defineEmits<{ (e: 'building', v: boolean): void; (e: 'invite-only'): void; (e: 'update:event', v: { title?: string; banner_url?: string | null }): void }>()
-
-// The form's own heading ("Fill in the form to register") is click-to-edit in the
-// builder — rich text like the description, so a club can make it their own words.
-const evtEditingHeading = ref(false)
 const formsApi = useFormsApi()
 const groupsApi = useGroupsApi()
 const eventsApi = useEventsApi()
@@ -1293,6 +1289,16 @@ const evtEditingFieldInherited = computed(() => {
   const f = evtEditingField.value
   return !!f && !!f.label && inheritedFieldLabels.value.includes(f.label)
 })
+// Whether the field's OPTIONS may be edited here. Locked for NSO-inherited fields AND
+// for global/core fields (Gender, DOB…) — a standard field's choices are defined once
+// centrally, not per form, so editing them here would silently diverge from everyone else.
+const evtEditingFieldLockedOptions = computed(() => {
+  const f = evtEditingField.value
+  return evtEditingFieldInherited.value || !!(f && (f.core || f.locked))
+})
+// Where a locked field's options come from — the NSO for inherited, else "global settings".
+const evtEditingFieldOptionsOwner = computed(() =>
+  evtEditingFieldInherited.value ? evtEditingFieldOwner.value : 'your global field settings')
 // The governing body that owns the inherited field (for the "managed by …" note).
 const evtEditingFieldOwner = computed(() => {
   const f = evtEditingField.value
@@ -3412,11 +3418,11 @@ defineExpose({ reload })
                   <!-- Dropdown options -->
                   <div v-if="evtEditingField.field_type === 'select'" class="space-y-1.5">
                     <label class="text-sm font-semibold text-gray-800">Options</label>
-                    <textarea :value="(evtEditingField.options || []).join('\n')" rows="4" placeholder="One option per line" :readonly="evtEditingFieldInherited"
+                    <textarea :value="(evtEditingField.options || []).join('\n')" rows="4" placeholder="One option per line" :readonly="evtEditingFieldLockedOptions"
                       class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors resize-none"
-                      :class="evtEditingFieldInherited ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''"
-                      @input="evtEditingFieldInherited ? null : evtSetFieldOptions(evtEditingField, $event.target.value)" />
-                    <p v-if="evtEditingFieldInherited" class="text-[11px] text-gray-400 flex items-center gap-1"><i class="pi pi-lock text-[9px]" />Options are set by {{ evtEditingFieldOwner }}.</p>
+                      :class="evtEditingFieldLockedOptions ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : ''"
+                      @input="evtEditingFieldLockedOptions ? null : evtSetFieldOptions(evtEditingField, $event.target.value)" />
+                    <p v-if="evtEditingFieldLockedOptions" class="text-[11px] text-gray-400 flex items-center gap-1"><i class="pi pi-lock text-[9px]" />Options are set by {{ evtEditingFieldOptionsOwner }}.</p>
                   </div>
                   <!-- Connected to -->
                   <div class="space-y-2">
@@ -4080,22 +4086,12 @@ defineExpose({ reload })
 
               <!-- Heading (hidden on the mobile details step — the event details fill it) -->
               <div v-if="!evtOnDetailsStep" class="px-6 pt-8 pb-3">
-                <!-- Public preview / read-only: static. Builder: click to edit as rich text. -->
-                <div v-if="evtPublicPreview" class="text-xl font-bold text-gray-800 prose prose-sm max-w-none" v-html="currentEvtFormDesign.formHeading || 'Fill in the form to register'" />
-                <div v-else-if="evtEditingHeading">
-                  <RichTextEditor v-model="currentEvtFormDesign.formHeading" bubble placeholder="Fill in the form to register" />
-                  <button type="button" class="mt-1 text-[11px] text-gray-400 hover:text-[#0e43a3] transition-colors" @click="evtEditingHeading = false">
-                    <i class="pi pi-check text-[9px] mr-1" />Done
-                  </button>
-                </div>
-                <button v-else type="button"
-                  class="group w-full text-left rounded-lg -m-1 p-1 transition-colors hover:bg-blue-50/40 hover:ring-2 hover:ring-[#0e43a3]/20"
-                  @click="evtEditingHeading = true">
-                  <span class="block text-xl font-bold text-gray-800 prose prose-sm max-w-none" v-html="currentEvtFormDesign.formHeading || 'Fill in the form to register'" />
-                  <span class="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-[#0e43a3] opacity-0 group-hover:opacity-100 transition-opacity">
-                    <i class="pi pi-pencil text-[9px]" />Edit this heading
-                  </span>
-                </button>
+                <!-- Public preview / read-only: static. Builder: always-editable inline
+                     input — same treatment as a subject's "… register" heading. -->
+                <h3 v-if="evtPublicPreview" class="text-xl font-bold text-gray-800">{{ currentEvtFormDesign.formHeading || 'Fill in the form to register' }}</h3>
+                <input v-else :value="currentEvtFormDesign.formHeading" maxlength="80" placeholder="Fill in the form to register"
+                  class="w-full text-xl font-bold text-gray-800 bg-transparent border-0 border-b border-transparent hover:border-gray-200 focus:border-[#0e43a3] outline-none px-0 py-0.5 transition-colors"
+                  @input="currentEvtFormDesign.formHeading = ($event.target as any).value" @click.stop />
               </div>
 
               <!-- Wizard step indicator (Form Style = Steps) — hidden on the mobile details step -->
