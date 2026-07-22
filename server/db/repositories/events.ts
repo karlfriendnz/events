@@ -1317,6 +1317,7 @@ function toCategory(r: typeof schema.categories.$inferSelect): EventCategory {
     disciplineIds: (() => { const a = asArray(r.disciplineIds) as string[]; return a.length ? a : null })(),
     accessTypeKeys: (() => { const a = asArray(r.accessTypeKeys) as string[]; return a.length ? a : null })(),
     accessPersonIds: (() => { const a = asArray(r.accessPersonIds) as string[]; return a.length ? a : null })(),
+    defaultColumns: (() => { const a = asArray(r.defaultColumns) as string[]; return a.length ? a : null })(),
     sortOrder: r.sortOrder,
   }
 }
@@ -1349,6 +1350,7 @@ export async function createCategory(input: EventCategoryCreate): Promise<EventC
     disciplineIds: (input.disciplineIds && input.disciplineIds.length) ? input.disciplineIds : null,
     accessTypeKeys: (input.accessTypeKeys && input.accessTypeKeys.length) ? input.accessTypeKeys : null,
     accessPersonIds: (input.accessPersonIds && input.accessPersonIds.length) ? input.accessPersonIds : null,
+    defaultColumns: (input.defaultColumns && input.defaultColumns.length) ? input.defaultColumns : null,
     sortOrder: input.sortOrder ?? 0,
   } as any)
   const [r] = await db.select().from(schema.categories).where(eq(schema.categories.id, id)).limit(1)
@@ -1371,6 +1373,7 @@ export async function updateCategory(id: string, patch: EventCategoryPatch): Pro
   }
   if (patch.accessTypeKeys !== undefined) set.accessTypeKeys = (patch.accessTypeKeys && patch.accessTypeKeys.length) ? patch.accessTypeKeys : null
   if (patch.accessPersonIds !== undefined) set.accessPersonIds = (patch.accessPersonIds && patch.accessPersonIds.length) ? patch.accessPersonIds : null
+  if (patch.defaultColumns !== undefined) set.defaultColumns = (patch.defaultColumns && patch.defaultColumns.length) ? patch.defaultColumns : null
   if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
   await db.update(schema.categories).set(set).where(eq(schema.categories.id, id))
   const [r] = await db.select().from(schema.categories).where(eq(schema.categories.id, id)).limit(1)

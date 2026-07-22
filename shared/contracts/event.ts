@@ -480,13 +480,17 @@ export const eventCategorySchema = z.object({
   // Both null/empty = everyone.
   accessTypeKeys: z.array(z.string()).nullable(), // person-type keys who may access it
   accessPersonIds: z.array(z.string()).nullable(), // specific person ids who may access it
+  // Default attendee-roll column keys for events in this category (migration 286).
+  // Keys match <EventAttendance>'s allColumns (email/phone/roles/age/gender/membership +
+  // cf:<id>). null/empty = the roll's own auto defaults.
+  defaultColumns: z.array(z.string()).nullable(),
   sortOrder: z.number().int(),
 })
 export type EventCategory = z.infer<typeof eventCategorySchema>
 export const eventCategoryListSchema = z.array(eventCategorySchema)
 export const eventCategoryCreateSchema = eventCategorySchema.omit({ id: true }).partial({
   parentId: true, color: true, icon: true, defaultTc: true, defaultFormId: true,
-  defaultXeroCodes: true, defaultDisciplineId: true, disciplineIds: true, accessTypeKeys: true, accessPersonIds: true, sortOrder: true,
+  defaultXeroCodes: true, defaultDisciplineId: true, disciplineIds: true, accessTypeKeys: true, accessPersonIds: true, defaultColumns: true, sortOrder: true,
 })
 export type EventCategoryCreate = z.infer<typeof eventCategoryCreateSchema>
 export const eventCategoryPatchSchema = eventCategoryCreateSchema.partial()
