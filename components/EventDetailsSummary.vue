@@ -58,7 +58,8 @@ const visibilityLabel = computed(() => {
 // <EventCoordinators> table below (and in each link's tooltip).
 const coordinatorNames = ref<{ id: string; first: string; last: string }[]>([])
 function shortName(c: { first: string; last: string }) {
-  const initial = c.last ? `${c.last.trim().charAt(0).toUpperCase()}.` : ''
+  // No full stop after the initial — with a comma separator it doubled up as "A.,".
+  const initial = c.last ? c.last.trim().charAt(0).toUpperCase() : ''
   return [c.first, initial].filter(Boolean).join(' ').trim()
 }
 function fullName(c: { first: string; last: string }) {
