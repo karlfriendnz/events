@@ -3997,11 +3997,12 @@ defineExpose({ reload })
                       <div v-show="evtSubjectCount(subject.key) === 1 || evtInstanceOpen(subject.key, inst)"
                         class="px-4 pb-4 space-y-3"
                         :class="(evtSubjectCount(subject.key) === 1 && evtPublicPreview) ? 'pt-4' : ''">
-                        <!-- Pinned First/Last Name — always first, never draggable (people only).
-                             Hidden in the EMBEDDED (basic/multi wizard) builder: those events
-                             invite KNOWN people, so re-showing name fields is clutter. The live
-                             public form (<FormRenderer>) still collects them for strangers. -->
-                        <div v-if="evtPinnedFields(subject.key).length && !embedded" class="grid gap-3" :class="evtPreviewDevice === 'mobile' ? 'grid-cols-1' : 'grid-cols-2'">
+                        <!-- Pinned First/Last Name — always first, never draggable (people only),
+                             and shown in EVERY builder. It used to be hidden when embedded (the
+                             wizards), on the assumption those events only invite known people —
+                             but the live form always collects a name, so the preview was showing
+                             a form that didn't match the one registrants get. -->
+                        <div v-if="evtPinnedFields(subject.key).length" class="grid gap-3" :class="evtPreviewDevice === 'mobile' ? 'grid-cols-1' : 'grid-cols-2'">
                           <div v-for="field in evtPinnedFields(subject.key)" :key="field.id"
                             class="space-y-1 group rounded-lg px-2 -mx-2 transition-all"
                             :class="evtPublicPreview ? '' : 'cursor-pointer hover:ring-2 hover:ring-[#0e43a3]/20 hover:bg-blue-50/20'"
