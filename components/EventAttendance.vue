@@ -540,7 +540,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
         </div>
         <div class="flex items-center">
           <button class="flex flex-col items-center gap-0.5 px-4 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" @click="inviteOpen = true">
-            <i class="pi pi-user-plus text-lg" /><span class="text-[10px] font-medium">Invite</span>
+            <i class="pi pi-user-plus text-lg" /><span class="text-[10px] font-medium">Add person</span>
           </button>
           <button class="flex flex-col items-center gap-0.5 px-4 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" @click="printAttendanceRoll">
             <i class="pi pi-print text-lg" /><span class="text-[10px] font-medium">Print Roll</span>
