@@ -201,6 +201,32 @@
       </template>
     </div>
 
+    <!-- Recurring group add — this occurrence or this + every following one -->
+    <Dialog v-model:visible="groupScopeOpen" modal :draggable="false" header="Add to the series?" :style="{ width: '95vw', maxWidth: '440px' }">
+      <p class="text-sm text-gray-600 mb-3">This event repeats. Add
+        <span class="font-medium text-gray-900">{{ allMemberGroups.find(g => g.id === pendingGroupAdd?.groupId)?.name || 'this class' }}</span>
+        to just this occurrence, or this and every following one?</p>
+      <div class="space-y-1.5">
+        <label v-for="opt in [
+          { value: 'this', label: 'This event only', desc: 'Just this occurrence' },
+          { value: 'following', label: 'This and following events', desc: 'This occurrence and every later one in the series' },
+        ]" :key="opt.value"
+          class="flex items-start gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors"
+          :class="groupScope === opt.value ? 'border-primary bg-primary/5' : 'border-gray-200 hover:bg-gray-50'">
+          <RadioButton v-model="groupScope" :value="opt.value" :inputId="`grpscope-${opt.value}`" class="mt-0.5" />
+          <span class="min-w-0">
+            <span class="block text-sm font-medium text-gray-800">{{ opt.label }}</span>
+            <span class="block text-xs text-gray-500">{{ opt.desc }}</span>
+          </span>
+        </label>
+      </div>
+      <template #footer>
+        <Button label="Cancel" severity="secondary" text size="small" @click="groupScopeOpen = false" />
+        <Button label="Add" icon="pi pi-check" size="small"
+          style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="confirmGroupScope" />
+      </template>
+    </Dialog>
+
   </div>
 
 </template>
@@ -279,6 +305,15 @@ function groupToEventRole(groupRoles: string[]): string {
 // ---- Invitees ----
 const invitees = ref<any[]>([])
 const inviteesLoading = ref(false)
+
+// Recurrence — so a group add can offer "this occurrence" vs "this + every following".
+const eventRow = ref<any>(null)
+const isRecurring = computed(() => !!(eventRow.value?.recurrenceRule || eventRow.value?.recurrenceParentId))
+async function loadEventRow() { eventRow.value = await eventsApi.get(props.eventId).catch(() => null) }
+// Scope dialog state for a recurring group add.
+const groupScopeOpen = ref(false)
+const groupScope = ref<'this' | 'following'>('following')
+const pendingGroupAdd = ref<{ groupId: string; who: 'all' | 'members' | 'staff' } | null>(null)
 
 async function loadInvitees() {
   inviteesLoading.value = true
@@ -379,7 +414,9 @@ async function toggleWholeCode(groupIds: string[], adding: boolean, who: 'all' |
     const already = selectedInviteeGroups.value.includes(id)
     // A narrowed add (members/staff only) always runs — the class may already be
     // added "as members" and you're now pulling its coaches in too.
-    if (who !== 'all' || adding !== already) await toggleSelectorGroup(id, who)
+    // Whole-code adds don't prompt per group — on a repeating event they default to
+    // every following occurrence (a per-group dialog on a code fan-out would be N popups).
+    if (who !== 'all' || adding !== already) await toggleSelectorGroup(id, who, isRecurring.value ? 'following' : undefined)
   }
 }
 
@@ -398,11 +435,18 @@ const unassignedInvitees = computed(() => {
   return invitees.value.filter(i => !assigned.has(i.person_id))
 })
 
-async function toggleSelectorGroup(value: string, who: 'all' | 'members' | 'staff' = 'all') {
-  await addGroupInvitees(value, who)
+async function toggleSelectorGroup(value: string, who: 'all' | 'members' | 'staff' = 'all', scope?: 'this' | 'following') {
+  await addGroupInvitees(value, who, scope)
 }
 
-async function addGroupInvitees(groupId: string, who: 'all' | 'members' | 'staff' = 'all') {
+async function addGroupInvitees(groupId: string, who: 'all' | 'members' | 'staff' = 'all', scope?: 'this' | 'following') {
+  // A recurring event asks: add to just this occurrence, or this + every following one?
+  if (isRecurring.value && !scope) {
+    pendingGroupAdd.value = { groupId, who }
+    groupScope.value = 'following'
+    groupScopeOpen.value = true
+    return
+  }
   addingGroupId.value = groupId
 
   // <PeopleSelector> emits leaf group ids (group nesting moved to group_codes in
@@ -461,7 +505,33 @@ async function addGroupInvitees(groupId: string, who: 'all' | 'members' | 'staff
   ]
   expandedGroupSections[groupId] = true
   if (!selectedInviteeGroups.value.includes(groupId)) selectedInviteeGroups.value.push(groupId)
+  // Chosen "this and following": add the same people to every later occurrence too.
+  if (scope === 'following') { await addGroupToFollowing(groupId, personIds, eventRoleByPerson); await loadInvitees() }
   addingGroupId.value = null
+}
+
+// Add a group's people to every occurrence at or after this one (excluding this one,
+// which the caller already handled). Best-effort per event — dups just no-op.
+async function addGroupToFollowing(groupId: string, personIds: string[], eventRoleByPerson: Record<string, string>) {
+  const master = eventRow.value?.recurrenceParentId || props.eventId
+  const rows = await eventsApi.series(master).catch(() => [] as any[])
+  const cur = eventRow.value?.startAt || null
+  const ids = rows
+    .filter((r: any) => r.id !== props.eventId && (!cur || !r.startAt || r.startAt >= cur))
+    .map((r: any) => r.id)
+  for (const eid of ids) {
+    for (const pid of personIds) {
+      const role = eventRoleByPerson[pid] || 'attendee'
+      try { await eventsApi.addInvitee(eid, { personId: pid, status: 'INVITED', role, roles: [role], clubOrgId: props.clubOrgId, invitedViaGroupId: groupId }) } catch { /* dup/no-op */ }
+    }
+  }
+}
+async function confirmGroupScope() {
+  const pending = pendingGroupAdd.value
+  groupScopeOpen.value = false
+  if (!pending) return
+  await addGroupInvitees(pending.groupId, pending.who, groupScope.value)
+  pendingGroupAdd.value = null
 }
 
 async function removeGroup(groupId: string) {
@@ -632,6 +702,7 @@ const inviteeActionMenuItems = [
 onMounted(async () => {
   scoped.loadRoleDefs()
   loadMemberGroups()
+  loadEventRow()
   // People power the name-join on each invitee pill — load them before the invitees.
   await loadPeople()
   loadInvitees()
