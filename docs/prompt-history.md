@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1666 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1667 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (45 prompts)
+## Session 2026-07-22 02:42 (46 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29182,4 +29182,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 
 **19:04** — remove this please - Registration form
 > Build the form people fill in to sign up. fromt eh basic event wizard
+
+**19:09** — ok if hter eis no memebr type created - i.e we are in old system then can we please hide the memebr type from step 3 in the Whos regisetering step :)
 

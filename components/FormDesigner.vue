@@ -2045,6 +2045,10 @@ const evtTypeConnectOptions = computed(() => [
   { key: EVT_NO_TYPE, label: 'Not connected' },
   ...evtSubjectTypes.value.map(t => ({ key: t.key, label: t.label })),
 ])
+// A club on the old model has no person types at all — the connect picker would then
+// offer nothing but "Not connected", so it isn't shown. Every subject is standalone
+// there, which is already the behaviour when nothing is connected.
+const evtHasSubjectTypes = computed(() => evtSubjectTypes.value.length > 0)
 // The Select shows the connected type, or "Not connected" when the key is synthetic.
 function evtConnectedKey(p: any) { return evtSubjectTypes.value.some(t => t.key === p.key) ? p.key : EVT_NO_TYPE }
 function evtSyntheticKey(i: number) { return `custom-${i}-${Math.random().toString(36).slice(2, 8)}` }
@@ -3626,8 +3630,8 @@ defineExpose({ reload })
                       <i class="pi pi-times-circle" />
                     </button>
                   </div>
-                  <!-- Optional type connection -->
-                  <div>
+                  <!-- Optional type connection — only when the club HAS types. -->
+                  <div v-if="evtHasSubjectTypes">
                     <label class="field-label block mb-1">Connect to a member type <span class="text-gray-400 font-normal">— optional</span></label>
                     <Select :model-value="evtConnectedKey(profile)" :options="evtTypeConnectOptions" option-label="label" option-value="key"
                       class="w-full" @update:model-value="k => evtSetSubjectType(i, k)" />
