@@ -72,8 +72,9 @@
                 <InputText v-model="form.title" placeholder="Enter the name of your event" class="w-full" autofocus />
               </div>
             </div>
-            <!-- Date -->
-            <div class="px-5 py-4 border-b border-gray-100">
+            <!-- Date. py-2 not py-4: the editor's rows carry their own py-2, so this
+                 block would otherwise be padded twice and sit lower than Event Title. -->
+            <div class="px-5 py-2 border-b border-gray-100">
               <DateTimeEditor
                 v-model:startDate="form.start_date"
                 v-model:endDate="form.end_date"

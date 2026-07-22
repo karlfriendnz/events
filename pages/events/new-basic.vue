@@ -124,8 +124,10 @@
                 <InputText ref="titleInput" v-model="form.title" placeholder="Enter the name of your event" class="w-full" />
               </div>
             </div>
-            <!-- Date (lives on step 1, right after the name) -->
-            <div class="px-5 py-4 border-b border-gray-100">
+            <!-- Date (lives on step 1, right after the name).
+                 py-2 not py-4: the editor's own rows carry py-2, so this block would
+                 otherwise be padded twice and sit lower than the Title row above it. -->
+            <div class="px-5 py-2 border-b border-gray-100">
               <!-- No accordion: the fields ARE the summary. Each editor row carries
                    its own 120px label column, matching the card's, so every input
                    lines up with Event Title. -->
@@ -156,8 +158,9 @@
                 </span>
               </div>
             </div>
-            <!-- Sign-up window — moved to the first tab (opens now → event start by default). -->
-            <div class="px-5 py-4 border-b border-gray-100">
+            <!-- Sign-up window — moved to the first tab (opens now → event start by default).
+                 py-2 for the same reason as the Date block above. -->
+            <div class="px-5 py-2 border-b border-gray-100">
               <DateTimeEditor
                 v-model:startDate="regOpenDate"
                 v-model:startTime="regOpenTime"
