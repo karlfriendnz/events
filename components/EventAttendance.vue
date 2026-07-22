@@ -254,23 +254,20 @@ function colVisible(key: string) {
   if (key in colOverride) return colOverride[key]
   return allColumns.value.find(c => c.key === key)?.auto() ?? false
 }
-function toggleCol(key: string) { colOverride[key] = !colVisible(key) }
-const visibleColumns = computed(() => allColumns.value.filter(c => colVisible(c.key)))
-
-// Column choices persist per club (localStorage) once SAVED — an explicit Save so a
-// one-off tweak isn't remembered against the user's wishes; reloaded on mount.
+// Column choices persist per club (localStorage) automatically — toggling a column
+// remembers it; reloaded on mount so the selection sticks across events/sessions.
 const colsKey = () => `fm_attendance_cols_${orgId.value || ''}`
+function persistColumns() {
+  try { localStorage.setItem(colsKey(), JSON.stringify(colOverride)) } catch { /* ignore */ }
+}
 function loadSavedColumns() {
   try {
     const raw = localStorage.getItem(colsKey())
     if (raw) Object.assign(colOverride, JSON.parse(raw))
   } catch { /* ignore bad json */ }
 }
-function saveColumns() {
-  try { localStorage.setItem(colsKey(), JSON.stringify(colOverride)) } catch { /* ignore */ }
-  toast.add({ severity: 'success', summary: 'Columns saved', life: 2000 })
-  colMenu.value?.hide?.()
-}
+function toggleCol(key: string) { colOverride[key] = !colVisible(key); persistColumns() }
+const visibleColumns = computed(() => allColumns.value.filter(c => colVisible(c.key)))
 // Fixed cols: drag + select + Members + Status + Signed-in + Out + actions = 7, plus the visible optional cols.
 const colCount = computed(() => 7 + visibleColumns.value.length)
 
@@ -601,9 +598,6 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                 <Checkbox :model-value="colVisible(c.key)" binary @change="toggleCol(c.key)" />
                 {{ c.label }}
               </label>
-              <div class="border-t border-gray-100 mt-1 pt-1.5 px-2">
-                <button class="w-full text-center text-sm font-semibold text-primary hover:underline py-1" @click="saveColumns">Save as my default</button>
-              </div>
             </div>
           </Popover>
         </div>

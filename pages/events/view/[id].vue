@@ -44,7 +44,9 @@ const BODY_TABS = [
     </div>
 
     <div v-show="activeTab === 'attendance'">
-      <EventAttendance :event-id="id" fit />
+      <!-- No `fit`: let the roll grow to its content so the PAGE is the only scroller
+           (fit caps the table's own height, which produced a second scrollbar). -->
+      <EventAttendance :event-id="id" />
     </div>
     <div v-show="activeTab === 'communication'">
       <EventCommunication :event-id="id" />

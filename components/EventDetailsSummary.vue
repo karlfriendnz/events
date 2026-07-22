@@ -223,7 +223,7 @@ async function saveDetails() {
           </div>
           <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Status</span>
-            <Tag :value="statusLabel" :severity="statusSeverity" />
+            <span class="text-sm text-gray-800">{{ statusLabel }}</span>
           </div>
           <div v-if="event.categoryId && categoriesById[event.categoryId]" class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Category</span>
