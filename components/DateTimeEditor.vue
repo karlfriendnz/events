@@ -15,7 +15,7 @@
             :min-date="minStartDate"
             :max-date="maxDate ?? undefined"
             @update:model-value="onStartDate" />
-          <TimeWheel v-if="showTime" :model-value="startTime" :placeholder="`${startLabel} time`" class="flex-1 min-w-0"
+          <TimeWheel v-if="showTime" ref="startTimeRef" :model-value="startTime" :placeholder="`${startLabel} time`" class="flex-1 min-w-0"
             :disabled="isAllDay" :min-time="startMinTime"
             @update:model-value="onStartTime" />
         </div>
@@ -26,7 +26,7 @@
             :min-date="minEndDate ?? startDate ?? undefined"
             :max-date="maxDate ?? undefined"
             @update:model-value="onEndDate" />
-          <TimeWheel v-if="showTime" :model-value="endTime" :placeholder="`${endLabel} time`" class="flex-1 min-w-0"
+          <TimeWheel v-if="showTime" ref="endTimeRef" :model-value="endTime" :placeholder="`${endLabel} time`" class="flex-1 min-w-0"
             :disabled="isAllDay" :min-time="endMinTime"
             @update:model-value="onEndTime" />
         </div>
@@ -162,28 +162,44 @@ const endMinTime = computed(() => (props.noPastToday && isToday(props.endDate ??
 function minsOfDay(d: Date) { return d.getHours() * 60 + d.getMinutes() }
 
 const endDateRef = ref()
+const startTimeRef = ref()
+const endTimeRef = ref()
+// Focus the end-date picker's input, which pops its calendar panel.
+function openEndDate() {
+  nextTick(() => (endDateRef.value?.$el?.querySelector('input') as HTMLInputElement | undefined)?.focus())
+}
 function onStartDate(v: Date | null) {
   emit('update:startDate', v)
   // End date before the new start → drop it rather than keep an invalid range.
   if (v && props.endDate && v > props.endDate) emit('update:endDate', null)
+  // A blank end date defaults to the start date (single-day by default). Only fills
+  // a blank — never overwrites an end the user already picked.
+  if (v && !props.endDate) emit('update:endDate', v)
   emit('change')
-  syncEndTime(props.startTime, props.endTime)
-  // Guide the user to the next box: once a start is picked and no end is set,
-  // open the end-date picker (focusing its input pops the panel).
-  if (v && !props.endDate) {
-    nextTick(() => (endDateRef.value?.$el?.querySelector('input') as HTMLInputElement | undefined)?.focus())
-  }
+  syncEndTime(props.startTime, props.endTime, v)
+  if (!v) return
+  // Auto-advance the sequence: date → time (or → end date when there are no time wheels).
+  nextTick(() => {
+    if (props.showTime && !props.isAllDay) startTimeRef.value?.open?.()
+    else openEndDate()
+  })
 }
 function onEndDate(v: Date | null) {
   emit('update:endDate', v)
   emit('change')
   // Collapsing a multi-day event back onto one day can strand the end time.
   syncEndTime(props.startTime, props.endTime, v)
+  // Auto-advance: end date → end time.
+  if (v && props.showTime && !props.isAllDay) nextTick(() => endTimeRef.value?.open?.())
 }
 function onStartTime(v: Date | null) {
   emit('update:startTime', v)
+  // A blank end time defaults to start + 1 hour (only fills a blank).
+  if (v && !props.endTime) emit('update:endTime', plusHour(v))
   emit('change')
   syncEndTime(v, props.endTime)
+  // Auto-advance: start time → end date.
+  if (v) openEndDate()
 }
 function onEndTime(v: Date | null) {
   // Reject an end that's at or before the start on the same day — snap it forward.
