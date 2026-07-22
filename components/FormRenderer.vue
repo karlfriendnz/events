@@ -170,14 +170,59 @@ function fieldByLabel(subjectKey: string, label: string) { return allFields(subj
 function valByLabel(key: string, inst: number, label: string) { const fld = fieldByLabel(key, label); return fld ? getVal(key, inst, fkey(fld)) : undefined }
 
 // ── Visibility conditions (same operators as the builder) ─────────────────────
+// ── Conditions about the PERSON, not about an answer ─────────────────────────
+// `person:member_status` / `person:person_type` need to know WHO is registering, which
+// the form only knows once they've signed in (or staff picked them). Unknown person =
+// condition FAILS, so a members-only question never shows to a stranger.
+// `person:group` is different: when the form asks them to choose a class, the answer is
+// their SELECTION on this form — no identity needed. It falls back to the classes they
+// already belong to when the form has no chooser.
+const identifiedPerson = ref<any>(null)
+const identifiedGroupIds = ref<string[]>([])
+
+function personCondPasses(c: any, key: string, inst: number): boolean {
+  const want = String(c.value ?? '')
+  const negate = c.operator === 'Is Not'
+  const yes = (v: boolean) => (negate ? !v : v)
+
+  if (c.field === 'person:group') {
+    const chosen = Object.entries(groupSel[key]?.[inst - 1] ?? {}).filter(([, on]) => on).map(([id]) => id)
+    // A form that asks which class they're joining answers this itself.
+    if (groupOptions.value.length) return yes(chosen.includes(want))
+    if (!identifiedPerson.value) return negate      // unknown → hide (unless "Is Not")
+    return yes(identifiedGroupIds.value.includes(want))
+  }
+
+  if (!identifiedPerson.value) return negate        // unknown → hide
+  if (c.field === 'person:person_type') {
+    const types: string[] = identifiedPerson.value.person_types ?? []
+    return yes(types.map(String).includes(want))
+  }
+  if (c.field === 'person:member_status') {
+    const p = identifiedPerson.value
+    const status = String(p.membership_status ?? (p.membership_type ? 'active_member' : 'non_member')).toLowerCase()
+    if (want === 'non_member') return yes(status === 'non_member' || !p.membership_type)
+    if (want === 'active_member') return yes(status === 'active_member' || status === 'active')
+    if (want === 'inactive_member') return yes(['inactive_member', 'inactive', 'lapsed', 'expired'].includes(status))
+    return yes(!!p.membership_type)                 // 'member' — any membership at all
+  }
+  return true
+}
+
 function condPasses(conds: any[], key: string, inst: number) {
   return (conds ?? []).every((c: any) => {
+    if (typeof c.field === 'string' && c.field.startsWith('person:')) return personCondPasses(c, key, inst)
     const val = valByLabel(key, inst, c.field) ?? ''
     if (c.operator === 'Is Empty') return !val
     if (c.operator === 'Is Not Empty') return !!val
-    if (c.operator === 'Equals') return val === c.value
-    if (c.operator === 'Is Not') return val !== c.value
+    if (c.operator === 'Equals') return String(val) === String(c.value)
+    if (c.operator === 'Is Not') return String(val) !== String(c.value)
     if (c.operator === 'Contains') return String(val).includes(c.value)
+    // Date + number comparisons — the editor offers these for date/number fields.
+    if (c.operator === 'Before') return !!val && new Date(String(val)) < new Date(String(c.value))
+    if (c.operator === 'After') return !!val && new Date(String(val)) > new Date(String(c.value))
+    if (c.operator === 'Greater Than') return Number(val) > Number(c.value)
+    if (c.operator === 'Less Than') return Number(val) < Number(c.value)
     return true
   })
 }
@@ -688,6 +733,19 @@ function prefillPrimary(person: any) {
     if (v != null && v !== '') setVal(subject.key, 1, fkey(f), v)
   }
   identifiedName.value = [person.first_name, person.last_name].filter(Boolean).join(' ').trim()
+  // Kept for person-based visibility conditions (see personCondPasses).
+  identifiedPerson.value = person
+  loadIdentifiedGroups(person.id)
+}
+
+// The classes they already belong to — only needed when the form doesn't ask.
+async function loadIdentifiedGroups(personId: string | null | undefined) {
+  identifiedGroupIds.value = []
+  if (!personId || !props.context?.orgId || groupOptions.value.length) return
+  try {
+    const rows = await useGroupsApi().membershipsForPerson(props.context?.orgId as string, personId)
+    identifiedGroupIds.value = (rows ?? []).map((r: any) => r.groupId ?? r.group_id).filter(Boolean)
+  } catch { /* no memberships → conditions simply don't match */ }
 }
 
 async function onGuest() { authResolved.value = true }
@@ -711,7 +769,12 @@ async function onSignedIn(payload: { email: string; firstName: string; lastName:
     else identifiedName.value = [payload.firstName, payload.lastName].filter(Boolean).join(' ').trim()
   }
 }
-function changeIdentity() { authResolved.value = false; identifiedName.value = '' }
+function changeIdentity() {
+  authResolved.value = false
+  identifiedName.value = ''
+  identifiedPerson.value = null
+  identifiedGroupIds.value = []
+}
 
 const rendererRoute = useRoute()
 const rendererUser = useSupabaseUser()

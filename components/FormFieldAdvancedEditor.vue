@@ -14,10 +14,18 @@
         <div v-for="(cond, idx) in (field.visibility_conditions ?? [])" :key="cond.id" class="space-y-2">
           <p class="text-xs font-semibold text-gray-500">{{ idx === 0 ? 'When' : 'and when' }}</p>
           <div class="flex items-center gap-2">
-            <select v-model="cond.field"
-              class="flex-1 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700">
+            <!-- What the condition is ABOUT: another answer on this form, or the
+                 person registering. -->
+            <select :value="cond.field"
+              class="flex-1 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700"
+              @change="cond.field = ($event.target as HTMLSelectElement).value; onConditionFieldChange(cond)">
               <option value="" disabled>Select field…</option>
-              <option v-for="f in otherFieldOptions" :key="f._optKey" :value="f.label">{{ f.label }}</option>
+              <optgroup label="Answers on this form">
+                <option v-for="f in otherFieldOptions" :key="f._optKey" :value="f.label">{{ f.label }}</option>
+              </optgroup>
+              <optgroup label="About the person">
+                <option v-for="pc in PERSON_CONDITIONS" :key="pc.key" :value="pc.key">{{ pc.label }}</option>
+              </optgroup>
             </select>
             <button type="button"
               class="w-6 h-6 flex items-center justify-center rounded text-gray-300 hover:text-red-500 transition-colors shrink-0"
@@ -25,15 +33,28 @@
               <i class="pi pi-times text-xs" />
             </button>
           </div>
+          <!-- Operator + value FOLLOW the field: a date offers Before/After and a date
+               box, a dropdown offers its own values, "is a member" offers the statuses. -->
           <div class="flex items-center gap-2">
             <select v-model="cond.operator"
               class="w-28 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700 shrink-0">
-              <option v-for="op in operators" :key="op" :value="op">{{ op }}</option>
+              <option v-for="op in operatorsFor(cond.field)" :key="op" :value="op">{{ op }}</option>
             </select>
-            <input v-if="!['Is Empty','Is Not Empty'].includes(cond.operator)" v-model="cond.value"
-              type="text" placeholder="Value"
-              class="flex-1 h-9 px-3 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
+            <template v-if="!NO_VALUE_OPS.includes(cond.operator)">
+              <select v-if="valueKindFor(cond.field) === 'choice'" v-model="cond.value"
+                class="flex-1 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700">
+                <option value="" disabled>Choose…</option>
+                <option v-for="o in valueOptionsFor(cond.field)" :key="o.value" :value="o.value">{{ o.label }}</option>
+              </select>
+              <input v-else v-model="cond.value" :type="valueKindFor(cond.field) === 'date' ? 'date' : valueKindFor(cond.field) === 'number' ? 'number' : 'text'"
+                placeholder="Value"
+                class="flex-1 h-9 px-3 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
+            </template>
           </div>
+          <p v-if="isPersonCond(cond.field)" class="text-[11px] text-gray-400 flex items-start gap-1.5">
+            <i class="pi pi-info-circle text-[10px] mt-0.5 shrink-0" />
+            <span>Checked against the person registering. Someone who isn't signed in can't be checked, so the field stays hidden for them.</span>
+          </p>
         </div>
         <button type="button"
           class="w-full py-2.5 rounded-xl bg-primary hover:bg-[#161a45] text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
@@ -141,11 +162,85 @@ const props = withDefaults(defineProps<{
   accountCodes?: readonly string[]
   operators?: readonly string[]
   hideFinancial?: boolean   // fields page wants visibility conditions only
+  /** Classes/groups the form can ask about (id + name). */
+  groupOptions?: { id: string; name: string }[]
+  /** The org's person types (key + label). */
+  personTypeOptions?: { key: string; label: string }[]
 }>(), {
+  groupOptions: () => [],
+  personTypeOptions: () => [],
   hideFinancial: false,
   accountCodes: () => ['ACC-001', 'ACC-002', 'ACC-003', 'ACC-004', 'ACC-005'] as const,
   operators:    () => ['Equals', 'Is Not', 'Contains', 'Is Empty', 'Is Not Empty'] as const,
 })
+
+// ── What a condition can be ABOUT ────────────────────────────────────────────
+// Until now only another field's answer. These add the person themselves — the
+// registrant's membership, their class, their type. Keys are prefixed so they can't
+// collide with a field label (the stored `field` is a label string).
+const PERSON_CONDITIONS = [
+  { key: 'person:member_status', label: 'Membership status' },
+  { key: 'person:group',         label: 'Class / group' },
+  { key: 'person:person_type',   label: 'Person type' },
+]
+const MEMBER_STATUS_OPTIONS = [
+  { value: 'active_member', label: 'Active member' },
+  { value: 'member', label: 'Member' },
+  { value: 'inactive_member', label: 'Lapsed member' },
+  { value: 'non_member', label: 'Not a member' },
+]
+const isPersonCond = (f: string) => typeof f === 'string' && f.startsWith('person:')
+
+/** The field a condition points at, when it's a form field. */
+function fieldDef(name: string): any {
+  return (props.conditionFieldOptions ?? []).find((f: any) => f.label === name)
+}
+
+// ── The operator + value control follow the FIELD ────────────────────────────
+// A date shouldn't offer "Contains", a dropdown shouldn't ask you to type its
+// options from memory, and "is a member" isn't a free-text comparison.
+const TEXT_OPS = ['Equals', 'Is Not', 'Contains', 'Is Empty', 'Is Not Empty']
+const NUM_OPS = ['Equals', 'Is Not', 'Greater Than', 'Less Than', 'Is Empty', 'Is Not Empty']
+const DATE_OPS = ['Equals', 'Is Not', 'Before', 'After', 'Is Empty', 'Is Not Empty']
+const CHOICE_OPS = ['Equals', 'Is Not', 'Is Empty', 'Is Not Empty']
+const IN_OPS = ['Is', 'Is Not']
+
+function operatorsFor(name: string): string[] {
+  if (isPersonCond(name)) return IN_OPS
+  const d = fieldDef(name)
+  const t = d?.field_type
+  if (t === 'date') return DATE_OPS
+  if (t === 'number') return NUM_OPS
+  if (t === 'select' || t === 'checkbox') return CHOICE_OPS
+  return [...(props.operators ?? TEXT_OPS)]
+}
+/** What the VALUE box should be: none / text / number / date / a list to pick from. */
+function valueKindFor(name: string): 'none' | 'text' | 'number' | 'date' | 'choice' {
+  if (isPersonCond(name)) return 'choice'
+  const d = fieldDef(name)
+  const t = d?.field_type
+  if (t === 'date') return 'date'
+  if (t === 'number') return 'number'
+  if (t === 'select' && (d?.options ?? []).length) return 'choice'
+  if (t === 'checkbox') return 'choice'
+  return 'text'
+}
+function valueOptionsFor(name: string): { value: string; label: string }[] {
+  if (name === 'person:member_status') return MEMBER_STATUS_OPTIONS
+  if (name === 'person:group') return (props.groupOptions ?? []).map(g => ({ value: g.id, label: g.name }))
+  if (name === 'person:person_type') return (props.personTypeOptions ?? []).map(t => ({ value: t.key, label: t.label }))
+  const d = fieldDef(name)
+  if (d?.field_type === 'checkbox') return [{ value: 'true', label: 'Ticked' }, { value: 'false', label: 'Not ticked' }]
+  return (d?.options ?? []).map((o: string) => ({ value: o, label: o }))
+}
+/** Operators that need no value at all. */
+const NO_VALUE_OPS = ['Is Empty', 'Is Not Empty']
+// Changing the field can strand an operator its new type doesn't have.
+function onConditionFieldChange(cond: any) {
+  const ops = operatorsFor(cond.field)
+  if (!ops.includes(cond.operator)) cond.operator = ops[0]
+  cond.value = ''
+}
 
 // Account-code options: when the club has Xero connected, offer the REAL
 // accounts (the "Accounts you use" shortlist from Settings → Xero, else the

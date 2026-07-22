@@ -1051,9 +1051,38 @@ function registerSectionDropzone(el: any, sortKey: string, sectionId: string, su
 onBeforeUnmount(() => { subjectSortables.forEach(s => s.destroy()); subjectSortables.clear() })
 
 // All fields eligible as condition targets (always-present + added fields)
+// Classes/groups a person-based condition can name. Loaded once, lazily — most forms
+// never open the Conditions tab.
+const evtGroupOptions = ref<{ id: string; name: string }[]>([])
+let evtGroupsLoaded = false
+async function loadEvtGroupOptions() {
+  if (evtGroupsLoaded || !orgId.value) return
+  evtGroupsLoaded = true
+  try {
+    const rows = await groupsApi.list(orgId.value)
+    evtGroupOptions.value = (rows ?? []).map((g: any) => ({ id: g.id, name: g.name }))
+  } catch { evtGroupOptions.value = [] }
+}
+const evtPersonTypeOptions = computed(() =>
+  evtSubjectTypes.value.filter(t => (t.kind || 'person') === 'person').map(t => ({ key: t.key, label: t.label })))
+
 const evtConditionFieldOptions = computed(() => {
-  const always = evtAlwaysPresentFields.map(label => ({ id: label, label }))
-  const added = currentEvtFormFields.value.filter(f => !evtAlwaysPresentFields.includes(f.label))
+  // Carry each field's TYPE and OPTIONS, not just its label: the condition editor
+  // shapes its operator + value control from them (a Gender condition offers Gender's
+  // own values; a date offers Before/After). Core fields were passed as bare labels,
+  // so they could never offer anything to pick.
+  const byLabel = new Map(currentEvtFormFields.value.map((f: any) => [f.label, f]))
+  const always = evtAlwaysPresentFields.map(label => {
+    const live: any = byLabel.get(label)
+    const meta: any = evtFieldMeta[label] ?? {}
+    return {
+      id: label,
+      label,
+      field_type: live?.field_type ?? meta.field_type ?? 'text',
+      options: live?.options?.length ? live.options : (meta.options ?? []),
+    }
+  })
+  const added = currentEvtFormFields.value.filter((f: any) => !evtAlwaysPresentFields.includes(f.label))
   return [...always, ...added]
 })
 
@@ -3176,7 +3205,7 @@ defineExpose({ reload })
                   <button type="button"
                     class="flex-1 py-2.5 text-xs font-semibold transition-colors border-b-2"
                     :class="evtFieldEditorTab === 'advanced' ? 'text-primary border-primary' : 'text-gray-400 hover:text-gray-600 border-transparent'"
-                    @click="evtFieldEditorTab = 'advanced'">Conditions</button>
+                    @click="evtFieldEditorTab = 'advanced'; loadEvtGroupOptions()">Conditions</button>
                 </div>
 
                 <!-- Details tab -->
@@ -3367,7 +3396,8 @@ defineExpose({ reload })
                 <!-- Advanced tab -->
                 <FormFieldAdvancedEditor v-else
                   :field="evtEditingField"
-                  :condition-field-options="evtConditionFieldOptions" />
+                  :condition-field-options="evtConditionFieldOptions"
+                  :group-options="evtGroupOptions" :person-type-options="evtPersonTypeOptions" />
               </template>
 
               <!-- ── FIELD LIBRARY: shown when no field is selected ── -->

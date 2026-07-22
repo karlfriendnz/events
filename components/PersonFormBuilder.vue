@@ -255,7 +255,11 @@ const canvasFields = computed(() => layout.value.map(f => ({
   placeholder: f.placeholder, has_placeholder: !!f.placeholder, options: f.options, col_span: f.col_span,
   core: f.core, tab_id: f.tab_id, tabs: f.tabs, block: f.block,
 })))
-const conditionFieldOptions = computed(() => layout.value.filter(f => f._key !== editingKey.value && !BLOCK_SET.has(f.field_type)).map(f => ({ _key: f._key, label: f.label })))
+// field_type + options ride along so the condition editor can shape its operator and
+// value control from the field it points at (a dropdown offers its own values).
+const conditionFieldOptions = computed(() => layout.value
+  .filter(f => f._key !== editingKey.value && !BLOCK_SET.has(f.field_type))
+  .map(f => ({ _key: f._key, label: f.label, field_type: f.field_type, options: (f as any).options ?? [] })))
 
 // New items land in the tab you're currently viewing (null = top level).
 function addCore(c: typeof CORE_FIELDS[number]) {
