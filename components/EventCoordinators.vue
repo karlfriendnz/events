@@ -40,7 +40,11 @@ async function load() {
   loading.value = true
   error.value = false
   try {
-    coordinators.value = await eventsApi.eventCoordinators(props.eventId)
+    const res = await eventsApi.eventCoordinators(props.eventId)
+    // Guard hard: if the API route isn't registered the dev server returns the SPA
+    // HTML as a STRING — v-for would then iterate it char-by-char and OOM the tab.
+    if (Array.isArray(res)) { coordinators.value = res }
+    else { coordinators.value = []; error.value = true }
   } catch {
     error.value = true
     coordinators.value = []
@@ -61,6 +65,7 @@ async function seedCreator() {
     const person = await peopleApi.findByEmail(orgId.value, email)
     if (!person) return
     const created: any = await eventsApi.addEventCoordinator(props.eventId, person.id, [...ALL])
+    if (!created || typeof created !== 'object' || !created.id) return
     created.person = { firstName: person.firstName ?? null, lastName: person.lastName ?? null }
     coordinators.value = [created]
   } catch { /* best-effort seed */ }
@@ -86,6 +91,7 @@ async function onPick(e: { value: any }) {
   if (!p?.id) return
   try {
     const created: any = await eventsApi.addEventCoordinator(props.eventId, p.id, [...ALL])
+    if (!created || typeof created !== 'object' || !created.id) throw new Error('bad response')
     created.person = { firstName: p.firstName ?? null, lastName: p.lastName ?? null }
     coordinators.value.push(created)
   } catch {
