@@ -610,6 +610,18 @@ const evtFieldsBySubject = computed(() => {
   }
   return map
 })
+// EVERY person subject has First + Last, guaranteed centrally. A subject can appear
+// from half a dozen places — a preset, Blank, the scratch fallback, "add a group
+// without a type", a re-key when its member type changes, or a config saved by an
+// older build — and seeding at each of them means one will always be missed (it was:
+// with no person types configured, the fallback subject was created with no fields at
+// all). Watching the list covers them all.
+watch([currentEvtFormProfiles, selectedFormGroupId], () => {
+  for (const p of currentEvtFormProfiles.value) {
+    if ((p.kind ?? 'person') !== 'entity') evtEnsureCoreFields(p)
+  }
+}, { deep: true, immediate: true })
+
 // Required NSO/club field defs bucketed by target ('' = applies to every subject).
 function evtRequiredDefsFor(key: string) {
   // A shared field can be required for several subjects — include it for each it applies to.
@@ -2105,6 +2117,7 @@ function chooseEvtFormPreset(presetId: string) {
     currentEvtFormProfiles.value = firstPerson
       ? [{ key: firstPerson.key, label: firstPerson.label, min: firstPerson.min_count ?? 1, max: null, kind: 'person', selectsOptions: true } as any]
       : [{ key: 'member', label: 'Member', min: 1, max: null, kind: 'person', selectsOptions: true } as any]
+    currentEvtFormProfiles.value.forEach(p => evtEnsureCoreFields(p))
   }
   evtChooserStep.value = 'subjects'
 }
@@ -2446,7 +2459,10 @@ function chooseEvtFormType(mode: string) {
     if (firstPerson) addEvtProfile(firstPerson)
     // max:null (unlimited) so the "Add another person" button shows — a single-person
     // cap here is what hid it on the basic invite.
-    else currentEvtFormProfiles.value = [{ key: 'member', label: 'Member', min: 1, max: null, kind: 'person', selectsOptions: true } as any]
+    else {
+      currentEvtFormProfiles.value = [{ key: 'member', label: 'Member', min: 1, max: null, kind: 'person', selectsOptions: true } as any]
+      currentEvtFormProfiles.value.forEach(p => evtEnsureCoreFields(p))
+    }
   }
   persistEvtFormConfig()
   // "Invite only" (the simple, no-form, Yes/No path): let a host wizard flip the

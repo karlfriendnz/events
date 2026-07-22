@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1676 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1677 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (55 prompts)
+## Session 2026-07-22 02:42 (56 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29202,4 +29202,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **20:26** — please continue
 
 **20:45** — Please do the reverse logic when I click on the tab in the right hand side it opens up the pane on the left hand side.
+
+**20:49** — Any people on the always have a first name and last name. So for example, at the moment when I click on child, it's not showing first and last name.
 
