@@ -105,7 +105,9 @@ const locationSummaryText = computed(() => {
   if (l0) {
     if (l0.type === 'ONLINE') return l0.meeting_link ? 'Online' : ''
     if (l0.type === 'BOOKABLE') return resolvedVenue.value || l0.venue_name || 'Venue'
-    return l0.address || l0.venue_name || ''
+    // Venue name AND address — `address || venue_name` meant a named place with a
+    // street address never showed its name. Same join <LocationEditor> summarises with.
+    return [l0.venue_name, l0.address].filter(Boolean).join(', ')
   }
   if (ev.locationType === 'ONLINE') return ev.meetingLink ? 'Online' : ''
   if (ev.locationType === 'BOOKABLE') return resolvedVenue.value || 'Venue'
@@ -150,7 +152,18 @@ function startEdit() {
   form.start_time = ev.startAt && !ev.isAllDay ? new Date(ev.startAt) : null
   form.end_date = ev.endAt ? new Date(ev.endAt) : (ev.startAt ? new Date(ev.startAt) : null)
   form.end_time = ev.endAt && !ev.isAllDay ? new Date(ev.endAt) : null
-  form.locations = [{ type: ev.locationType || 'ADDRESS', venue_name: '', address: ev.address || '', meeting_link: ev.meetingLink || '', bookable_ids: [] }]
+  // Seed from the STORED locations array when there is one — rebuilding it from the
+  // flat columns threw away everything the array holds that they don't: the venue
+  // name (typed, saved, then silently blanked on the next save) and bookable_ids.
+  form.locations = Array.isArray(ev.locations) && ev.locations.length
+    ? ev.locations.map((l: any) => ({
+      type: l.type || 'ADDRESS',
+      venue_name: l.venue_name || '',
+      address: l.address || '',
+      meeting_link: l.meeting_link || '',
+      bookable_ids: Array.isArray(l.bookable_ids) ? [...l.bookable_ids] : [],
+    }))
+    : [{ type: ev.locationType || 'ADDRESS', venue_name: '', address: ev.address || '', meeting_link: ev.meetingLink || '', bookable_ids: [] }]
   form.repeat = ev.recurrenceRule || 'NONE'
   form.exdates = Array.isArray(ev.exdates) ? [...ev.exdates] : []
   form.visibility = ev.visibility || (ev.isPublic ? 'public' : 'internal')
@@ -336,7 +349,9 @@ async function applySave(scope: 'this' | 'following' | 'all') {
       endAt,
       locations: form.locations,
       locationType: loc.type ?? 'ADDRESS',
-      address: loc.type === 'ADDRESS' ? (loc.address || null) : null,
+      // The flat column feeds the calendar/list views, which never see the locations
+      // array — so it carries the venue name too (same join the sessions repo uses).
+      address: loc.type === 'ADDRESS' ? ([loc.venue_name, loc.address].filter(Boolean).join(', ') || null) : null,
       meetingLink: loc.type === 'ONLINE' ? (loc.meeting_link || null) : null,
       visibility: form.visibility || 'internal',
       visibilityTypeKeys: form.visibility === 'custom' && form.visibility_type_keys.length ? form.visibility_type_keys : null,

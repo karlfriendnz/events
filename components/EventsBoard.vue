@@ -1237,7 +1237,9 @@ async function createQuickEvent() {
       visibilityGroupIds: quickForm.visibility === 'custom' && quickForm.visibility_group_ids.length ? quickForm.visibility_group_ids : null,
       locations: quickForm.locations,
       locationType: loc.type ?? 'ADDRESS',
-      address: loc.type === 'ADDRESS' ? (loc.address || null) : null,
+      // The flat column feeds the calendar/list views, which never see the locations
+      // array — so it carries the venue name too (same join the sessions repo uses).
+      address: loc.type === 'ADDRESS' ? ([loc.venue_name, loc.address].filter(Boolean).join(', ') || null) : null,
       meetingLink: loc.type === 'ONLINE' ? (loc.meeting_link || null) : null,
     }
     await eventsApi.update(quickDraftId.value, patch)
