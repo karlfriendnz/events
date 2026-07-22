@@ -126,11 +126,12 @@ function toggle(e: Event) {
   op.value?.toggle(e, triggerRef.value)
 }
 
-function scrollToSel(col: HTMLElement | undefined, val: number | null, list: number[]) {
+// Centre the selected value on the middle line, the rest spilling above/below it.
+function scrollToSel(col: HTMLElement | undefined, val: number | null, list: number[], smooth = false) {
   if (!col || val == null) return
   const idx = list.indexOf(val)
   const item = col.children[idx] as HTMLElement | undefined
-  if (item) col.scrollTop = item.offsetTop - col.clientHeight / 2 + item.clientHeight / 2
+  if (item) col.scrollTo({ top: item.offsetTop - col.clientHeight / 2 + item.clientHeight / 2, behavior: smooth ? 'smooth' : 'auto' })
 }
 function onShow() {
   nextTick(() => {
@@ -138,6 +139,10 @@ function onShow() {
     scrollToSel(minColRef.value, selMin.value, minutes.value)
   })
 }
+// Picking a value re-centres its column so the selection is always on the middle line
+// (e.g. choosing :15 slides it to centre, :13/:14 above, :16… below).
+watch(selHour, () => { if (panelOpen.value) nextTick(() => scrollToSel(hourColRef.value, selHour.value, hours, true)) })
+watch(selMin, () => { if (panelOpen.value) nextTick(() => scrollToSel(minColRef.value, selMin.value, minutes.value, true)) })
 
 function ok() {
   const base = props.modelValue ? new Date(props.modelValue) : new Date()
