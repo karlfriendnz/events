@@ -1179,7 +1179,7 @@ const quickForm = reactive<{
 // ── Event visibility (who can see it) — the Custom picker lazy-loads its options. ──
 const VISIBILITY_OPTIONS = [
   { label: 'Public', value: 'public' },
-  { label: 'Internal', value: 'internal' },
+  { label: 'Invitees only', value: 'internal' },
   { label: 'All members', value: 'all_members' },
   { label: 'Custom', value: 'custom' },
 ]

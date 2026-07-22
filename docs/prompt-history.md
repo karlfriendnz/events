@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-331 sessions · 1608 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+331 sessions · 1612 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -27706,7 +27706,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:17** — [Image #1] this is what happens when i run" npm run dev on a new tab - something is broken please fix it
 
 
-## Session 2026-07-20 00:42 (191 prompts)
+## Session 2026-07-20 00:42 (195 prompts)
 
 **00:42** — so i just restarted and now i can't get the server to run again ?
 
@@ -28973,6 +28973,42 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:43** — well i just tried the quick event and i would consider the at step wizard but its not 150 px from top ?
 
 **00:48** — yes please please show me a list of things you have done in a sub agent so i can check them all - please don't close sub agent till i ask you
+
+**01:10** — Add the ability to set the visibility of an event. The visibility options are public, internal, all memebrs or custom. Custom allows you to choose a certain group of people if you would like. By default a quick event should be set to internal but you should be able to set this when creating the event.
+
+**01:19** — <task-notification>
+> <task-id>a6a26272078ff943e</task-id>
+> <tool-use-id>toolu_01SuVoaL84CFEvxXQyNFS2RL</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/7cdcba7b-7e8e-4d96-9362-e77f900eb9e1/tasks/a6a26272078ff943e.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Event visibility setting" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Done — event visibility implemented and committed to my worktree.
+> 
+> **Branch `worktree-agent-a6a26272078ff943e` · commit `930a6b0`** · migrations **0013 / 287**
+> 
+> Files:
+> - `server/db/migrations/0013_event_visibility.sql` + `supabase/migrations/287_event_visibility.sql` (new)
+> - `server/db/schema.ts` — events: `visibility` varchar + `visibility_type_keys`/`_person_ids`/`_group_ids` json
+> - `shared/contracts/event.ts` — `fmEventSchema` +4 fields + create partial
+> - `server/db/repositories/events.ts` — mapper / create / update (empty→null, mirroring the category-columns pattern)
+> - `components/EventsBoard.vue` — `quickForm` visibility fields; a **Visibility** `SelectButton` (Public / Internal / All members / Custom, defaulting **Internal**) after Category; when Custom, a picker with three `ChipMultiSelect`s (person types / groups / specific people, lazy-loaded); `createQuickEvent` persists all four.
+> 
+> SFC + esbuild compile clean; committed, not pushed. Merge from `feat/event-page-batch` with `git merge worktree-agent-a6a26272078ff943e`.
+> 
+> Caveats:
+> - My worktree base was **stale** (missing the 0012 category migration) — I `git reset --hard feat/event-page-batch` first so I built on latest and claimed **0013** (not 0012) to avoid a collision.
+> - **Captured only** — per directive, read-time enforcement (actually filtering who *sees* an event on public/member surfaces) is a follow-up.
+> - Custom **people** picker is a `ChipMultiSelect` (loads all people once, bounded per club) rather than an AutoComplete — consistent with the type/group pickers.
+> - Visibility UI is on the **quick-event modal** only (as directed); new-basic/new-advanced/new-multi and the event edit card could surface the same control later.
+> - EventsBoard is a hotspot in the parent's context — on merge, confirm no overlap (I only added the visibility bits; didn't touch the tooltip/recurring areas).</result>
+> <usage><subagent_tokens>976970</subagent_tokens><tool_uses>364</tool_uses><duration_ms>425130</duration_ms></usage>
+> <worktree><worktreePath>/Users/karl/fm-events/.claude/worktrees/agent-a6a26272078ff943e</worktreePath><worktreeBranch>worktree-agent-a6a26272078ff943e</worktreeBranch></worktree>
+> </task-notification>
+
+**01:23** — The edit it quick mode should allow to set the exact same settings as the adding of event - its litterly the same form
+
+**01:23** — please change "internal" to invitees only which means only the people who are invited can see it
 
 
 ## Session 2026-07-20 17:11 (6 prompts)
