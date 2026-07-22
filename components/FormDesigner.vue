@@ -3559,8 +3559,10 @@ defineExpose({ reload })
 
 
           <!-- Choose a registration type — the first step (also shown when no forms exist) -->
-          <div v-if="!evtFormGroups.length || !evtFormGroupModes[selectedFormGroupId]" class="flex items-center justify-center py-16 px-6">
-            <div class="bg-white rounded-xl shadow-lg overflow-hidden w-full max-w-[580px]">
+          <!-- Fills the panel: the chooser IS the step, so a 580px card floating in a
+               half-empty box just wasted the space the options need. -->
+          <div v-if="!evtFormGroups.length || !evtFormGroupModes[selectedFormGroupId]" class="flex min-h-full p-3">
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden w-full flex flex-col">
               <!-- Back sits in the header beside the title — it's navigation, and one
                    button in a fixed place beats the same button repeated inside each
                    step's scrolling body (where it moved with the content). -->
@@ -3573,7 +3575,7 @@ defineExpose({ reload })
                 <h2 class="text-[17px] font-semibold text-white leading-snug">{{ evtChooserStep === 'previous' ? 'Start from a previous form' : evtChooserStep === 'subjects' ? "Who's registering?" : evtChooserStep === 'template' ? 'Choose a template' : 'Choose a registration type' }}</h2>
               </div>
               <!-- Step 1: pick the kind of form -->
-              <div v-if="evtChooserStep === 'type'" class="p-5 space-y-2.5">
+              <div v-if="evtChooserStep === 'type'" class="flex-1 min-h-0 overflow-y-auto p-5 space-y-2.5">
                 <button type="button" class="w-full flex items-start gap-3 border border-gray-200 rounded-lg px-4 py-3 text-left hover:border-[#182e59] hover:bg-blue-50/30 transition-colors group" @click="chooseEvtFormType('simple')">
                   <div class="shrink-0 w-9 h-9 rounded-lg bg-gray-50 group-hover:bg-blue-50 flex items-center justify-center text-gray-400 group-hover:text-[#182e59]"><i class="pi pi-file-edit text-lg" /></div>
                   <div><p class="text-sm font-bold text-gray-800">Invite only</p><p class="text-xs text-gray-500 mt-0.5">Just invite people — no form or fees. Emailed out; they reply Yes / No.</p></div>
@@ -3594,7 +3596,7 @@ defineExpose({ reload })
               </div>
 
               <!-- Step 2: choose a template (who's registering) -->
-              <div v-else-if="evtChooserStep === 'template'" class="p-5 space-y-2.5 max-h-[68vh] overflow-y-auto">
+              <div v-else-if="evtChooserStep === 'template'" class="flex-1 min-h-0 overflow-y-auto p-5 space-y-2.5">
                 <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wide px-1">Choose a template</p>
                 <p class="text-xs text-gray-400 px-1 -mt-1">Pick a starting point — every setting is fully configurable afterwards.</p>
 
@@ -3622,7 +3624,7 @@ defineExpose({ reload })
               </div>
 
               <!-- Step 3: set how many of each subject register + which person type -->
-              <div v-else-if="evtChooserStep === 'subjects'" class="p-5 space-y-3 max-h-[68vh] overflow-y-auto">
+              <div v-else-if="evtChooserStep === 'subjects'" class="flex-1 min-h-0 overflow-y-auto p-5 space-y-3">
                 <p class="text-xs text-gray-400 px-1 -mt-1">Name each group registering, say how many, and (optionally) connect it to a member type so it inherits that type's fields. You can change all of this later.</p>
 
                 <!-- Divider-separated rows, not a stack of bordered cards: three or four
@@ -3691,7 +3693,7 @@ defineExpose({ reload })
               </div>
 
               <!-- Start from a previous form: list + inline preview + clone -->
-              <div v-else-if="evtChooserStep === 'previous'" class="p-5 space-y-3 max-h-[68vh] overflow-y-auto">
+              <div v-else-if="evtChooserStep === 'previous'" class="flex-1 min-h-0 overflow-y-auto p-5 space-y-3">
                 <p class="text-xs text-gray-400 px-1 -mt-1">Pick a form you've built before to reuse its questions and layout.</p>
 
                 <div v-if="prevFormsLoading" class="py-8 flex justify-center"><i class="pi pi-spin pi-spinner text-gray-300 text-xl" /></div>
