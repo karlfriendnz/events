@@ -37,12 +37,38 @@ async function resolveVenue() {
   try { const b = await bookingsApi.bookable(bid); resolvedVenue.value = b?.name || '' } catch { /* ignore */ }
 }
 
+// ── Visibility + coordinators, shown in the summary ─────────────────────────
+const VIS_LABELS: Record<string, string> = {
+  public: 'Public', internal: 'Invitees only', all_members: 'All members', custom: 'Custom',
+}
+const visibilityLabel = computed(() => {
+  const v = event.value?.visibility || 'internal'
+  if (v !== 'custom') return VIS_LABELS[v] ?? v
+  const n = (event.value?.visibilityTypeKeys?.length ?? 0)
+    + (event.value?.visibilityGroupIds?.length ?? 0)
+    + (event.value?.visibilityPersonIds?.length ?? 0)
+  return n ? `Custom · ${n} ${n === 1 ? 'target' : 'targets'}` : 'Custom'
+})
+
+// Names only — the full editor is the <EventCoordinators> card further down. Guarded
+// like that component is: an unregistered API route answers with SPA HTML, and a
+// string would be iterated character by character.
+const coordinatorNames = ref<string[]>([])
+async function loadCoordinators() {
+  try {
+    const rows = await eventsApi.eventCoordinators(props.eventId)
+    coordinatorNames.value = Array.isArray(rows)
+      ? rows.map((c: any) => [c?.person?.firstName, c?.person?.lastName].filter(Boolean).join(' ').trim()).filter(Boolean)
+      : []
+  } catch { coordinatorNames.value = [] }
+}
+
 async function load() {
   loading.value = true
   try { event.value = await eventsApi.get(props.eventId); resolveVenue() } catch { event.value = null }
   finally { loading.value = false; emit('loaded', event.value) }
 }
-onMounted(() => { load(); loadCategories() })
+onMounted(() => { load(); loadCategories(); loadCoordinators() })
 watch(() => props.eventId, load)
 defineExpose({ reload: load })
 
@@ -91,7 +117,9 @@ const form = reactive<{
   title: string; status: string; is_all_day: boolean
   start_date: Date | null; start_time: Date | null; end_date: Date | null; end_time: Date | null
   category_id: string | null; locations: any[]; repeat: string; exdates: string[]
-}>({ title: '', status: 'PUBLISHED', is_all_day: false, start_date: null, start_time: null, end_date: null, end_time: null, category_id: null, locations: [], repeat: 'NONE', exdates: [] })
+  visibility: string; visibility_type_keys: string[]; visibility_group_ids: string[]; visibility_person_ids: string[]
+}>({ title: '', status: 'PUBLISHED', is_all_day: false, start_date: null, start_time: null, end_date: null, end_time: null, category_id: null, locations: [], repeat: 'NONE', exdates: [],
+  visibility: 'internal', visibility_type_keys: [], visibility_group_ids: [], visibility_person_ids: [] })
 
 // What the repeat looked like when editing began — regenerating the series is
 // destructive (it delete-then-inserts the child occurrences), so it only runs when
@@ -112,6 +140,10 @@ function startEdit() {
   form.locations = [{ type: ev.locationType || 'ADDRESS', venue_name: '', address: ev.address || '', meeting_link: ev.meetingLink || '', bookable_ids: [] }]
   form.repeat = ev.recurrenceRule || 'NONE'
   form.exdates = Array.isArray(ev.exdates) ? [...ev.exdates] : []
+  form.visibility = ev.visibility || (ev.isPublic ? 'public' : 'internal')
+  form.visibility_type_keys = ev.visibilityTypeKeys ?? []
+  form.visibility_group_ids = ev.visibilityGroupIds ?? []
+  form.visibility_person_ids = ev.visibilityPersonIds ?? []
   originalRepeat.value = form.repeat
   originalStart.value = ev.startAt ?? null
   editing.value = true
@@ -284,6 +316,10 @@ async function applySave(scope: 'this' | 'following' | 'all') {
       locationType: loc.type ?? 'ADDRESS',
       address: loc.type === 'ADDRESS' ? (loc.address || null) : null,
       meetingLink: loc.type === 'ONLINE' ? (loc.meeting_link || null) : null,
+      visibility: form.visibility || 'internal',
+      visibilityTypeKeys: form.visibility === 'custom' && form.visibility_type_keys.length ? form.visibility_type_keys : null,
+      visibilityGroupIds: form.visibility === 'custom' && form.visibility_group_ids.length ? form.visibility_group_ids : null,
+      visibilityPersonIds: form.visibility === 'custom' && form.visibility_person_ids.length ? form.visibility_person_ids : null,
     }
     if (rule !== undefined) { patch.recurrenceRule = rule; patch.exdates = form.exdates }
     const updated = await eventsApi.update(props.eventId, patch)
@@ -329,6 +365,8 @@ async function propagate(
       title: patch.title, status: patch.status, categoryId: patch.categoryId,
       isAllDay: patch.isAllDay, locations: patch.locations, locationType: patch.locationType,
       address: patch.address, meetingLink: patch.meetingLink,
+      visibility: patch.visibility, visibilityTypeKeys: patch.visibilityTypeKeys,
+      visibilityGroupIds: patch.visibilityGroupIds, visibilityPersonIds: patch.visibilityPersonIds,
     }
     for (const r of targets) {
       const p: any = { ...shared }
@@ -377,10 +415,17 @@ async function rebuildSeries(startAt: string | null, endAt: string | null, rule:
     <!-- Read mode — labeled rows (no inputs, location as a summary line) -->
     <template v-else-if="!editing">
       <div class="flex items-start justify-between gap-3">
-        <div class="flex-1 min-w-0 space-y-2.5">
+        <!-- TWO columns: one long thin list wasted the whole right half of the card
+             and pushed everything below the fold. Left = what and when, right = who
+             it's for and who runs it. -->
+        <div class="flex-1 min-w-0 grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-2.5">
           <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Name</span>
             <span class="text-sm font-medium text-gray-900 break-words">{{ event.title }}</span>
+          </div>
+          <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
+            <span class="field-label shrink-0 sm:w-20">Status</span>
+            <span class="text-sm text-gray-800">{{ statusLabel }}</span>
           </div>
           <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">When</span>
@@ -394,9 +439,10 @@ async function rebuildSeries(startAt: string | null, endAt: string | null, rule:
               </button>
             </span>
           </div>
+          <!-- Who can see it — was captured at creation and then shown nowhere. -->
           <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
-            <span class="field-label shrink-0 sm:w-20">Status</span>
-            <span class="text-sm text-gray-800">{{ statusLabel }}</span>
+            <span class="field-label shrink-0 sm:w-20">Visibility</span>
+            <span class="text-sm text-gray-700">{{ visibilityLabel }}</span>
           </div>
           <div v-if="event.categoryId && categoriesById[event.categoryId]" class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Category</span>
@@ -404,6 +450,11 @@ async function rebuildSeries(startAt: string | null, endAt: string | null, rule:
               <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: categoriesById[event.categoryId].color || '#94a3b8' }" />
               {{ categoriesById[event.categoryId].name }}
             </span>
+          </div>
+          <!-- Who runs it. Names only — the editor is the Coordinators card below. -->
+          <div v-if="coordinatorNames.length" class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
+            <span class="field-label shrink-0 sm:w-20">Coordinators</span>
+            <span class="text-sm text-gray-700 truncate" :title="coordinatorNames.join(', ')">{{ coordinatorNames.join(', ') }}</span>
           </div>
           <div v-if="locationSummaryText" class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Location</span>
@@ -470,6 +521,13 @@ async function rebuildSeries(startAt: string | null, endAt: string | null, rule:
         <span class="field-label shrink-0 sm:w-20 sm:pt-2.5">Location</span>
         <div class="flex-1 min-w-0"><LocationEditor v-model="form.locations" :multi="false" /></div>
       </div>
+      <!-- Visibility is editable HERE — a quick event set it at creation and then had
+           no way to change it. Same shared picker the creation paths use. -->
+      <EventVisibilityPicker
+        v-model="form.visibility"
+        v-model:type-keys="form.visibility_type_keys"
+        v-model:group-ids="form.visibility_group_ids"
+        v-model:person-ids="form.visibility_person_ids" />
       <!-- Coordinators live inside the edit box (only mounts when editing → no load on the plain view). -->
       <div class="pt-3 border-t border-gray-100">
         <EventCoordinators :event-id="eventId" embedded />
