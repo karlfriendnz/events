@@ -37,9 +37,11 @@ function onNext() {
 
 <template>
   <Teleport to="body">
-    <div class="app-modal-overlay fixed inset-0 flex items-stretch sm:items-center justify-center sm:p-6 bg-slate-900/45 backdrop-blur-[2px]"
+    <!-- Stepped modals are TOP-anchored 150px down (global rule) so the header stays put
+         as steps change height — the modal never jumps around — and 1000px wide. -->
+    <div class="app-modal-overlay fixed inset-0 flex items-stretch sm:items-start justify-center sm:pt-[150px] sm:px-6 sm:pb-6 bg-slate-900/45 backdrop-blur-[2px]"
       style="z-index:1000">
-      <div class="flex flex-col bg-white w-full h-full sm:h-[92vh] sm:max-w-[1400px] sm:rounded-xl shadow-2xl overflow-hidden">
+      <div class="flex flex-col bg-white w-full h-full sm:h-[calc(100vh-190px)] sm:max-w-[1000px] sm:rounded-xl shadow-2xl overflow-hidden">
 
         <!-- Header + step path (same brand bar as every dialog) -->
         <div class="shrink-0 bg-white border-b border-gray-200">
