@@ -456,26 +456,31 @@ defineExpose({ reloadGroups: loadGroups })
 
     <!-- INTERNAL — this org's own people + classes (the selector's original body). -->
     <div v-show="!showClubs || activeTab === 'internal'" class="space-y-3">
-    <!-- Term scope — classes run every term, so this narrows the tree to one term's classes -->
-    <div v-if="terms.length > 1" class="flex items-center gap-2 mb-2">
-      <i class="pi pi-clock text-gray-400 text-xs shrink-0" />
+    <!-- Term scope — classes run every term, so this narrows the tree to one term's
+         classes. Labelled left like every other field row (the bare clock icon left
+         you guessing what the dropdown was scoping). -->
+    <div v-if="terms.length > 1" class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mb-2">
+      <span class="field-label shrink-0 sm:w-16">{{ t('term', false) }}</span>
       <Select v-model="termId" :options="termOptions" option-label="name" option-value="id"
-        placeholder="All terms" size="small" class="flex-1" />
+        placeholder="All terms" size="small" class="flex-1 min-w-0" />
     </div>
     <!-- Search + Filter -->
-    <div class="flex gap-2">
-      <IconField class="flex-1">
-        <InputIcon class="pi pi-search" />
-        <InputText v-model="search" :placeholder="`Search ${t('group', true, true)} or people…`"
-          size="small" class="w-full" @input="onSearchInput" />
-      </IconField>
-      <div class="relative">
-        <Button label="Filter" icon="pi pi-filter" size="small" severity="secondary" outlined
-          @click="filterOpen = true" />
-        <span v-if="filterCount > 0"
-          class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
-          {{ filterCount }}
-        </span>
+    <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+      <span class="field-label shrink-0 sm:w-16">Search</span>
+      <div class="flex gap-2 flex-1 min-w-0">
+        <IconField class="flex-1 min-w-0">
+          <InputIcon class="pi pi-search" />
+          <InputText v-model="search" :placeholder="`Search ${t('group', true, true)} or people…`"
+            size="small" class="w-full" @input="onSearchInput" />
+        </IconField>
+        <div class="relative shrink-0">
+          <Button label="Filter" icon="pi pi-filter" size="small" severity="secondary" outlined
+            @click="filterOpen = true" />
+          <span v-if="filterCount > 0"
+            class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center">
+            {{ filterCount }}
+          </span>
+        </div>
       </div>
     </div>
 

@@ -372,31 +372,10 @@
             </div>
           </div>
 
-          <!-- 2. Registration form style. RSVP = no form at all (the answer is the
-               invitee's status); Custom form = the designer on the next step.
-               The public can't RSVP — a stranger has no profile to look up — so
-               saying yes above forces Custom form. -->
-          <div class="bg-white rounded-xl border border-gray-200 p-5 mb-4">
-            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-              <div class="flex-1">
-                <p class="text-sm font-medium text-gray-800">Registration form style</p>
-                <p class="text-xs text-gray-500 mt-0.5">
-                  {{ attendeeAction === 'form'
-                    ? 'Ask them whatever you need — one form, for everyone.'
-                    : 'They just reply yes or no. Nothing to fill in.' }}
-                </p>
-              </div>
-              <SelectButton :model-value="attendeeAction" :options="attendeeActionOptions"
-                option-label="label" option-value="value" option-disabled="disabled"
-                :allow-empty="false" class="shrink-0"
-                @update:model-value="setAttendeeAction" />
-            </div>
-            <p v-if="invitePublic" class="text-xs text-gray-500 mt-3 flex items-start gap-1.5">
-              <i class="pi pi-info-circle text-gray-300 text-xs mt-0.5" />
-              The public don't have a profile you can look up, so they have to fill in a form — yes/no on its own
-              wouldn't tell you who they are.
-            </p>
-          </div>
+          <!-- NB there's no "RSVP or form?" question here any more — this step is
+               about WHO. The Registration form step is where a form gets added
+               (its own "Add a registration form" prompt flips attendeeAction), and
+               making the public path public still forces a form on its own. -->
 
           <!-- The invitee picker (classes, individuals, a searchable roster). -->
           <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
@@ -815,13 +794,6 @@ const publicOptions = [
 // two before <DisciplineLinker> mounts (v-if=draftEventId) and reports back.
 const disciplineEmpty = ref(true)
 const attendeeAction = ref<'rsvp' | 'form'>('rsvp')
-
-// RSVP is disabled (not hidden) while the event is public, so the choice stays
-// visible and the reason can be explained rather than the option just vanishing.
-const attendeeActionOptions = computed(() => [
-  { label: 'RSVP only', value: 'rsvp', disabled: invitePublic.value },
-  { label: 'Custom form', value: 'form', disabled: false },
-])
 
 function setAttendeeAction(a: 'rsvp' | 'form') {
   if (!a) return                                   // SelectButton can emit null

@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1637 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1638 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (16 prompts)
+## Session 2026-07-22 02:42 (17 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29121,4 +29121,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **06:43** — [Image #8] all the boxes in the image show the differnece in vertical padding... please tidy
 
 **06:46** — nope padding s still crap make it all 32
+
+**06:56** — remvoe this from the choose invitees secton - Registration form style
+> 
+> They just reply yes or no. Nothing to fill in.
 
