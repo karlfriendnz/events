@@ -3561,8 +3561,8 @@ defineExpose({ reload })
           <!-- Choose a registration type — the first step (also shown when no forms exist) -->
           <!-- Fills the panel: the chooser IS the step, so a 580px card floating in a
                half-empty box just wasted the space the options need. -->
-          <div v-if="!evtFormGroups.length || !evtFormGroupModes[selectedFormGroupId]" class="flex min-h-full p-3">
-            <div class="bg-white rounded-xl shadow-lg overflow-hidden w-full flex flex-col">
+          <div v-if="!evtFormGroups.length || !evtFormGroupModes[selectedFormGroupId]" class="flex min-h-full">
+            <div class="bg-white overflow-hidden w-full flex flex-col">
               <!-- Back sits in the header beside the title — it's navigation, and one
                    button in a fixed place beats the same button repeated inside each
                    step's scrolling body (where it moved with the content). -->

@@ -103,10 +103,14 @@
     <!-- ── Body: form on the left, live summary rail on the right ── -->
     <div class="flex-1 min-h-0 flex">
 
-    <!-- ── Scrollable content ── -->
-    <div class="flex-1 min-w-0 overflow-y-auto bg-[#F5F8FA]">
-      <div class="mx-auto px-4 sm:px-6 py-5 sm:py-6"
-        :class="stepped ? 'max-w-[1540px]' : 'max-w-[900px] space-y-8'">
+    <!-- ── Scrollable content ──
+         The Registration form step runs FULL BLEED: the designer is a two-panel
+         editor that manages its own scrolling, so the wizard's padding + max-width
+         (and the outer scrollbar) only shrank it and left a border of dead space. -->
+    <div class="flex-1 min-w-0 bg-[#F5F8FA]" :class="formFullBleed ? 'overflow-hidden flex' : 'overflow-y-auto'">
+      <div :class="formFullBleed
+        ? 'flex-1 min-w-0 flex flex-col'
+        : ['mx-auto px-4 sm:px-6 py-5 sm:py-6', stepped ? 'max-w-[1540px]' : 'max-w-[900px] space-y-8']">
 
         <!-- ─ Event Info ─ -->
         <div :class="isStep('info') ? 'px-1' : 'hidden'">
@@ -392,7 +396,7 @@
              SAME form — a member gets it pre-filled, the public gets it blank. -->
         <!-- No heading here: the step path above already says "Registration form",
              and the builder fills the panel — a title + blurb just pushed it down. -->
-        <div :class="isStep('form') ? 'px-1' : 'hidden'">
+        <div :class="isStep('form') ? (formFullBleed ? 'flex-1 min-h-0 flex flex-col' : 'px-1') : 'hidden'">
           <!-- RSVP-only: no form is used yet. Offer to add one rather than hiding the
                step, so the form step is always reachable. -->
           <div v-if="!form.use_registration_form" class="bg-white rounded-xl border border-gray-200 p-8 text-center">
@@ -411,7 +415,9 @@
           </div>
           <!-- flex column + definite height so FormDesigner's absolute two-panel
                layout resolves (otherwise it collapses to nothing). -->
-          <div v-else class="bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col" style="height:70vh; min-height:560px">
+          <div v-else class="bg-white overflow-hidden flex flex-col"
+            :class="formFullBleed ? 'flex-1 min-h-0' : 'rounded-xl border border-gray-200'"
+            :style="formFullBleed ? '' : 'height:70vh; min-height:560px'">
             <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax" :gender-restriction="form.genderRestriction" embedded class="flex-1 min-h-0" @invite-only="setInviteOnly" />
           </div>
         </div>
@@ -1147,6 +1153,9 @@ const mobileSteps = computed(() => ALL_STEPS.filter(s => !s.when || s.when()))
 
 // A section shows when it's the current step (stepped view) or always (desktop).
 // In full mode every section renders (one long page); stepped shows one at a time.
+// Full-bleed applies ONLY in the stepped view: in full mode every section renders on
+// one page, where a step filling the viewport would swallow the others.
+const formFullBleed = computed(() => stepped.value && mobileSteps.value[mobileStep.value]?.key === 'form')
 const isStep = (key: string) => !stepped.value || mobileSteps.value[mobileStep.value]?.key === key
 const stepDesc = (label: string) =>
   ALL_STEPS.find(s => s.label.toLowerCase() === label.toLowerCase())?.desc ?? ''
