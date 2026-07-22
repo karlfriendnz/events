@@ -9,7 +9,10 @@ import { useToast } from 'primevue/usetoast'
 import { genderRestrictionLabel } from '~/composables/useEventRestrictions'
 import { applicableDiscounts as evalApplicableDiscounts, type DiscountCtx } from '~/composables/useDiscountEval'
 
-const props = withDefaults(defineProps<{ eventId: string | null; groupId?: string | null; formId?: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean; embedded?: boolean; ageMin?: number | null; ageMax?: number | null; genderRestriction?: string | null }>(), { groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false, embedded: false, ageMin: null, ageMax: null, genderRestriction: null })
+const props = withDefaults(defineProps<{ eventId: string | null; groupId?: string | null; formId?: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean; embedded?: boolean; ageMin?: number | null; ageMax?: number | null; genderRestriction?: string | null;
+  /** The host's in-progress event details (wizard) — override the stored draft row. */
+  liveEvent?: Record<string, any> | null }>(), {
+  liveEvent: null, groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false, embedded: false, ageMin: null, ageMax: null, genderRestriction: null })
 
 const emit = defineEmits<{ (e: 'building', v: boolean): void; (e: 'invite-only'): void }>()
 const formsApi = useFormsApi()
@@ -77,13 +80,21 @@ const evtCostLabel = computed(() => {
 })
 // Event object for the preview header: real date/location, with age + gender folded
 // into `criteria` when the event has no explicit criteria of its own.
+//
+// `liveEvent` is what the HOST is currently editing. In a wizard the event row is a
+// draft — the title/date/venue being typed two steps back aren't saved yet, so the row
+// this component loaded says nothing and the header showed "Your event date" for an
+// event that plainly has one. The host's in-progress values win over the stored row.
 const evtDisplayEvent = computed(() => {
   const e = event.value
-  if (!e) return e
+  const live: any = props.liveEvent ?? {}
+  if (!e && !Object.keys(live).length) return e
+  const merged: any = { ...(e ?? {}) }
+  for (const [k, v] of Object.entries(live)) if (v != null && v !== '') merged[k] = v
   return {
-    ...e,
-    location: e.location || evtLocationLabel.value || null,
-    ...(e.criteria || !evtRestrictionCriteria.value ? {} : { criteria: evtRestrictionCriteria.value }),
+    ...merged,
+    location: merged.location || evtLocationLabel.value || null,
+    ...(merged.criteria || !evtRestrictionCriteria.value ? {} : { criteria: evtRestrictionCriteria.value }),
   }
 })
 // ── WYSIWYG preview: the "Preview" mode renders the REAL <FormRenderer> off the

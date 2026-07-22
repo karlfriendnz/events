@@ -408,7 +408,7 @@
           <div v-else class="bg-white overflow-hidden flex flex-col"
             :class="formFullBleed ? 'flex-1 min-h-0' : 'rounded-xl border border-gray-200'"
             :style="formFullBleed ? '' : 'height:70vh; min-height:560px'">
-            <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax" :gender-restriction="form.genderRestriction" embedded class="flex-1 min-h-0" @invite-only="setInviteOnly" />
+            <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax" :gender-restriction="form.genderRestriction" :live-event="liveEventForForm" embedded class="flex-1 min-h-0" @invite-only="setInviteOnly" />
           </div>
         </div>
 
@@ -1228,6 +1228,18 @@ const summaryCategories = computed(() =>
   categories.value.filter(c => form.category_ids.includes(c.id)),
 )
 const summaryFees = computed(() => form.fees.filter(f => (f.name || '').trim() || f.amount))
+
+// The event as it stands in THIS wizard — the draft row lags behind what's typed, so
+// the form preview reads these instead of the stored values.
+const liveEventForForm = computed(() => ({
+  title: form.title?.trim() || null,
+  start_at: form.start_date ? buildDateTime(form.start_date, form.is_all_day ? null : form.start_time) : null,
+  end_at: form.end_date ? buildDateTime(form.end_date, form.is_all_day ? null : form.end_time) : null,
+  is_all_day: form.is_all_day,
+  description: form.description || null,
+  banner_url: form.banner_url || null,
+  location: summaryWhere.value || null,
+}))
 
 const summaryWhen = computed(() => {
   if (!form.start_date) return 'No date yet'
