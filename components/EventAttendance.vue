@@ -683,7 +683,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
         <table class="w-full text-sm">
           <thead class="sticky top-0 z-10 bg-white">
             <tr class="border-b border-gray-200">
-              <th class="pl-3 pr-1 py-3 w-8">
+              <th class="pl-3 pr-1 py-3 w-8 text-center align-middle">
                 <button v-if="attendanceViewMode !== 'all'"
                   class="flex items-center justify-center w-6 h-6 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
                   :title="allAttendanceGroupsCollapsed ? 'Expand all groups' : 'Collapse all groups'"
@@ -692,7 +692,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                 </button>
                 <i v-else class="pi pi-bars text-xs text-gray-300" />
               </th>
-              <th class="pl-1 pr-2 py-3 w-8"><Checkbox v-model="attendanceSelectAll" binary @change="toggleAttendanceSelectAll" /></th>
+              <th class="pl-1 pr-2 py-3 w-8 text-center align-middle"><Checkbox v-model="attendanceSelectAll" binary @change="toggleAttendanceSelectAll" /></th>
               <th class="py-3 pr-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-40">
                 <button class="flex items-center gap-1 hover:text-gray-900 transition-colors" @click="toggleAttendanceSort">
                   Members
@@ -724,8 +724,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               </tr>
               <template v-if="expandedMemberGroups[mg.group?.id ?? '__none__'] !== false">
                 <tr v-for="inv in mg.invitees" :key="inv.id" class="hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
-                  <td class="pl-3 pr-1 py-2.5 text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
-                  <td class="pl-1 pr-2 py-2.5"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
+                  <td class="pl-3 pr-1 py-2.5 w-8 text-center align-middle text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
+                  <td class="pl-1 pr-2 py-2.5 w-8 text-center align-middle"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
                   <td class="py-2.5 pr-3 font-medium"><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></td>
                   <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
                   <td v-for="col in visibleColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600">
@@ -766,8 +766,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
           <tbody v-else-if="attendanceViewMode === 'all'" class="divide-y divide-gray-100">
             <tr v-for="inv in filteredSortedAttendees" :key="inv.id" draggable="true" @dragstart="onDragStart($event, inv.id)"
               class="hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
-              <td class="pl-3 pr-1 py-2.5 text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
-              <td class="pl-1 pr-2 py-2.5"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
+              <td class="pl-3 pr-1 py-2.5 w-8 text-center align-middle text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
+              <td class="pl-1 pr-2 py-2.5 w-8 text-center align-middle"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
               <td class="py-2.5 pr-3 font-medium"><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></td>
               <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
               <td v-for="col in visibleColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600">
@@ -824,8 +824,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               <tr v-if="expandedSubGroups[section.group.id] !== false" v-for="inv in section.invitees" :key="inv.id"
                 draggable="true" @dragstart="onDragStart($event, inv.id)"
                 class="hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
-                <td class="pl-3 pr-1 py-2.5 text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
-                <td class="pl-1 pr-2 py-2.5"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
+                <td class="pl-3 pr-1 py-2.5 w-8 text-center align-middle text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
+                <td class="pl-1 pr-2 py-2.5 w-8 text-center align-middle"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
                 <td class="py-2.5 pr-3 font-medium"><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></td>
                 <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
                 <td v-for="col in visibleColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600">
@@ -874,8 +874,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               </tr>
               <tr v-for="inv in groupedInvitees.ungrouped" :key="inv.id" draggable="true" @dragstart="onDragStart($event, inv.id)"
                 class="hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
-                <td class="pl-3 pr-1 py-2.5 text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
-                <td class="pl-1 pr-2 py-2.5"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
+                <td class="pl-3 pr-1 py-2.5 w-8 text-center align-middle text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
+                <td class="pl-1 pr-2 py-2.5 w-8 text-center align-middle"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
                 <td class="py-2.5 pr-3 font-medium"><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></td>
                 <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
                 <td v-for="col in visibleColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600">
@@ -1080,6 +1080,13 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
       </div>
       <!-- Full multi-select picker, revealed on demand. -->
       <EventInviteeManager v-else :event-id="props.eventId" :show-invite="false" />
+      <template #footer>
+        <div class="flex items-center justify-between gap-3 w-full">
+          <span class="text-xs text-gray-400">People are added as you pick them — no need to save.</span>
+          <Button label="Done" icon="pi pi-check" @click="inviteOpen = false"
+            style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+        </div>
+      </template>
     </Dialog>
 
     <!-- #25 Print preview + config drawer -->
