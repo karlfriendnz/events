@@ -603,17 +603,8 @@
           <div class="flex-1 h-px bg-gray-100" />
         </div>
 
-        <!-- 2 + 3. Name it, then pick how you want to build it -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1.5">{{ t('event', false) }} name</label>
-          <InputText
-            ref="eventNameInput"
-            v-model="newEventName"
-            placeholder="Enter name of event"
-            class="w-full"
-            @keydown.enter="startWizard" />
-        </div>
-
+        <!-- Just pick how you want to build it — the name is asked for inside
+             each builder, so asking here first was a gate for no reason. -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <!-- Quick event: name · date · location · invitees, all in one modal.
                Always enabled (the fast path); accented so it reads as the quick option. -->
@@ -627,8 +618,7 @@
             <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Name, date, location &amp; invitees — all on one screen.</p>
           </button>
           <button type="button"
-            class="h-full text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
-            :disabled="!newEventName.trim()"
+            class="h-full text-left border-2 rounded-xl p-4 transition-colors hover:border-primary hover:bg-[#F0F4FF]"
             @click="startWizard">
             <div class="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center mb-2">
               <i class="pi pi-list-check text-primary" />
@@ -637,8 +627,7 @@
             <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Guided, one step at a time.</p>
           </button>
           <button type="button"
-            class="h-full text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
-            :disabled="!newEventName.trim()"
+            class="h-full text-left border-2 rounded-xl p-4 transition-colors hover:border-primary hover:bg-[#F0F4FF]"
             @click="startCustom">
             <div class="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center mb-2">
               <i class="pi pi-sliders-h text-purple-700" />
@@ -647,8 +636,7 @@
             <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Choose the type and set it up yourself.</p>
           </button>
           <button v-if="isGoverningOrg" type="button"
-            class="h-full text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
-            :disabled="!newEventName.trim()"
+            class="h-full text-left border-2 rounded-xl p-4 transition-colors hover:border-primary hover:bg-[#F0F4FF]"
             @click="startAdvanced">
             <div class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center mb-2">
               <i class="pi pi-sliders-v text-amber-700" />
@@ -657,8 +645,7 @@
             <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">Sessions, fees, forms, discounts and automation.</p>
           </button>
           <button type="button"
-            class="h-full text-left border-2 rounded-xl p-4 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:border-primary hover:bg-[#F0F4FF]"
-            :disabled="!newEventName.trim()"
+            class="h-full text-left border-2 rounded-xl p-4 transition-colors hover:border-primary hover:bg-[#F0F4FF]"
             @click="startHolidayProgramme">
             <div class="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center mb-2">
               <i class="pi pi-sun text-emerald-700" />
@@ -1071,12 +1058,6 @@ function openEventTypeModal(date?: string, endDate?: string) {
   showEventNameModal.value = true
 }
 
-function submitEventName() {
-  if (!newEventName.value.trim()) return
-  showEventNameModal.value = false
-  showEventTypeModal.value = true
-}
-
 // Both routes ask how often it runs first. The answer decides which builder they
 // land in (single vs multi-session); the user never sees those words.
 //   wizard + once     → the stepped basic wizard
@@ -1090,13 +1071,11 @@ const creationMode = ref<'wizard' | 'custom'>('wizard')
 // single-session path. (The modal + chooseMultiSession stay in place to restore
 // later: point these back at showSessionCountModal.value = true.)
 function startWizard() {
-  if (!newEventName.value.trim()) return
   creationMode.value = 'wizard'
   showEventNameModal.value = false
   chooseSingleSession()
 }
 function startCustom() {
-  if (!newEventName.value.trim()) return
   creationMode.value = 'custom'
   showEventNameModal.value = false
   chooseSingleSession()
@@ -1106,13 +1085,15 @@ function startCustom() {
 // land the user on it. openEvent() routes created_via:'advanced' back here too.
 const creatingAdvanced = ref(false)
 async function startAdvanced() {
-  if (!newEventName.value.trim() || creatingAdvanced.value) return
+  if (creatingAdvanced.value) return
   creatingAdvanced.value = true
   showEventNameModal.value = false
   try {
     const payload: any = {
       orgId: orgId.value,
-      title: newEventName.value.trim(),
+      // No name is asked for up front any more — the builder collects it, so the
+      // row starts as a draft placeholder (same convention as the wizards).
+      title: newEventName.value.trim() || '(draft)',
       status: 'DRAFT',
       style: 'ADVANCED',
       createdVia: 'advanced',
@@ -1134,9 +1115,9 @@ async function startAdvanced() {
 // builder (reachable from any events board, incl. a pinned "Holiday Programme"
 // calendar, now that Programme is no longer a hardcoded menu item).
 function startHolidayProgramme() {
-  if (!newEventName.value.trim()) return
   showEventNameModal.value = false
-  const params = new URLSearchParams({ programme: '1', name: newEventName.value.trim() })
+  const params = new URLSearchParams({ programme: '1' })
+  if (newEventName.value.trim()) params.set('name', newEventName.value.trim())
   if (activeCalendarStampCategory.value) params.set('category', activeCalendarStampCategory.value)
   navigateTo(`/events/new-multi?${params}`)
 }
@@ -1365,7 +1346,7 @@ async function createCustomEvent() {
   try {
     const payload: any = {
       orgId: orgId.value,
-      title: newEventName.value.trim(),
+      title: newEventName.value.trim() || '(draft)',
       status: 'DRAFT',
       style: 'BASIC',
       createdVia: 'custom',    // opens in the full event page, not the wizard
