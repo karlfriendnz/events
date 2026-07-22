@@ -136,8 +136,23 @@ onMounted(load)
 
 <template>
   <div :class="embedded ? '' : 'card p-4 sm:p-5'">
-    <h3 class="section-title">Coordinators</h3>
-    <p class="field-help mb-3">People who administer this event and get notified about it.</p>
+    <!-- Add sits with the heading (the section's action), not under the table. -->
+    <div class="flex items-start justify-between gap-3 mb-3">
+      <div class="min-w-0">
+        <h3 class="section-title">Coordinators</h3>
+        <p class="field-help">People who administer this event and get notified about it.</p>
+      </div>
+      <Button v-if="!loading && !error && !adding" label="Add coordinator" icon="pi pi-plus" size="small" outlined
+        class="shrink-0" style="color:var(--brand-primary);border-color:var(--brand-primary)" @click="startAdd" />
+    </div>
+
+    <!-- The search only appears once you've said you want to add someone. -->
+    <div v-if="adding" class="flex items-center gap-2 mb-3">
+      <AutoComplete ref="addInput" v-model="search" :suggestions="suggestions" optionLabel="_name"
+        placeholder="Search for a person…" class="flex-1 min-w-0" :pt="{ input: { class: 'w-full' } }"
+        @complete="onSearch" @item-select="onPick" />
+      <Button label="Cancel" text size="small" severity="secondary" @click="cancelAdd" />
+    </div>
 
     <div v-if="loading" class="flex items-center gap-2 text-sm text-gray-400 py-2">
       <i class="pi pi-spin pi-spinner" /> Loading…
@@ -187,20 +202,6 @@ onMounted(load)
         </table>
       </div>
       <div v-else class="text-sm text-gray-400 py-1">No coordinators yet.</div>
-
-      <!-- Adding is a BUTTON, not a permanently-open search box: the search only
-           appears once you've said you want to add someone. -->
-      <div class="mt-3">
-        <Button v-if="!adding" label="Add coordinator" icon="pi pi-plus" size="small" outlined
-          style="color:var(--brand-primary);border-color:var(--brand-primary)" @click="startAdd" />
-        <div v-else class="flex items-center gap-2">
-          <AutoComplete ref="addInput" v-model="search" :suggestions="suggestions" optionLabel="_name"
-            placeholder="Search for a person…" class="flex-1 min-w-0" :pt="{ input: { class: 'w-full' } }"
-            @complete="onSearch" @item-select="onPick" />
-          <Button label="Cancel" text size="small" severity="secondary" @click="cancelAdd" />
-        </div>
-        <p class="field-help mt-1">Tap a notification to turn it on or off.</p>
-      </div>
     </template>
   </div>
 </template>
