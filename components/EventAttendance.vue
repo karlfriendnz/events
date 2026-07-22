@@ -76,6 +76,63 @@ const attendanceViewModes = [
 ]
 const attendanceViewMode = ref<'all' | 'sub_groups' | 'member_groups'>('all')
 const inviteOpen = ref(false)
+
+// ---- Inline add-person row (pinned above the roster) ----
+// "Add person" reveals an inline search row here; "More" opens the full invite modal.
+const peopleApi = usePeopleApi()
+const showInlineAdd = ref(false)
+const inlineAddPerson = ref<any>(null)
+const inlineAddOptions = ref<any[]>([])
+const inlineAddBusy = ref(false)
+async function searchInlinePeople(e: { query: string }) {
+  const q = (e.query || '').trim()
+  const oid = props.clubOrgId || orgId.value
+  if (!oid) { inlineAddOptions.value = []; return }
+  const rows = await peopleApi.list(oid, { q, limit: 20 })
+  const have = new Set(invitees.value.map((i: any) => i.person_id))
+  inlineAddOptions.value = (rows || [])
+    .filter((p: any) => !have.has(p.id))
+    .map((p: any) => ({ id: p.id, name: [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email || 'Unnamed', email: p.email }))
+}
+async function addInlinePerson() {
+  const p = inlineAddPerson.value
+  if (!p || typeof p !== 'object' || !p.id || inlineAddBusy.value) return
+  inlineAddBusy.value = true
+  try {
+    await eventsApi.addInvitee(props.eventId, { personId: p.id, status: 'INVITED', clubOrgId: props.clubOrgId })
+    inlineAddPerson.value = null
+    inlineAddOptions.value = []
+    await loadInvitees()
+    toast.add({ severity: 'success', summary: 'Added', detail: `${p.name} added`, life: 2000 })
+  } catch (err: any) {
+    toast.add({ severity: 'error', summary: 'Could not add person', detail: err?.message || 'Please try again', life: 4000 })
+  } finally {
+    inlineAddBusy.value = false
+  }
+}
+function openMoreInvite() { inviteOpen.value = true }
+
+// ---- Club logo for the printed roll header ----
+const orgsApiForLogo = useOrganisationsApi()
+const orgLogoUrl = ref<string | null>(null)
+async function loadOrgLogo() {
+  const oid = props.clubOrgId || orgId.value
+  if (!oid) return
+  try {
+    const o: any = await orgsApiForLogo.get(oid)
+    orgLogoUrl.value = o?.logoUrl || o?.iconUrl || null
+  } catch { /* logo is best-effort — never block the roll */ }
+}
+// Printed roll header text: "Sat 5 Jul 2026 · 9:00 AM – 11:00 AM"
+const rollHeaderWhen = computed(() => {
+  const s = event.value?.startAt || event.value?.start_at
+  if (!s) return ''
+  const d = new Date(s)
+  const date = d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+  const time = (v: any) => new Date(v).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })
+  const e = event.value?.endAt || event.value?.end_at
+  return event.value?.allDay ? date : `${date} · ${time(s)}${e ? ` – ${time(e)}` : ''}`
+})
 const expandedMemberGroups = ref<Record<string, boolean>>({})
 const memberGroupsForInvitees = ref<{ personId: string; group: { id: string; name: string; color: string } }[]>([])
 
@@ -360,7 +417,7 @@ function doPrintFromPreview() {
 function clearAttendanceSelection() { attendanceSelected.value = []; attendanceSelectAll.value = false }
 
 // ── #18 quick add-invitee (single person by name; the full picker is behind a button) ──
-const peopleApi = usePeopleApi()
+// (peopleApi is declared with the inline-add-row state above.)
 const quickPeople = ref<any[]>([])
 const quickSel = ref<any>(null)
 const quickAdding = ref(false)
@@ -579,7 +636,7 @@ async function load() {
     await selectAttendanceSession(attendanceSessions.value[0].id)
   }
 }
-onMounted(() => { rbacNotes.load(); loadSavedColumns(); load() })
+onMounted(() => { rbacNotes.load(); loadSavedColumns(); load(); loadOrgLogo() })
 watch(orgId, () => loadSavedColumns())
 watch(() => props.eventId, () => load())
 
@@ -650,7 +707,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
           </IconField>
         </div>
         <div class="flex items-center">
-          <button class="flex flex-col items-center gap-0.5 px-4 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" @click="inviteOpen = true">
+          <button class="flex flex-col items-center gap-0.5 px-4 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" @click="showInlineAdd = true">
             <i class="pi pi-user-plus text-lg" /><span class="text-[10px] font-medium">Add person</span>
           </button>
           <button class="flex flex-col items-center gap-0.5 px-4 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" @click="printPreviewOpen = true">
@@ -672,6 +729,20 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
         </div>
       </div>
 
+      <!-- Inline add-person row: search + Add, or "More" for the full invite modal -->
+      <div v-if="showInlineAdd" class="flex items-center gap-2 px-4 py-2.5 border-b border-gray-200 bg-primary/5 shrink-0 no-print">
+        <i class="pi pi-user-plus text-gray-400 shrink-0" />
+        <AutoComplete v-model="inlineAddPerson" :suggestions="inlineAddOptions" optionLabel="name" :delay="250"
+          placeholder="Search for a person…" class="flex-1" inputClass="w-full" forceSelection @complete="searchInlinePeople" />
+        <Button label="Add" icon="pi pi-plus" size="small" :loading="inlineAddBusy"
+          :disabled="!inlineAddPerson || typeof inlineAddPerson !== 'object'" @click="addInlinePerson"
+          style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+        <Button label="More" icon="pi pi-users" size="small" outlined @click="openMoreInvite" />
+        <button class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 shrink-0" title="Close" @click="showInlineAdd = false">
+          <i class="pi pi-times text-sm" />
+        </button>
+      </div>
+
       <div v-if="inviteesLoading" class="py-12 flex justify-center shrink-0"><i class="pi pi-spin pi-spinner text-gray-400 text-xl" /></div>
       <div v-else-if="!invitees.length" class="py-14 text-center text-sm text-gray-400 shrink-0">
         <i class="pi pi-users text-3xl mb-3 block" />No invitees yet
@@ -679,7 +750,17 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
 
       <div v-else class="overflow-auto roll-print-area" :class="fit ? 'max-h-[calc(100vh-19rem)]' : ''">
         <!-- Only shows on the printed roll (a bare title so the sheet has context). -->
-        <div class="roll-print-title hidden">{{ event?.title }}</div>
+        <!-- Print-only roll header (inside the print area so it actually prints):
+             event name + date/time on the left, club logo on the right. -->
+        <div class="roll-print-title hidden">
+          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:12px;">
+            <div>
+              <div style="font-size:18px; font-weight:700; color:#111827;">{{ event?.title || 'Attendance roll' }}</div>
+              <div v-if="rollHeaderWhen" style="font-size:13px; color:#4b5563;">{{ rollHeaderWhen }}</div>
+            </div>
+            <img v-if="orgLogoUrl" :src="orgLogoUrl" alt="" style="height:40px; width:auto; object-fit:contain; flex-shrink:0;" />
+          </div>
+        </div>
         <table class="w-full text-sm">
           <thead class="sticky top-0 z-10 bg-white">
             <tr class="border-b border-gray-200">
@@ -690,7 +771,6 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                   @click="allAttendanceGroupsCollapsed ? expandAllAttendanceGroups() : collapseAllAttendanceGroups()">
                   <i class="pi pi-chevron-up text-xs transition-transform duration-200" :class="allAttendanceGroupsCollapsed ? 'rotate-180' : ''" />
                 </button>
-                <i v-else class="pi pi-bars text-xs text-gray-300" />
               </th>
               <th class="pl-1 pr-2 py-3 w-8 text-center align-middle"><Checkbox v-model="attendanceSelectAll" binary @change="toggleAttendanceSelectAll" /></th>
               <th class="py-3 pr-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-40">

@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-331 sessions · 1612 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+331 sessions · 1613 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -27706,7 +27706,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:17** — [Image #1] this is what happens when i run" npm run dev on a new tab - something is broken please fix it
 
 
-## Session 2026-07-20 00:42 (195 prompts)
+## Session 2026-07-20 00:42 (196 prompts)
 
 **00:42** — so i just restarted and now i can't get the server to run again ?
 
@@ -29009,6 +29009,26 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **01:23** — The edit it quick mode should allow to set the exact same settings as the adding of event - its litterly the same form
 
 **01:23** — please change "internal" to invitees only which means only the people who are invited can see it
+
+**01:25** — <task-notification>
+> <task-id>a6f8d72b520b16ae3</task-id>
+> <tool-use-id>toolu_01FkRq7K1jFWbjfHDXWs5d3m</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/7cdcba7b-7e8e-4d96-9362-e77f900eb9e1/tasks/a6f8d72b520b16ae3.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Inline add-person row" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>**Fork #48/#49/print-header — done.** Branch `worktree-agent-a6f8d72b520b16ae3`, commit `533de43`. Only touched `components/EventAttendance.vue`. SFC compile-check passes.
+> 
+> **What I did**
+> - **#48 inline add-person row:** the toolbar "Add person" button now sets `showInlineAdd=true` (no longer opens the modal). That reveals a full-width bar pinned above the roster: a person **AutoComplete** (`peopleApi.list(orgId,{q,limit:20})`, filtered to exclude already-invited) → **Add** button (`eventsApi.addInvitee(eventId,{personId,status:'INVITED',clubOrgId})` then `loadInvitees()` to refresh) → **More** button (opens the existing `inviteOpen` `&lt;EventInviteeManager&gt;` modal) → **✕** to dismiss. Reused the existing `addInvitee` seam + `usePeopleApi().list`.
+> - **#49 header cell:** removed the `&lt;i pi-bars&gt;` from the roster header `&lt;th&gt;`. Data-row drag handles untouched; the grouped-view collapse-all chevron is kept (it only shows in By-Group/Sub-Group views, and it's a chevron, not a ≡ — so the flat "Members" header is now empty as asked).
+> - **Print header:** added `orgLogoUrl` (loaded once on mount from `useOrganisationsApi().get(orgId) → logoUrl || iconUrl`, best-effort) + `rollHeaderWhen` (event date · start–end time) + a `.roll-print-title` element (`hidden print:flex`): event name + when on the left, logo `&lt;img h-10&gt;` on the right.
+> 
+> **Caveats for the merge (important):**
+> 1. **This worktree branched off a STALE base** — pre print-subagent. So the parent's current `EventAttendance.vue` already has the 1000px invite dialog, "Add person" label, #46 Done footer, #44 column alignment, #34 category columns, and a `.roll-print-title` (plain event title). Expect small 3-way overlaps at the **toolbar button** (keep my `@click="showInlineAdd = true"`) and possibly the **header `&lt;th&gt;`** (keep my pi-bars deletion + parent's alignment classes).
+> 2. **DUPLICATE `.roll-print-title` risk:** the parent already has a `.roll-print-title` element. Mine is a *second* one. On merge, **replace the parent's plain `.roll-print-title` inner content with my two-column version and keep only ONE** — the script plumbing (`orgLogoUrl`/`loadOrgLogo`/`rollHeaderWhen` + the onMounted wiring) merges clean and works with either element. Also verify my header sits inside the parent's `.roll-print-area` so it prints (it's at the top of the roster card).</result>
+> <usage><subagent_tokens>578846</subagent_tokens><tool_u
+> … [truncated — 3259 chars total]
 
 
 ## Session 2026-07-20 17:11 (6 prompts)
