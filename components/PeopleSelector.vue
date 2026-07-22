@@ -71,6 +71,7 @@ const { affiliatedClubs } = useAffiliations()
 const peopleLinks = usePeopleLinks()
 
 const isChosen = (id: string) => props.invitedPersonIds.includes(id)
+const isGroupAdded = (id: string) => props.addedGroupIds.includes(id)
 
 // Family circles (loaded once) — used to offer a chosen person's PARENTS/guardians on
 // the split-button caret. A person's guardians = the `guardian` members of every family
@@ -581,7 +582,9 @@ defineExpose({ reloadGroups: loadGroups })
             <!-- Split button, straight from the legacy mailer: primary adds everyone,
                  the caret narrows it to members or staff. The row is a reusable
                  QUERY, so it never becomes a dead "Added". -->
-            <SplitButton label="Add all" icon="pi pi-plus" size="small" severity="secondary" outlined
+            <SplitButton :label="codeFullyAdded(section.id) ? addedLabel : 'Add all'"
+              :icon="codeFullyAdded(section.id) ? 'pi pi-check' : 'pi pi-plus'"
+              size="small" :severity="codeFullyAdded(section.id) ? 'success' : 'secondary'" outlined
               :model="codeMenu(section.id)"
               :disabled="!groupsUnderCode(section.id).length"
               @click="emit('toggle-code', groupsUnderCode(section.id).map(g => g.id), true, 'all')" />
@@ -593,8 +596,9 @@ defineExpose({ reloadGroups: loadGroups })
               :style="{ paddingLeft: `${32 + section.depth * 16}px` }">
               <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: group.color ?? '#94a3b8' }" />
               <span class="flex-1 text-sm text-gray-700">{{ group.name }}</span>
-              <SplitButton label="Add" :icon="busyGroupId === group.id ? 'pi pi-spin pi-spinner' : 'pi pi-plus'"
-                size="small" severity="secondary" outlined
+              <SplitButton :label="isGroupAdded(group.id) ? addedLabel : 'Add'"
+                :icon="busyGroupId === group.id ? 'pi pi-spin pi-spinner' : (isGroupAdded(group.id) ? 'pi pi-check' : 'pi pi-plus')"
+                size="small" :severity="isGroupAdded(group.id) ? 'success' : 'secondary'" outlined
                 :model="groupMenu(group.id)"
                 :disabled="busyGroupId === group.id"
                 @click="emit('toggle-group', group.id, 'all')" />
