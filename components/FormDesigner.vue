@@ -632,7 +632,10 @@ const evtVisibleFields = computed(() => evtFieldsBySubject.value[evtFieldTarget.
 function openEvtSubject(key: string) {
   evtFieldTarget.value = key
   evtSelectedFieldId.value = null
-  evtSelectedFormSection.value = 'fields'
+  // The field library merged into the subject pane's Fields accordion — there is no
+  // separate fields page to send anyone to any more.
+  evtSelectedFormSection.value = 'settings'
+  evtSubjectPane.value = 'fields'
 }
 function patchEvtProfile(i: number, patch: Partial<{ min: number; max: number | null; selectsOptions: boolean; label: string; labelPlural: string; intro: string; heading: string }>) {
   const next = currentEvtFormProfiles.value.slice()
@@ -2892,11 +2895,137 @@ defineExpose({ reload })
                     <i v-if="f.locked" class="pi pi-lock text-[10px] text-gray-300 shrink-0" v-tooltip.left="'Always collected'" />
                     <i class="pi pi-chevron-right text-gray-300 text-xs shrink-0" />
                   </button>
-                  <button type="button"
-                    class="w-full flex items-center gap-2.5 px-5 py-2.5 text-sm font-semibold text-[#0e43a3] hover:bg-blue-50/40 transition-colors"
-                    @click="openEvtSubject(currentEvtSubject.key)">
-                    <i class="pi pi-plus text-[10px]" />Add or arrange fields
-                  </button>
+                  <!-- The field LIBRARY lives here now, not on a separate page: the
+                       list of what you collect and the means of adding to it are the
+                       same job, and splitting them meant leaving the subject to do it. -->
+                <!-- Single fields view: add-new options + existing fields -->
+                <div v-if="!evtNewBlockType" class="px-4 py-3 overflow-y-auto space-y-4 max-h-[46vh]">
+                  <!-- Add new field / block -->
+                  <div>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Add new</p>
+                    <div class="grid grid-cols-5 gap-1.5">
+                      <button v-for="bt in evtBlockTypes" :key="bt.type" type="button"
+                        v-tooltip.top="bt.description + ' — click or drag onto the form'"
+                        draggable="true"
+                        class="flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl border border-gray-100 hover:border-primary hover:bg-gray-50 transition-all cursor-grab active:cursor-grabbing"
+                        @click="evtStartNewField(bt.type)"
+                        @dragstart="startEvtBlockDrag($event, bt.type)"
+                        @dragend="onEvtFieldDragEnd">
+                        <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="bt.color"><i class="pi text-sm" :class="bt.icon" /></div>
+                        <span class="text-[10px] font-semibold text-gray-600 text-center leading-tight">{{ bt.type === 'field' ? 'Field' : bt.label }}</span>
+                      </button>
+                    </div>
+                  </div>
+                  <!-- System fields (platform-defined: account holder, comms recipient, …) -->
+                  <div>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 px-1">System fields</p>
+                    <div class="space-y-0.5">
+                      <button v-for="sf in EVT_SYSTEM_FIELDS" :key="sf.field_type" type="button"
+                        :disabled="evtSystemFieldAdded(sf)"
+                        class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border border-transparent transition-all group text-left disabled:opacity-40 disabled:cursor-default hover:bg-blue-50/40 hover:border-blue-100"
+                        @click="addEvtSystemField(sf)">
+                        <i class="pi text-xs shrink-0 text-gray-300" :class="sf.icon" />
+                        <div class="flex-1 min-w-0">
+                          <p class="text-sm text-gray-700 truncate">{{ sf.label }}</p>
+                          <p class="text-[11px] text-gray-400 truncate">{{ sf.description }}</p>
+                        </div>
+                        <span v-if="evtSystemFieldAdded(sf)" class="text-[10px] text-green-500 font-medium shrink-0">Added</span>
+                        <i v-else class="pi pi-plus text-xs text-gray-300 group-hover:text-[#0e43a3] shrink-0" />
+                      </button>
+                    </div>
+                  </div>
+                  <!-- Search / filter existing fields -->
+                  <div class="relative">
+                    <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-xs" />
+                    <input v-model="evtFieldSearch" type="text" placeholder="Search fields…"
+                      class="w-full h-9 pl-8 pr-8 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
+                    <button v-if="evtFieldSearch" type="button" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500" @click="evtFieldSearch = ''"><i class="pi pi-times text-xs" /></button>
+                  </div>
+                  <p v-if="!Object.keys(evtExistingGroupsFiltered).length" class="text-xs text-gray-400 italic text-center py-3">
+                    {{ evtFieldSearch ? `No fields match “${evtFieldSearch}”.` : 'No reusable fields for this subject yet. Add a one-off with “Field” above, or create reusable fields in Settings → Fields.' }}
+                  </p>
+                  <div v-for="(fields, group) in evtExistingGroupsFiltered" :key="group">
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 px-1">{{ group }}</p>
+                    <div class="space-y-0.5">
+                      <div
+                        v-for="f in fields" :key="f"
+                        :draggable="!isEvtFieldAdded(f)"
+                        class="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-transparent transition-all group"
+                        :class="isEvtFieldAdded(f)
+                          ? 'opacity-40 cursor-default'
+                          : requiredOrgFields.has(f)
+                            ? 'bg-red-50 border-red-200 hover:bg-red-100/70 cursor-grab active:cursor-grabbing'
+                            : 'hover:bg-blue-50/40 hover:border-blue-100 cursor-grab active:cursor-grabbing'"
+                        @dragstart="startEvtFieldDrag($event, f)"
+                        @dragend="onEvtFieldDragEnd">
+                        <i class="pi pi-bars text-gray-300 text-xs" :class="{ 'opacity-0': isEvtFieldAdded(f) }" />
+                        <i class="pi text-xs shrink-0" :class="[evtFieldMeta[f]?.icon ?? 'pi-minus', isEvtFieldAdded(f) ? 'text-green-400' : 'text-gray-300']" />
+                        <span class="flex-1 text-sm" :class="isEvtFieldAdded(f) ? 'text-gray-500' : 'text-gray-700'">{{ f }}</span>
+                        <span v-if="requiredOrgFields.has(f)" :title="'Required by ' + (requiredByOrg[f] || 'your governing body')" class="text-[9px] font-bold uppercase tracking-wide text-red-500 bg-red-100 px-1.5 py-0.5 rounded shrink-0 cursor-help">Required</span>
+                        <span v-if="evtAlwaysPresentFields.includes(f)" class="text-[10px] text-gray-400">Always</span>
+                        <span v-else-if="currentEvtFormFields.some(x => x.label === f)" class="text-[10px] text-green-500 font-medium">Added</span>
+                        <button
+                          v-else
+                          type="button"
+                          class="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-[#0e43a3] opacity-0 group-hover:opacity-100 transition-all rounded hover:bg-blue-50"
+                          @click="addEvtFormField(f)">
+                          <i class="pi pi-plus text-xs" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- BLOCK EDITOR PAGE (its own page, like the field editor) -->
+                <div v-if="evtNewBlockType && evtNewBlockType !== 'field'" class="overflow-y-auto flex-1 flex flex-col">
+                  <div class="flex items-center gap-3 px-4 py-4 border-b border-gray-100 shrink-0">
+                    <button type="button" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-500" @click="evtNewBlockType = null">
+                      <i class="pi pi-chevron-left text-sm" />
+                    </button>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-bold text-gray-900">Add {{ (evtBlockTypes.find(b => b.type === evtNewBlockType) || {}).label }}</p>
+                      <p class="text-xs text-gray-400">{{ (evtBlockTypes.find(b => b.type === evtNewBlockType) || {}).description }}</p>
+                    </div>
+                  </div>
+                  <div class="px-4 py-4 flex-1">
+
+                    <!-- Section sub-form -->
+                    <div v-if="evtNewBlockType === 'section'" class="space-y-2.5">
+                      <input v-model="evtNewSectionDraft.label" type="text" placeholder="Section label e.g. Personal Details" class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
+                      <textarea v-model="evtNewSectionDraft.description" rows="2" placeholder="Optional description" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors resize-none" />
+                      <button type="button" class="w-full py-2 rounded-xl bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors disabled:opacity-40" :disabled="!evtNewSectionDraft.label.trim()" @click="saveEvtNewSection">Add Section</button>
+                    </div>
+
+                    <!-- Image sub-form -->
+                    <div v-else-if="evtNewBlockType === 'image'" class="mt-3 space-y-2.5">
+                      <FormsImageUploadField v-model="evtNewImageDraft.src" />
+                      <input v-model="evtNewImageDraft.alt" type="text" placeholder="Alt text" class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
+                      <div class="flex rounded-lg overflow-hidden border border-gray-200 text-xs font-semibold">
+                        <button v-for="a in ['left','center','right']" :key="a" type="button" class="flex-1 py-1.5 transition-colors border-r border-gray-200 last:border-0 capitalize" :class="evtNewImageDraft.align === a ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-50'" @click="evtNewImageDraft.align = a">{{ a }}</button>
+                      </div>
+                      <button type="button" class="w-full py-2 rounded-xl bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors" @click="saveEvtNewBlock('image')">Add Image</button>
+                    </div>
+
+                    <!-- Text sub-form -->
+                    <div v-else-if="evtNewBlockType === 'text'" class="mt-3 space-y-2.5">
+                      <textarea v-model="evtNewTextDraft.content" rows="3" placeholder="Enter text content..." class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors resize-none" />
+                      <div class="flex rounded-lg overflow-hidden border border-gray-200 text-xs font-semibold">
+                        <button v-for="s in [['sm','Small'],['base','Normal'],['lg','Large']]" :key="s[0]" type="button" class="flex-1 py-1.5 transition-colors border-r border-gray-200 last:border-0" :class="evtNewTextDraft.size === s[0] ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-50'" @click="evtNewTextDraft.size = s[0]">{{ s[1] }}</button>
+                      </div>
+                      <button type="button" class="w-full py-2 rounded-xl bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors disabled:opacity-40" :disabled="!evtNewTextDraft.content.trim()" @click="saveEvtNewBlock('text')">Add Text</button>
+                    </div>
+
+                    <!-- Button sub-form -->
+                    <div v-else-if="evtNewBlockType === 'button'" class="mt-3 space-y-2.5">
+                      <input v-model="evtNewButtonDraft.label" type="text" placeholder="Button label" class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
+                      <input v-model="evtNewButtonDraft.url" type="url" placeholder="https://..." class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
+                      <div class="flex rounded-lg overflow-hidden border border-gray-200 text-xs font-semibold">
+                        <button v-for="s in [['primary','Primary'],['secondary','Secondary'],['link','Link']]" :key="s[0]" type="button" class="flex-1 py-1.5 transition-colors border-r border-gray-200 last:border-0" :class="evtNewButtonDraft.style === s[0] ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-50'" @click="evtNewButtonDraft.style = s[0]">{{ s[1] }}</button>
+                      </div>
+                      <button type="button" class="w-full py-2 rounded-xl bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors disabled:opacity-40" :disabled="!evtNewButtonDraft.label.trim()" @click="saveEvtNewBlock('button')">Add Button</button>
+                    </div>
+                  </div>
+                </div>
                 </div>
               </div>
               <div class="px-5 pb-5 pt-3 border-t border-gray-100 shrink-0">
@@ -2965,13 +3094,13 @@ defineExpose({ reload })
             </template>
 
             <!-- FIELDS section settings -->
-            <template v-else-if="evtSelectedFormSection === 'fields'">
-
-              <!-- ── FIELD EDITOR: shown when a field is selected ── -->
+            <!-- The single-field editor. (The field LIBRARY that used to share this
+                 pane now lives in the subject's Fields accordion.) -->
+            <template v-else-if="evtSelectedFormSection === 'fields' && evtEditingField">
               <template v-if="evtEditingField">
                 <!-- Header -->
                 <div class="flex items-center gap-2 px-4 py-3.5 border-b border-gray-100 shrink-0">
-                  <button type="button" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition-colors" @click="evtSelectedFieldId = null">
+                  <button type="button" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition-colors" @click="evtSelectedFieldId = null; evtSelectedFormSection = currentEvtSubject ? 'settings' : ''; evtSubjectPane = 'fields'">
                     <i class="pi pi-chevron-left text-sm" />
                   </button>
                   <p class="flex-1 text-sm font-bold text-gray-900 truncate">{{ evtEditingField.label || 'Untitled Field' }}</p>
@@ -2979,7 +3108,7 @@ defineExpose({ reload })
                   <button v-if="!evtEditingField.locked" type="button" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-[#0e43a3] transition-colors" title="Duplicate" @click="duplicateEvtFormField(evtEditingField.id)">
                     <i class="pi pi-copy text-sm" />
                   </button>
-                  <button v-if="!evtEditingField.locked" type="button" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors" title="Delete" @click="removeEvtFormField(evtEditingField.id); evtSelectedFieldId = null">
+                  <button v-if="!evtEditingField.locked" type="button" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors" title="Delete" @click="removeEvtFormField(evtEditingField.id); evtSelectedFieldId = null; evtSelectedFormSection = currentEvtSubject ? 'settings' : ''; evtSubjectPane = 'fields'">
                     <i class="pi pi-trash text-sm" />
                   </button>
                 </div>
@@ -3188,146 +3317,6 @@ defineExpose({ reload })
               </template>
 
               <!-- ── FIELD LIBRARY: shown when no field is selected ── -->
-              <template v-else>
-                <div class="flex items-center gap-3 px-4 py-4 border-b border-gray-100 shrink-0">
-                  <button type="button" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-500" @click="evtSelectedFormSection = currentEvtSubject ? 'settings' : ''">
-                    <i class="pi pi-chevron-left text-sm" />
-                  </button>
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-bold text-gray-900 truncate">{{ currentEvtSubject ? currentEvtSubject.label + '’s form' : 'Form' }}</p>
-                    <p class="text-xs text-gray-400">{{ currentEvtSubject ? 'What you collect about each ' + currentEvtSubject.label.toLowerCase() : 'Choose what data to collect' }}</p>
-                  </div>
-                  <button type="button" class="px-3 py-1.5 bg-[#1ab4e8] hover:bg-[#16a0d0] text-white text-xs font-semibold rounded-lg transition-colors" @click="saveEvtFormSection('fields')">Save</button>
-                </div>
-                <!-- Single fields view: add-new options + existing fields -->
-                <div v-if="!evtNewBlockType" class="px-4 py-3 overflow-y-auto space-y-4 flex-1">
-                  <!-- Add new field / block -->
-                  <div>
-                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Add new</p>
-                    <div class="grid grid-cols-5 gap-1.5">
-                      <button v-for="bt in evtBlockTypes" :key="bt.type" type="button"
-                        v-tooltip.top="bt.description + ' — click or drag onto the form'"
-                        draggable="true"
-                        class="flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl border border-gray-100 hover:border-primary hover:bg-gray-50 transition-all cursor-grab active:cursor-grabbing"
-                        @click="evtStartNewField(bt.type)"
-                        @dragstart="startEvtBlockDrag($event, bt.type)"
-                        @dragend="onEvtFieldDragEnd">
-                        <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="bt.color"><i class="pi text-sm" :class="bt.icon" /></div>
-                        <span class="text-[10px] font-semibold text-gray-600 text-center leading-tight">{{ bt.type === 'field' ? 'Field' : bt.label }}</span>
-                      </button>
-                    </div>
-                  </div>
-                  <!-- System fields (platform-defined: account holder, comms recipient, …) -->
-                  <div>
-                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 px-1">System fields</p>
-                    <div class="space-y-0.5">
-                      <button v-for="sf in EVT_SYSTEM_FIELDS" :key="sf.field_type" type="button"
-                        :disabled="evtSystemFieldAdded(sf)"
-                        class="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border border-transparent transition-all group text-left disabled:opacity-40 disabled:cursor-default hover:bg-blue-50/40 hover:border-blue-100"
-                        @click="addEvtSystemField(sf)">
-                        <i class="pi text-xs shrink-0 text-gray-300" :class="sf.icon" />
-                        <div class="flex-1 min-w-0">
-                          <p class="text-sm text-gray-700 truncate">{{ sf.label }}</p>
-                          <p class="text-[11px] text-gray-400 truncate">{{ sf.description }}</p>
-                        </div>
-                        <span v-if="evtSystemFieldAdded(sf)" class="text-[10px] text-green-500 font-medium shrink-0">Added</span>
-                        <i v-else class="pi pi-plus text-xs text-gray-300 group-hover:text-[#0e43a3] shrink-0" />
-                      </button>
-                    </div>
-                  </div>
-                  <!-- Search / filter existing fields -->
-                  <div class="relative">
-                    <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 text-xs" />
-                    <input v-model="evtFieldSearch" type="text" placeholder="Search fields…"
-                      class="w-full h-9 pl-8 pr-8 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
-                    <button v-if="evtFieldSearch" type="button" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500" @click="evtFieldSearch = ''"><i class="pi pi-times text-xs" /></button>
-                  </div>
-                  <p v-if="!Object.keys(evtExistingGroupsFiltered).length" class="text-xs text-gray-400 italic text-center py-3">
-                    {{ evtFieldSearch ? `No fields match “${evtFieldSearch}”.` : 'No reusable fields for this subject yet. Add a one-off with “Field” above, or create reusable fields in Settings → Fields.' }}
-                  </p>
-                  <div v-for="(fields, group) in evtExistingGroupsFiltered" :key="group">
-                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 px-1">{{ group }}</p>
-                    <div class="space-y-0.5">
-                      <div
-                        v-for="f in fields" :key="f"
-                        :draggable="!isEvtFieldAdded(f)"
-                        class="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-transparent transition-all group"
-                        :class="isEvtFieldAdded(f)
-                          ? 'opacity-40 cursor-default'
-                          : requiredOrgFields.has(f)
-                            ? 'bg-red-50 border-red-200 hover:bg-red-100/70 cursor-grab active:cursor-grabbing'
-                            : 'hover:bg-blue-50/40 hover:border-blue-100 cursor-grab active:cursor-grabbing'"
-                        @dragstart="startEvtFieldDrag($event, f)"
-                        @dragend="onEvtFieldDragEnd">
-                        <i class="pi pi-bars text-gray-300 text-xs" :class="{ 'opacity-0': isEvtFieldAdded(f) }" />
-                        <i class="pi text-xs shrink-0" :class="[evtFieldMeta[f]?.icon ?? 'pi-minus', isEvtFieldAdded(f) ? 'text-green-400' : 'text-gray-300']" />
-                        <span class="flex-1 text-sm" :class="isEvtFieldAdded(f) ? 'text-gray-500' : 'text-gray-700'">{{ f }}</span>
-                        <span v-if="requiredOrgFields.has(f)" :title="'Required by ' + (requiredByOrg[f] || 'your governing body')" class="text-[9px] font-bold uppercase tracking-wide text-red-500 bg-red-100 px-1.5 py-0.5 rounded shrink-0 cursor-help">Required</span>
-                        <span v-if="evtAlwaysPresentFields.includes(f)" class="text-[10px] text-gray-400">Always</span>
-                        <span v-else-if="currentEvtFormFields.some(x => x.label === f)" class="text-[10px] text-green-500 font-medium">Added</span>
-                        <button
-                          v-else
-                          type="button"
-                          class="w-6 h-6 flex items-center justify-center text-gray-300 hover:text-[#0e43a3] opacity-0 group-hover:opacity-100 transition-all rounded hover:bg-blue-50"
-                          @click="addEvtFormField(f)">
-                          <i class="pi pi-plus text-xs" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- BLOCK EDITOR PAGE (its own page, like the field editor) -->
-                <div v-if="evtNewBlockType && evtNewBlockType !== 'field'" class="overflow-y-auto flex-1 flex flex-col">
-                  <div class="flex items-center gap-3 px-4 py-4 border-b border-gray-100 shrink-0">
-                    <button type="button" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors text-gray-500" @click="evtNewBlockType = null">
-                      <i class="pi pi-chevron-left text-sm" />
-                    </button>
-                    <div class="flex-1 min-w-0">
-                      <p class="text-sm font-bold text-gray-900">Add {{ (evtBlockTypes.find(b => b.type === evtNewBlockType) || {}).label }}</p>
-                      <p class="text-xs text-gray-400">{{ (evtBlockTypes.find(b => b.type === evtNewBlockType) || {}).description }}</p>
-                    </div>
-                  </div>
-                  <div class="px-4 py-4 flex-1">
-
-                    <!-- Section sub-form -->
-                    <div v-if="evtNewBlockType === 'section'" class="space-y-2.5">
-                      <input v-model="evtNewSectionDraft.label" type="text" placeholder="Section label e.g. Personal Details" class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
-                      <textarea v-model="evtNewSectionDraft.description" rows="2" placeholder="Optional description" class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors resize-none" />
-                      <button type="button" class="w-full py-2 rounded-xl bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors disabled:opacity-40" :disabled="!evtNewSectionDraft.label.trim()" @click="saveEvtNewSection">Add Section</button>
-                    </div>
-
-                    <!-- Image sub-form -->
-                    <div v-else-if="evtNewBlockType === 'image'" class="mt-3 space-y-2.5">
-                      <FormsImageUploadField v-model="evtNewImageDraft.src" />
-                      <input v-model="evtNewImageDraft.alt" type="text" placeholder="Alt text" class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
-                      <div class="flex rounded-lg overflow-hidden border border-gray-200 text-xs font-semibold">
-                        <button v-for="a in ['left','center','right']" :key="a" type="button" class="flex-1 py-1.5 transition-colors border-r border-gray-200 last:border-0 capitalize" :class="evtNewImageDraft.align === a ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-50'" @click="evtNewImageDraft.align = a">{{ a }}</button>
-                      </div>
-                      <button type="button" class="w-full py-2 rounded-xl bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors" @click="saveEvtNewBlock('image')">Add Image</button>
-                    </div>
-
-                    <!-- Text sub-form -->
-                    <div v-else-if="evtNewBlockType === 'text'" class="mt-3 space-y-2.5">
-                      <textarea v-model="evtNewTextDraft.content" rows="3" placeholder="Enter text content..." class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors resize-none" />
-                      <div class="flex rounded-lg overflow-hidden border border-gray-200 text-xs font-semibold">
-                        <button v-for="s in [['sm','Small'],['base','Normal'],['lg','Large']]" :key="s[0]" type="button" class="flex-1 py-1.5 transition-colors border-r border-gray-200 last:border-0" :class="evtNewTextDraft.size === s[0] ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-50'" @click="evtNewTextDraft.size = s[0]">{{ s[1] }}</button>
-                      </div>
-                      <button type="button" class="w-full py-2 rounded-xl bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors disabled:opacity-40" :disabled="!evtNewTextDraft.content.trim()" @click="saveEvtNewBlock('text')">Add Text</button>
-                    </div>
-
-                    <!-- Button sub-form -->
-                    <div v-else-if="evtNewBlockType === 'button'" class="mt-3 space-y-2.5">
-                      <input v-model="evtNewButtonDraft.label" type="text" placeholder="Button label" class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
-                      <input v-model="evtNewButtonDraft.url" type="url" placeholder="https://..." class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
-                      <div class="flex rounded-lg overflow-hidden border border-gray-200 text-xs font-semibold">
-                        <button v-for="s in [['primary','Primary'],['secondary','Secondary'],['link','Link']]" :key="s[0]" type="button" class="flex-1 py-1.5 transition-colors border-r border-gray-200 last:border-0" :class="evtNewButtonDraft.style === s[0] ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-50'" @click="evtNewButtonDraft.style = s[0]">{{ s[1] }}</button>
-                      </div>
-                      <button type="button" class="w-full py-2 rounded-xl bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors disabled:opacity-40" :disabled="!evtNewButtonDraft.label.trim()" @click="saveEvtNewBlock('button')">Add Button</button>
-                    </div>
-                  </div>
-                </div>
-              </template>
 
             </template>
 
