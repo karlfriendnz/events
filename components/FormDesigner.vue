@@ -895,6 +895,9 @@ const evtWizardSteps = computed(() => [
   ...(evtPreviewDevice.value === 'mobile' ? [{ type: 'details', key: '__details', label: 'Details', kind: '' }] : []),
   ...evtPreviewSubjects.value.map(s => ({ type: 'subject', key: s.key, label: s.label, kind: (s as any).kind })),
   { type: 'terms', key: '__terms', label: 'Terms', kind: '' },
+  // What they're agreeing to, then what they're paying — two different questions, so
+  // two steps. Totals, discounts, payment method and Submit all live here.
+  { type: 'summary', key: '__summary', label: 'Summary & payment', kind: '' },
 ])
 const evtWizardStep = ref(0)
 
@@ -924,11 +927,13 @@ function evtOpenEditorForStep(idx: number) {
   const step: any = evtWizardSteps.value[idx]
   if (!step) return
   if (step.type === 'terms') { evtSelectedFormSection.value = 'terms'; return }
+  if (step.type === 'summary') { evtSelectedFormSection.value = 'payment'; return }
   if (step.type === 'subject') { openEvtSubjectSettings(step.key); return }
   // The mobile "Details" step is the event header — Form Design owns that.
   if (step.type === 'details') evtSelectedFormSection.value = 'design'
 }
-const evtWizardTermsIdx = computed(() => evtWizardSteps.value.length - 1)
+const evtWizardTermsIdx = computed(() => evtWizardSteps.value.findIndex(s => s.type === 'terms'))
+const evtWizardSummaryIdx = computed(() => evtWizardSteps.value.length - 1)
 // Wizard step index offset for subjects when the mobile details step is present.
 const evtMobileSteps = computed(() => evtIsWizard.value && evtPreviewDevice.value === 'mobile')
 const evtSubjectStepOffset = computed(() => (evtMobileSteps.value ? 1 : 0))
@@ -2761,7 +2766,7 @@ defineExpose({ reload })
 
                 <!-- Form Design / Sessions / Terms / Payment -->
                 <FormSectionList :sections="evtFormSections"
-                  @select="(id: string) => { evtSelectedFormSection = id; if (id === 'terms' || id === 'payment') evtFocusPreview('__terms') }" />
+                  @select="(id: string) => { evtSelectedFormSection = id; if (id === 'terms') evtFocusPreview('__terms'); else if (id === 'payment') evtFocusPreview('__summary') }" />
                 <!-- Final step: preview the form — matches the FormSectionList item style -->
                 <div class="px-3 pb-3 -mt-1">
                   <button type="button" class="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50/60 transition-all text-left group"
@@ -4409,7 +4414,10 @@ defineExpose({ reload })
             </div>
 
             <!-- Payment: interactive radio selection (scratch mode only — simple mode renders this below the total) -->
-            <div v-if="(evtFormPayment.plan.enabled || evtFormPayment.credit_card.enabled || evtFormPayment.invoice.enabled || evtFormPayment.coupon.enabled) && evtFormGroupModes[selectedFormGroupId] !== 'simple' && (!evtIsWizard || evtWizardStep === evtWizardTermsIdx)" class="px-6 py-8 space-y-2">
+            <div v-if="(evtFormPayment.plan.enabled || evtFormPayment.credit_card.enabled || evtFormPayment.invoice.enabled || evtFormPayment.coupon.enabled) && evtFormGroupModes[selectedFormGroupId] !== 'simple' && (!evtIsWizard || evtWizardStep === evtWizardSummaryIdx)"
+              data-preview-anchor="__summary"
+              class="px-6 py-8 space-y-2 scroll-mt-4 rounded-xl transition-shadow"
+              :class="evtFocusedAnchor === '__summary' ? 'ring-2 ring-primary/40' : ''">
               <h3 class="text-xl font-bold text-gray-800 mb-3">Payment</h3>
 
               <!-- Payment Plan -->
@@ -4611,7 +4619,7 @@ defineExpose({ reload })
             <!-- Submit button (scratch / advanced mode) — hidden on the mobile details step -->
             <div v-else v-show="!evtOnDetailsStep" class="px-6 py-6 border-t border-gray-100 space-y-4">
               <!-- Discount summary lines -->
-              <template v-if="evtTotalDiscountSavings > 0 && (!evtIsWizard || evtWizardStep === evtWizardTermsIdx)">
+              <template v-if="evtTotalDiscountSavings > 0 && (!evtIsWizard || evtWizardStep === evtWizardSummaryIdx)">
                 <div v-for="disc in evtDiscountSummaryLines" :key="disc.formText"
                   class="flex items-center text-sm text-green-600">
                   <span class="flex-1 flex items-center gap-1.5"><i class="pi pi-tag text-xs" />{{ disc.formText }}</span>
@@ -4623,7 +4631,7 @@ defineExpose({ reload })
                 </div>
                 <div class="border-t border-gray-100" />
               </template>
-              <div v-if="!evtIsWizard || evtWizardStep === evtWizardTermsIdx" class="flex items-center">
+              <div v-if="!evtIsWizard || evtWizardStep === evtWizardSummaryIdx" class="flex items-center">
                 <span class="flex-1 text-sm font-bold text-gray-900">Total</span>
                 <span class="tabular-nums w-[72px] text-right mr-[53px] shrink-0 text-sm font-bold text-primary">${{ Math.max(0, evtOrderTotal - evtTotalDiscountSavings).toFixed(2) }}</span>
               </div>
@@ -4632,7 +4640,7 @@ defineExpose({ reload })
               <!-- Wizard navigation -->
               <div v-else class="flex items-center gap-2">
                 <button v-if="evtWizardStep > 0" type="button" class="px-4 py-3 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-1.5" @click="evtWizardBack"><i class="pi pi-angle-left text-xs" />Back</button>
-                <button v-if="evtWizardStep < evtWizardTermsIdx" type="button" class="ml-auto px-5 py-2.5 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-[#161a45] transition-colors flex items-center justify-center gap-1.5" @click="evtWizardNext">Next<i class="pi pi-angle-right text-xs" /></button>
+                <button v-if="evtWizardStep < evtWizardSummaryIdx" type="button" class="ml-auto px-5 py-2.5 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-[#161a45] transition-colors flex items-center justify-center gap-1.5" @click="evtWizardNext">Next<i class="pi pi-angle-right text-xs" /></button>
                 <button v-else type="button" class="flex-1 py-3 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-[#161a45] transition-colors">Submit Registration</button>
               </div>
             </div>

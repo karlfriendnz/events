@@ -427,12 +427,16 @@ const termsAccepted = ref(false)
 // ── Step wizard ──────────────────────────────────────────────────────────────
 const steps = computed(() => {
   const s = subjects.value.map((sub: any) => ({ kind: 'subject', subject: sub }))
-  s.push({ kind: 'terms' } as any)
+  if (termsList.value.length) s.push({ kind: 'terms' } as any)
+  // Always last: the order summary, the payment method and Submit.
+  s.push({ kind: 'summary' } as any)
   return s
 })
 const step = ref(0)
 watchEffect(() => { if (step.value > steps.value.length - 1) step.value = Math.max(0, steps.value.length - 1) })
 const isTermsStep = (i: number) => steps.value[i]?.kind === 'terms'
+const isSummaryStep = (i: number) => steps.value[i]?.kind === 'summary'
+const isLastStep = (i: number) => i >= steps.value.length - 1
 
 // ── Validation ───────────────────────────────────────────────────────────────
 const error = ref('')
@@ -823,7 +827,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
           :class="i === step ? 'text-primary' : 'text-gray-400'" @click="step = i">
           <span class="w-5 h-5 rounded-full flex items-center justify-center text-[11px]"
             :class="i === step ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500'">{{ i + 1 }}</span>
-          {{ st.kind === 'terms' ? 'Summary &amp; payment' : st.subject.label }}
+          {{ st.kind === 'summary' ? 'Summary &amp; payment' : st.kind === 'terms' ? 'Terms' : st.subject.label }}
         </button>
         <span v-if="i < steps.length - 1" class="text-gray-300">›</span>
       </template>
@@ -1024,8 +1028,16 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
       </section>
     </template>
 
-    <!-- Summary + payment + terms (single-page: always at the end; wizard: its own step) -->
-    <section v-if="!isWizard || isTermsStep(step)" class="mb-6">
+    <!-- Terms — its own wizard step (single page: inline, before the summary). -->
+    <section v-if="(!isWizard || isTermsStep(step)) && termsList.length" class="mb-6">
+      <label class="flex items-start gap-2 text-sm cursor-pointer">
+        <input type="checkbox" class="w-4 h-4 mt-0.5 accent-primary" v-model="termsAccepted" />
+        <span class="text-gray-700">I accept the <span class="font-medium">terms &amp; conditions</span> and privacy policy.</span>
+      </label>
+    </section>
+
+    <!-- Summary & payment — the last step (single page: always at the end). -->
+    <section v-if="!isWizard || isSummaryStep(step)" class="mb-6">
       <div v-if="hasFees" class="bg-gray-50 rounded-xl px-4 py-3 mb-4 text-sm">
         <p class="text-sm font-semibold text-gray-700 mb-2">Summary</p>
         <template v-for="(ln, li) in fullOrderLines" :key="li">
@@ -1053,10 +1065,6 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
         </label>
       </div>
 
-      <label v-if="termsList.length" class="flex items-start gap-2 text-sm cursor-pointer">
-        <input type="checkbox" class="w-4 h-4 mt-0.5 accent-primary" v-model="termsAccepted" />
-        <span class="text-gray-700">I accept the <span class="font-medium">terms &amp; conditions</span> and privacy policy.</span>
-      </label>
     </section>
 
     <p v-if="error" class="text-sm text-red-600 mb-3">{{ error }}</p>
