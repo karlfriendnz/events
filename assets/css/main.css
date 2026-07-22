@@ -255,21 +255,35 @@ body {
    actions(last) columns, keep the group-header rows (.roll-group-row, colspan) whole,
    and repeat the table header on every page (sticky positioning would suppress that). */
 @media print {
-  body.printing-roll { visibility: hidden; }
-  body.printing-roll .roll-print-area,
-  body.printing-roll .roll-print-area * { visibility: visible; }
-  body.printing-roll .roll-print-area {
-    position: absolute; left: 0; top: 0; width: 100%;
-    max-height: none !important; overflow: visible !important;
-  }
+  /* printAttendanceRoll() MOVES .roll-print-area to be a direct child of <body> so it
+     prints in NORMAL FLOW — an absolutely-positioned table doesn't paginate, so page 2+
+     was being dropped. We just hide every other body child; the table then flows across
+     pages and thead (table-header-group) repeats on each. */
+  body.printing-roll > *:not(.roll-print-area) { display: none !important; }
+  body.printing-roll .roll-print-area { max-height: none !important; overflow: visible !important; }
   body.printing-roll .roll-print-title { display: block !important; font-size: 16px; font-weight: 700; margin-bottom: 10px; }
   body.printing-roll .roll-print-area thead { display: table-header-group; }
   body.printing-roll .roll-print-area thead th { position: static !important; background: #fff !important; }
-  /* drop the checkbox / drag / actions columns — header + data rows only, not group headers */
+  body.printing-roll .roll-print-area tr { break-inside: avoid; }
+  body.printing-roll .roll-print-area td, body.printing-roll .roll-print-area th { padding-top: 6px; padding-bottom: 6px; }
+  /* drop the checkbox(2) / drag(1) / actions(last) columns — header + data rows, not group headers */
   body.printing-roll .roll-print-area thead th:nth-child(1),
   body.printing-roll .roll-print-area thead th:nth-child(2),
   body.printing-roll .roll-print-area thead th:last-child { display: none; }
   body.printing-roll .roll-print-area tbody tr:not(.roll-group-row) > td:nth-child(1),
   body.printing-roll .roll-print-area tbody tr:not(.roll-group-row) > td:nth-child(2),
   body.printing-roll .roll-print-area tbody tr:not(.roll-group-row) > td:last-child { display: none; }
+  /* #37 — Status column (4th) hidden when turned off in the preview drawer */
+  body.printing-roll.print-no-status .roll-print-area thead th:nth-child(4),
+  body.printing-roll.print-no-status .roll-print-area tbody tr:not(.roll-group-row) > td:nth-child(4) { display: none; }
+  /* #36 — Signed In (3rd-last) / Out (2nd-last) as a place to SIGN + write the time
+     instead of tick boxes: hide the checkbox and give the cell a writable ruled line. */
+  body.printing-roll.print-sign-time .roll-print-area td:nth-last-child(2) .p-checkbox,
+  body.printing-roll.print-sign-time .roll-print-area td:nth-last-child(3) .p-checkbox,
+  body.printing-roll.print-sign-time .roll-print-area td:nth-last-child(2) .print-tick,
+  body.printing-roll.print-sign-time .roll-print-area td:nth-last-child(3) .print-tick { display: none; }
+  body.printing-roll.print-sign-time .roll-print-area tbody tr:not(.roll-group-row) > td:nth-last-child(2),
+  body.printing-roll.print-sign-time .roll-print-area tbody tr:not(.roll-group-row) > td:nth-last-child(3) {
+    border-bottom: 1px solid #444; min-width: 96px; height: 30px;
+  }
 }

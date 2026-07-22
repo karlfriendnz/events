@@ -316,16 +316,26 @@ function openInviteeEmail(inv: any) {
 // that hide the rest of the page + the checkbox/drag/actions columns, and repeat the
 // header on every page. Class is cleared after printing (or on cancel via afterprint).
 function printAttendanceRoll() {
+  const el = document.querySelector('.roll-print-area') as HTMLElement | null
+  if (!el) return
+  // Move the table to be a direct child of <body> so it prints in NORMAL FLOW and
+  // paginates (an absolutely-positioned table drops every page after the first). A
+  // comment marks where to slot it back afterwards.
+  const slot = document.createComment('roll-print-slot')
+  el.parentNode?.replaceChild(slot, el)
+  document.body.appendChild(el)
   document.body.classList.add('printing-roll')
-  // Orientation from the preview drawer (landscape by default) — injected + removed
-  // per print so it doesn't affect any other printing.
+  if (!printStatus.value) document.body.classList.add('print-no-status')
+  if (printSignStyle.value === 'sign') document.body.classList.add('print-sign-time')
+  // Orientation from the preview drawer — injected + removed per print.
   const style = document.createElement('style')
   style.id = 'roll-print-page'
   style.textContent = `@page { size: ${printOrientation.value}; margin: 12mm; }`
   document.head.appendChild(style)
   const done = () => {
-    document.body.classList.remove('printing-roll')
+    document.body.classList.remove('printing-roll', 'print-no-status', 'print-sign-time')
     document.getElementById('roll-print-page')?.remove()
+    slot.parentNode?.replaceChild(el, slot)   // put the table back where it lives
     window.removeEventListener('afterprint', done)
   }
   window.addEventListener('afterprint', done)
@@ -338,6 +348,8 @@ function printAttendanceRoll() {
 // so the preview and the real print stay in sync). "Print" fires the real print.
 const printPreviewOpen = ref(false)
 const printOrientation = ref<'landscape' | 'portrait'>('landscape')
+const printStatus = ref(true)                              // #37 include the Status column
+const printSignStyle = ref<'tick' | 'sign'>('tick')        // #36 tick boxes vs sign + time
 const previewInvitees = computed(() => invitees.value.slice(0, 40))
 function doPrintFromPreview() {
   printPreviewOpen.value = false
@@ -543,10 +555,25 @@ async function cleanupLegacyEventLevelAttendance() {
   for (const i of stale) i.attended = false
 }
 
+// #34 — seed the visible columns from the event's CATEGORY default_columns, but only
+// when the user has no saved preference of their own. Precedence: user's saved columns
+// (localStorage, loaded on mount) > category default > code auto() defaults.
+async function applyCategoryColumnDefaults() {
+  if (Object.keys(colOverride).length) return
+  const ev: any = event.value
+  const catId = ev?.category_id || (Array.isArray(ev?.category_ids) ? ev.category_ids[0] : null)
+  if (!catId || !orgId.value) return
+  const cats = await eventsApi.categories(orgId.value).catch(() => [] as any[])
+  const cols = (cats.find((c: any) => c.id === catId) as any)?.defaultColumns
+  if (!Array.isArray(cols) || !cols.length) return
+  for (const c of allColumns.value) colOverride[c.key] = cols.includes(c.key)
+}
+
 async function load() {
   selectedAttendanceSessionId.value = null
   sessionAttendanceData.value = {}
   await Promise.all([loadEvent(), loadSessions(), loadFieldDefs()])
+  await applyCategoryColumnDefaults()
   await loadInvitees()
   if (attendanceInSessionMode.value && !selectedAttendanceSessionId.value && attendanceSessions.value.length) {
     await selectAttendanceSession(attendanceSessions.value[0].id)
@@ -608,7 +635,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
     <!-- Right: Attendance table -->
     <div class="flex-1 min-w-0 flex flex-col bg-white" :class="fit ? '' : 'overflow-hidden'">
     <div class="bg-white rounded-xl border border-gray-200 flex flex-col"
-      :class="attendanceInSessionMode ? 'rounded-none border-0 flex-1 overflow-hidden' : (fit ? 'w-full' : 'mx-3 sm:mx-6 mb-4 sm:mb-6 max-w-5xl self-center w-full flex-1 overflow-hidden')">
+      :class="attendanceInSessionMode ? 'rounded-none border-0 flex-1 overflow-hidden' : (fit ? 'w-full' : 'mx-3 sm:mx-6 mb-4 sm:mb-6 max-w-5xl self-center w-full')">
 
       <!-- Toolbar -->
       <div class="flex items-center justify-between bg-gray-50 px-4 py-2.5 border-b border-gray-200 shrink-0">
@@ -650,13 +677,13 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
         <i class="pi pi-users text-3xl mb-3 block" />No invitees yet
       </div>
 
-      <div v-else class="overflow-auto roll-print-area" :class="fit ? 'max-h-[calc(100vh-19rem)]' : 'flex-1'">
+      <div v-else class="overflow-auto roll-print-area" :class="fit ? 'max-h-[calc(100vh-19rem)]' : ''">
         <!-- Only shows on the printed roll (a bare title so the sheet has context). -->
         <div class="roll-print-title hidden">{{ event?.title }}</div>
         <table class="w-full text-sm">
           <thead class="sticky top-0 z-10 bg-white">
             <tr class="border-b border-gray-200">
-              <th class="pl-3 pr-1 py-3 w-8">
+              <th class="pl-3 pr-1 py-3 w-8 text-center align-middle">
                 <button v-if="attendanceViewMode !== 'all'"
                   class="flex items-center justify-center w-6 h-6 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
                   :title="allAttendanceGroupsCollapsed ? 'Expand all groups' : 'Collapse all groups'"
@@ -665,7 +692,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                 </button>
                 <i v-else class="pi pi-bars text-xs text-gray-300" />
               </th>
-              <th class="pl-1 pr-2 py-3 w-8"><Checkbox v-model="attendanceSelectAll" binary @change="toggleAttendanceSelectAll" /></th>
+              <th class="pl-1 pr-2 py-3 w-8 text-center align-middle"><Checkbox v-model="attendanceSelectAll" binary @change="toggleAttendanceSelectAll" /></th>
               <th class="py-3 pr-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-40">
                 <button class="flex items-center gap-1 hover:text-gray-900 transition-colors" @click="toggleAttendanceSort">
                   Members
@@ -697,8 +724,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               </tr>
               <template v-if="expandedMemberGroups[mg.group?.id ?? '__none__'] !== false">
                 <tr v-for="inv in mg.invitees" :key="inv.id" class="hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
-                  <td class="pl-3 pr-1 py-2.5 text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
-                  <td class="pl-1 pr-2 py-2.5"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
+                  <td class="pl-3 pr-1 py-2.5 w-8 text-center align-middle text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
+                  <td class="pl-1 pr-2 py-2.5 w-8 text-center align-middle"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
                   <td class="py-2.5 pr-3 font-medium"><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></td>
                   <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
                   <td v-for="col in visibleColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600">
@@ -739,8 +766,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
           <tbody v-else-if="attendanceViewMode === 'all'" class="divide-y divide-gray-100">
             <tr v-for="inv in filteredSortedAttendees" :key="inv.id" draggable="true" @dragstart="onDragStart($event, inv.id)"
               class="hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
-              <td class="pl-3 pr-1 py-2.5 text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
-              <td class="pl-1 pr-2 py-2.5"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
+              <td class="pl-3 pr-1 py-2.5 w-8 text-center align-middle text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
+              <td class="pl-1 pr-2 py-2.5 w-8 text-center align-middle"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
               <td class="py-2.5 pr-3 font-medium"><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></td>
               <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
               <td v-for="col in visibleColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600">
@@ -797,8 +824,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               <tr v-if="expandedSubGroups[section.group.id] !== false" v-for="inv in section.invitees" :key="inv.id"
                 draggable="true" @dragstart="onDragStart($event, inv.id)"
                 class="hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
-                <td class="pl-3 pr-1 py-2.5 text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
-                <td class="pl-1 pr-2 py-2.5"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
+                <td class="pl-3 pr-1 py-2.5 w-8 text-center align-middle text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
+                <td class="pl-1 pr-2 py-2.5 w-8 text-center align-middle"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
                 <td class="py-2.5 pr-3 font-medium"><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></td>
                 <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
                 <td v-for="col in visibleColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600">
@@ -847,8 +874,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               </tr>
               <tr v-for="inv in groupedInvitees.ungrouped" :key="inv.id" draggable="true" @dragstart="onDragStart($event, inv.id)"
                 class="hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
-                <td class="pl-3 pr-1 py-2.5 text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
-                <td class="pl-1 pr-2 py-2.5"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
+                <td class="pl-3 pr-1 py-2.5 w-8 text-center align-middle text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
+                <td class="pl-1 pr-2 py-2.5 w-8 text-center align-middle"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
                 <td class="py-2.5 pr-3 font-medium"><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></td>
                 <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
                 <td v-for="col in visibleColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600">
@@ -1053,6 +1080,13 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
       </div>
       <!-- Full multi-select picker, revealed on demand. -->
       <EventInviteeManager v-else :event-id="props.eventId" :show-invite="false" />
+      <template #footer>
+        <div class="flex items-center justify-between gap-3 w-full">
+          <span class="text-xs text-gray-400">People are added as you pick them — no need to save.</span>
+          <Button label="Done" icon="pi pi-check" @click="inviteOpen = false"
+            style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+        </div>
+      </template>
     </Dialog>
 
     <!-- #25 Print preview + config drawer -->
@@ -1066,7 +1100,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               <thead>
                 <tr class="border-b-2 border-gray-300 text-left text-xs uppercase tracking-wide text-gray-500">
                   <th class="py-2 pr-3">{{ t('member') }}</th>
-                  <th class="py-2 pr-3">Status</th>
+                  <th v-if="printStatus" class="py-2 pr-3">Status</th>
                   <th v-for="col in visibleColumns" :key="col.key" class="py-2 pr-3 whitespace-nowrap">{{ col.label }}</th>
                   <th class="py-2 pr-3 text-center">Signed In</th>
                   <th class="py-2 text-center">Out</th>
@@ -1075,10 +1109,16 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               <tbody>
                 <tr v-for="inv in previewInvitees" :key="inv.id" class="border-b border-gray-100">
                   <td class="py-1.5 pr-3 font-medium text-gray-800 whitespace-nowrap">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</td>
-                  <td class="py-1.5 pr-3 text-gray-600">{{ inviteStatus(inv).label }}</td>
+                  <td v-if="printStatus" class="py-1.5 pr-3 text-gray-600">{{ inviteStatus(inv).label }}</td>
                   <td v-for="col in visibleColumns" :key="col.key" class="py-1.5 pr-3 text-gray-600">{{ col.get(inv) ?? '—' }}</td>
-                  <td class="py-1.5 pr-3 text-center"><span class="inline-block w-4 h-4 border border-gray-400 rounded-sm" /></td>
-                  <td class="py-1.5 text-center"><span class="inline-block w-4 h-4 border border-gray-400 rounded-sm" /></td>
+                  <td class="py-1.5 pr-3 text-center">
+                    <span v-if="printSignStyle === 'tick'" class="inline-block w-4 h-4 border border-gray-400 rounded-sm" />
+                    <span v-else class="inline-block w-24 border-b border-gray-500 align-bottom" style="height:15px" />
+                  </td>
+                  <td class="py-1.5 text-center">
+                    <span v-if="printSignStyle === 'tick'" class="inline-block w-4 h-4 border border-gray-400 rounded-sm" />
+                    <span v-else class="inline-block w-24 border-b border-gray-500 align-bottom" style="height:15px" />
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -1093,6 +1133,19 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               class="flex-1 text-sm py-1.5 rounded-lg border capitalize transition-colors"
               :class="printOrientation === o ? 'border-primary text-primary bg-primary/5 font-semibold' : 'border-gray-200 text-gray-600 hover:border-gray-300'"
               @click="printOrientation = (o as any)">{{ o }}</button>
+          </div>
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Status column</p>
+          <label class="flex items-center gap-2 mb-5 cursor-pointer text-sm text-gray-700">
+            <Checkbox v-model="printStatus" binary /> Include the Status column
+          </label>
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Signed in / out</p>
+          <div class="flex gap-2 mb-5">
+            <button type="button" class="flex-1 text-sm py-1.5 rounded-lg border transition-colors"
+              :class="printSignStyle === 'tick' ? 'border-primary text-primary bg-primary/5 font-semibold' : 'border-gray-200 text-gray-600 hover:border-gray-300'"
+              @click="printSignStyle = 'tick'">Tick boxes</button>
+            <button type="button" class="flex-1 text-sm py-1.5 rounded-lg border transition-colors"
+              :class="printSignStyle === 'sign' ? 'border-primary text-primary bg-primary/5 font-semibold' : 'border-gray-200 text-gray-600 hover:border-gray-300'"
+              @click="printSignStyle = 'sign'">Sign + time</button>
           </div>
           <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Columns</p>
           <label v-for="c in allColumns" :key="c.key" class="flex items-center gap-2 py-1 cursor-pointer text-sm text-gray-700">
