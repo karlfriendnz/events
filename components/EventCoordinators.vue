@@ -130,13 +130,29 @@ async function onPick(e: { value: any }) {
 }
 
 // ── Notifications + remove ──
+// These save AS YOU CLICK — there's no Save button for them (the event's Save only
+// covers the event's own fields), so the row says so: a spinner while it's in flight,
+// then a brief "Saved". A failure rolls the pill back rather than leaving the screen
+// showing something the database doesn't have.
+const savingId = ref<string | null>(null)
+const savedId = ref<string | null>(null)
 async function toggleNotif(c: any, key: string) {
-  const set = new Set<string>(Array.isArray(c.notifications) ? c.notifications : [])
+  const before = Array.isArray(c.notifications) ? [...c.notifications] : []
+  const set = new Set<string>(before)
   set.has(key) ? set.delete(key) : set.add(key)
   const next = ALL.filter(k => set.has(k))
   c.notifications = next
-  try { await eventsApi.updateEventCoordinator(c.id, next) }
-  catch { toast.add({ severity: 'error', summary: 'Could not save', life: 3000 }) }
+  savingId.value = c.id
+  try {
+    await eventsApi.updateEventCoordinator(c.id, next)
+    savedId.value = c.id
+    setTimeout(() => { if (savedId.value === c.id) savedId.value = null }, 1600)
+  } catch {
+    c.notifications = before
+    toast.add({ severity: 'error', summary: 'Could not save', life: 3000 })
+  } finally {
+    if (savingId.value === c.id) savingId.value = null
+  }
 }
 async function remove(c: any) {
   try {
@@ -157,7 +173,7 @@ onMounted(load)
     <div class="flex items-start justify-between gap-3 mb-3">
       <div class="min-w-0">
         <h3 class="section-title">Coordinators</h3>
-        <p class="field-help">People who administer this event and get notified about it.</p>
+        <p class="field-help">People who administer this event and get notified about it. Changes here save on their own — the event's Save button doesn't cover them.</p>
       </div>
       <Button v-if="!loading && !error && !adding" label="Add coordinator" icon="pi pi-plus" size="small" outlined
         class="shrink-0" style="color:var(--brand-primary);border-color:var(--brand-primary)" @click="startAdd" />
@@ -205,7 +221,7 @@ onMounted(load)
               <td class="px-3 py-2">
                 <!-- ON is GREEN: these are switches, and green/grey says on/off at a
                      glance where brand-tint vs grey read as two shades of the same. -->
-                <div class="flex flex-wrap gap-1.5">
+                <div class="flex flex-wrap items-center gap-1.5">
                   <button v-for="o in NOTIF_OPTIONS" :key="o.key" type="button"
                     class="px-2 py-0.5 rounded-full text-xs border transition-colors"
                     :class="has(c, o.key)
@@ -214,6 +230,13 @@ onMounted(load)
                     @click="toggleNotif(c, o.key)">
                     <i v-if="has(c, o.key)" class="pi pi-check text-[10px] mr-1" />{{ o.label }}
                   </button>
+                  <!-- There is no Save for these — say so as it happens. -->
+                  <span v-if="savingId === c.id" class="text-xs text-gray-400 inline-flex items-center gap-1">
+                    <i class="pi pi-spin pi-spinner text-[10px]" />Saving
+                  </span>
+                  <span v-else-if="savedId === c.id" class="text-xs text-emerald-600 inline-flex items-center gap-1">
+                    <i class="pi pi-check text-[10px]" />Saved
+                  </span>
                 </div>
               </td>
               <td class="px-2 py-2 text-right">
