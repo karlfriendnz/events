@@ -577,7 +577,12 @@ async function rebuildSeries(startAt: string | null, endAt: string | null, rule:
       </div>
       <div class="flex justify-end gap-2 pt-1">
         <Button label="Cancel" severity="secondary" text size="small" @click="editing = false" />
-        <Button label="Save" icon="pi pi-check" size="small" :loading="saving" :disabled="!form.title.trim() || !isDirty"
+        <!-- Enabled whenever the box is open: coordinators (and anything else that
+             saves itself) leave the event's own fields untouched, and a greyed-out
+             Save after you've just changed something reads as broken. Pressing it
+             with nothing changed simply closes — saveDetails() no-ops on a clean
+             form, so no write and no "this / following / all" prompt. -->
+        <Button label="Save" icon="pi pi-check" size="small" :loading="saving" :disabled="!form.title.trim()"
           style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="saveDetails" />
       </div>
     </div>
