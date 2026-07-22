@@ -65,6 +65,63 @@ const attendanceViewModes = [
 ]
 const attendanceViewMode = ref<'all' | 'sub_groups' | 'member_groups'>('all')
 const inviteOpen = ref(false)
+
+// ---- Inline add-person row (pinned above the roster) ----
+// "Add person" reveals an inline search row here; "More" opens the full invite modal.
+const peopleApi = usePeopleApi()
+const showInlineAdd = ref(false)
+const inlineAddPerson = ref<any>(null)
+const inlineAddOptions = ref<any[]>([])
+const inlineAddBusy = ref(false)
+async function searchInlinePeople(e: { query: string }) {
+  const q = (e.query || '').trim()
+  const oid = props.clubOrgId || orgId.value
+  if (!oid) { inlineAddOptions.value = []; return }
+  const rows = await peopleApi.list(oid, { q, limit: 20 })
+  const have = new Set(invitees.value.map((i: any) => i.person_id))
+  inlineAddOptions.value = (rows || [])
+    .filter((p: any) => !have.has(p.id))
+    .map((p: any) => ({ id: p.id, name: [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email || 'Unnamed', email: p.email }))
+}
+async function addInlinePerson() {
+  const p = inlineAddPerson.value
+  if (!p || typeof p !== 'object' || !p.id || inlineAddBusy.value) return
+  inlineAddBusy.value = true
+  try {
+    await eventsApi.addInvitee(props.eventId, { personId: p.id, status: 'INVITED', clubOrgId: props.clubOrgId })
+    inlineAddPerson.value = null
+    inlineAddOptions.value = []
+    await loadInvitees()
+    toast.add({ severity: 'success', summary: 'Added', detail: `${p.name} added`, life: 2000 })
+  } catch (err: any) {
+    toast.add({ severity: 'error', summary: 'Could not add person', detail: err?.message || 'Please try again', life: 4000 })
+  } finally {
+    inlineAddBusy.value = false
+  }
+}
+function openMoreInvite() { inviteOpen.value = true }
+
+// ---- Club logo for the printed roll header ----
+const orgsApiForLogo = useOrganisationsApi()
+const orgLogoUrl = ref<string | null>(null)
+async function loadOrgLogo() {
+  const oid = props.clubOrgId || orgId.value
+  if (!oid) return
+  try {
+    const o: any = await orgsApiForLogo.get(oid)
+    orgLogoUrl.value = o?.logoUrl || o?.iconUrl || null
+  } catch { /* logo is best-effort — never block the roll */ }
+}
+// Printed roll header text: "Sat 5 Jul 2026 · 9:00 AM – 11:00 AM"
+const rollHeaderWhen = computed(() => {
+  const s = event.value?.startAt || event.value?.start_at
+  if (!s) return ''
+  const d = new Date(s)
+  const date = d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+  const time = (v: any) => new Date(v).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' })
+  const e = event.value?.endAt || event.value?.end_at
+  return event.value?.allDay ? date : `${date} · ${time(s)}${e ? ` – ${time(e)}` : ''}`
+})
 const expandedMemberGroups = ref<Record<string, boolean>>({})
 const memberGroupsForInvitees = ref<{ personId: string; group: { id: string; name: string; color: string } }[]>([])
 
@@ -469,7 +526,7 @@ async function load() {
     await selectAttendanceSession(attendanceSessions.value[0].id)
   }
 }
-onMounted(() => { rbacNotes.load(); load() })
+onMounted(() => { rbacNotes.load(); load(); loadOrgLogo() })
 watch(() => props.eventId, () => load())
 
 // Let a parent drive the session (event page's "Take attendance") or force a reload
@@ -526,6 +583,15 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
     <div class="bg-white rounded-xl border border-gray-200 flex flex-col"
       :class="attendanceInSessionMode ? 'rounded-none border-0 flex-1 overflow-hidden' : (fit ? 'w-full' : 'mx-3 sm:mx-6 my-4 sm:my-6 max-w-5xl self-center w-full flex-1 overflow-hidden')">
 
+      <!-- Print-only roll header: event name + date/time (left), club logo (right) -->
+      <div class="roll-print-title hidden print:flex items-start justify-between gap-4 mb-3">
+        <div>
+          <div class="text-lg font-bold text-gray-900">{{ event?.title || 'Attendance roll' }}</div>
+          <div v-if="rollHeaderWhen" class="text-sm text-gray-600">{{ rollHeaderWhen }}</div>
+        </div>
+        <img v-if="orgLogoUrl" :src="orgLogoUrl" alt="" class="h-10 w-auto object-contain shrink-0" />
+      </div>
+
       <!-- Toolbar -->
       <div class="flex items-center justify-between bg-gray-50 px-4 py-2.5 border-b border-gray-200 shrink-0">
         <div class="flex items-center gap-3">
@@ -539,8 +605,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
           </IconField>
         </div>
         <div class="flex items-center">
-          <button class="flex flex-col items-center gap-0.5 px-4 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" @click="inviteOpen = true">
-            <i class="pi pi-user-plus text-lg" /><span class="text-[10px] font-medium">Invite</span>
+          <button class="flex flex-col items-center gap-0.5 px-4 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" @click="showInlineAdd = true">
+            <i class="pi pi-user-plus text-lg" /><span class="text-[10px] font-medium">Add person</span>
           </button>
           <button class="flex flex-col items-center gap-0.5 px-4 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" @click="printAttendanceRoll">
             <i class="pi pi-print text-lg" /><span class="text-[10px] font-medium">Print Roll</span>
@@ -561,6 +627,20 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
         </div>
       </div>
 
+      <!-- Inline add-person row: search + Add, or "More" for the full invite modal -->
+      <div v-if="showInlineAdd" class="flex items-center gap-2 px-4 py-2.5 border-b border-gray-200 bg-primary/5 shrink-0 no-print">
+        <i class="pi pi-user-plus text-gray-400 shrink-0" />
+        <AutoComplete v-model="inlineAddPerson" :suggestions="inlineAddOptions" optionLabel="name" :delay="250"
+          placeholder="Search for a person…" class="flex-1" inputClass="w-full" forceSelection @complete="searchInlinePeople" />
+        <Button label="Add" icon="pi pi-plus" size="small" :loading="inlineAddBusy"
+          :disabled="!inlineAddPerson || typeof inlineAddPerson !== 'object'" @click="addInlinePerson"
+          style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+        <Button label="More" icon="pi pi-users" size="small" outlined @click="openMoreInvite" />
+        <button class="w-7 h-7 flex items-center justify-center rounded hover:bg-gray-100 text-gray-400 hover:text-gray-700 shrink-0" title="Close" @click="showInlineAdd = false">
+          <i class="pi pi-times text-sm" />
+        </button>
+      </div>
+
       <div v-if="inviteesLoading" class="py-12 flex justify-center shrink-0"><i class="pi pi-spin pi-spinner text-gray-400 text-xl" /></div>
       <div v-else-if="!invitees.length" class="py-14 text-center text-sm text-gray-400 shrink-0">
         <i class="pi pi-users text-3xl mb-3 block" />No invitees yet
@@ -577,7 +657,6 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                   @click="allAttendanceGroupsCollapsed ? expandAllAttendanceGroups() : collapseAllAttendanceGroups()">
                   <i class="pi pi-chevron-up text-xs transition-transform duration-200" :class="allAttendanceGroupsCollapsed ? 'rotate-180' : ''" />
                 </button>
-                <i v-else class="pi pi-bars text-xs text-gray-300" />
               </th>
               <th class="pl-1 pr-2 py-3 w-8"><Checkbox v-model="attendanceSelectAll" binary @change="toggleAttendanceSelectAll" /></th>
               <th class="py-3 pr-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-40">
