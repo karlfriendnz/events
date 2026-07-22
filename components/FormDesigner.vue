@@ -555,7 +555,21 @@ function evtEnsureCoreFields(subject: any) {
   // a fresh subject reads name → email → … top-down; reordering is free afterwards.
   const seed: any[] = []
   for (const cf of EVT_CORE_FIELDS) {
-    if (fields.some((f: any) => f.label === cf.label && (f.target || '') === subject.key)) continue
+    const existing = fields.find((f: any) => f.label === cf.label && (f.target || '') === subject.key)
+    if (existing) {
+      // A NAME is not optional and not movable — on ANY person subject (member,
+      // parent/guardian, emergency contact, child, or a group with no type at all).
+      // Seeding alone wasn't enough: a form built before this, or from a preset that
+      // set them loosely, kept First/Last draggable and un-required because the seed
+      // skips fields that already exist. So the flags are re-asserted every load.
+      if (cf.pinned) {
+        existing.pinned = true
+        existing.locked = true
+        existing.core = true
+        existing.is_required = true
+      }
+      continue
+    }
     seed.push({
       id: crypto.randomUUID(), label: cf.label, field_type: cf.field_type,
       is_required: true, locked: true, core: true, pinned: !!cf.pinned, account: cf.account,
@@ -3909,23 +3923,19 @@ defineExpose({ reload })
                     @dragleave="dropZoneActive = false"
                     @drop="onDropField">
 
-                      <!-- Subject header — collapse toggle for multi-instance subjects (e.g. 12 Players).
-                           Hidden for single-instance subjects (e.g. Team) where it just duplicates the
-                           section heading; the builder keeps a slim "Edit form" bar. -->
-                      <div v-if="evtSubjectCount(subject.key) > 1 || !evtPublicPreview"
-                        class="flex items-center gap-2 px-4 pt-3.5 pb-2 select-none rounded-t-xl transition-colors"
-                        :class="evtSubjectCount(subject.key) > 1 ? 'cursor-pointer hover:bg-gray-50/60' : ''"
-                        @click.stop="evtSubjectCount(subject.key) > 1 && evtToggleInstance(subject.key, inst)">
-                        <template v-if="evtSubjectCount(subject.key) > 1">
-                          <i class="pi pi-chevron-right text-[10px] text-gray-400 transition-transform shrink-0" :class="evtInstanceOpen(subject.key, inst) ? 'rotate-90' : ''" />
-                          <span class="shrink-0 w-6 h-6 rounded-full flex items-center justify-center"
-                            :class="(subject.kind ?? '') === 'entity' ? 'bg-violet-50 text-violet-600' : 'bg-blue-50 text-[#0e43a3]'">
-                            <i :class="['pi', (subject.kind ?? '') === 'entity' ? 'pi-building' : 'pi-user', 'text-[11px]']" />
-                          </span>
-                          <span class="flex-1 min-w-0 truncate text-sm font-semibold"
-                            :class="evtInstanceName(subject.key, inst) ? 'text-gray-800' : 'text-gray-400'">{{ evtInstanceTitle(subject, inst) }}</span>
-                        </template>
-                        <span v-else class="flex-1" />
+                      <!-- Subject header — ALWAYS shown, single instance or twelve. It
+                           says who this block is for ("Emergency Contact"), which a
+                           lone unlabelled card doesn't, and keeps every block on the
+                           form looking like the same kind of thing. -->
+                      <div class="flex items-center gap-2 px-4 pt-3.5 pb-2 select-none rounded-t-xl transition-colors cursor-pointer hover:bg-gray-50/60"
+                        @click.stop="evtToggleInstance(subject.key, inst)">
+                        <i class="pi pi-chevron-right text-[10px] text-gray-400 transition-transform shrink-0" :class="evtInstanceOpen(subject.key, inst) ? 'rotate-90' : ''" />
+                        <span class="shrink-0 w-6 h-6 rounded-full flex items-center justify-center"
+                          :class="(subject.kind ?? '') === 'entity' ? 'bg-violet-50 text-violet-600' : 'bg-blue-50 text-[#0e43a3]'">
+                          <i :class="['pi', (subject.kind ?? '') === 'entity' ? 'pi-building' : 'pi-user', 'text-[11px]']" />
+                        </span>
+                        <span class="flex-1 min-w-0 truncate text-sm font-semibold"
+                          :class="evtInstanceName(subject.key, inst) ? 'text-gray-800' : 'text-gray-400'">{{ evtInstanceTitle(subject, inst) }}</span>
                         <button v-if="!evtPublicPreview" type="button" class="text-[11px] font-semibold text-[#0e43a3] hover:underline" @click.stop="openEvtSubject(subject.key)">Edit form</button>
                         <button v-if="evtSubjectCount(subject.key) > evtSubjectMin(subject)"
                           type="button" class="text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors w-6 h-6 flex items-center justify-center rounded-lg"
