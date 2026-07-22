@@ -3647,21 +3647,25 @@ defineExpose({ reload })
                        said what it toggled. Now: a labelled Minimum row, and a Maximum
                        row where the CHOICE is explicit — Unlimited vs Set a number —
                        with the number only present when it means something. -->
-                  <div class="flex flex-wrap items-center gap-x-2.5 gap-y-2">
-                    <label class="field-label shrink-0">How many register?</label>
-                    <span class="text-xs text-gray-500 shrink-0">Min</span>
-                    <InputNumber :model-value="profile.min" :min="0" :max="99" class="w-14"
-                      :input-class="'w-14 text-center'" :use-grouping="false"
-                      @update:model-value="v => profile.min = v ?? 0" />
-                    <span class="text-xs text-gray-500 shrink-0">Max</span>
-                    <SelectButton :model-value="profile.max == null ? 'unlimited' : 'set'"
-                      :options="EVT_MAX_MODES" option-label="label" option-value="value"
-                      :allow-empty="false" size="small"
-                      @update:model-value="m => evtSetUnlimited(i, m === 'unlimited')" />
-                    <InputNumber v-if="profile.max != null" :model-value="profile.max"
-                      :min="profile.min || 1" :max="99" class="w-14"
-                      :input-class="'w-14 text-center'" :use-grouping="false"
-                      @update:model-value="v => profile.max = v" />
+                  <div>
+                    <label class="field-label block mb-1.5">How many register?</label>
+                    <!-- Label on its own line, then Min / Max on the next — one row of
+                         controls rather than a stack of labelled rows. -->
+                    <div class="flex flex-wrap items-center gap-x-2.5 gap-y-2">
+                      <span class="text-xs text-gray-500 shrink-0">Min</span>
+                      <InputNumber :model-value="profile.min" :min="0" :max="99" class="w-14"
+                        :input-class="'w-14 text-center'" :use-grouping="false"
+                        @update:model-value="v => profile.min = v ?? 0" />
+                      <span class="text-xs text-gray-500 shrink-0 ml-1">Max</span>
+                      <SelectButton :model-value="profile.max == null ? 'unlimited' : 'set'"
+                        :options="EVT_MAX_MODES" option-label="label" option-value="value"
+                        :allow-empty="false" size="small"
+                        @update:model-value="m => evtSetUnlimited(i, m === 'unlimited')" />
+                      <InputNumber v-if="profile.max != null" :model-value="profile.max"
+                        :min="profile.min || 1" :max="99" class="w-14"
+                        :input-class="'w-14 text-center'" :use-grouping="false"
+                        @update:model-value="v => profile.max = v" />
+                    </div>
                   </div>
                 </div>
 
