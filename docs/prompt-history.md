@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1626 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1627 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (5 prompts)
+## Session 2026-07-22 02:42 (6 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29099,4 +29099,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **03:05** — the modals are not working. from a size persective - it was good on a big screen but when on laptop its too small - what can we do - also its to low from the top
 
 **03:08** — [Image #2]
+
+**03:10** — hmm thats bit too big now lol - can we make the max width 1200px
 

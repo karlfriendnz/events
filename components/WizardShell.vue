@@ -39,12 +39,12 @@ function onNext() {
   <Teleport to="body">
     <!-- Top offset + max-height come from the global modal rule (main.css); here we just
          set the top-align, side padding, width and let the panel fill.
-         Width SCALES with the window (min(1500px, 94vw)) rather than the old flat
+         Width SCALES with the window (min(1200px, 94vw)) rather than the old flat
          1000px — on a laptop that left two thick empty gutters while the step content
-         (form + summary rail) was squeezed. -->
+         (form + summary rail) was squeezed. 1200 is the ceiling: wider read as too big. -->
     <div class="app-modal-overlay fixed inset-0 flex items-stretch sm:items-start justify-center sm:px-6 sm:pb-6 bg-slate-900/45 backdrop-blur-[2px]"
       style="z-index:1000">
-      <div class="flex flex-col bg-white w-full h-full sm:max-w-[min(1500px,94vw)] sm:rounded-xl shadow-2xl overflow-hidden">
+      <div class="flex flex-col bg-white w-full h-full sm:max-w-[min(1200px,94vw)] sm:rounded-xl shadow-2xl overflow-hidden">
 
         <!-- Header + step path (same brand bar as every dialog) -->
         <div class="shrink-0 bg-white border-b border-gray-200">
