@@ -317,11 +317,11 @@ function openInviteeEmail(inv: any) {
 // header on every page. Class is cleared after printing (or on cancel via afterprint).
 function printAttendanceRoll() {
   document.body.classList.add('printing-roll')
-  // Landscape by default (more room for columns) — injected + removed per print so it
-  // doesn't affect any other printing.
+  // Orientation from the preview drawer (landscape by default) — injected + removed
+  // per print so it doesn't affect any other printing.
   const style = document.createElement('style')
   style.id = 'roll-print-page'
-  style.textContent = '@page { size: landscape; margin: 12mm; }'
+  style.textContent = `@page { size: ${printOrientation.value}; margin: 12mm; }`
   document.head.appendChild(style)
   const done = () => {
     document.body.classList.remove('printing-roll')
@@ -331,6 +331,48 @@ function printAttendanceRoll() {
   window.addEventListener('afterprint', done)
   window.print()
 }
+
+// ── #25 In-app print PREVIEW + config drawer ──
+// "Print Roll" opens a preview sheet with a right-hand drawer to set orientation +
+// which columns show (the checkboxes drive the same colVisible the live table uses,
+// so the preview and the real print stay in sync). "Print" fires the real print.
+const printPreviewOpen = ref(false)
+const printOrientation = ref<'landscape' | 'portrait'>('landscape')
+const previewInvitees = computed(() => invitees.value.slice(0, 40))
+function doPrintFromPreview() {
+  printPreviewOpen.value = false
+  nextTick(() => printAttendanceRoll())
+}
+
+// ── #30 bulk-action bar helper ──
+function clearAttendanceSelection() { attendanceSelected.value = []; attendanceSelectAll.value = false }
+
+// ── #18 quick add-invitee (single person by name; the full picker is behind a button) ──
+const peopleApi = usePeopleApi()
+const quickPeople = ref<any[]>([])
+const quickSel = ref<any>(null)
+const quickAdding = ref(false)
+const showFullInvite = ref(false)
+async function searchQuickPeople(e: { query: string }) {
+  const q = (e.query || '').trim()
+  if (!orgId.value || !q) { quickPeople.value = []; return }
+  quickPeople.value = await peopleApi.list(orgId.value, { q, limit: 12 }).catch(() => [])
+}
+async function addQuickPerson() {
+  const p = quickSel.value
+  if (!p || typeof p !== 'object' || !p.id || quickAdding.value) return
+  quickAdding.value = true
+  try {
+    await eventsApi.addInvitee(props.eventId, { personId: p.id, status: 'INVITED', role: 'attendee', roles: ['attendee'], clubOrgId: props.clubOrgId })
+    toast.add({ severity: 'success', summary: `${((p.firstName || '') + ' ' + (p.lastName || '')).trim() || 'Person'} added`, life: 2000 })
+    quickSel.value = null
+    await load()
+  } catch (err: any) {
+    toast.add({ severity: 'error', summary: 'Could not add', detail: err?.message, life: 3000 })
+  } finally { quickAdding.value = false }
+}
+// Reset the quick-add / full-picker state each time the dialog opens.
+watch(inviteOpen, v => { if (v) { showFullInvite.value = false; quickSel.value = null; quickPeople.value = [] } })
 
 // ---- Attendance action menu ----
 const attendanceActionMenu = ref()
@@ -566,7 +608,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
     <!-- Right: Attendance table -->
     <div class="flex-1 min-w-0 flex flex-col bg-white" :class="fit ? '' : 'overflow-hidden'">
     <div class="bg-white rounded-xl border border-gray-200 flex flex-col"
-      :class="attendanceInSessionMode ? 'rounded-none border-0 flex-1 overflow-hidden' : (fit ? 'w-full' : 'mx-3 sm:mx-6 my-4 sm:my-6 max-w-5xl self-center w-full flex-1 overflow-hidden')">
+      :class="attendanceInSessionMode ? 'rounded-none border-0 flex-1 overflow-hidden' : (fit ? 'w-full' : 'mx-3 sm:mx-6 mb-4 sm:mb-6 max-w-5xl self-center w-full flex-1 overflow-hidden')">
 
       <!-- Toolbar -->
       <div class="flex items-center justify-between bg-gray-50 px-4 py-2.5 border-b border-gray-200 shrink-0">
@@ -584,7 +626,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
           <button class="flex flex-col items-center gap-0.5 px-4 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" @click="inviteOpen = true">
             <i class="pi pi-user-plus text-lg" /><span class="text-[10px] font-medium">Add person</span>
           </button>
-          <button class="flex flex-col items-center gap-0.5 px-4 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" @click="printAttendanceRoll">
+          <button class="flex flex-col items-center gap-0.5 px-4 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" @click="printPreviewOpen = true">
             <i class="pi pi-print text-lg" /><span class="text-[10px] font-medium">Print Roll</span>
           </button>
           <button class="flex flex-col items-center gap-0.5 px-4 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" @click="colMenu.toggle($event)">
@@ -844,22 +886,28 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
         </table>
       </div>
 
-      <!-- Footer -->
-      <div v-if="invitees.length" class="px-4 py-3 border-t border-gray-100 flex items-center justify-between shrink-0">
+      <!-- Footer: plain counts. Bulk actions live in the slide-up bar (appears on select). -->
+      <div v-if="invitees.length" class="px-4 py-3 border-t border-gray-100 flex items-center shrink-0">
         <p class="text-xs text-gray-500">
           <span class="font-semibold text-green-600">{{ attendedCount }}</span> signed in
           · <span class="font-semibold text-gray-700">{{ invitees.length }}</span> total
-          <span v-if="attendanceSelected.length" class="ml-3 text-primary font-medium">{{ attendanceSelected.length }} selected</span>
         </p>
-        <div class="flex gap-2 items-center">
-          <Button v-if="attendanceSelected.length" label="Mark Selected In" icon="pi pi-check" size="small" severity="success" outlined @click="markSelectedIn" />
-          <Button label="Action" icon="pi pi-chevron-down" icon-pos="right" size="small"
-            style="background:var(--brand-primary); border-color:var(--brand-primary)" @click="e => attendanceActionMenu.toggle(e)" />
-          <Menu ref="attendanceActionMenu" :model="attendanceActionMenuItems" :popup="true" />
-        </div>
       </div>
     </div>
     </div>
+
+    <!-- #30 Bulk action bar — slides up from the bottom when attendees are selected -->
+    <Transition name="fm-actionbar">
+      <div v-if="attendanceSelected.length" class="fixed inset-x-0 bottom-5 z-50 flex justify-center px-4 print:hidden pointer-events-none">
+        <div class="pointer-events-auto flex items-center gap-1 rounded-full pl-4 pr-1.5 py-1.5 text-white shadow-2xl" style="background:var(--brand-primary)">
+          <span class="text-sm font-semibold whitespace-nowrap">{{ attendanceSelected.length }} selected</span>
+          <span class="mx-1.5 w-px h-5 bg-white/25" />
+          <button class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/15 transition-colors whitespace-nowrap" @click="markSelectedIn"><i class="pi pi-check text-xs" />Mark in</button>
+          <button class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/15 transition-colors whitespace-nowrap" @click="showAddToSubGroupDialog = true"><i class="pi pi-user-plus text-xs" />Sub-group</button>
+          <button class="w-8 h-8 rounded-full hover:bg-white/15 flex items-center justify-center shrink-0" v-tooltip.top="'Clear selection'" @click="clearAttendanceSelection"><i class="pi pi-times text-sm" /></button>
+        </div>
+      </div>
+    </Transition>
 
     <!-- Check-in QR dialog -->
     <Dialog v-model:visible="showCheckinQrDialog" header="Check-in QR Code" modal :style="{ width: '95vw', maxWidth: '360px' }">
@@ -977,7 +1025,93 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
 
     <!-- Invite people — popup; reloads the roster on close -->
     <Dialog v-model:visible="inviteOpen" modal header="Invite people" :style="{ width: '95vw', maxWidth: '1000px' }" @hide="load">
-      <EventInviteeManager :event-id="props.eventId" :show-invite="false" />
+      <!-- Quick add: pick ONE person by name and add them straight away. -->
+      <div v-if="!showFullInvite" class="space-y-4">
+        <div>
+          <p class="text-sm font-semibold text-gray-800 mb-1.5">Add a person</p>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <AutoComplete v-model="quickSel" :suggestions="quickPeople" @complete="searchQuickPeople"
+              option-label="firstName" placeholder="Search by name…" class="flex-1" input-class="w-full"
+              @keydown.enter="addQuickPerson">
+              <template #option="{ option }">
+                <span>{{ ((option.firstName || '') + ' ' + (option.lastName || '')).trim() }}</span>
+                <span v-if="option.email" class="text-xs text-gray-400 ml-2">{{ option.email }}</span>
+              </template>
+            </AutoComplete>
+            <Button label="Add" icon="pi pi-plus" :loading="quickAdding"
+              :disabled="!quickSel || typeof quickSel !== 'object'"
+              style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="addQuickPerson" />
+          </div>
+        </div>
+        <div class="pt-3 border-t border-gray-100">
+          <button type="button" class="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline"
+            @click="showFullInvite = true">
+            <i class="pi pi-users" />Choose a group of people
+          </button>
+          <p class="text-xs text-gray-400 mt-1">Add whole classes, filter, or pick several at once.</p>
+        </div>
+      </div>
+      <!-- Full multi-select picker, revealed on demand. -->
+      <EventInviteeManager v-else :event-id="props.eventId" :show-invite="false" />
+    </Dialog>
+
+    <!-- #25 Print preview + config drawer -->
+    <Dialog v-model:visible="printPreviewOpen" modal header="Print preview" :style="{ width: '95vw', maxWidth: '1100px' }" :pt="{ content: { style: 'padding:0' } }">
+      <div class="flex flex-col sm:flex-row" style="height:70vh">
+        <!-- The sheet as it will print (columns follow the drawer; a light first-cut render) -->
+        <div class="flex-1 min-w-0 overflow-auto bg-gray-100 p-4 sm:p-6">
+          <div class="mx-auto bg-white shadow-md p-6" :style="{ width: printOrientation === 'landscape' ? '100%' : '640px', maxWidth: '100%' }">
+            <h2 class="text-lg font-bold text-gray-900 mb-3">{{ event?.title || 'Attendance roll' }}</h2>
+            <table class="w-full text-sm border-collapse">
+              <thead>
+                <tr class="border-b-2 border-gray-300 text-left text-xs uppercase tracking-wide text-gray-500">
+                  <th class="py-2 pr-3">{{ t('member') }}</th>
+                  <th class="py-2 pr-3">Status</th>
+                  <th v-for="col in visibleColumns" :key="col.key" class="py-2 pr-3 whitespace-nowrap">{{ col.label }}</th>
+                  <th class="py-2 pr-3 text-center">Signed In</th>
+                  <th class="py-2 text-center">Out</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="inv in previewInvitees" :key="inv.id" class="border-b border-gray-100">
+                  <td class="py-1.5 pr-3 font-medium text-gray-800 whitespace-nowrap">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</td>
+                  <td class="py-1.5 pr-3 text-gray-600">{{ inviteStatus(inv).label }}</td>
+                  <td v-for="col in visibleColumns" :key="col.key" class="py-1.5 pr-3 text-gray-600">{{ col.get(inv) ?? '—' }}</td>
+                  <td class="py-1.5 pr-3 text-center"><span class="inline-block w-4 h-4 border border-gray-400 rounded-sm" /></td>
+                  <td class="py-1.5 text-center"><span class="inline-block w-4 h-4 border border-gray-400 rounded-sm" /></td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-if="invitees.length > previewInvitees.length" class="text-xs text-gray-400 mt-2">…and {{ invitees.length - previewInvitees.length }} more on the printout</p>
+          </div>
+        </div>
+        <!-- Config drawer -->
+        <div class="w-full sm:w-64 shrink-0 border-t sm:border-t-0 sm:border-l border-gray-200 bg-white p-4 overflow-y-auto">
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Orientation</p>
+          <div class="flex gap-2 mb-5">
+            <button v-for="o in ['landscape', 'portrait']" :key="o" type="button"
+              class="flex-1 text-sm py-1.5 rounded-lg border capitalize transition-colors"
+              :class="printOrientation === o ? 'border-primary text-primary bg-primary/5 font-semibold' : 'border-gray-200 text-gray-600 hover:border-gray-300'"
+              @click="printOrientation = (o as any)">{{ o }}</button>
+          </div>
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Columns</p>
+          <label v-for="c in allColumns" :key="c.key" class="flex items-center gap-2 py-1 cursor-pointer text-sm text-gray-700">
+            <Checkbox :model-value="colVisible(c.key)" binary @change="toggleCol(c.key)" />{{ c.label }}
+          </label>
+        </div>
+      </div>
+      <template #footer>
+        <Button label="Cancel" text severity="secondary" @click="printPreviewOpen = false" />
+        <Button label="Print" icon="pi pi-print" style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="doPrintFromPreview" />
+      </template>
     </Dialog>
   </div>
 </template>
+
+<style scoped>
+/* #30 bulk action bar slide-up */
+.fm-actionbar-enter-active,
+.fm-actionbar-leave-active { transition: transform .28s cubic-bezier(.2, .9, .3, 1), opacity .2s ease; }
+.fm-actionbar-enter-from,
+.fm-actionbar-leave-to { transform: translateY(140%); opacity: 0; }
+</style>
