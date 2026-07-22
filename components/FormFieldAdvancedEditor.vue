@@ -36,20 +36,34 @@
           <!-- Operator + value FOLLOW the field: a date offers Before/After and a date
                box, a dropdown offers its own values, "is a member" offers the statuses. -->
           <div class="flex items-center gap-2">
-            <select v-model="cond.operator"
-              class="w-28 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700 shrink-0">
+            <select v-model="cond.operator" @change="onConditionOperatorChange(cond)"
+              class="w-32 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700 shrink-0">
               <option v-for="op in operatorsFor(cond.field)" :key="op" :value="op">{{ op }}</option>
             </select>
             <template v-if="!NO_VALUE_OPS.includes(cond.operator)">
-              <select v-if="valueKindFor(cond.field) === 'choice'" v-model="cond.value"
+              <select v-if="valueKindFor(cond.field, cond.operator) === 'choice'" v-model="cond.value"
                 class="flex-1 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700">
                 <option value="" disabled>Choose…</option>
                 <option v-for="o in valueOptionsFor(cond.field)" :key="o.value" :value="o.value">{{ o.label }}</option>
               </select>
-              <input v-else v-model="cond.value" :type="valueKindFor(cond.field) === 'date' ? 'date' : valueKindFor(cond.field) === 'number' ? 'number' : 'text'"
-                placeholder="Value"
+              <input v-else-if="valueKindFor(cond.field, cond.operator) !== 'multi'" v-model="cond.value"
+                :type="valueKindFor(cond.field, cond.operator) === 'date' ? 'date' : valueKindFor(cond.field, cond.operator) === 'number' ? 'number' : 'text'"
+                :placeholder="cond.field === 'person:age' ? 'Years' : 'Value'"
                 class="flex-1 h-9 px-3 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]" />
             </template>
+          </div>
+          <!-- "Is any of" = pick several. This is how you say male OR female: one row
+               with two values, because separate rows are ANDed together. -->
+          <div v-if="valueKindFor(cond.field, cond.operator) === 'multi'" class="flex flex-wrap gap-1.5 pl-1">
+            <button v-for="o in valueOptionsFor(cond.field)" :key="o.value" type="button"
+              class="px-2 py-1 rounded-full text-[11px] font-medium border transition-colors"
+              :class="isPicked(cond, o.value)
+                ? 'bg-primary/10 border-primary/30 text-primary'
+                : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'"
+              @click="togglePicked(cond, o.value)">
+              <i v-if="isPicked(cond, o.value)" class="pi pi-check text-[8px] mr-1" />{{ o.label }}
+            </button>
+            <span v-if="!valueOptionsFor(cond.field).length" class="text-[11px] text-gray-400 italic">This field has no set answers to pick from.</span>
           </div>
           <p v-if="isPersonCond(cond.field)" class="text-[11px] text-gray-400 flex items-start gap-1.5">
             <i class="pi pi-info-circle text-[10px] mt-0.5 shrink-0" />
@@ -179,6 +193,7 @@ const props = withDefaults(defineProps<{
 // registrant's membership, their class, their type. Keys are prefixed so they can't
 // collide with a field label (the stored `field` is a label string).
 const PERSON_CONDITIONS = [
+  { key: 'person:age',           label: 'Age' },
   { key: 'person:member_status', label: 'Membership status' },
   { key: 'person:group',         label: 'Class / group' },
   { key: 'person:person_type',   label: 'Person type' },
@@ -202,10 +217,15 @@ function fieldDef(name: string): any {
 const TEXT_OPS = ['Equals', 'Is Not', 'Contains', 'Is Empty', 'Is Not Empty']
 const NUM_OPS = ['Equals', 'Is Not', 'Greater Than', 'Less Than', 'Is Empty', 'Is Not Empty']
 const DATE_OPS = ['Equals', 'Is Not', 'Before', 'After', 'Is Empty', 'Is Not Empty']
-const CHOICE_OPS = ['Equals', 'Is Not', 'Is Empty', 'Is Not Empty']
-const IN_OPS = ['Is', 'Is Not']
+// "Is any of" is what makes OR possible at all: conditions are ANDed together, so
+// "gender is male or female" can't be two rows — it's one row with two values.
+const CHOICE_OPS = ['Equals', 'Is Not', 'Is any of', 'Is none of', 'Is Empty', 'Is Not Empty']
+const IN_OPS = ['Is', 'Is Not', 'Is any of', 'Is none of']
+const AGE_OPS = ['Greater Than', 'Less Than', 'Equals']
+const MULTI_OPS = ['Is any of', 'Is none of']
 
 function operatorsFor(name: string): string[] {
+  if (name === 'person:age') return AGE_OPS
   if (isPersonCond(name)) return IN_OPS
   const d = fieldDef(name)
   const t = d?.field_type
@@ -215,7 +235,9 @@ function operatorsFor(name: string): string[] {
   return [...(props.operators ?? TEXT_OPS)]
 }
 /** What the VALUE box should be: none / text / number / date / a list to pick from. */
-function valueKindFor(name: string): 'none' | 'text' | 'number' | 'date' | 'choice' {
+function valueKindFor(name: string, operator?: string): 'none' | 'text' | 'number' | 'date' | 'choice' | 'multi' {
+  if (operator && MULTI_OPS.includes(operator)) return 'multi'
+  if (name === 'person:age') return 'number'
   if (isPersonCond(name)) return 'choice'
   const d = fieldDef(name)
   const t = d?.field_type
@@ -226,6 +248,7 @@ function valueKindFor(name: string): 'none' | 'text' | 'number' | 'date' | 'choi
   return 'text'
 }
 function valueOptionsFor(name: string): { value: string; label: string }[] {
+  if (name === 'person:age') return []
   if (name === 'person:member_status') return MEMBER_STATUS_OPTIONS
   if (name === 'person:group') return (props.groupOptions ?? []).map(g => ({ value: g.id, label: g.name }))
   if (name === 'person:person_type') return (props.personTypeOptions ?? []).map(t => ({ value: t.key, label: t.label }))
@@ -235,11 +258,24 @@ function valueOptionsFor(name: string): { value: string; label: string }[] {
 }
 /** Operators that need no value at all. */
 const NO_VALUE_OPS = ['Is Empty', 'Is Not Empty']
+const asList = (v: any): string[] => (Array.isArray(v) ? v : v ? String(v).split(',').filter(Boolean) : [])
+function isPicked(cond: any, value: string) { return asList(cond.value).includes(value) }
+function togglePicked(cond: any, value: string) {
+  const list = asList(cond.value)
+  cond.value = list.includes(value) ? list.filter(v => v !== value) : [...list, value]
+}
 // Changing the field can strand an operator its new type doesn't have.
 function onConditionFieldChange(cond: any) {
   const ops = operatorsFor(cond.field)
   if (!ops.includes(cond.operator)) cond.operator = ops[0]
-  cond.value = ''
+  cond.value = MULTI_OPS.includes(cond.operator) ? [] : ''
+}
+// …and so does switching the operator itself: an array left in a text box (or a string
+// left in a checkbox list) reads as a corrupted condition.
+function onConditionOperatorChange(cond: any) {
+  const multi = MULTI_OPS.includes(cond.operator)
+  if (multi && !Array.isArray(cond.value)) cond.value = asList(cond.value)
+  if (!multi && Array.isArray(cond.value)) cond.value = cond.value[0] ?? ''
 }
 
 // Account-code options: when the club has Xero connected, offer the REAL

@@ -185,10 +185,27 @@ function valByLabel(key: string, inst: number, label: string) { const fld = fiel
 const identifiedPerson = ref<any>(null)
 const identifiedGroupIds = ref<string[]>([])
 
+const condList = (v: any): string[] => (Array.isArray(v) ? v.map(String) : v ? String(v).split(',').filter(Boolean) : [])
+
 function personCondPasses(c: any, key: string, inst: number): boolean {
   const want = String(c.value ?? '')
-  const negate = c.operator === 'Is Not'
+  const wanted = condList(c.value)
+  const negate = c.operator === 'Is Not' || c.operator === 'Is none of'
+  const many = c.operator === 'Is any of' || c.operator === 'Is none of'
   const yes = (v: boolean) => (negate ? !v : v)
+  const hits = (has: (v: string) => boolean) => yes(many ? wanted.some(has) : has(want))
+
+  // Age comes from the DOB they've typed on THIS form when it asks for one (no sign-in
+  // needed), falling back to the person's stored date of birth.
+  if (c.field === 'person:age') {
+    const dob = valByLabel(key, inst, 'Date of Birth') || identifiedPerson.value?.dob
+    const age = ageFromDob(dob ?? null)
+    if (age == null) return false                 // can't be told → don't show
+    const n = Number(c.value)
+    if (c.operator === 'Greater Than') return age > n
+    if (c.operator === 'Less Than') return age < n
+    return age === n
+  }
 
   if (c.field === 'person:group') {
     const chosen = Object.entries(groupSel[key]?.[inst - 1] ?? {}).filter(([, on]) => on).map(([id]) => id)
@@ -200,16 +217,19 @@ function personCondPasses(c: any, key: string, inst: number): boolean {
 
   if (!identifiedPerson.value) return negate        // unknown → hide
   if (c.field === 'person:person_type') {
-    const types: string[] = identifiedPerson.value.person_types ?? []
-    return yes(types.map(String).includes(want))
+    const types: string[] = (identifiedPerson.value.person_types ?? []).map(String)
+    return hits(v => types.includes(v))
   }
   if (c.field === 'person:member_status') {
     const p = identifiedPerson.value
     const status = String(p.membership_status ?? (p.membership_type ? 'active_member' : 'non_member')).toLowerCase()
-    if (want === 'non_member') return yes(status === 'non_member' || !p.membership_type)
-    if (want === 'active_member') return yes(status === 'active_member' || status === 'active')
-    if (want === 'inactive_member') return yes(['inactive_member', 'inactive', 'lapsed', 'expired'].includes(status))
-    return yes(!!p.membership_type)                 // 'member' — any membership at all
+    const matches = (v: string) => {
+      if (v === 'non_member') return status === 'non_member' || !p.membership_type
+      if (v === 'active_member') return status === 'active_member' || status === 'active'
+      if (v === 'inactive_member') return ['inactive_member', 'inactive', 'lapsed', 'expired'].includes(status)
+      return !!p.membership_type                    // 'member' — any membership at all
+    }
+    return hits(matches)
   }
   return true
 }
@@ -222,6 +242,10 @@ function condPasses(conds: any[], key: string, inst: number) {
     if (c.operator === 'Is Not Empty') return !!val
     if (c.operator === 'Equals') return String(val) === String(c.value)
     if (c.operator === 'Is Not') return String(val) !== String(c.value)
+    // OR, within one row — separate rows are ANDed, so this is the only way to say
+    // "gender is male or female".
+    if (c.operator === 'Is any of') return condList(c.value).includes(String(val))
+    if (c.operator === 'Is none of') return !condList(c.value).includes(String(val))
     if (c.operator === 'Contains') return String(val).includes(c.value)
     // Date + number comparisons — the editor offers these for date/number fields.
     if (c.operator === 'Before') return !!val && new Date(String(val)) < new Date(String(c.value))
