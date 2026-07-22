@@ -26,18 +26,29 @@
           @update:modelValue="setEnabled(m.value, $event)" />
       </div>
 
-      <!-- Sub-controls when Invoice is enabled -->
+      <!-- Sub-controls when Invoice is enabled.
+           ONE bank account = no choice to make: it's selected automatically and simply
+           stated. The picker only appears when there is genuinely something to pick. -->
       <div v-if="m.value === 'invoice' && enabled('invoice')" class="px-4 pb-3 -mt-1">
-        <label class="text-xs font-medium text-gray-600 block mb-1.5">Choose bank account</label>
-        <div class="flex items-center gap-2">
-          <Select
-            :modelValue="bankAccountId"
-            @update:modelValue="$emit('update:bankAccountId', $event)"
-            :options="bankAccountOptions"
-            option-label="label" option-value="value"
-            :placeholder="bankAccountOptions.length ? 'Choose…' : 'No bank accounts yet'"
-            :disabled="!bankAccountOptions.length"
-            show-clear class="flex-1" />
+        <template v-if="bankAccountOptions.length > 1">
+          <label class="text-xs font-medium text-gray-600 block mb-1.5">Choose bank account</label>
+          <div class="flex items-center gap-2">
+            <Select
+              :modelValue="bankAccountId"
+              @update:modelValue="$emit('update:bankAccountId', $event)"
+              :options="bankAccountOptions"
+              option-label="label" option-value="value"
+              placeholder="Choose…"
+              show-clear class="flex-1" />
+            <Button v-if="manageBankAccounts" label="Manage" icon="pi pi-cog" size="small" severity="secondary" outlined
+              @click="$emit('manage-bank-accounts')" />
+          </div>
+        </template>
+        <div v-else class="flex items-center gap-2">
+          <p class="flex-1 text-xs text-gray-500">
+            <template v-if="bankAccountOptions.length">Paid into <span class="text-gray-700 font-medium">{{ bankAccountOptions[0].label }}</span></template>
+            <template v-else>No bank account set up yet.</template>
+          </p>
           <Button v-if="manageBankAccounts" label="Manage" icon="pi pi-cog" size="small" severity="secondary" outlined
             @click="$emit('manage-bank-accounts')" />
         </div>
@@ -72,6 +83,15 @@ const methods = [
 const bankAccountOptions = computed(() =>
   (props.bankAccounts ?? []).map(b => ({ value: b.id, label: b.name + (b.details ? ` — ${b.details}` : '') })),
 )
+
+// With exactly one account there is nothing to choose, so choose it — otherwise the
+// club enables invoicing, sees no dropdown, and saves an invoice method with no
+// account behind it.
+watchEffect(() => {
+  if (!props.modelValue?.invoice) return
+  const only = bankAccountOptions.value.length === 1 ? bankAccountOptions.value[0].value : null
+  if (only && props.bankAccountId !== only) emit('update:bankAccountId', only)
+})
 
 function enabled(key: string) { return !!props.modelValue?.[key] }
 function setEnabled(key: string, value: boolean) {
