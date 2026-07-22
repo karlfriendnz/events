@@ -60,8 +60,21 @@ const activeGroupId = computed(() => {
 
 const design = computed(() => props.config?.designs?.[activeGroupId.value] ?? {})
 const isWizard = computed(() => design.value?.style === 'tabs')
-// The active step's fill — club-settable in Form Design, brand navy by default.
-const stepColor = computed(() => design.value?.stepColor || '#111827')
+// The club's own brand colours (Settings → General → Branding). A form inherits them
+// so it looks like the club by default; Form Design can override per form.
+const brand = ref<{ bg: string | null; text: string | null }>({ bg: null, text: null })
+onMounted(async () => {
+  const org = props.context?.orgId
+  if (!org) return
+  try {
+    const o = await usePublicApi().org(org)
+    brand.value = { bg: o?.brandColor ?? null, text: o?.brandTextColor ?? null }
+  } catch { /* branding is decoration — never block the form */ }
+})
+const withHash = (c: string | null) => (c ? (c.startsWith('#') ? c : `#${c}`) : null)
+// Explicit form setting wins, else the club's brand, else near-black.
+const stepColor = computed(() => design.value?.stepColor || withHash(brand.value.bg) || '#111827')
+const stepTextColor = computed(() => withHash(brand.value.text) || '#ffffff')
 function stepLabel(st: any) {
   return st.kind === 'summary' ? 'Summary & payment' : st.kind === 'terms' ? 'Terms & conditions' : st.subject.label
 }
@@ -888,10 +901,10 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
       <button v-for="(st, i) in steps" :key="i" type="button"
         class="flex-1 min-w-0 px-3 py-2.5 text-center transition-colors"
         :class="i === step ? 'text-white' : 'hover:bg-gray-50'"
-        :style="i === step ? { background: stepColor } : undefined"
+        :style="i === step ? { background: stepColor, color: stepTextColor } : undefined"
         @click="step = i">
-        <span class="block text-xs font-bold" :class="i === step ? 'text-white' : 'text-gray-700'">Step {{ i + 1 }}</span>
-        <span class="block text-[11px] truncate" :class="i === step ? 'text-white/80' : 'text-gray-400'">{{ stepLabel(st) }}</span>
+        <span class="block text-xs font-bold" :class="i === step ? '' : 'text-gray-700'">Step {{ i + 1 }}</span>
+        <span class="block text-[11px] truncate" :class="i === step ? 'opacity-80' : 'text-gray-400'">{{ stepLabel(st) }}</span>
       </button>
     </div>
 

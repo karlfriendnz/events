@@ -2065,9 +2065,24 @@ function toggleEvtTerms(label: string) {
 const evtFormGroupDesigns = reactive<Record<string, any>>({
   'general': { style: 'tabs', header: 'event', headerImage: '', icons: { date: true, time: true, cost: true, location: true, criteria: true }, description: 'event', customDescription: '', background: 'default', backgroundImage: '', backgroundColor: '#fefefe', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', backgroundOverlay: 1, sponsors: 'show', showSessions: true, sessionsHeading: 'Sessions', sessionsLayout: 'list', sessionsGroupLabel: '', formHeading: 'Fill in the form to register', addPersonColor: '#0e43a3' },
 })
+// The club's brand colours (Settings → General → Branding) — a form inherits them.
+const evtBrand = ref<{ bg: string | null; text: string | null }>({ bg: null, text: null })
+const evtWithHash = (c: string | null | undefined) => (c ? (c.startsWith('#') ? c : `#${c}`) : null)
+watch(orgId, async (id) => {
+  if (!id) return
+  try {
+    const o = await usePublicApi().org(id)
+    evtBrand.value = { bg: evtWithHash(o?.brandColor), text: evtWithHash(o?.brandTextColor) }
+  } catch { /* branding is decoration */ }
+}, { immediate: true })
+
 const currentEvtFormDesign = computed(() => evtFormGroupDesigns[selectedFormGroupId.value] ?? evtFormGroupDesigns['general'])
 // Active step fill — club-settable in Form Design (design.stepColor).
-const evtStepColor = computed(() => currentEvtFormDesign.value?.stepColor || '#111827')
+// The builder previews what the club will actually see: their brand colours unless
+// this form overrides them (Form Design → Step colour).
+const evtStepColor = computed(() =>
+  currentEvtFormDesign.value?.stepColor || evtBrand.value.bg || '#111827')
+const evtStepTextColor = computed(() => evtBrand.value.text || '#ffffff')
 
 // A new form's design — a programme defaults its session view to the date × session
 // data table (best for multi-day programmes); everything else stays a list.
@@ -3172,6 +3187,7 @@ defineExpose({ reload })
             <!-- DESIGN/SETTINGS section settings -->
             <template v-else-if="evtSelectedFormSection === 'design'">
               <EventFormDesignPanel
+                :brand-color="evtBrand.bg"
                 :design="currentEvtFormDesign"
                 :audience="(evtFormGroupsList.find(g => g.id === selectedFormGroupId)?.audience ?? 'all')"
                 @back="evtSelectedFormSection = ''"
@@ -4055,10 +4071,10 @@ defineExpose({ reload })
                   <button v-for="(st, idx) in evtWizardSteps" :key="st.key" type="button"
                     class="flex-1 min-w-0 px-3 py-2.5 text-center transition-colors"
                     :class="idx === evtWizardStep ? 'text-white' : 'hover:bg-gray-50'"
-                    :style="idx === evtWizardStep ? { background: evtStepColor } : undefined"
+                    :style="idx === evtWizardStep ? { background: evtStepColor, color: evtStepTextColor } : undefined"
                     @click="evtOpenEditorForStep(idx)">
-                    <span class="block text-xs font-bold" :class="idx === evtWizardStep ? 'text-white' : 'text-gray-700'">Step {{ idx + 1 }}</span>
-                    <span class="block text-[11px] truncate" :class="idx === evtWizardStep ? 'text-white/80' : 'text-gray-400'">{{ st.label }}</span>
+                    <span class="block text-xs font-bold" :class="idx === evtWizardStep ? '' : 'text-gray-700'">Step {{ idx + 1 }}</span>
+                    <span class="block text-[11px] truncate" :class="idx === evtWizardStep ? 'opacity-80' : 'text-gray-400'">{{ st.label }}</span>
                   </button>
                 </div>
               </div>

@@ -119,17 +119,21 @@
         </div>
       </div>
 
-      <!-- Steps (Form Style = Steps) -->
+      <!-- Steps (Form Style = Steps) — inherits the club's brand colour until set. -->
       <div>
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Step colour</p>
         <div class="flex items-center gap-2 p-2 border border-gray-200 rounded-xl">
-          <input type="color" :value="design.stepColor || '#111827'" class="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white"
+          <input type="color" :value="design.stepColor || brandColor || '#111827'" class="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white"
             @input="design.stepColor = ($event.target as HTMLInputElement).value" />
-          <span class="text-xs text-gray-500 font-mono flex-1">{{ design.stepColor || '#111827' }}</span>
-          <button type="button" class="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-            @click="design.stepColor = '#111827'">Reset</button>
+          <span class="text-xs font-mono flex-1" :class="design.stepColor ? 'text-gray-500' : 'text-gray-400'">
+            {{ design.stepColor || (brandColor ? brandColor + ' · club colour' : '#111827') }}
+          </span>
+          <button v-if="design.stepColor" type="button" class="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            @click="design.stepColor = ''">Reset</button>
         </div>
-        <p class="text-[11px] text-gray-400 mt-1">Fills the step you're on in the progress bar.</p>
+        <p class="text-[11px] text-gray-400 mt-1">
+          Fills the step you're on. Uses your club's brand colour (Settings → General) unless you set one here.
+        </p>
       </div>
 
       <!-- Background -->
@@ -191,6 +195,8 @@ defineProps<{
   design: any
   /** The form group's audience ('all' | 'members' | 'public'). */
   audience: 'all' | 'members' | 'public'
+  /** The club's brand colour — what the form uses when this form doesn't override it. */
+  brandColor?: string | null
 }>()
 defineEmits<{
   (e: 'back'): void
