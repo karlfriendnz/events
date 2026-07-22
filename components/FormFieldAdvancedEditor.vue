@@ -38,7 +38,7 @@
           <div class="flex items-center gap-2">
             <select v-model="cond.operator" @change="onConditionOperatorChange(cond)"
               class="w-32 h-9 px-2 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] bg-white text-gray-700 shrink-0">
-              <option v-for="op in operatorsFor(cond.field)" :key="op" :value="op">{{ op }}</option>
+              <option v-for="op in operatorOptionsFor(cond)" :key="op" :value="op">{{ op }}</option>
             </select>
             <template v-if="!NO_VALUE_OPS.includes(cond.operator)">
               <select v-if="valueKindFor(cond.field, cond.operator) === 'choice'" v-model="cond.value"
@@ -46,6 +46,15 @@
                 <option value="" disabled>Choose…</option>
                 <option v-for="o in valueOptionsFor(cond.field)" :key="o.value" :value="o.value">{{ o.label }}</option>
               </select>
+              <template v-else-if="valueKindFor(cond.field, cond.operator) === 'range'">
+                <input :value="rangeVal(cond, 'from')" :type="fieldDef(cond.field)?.field_type === 'date' ? 'date' : 'number'"
+                  placeholder="From" class="flex-1 h-9 px-3 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]"
+                  @input="setRangeVal(cond, 'from', ($event.target as HTMLInputElement).value)" />
+                <span class="text-xs text-gray-400 shrink-0">and</span>
+                <input :value="rangeVal(cond, 'to')" :type="fieldDef(cond.field)?.field_type === 'date' ? 'date' : 'number'"
+                  placeholder="To" class="flex-1 h-9 px-3 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3]"
+                  @input="setRangeVal(cond, 'to', ($event.target as HTMLInputElement).value)" />
+              </template>
               <input v-else-if="valueKindFor(cond.field, cond.operator) !== 'multi'" v-model="cond.value"
                 :type="valueKindFor(cond.field, cond.operator) === 'date' ? 'date' : valueKindFor(cond.field, cond.operator) === 'number' ? 'number' : 'text'"
                 :placeholder="cond.field === 'person:age' ? 'Years' : 'Value'"
@@ -214,15 +223,21 @@ function fieldDef(name: string): any {
 // ── The operator + value control follow the FIELD ────────────────────────────
 // A date shouldn't offer "Contains", a dropdown shouldn't ask you to type its
 // options from memory, and "is a member" isn't a free-text comparison.
-const TEXT_OPS = ['Equals', 'Is Not', 'Contains', 'Is Empty', 'Is Not Empty']
-const NUM_OPS = ['Equals', 'Is Not', 'Greater Than', 'Less Than', 'Is Empty', 'Is Not Empty']
-const DATE_OPS = ['Equals', 'Is Not', 'Before', 'After', 'Is Empty', 'Is Not Empty']
-// "Is any of" is what makes OR possible at all: conditions are ANDed together, so
-// "gender is male or female" can't be two rows — it's one row with two values.
-const CHOICE_OPS = ['Equals', 'Is Not', 'Is any of', 'Is none of', 'Is Empty', 'Is Not Empty']
-const IN_OPS = ['Is', 'Is Not', 'Is any of', 'Is none of']
-const AGE_OPS = ['Greater Than', 'Less Than', 'Equals']
+// Each TYPE gets the operators that actually mean something for it, worded the way
+// you'd say them. A date isn't "greater than", a tickbox isn't "equals true", and a
+// file is either there or it isn't.
+const TEXT_OPS = ['Is', 'Is not', 'Contains', 'Starts with', 'Is empty', 'Is not empty']
+const NUM_OPS = ['Is', 'Is not', 'Is more than', 'Is less than', 'Is between', 'Is empty', 'Is not empty']
+const DATE_OPS = ['Is on', 'Is before', 'Is after', 'Is between', 'Is empty', 'Is not empty']
+const CHOICE_OPS = ['Is', 'Is not', 'Is any of', 'Is none of', 'Is empty', 'Is not empty']
+const TICK_OPS = ['Is ticked', 'Is not ticked']
+const FILE_OPS = ['Is uploaded', 'Is not uploaded']
+const IN_OPS = ['Is', 'Is not', 'Is any of', 'Is none of']
+const AGE_OPS = ['Is', 'Is more than', 'Is less than', 'Is between']
 const MULTI_OPS = ['Is any of', 'Is none of']
+const RANGE_OPS = ['Is between']
+// Legacy rows stored the older wording — keep them selectable so nothing breaks.
+const LEGACY_OPS = ['Equals', 'Is Not', 'Is Empty', 'Is Not Empty', 'Greater Than', 'Less Than', 'Before', 'After']
 
 function operatorsFor(name: string): string[] {
   if (name === 'person:age') return AGE_OPS
@@ -231,11 +246,20 @@ function operatorsFor(name: string): string[] {
   const t = d?.field_type
   if (t === 'date') return DATE_OPS
   if (t === 'number') return NUM_OPS
-  if (t === 'select' || t === 'checkbox') return CHOICE_OPS
-  return [...(props.operators ?? TEXT_OPS)]
+  if (t === 'checkbox') return TICK_OPS
+  if (t === 'file') return FILE_OPS
+  if (t === 'select' || (d?.options ?? []).length) return CHOICE_OPS
+  return TEXT_OPS
 }
-/** What the VALUE box should be: none / text / number / date / a list to pick from. */
-function valueKindFor(name: string, operator?: string): 'none' | 'text' | 'number' | 'date' | 'choice' | 'multi' {
+/** Options for the operator select — includes a legacy value so it isn't blank. */
+function operatorOptionsFor(cond: any): string[] {
+  const ops = operatorsFor(cond.field)
+  return cond.operator && !ops.includes(cond.operator) ? [cond.operator, ...ops] : ops
+}
+/** What the VALUE box should be: none / text / number / date / a list / a range. */
+function valueKindFor(name: string, operator?: string): 'none' | 'text' | 'number' | 'date' | 'choice' | 'multi' | 'range' {
+  if (operator && NO_VALUE_OPS.includes(operator)) return 'none'
+  if (operator && RANGE_OPS.includes(operator)) return 'range'
   if (operator && MULTI_OPS.includes(operator)) return 'multi'
   if (name === 'person:age') return 'number'
   if (isPersonCond(name)) return 'choice'
@@ -244,8 +268,15 @@ function valueKindFor(name: string, operator?: string): 'none' | 'text' | 'numbe
   if (t === 'date') return 'date'
   if (t === 'number') return 'number'
   if (t === 'select' && (d?.options ?? []).length) return 'choice'
-  if (t === 'checkbox') return 'choice'
   return 'text'
+}
+/** The two ends of a range live on the value as { from, to }. */
+function rangeVal(cond: any, end: 'from' | 'to') {
+  return (cond.value && typeof cond.value === 'object' && !Array.isArray(cond.value)) ? (cond.value[end] ?? '') : ''
+}
+function setRangeVal(cond: any, end: 'from' | 'to', v: string) {
+  const cur = (cond.value && typeof cond.value === 'object' && !Array.isArray(cond.value)) ? cond.value : {}
+  cond.value = { ...cur, [end]: v }
 }
 function valueOptionsFor(name: string): { value: string; label: string }[] {
   if (name === 'person:age') return []
@@ -257,7 +288,8 @@ function valueOptionsFor(name: string): { value: string; label: string }[] {
   return (d?.options ?? []).map((o: string) => ({ value: o, label: o }))
 }
 /** Operators that need no value at all. */
-const NO_VALUE_OPS = ['Is Empty', 'Is Not Empty']
+const NO_VALUE_OPS = ['Is empty', 'Is not empty', 'Is ticked', 'Is not ticked', 'Is uploaded', 'Is not uploaded',
+  'Is Empty', 'Is Not Empty']
 const asList = (v: any): string[] => (Array.isArray(v) ? v : v ? String(v).split(',').filter(Boolean) : [])
 function isPicked(cond: any, value: string) { return asList(cond.value).includes(value) }
 function togglePicked(cond: any, value: string) {
@@ -273,9 +305,12 @@ function onConditionFieldChange(cond: any) {
 // …and so does switching the operator itself: an array left in a text box (or a string
 // left in a checkbox list) reads as a corrupted condition.
 function onConditionOperatorChange(cond: any) {
-  const multi = MULTI_OPS.includes(cond.operator)
-  if (multi && !Array.isArray(cond.value)) cond.value = asList(cond.value)
-  if (!multi && Array.isArray(cond.value)) cond.value = cond.value[0] ?? ''
+  const kind = valueKindFor(cond.field, cond.operator)
+  if (kind === 'multi') cond.value = Array.isArray(cond.value) ? cond.value : asList(cond.value)
+  else if (kind === 'range') cond.value = (cond.value && typeof cond.value === 'object' && !Array.isArray(cond.value)) ? cond.value : { from: '', to: '' }
+  else if (kind === 'none') cond.value = ''
+  else if (Array.isArray(cond.value)) cond.value = cond.value[0] ?? ''
+  else if (cond.value && typeof cond.value === 'object') cond.value = ''
 }
 
 // Account-code options: when the club has Xero connected, offer the REAL

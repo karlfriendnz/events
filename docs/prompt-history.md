@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1694 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1695 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (73 prompts)
+## Session 2026-07-22 02:42 (74 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29238,4 +29238,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **21:46** — Make the feilds the first tab - then settings on the subject
 
 **21:47** — ok we need to add some more conditions in to the codition drop downs - are you apart of a group - are you an active memebr etc
+
+**22:01** — I would like you to make it so the operater is more dynamic depending onthe feild
 

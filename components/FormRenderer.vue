@@ -186,12 +186,30 @@ const identifiedPerson = ref<any>(null)
 const identifiedGroupIds = ref<string[]>([])
 
 const condList = (v: any): string[] => (Array.isArray(v) ? v.map(String) : v ? String(v).split(',').filter(Boolean) : [])
+// The editor's wording changed (Equals → Is, Greater Than → Is more than, …) but rows
+// saved earlier still carry the old strings, so both are understood.
+const OP_ALIASES: Record<string, string> = {
+  'Equals': 'is', 'Is': 'is',
+  'Is Not': 'is not', 'Is not': 'is not',
+  'Contains': 'contains', 'Starts with': 'starts with',
+  'Is Empty': 'empty', 'Is empty': 'empty', 'Is not ticked': 'empty', 'Is not uploaded': 'empty',
+  'Is Not Empty': 'not empty', 'Is not empty': 'not empty', 'Is ticked': 'not empty', 'Is uploaded': 'not empty',
+  'Greater Than': 'more than', 'Is more than': 'more than',
+  'Less Than': 'less than', 'Is less than': 'less than',
+  'Before': 'before', 'Is before': 'before',
+  'After': 'after', 'Is after': 'after',
+  'Is on': 'is', 'Is between': 'between',
+  'Is any of': 'any of', 'Is none of': 'none of',
+}
+const opOf = (o: string) => OP_ALIASES[o] ?? String(o ?? '').toLowerCase()
+const rangeOf = (v: any) => (v && typeof v === 'object' && !Array.isArray(v)) ? v : { from: '', to: '' }
 
 function personCondPasses(c: any, key: string, inst: number): boolean {
   const want = String(c.value ?? '')
   const wanted = condList(c.value)
-  const negate = c.operator === 'Is Not' || c.operator === 'Is none of'
-  const many = c.operator === 'Is any of' || c.operator === 'Is none of'
+  const op = opOf(c.operator)
+  const negate = op === 'is not' || op === 'none of'
+  const many = op === 'any of' || op === 'none of'
   const yes = (v: boolean) => (negate ? !v : v)
   const hits = (has: (v: string) => boolean) => yes(many ? wanted.some(has) : has(want))
 
@@ -201,9 +219,13 @@ function personCondPasses(c: any, key: string, inst: number): boolean {
     const dob = valByLabel(key, inst, 'Date of Birth') || identifiedPerson.value?.dob
     const age = ageFromDob(dob ?? null)
     if (age == null) return false                 // can't be told → don't show
+    if (op === 'between') {
+      const { from, to } = rangeOf(c.value)
+      return (from === '' || age >= Number(from)) && (to === '' || age <= Number(to))
+    }
     const n = Number(c.value)
-    if (c.operator === 'Greater Than') return age > n
-    if (c.operator === 'Less Than') return age < n
+    if (op === 'more than') return age > n
+    if (op === 'less than') return age < n
     return age === n
   }
 
@@ -238,20 +260,31 @@ function condPasses(conds: any[], key: string, inst: number) {
   return (conds ?? []).every((c: any) => {
     if (typeof c.field === 'string' && c.field.startsWith('person:')) return personCondPasses(c, key, inst)
     const val = valByLabel(key, inst, c.field) ?? ''
-    if (c.operator === 'Is Empty') return !val
-    if (c.operator === 'Is Not Empty') return !!val
-    if (c.operator === 'Equals') return String(val) === String(c.value)
-    if (c.operator === 'Is Not') return String(val) !== String(c.value)
+    const op = opOf(c.operator)
+    if (op === 'empty') return !val || val === false
+    if (op === 'not empty') return !!val && val !== false
+    if (op === 'is') return String(val) === String(c.value)
+    if (op === 'is not') return String(val) !== String(c.value)
     // OR, within one row — separate rows are ANDed, so this is the only way to say
     // "gender is male or female".
-    if (c.operator === 'Is any of') return condList(c.value).includes(String(val))
-    if (c.operator === 'Is none of') return !condList(c.value).includes(String(val))
-    if (c.operator === 'Contains') return String(val).includes(c.value)
-    // Date + number comparisons — the editor offers these for date/number fields.
-    if (c.operator === 'Before') return !!val && new Date(String(val)) < new Date(String(c.value))
-    if (c.operator === 'After') return !!val && new Date(String(val)) > new Date(String(c.value))
-    if (c.operator === 'Greater Than') return Number(val) > Number(c.value)
-    if (c.operator === 'Less Than') return Number(val) < Number(c.value)
+    if (op === 'any of') return condList(c.value).includes(String(val))
+    if (op === 'none of') return !condList(c.value).includes(String(val))
+    if (op === 'contains') return String(val).toLowerCase().includes(String(c.value).toLowerCase())
+    if (op === 'starts with') return String(val).toLowerCase().startsWith(String(c.value).toLowerCase())
+    if (op === 'before') return !!val && new Date(String(val)) < new Date(String(c.value))
+    if (op === 'after') return !!val && new Date(String(val)) > new Date(String(c.value))
+    if (op === 'more than') return Number(val) > Number(c.value)
+    if (op === 'less than') return Number(val) < Number(c.value)
+    if (op === 'between') {
+      const { from, to } = rangeOf(c.value)
+      const isDate = String(val).includes('-') && Number.isNaN(Number(val))
+      if (isDate) {
+        const d = new Date(String(val))
+        return (!from || d >= new Date(String(from))) && (!to || d <= new Date(String(to)))
+      }
+      const n = Number(val)
+      return (from === '' || n >= Number(from)) && (to === '' || n <= Number(to))
+    }
     return true
   })
 }
