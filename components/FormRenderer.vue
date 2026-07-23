@@ -800,7 +800,7 @@ function toSnakePerson(p: any) {
     dob: p.dob, gender: p.gender, custom_fields: p.customFields ?? {},
   }
 }
-const authResolved = ref(!!props.preview)  // false → show the landing; true → show the form (preview skips it)
+const authResolved = ref(!!props.preview || !!props.edit)  // false → show the landing; true → show the form (preview + edit skip it)
 const authModalOpen = ref(false)           // "Register" opens the auth chooser in a modal
 // Register: normally opens the modal; in an embed with registerToLogin, break out of
 // the iframe to the system login page, which returns to this registration (?authed=1)

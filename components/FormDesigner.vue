@@ -897,6 +897,10 @@ const evtPreviewDevice = ref<'desktop' | 'mobile'>('desktop')
 // Public preview — renders the form as a registrant sees it (no builder chrome:
 // no Edit-form links, inline-edit heading/description, drag zones, etc.).
 const evtPublicPreview = ref(false)
+// Beta: render the builder canvas with the live <FormRenderer edit> (one renderer).
+// Off by default; a small toggle in the preview header flips it while it's built to
+// parity. Persisted per-session so a page reload keeps the choice while testing.
+const evtUnifiedCanvas = ref(false)
 // Which subject(s) choose the sessions / classes / fees. Falls back to the first
 // subject when none is explicitly flagged so the picker is never orphaned.
 // The shared decision (anyFlagged + the fallback key) is memoised so the per-subject
@@ -2852,6 +2856,8 @@ async function reload() {
   await loadEvtFormConfig()
 }
 onMounted(reload)
+// Beta flag via URL while the unified edit canvas is brought to parity: ?unifiedCanvas=1
+onMounted(() => { try { if (new URLSearchParams(location.search).get('unifiedCanvas')) evtUnifiedCanvas.value = true } catch { /* no-op */ } })
 watch(() => [props.eventId, props.groupId, props.formId], () => reload())
 defineExpose({ reload })
 </script>
@@ -4196,6 +4202,15 @@ defineExpose({ reload })
             :class="evtPreviewDevice === 'mobile' ? 'max-w-[390px]' : 'max-w-[1000px]'">
             <FormRenderer preview :config="previewConfig" :context="previewContext" :event="evtDisplayEvent"
               :sessions="previewSessions" :fee-line-items="feeLineItems" />
+          </div>
+
+          <!-- Unified edit canvas (beta) — the live <FormRenderer> in EDIT mode, so the
+               builder and the live form are literally the same renderer. Gated behind
+               evtUnifiedCanvas while it's brought to parity with the EvtFieldCell canvas. -->
+          <div v-else-if="evtUnifiedCanvas" class="relative z-10 mx-auto my-6 bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"
+            :class="evtPreviewDevice === 'mobile' ? 'max-w-[390px]' : 'max-w-[1000px]'">
+            <FormRenderer edit :config="previewConfig" :context="previewContext" :event="evtDisplayEvent"
+              :sessions="previewSessions" :fee-line-items="feeLineItems" @edit-field="openEvtFieldEditor" />
           </div>
 
           <div v-else class="relative z-10 mx-auto my-6 bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"

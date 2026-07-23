@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-333 sessions · 1745 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+333 sessions · 1750 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (119 prompts)
+## Session 2026-07-22 02:42 (124 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29351,6 +29351,16 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:30** — ok do it
 
 **02:57** — Please do the merge now.
+
+**03:07** — Change communication to marketing and split out inquiries under clients.
+
+**03:07** — When you click the plus button and then click new client, allow the user to choose either quick client or full client.
+
+**03:07** — oh shit wrong chat so sorry please show me a list of all things in teh last 10 mins
+
+**03:08** — No, not on FM events, just the things that I asked you to do.
+
+**03:09** — carry on what you were doing
 
 
 ## Session 2026-07-23 00:51 (5 prompts)
