@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1728 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1731 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (107 prompts)
+## Session 2026-07-22 02:42 (110 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29327,4 +29327,10 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:10** — THIS SHOULD BE EXACTLY THE SAME - CREATE A SHARED COMPOENTN AS THIS WILL BE USED WHEN SOMEONE IS REGISTERING
 
 **00:11** — THIS SHOULD BE EXACTLY THE SAME - CREATE A SHARED COMPOENTN AS THIS WILL BE USED WHEN SOMEONE IS REGISTERING!!!!!!
+
+**00:20** — i have just tried to refresh and its saying site can't be reachd
+
+**00:21** — you can't tellme the preview and the editor are the same...
+
+**00:22** — use playright and have a look for your self
 

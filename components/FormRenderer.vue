@@ -937,7 +937,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
     <div class="px-4 sm:px-6 py-6">
     <!-- LANDING: details + sessions (data table) → "Register" opens the auth modal -->
     <div v-if="!authResolved">
-      <div class="prose prose-sm max-w-none text-gray-900 mb-3" v-html="formHeading" />
+      <div class="prose prose-sm max-w-none text-gray-900 mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="formHeading" />
 
       <!-- What's on offer, as a table (desktop) / stacked cards (mobile) -->
       <div v-if="weekSummary.length" class="sm:hidden space-y-2">
@@ -1007,7 +1007,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
       <button type="button" class="text-xs font-semibold text-gray-500 hover:text-gray-700" @click="changeIdentity">Change</button>
     </div>
 
-    <div class="prose prose-sm max-w-none text-gray-900 mb-4" v-html="formHeading" />
+    <div class="prose prose-sm max-w-none text-gray-900 mb-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="formHeading" />
 
     <!-- Step indicator — segments, not a row of dots-and-chevrons: each step gets its
          number and its NAME, and the one you're on is filled with the form's own step
@@ -1029,7 +1029,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
         class="mb-7">
         <!-- Heading + description are one rich-text field (intro). Fall back to the
              legacy separate heading for forms built before the merge. -->
-        <div v-if="s.intro && s.intro.trim()" class="prose prose-sm max-w-none text-gray-800 mb-2" v-html="s.intro" />
+        <div v-if="s.intro && s.intro.trim()" class="prose prose-sm max-w-none text-gray-800 mb-2 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="s.intro" />
         <h3 v-else class="text-base font-semibold text-gray-800">{{ s.heading || (s.label + ' register') }}</h3>
 
         <!-- Instances -->
@@ -1058,7 +1058,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
               <div v-if="f.field_type === 'section'" class="col-span-2 mt-2">
                 <!-- Heading + description are one rich-text field (intro); fall back to
                      the legacy label/description for sections built before the merge. -->
-                <div v-if="f.intro && f.intro.trim()" class="prose prose-sm max-w-none text-gray-800 mb-2" v-html="f.intro" />
+                <div v-if="f.intro && f.intro.trim()" class="prose prose-sm max-w-none text-gray-800 mb-2 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="f.intro" />
                 <template v-else>
                   <p class="text-sm font-bold text-gray-700">{{ f.label }}</p>
                   <p v-if="f.placeholder" class="text-xs text-gray-400 mb-2">{{ f.placeholder }}</p>

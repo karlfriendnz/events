@@ -977,9 +977,10 @@ const evtIsWizard = computed(() => (currentEvtFormDesign.value?.style) === 'tabs
 const evtWizardSteps = computed(() => [
   ...(evtPreviewDevice.value === 'mobile' ? [{ type: 'details', key: '__details', label: 'Details', kind: '' }] : []),
   ...evtPreviewSubjects.value.map(s => ({ type: 'subject', key: s.key, label: s.label, kind: (s as any).kind })),
-  { type: 'terms', key: '__terms', label: 'Terms', kind: '' },
-  // What they're agreeing to, then what they're paying — two different questions, so
-  // two steps. Totals, discounts, payment method and Submit all live here.
+  // Terms is its own step ONLY when terms are configured — matches the live form, which
+  // hides the step with no terms. (Configure terms in the left "Terms & Conditions" card.)
+  ...(evtFormTermsSelections.value.length ? [{ type: 'terms', key: '__terms', label: 'Terms', kind: '' }] : []),
+  // Totals, discounts, payment method and Submit all live on the final step.
   { type: 'summary', key: '__summary', label: 'Summary & payment', kind: '' },
 ])
 const evtWizardStep = ref(0)
