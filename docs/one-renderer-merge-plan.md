@@ -10,19 +10,24 @@ browser. Flip the default only when at full parity. Keep the app working at ever
 
 ## Phases
 
-- [ ] **A — click-to-edit + inert render.** `FormRendererField` gains `editable`
+- [x] **A — click-to-edit + inert render.** `FormRendererField` gains `editable`
       (inert inputs + `edit` emit). `FormRenderer` gains `edit` + `@edit-field`; in edit
       mode each field is click-to-edit with a hover ring + a (visual) drag handle. Wire a
-      gated `<FormRenderer edit>` in `FormDesigner` → `openEvtFieldEditor`. Verify: clicking
-      a field opens its editor; live form unchanged (edit defaults off).
-- [ ] **B — drag-reorder.** SortableJS on the edit-mode field lists; emit `@reorder`
-      (subjectKey, fromParent, order). `FormDesigner` reorders its field arrays. Verify.
-- [ ] **C — sections + drop-zones + add-from-library.** Section holders accept drops
-      (`@drop-field` sets `parent_section`); "drag fields here" empty state; library drag
-      lands via `@add-field`. Verify.
-- [ ] **D — name row + add-field affordance + SSO/order-summary parity** inside edit mode.
-- [ ] **E — flip `evtUnifiedCanvas` default ON**, full browser parity pass, then delete
-      the `EvtFieldCell` canvas block + `EvtFieldCell.vue`.
+      gated `<FormRenderer edit>` in `FormDesigner` → `openEvtFieldEditor`. Verified.
+- [x] **B — drag-reorder.** SortableJS on the edit-mode field lists; emit `@restructure`
+      (subjectKey, DOM structure). `FormDesigner` rebuilds its field arrays. Verified.
+- [x] **C — sections + drop-zones + add-from-library.** Section holders accept drops
+      (`@drop-field` → `onDropIntoSection`); "drag fields here" empty state; library drag
+      lands via `@drop-field` → `onDropFieldTo`. Verified.
+- [x] **D — SSO/order-summary/comms parity** inside edit mode (shared `OrderSummary` +
+      `CommsPreferences`; account "Create a login" toggle; per-instance totals). Verified.
+- [x] **E-1 — inline heading/section/banner/description editing** (subject + section
+      headings as inline RichTextEditors; banner rename + upload; description editable).
+- [x] **E — flipped `evtUnifiedCanvas` default ON** (2026-07-22). Verified on the
+      standalone `/forms/:id` AND the event-wizard Registration-form step. `?unifiedCanvas=0`
+      is the escape hatch back to the legacy `EvtFieldCell` canvas.
+- [ ] **E-final (deferred) — delete the `EvtFieldCell` canvas block + `EvtFieldCell.vue`**
+      once the unified path is proven in real club use. Kept as the fallback until then.
 
 ## Notes
 - `FormDesigner` handlers to reuse: `openEvtFieldEditor(id)`, `onDropFieldTo`,

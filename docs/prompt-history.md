@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-333 sessions · 1752 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+333 sessions · 1753 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (126 prompts)
+## Session 2026-07-22 02:42 (127 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29365,6 +29365,25 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **04:29** — yes please
 
 **05:11** — yes do de and e
+
+**05:27** — This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+> 
+> Summary:
+> 1. Primary Request and Intent:
+>    - Early session: Many incremental form-designer UI refinements (login/comms layout, field hover states, inline TipTap heading/description editing, editable banner, condition/financial rules, core-fields model, per-person comms). Key model spec from user: "an overarching layer which has the required fields of first name, last name, email address, date of birth and gender for anybody who has an account... each club or organisation can set the requirement fields for any person type... If a person selects the ability to have a login, they are absolutely required to have those five fields... those fields should be generated automatically to capture that information, and that information should be then sent to the overarching single sign-on layer."
+>    - Deploy the batch to prod, then do the SSO server wiring.
+>    - The FINAL/primary ongoing intent: "the full merge" — make the builder editor and the live/preview form use ONE shared renderer (editor should render the live `FormRenderer` in an edit mode), so they can never drift. User: "Please do the merge now. Don't rush it." User confirmed sequence: deploy first, then merge, then SSO ("ok do it") — then reversed to "Please do the merge now" (merge before final SSO). User confirmed doing Phases D and E: "yes do de and e."
+>    - CRITICAL CONTEXT: A batch of user requests mid-session (payment-wrap, "What are you setting up?" cards, packages/group-classes/drop-ins "+" behavior, communication→marketing, split inquiries under clients, Stripe-under-Finances, quick-vs-full client) were for a DIFFERENT project (PupManager, a pet-grooming app) — user confirmed "wrong chat." NONE of these were implemented in fm-events and must NOT be.
+> 
+> 2. Key Technical Concepts:
+>    - Nuxt 3 (ssr:false), Vue 3 `<script setup>`, PrimeVue v4, Tailwind, SortableJS, TipTap (RichTextEditor).
+>    - SFC in-memory compile-check via `@vue/compiler-sfc` (parse/compileScript/compileTemplate) — used instead of `npm run build` (dev server runs on port 3005, not 3002; do NOT run build with dev up).
+>    - Gated feature flag pattern (`evtUnifiedCanvas`, enabled via `?unifiedCanvas=1` query param) so refactor stays inert until proven.
+>    - `FormRenderer` `edit` mode + emits (`edit-field`, `restructure`, `drop-field`, `edit-subject-intro`, `edit-section-intro`, `banner-title`, `banner-upload`); `FormRendererField` `editable` prop (inert inputs, click-to-edit, drag handle).
+>    - SortableJS per-subject group `'evt-fields-'+subjectKey`; DOM-structure rebuild (`onUnifiedRestructure`) to avoid flat-array duplication.
+>    - `previewConfig` pins design: `designs = {...cfg.designs, general: currentEvtFormDesign.value, [sel]: currentEvtFormDesign.value}` — so FormRenderer's design IS the reactive builder object, making description/banner edits persist.
+>    - Shared compon
+> … [truncated — 19666 chars total]
 
 
 ## Session 2026-07-23 00:51 (5 prompts)

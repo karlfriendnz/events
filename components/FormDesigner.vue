@@ -897,10 +897,11 @@ const evtPreviewDevice = ref<'desktop' | 'mobile'>('desktop')
 // Public preview — renders the form as a registrant sees it (no builder chrome:
 // no Edit-form links, inline-edit heading/description, drag zones, etc.).
 const evtPublicPreview = ref(false)
-// Beta: render the builder canvas with the live <FormRenderer edit> (one renderer).
-// Off by default; a small toggle in the preview header flips it while it's built to
-// parity. Persisted per-session so a page reload keeps the choice while testing.
-const evtUnifiedCanvas = ref(false)
+// The builder canvas IS the live <FormRenderer> in edit mode — one renderer for build +
+// registration, so they can never drift. On by default now that it's at parity; the old
+// EvtFieldCell canvas is kept as an instant fallback (?unifiedCanvas=0) until the unified
+// path has been proven in real use, after which it can be deleted.
+const evtUnifiedCanvas = ref(true)
 // Click-to-edit from the unified canvas: open the field editor AND point the field
 // target at that field's subject, so the left-panel Fields view / library add to it.
 function onUnifiedEditField(id: string) {
@@ -2911,8 +2912,8 @@ async function reload() {
   await loadEvtFormConfig()
 }
 onMounted(reload)
-// Beta flag via URL while the unified edit canvas is brought to parity: ?unifiedCanvas=1
-onMounted(() => { try { if (new URLSearchParams(location.search).get('unifiedCanvas')) evtUnifiedCanvas.value = true } catch { /* no-op */ } })
+// Escape hatch back to the legacy EvtFieldCell canvas if a gap surfaces: ?unifiedCanvas=0
+onMounted(() => { try { if (new URLSearchParams(location.search).get('unifiedCanvas') === '0') evtUnifiedCanvas.value = false } catch { /* no-op */ } })
 watch(() => [props.eventId, props.groupId, props.formId], () => reload())
 defineExpose({ reload })
 </script>
