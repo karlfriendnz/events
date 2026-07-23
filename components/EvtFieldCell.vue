@@ -136,20 +136,11 @@ const inert = computed(() => (interactive.value ? '' : 'pointer-events-none'))
         </div>
       </div>
     </div>
-    <!-- Communication preferences — WHO this person receives club updates on behalf of
-         (e.g. a parent for their children), with "Customise" to pick which updates per
-         person. Same design as the live form. -->
-    <div v-else-if="field.field_type === 'comms'" @click.stop class="space-y-1.5">
-      <p class="text-sm text-gray-700">Select who <span class="font-semibold">{{ ctx.instanceFirstName(subjectKey, inst) || ctx.subjectLabel(subjectKey) }}</span> receives communications on behalf of</p>
-      <div class="flex items-center gap-2">
-        <MultiSelect :modelValue="ctx.commsPeople()" @update:modelValue="ctx.setCommsPeople($event)" :options="ctx.commsOptions()"
-          optionLabel="label" optionValue="id" display="chip" :showToggleAll="false"
-          placeholder="Select people…" class="flex-1 min-w-0" />
-        <button type="button" class="shrink-0 inline-flex items-center gap-1.5 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white hover:border-primary text-gray-600 transition-colors" @click.stop="ctx.openCommsDialog()">
-          <i class="pi pi-sliders-h text-xs" />Customise
-        </button>
-      </div>
-    </div>
+    <!-- Communication preferences — the shared control (same as the live form). -->
+    <CommsPreferences v-else-if="field.field_type === 'comms'"
+      :subject-name="ctx.instanceFirstName(subjectKey, inst) || ctx.subjectLabel(subjectKey)"
+      :people="ctx.commsOptions()" :topics="ctx.commsTopics()"
+      :model-value="ctx.commsSubs()" @update:model-value="ctx.setCommsSubs($event)" />
     <!-- Text / Email / Tel / Number -->
     <input v-else :type="field.field_type" :value="get()" @input="set(($event.target as any).value)" :placeholder="field.placeholder || ''"
       class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none transition-colors" :class="inert" @click.stop />

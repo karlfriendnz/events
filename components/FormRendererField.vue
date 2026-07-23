@@ -7,7 +7,14 @@
   state. Section blocks are still handled by the parent (they hold child fields).
 -->
 <script setup lang="ts">
-const props = defineProps<{ field: any; value: any }>()
+const props = defineProps<{
+  field: any; value: any
+  /** For the comms field: who this subject can receive updates for, the club's topics,
+   *  and this subject's name — all supplied by the host <FormRenderer>. */
+  commsPeople?: { id: string; label: string }[]
+  commsTopics?: { id: string; name: string; channels: string[] }[]
+  subjectLabel?: string
+}>()
 const emit = defineEmits<{ (e: 'update', v: any): void }>()
 const f = computed(() => props.field)
 const colSpan = computed(() => (f.value.col_span === 2 ? 'col-span-full' : 'col-span-1'))
@@ -85,15 +92,12 @@ const inputClass = 'w-full h-9 px-3 text-sm bg-white text-gray-900 placeholder:t
         <p class="text-[11px] text-gray-400">They can sign in to manage this registration and save time next visit.</p>
       </div>
 
-      <!-- Communication preferences — pick which club updates to receive (COMMS_CATEGORIES) -->
-      <div v-else-if="f.field_type === 'comms'" class="space-y-1.5 pt-0.5">
-        <p class="text-sm text-gray-700">Which club updates would you like to receive?</p>
-        <label v-for="c in COMMS_CATEGORIES" :key="c.key" class="flex items-center gap-2.5 cursor-pointer">
-          <input type="checkbox" class="w-4 h-4 rounded border-gray-300 accent-primary"
-            :checked="isMultiSelected(c.key)" @change="toggleMulti(c.key, ($event.target as any).checked)" />
-          <span class="text-sm text-gray-700">{{ c.label }}</span>
-        </label>
-      </div>
+      <!-- Communication preferences — the shared per-person picker + Customise matrix
+           (same control the builder shows). -->
+      <CommsPreferences v-else-if="f.field_type === 'comms'"
+        :subject-name="subjectLabel" :people="commsPeople ?? []" :topics="commsTopics ?? []"
+        :model-value="(value && typeof value === 'object') ? value : {}"
+        @update:model-value="v => emit('update', v)" />
 
       <textarea v-else-if="f.field_type === 'textarea'" :value="value" rows="3" :placeholder="f.placeholder || ''"
         :class="inputClass" class="!h-auto py-2 resize-none" @input="on" />

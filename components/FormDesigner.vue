@@ -1837,10 +1837,10 @@ provide('evtFieldCtx', {
   // The SSO fields a login needs that aren't on the form (rendered beside the toggle).
   missingSsoDefs: (k: string) => evtMissingSsoDefs(k),
   permissionGroupName: (field: any) => evtPermissionGroups.value.find(g => g.id === field.permission_group_id)?.name || 'account',
-  commsPeople: () => evtCommsPeopleModel.value,
-  setCommsPeople: (v: string[]) => { evtCommsPeopleModel.value = v },
   commsOptions: () => evtCommsRecipientOptions.value,
-  openCommsDialog: () => { evtCommsDialogOpen.value = true },
+  commsTopics: () => evtCommsTopics.value,
+  commsSubs: () => evtCommsSubscriptions.value,
+  setCommsSubs: (v: Record<string, boolean>) => { evtCommsSubscriptions.value = v },
 })
 
 // Each subject/step shows an inline-editable H2 (its display name) + an optional
@@ -3988,60 +3988,6 @@ defineExpose({ reload })
         </Dialog>
 
         <!-- Communication preferences popup: topics (rows) × people (columns) matrix -->
-        <Dialog v-model:visible="evtCommsDialogOpen" modal header="Communication preferences" :style="{ width: '560px' }">
-          <p class="text-sm text-gray-500 -mt-1 mb-3">Choose how each person receives each update — by email (<i class="pi pi-envelope text-[10px]" />) and/or app (<i class="pi pi-mobile text-[10px]" />).</p>
-          <p v-if="!evtCommsTopics.length" class="text-sm text-gray-400 py-2">No communication topics yet — add them in Settings → Communications.</p>
-          <p v-else-if="!evtCommsRecipientOptions.length" class="text-sm text-gray-400 py-2">Add a person to the form to choose communications.</p>
-          <template v-else>
-            <div class="flex justify-end mb-2">
-              <button type="button"
-                class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg border border-gray-200 text-gray-600 hover:border-primary hover:text-primary transition-colors"
-                @click="evtToggleAllComms">
-                <i :class="['pi', evtCommsAllOn ? 'pi-times' : 'pi-check', 'text-[10px]']" />{{ evtCommsAllOn ? 'Clear all' : 'Select all' }}
-              </button>
-            </div>
-            <div class="rounded-xl border border-gray-200 overflow-hidden">
-              <table class="w-full text-sm border-collapse table-fixed">
-                <thead>
-                  <tr class="bg-gray-50 border-b border-gray-100">
-                    <th class="text-left font-semibold text-gray-400 text-[11px] uppercase tracking-wide px-4 py-2.5">Updates</th>
-                    <th v-for="p in evtCommsRecipientOptions" :key="p.id" class="px-3 py-2.5">
-                      <button type="button" v-tooltip.top="evtCommsColOn(p.id) ? 'Turn all off for this person' : 'Turn all on for this person'"
-                        class="font-semibold text-gray-600 text-xs text-center truncate max-w-full hover:text-primary hover:underline mx-auto block"
-                        @click="evtToggleCommsCol(p.id)">{{ p.label }}</button>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="t in evtCommsTopics" :key="t.id" class="border-b border-gray-50 last:border-0">
-                    <td class="px-4 py-3">
-                      <button type="button" v-tooltip.top="evtCommsRowOn(t) ? 'Turn this update off for everyone' : 'Turn this update on for everyone'"
-                        class="text-gray-700 font-medium text-left truncate max-w-full hover:text-primary hover:underline"
-                        @click="evtToggleCommsRow(t)">{{ t.name }}</button>
-                    </td>
-                    <td v-for="p in evtCommsRecipientOptions" :key="p.id" class="px-3 py-3">
-                      <div class="flex items-center justify-center gap-1.5">
-                        <template v-for="ch in EVT_COMMS_CHANNELS" :key="ch">
-                          <button v-if="t.channels.includes(ch)" type="button"
-                            v-tooltip.top="ch === 'email' ? 'Email' : 'App notification'"
-                            class="w-7 h-7 rounded-lg border inline-flex items-center justify-center transition-colors"
-                            :class="evtCommsSub(p.id, t.id, ch) ? 'bg-primary border-primary text-white' : 'border-gray-200 text-gray-300 hover:border-primary/50'"
-                            @click="evtToggleCommsSub(p.id, t.id, ch)">
-                            <i :class="['pi', ch === 'email' ? 'pi-envelope' : 'pi-mobile', 'text-[11px]']" />
-                          </button>
-                          <span v-else class="w-7 h-7 inline-block" />
-                        </template>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </template>
-          <template #footer>
-            <Button label="Done" @click="evtCommsDialogOpen = false" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
-          </template>
-        </Dialog>
 
         <!-- Right panel -->
         <div class="relative flex-1 overflow-hidden bg-[#EBEFFA]"

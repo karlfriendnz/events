@@ -703,6 +703,34 @@ function instanceIdentity(key: string, inst: number) {
     phone: valByLabel(key, inst, 'Phone') ?? valByLabel(key, inst, 'Phone Number') ?? '',
   }
 }
+// ── Communication preferences data (for the shared <CommsPreferences>) ──
+// The people a subject can receive club updates on behalf of = the other person
+// registrants on this form (skip entities + emergency contacts, like the builder).
+const commsRecipientOptions = computed(() => {
+  const out: { id: string; label: string }[] = []
+  for (const s of subjects.value) {
+    if ((s.kind || 'person') === 'entity') continue
+    if (/emergency|contact/i.test(s.key) || /emergency|contact/i.test(s.label)) continue
+    for (let i = 1; i <= count(s.key); i++) {
+      const id = instanceIdentity(s.key, i)
+      const nm = [id.first_name, id.last_name].filter(Boolean).join(' ').trim()
+      out.push({ id: s.key + '#' + i, label: nm || `${s.label}${count(s.key) > 1 ? ' ' + i : ''}` })
+    }
+  }
+  return out
+})
+// The club's active communication topics (email/app channels). Optional — if the read
+// isn't available (e.g. anonymous public page), the matrix just shows a "no topics" hint.
+const commsTopics = ref<{ id: string; name: string; channels: string[] }[]>([])
+onMounted(async () => {
+  const org = props.context?.orgId
+  if (!org) return
+  try {
+    const list = await useWaitlistsApi().activeTopics(org)
+    commsTopics.value = (list ?? []).map((t: any) => ({ id: t.id, name: t.name, channels: t.channels ?? [] }))
+  } catch { /* topics are optional decoration on the form */ }
+})
+
 function buildPayload() {
   const subjectsOut = subjects.value.map((s: any) => ({
     key: s.key,
@@ -1070,11 +1098,13 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
                   <FormRendererField v-for="c in sectionChildren(s.key, f.id)" :key="c.id"
                     v-show="fieldVisible(c, s.key, inst)"
                     :field="c" :value="getVal(s.key, inst, fkey(c))"
+                    :comms-people="commsRecipientOptions" :comms-topics="commsTopics" :subject-label="s.label"
                     @update="v => setVal(s.key, inst, fkey(c), v)" />
                 </div>
               </div>
               <FormRendererField v-else v-show="fieldVisible(f, s.key, inst)"
                 :field="f" :value="getVal(s.key, inst, fkey(f))"
+                :comms-people="commsRecipientOptions" :comms-topics="commsTopics" :subject-label="s.label"
                 @update="v => setVal(s.key, inst, fkey(f), v)" />
             </template>
           </div>
