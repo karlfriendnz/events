@@ -232,6 +232,17 @@
                 </div>
               </div>
             </div>
+            <!-- Who can see it — sits right under Category. The rest of Visibility
+                 (display toggles, capacity) is on the Settings step. Shared
+                 <EventVisibilityPicker>, same as the quick + advanced paths. -->
+            <div class="px-5 py-2 border-b border-gray-100">
+              <EventVisibilityPicker
+                v-model="form.visibility"
+                v-model:type-keys="form.visibility_type_keys"
+                v-model:group-ids="form.visibility_group_ids"
+                v-model:person-ids="form.visibility_person_ids"
+                label="Who can see it" label-width="sm:w-[120px]" />
+            </div>
             <!-- Age & gender restrictions were removed from the basic event. -->
             <!-- Banner -->
             <div class="px-5 py-2">
@@ -259,21 +270,6 @@
                 </div>
               </div>
             </div>
-          </div>
-
-          <!-- WHO CAN SEE IT on step 1 — the first decision after naming the event.
-               The rest of Visibility (display toggles, capacity) stays in Settings.
-               The same shared <EventVisibilityPicker> the quick + advanced paths use. -->
-          <div class="mb-4 mt-4">
-            <h3 class="text-sm font-semibold text-gray-800 mb-3">Who can see it</h3>
-          <div class="bg-white rounded-xl border border-gray-200 p-5">
-            <EventVisibilityPicker
-              v-model="form.visibility"
-              v-model:type-keys="form.visibility_type_keys"
-              v-model:group-ids="form.visibility_group_ids"
-              v-model:person-ids="form.visibility_person_ids"
-              label="Who can see it" label-width="sm:w-32" />
-          </div>
           </div>
         </div>
 

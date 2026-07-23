@@ -190,8 +190,10 @@ defineExpose({ open })
               :class="{ 'ts-sel': selMin === m, 'ts-past': minDisabled(m) }" :disabled="minDisabled(m)"
               @click="!minDisabled(m) && (selMin = m)">{{ pad(m) }}</button>
           </div>
-          <!-- AM / PM — a fixed pair, not a wheel. AM is disabled once now is past midday. -->
-          <div class="ts-ampm">
+          <!-- AM / PM — a fixed pair, not a wheel. The SELECTED one rides the centre
+               line (AM by default; picking PM slides the pair up a row so PM lands on
+               it). AM is disabled once now is past midday. -->
+          <div class="ts-ampm" :class="{ 'ts-ampm-pm': selMeridiem === 'PM' }">
             <button type="button" class="ts-ampm-btn" :class="{ 'ts-sel': selMeridiem === 'AM', 'ts-past': amDisabled }" :disabled="amDisabled" @click="!amDisabled && (selMeridiem = 'AM')">AM</button>
             <button type="button" class="ts-ampm-btn" :class="{ 'ts-sel': selMeridiem === 'PM' }" @click="selMeridiem = 'PM'">PM</button>
           </div>
@@ -230,9 +232,11 @@ defineExpose({ open })
 .ts-panel { width: 236px; padding: 2px 0 0; --ts-row: 30px; --ts-pad: 68px; }
 .ts-cols { display: flex; align-items: stretch; }
 .ts-colon { display: flex; align-items: center; font-weight: 700; font-size: 16px; color: #cbd5e1; padding: 0 1px; }
-/* Top-aligned, NOT centred: centring the pair put the GAP between AM and PM on the
-   selected row, which is why AM read as sitting a row too high. */
-.ts-ampm { display: flex; flex-direction: column; justify-content: flex-start; gap: 2px; padding: var(--ts-pad) 4px var(--ts-pad) 8px; }
+/* Top-aligned so AM's row (not the AM/PM gap) sits on the selected centre line.
+   Selecting PM slides the whole pair up exactly one row (row height + gap) so PM
+   takes the centre line and AM moves above it. */
+.ts-ampm { display: flex; flex-direction: column; justify-content: flex-start; gap: 2px; padding: var(--ts-pad) 4px var(--ts-pad) 8px; transition: transform .18s ease; }
+.ts-ampm.ts-ampm-pm { transform: translateY(calc(-1 * (var(--ts-row) + 2px))); }
 .ts-ampm-btn {
   height: var(--ts-row); display: flex; align-items: center; justify-content: center;
   padding: 0 .7rem; border-radius: 8px; font-size: 13px; font-weight: 600; letter-spacing: .03em;
