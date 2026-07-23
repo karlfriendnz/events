@@ -118,6 +118,22 @@ const inert = computed(() => (interactive.value ? '' : 'pointer-events-none'))
         <span class="text-sm text-gray-700">Create a login for <span class="font-semibold">{{ ctx.instanceFirstName(subjectKey, inst) || ctx.subjectLabel(subjectKey) }}</span>?</span>
         <ToggleSwitch :modelValue="ctx.accountLogin(field, inst)" @update:modelValue="ctx.toggleAccountLogin(field, inst)" />
       </label>
+      <!-- A login needs all five SSO fields; capture any missing from the form here. -->
+      <div v-if="ctx.accountLogin(field, inst) && ctx.missingSsoDefs(subjectKey).length" class="mt-3 pt-3 border-t border-gray-100 space-y-2.5">
+        <p class="text-xs font-semibold text-gray-500">Account details</p>
+        <div v-for="d in ctx.missingSsoDefs(subjectKey)" :key="d.id" class="space-y-1">
+          <label class="text-sm font-semibold text-gray-600">{{ d.label }}<span class="text-red-400 ml-0.5">*</span></label>
+          <select v-if="d.field_type === 'select'" :value="ctx.getVal(subjectKey, inst, d.label)" @change="ctx.setVal(subjectKey, inst, d.label, ($event.target as any).value)"
+            class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg" style="-webkit-appearance:auto;appearance:auto;background:white;">
+            <option value="" disabled>Select…</option>
+            <option v-for="opt in (d.options ?? [])" :key="opt" :value="opt">{{ opt }}</option>
+          </select>
+          <input v-else-if="d.field_type === 'date'" type="date" :value="ctx.getVal(subjectKey, inst, d.label)" @input="ctx.setVal(subjectKey, inst, d.label, ($event.target as any).value)"
+            class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg" />
+          <input v-else :type="d.field_type" :value="ctx.getVal(subjectKey, inst, d.label)" @input="ctx.setVal(subjectKey, inst, d.label, ($event.target as any).value)"
+            class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg" />
+        </div>
+      </div>
     </div>
     <!-- Communication preferences -->
     <div v-else-if="field.field_type === 'comms'" @click.stop class="space-y-1.5">

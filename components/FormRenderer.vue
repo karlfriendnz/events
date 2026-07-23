@@ -198,6 +198,59 @@ function fkey(f: any) { return f?.id ?? f?.label }
 function fieldByLabel(subjectKey: string, label: string) { return allFields(subjectKey).find((f: any) => f.label === label) }
 function valByLabel(key: string, inst: number, label: string) { const fld = fieldByLabel(key, label); return fld ? getVal(key, inst, fkey(fld)) : undefined }
 
+// ── Account (SSO) fields ─────────────────────────────────────────────────────
+// A login needs all five overarching single-sign-on fields. First/Last always live
+// on a person subject; Email/DOB/Gender are optional per type and may be REMOVED from
+// a form. When a registrant turns ON "Create a login" for their instance, any of the
+// five NOT already on the form are generated right there (required) so they're captured.
+const SSO_SPECS = [
+  { key: 'first', id: '__sso_first', label: 'First Name', field_type: 'text' },
+  { key: 'last', id: '__sso_last', label: 'Last Name', field_type: 'text' },
+  { key: 'email', id: '__sso_email', label: 'Email', field_type: 'email' },
+  { key: 'dob', id: '__sso_dob', label: 'Date of Birth', field_type: 'date' },
+  { key: 'gender', id: '__sso_gender', label: 'Gender', field_type: 'select', options: ['Male', 'Female', 'Non-binary', 'Prefer not to say'] },
+] as { key: string; id: string; label: string; field_type: string; options?: string[] }[]
+// The on-form field that already supplies an SSO value (by account tag or well-known label), else null.
+function subjectSsoField(subjectKey: string, spec: any) {
+  return allFields(subjectKey).find((f: any) => {
+    if (spec.key === 'first') return f.account === 'first' || f.label === 'First Name'
+    if (spec.key === 'last') return f.account === 'last' || f.label === 'Last Name'
+    if (spec.key === 'email') return f.account === 'email' || f.label === 'Email' || f.label === 'Email Address'
+    if (spec.key === 'dob') return f.label === 'Date of Birth'
+    if (spec.key === 'gender') return f.label === 'Gender'
+    return false
+  }) ?? null
+}
+// Synthetic field defs for the SSO fields NOT already on this subject's form (ordered First→Gender).
+function missingSsoFieldsFor(subjectKey: string) {
+  return SSO_SPECS.filter(spec => !subjectSsoField(subjectKey, spec))
+    .map(spec => ({ id: spec.id, label: spec.label, field_type: spec.field_type, options: spec.options, is_required: true }))
+}
+function accountFieldFor(subjectKey: string) { return allFields(subjectKey).find((f: any) => f.field_type === 'account') ?? null }
+function accountLoginOn(subjectKey: string, inst: number) {
+  const af = accountFieldFor(subjectKey)
+  return af ? !!getVal(subjectKey, inst, fkey(af)) : false
+}
+// The captured SSO value — from the on-form field if present, else the injected synthetic input.
+function ssoValueFor(subjectKey: string, inst: number, spec: any) {
+  const onForm = subjectSsoField(subjectKey, spec)
+  return onForm ? getVal(subjectKey, inst, fkey(onForm)) : getVal(subjectKey, inst, spec.id)
+}
+function instanceAccount(subjectKey: string, inst: number) {
+  if (!accountLoginOn(subjectKey, inst)) return null
+  // TODO: server forwards this to the SSO layer
+  return {
+    wantsLogin: true,
+    sso: {
+      first_name: ssoValueFor(subjectKey, inst, SSO_SPECS[0]) ?? '',
+      last_name: ssoValueFor(subjectKey, inst, SSO_SPECS[1]) ?? '',
+      email: ssoValueFor(subjectKey, inst, SSO_SPECS[2]) ?? '',
+      dob: ssoValueFor(subjectKey, inst, SSO_SPECS[3]) ?? '',
+      gender: ssoValueFor(subjectKey, inst, SSO_SPECS[4]) ?? '',
+    },
+  }
+}
+
 // ── Visibility conditions (same operators as the builder) ─────────────────────
 // ── Conditions about the PERSON, not about an answer ─────────────────────────
 // `person:member_status` / `person:person_type` need to know WHO is registering, which
@@ -526,6 +579,21 @@ function validate(): boolean {
       }
     }
   }
+  // Create-a-login: an instance with "Create a login" ON must supply all five SSO
+  // fields — the ones on the form AND the injected ones generated beside the toggle.
+  for (const s of subjects.value) {
+    if (!accountFieldFor(s.key)) continue
+    for (let inst = 1; inst <= count(s.key); inst++) {
+      if (!accountLoginOn(s.key, inst)) continue
+      for (const spec of SSO_SPECS) {
+        const v = ssoValueFor(s.key, inst, spec)
+        if (v == null || v === '') {
+          error.value = `Please complete “${spec.label}” to create a login for ${s.label}${count(s.key) > 1 ? ' ' + inst : ''}.`
+          return false
+        }
+      }
+    }
+  }
   // Age restriction: each registrant with a Date of Birth must fall in the event's
   // allowed range (aged at the event's start date, else today).
   const amin = props.event?.age_min ?? null
@@ -627,11 +695,14 @@ function buildPayload() {
         ? groupOptions.value.filter(g => groupSelected(s.key, inst, g.id))
             .map(g => ({ group_id: g.id, fee_option_id: groupFeeSelected(s.key, inst, g.id) }))
         : []
+      // Only when the toggle is on: the five SSO fields the login layer will receive.
+      const account = isEntity(s) ? null : instanceAccount(s.key, inst)
       return {
         ...identity, fields: fieldsOut, fieldList, sessions: sess,
         fee: isChooser(s.key) ? instanceTotal(s.key, inst) : 0,
         fee_option_id: isChooser(s.key) ? feeOptionSelected(s.key, inst) : null,
         groups: groupsOut,
+        ...(account ? { account } : {}),
       }
     }),
   }))
@@ -972,6 +1043,19 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
                 :field="f" :value="getVal(s.key, inst, fkey(f))"
                 @update="v => setVal(s.key, inst, fkey(f), v)" />
             </template>
+          </div>
+
+          <!-- Account details: the SSO fields a login needs that aren't already on the
+               form. Shown only when this instance turned "Create a login" ON. -->
+          <div v-if="accountLoginOn(s.key, inst) && missingSsoFieldsFor(s.key).length"
+            class="mt-4 border-t border-gray-100 pt-3">
+            <p class="text-sm font-semibold text-gray-700 mb-1">Account details</p>
+            <p class="text-xs text-gray-400 mb-2">A login needs these details.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <FormRendererField v-for="f in missingSsoFieldsFor(s.key)" :key="f.id"
+                :field="f" :value="getVal(s.key, inst, fkey(f))"
+                @update="v => setVal(s.key, inst, fkey(f), v)" />
+            </div>
           </div>
 
           <!-- Sessions (chooser subjects only) -->

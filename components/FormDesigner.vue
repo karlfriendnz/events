@@ -862,6 +862,31 @@ function evtTargetFieldCount(key: string) {
 function evtFieldsForSubject(key: string) {
   return evtFieldsBySubject.value[key] || []
 }
+// The five overarching account (SSO) fields a login needs. First/Last always live on
+// a person; Email/DOB/Gender are optional per type and may be removed from a form.
+// When "Create a login" is ON, any of the five NOT on the form are generated (required)
+// beside the toggle — mirrors <FormRenderer> so the preview matches the live form.
+const EVT_SSO_SPECS = [
+  { key: 'first', id: '__sso_first', label: 'First Name', field_type: 'text' },
+  { key: 'last', id: '__sso_last', label: 'Last Name', field_type: 'text' },
+  { key: 'email', id: '__sso_email', label: 'Email', field_type: 'email' },
+  { key: 'dob', id: '__sso_dob', label: 'Date of Birth', field_type: 'date' },
+  { key: 'gender', id: '__sso_gender', label: 'Gender', field_type: 'select', options: ['Male', 'Female', 'Non-binary', 'Prefer not to say'] },
+] as { key: string; id: string; label: string; field_type: string; options?: string[] }[]
+function evtSubjectHasSso(subjectKey: string, spec: any) {
+  return evtFieldsForSubject(subjectKey).some((f: any) => {
+    if (spec.key === 'first') return f.account === 'first' || f.label === 'First Name'
+    if (spec.key === 'last') return f.account === 'last' || f.label === 'Last Name'
+    if (spec.key === 'email') return f.account === 'email' || f.label === 'Email' || f.label === 'Email Address'
+    if (spec.key === 'dob') return f.label === 'Date of Birth'
+    if (spec.key === 'gender') return f.label === 'Gender'
+    return false
+  })
+}
+function evtMissingSsoDefs(subjectKey: string) {
+  return EVT_SSO_SPECS.filter(spec => !evtSubjectHasSso(subjectKey, spec))
+    .map(spec => ({ id: spec.id, label: spec.label, field_type: spec.field_type, options: spec.options, is_required: true }))
+}
 // The subjects the preview renders as stacked blocks. Falls back to a single
 // generic block for legacy forms that have no profiles yet.
 const evtPreviewSubjects = computed(() => currentEvtFormProfiles.value.length
@@ -1808,6 +1833,8 @@ provide('evtFieldCtx', {
   subjectLabel: (k: string) => currentEvtFormProfiles.value.find(p => p.key === k)?.label || k,
   accountLogin: (field: any, inst: number) => !!evtAccountLoginState.value[field.id + '#' + inst],
   toggleAccountLogin: (field: any, inst: number) => evtToggleAccountLogin(field.id + '#' + inst),
+  // The SSO fields a login needs that aren't on the form (rendered beside the toggle).
+  missingSsoDefs: (k: string) => evtMissingSsoDefs(k),
   permissionGroupName: (field: any) => evtPermissionGroups.value.find(g => g.id === field.permission_group_id)?.name || 'account',
   commsPeople: () => evtCommsPeopleModel.value,
   setCommsPeople: (v: string[]) => { evtCommsPeopleModel.value = v },
