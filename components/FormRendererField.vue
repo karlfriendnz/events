@@ -58,12 +58,17 @@ const inputClass = 'w-full h-9 px-3 text-sm bg-white text-gray-900 placeholder:t
 
   <!-- ── Data fields ── -->
   <div v-else :class="colSpan" class="space-y-1">
-    <!-- Checkbox: label sits inline -->
-    <label v-if="f.field_type === 'checkbox'" class="flex items-center gap-2.5 cursor-pointer py-1.5">
-      <input type="checkbox" class="w-4 h-4 rounded border-gray-300 accent-primary"
-        :checked="!!value" @change="emit('update', ($event.target as any).checked)" />
-      <span class="text-sm text-gray-700">{{ f.placeholder || f.label }}<span v-if="f.is_required" class="text-red-400 ml-0.5">*</span></span>
-    </label>
+    <!-- Checkbox: label above (like every other field), then the box + its own text -->
+    <template v-if="f.field_type === 'checkbox'">
+      <label class="text-sm font-semibold text-gray-600">
+        {{ f.label }}<span v-if="f.is_required" class="text-red-400 ml-0.5">*</span>
+      </label>
+      <label class="flex items-start gap-2.5 cursor-pointer py-1">
+        <input type="checkbox" class="w-4 h-4 mt-0.5 rounded border-gray-300 accent-primary"
+          :checked="!!value" @change="emit('update', ($event.target as any).checked)" />
+        <span class="text-sm text-gray-700">{{ f.checkbox_text || f.placeholder || 'Yes' }}</span>
+      </label>
+    </template>
 
     <template v-else>
       <!-- account/comms say what they are inline, so the header label would just repeat it -->

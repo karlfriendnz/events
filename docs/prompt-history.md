@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1723 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1724 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (102 prompts)
+## Session 2026-07-22 02:42 (103 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29317,4 +29317,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **23:43** — [Image #62] They split the name out into singular label and plural label.
 
 **23:45** — this [Image #63] is very very differnet to [Image #64] these should be the same - same functions everyting the differnce is one is edit one is live.. the shold be ideentical. colours font, feilds, design, pricing info discoutns everything
+
+**23:58** — [Image #65] the form is nto genterating the extra feilds
 

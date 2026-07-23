@@ -100,7 +100,18 @@ const evtDisplayEvent = computed(() => {
 })
 // ── WYSIWYG preview: the "Preview" mode renders the REAL <FormRenderer> off the
 //    live config, so what you build is exactly what registrants get. ──
-const previewConfig = computed(() => buildEvtFormConfig())
+// We PIN it to the group the builder is editing: put that group first (so FormRenderer's
+// activeGroupId picks it) and map both its id and the 'general' key to the CURRENT design
+// (icons / description / form style / colours). Without this the preview resolved a
+// different/empty design and dropped the info-icons row, description and wizard steps.
+const previewConfig = computed(() => {
+  const cfg: any = buildEvtFormConfig()
+  const sel = selectedFormGroupId.value
+  const design = currentEvtFormDesign.value
+  const groups = [...(cfg.groups ?? [])].sort((a: any, b: any) => (a.id === sel ? -1 : b.id === sel ? 1 : 0))
+  const designs = { ...cfg.designs, general: design, [sel]: design }
+  return { ...cfg, groups, designs }
+})
 const previewSessions = computed(() => sessions.value.map((s: any) => ({
   id: s.id ?? s._savedId,
   title: s.title,
@@ -3569,6 +3580,12 @@ defineExpose({ reload })
                       <input v-model="evtEditingField.max_length" type="text" placeholder="—" class="w-20 h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] text-center" />
                     </div>
                   </template>
+                  <!-- Checkbox text — the wording shown BESIDE the box (the Label sits above it) -->
+                  <div v-if="evtEditingField.field_type === 'checkbox'" class="space-y-1.5">
+                    <label class="text-sm font-semibold text-gray-800">Checkbox text</label>
+                    <input v-model="evtEditingField.checkbox_text" type="text" placeholder="e.g. Yes, I have read and agree" class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
+                    <p class="field-help">Shown next to the tick box. The field Label appears above it.</p>
+                  </div>
                   <!-- Dropdown options -->
                   <div v-if="evtEditingField.field_type === 'select'" class="space-y-1.5">
                     <label class="text-sm font-semibold text-gray-800">Options</label>

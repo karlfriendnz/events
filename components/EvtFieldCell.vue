@@ -80,7 +80,7 @@ const inert = computed(() => (interactive.value ? '' : 'pointer-events-none'))
       <i class="pi pi-arrows-alt text-[11px]" />
     </span>
     <!-- Label (hidden for checkboxes + account/comms — those say it inline in one row) -->
-    <div v-if="!['checkbox','account','comms'].includes(field.field_type)" class="flex items-center gap-1" :class="interactive ? '' : 'cursor-pointer'" @click="edit">
+    <div v-if="!['account','comms'].includes(field.field_type)" class="flex items-center gap-1" :class="interactive ? '' : 'cursor-pointer'" @click="edit">
       <label class="text-sm font-semibold text-gray-600" :class="interactive ? '' : 'cursor-pointer'">{{ field.label }}<span v-if="field.is_required" class="text-red-400 ml-0.5">*</span></label>
       <span v-if="readOnly" class="text-[10px] font-normal text-gray-400 inline-flex items-center gap-0.5"><i class="pi pi-lock text-[9px]" />from your account</span>
       <i v-if="!interactive" class="pi pi-pencil text-[9px] text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity ml-0.5" />
@@ -99,10 +99,10 @@ const inert = computed(() => (interactive.value ? '' : 'pointer-events-none'))
     <div v-else-if="field.field_type === 'multiselect'" class="flex items-center justify-between gap-2 w-full h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white text-gray-400 pointer-events-none">
       <span class="truncate">{{ field.placeholder || 'Select one or more…' }}</span><i class="pi pi-chevron-down text-[10px]" />
     </div>
-    <div v-else-if="field.field_type === 'checkbox'" class="flex items-center gap-2.5">
-      <input type="checkbox" :checked="!!get()" @change="set(($event.target as any).checked)" class="w-4 h-4 rounded border-gray-300 accent-primary" :class="inert" @click.stop />
-      <span class="text-sm text-gray-600">{{ field.placeholder || field.label }}</span>
-    </div>
+    <label class="flex items-start gap-2.5" v-else-if="field.field_type === 'checkbox'" :class="interactive ? 'cursor-pointer' : ''">
+      <input type="checkbox" :checked="!!get()" @change="set(($event.target as any).checked)" class="w-4 h-4 mt-0.5 rounded border-gray-300 accent-primary" :class="inert" @click.stop />
+      <span class="text-sm text-gray-600">{{ field.checkbox_text || field.placeholder || 'Yes' }}</span>
+    </label>
     <input v-else-if="field.field_type === 'date'" type="date" :value="get()" @input="set(($event.target as any).value)"
       class="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg outline-none transition-colors" :class="inert" @click.stop />
     <div v-else-if="field.field_type === 'color'" class="flex items-center gap-2.5" :class="inert">
