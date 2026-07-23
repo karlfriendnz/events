@@ -18,12 +18,16 @@ const props = withDefaults(defineProps<{
   /** Rendered as a labelled row (label left) unless the host wants bare controls. */
   label?: string
   labelWidth?: string
+  /** Hide the Custom option (its combination-picker isn't enforced yet). Opt-in per
+   *  surface so re-enabling is a one-line flip. */
+  hideCustom?: boolean
 }>(), {
   typeKeys: () => [],
   groupIds: () => [],
   personIds: () => [],
   label: 'Visibility',
   labelWidth: 'sm:w-20',
+  hideCustom: false,
 })
 
 const emit = defineEmits<{
@@ -41,6 +45,7 @@ const VISIBILITY_OPTIONS: { label: string; value: string }[] = [
   { label: 'All members', value: 'all_members' },
   { label: 'Custom', value: 'custom' },
 ]
+const options = computed(() => props.hideCustom ? VISIBILITY_OPTIONS.filter(o => o.value !== 'custom') : VISIBILITY_OPTIONS)
 
 const typeOptions = ref<{ value: string; label: string }[]>([])
 const groupOptions = ref<{ value: string; label: string; color?: string }[]>([])
@@ -75,7 +80,7 @@ onMounted(() => { if (props.modelValue === 'custom') loadOptions() })
   <div class="flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-4">
     <span v-if="label" class="field-label shrink-0 sm:pt-1.5" :class="labelWidth">{{ label }}</span>
     <div class="flex-1 min-w-0 space-y-2">
-      <SelectButton :model-value="modelValue" :options="VISIBILITY_OPTIONS"
+      <SelectButton :model-value="modelValue" :options="options"
         option-label="label" option-value="value" :allow-empty="false" size="small"
         @update:model-value="emit('update:modelValue', $event)" />
       <div v-if="modelValue === 'custom'" class="space-y-2 rounded-lg border border-gray-200 p-3 bg-gray-50/60">

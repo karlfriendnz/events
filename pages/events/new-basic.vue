@@ -241,6 +241,7 @@
                 v-model:type-keys="form.visibility_type_keys"
                 v-model:group-ids="form.visibility_group_ids"
                 v-model:person-ids="form.visibility_person_ids"
+                hide-custom
                 label="Who can see it" label-width="sm:w-[120px]" />
             </div>
             <!-- Age & gender restrictions were removed from the basic event. -->

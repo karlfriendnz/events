@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-333 sessions · 1756 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+333 sessions · 1757 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (130 prompts)
+## Session 2026-07-22 02:42 (131 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29390,6 +29390,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **06:30** — plese put the visibility back on settings, and put the who can see it on the first step
 
 **06:35** — can you pelase put the who can see row below the category
+
+**06:41** — for now please hide custom on who can see it
 
 
 ## Session 2026-07-23 00:51 (5 prompts)
