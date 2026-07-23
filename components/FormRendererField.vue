@@ -77,11 +77,13 @@ const inputClass = 'w-full h-9 px-3 text-sm bg-white text-gray-900 placeholder:t
       </label>
 
       <!-- Account ("Create a login") — a yes/no toggle, not a text box -->
-      <label v-if="f.field_type === 'account'" class="flex items-center gap-2.5 cursor-pointer py-0.5">
-        <input type="checkbox" class="w-4 h-4 rounded border-gray-300 accent-primary"
-          :checked="!!value" @change="emit('update', ($event.target as any).checked)" />
-        <span class="text-sm text-gray-700">Yes — create a login so I can manage this registration</span>
-      </label>
+      <div v-if="f.field_type === 'account'" class="space-y-1">
+        <label class="flex items-center justify-between gap-3 py-0.5 cursor-pointer">
+          <span class="text-sm text-gray-700">Create a login</span>
+          <ToggleSwitch :modelValue="!!value" @update:modelValue="v => emit('update', v)" />
+        </label>
+        <p class="text-[11px] text-gray-400">They can sign in to manage this registration and save time next visit.</p>
+      </div>
 
       <!-- Communication preferences — pick which club updates to receive (COMMS_CATEGORIES) -->
       <div v-else-if="f.field_type === 'comms'" class="space-y-1.5 pt-0.5">

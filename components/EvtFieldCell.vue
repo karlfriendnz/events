@@ -24,6 +24,18 @@ function set(v: any) { ctx.setVal(props.subjectKey, props.inst, props.field.labe
 function edit() { if (!interactive.value) ctx.openEditor(props.field.id) }
 // Input pointer-events: inert while building so the cell click hits the editor.
 const inert = computed(() => (interactive.value ? '' : 'pointer-events-none'))
+
+// Communication preferences: the field's answer is an array of COMMS_CATEGORY keys —
+// same model as the live form, so the builder preview and the live form match.
+function commsList(): string[] { const v = get(); return Array.isArray(v) ? v : [] }
+function commsHas(k: string) { return commsList().includes(k) }
+function toggleComms(k: string, on: boolean) {
+  const cur = [...commsList()]
+  const i = cur.indexOf(k)
+  if (on && i < 0) cur.push(k)
+  if (!on && i >= 0) cur.splice(i, 1)
+  set(cur)
+}
 </script>
 
 <template>
@@ -115,9 +127,10 @@ const inert = computed(() => (interactive.value ? '' : 'pointer-events-none'))
     <!-- Account: "Would you like X to login?" -->
     <div v-else-if="field.field_type === 'account'" @click.stop>
       <label class="flex items-center justify-between gap-3 min-h-[2.25rem] cursor-pointer">
-        <span class="text-sm text-gray-700">Create a login for <span class="font-semibold">{{ ctx.instanceFirstName(subjectKey, inst) || ctx.subjectLabel(subjectKey) }}</span>?</span>
+        <span class="text-sm text-gray-700">Create a login</span>
         <ToggleSwitch :modelValue="ctx.accountLogin(field, inst)" @update:modelValue="ctx.toggleAccountLogin(field, inst)" />
       </label>
+      <p class="text-[11px] text-gray-400 -mt-0.5">They can sign in to manage this registration and save time next visit.</p>
       <!-- A login needs all five SSO fields; capture any missing from the form here. -->
       <div v-if="ctx.accountLogin(field, inst) && ctx.missingSsoDefs(subjectKey).length" class="mt-3 pt-3 border-t border-gray-100 space-y-2.5">
         <p class="text-xs font-semibold text-gray-500">Account details</p>
@@ -135,17 +148,15 @@ const inert = computed(() => (interactive.value ? '' : 'pointer-events-none'))
         </div>
       </div>
     </div>
-    <!-- Communication preferences -->
+    <!-- Communication preferences — which club updates they'd like to receive.
+         Category checkboxes (same as the live form), bound to the field's answer. -->
     <div v-else-if="field.field_type === 'comms'" @click.stop class="space-y-1.5">
-      <p class="text-sm text-gray-700">Select who <span class="font-semibold">{{ ctx.instanceFirstName(subjectKey, inst) || ctx.subjectLabel(subjectKey) }}</span> receives communications on behalf of</p>
-      <div class="flex items-center gap-2">
-      <MultiSelect :modelValue="ctx.commsPeople()" @update:modelValue="ctx.setCommsPeople($event)" :options="ctx.commsOptions()"
-        optionLabel="label" optionValue="id" display="chip" :showToggleAll="false"
-        placeholder="Select people…" class="flex-1 min-w-0" />
-      <button type="button" class="shrink-0 inline-flex items-center gap-1.5 h-9 px-3 text-sm border border-gray-200 rounded-lg bg-white hover:border-primary text-gray-600 transition-colors" @click.stop="ctx.openCommsDialog()">
-        <i class="pi pi-sliders-h text-xs" />Customise
-      </button>
-      </div>
+      <p class="text-sm text-gray-700">Which club updates would you like to receive?</p>
+      <label v-for="c in COMMS_CATEGORIES" :key="c.key" class="flex items-start gap-2.5" :class="interactive ? 'cursor-pointer' : ''">
+        <input type="checkbox" class="w-4 h-4 mt-0.5 rounded border-gray-300 accent-primary" :class="inert"
+          :checked="commsHas(c.key)" @change="toggleComms(c.key, ($event.target as any).checked)" @click.stop />
+        <span class="text-sm text-gray-700">{{ c.label }}</span>
+      </label>
     </div>
     <!-- Text / Email / Tel / Number -->
     <input v-else :type="field.field_type" :value="get()" @input="set(($event.target as any).value)" :placeholder="field.placeholder || ''"
