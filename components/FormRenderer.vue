@@ -44,8 +44,9 @@ const props = defineProps<{
   discounts?: any[]             // active discounts, shown on the landing to encourage registration
   hideHeader?: boolean          // embed: hide the banner/info/description header
   registerToLogin?: boolean     // embed: "Register" sends the visitor to the system login, then back here
+  edit?: boolean                // builder edit mode: fields are click-to-edit (inert inputs)
 }>()
-const emit = defineEmits<{ (e: 'submit', payload: any): void }>()
+const emit = defineEmits<{ (e: 'submit', payload: any): void; (e: 'edit-field', id: string): void }>()
 
 const CORE_ACCOUNTS = ['first', 'last', 'email']
 
@@ -1079,8 +1080,8 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <!-- Pinned (name) -->
             <FormRendererField v-for="f in leadFields(s.key)" :key="f.id"
-              :field="f" :value="getVal(s.key, inst, fkey(f))"
-              @update="v => setVal(s.key, inst, fkey(f), v)" />
+              :field="f" :value="getVal(s.key, inst, fkey(f))" :editable="edit"
+              @update="v => setVal(s.key, inst, fkey(f), v)" @edit="emit('edit-field', f.id)" />
             <!-- Body items + sections -->
             <template v-for="f in bodyItems(s.key)" :key="f.id">
               <div v-if="f.field_type === 'section'" class="col-span-2 mt-2">
@@ -1096,16 +1097,16 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
                at any width. -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <FormRendererField v-for="c in sectionChildren(s.key, f.id)" :key="c.id"
-                    v-show="fieldVisible(c, s.key, inst)"
-                    :field="c" :value="getVal(s.key, inst, fkey(c))"
+                    v-show="edit || fieldVisible(c, s.key, inst)"
+                    :field="c" :value="getVal(s.key, inst, fkey(c))" :editable="edit"
                     :comms-people="commsRecipientOptions" :comms-topics="commsTopics" :subject-label="s.label"
-                    @update="v => setVal(s.key, inst, fkey(c), v)" />
+                    @update="v => setVal(s.key, inst, fkey(c), v)" @edit="emit('edit-field', c.id)" />
                 </div>
               </div>
-              <FormRendererField v-else v-show="fieldVisible(f, s.key, inst)"
-                :field="f" :value="getVal(s.key, inst, fkey(f))"
+              <FormRendererField v-else v-show="edit || fieldVisible(f, s.key, inst)"
+                :field="f" :value="getVal(s.key, inst, fkey(f))" :editable="edit"
                 :comms-people="commsRecipientOptions" :comms-topics="commsTopics" :subject-label="s.label"
-                @update="v => setVal(s.key, inst, fkey(f), v)" />
+                @update="v => setVal(s.key, inst, fkey(f), v)" @edit="emit('edit-field', f.id)" />
             </template>
           </div>
 

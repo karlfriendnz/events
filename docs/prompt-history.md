@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-333 sessions · 1740 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+333 sessions · 1745 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (115 prompts)
+## Session 2026-07-22 02:42 (119 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29344,8 +29344,16 @@ Every prompt given to Claude Code on this project, extracted from local session 
 
 **01:11** — please build what oyu need to
 
+**01:38** — what else do we need to do ?
 
-## Session 2026-07-23 00:51 (4 prompts)
+**02:00** — do the full mert, then deploy live, then do the sso,
+
+**02:30** — ok do it
+
+**02:57** — Please do the merge now.
+
+
+## Session 2026-07-23 00:51 (5 prompts)
 
 **00:51** — http://localhost:3005/people cliente don club memebrs and its showing nothing when the nso has 2 people conencted. - what have i missed?
 
@@ -29354,4 +29362,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **00:53** — No I'm trying to pull in all the members from the clubs that have already been connected. I already have two clubs that are currently connected. Please go check local to see what I mean.
 
 **01:00** — yes build it
+
+**02:29** — An NSO should be able to edit the information of a person. However, their edits stay on the NSO and have the option to push them to the club if needed.
 
