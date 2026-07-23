@@ -56,7 +56,24 @@ const emit = defineEmits<{
   (e: 'restructure', payload: { subjectKey: string; structure: { id: string; section: boolean; children?: string[] }[] }): void
   /** Edit mode: a field/block was dragged from the left library onto a container. */
   (e: 'drop-field', payload: { subjectKey: string; parentSection: string | null; event: DragEvent }): void
+  /** Edit mode: inline-edited a subject heading/description (one rich-text field). */
+  (e: 'edit-subject-intro', payload: { subjectKey: string; html: string }): void
+  /** Edit mode: inline-edited a section heading/description. */
+  (e: 'edit-section-intro', payload: { sectionId: string; html: string }): void
+  /** Edit mode: banner title renamed / banner image chosen. */
+  (e: 'banner-title', title: string): void
+  (e: 'banner-upload', file: File): void
 }>()
+
+// Edit mode: the subject/section heading is ONE rich-text field (heading = first line).
+// Show its current value (falling back to the default heading) so it's always editable.
+const escHtml = (v: string) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+function subjectBody(s: any) { return (s.intro && String(s.intro).trim()) ? s.intro : `<h2>${escHtml(s.heading || (s.label + ' register'))}</h2>` }
+function sectionBody(f: any) {
+  if (f.intro && String(f.intro).trim()) return f.intro
+  const head = `<h2>${escHtml(f.label || 'Section')}</h2>`
+  return f.placeholder ? `${head}<p>${escHtml(f.placeholder)}</p>` : head
+}
 
 // Edit mode: fields (and section holders) drag-sort within a subject and BETWEEN the top
 // level and its sections (shared per-subject SortableJS group). After any drop we read the
@@ -1003,9 +1020,10 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
   <div class="form-renderer" :style="bgStyle">
     <!-- ── Designed header chrome (banner / info / description) — hidden in embed when asked ── -->
     <template v-if="!hideHeader">
-      <FormPreviewBanner v-if="showBanner" :design="design" :event="event || {}" />
+      <FormPreviewBanner v-if="edit || showBanner" :design="design" :event="event || {}" :editable="edit"
+        @update:title="t => emit('banner-title', t)" @upload="f => emit('banner-upload', f)" />
       <FormPreviewInfoIcons v-if="hasInfoIcons" :design="design" :event="displayEvent" live :cost="costLabel" />
-      <FormPreviewDescription v-if="hasDescription" :design="design" :event="event" readonly />
+      <FormPreviewDescription v-if="edit || hasDescription" :design="design" :event="event" :readonly="!edit" />
     </template>
 
     <div class="px-4 sm:px-6 py-6">
@@ -1101,10 +1119,17 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
     <template v-for="(s, si) in subjects" :key="s.key">
       <section v-if="!isWizard || (steps[step] && steps[step].kind === 'subject' && steps[step].subject.key === s.key)"
         class="mb-7">
-        <!-- Heading + description are one rich-text field (intro). Fall back to the
-             legacy separate heading for forms built before the merge. -->
-        <div v-if="s.intro && s.intro.trim()" class="prose prose-sm max-w-none text-gray-800 mb-2 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="s.intro" />
-        <h3 v-else class="text-base font-semibold text-gray-800">{{ s.heading || (s.label + ' register') }}</h3>
+        <!-- Heading + description are one rich-text field (intro). Editable inline in the
+             builder; static (with legacy fallback) on the live form. -->
+        <div v-if="edit" class="mb-2" @click.stop>
+          <RichTextEditor :modelValue="subjectBody(s)" bubble inline
+            placeholder="Heading + optional description for this section…"
+            @update:modelValue="html => emit('edit-subject-intro', { subjectKey: s.key, html })" />
+        </div>
+        <template v-else>
+          <div v-if="s.intro && s.intro.trim()" class="prose prose-sm max-w-none text-gray-800 mb-2 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="s.intro" />
+          <h3 v-else class="text-base font-semibold text-gray-800">{{ s.heading || (s.label + ' register') }}</h3>
+        </template>
 
         <!-- Instances -->
         <div v-for="inst in count(s.key)" :key="inst" :data-instance-root="edit ? '1' : undefined"
@@ -1132,9 +1157,16 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
             <template v-for="f in bodyItems(s.key)" :key="f.id">
               <div v-if="f.field_type === 'section'" class="col-span-2 mt-2 relative group/sec" :data-section-id="edit ? f.id : undefined">
                 <span v-if="edit" class="field-drag-handle absolute right-0 top-0 w-5 h-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-primary opacity-0 group-hover/sec:opacity-100 transition-opacity z-10" @mousedown.stop><i class="pi pi-arrows-alt text-[11px]" /></span>
-                <!-- Heading + description are one rich-text field (intro); fall back to
-                     the legacy label/description for sections built before the merge. -->
-                <div v-if="f.intro && f.intro.trim()" class="prose prose-sm max-w-none text-gray-800 mb-2 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="f.intro" />
+                <!-- Section heading + description = one rich-text field (intro). Editable
+                     inline in the builder; static (legacy fallback) on the live form. -->
+                <div v-if="edit" class="mb-2" @click.stop>
+                  <RichTextEditor :modelValue="sectionBody(f)" bubble inline
+                    placeholder="Section heading + optional description…"
+                    @update:modelValue="html => emit('edit-section-intro', { sectionId: f.id, html })" />
+                </div>
+                <template v-else-if="f.intro && f.intro.trim()">
+                  <div class="prose prose-sm max-w-none text-gray-800 mb-2 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="f.intro" />
+                </template>
                 <template v-else>
                   <p class="text-sm font-bold text-gray-700">{{ f.label }}</p>
                   <p v-if="f.placeholder" class="text-xs text-gray-400 mb-2">{{ f.placeholder }}</p>

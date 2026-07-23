@@ -914,6 +914,15 @@ function onUnifiedDrop({ subjectKey, parentSection, event }: { subjectKey: strin
   if (parentSection) onDropIntoSection(subjectKey, parentSection, event)
   else onDropFieldTo(subjectKey, event)
 }
+// Inline heading/description edits from the unified canvas → the same setters the
+// EvtFieldCell canvas uses.
+function onUnifiedSubjectIntro({ subjectKey, html }: { subjectKey: string; html: string }) {
+  evtSetSubjectIntro(subjectKey, html)
+}
+function onUnifiedSectionIntro({ sectionId, html }: { sectionId: string; html: string }) {
+  const f: any = currentEvtFormFields.value.find(x => x.id === sectionId)
+  if (f) evtSetSectionBody(f, html)
+}
 // The unified canvas reports the full post-drag DOM structure for a subject (top-level
 // items in order; each section's children in order). Rebuild that subject's fields to
 // match exactly — this handles both reordering AND moving fields into/out of sections,
@@ -4257,7 +4266,9 @@ defineExpose({ reload })
             :class="evtPreviewDevice === 'mobile' ? 'max-w-[390px]' : 'max-w-[1000px]'">
             <FormRenderer edit :config="previewConfig" :context="previewContext" :event="evtDisplayEvent"
               :sessions="previewSessions" :fee-line-items="feeLineItems"
-              @edit-field="onUnifiedEditField" @restructure="onUnifiedRestructure" @drop-field="onUnifiedDrop" />
+              @edit-field="onUnifiedEditField" @restructure="onUnifiedRestructure" @drop-field="onUnifiedDrop"
+              @edit-subject-intro="onUnifiedSubjectIntro" @edit-section-intro="onUnifiedSectionIntro"
+              @banner-title="onEvtBannerTitle" @banner-upload="onEvtBannerUpload" />
           </div>
 
           <div v-else class="relative z-10 mx-auto my-6 bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"
