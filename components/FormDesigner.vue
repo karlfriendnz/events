@@ -901,29 +901,30 @@ const evtPublicPreview = ref(false)
 // Off by default; a small toggle in the preview header flips it while it's built to
 // parity. Persisted per-session so a page reload keeps the choice while testing.
 const evtUnifiedCanvas = ref(false)
-// The unified canvas emits a new top-level order for a subject; reorder that subject's
-// fields to match (each section keeps its children right after it; pinned names stay put;
-// other subjects untouched).
-function onUnifiedReorder({ subjectKey, orderedIds }: { subjectKey: string; orderedIds: string[] }) {
+// The unified canvas reports the full post-drag DOM structure for a subject (top-level
+// items in order; each section's children in order). Rebuild that subject's fields to
+// match exactly — this handles both reordering AND moving fields into/out of sections,
+// with no duplication (the DOM is the single source of truth after a drop).
+function onUnifiedRestructure({ subjectKey, structure }: { subjectKey: string; structure: { id: string; section: boolean; children?: string[] }[] }) {
   const gid = selectedFormGroupId.value
   const all = evtFormGroupFields[gid]
   if (!all) return
   const byId = new Map(all.map((f: any) => [f.id, f]))
   const isSubj = (f: any) => (f.target || '') === subjectKey
-  const topLevel = all.filter((f: any) => isSubj(f) && !f.parent_section)
-  const ordered: any[] = []
-  const seen = new Set<string>()
-  for (const id of orderedIds) {
-    const f = byId.get(id)
-    if (f && isSubj(f) && !f.parent_section && !seen.has(id)) { ordered.push(f); seen.add(id) }
-  }
-  for (const f of topLevel) if (!seen.has(f.id)) ordered.push(f)
-  // Expand each top-level item, keeping section children grouped after their section.
   const block: any[] = []
-  for (const f of ordered) {
-    block.push(f)
-    if (f.field_type === 'section') for (const c of all) if (isSubj(c) && c.parent_section === f.id) block.push(c)
+  const placed = new Set<string>()
+  for (const item of structure) {
+    const f: any = byId.get(item.id)
+    if (!f || !isSubj(f) || placed.has(f.id)) continue
+    f.parent_section = null
+    block.push(f); placed.add(f.id)
+    if (item.section) for (const cid of (item.children || [])) {
+      const c: any = byId.get(cid)
+      if (c && isSubj(c) && !placed.has(c.id)) { c.parent_section = item.id; block.push(c); placed.add(c.id) }
+    }
   }
+  // Anything not represented in the DOM (unrendered) keeps its place at the end.
+  for (const f of all) if (isSubj(f) && !placed.has(f.id)) block.push(f)
   const rebuilt: any[] = []
   let inserted = false
   for (const f of all) {
@@ -4242,7 +4243,7 @@ defineExpose({ reload })
           <div v-else-if="evtUnifiedCanvas" class="relative z-10 mx-auto my-6 bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"
             :class="evtPreviewDevice === 'mobile' ? 'max-w-[390px]' : 'max-w-[1000px]'">
             <FormRenderer edit :config="previewConfig" :context="previewContext" :event="evtDisplayEvent"
-              :sessions="previewSessions" :fee-line-items="feeLineItems" @edit-field="openEvtFieldEditor" @reorder="onUnifiedReorder" />
+              :sessions="previewSessions" :fee-line-items="feeLineItems" @edit-field="openEvtFieldEditor" @restructure="onUnifiedRestructure" />
           </div>
 
           <div v-else class="relative z-10 mx-auto my-6 bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"

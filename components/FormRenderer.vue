@@ -50,25 +50,42 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'submit', payload: any): void
   (e: 'edit-field', id: string): void
-  /** Edit mode: the top-level items of a subject were dragged into a new order. */
-  (e: 'reorder', payload: { subjectKey: string; orderedIds: string[] }): void
+  /** Edit mode: a subject's fields were dragged (reordered and/or moved between the top
+   *  level and a section). The payload is the FULL structure read back from the DOM, so
+   *  the host rebuilds the field array exactly (no duplication across containers). */
+  (e: 'restructure', payload: { subjectKey: string; structure: { id: string; section: boolean; children?: string[] }[] }): void
 }>()
 
-// Edit mode: make each subject's top-level item row drag-sortable. onEnd reports the new
-// DOM order of items (fields carry data-field-id, section holders data-section-id) so the
-// host reorders its field array. Pinned name fields are filtered out (not draggable).
+// Edit mode: fields (and section holders) drag-sort within a subject and BETWEEN the top
+// level and its sections (shared per-subject SortableJS group). After any drop we read the
+// whole subject structure off the DOM and report it; pinned name fields never move.
 const editSortables: any[] = []
-function registerEditSortable(el: any, subjectKey: string) {
+function reportStructure(el: any, subjectKey: string) {
+  // Walk up to this instance, then read its top-level grid → ordered items + section kids.
+  const instance = el.closest('[data-instance-root]') || document
+  const top = instance.querySelector(`[data-subject="${CSS.escape(subjectKey)}"][data-container="top"]`)
+  if (!top) return
+  const structure = [...top.children].map((c: any) => {
+    const sid = c.getAttribute?.('data-section-id')
+    if (sid) {
+      const inner = c.querySelector('[data-container]')
+      const children = inner ? [...inner.children].map((x: any) => x.getAttribute?.('data-field-id')).filter(Boolean) : []
+      return { id: sid, section: true, children }
+    }
+    const fid = c.getAttribute?.('data-field-id')
+    return fid ? { id: fid, section: false } : null
+  }).filter(Boolean) as { id: string; section: boolean; children?: string[] }[]
+  emit('restructure', { subjectKey, structure })
+}
+function registerEditSortable(el: any, subjectKey: string, containerId: string | null) {
   if (!el || !props.edit || el.__sortable) return
+  el.setAttribute('data-container', containerId || 'top')
+  el.setAttribute('data-subject', subjectKey)
   el.__sortable = Sortable.create(el, {
+    group: 'evt-fields-' + subjectKey,   // per-subject: fields never cross subjects, but do cross sections
     handle: '.field-drag-handle', filter: '[data-pinned]', draggable: '[data-field-id],[data-section-id]',
     animation: 150,
-    onEnd() {
-      const orderedIds = [...el.children]
-        .map((c: any) => c.getAttribute?.('data-field-id') || c.getAttribute?.('data-section-id'))
-        .filter(Boolean)
-      emit('reorder', { subjectKey, orderedIds })
-    },
+    onEnd(evt: any) { reportStructure(evt.to || el, subjectKey) },
   })
   editSortables.push(el.__sortable)
 }
@@ -1088,7 +1105,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
         <h3 v-else class="text-base font-semibold text-gray-800">{{ s.heading || (s.label + ' register') }}</h3>
 
         <!-- Instances -->
-        <div v-for="inst in count(s.key)" :key="inst"
+        <div v-for="inst in count(s.key)" :key="inst" :data-instance-root="edit ? '1' : undefined"
           class="rounded-xl border border-gray-200 p-4 mt-3 bg-white">
           <div class="flex items-center justify-between mb-3">
             <p class="text-sm font-semibold text-gray-700">
@@ -1103,7 +1120,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
           <!-- ONE field per row, full width — on the live form and in Preview. A
                two-column form makes every field half a line long and reads as cramped
                at any width. -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" :ref="el => registerEditSortable(el, s.key)">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" :ref="el => registerEditSortable(el, s.key, null)">
             <!-- Pinned (name) -->
             <FormRendererField v-for="f in leadFields(s.key)" :key="f.id"
               :field="f" :value="getVal(s.key, inst, fkey(f))" :editable="edit"
@@ -1122,7 +1139,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
                 <!-- ONE field per row, full width — on the live form and in Preview. A
                two-column form makes every field half a line long and reads as cramped
                at any width. -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 min-h-[2rem]" :ref="el => registerEditSortable(el, s.key, f.id)">
                   <FormRendererField v-for="c in sectionChildren(s.key, f.id)" :key="c.id"
                     v-show="edit || fieldVisible(c, s.key, inst)"
                     :field="c" :value="getVal(s.key, inst, fkey(c))" :editable="edit"
