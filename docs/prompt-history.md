@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-333 sessions · 1753 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+333 sessions · 1754 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-23 03:45 (24 prompts)
@@ -29088,7 +29088,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **17:55** — ok lets move payment options for events to thier one left hand menu - call it financials, not payment optins
 
 
-## Session 2026-07-22 02:42 (127 prompts)
+## Session 2026-07-22 02:42 (128 prompts)
 
 **02:42** — on the new event screen can you please remvoe the evnet name field
 
@@ -29384,6 +29384,8 @@ Every prompt given to Claude Code on this project, extracted from local session 
 >    - `previewConfig` pins design: `designs = {...cfg.designs, general: currentEvtFormDesign.value, [sel]: currentEvtFormDesign.value}` — so FormRenderer's design IS the reactive builder object, making description/banner edits persist.
 >    - Shared compon
 > … [truncated — 19666 chars total]
+
+**06:23** — on the basic event put the visibility on the first step
 
 
 ## Session 2026-07-23 00:51 (5 prompts)

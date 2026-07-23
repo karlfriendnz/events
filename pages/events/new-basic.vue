@@ -260,6 +260,62 @@
               </div>
             </div>
           </div>
+
+          <!-- Visibility — WHO CAN SEE IT is the first decision after naming the
+               event, so it lives here on step 1 rather than buried in Settings. The
+               same shared <EventVisibilityPicker> the quick + advanced paths use. -->
+          <div class="mb-4 mt-4">
+            <h3 class="text-sm font-semibold text-gray-800 mb-3">Visibility</h3>
+          <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <div class="pb-4 mb-4 border-b border-gray-100">
+              <EventVisibilityPicker
+                v-model="form.visibility"
+                v-model:type-keys="form.visibility_type_keys"
+                v-model:group-ids="form.visibility_group_ids"
+                v-model:person-ids="form.visibility_person_ids"
+                label="Who can see it" label-width="sm:w-32" />
+            </div>
+            <!-- Honesty notice: these choices are saved but not yet enforced. -->
+            <div class="flex items-start gap-2 mb-4 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
+              <i class="pi pi-info-circle text-amber-500 text-xs mt-0.5" />
+              <p class="text-xs text-amber-800">
+                These choices are saved with the event, but aren't enforced yet — the public events page is still
+                being built. For now, anyone with the registration link can sign up.
+              </p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div v-for="vis in visibilityOptions" :key="vis.key" class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                <div>
+                  <p class="text-sm font-medium text-gray-700">{{ vis.label }}</p>
+                  <p class="text-xs text-gray-500">{{ vis.desc }}</p>
+                </div>
+                <ToggleSwitch v-model="form[vis.key]" />
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3 sm:mt-4">
+              <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg flex-1">
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium text-gray-700">Limit capacity</p>
+                  <div class="flex items-center gap-2">
+                    <p class="text-xs text-gray-500">Set max attendees</p>
+                    <template v-if="form.has_capacity">
+                      <InputNumber v-model="form.capacity_max" :min="1" size="small" placeholder="Max" class="w-20" />
+                      <span class="text-xs text-gray-500">spots</span>
+                    </template>
+                  </div>
+                </div>
+                <ToggleSwitch v-model="form.has_capacity" class="ml-3 shrink-0" />
+              </div>
+              <div v-if="form.has_capacity" class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg flex-1">
+                <div>
+                  <p class="text-sm font-medium text-gray-700">Enable waitlist</p>
+                  <p class="text-xs text-gray-500">Overflow joins a waitlist</p>
+                </div>
+                <ToggleSwitch v-model="form.has_waitlist" class="ml-3 shrink-0" />
+              </div>
+            </div>
+          </div>
+          </div>
         </div>
 
         <!-- ─ Location ─ -->
@@ -419,67 +475,8 @@
             <h2 class="section-title">Settings</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Settings') }}</p>
           </div>
-          <!-- Visibility used to be its own step. It's the same KIND of question as
-               everything else here — how the event behaves once it exists — so it
-               lives with the other finishing touches instead of costing a click. -->
-          <div class="mb-4">
-            <h3 class="text-sm font-semibold text-gray-800 mb-3">Visibility</h3>
-          <div class="bg-white rounded-xl border border-gray-200 p-5">
-            <!-- WHO CAN SEE IT — the same control the quick event uses (shared
-                 <EventVisibilityPicker>), so all three creation paths write the one
-                 model instead of this wizard only knowing a public/not-public flag. -->
-            <div class="pb-4 mb-4 border-b border-gray-100">
-              <EventVisibilityPicker
-                v-model="form.visibility"
-                v-model:type-keys="form.visibility_type_keys"
-                v-model:group-ids="form.visibility_group_ids"
-                v-model:person-ids="form.visibility_person_ids"
-                label="Who can see it" label-width="sm:w-32" />
-            </div>
-            <!-- Honesty notice: these choices are saved but not yet enforced. -->
-            <div class="flex items-start gap-2 mb-4 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
-              <i class="pi pi-info-circle text-amber-500 text-xs mt-0.5" />
-              <p class="text-xs text-amber-800">
-                These choices are saved with the event, but aren't enforced yet — the public events page is still
-                being built. For now, anyone with the registration link can sign up.
-              </p>
-            </div>
-            <!-- Two columns in the stepped wizard too — only a phone-width screen
-                 needs them stacked. -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              <div v-for="vis in visibilityOptions" :key="vis.key" class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
-                <div>
-                  <p class="text-sm font-medium text-gray-700">{{ vis.label }}</p>
-                  <p class="text-xs text-gray-500">{{ vis.desc }}</p>
-                </div>
-                <ToggleSwitch v-model="form[vis.key]" />
-              </div>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3 sm:mt-4">
-              <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg flex-1">
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-gray-700">Limit capacity</p>
-                  <div class="flex items-center gap-2">
-                    <p class="text-xs text-gray-500">Set max attendees</p>
-                    <template v-if="form.has_capacity">
-                      <InputNumber v-model="form.capacity_max" :min="1" size="small" placeholder="Max" class="w-20" />
-                      <span class="text-xs text-gray-500">spots</span>
-                    </template>
-                  </div>
-                </div>
-                <ToggleSwitch v-model="form.has_capacity" class="ml-3 shrink-0" />
-              </div>
-              <div v-if="form.has_capacity" class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg flex-1">
-                <div>
-                  <p class="text-sm font-medium text-gray-700">Enable waitlist</p>
-                  <p class="text-xs text-gray-500">Overflow joins a waitlist</p>
-                </div>
-                <ToggleSwitch v-model="form.has_waitlist" class="ml-3 shrink-0" />
-              </div>
-            </div>
-          </div>
-          </div>
-
+          <!-- Visibility ("Who can see it") moved to the FIRST step — it's the first
+               thing to decide after naming the event, not a finishing touch. -->
           <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-6">
 
             <!-- Terms & Conditions -->
@@ -1122,7 +1119,7 @@ watch(() => [form.start_date, form.is_all_day], () => {
 // `desc` tells the user what the step is for and is the single source of truth
 // for the step count (Date isn't listed: it lives inside Event info now).
 const ALL_STEPS: { key: string; label: string; desc: string; when?: () => boolean }[] = [
-  { key: 'info',       label: 'Event info',        desc: 'Name the event, set when it runs, and how people find it.' },
+  { key: 'info',       label: 'Event info',        desc: 'Name the event, set when it runs, who can see it, and how people find it.' },
   { key: 'location',   label: 'Location',          desc: 'Where is it happening? Pick a venue, an address, or make it online.' },
   { key: 'fees',       label: 'Fees',              desc: 'Add any charges for attending. Leave empty if the event is free.' },
   // ONE step for the whole "who": can the public register? what form style? then
@@ -1131,7 +1128,7 @@ const ALL_STEPS: { key: string; label: string; desc: string; when?: () => boolea
   // Always shown — an RSVP-only event still gets the step, with an "add a form"
   // prompt rather than the builder, so the form step is never silently missing.
   { key: 'form',       label: 'Registration form', desc: 'Build the form people fill in to sign up.' },
-  { key: 'settings',   label: 'Settings',          desc: 'Visibility, terms, admins, and the finishing touches.' },
+  { key: 'settings',   label: 'Settings',          desc: 'Terms, admins, and the finishing touches.' },
 ]
 const mobileSteps = computed(() => ALL_STEPS.filter(s => !s.when || s.when()))
 
