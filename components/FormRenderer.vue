@@ -22,6 +22,7 @@
 -->
 <script setup lang="ts">
 import { conditionsPass, type ConditionCtx } from '~/composables/useFormConditions'
+import Sortable from 'sortablejs'
 const props = defineProps<{
   config: any
   groupId?: string
@@ -46,7 +47,32 @@ const props = defineProps<{
   registerToLogin?: boolean     // embed: "Register" sends the visitor to the system login, then back here
   edit?: boolean                // builder edit mode: fields are click-to-edit (inert inputs)
 }>()
-const emit = defineEmits<{ (e: 'submit', payload: any): void; (e: 'edit-field', id: string): void }>()
+const emit = defineEmits<{
+  (e: 'submit', payload: any): void
+  (e: 'edit-field', id: string): void
+  /** Edit mode: the top-level items of a subject were dragged into a new order. */
+  (e: 'reorder', payload: { subjectKey: string; orderedIds: string[] }): void
+}>()
+
+// Edit mode: make each subject's top-level item row drag-sortable. onEnd reports the new
+// DOM order of items (fields carry data-field-id, section holders data-section-id) so the
+// host reorders its field array. Pinned name fields are filtered out (not draggable).
+const editSortables: any[] = []
+function registerEditSortable(el: any, subjectKey: string) {
+  if (!el || !props.edit || el.__sortable) return
+  el.__sortable = Sortable.create(el, {
+    handle: '.field-drag-handle', filter: '[data-pinned]', draggable: '[data-field-id],[data-section-id]',
+    animation: 150,
+    onEnd() {
+      const orderedIds = [...el.children]
+        .map((c: any) => c.getAttribute?.('data-field-id') || c.getAttribute?.('data-section-id'))
+        .filter(Boolean)
+      emit('reorder', { subjectKey, orderedIds })
+    },
+  })
+  editSortables.push(el.__sortable)
+}
+onBeforeUnmount(() => { editSortables.forEach(s => { try { s.destroy() } catch {} }) })
 
 const CORE_ACCOUNTS = ['first', 'last', 'email']
 
@@ -1077,14 +1103,15 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
           <!-- ONE field per row, full width — on the live form and in Preview. A
                two-column form makes every field half a line long and reads as cramped
                at any width. -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" :ref="el => registerEditSortable(el, s.key)">
             <!-- Pinned (name) -->
             <FormRendererField v-for="f in leadFields(s.key)" :key="f.id"
               :field="f" :value="getVal(s.key, inst, fkey(f))" :editable="edit"
               @update="v => setVal(s.key, inst, fkey(f), v)" @edit="emit('edit-field', f.id)" />
             <!-- Body items + sections -->
             <template v-for="f in bodyItems(s.key)" :key="f.id">
-              <div v-if="f.field_type === 'section'" class="col-span-2 mt-2">
+              <div v-if="f.field_type === 'section'" class="col-span-2 mt-2 relative group/sec" :data-section-id="edit ? f.id : undefined">
+                <span v-if="edit" class="field-drag-handle absolute right-0 top-0 w-5 h-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-primary opacity-0 group-hover/sec:opacity-100 transition-opacity z-10" @mousedown.stop><i class="pi pi-arrows-alt text-[11px]" /></span>
                 <!-- Heading + description are one rich-text field (intro); fall back to
                      the legacy label/description for sections built before the merge. -->
                 <div v-if="f.intro && f.intro.trim()" class="prose prose-sm max-w-none text-gray-800 mb-2 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="f.intro" />

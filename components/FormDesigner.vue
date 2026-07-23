@@ -901,6 +901,38 @@ const evtPublicPreview = ref(false)
 // Off by default; a small toggle in the preview header flips it while it's built to
 // parity. Persisted per-session so a page reload keeps the choice while testing.
 const evtUnifiedCanvas = ref(false)
+// The unified canvas emits a new top-level order for a subject; reorder that subject's
+// fields to match (each section keeps its children right after it; pinned names stay put;
+// other subjects untouched).
+function onUnifiedReorder({ subjectKey, orderedIds }: { subjectKey: string; orderedIds: string[] }) {
+  const gid = selectedFormGroupId.value
+  const all = evtFormGroupFields[gid]
+  if (!all) return
+  const byId = new Map(all.map((f: any) => [f.id, f]))
+  const isSubj = (f: any) => (f.target || '') === subjectKey
+  const topLevel = all.filter((f: any) => isSubj(f) && !f.parent_section)
+  const ordered: any[] = []
+  const seen = new Set<string>()
+  for (const id of orderedIds) {
+    const f = byId.get(id)
+    if (f && isSubj(f) && !f.parent_section && !seen.has(id)) { ordered.push(f); seen.add(id) }
+  }
+  for (const f of topLevel) if (!seen.has(f.id)) ordered.push(f)
+  // Expand each top-level item, keeping section children grouped after their section.
+  const block: any[] = []
+  for (const f of ordered) {
+    block.push(f)
+    if (f.field_type === 'section') for (const c of all) if (isSubj(c) && c.parent_section === f.id) block.push(c)
+  }
+  const rebuilt: any[] = []
+  let inserted = false
+  for (const f of all) {
+    if (isSubj(f)) { if (!inserted) { rebuilt.push(...block); inserted = true } }
+    else rebuilt.push(f)
+  }
+  if (!inserted) rebuilt.push(...block)
+  evtFormGroupFields[gid] = rebuilt
+}
 // Which subject(s) choose the sessions / classes / fees. Falls back to the first
 // subject when none is explicitly flagged so the picker is never orphaned.
 // The shared decision (anyFlagged + the fallback key) is memoised so the per-subject
@@ -4210,7 +4242,7 @@ defineExpose({ reload })
           <div v-else-if="evtUnifiedCanvas" class="relative z-10 mx-auto my-6 bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"
             :class="evtPreviewDevice === 'mobile' ? 'max-w-[390px]' : 'max-w-[1000px]'">
             <FormRenderer edit :config="previewConfig" :context="previewContext" :event="evtDisplayEvent"
-              :sessions="previewSessions" :fee-line-items="feeLineItems" @edit-field="openEvtFieldEditor" />
+              :sessions="previewSessions" :fee-line-items="feeLineItems" @edit-field="openEvtFieldEditor" @reorder="onUnifiedReorder" />
           </div>
 
           <div v-else class="relative z-10 mx-auto my-6 bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"

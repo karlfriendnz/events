@@ -75,9 +75,9 @@ const inert = computed(() => (props.editable ? 'pointer-events-none' : ''))
 
   <!-- ── Data fields ── -->
   <div v-else :class="[colSpan, editable ? 'group relative cursor-pointer rounded-lg -mx-2 px-2 py-1 border border-transparent hover:border-gray-200 hover:bg-gray-50/70 transition-colors' : '']"
-    class="space-y-1" @click="onEditClick">
-    <!-- Edit affordances (builder only) -->
-    <span v-if="editable" class="field-drag-handle absolute right-0 top-0 w-5 h-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity z-10" @click.stop @mousedown.stop>
+    class="space-y-1" :data-field-id="editable ? f.id : undefined" :data-pinned="editable && f.pinned ? '1' : undefined" @click="onEditClick">
+    <!-- Edit affordances (builder only) — pinned name fields aren't draggable. -->
+    <span v-if="editable && !f.pinned" class="field-drag-handle absolute right-0 top-0 w-5 h-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity z-10" @click.stop @mousedown.stop>
       <i class="pi pi-arrows-alt text-[11px]" />
     </span>
     <i v-if="editable" class="pi pi-pencil absolute top-1 right-6 text-[9px] text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
