@@ -54,6 +54,8 @@ const emit = defineEmits<{
    *  level and a section). The payload is the FULL structure read back from the DOM, so
    *  the host rebuilds the field array exactly (no duplication across containers). */
   (e: 'restructure', payload: { subjectKey: string; structure: { id: string; section: boolean; children?: string[] }[] }): void
+  /** Edit mode: a field/block was dragged from the left library onto a container. */
+  (e: 'drop-field', payload: { subjectKey: string; parentSection: string | null; event: DragEvent }): void
 }>()
 
 // Edit mode: fields (and section holders) drag-sort within a subject and BETWEEN the top
@@ -1120,7 +1122,8 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
           <!-- ONE field per row, full width — on the live form and in Preview. A
                two-column form makes every field half a line long and reads as cramped
                at any width. -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" :ref="el => registerEditSortable(el, s.key, null)">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" :ref="el => registerEditSortable(el, s.key, null)"
+            @dragover.prevent @drop="edit && emit('drop-field', { subjectKey: s.key, parentSection: null, event: $event })">
             <!-- Pinned (name) -->
             <FormRendererField v-for="f in leadFields(s.key)" :key="f.id"
               :field="f" :value="getVal(s.key, inst, fkey(f))" :editable="edit"
@@ -1139,12 +1142,16 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
                 <!-- ONE field per row, full width — on the live form and in Preview. A
                two-column form makes every field half a line long and reads as cramped
                at any width. -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 min-h-[2rem]" :ref="el => registerEditSortable(el, s.key, f.id)">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" :class="edit ? 'min-h-[3rem] rounded-lg' : ''"
+            :ref="el => registerEditSortable(el, s.key, f.id)"
+            @dragover.prevent @drop.stop="edit && emit('drop-field', { subjectKey: s.key, parentSection: f.id, event: $event })">
                   <FormRendererField v-for="c in sectionChildren(s.key, f.id)" :key="c.id"
                     v-show="edit || fieldVisible(c, s.key, inst)"
                     :field="c" :value="getVal(s.key, inst, fkey(c))" :editable="edit"
                     :comms-people="commsRecipientOptions" :comms-topics="commsTopics" :subject-label="s.label"
                     @update="v => setVal(s.key, inst, fkey(c), v)" @edit="emit('edit-field', c.id)" />
+                  <!-- Empty-section drop zone so fields can be dragged INTO a section. -->
+                  <p v-if="edit && !sectionChildren(s.key, f.id).length" class="col-span-2 text-xs text-gray-300 text-center border border-dashed border-gray-200 rounded-lg py-4">Drag fields here</p>
                 </div>
               </div>
               <FormRendererField v-else v-show="edit || fieldVisible(f, s.key, inst)"

@@ -901,6 +901,19 @@ const evtPublicPreview = ref(false)
 // Off by default; a small toggle in the preview header flips it while it's built to
 // parity. Persisted per-session so a page reload keeps the choice while testing.
 const evtUnifiedCanvas = ref(false)
+// Click-to-edit from the unified canvas: open the field editor AND point the field
+// target at that field's subject, so the left-panel Fields view / library add to it.
+function onUnifiedEditField(id: string) {
+  const f: any = currentEvtFormFields.value.find(x => x.id === id)
+  if (f?.target) evtFieldTarget.value = f.target
+  openEvtFieldEditor(id)
+}
+// A field/block dragged from the left library onto the unified canvas — reuse the same
+// drop handlers the EvtFieldCell canvas uses.
+function onUnifiedDrop({ subjectKey, parentSection, event }: { subjectKey: string; parentSection: string | null; event: DragEvent }) {
+  if (parentSection) onDropIntoSection(subjectKey, parentSection, event)
+  else onDropFieldTo(subjectKey, event)
+}
 // The unified canvas reports the full post-drag DOM structure for a subject (top-level
 // items in order; each section's children in order). Rebuild that subject's fields to
 // match exactly — this handles both reordering AND moving fields into/out of sections,
@@ -4243,7 +4256,8 @@ defineExpose({ reload })
           <div v-else-if="evtUnifiedCanvas" class="relative z-10 mx-auto my-6 bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"
             :class="evtPreviewDevice === 'mobile' ? 'max-w-[390px]' : 'max-w-[1000px]'">
             <FormRenderer edit :config="previewConfig" :context="previewContext" :event="evtDisplayEvent"
-              :sessions="previewSessions" :fee-line-items="feeLineItems" @edit-field="openEvtFieldEditor" @restructure="onUnifiedRestructure" />
+              :sessions="previewSessions" :fee-line-items="feeLineItems"
+              @edit-field="onUnifiedEditField" @restructure="onUnifiedRestructure" @drop-field="onUnifiedDrop" />
           </div>
 
           <div v-else class="relative z-10 mx-auto my-6 bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"
