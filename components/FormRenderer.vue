@@ -423,8 +423,10 @@ function instanceTotal(key: string, inst: number) {
       const amount = Number(rule.amount) || 0
       if (!amount) continue
       if (!condPasses(rule.conditions ?? [], key, inst)) continue
-      const signed = rule.fee_type === 'discount' ? -amount : amount
-      rows.push({ label: rule.fee_name || (rule.fee_type === 'discount' ? `${f.label} discount` : f.label), amount: signed })
+      // Add the fee (or subtract a discount) to the TOTAL — this used to push to a
+      // nonexistent `rows`, so a field fee (e.g. "Gluten Free +$20") showed as a line
+      // item but never reached the total (and threw when the block actually ran).
+      total += rule.fee_type === 'discount' ? -amount : amount
     }
   }
   const optId = feeOptionSelected(key, inst)
@@ -440,6 +442,19 @@ function instanceTotal(key: string, inst: number) {
 function orderLines(key: string, inst: number): { label: string; amount: number }[] {
   const rows: { label: string; amount: number }[] = []
   for (const f of (props.feeLineItems ?? [])) rows.push({ label: f.name || 'Registration Fee', amount: Number(f.amount) || 0 })
+  // Field-level financial rules as line items (e.g. "Gluten Free +$20") — the builder
+  // shows these inline, so the live form must too, or the two disagree.
+  for (const f of allFields(key)) {
+    if (!f.has_financial_increase || !(f.financial_rules ?? []).length) continue
+    if (!fieldVisible(f, key, inst)) continue
+    for (const rule of f.financial_rules) {
+      const amount = Number(rule.amount) || 0
+      if (!amount) continue
+      if (!condPasses(rule.conditions ?? [], key, inst)) continue
+      const signed = rule.fee_type === 'discount' ? -amount : amount
+      rows.push({ label: rule.fee_name || (rule.fee_type === 'discount' ? `${f.label} discount` : f.label), amount: signed })
+    }
+  }
   rows.push(...collapseSessionRows({
     sessions: visibleSessions.value,
     isSelected: (s: any) => s.required || sessionSelected(key, inst, s.id),
@@ -503,6 +518,25 @@ const discountLines = computed(() => {
 })
 const totalDiscount = computed(() => discountLines.value.reduce((s, d) => s + Number(d.amount ?? 0), 0))
 const netTotal = computed(() => Math.max(0, grandTotal.value - totalDiscount.value))
+
+// Per-instance figures for the inline <OrderSummary> shown on each subject step — the
+// live twin of the builder's inline summary (same shared component).
+function instanceDiscountRows(key: string, inst: number) {
+  let list = applicableDiscounts(props.discounts ?? [], instanceDiscountCtx(key, inst))
+  if (oneDiscountOnly.value && list.length > 1) list = [list.reduce((a: any, b: any) => (a.amount >= b.amount ? a : b))]
+  return list.map((d: any) => ({ label: d.formText || d.name || 'Discount', amount: Number(d.amount) || 0 }))
+}
+function instanceDiscountSum(key: string, inst: number) {
+  return instanceDiscountRows(key, inst).reduce((s, d) => s + d.amount, 0)
+}
+function instanceNetTotal(key: string, inst: number) {
+  return instanceTotal(key, inst) - instanceDiscountSum(key, inst)
+}
+// Show the inline summary whenever there's a real charge or discount — not only for
+// session choosers — so a field fee (Gluten Free +$20) shows its line as soon as it's ticked.
+function instanceHasCharges(key: string, inst: number) {
+  return orderLines(key, inst).some(l => Number(l.amount) !== 0) || instanceDiscountRows(key, inst).length > 0
+}
 // Full itemized summary across every subject + instance, for the Summary step.
 const fullOrderLines = computed(() => {
   const out: { heading: boolean; label: string; amount: number }[] = []
@@ -1179,15 +1213,13 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
             </label>
           </div>
 
-          <!-- Per-instance order summary (itemized, collapses full-day/whole-week) -->
-          <div v-if="isChooser(s.key) && hasFees" class="mt-3 bg-gray-50 rounded-lg px-3 py-2 text-sm space-y-1">
-            <div v-for="(ln, li) in orderLines(s.key, inst)" :key="li" class="flex justify-between text-gray-600">
-              <span class="truncate pr-2">{{ ln.label }}</span>
-              <span class="whitespace-nowrap tabular-nums">{{ money(ln.amount) }}</span>
-            </div>
-            <div class="flex justify-between font-semibold text-gray-800 pt-1 border-t border-gray-200">
-              <span>Subtotal</span><span>{{ money(instanceTotal(s.key, inst)) }}</span>
-            </div>
+          <!-- Per-instance order summary — the SAME shared component the builder uses. -->
+          <div v-if="instanceHasCharges(s.key, inst)" class="mt-3 pt-3 border-t border-gray-100">
+            <OrderSummary
+              :lines="orderLines(s.key, inst)"
+              :discounts="instanceDiscountRows(s.key, inst)"
+              :total="instanceNetTotal(s.key, inst)"
+              :currency="cur" />
           </div>
         </div>
 

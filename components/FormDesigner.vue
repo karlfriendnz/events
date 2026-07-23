@@ -2097,6 +2097,16 @@ function evtInstanceDiscountTotal(personIdx: number) {
 function evtInstanceGrossTotal(personIdx: number) {
   return (evtOrderRows.value[personIdx] ?? []).reduce((s: number, r: any) => s + Number(r.amount ?? 0), 0)
 }
+// Discount lines shaped for the shared <OrderSummary> (label + magnitude).
+function evtInstanceDiscountRows(personIdx: number) {
+  return evtInstanceDiscountLines(personIdx).map((d: any) => ({ label: d.formText || d.name, amount: Number(d.amount) || 0 }))
+}
+// Show the summary whenever there's an actual charge or discount (not just for session
+// choosers) — so a field fee like "Gluten Free +$20" surfaces its line the moment it's
+// ticked, matching the live form exactly.
+function evtInstanceHasCharges(personIdx: number) {
+  return (evtOrderRows.value[personIdx] ?? []).some((r: any) => Number(r.amount) !== 0) || evtInstanceDiscountLines(personIdx).length > 0
+}
 
 // Org field library (field engine) surfaced in the event form palette.
 const { resolveFields: _evtResolveFields } = useOrgFieldPolicy()
@@ -4689,25 +4699,11 @@ defineExpose({ reload })
                         </div>
 
                         <!-- Order summary (this registrant) — shown under whoever picks sessions/fees -->
-                        <div v-if="evtSubjectSelectsOptions(subject) && evtOrderRows[evtGIdx(subject.key, inst)]?.length" class="mt-3 pt-3 border-t border-gray-100 space-y-1">
-                          <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Order Summary</p>
-                          <div v-for="row in evtOrderRows[evtGIdx(subject.key, inst)]" :key="row.label" class="flex items-center text-sm">
-                            <span class="flex-1 text-gray-500">{{ row.label }}</span>
-                            <span class="tabular-nums w-[72px] text-right mr-9 shrink-0" :class="row.amount < 0 ? 'text-green-600 font-medium' : 'text-gray-700'">
-                              {{ row.amount < 0 ? '-' : '' }}${{ Math.abs(row.amount).toFixed(2) }}
-                            </span>
-                          </div>
-                          <!-- Discount(s) for this registrant — full-week/day, sibling, etc. -->
-                          <div v-for="d in evtInstanceDiscountLines(evtGIdx(subject.key, inst))" :key="d.name" class="flex items-center text-sm">
-                            <span class="flex-1 text-green-600">{{ d.formText || d.name }}</span>
-                            <span class="tabular-nums w-[72px] text-right mr-9 shrink-0 text-green-600 font-medium">-${{ Math.abs(d.amount).toFixed(2) }}</span>
-                          </div>
-                          <div class="flex items-center pt-1.5 border-t border-gray-100 text-sm font-bold">
-                            <span class="flex-1 text-gray-700">Total</span>
-                            <span class="tabular-nums w-[72px] text-right mr-9 shrink-0 text-primary">
-                              ${{ Math.max(0, evtInstanceGrossTotal(evtGIdx(subject.key, inst)) - evtInstanceDiscountTotal(evtGIdx(subject.key, inst))).toFixed(2) }}
-                            </span>
-                          </div>
+                        <div v-if="evtInstanceHasCharges(evtGIdx(subject.key, inst))" class="mt-3 pt-3 border-t border-gray-100">
+                          <OrderSummary
+                            :lines="evtOrderRows[evtGIdx(subject.key, inst)]"
+                            :discounts="evtInstanceDiscountRows(evtGIdx(subject.key, inst))"
+                            :total="evtInstanceGrossTotal(evtGIdx(subject.key, inst)) - evtInstanceDiscountTotal(evtGIdx(subject.key, inst))" />
                         </div>
                       </div>
                   </div>
