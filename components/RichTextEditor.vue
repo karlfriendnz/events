@@ -140,7 +140,7 @@ const editor = useEditor({
     attributes: {
       // Bubble mode (inline description): start at one line and grow with content.
       // Default mode keeps a comfortable minimum editing area.
-      class: 'outline-none text-sm text-gray-800 ' + (props.inline ? 'px-0 py-1.5 min-h-[2rem]' : props.bubble ? 'px-3 py-2 min-h-[2.25rem]' : 'px-4 py-3 min-h-[120px]'),
+      class: 'outline-none text-sm text-gray-800 ' + (props.inline ? 'px-0 py-0.5 min-h-[1.5rem]' : props.bubble ? 'px-3 py-2 min-h-[2.25rem]' : 'px-4 py-3 min-h-[120px]'),
     },
   },
 })

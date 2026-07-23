@@ -4299,7 +4299,7 @@ defineExpose({ reload })
               <!-- Heading (hidden on the mobile details step — the event details fill it).
                    Big/bold "Fill in the form to register" look, editable rich text with
                    TipTap controls — same treatment as a subject's "… register" heading. -->
-              <div v-if="!evtOnDetailsStep" class="px-6 pt-8 pb-3 evt-heading-body">
+              <div v-if="!evtOnDetailsStep" class="px-6 pt-6 pb-1 evt-heading-body">
                 <div v-if="evtPublicPreview" class="prose prose-sm max-w-none text-gray-800" v-html="evtFormHeadingBody" />
                 <div v-else @click.stop>
                   <RichTextEditor v-model="evtFormHeadingBody" bubble inline placeholder="Fill in the form to register" />
