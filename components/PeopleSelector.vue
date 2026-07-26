@@ -206,12 +206,7 @@ const filter = reactive({
   groupIds: [] as string[],     // in any of these classes
 })
 
-const GENDERS = [
-  { label: 'Male', value: 'MALE' },
-  { label: 'Female', value: 'FEMALE' },
-  { label: 'Non-binary', value: 'NON_BINARY' },
-  { label: 'Unspecified', value: 'UNSPECIFIED' },
-]
+const GENDERS = PERSON_GENDERS  // shared vocabulary — composables/useGender.ts
 const MEMBERSHIPS = [
   { label: 'Active', value: 'ACTIVE' },
   { label: 'Non-active', value: 'NON_ACTIVE' },

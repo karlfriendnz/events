@@ -57,7 +57,11 @@
               <InputText v-model="form.name" placeholder="e.g. Main Hall, Court 1" class="flex-1" autofocus />
             </div>
 
-            <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+            <!-- Only shown when there's actually a venue this one could sit
+                 under. On the very first venue there's nothing to be a child of,
+                 so a "Parent venue: None" field is just a decision with one
+                 possible answer — noise on the empty-club setup. -->
+            <div v-if="parentOptions.length" class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
               <label class="w-full sm:w-40 text-sm font-medium text-gray-700 shrink-0">Parent venue</label>
               <Select v-model="form.parent_id" :options="parentOptions" option-label="name" option-value="id"
                 placeholder="None — top-level venue" class="flex-1" show-clear>
@@ -93,7 +97,7 @@
 
             <div class="flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4">
               <label class="w-full sm:w-40 text-sm font-medium text-gray-700 shrink-0 pt-1">Description</label>
-              <Textarea v-model="form.description" rows="2" auto-resize placeholder="Optional"
+              <Textarea v-model="form.description" rows="2" auto-resize placeholder="Enter venue description"
                 class="flex-1 text-sm" />
             </div>
 

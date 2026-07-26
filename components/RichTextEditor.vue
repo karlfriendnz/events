@@ -123,13 +123,28 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
 
+// Compact = the one-block heading/description fields (subject intros, section headings),
+// as opposed to the full document editor.
+const compact = !!(props.bubble || props.inline)
+
+// StarterKit v3 registers TrailingNode, which appends an empty paragraph whenever the
+// document ends in a non-paragraph node. A compact field usually holds a single <h2>, so
+// merely opening it grew a blank line — and that phantom paragraph was then emitted and
+// SAVED as if the user had typed it. Compact editors turn it off (Enter at the end of the
+// heading still starts a description, on purpose rather than automatically); the document
+// editor keeps it, where it's the only way to type past a trailing list or rule.
+// `stripTail` drops the tails earlier saves already picked up, so they don't render as a
+// stray line on load. It only ever removes EMPTY paragraphs at the very end.
+const stripTail = (html: string) =>
+  compact ? html.replace(/(?:<p>(?:\s|<br\s*\/?>)*<\/p>)+$/i, '') : html
+
 const editor = useEditor({
   extensions: [
-    StarterKit,
+    StarterKit.configure(compact ? { trailingNode: false } : {}),
     Underline,
     Placeholder.configure({ placeholder: props.placeholder ?? 'Write something…' }),
   ],
-  content: props.modelValue || '',
+  content: stripTail(props.modelValue || ''),
   editable: !props.readonly,
   onUpdate({ editor }) {
     const html = editor.getHTML()
@@ -149,11 +164,13 @@ watch(() => props.readonly, (val) => {
   editor.value?.setEditable(!val)
 })
 
-// Keep editor in sync if parent changes the value externally
+// Keep editor in sync if parent changes the value externally. Compare AFTER stripping the
+// trailing-empty-paragraph tail, or a saved value that still carries one would look
+// different from what we're showing and reset the content (and the caret) mid-typing.
 watch(() => props.modelValue, (val) => {
   if (!editor.value) return
-  const current = editor.value.getHTML()
-  const incoming = val || ''
+  const current = stripTail(editor.value.getHTML())
+  const incoming = stripTail(val || '')
   if (current !== incoming && !(current === '<p></p>' && incoming === '')) {
     editor.value.commands.setContent(incoming, false)
   }

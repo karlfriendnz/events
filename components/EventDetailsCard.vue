@@ -147,7 +147,11 @@
         <span class="text-sm font-semibold text-gray-700 w-full sm:w-28 shrink-0 sm:pt-1">Description</span>
         <template v-if="open === 'description'">
           <div class="flex-1 flex flex-col gap-3 min-w-0" @click.stop>
-            <Textarea :modelValue="description" placeholder="Add a description…" auto-resize rows="3" class="w-full text-sm"
+            <!-- Same editor the creation wizard uses for this same field. It was
+                 a plain Textarea, so a description written with any formatting
+                 came back here as raw HTML in a box — and editing it risked
+                 mangling the markup by hand. -->
+            <RichTextEditor :modelValue="description" placeholder="Add a description…"
               @update:modelValue="$emit('update:description', $event)" />
             <div class="flex justify-end">
               <Button label="Save" icon="pi pi-check" size="small" :loading="savingField === 'description'"
@@ -156,7 +160,10 @@
           </div>
         </template>
         <template v-else>
-          <span class="text-sm flex-1 line-clamp-2" :class="description ? 'text-gray-700' : 'text-gray-400'">{{ description || '—' }}</span>
+          <!-- Rendered, not printed: now the editor is rich text, interpolating
+               the value would show the reader "<p>Bring boots</p>". -->
+          <span v-if="hasDescription" class="text-sm flex-1 line-clamp-2 text-gray-700" v-html="description" />
+          <span v-else class="text-sm flex-1 text-gray-400">—</span>
           <i class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0 mt-1 !hidden sm:!block" />
         </template>
       </div>
@@ -208,6 +215,19 @@ const props = withDefaults(defineProps<{
   categories: () => [], description: '', feeLineItems: () => [],
   savingField: null, feesLoading: false, showLocation: true,
   regOpenAt: null, regCloseAt: null, eventId: null,
+})
+
+/**
+ * Is there really a description?
+ *
+ * TipTap serialises an empty document as "<p></p>", which is truthy — so a
+ * plain `description ?` check would show an empty paragraph as content and hide
+ * the "—" placeholder, leaving the row looking blank but not empty.
+ */
+const hasDescription = computed(() => {
+  const v = (props.description ?? '').trim()
+  if (!v) return false
+  return v.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, '').trim().length > 0
 })
 
 const emit = defineEmits<{

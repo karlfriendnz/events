@@ -583,7 +583,6 @@ async function load() {
     return order ? order.map(l => ({ label: l, count: counts[l] ?? 0 })).filter(r => r.count > 0)
                  : rows.sort((a, b) => b.count - a.count)
   }
-  const GENDER_LABEL: Record<string, string> = { MALE: 'Male', FEMALE: 'Female', NON_BINARY: 'Non-binary', UNSPECIFIED: 'Unspecified' }
   const today = new Date()
   const ageBands = ['Under 13', '13–17', '18–29', '30–49', '50+', 'Unknown']
   // Bands, not a number — the one age helper that stays local. It reads its age
@@ -594,7 +593,7 @@ async function load() {
     return a < 13 ? 'Under 13' : a < 18 ? '13–17' : a < 30 ? '18–29' : a < 50 ? '30–49' : '50+'
   }
   const bd: Record<string, { label: string; count: number }[]> = {
-    gender: tally(p => GENDER_LABEL[p.gender] || 'Unspecified'),
+    gender: tally(p => genderLabel(p.gender) || 'Unspecified'),
     age: tally(ageOf, ageBands),
     membership: byType.value,
   }

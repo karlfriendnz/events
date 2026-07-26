@@ -14,12 +14,16 @@
   <div id="event-form-host" />
 
   <Teleport :to="stepped ? 'body' : '#event-form-host'">
+  <!-- data-review-scope tells <ReviewWidget> WHICH screen a pin was dropped on:
+       this route is a 7-step wizard AND a one-page custom form sharing one URL,
+       so without it every comment looks like it came from the same place. -->
   <div :class="stepped
       ? 'app-modal-overlay fixed inset-0 flex items-stretch sm:items-center justify-center sm:p-6 bg-slate-900/45 backdrop-blur-[2px]'
       : ''"
+    :data-review-scope="reviewScope"
     :style="stepped ? 'z-index: 1000' : ''">
   <div :class="stepped
-      ? 'flex flex-col bg-white w-full h-full sm:h-[92vh] sm:max-w-[1400px] sm:rounded-xl shadow-2xl overflow-hidden'
+      ? 'flex flex-col bg-white w-full h-full sm:h-[92vh] sm:max-w-[1200px] sm:rounded-xl shadow-2xl overflow-hidden'
       : 'flex flex-col bg-white h-[calc(100vh-3.5rem)]'">
 
     <!-- ── Stepped header (step nav + progress bar) — same brand bar as the
@@ -120,7 +124,7 @@
           </div>
           <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <!-- Title -->
-            <div class="px-5 py-2 border-b border-gray-100">
+            <div class="px-5 py-4 border-b border-gray-100">
               <!-- Label sits LEFT of the field, in the stepped view too (it only
                    stacks on a genuinely narrow screen). -->
               <div class="grid grid-cols-1 sm:grid-cols-[120px_1fr] items-center gap-1.5 sm:gap-4">
@@ -129,10 +133,11 @@
               </div>
             </div>
             <!-- Date (lives on step 1, right after the name).
-                 ONE padding source per gap: every block is py-4 (16px), so any two
-                 neighbouring rows are 32px apart; the editor's own rows carry NO
-                 padding and are spaced by space-y-8 (32px) instead, so a two-row
-                 editor keeps exactly the same rhythm as a one-row field. -->
+                 ONE padding source per gap: every plain field block is py-4 (16px),
+                 so any two neighbouring rows are 32px apart; the date/sign-up
+                 editors carry NO padding here (py-0) and space their own rows
+                 instead, so a two-row editor keeps the same rhythm as a one-row
+                 field. (The plain rows had drifted to py-2 — restored on review.) -->
             <div class="px-5 py-0 border-b border-gray-100">
               <!-- No accordion: the fields ARE the summary. Each editor row carries
                    its own 120px label column, matching the card's, so every input
@@ -174,6 +179,7 @@
                 v-model:endDate="regCloseDate"
                 v-model:endTime="regCloseTime"
                 :show-all-day="false"
+                reserve-all-day-space
                 :show-repeat="false"
                 :min-start-date="today"
                 :min-end-date="regOpenDate ?? today"
@@ -185,7 +191,7 @@
                 row-padding="px-0 py-2" />
             </div>
             <!-- Description -->
-            <div class="px-5 py-2 border-b border-gray-100">
+            <div class="px-5 py-4 border-b border-gray-100">
               <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
                 <label class="field-label pt-1">Description</label>
                 <RichTextEditor v-model="form.description" placeholder="Describe your event here…" />
@@ -195,7 +201,7 @@
                  Disciplines come from the governing body (club's sport → its NSO
                  chain), NOT a local list. <DisciplineLinker> resolves + persists
                  to event_disciplines itself, so it needs the draft event row. -->
-            <div class="px-5 py-2 border-b border-gray-100">
+            <div class="px-5 py-4 border-b border-gray-100">
               <!-- With BOTH controls each is titled above its own field — no single
                    left label can name two side-by-side things. But when the governing
                    body defines no disciplines there's only ONE field left, so it takes
@@ -235,7 +241,7 @@
             <!-- Who can see it — sits right under Category. The rest of Visibility
                  (display toggles, capacity) is on the Settings step. Shared
                  <EventVisibilityPicker>, same as the quick + advanced paths. -->
-            <div class="px-5 py-2 border-b border-gray-100">
+            <div class="px-5 py-4 border-b border-gray-100">
               <EventVisibilityPicker
                 v-model="form.visibility"
                 v-model:type-keys="form.visibility_type_keys"
@@ -246,7 +252,7 @@
             </div>
             <!-- Age & gender restrictions were removed from the basic event. -->
             <!-- Banner -->
-            <div class="px-5 py-2">
+            <div class="px-5 py-4">
               <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
                 <label class="field-label pt-1">Banner</label>
                 <div>
@@ -255,17 +261,34 @@
                     @click="triggerBannerUpload">
                     <i class="pi pi-image text-2xl text-gray-400" />
                     <Button label="Upload banner image" severity="secondary" outlined size="small" icon="pi pi-upload" />
-                    <p class="text-xs text-gray-500">For best results upload an image that is 1200 × 350</p>
+                    <!-- Matches the 3:1 frame below, so the advice and the crop
+                         agree — it said 350 while the box cropped to something else. -->
+                    <p class="text-xs text-gray-500">For best results upload an image that is 1200 × 400</p>
                   </div>
-                  <div v-else class="relative rounded-xl overflow-hidden">
-                    <img :src="form.banner_url" class="w-full h-32 object-cover" />
-                    <div v-if="uploadingBanner" class="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      <i class="pi pi-spin pi-spinner text-white text-xl" />
-                    </div>
-                    <template v-else>
-                      <Button icon="pi pi-upload" severity="secondary" rounded size="small" class="absolute top-2 right-11" @click="triggerBannerUpload" />
-                      <Button icon="pi pi-times" severity="danger" rounded size="small" class="absolute top-2 right-2" @click="form.banner_url = ''" />
-                    </template>
+                  <!-- Drag the image to choose which part of it shows. Stores a
+                       focal point, not a crop, so the same file re-frames
+                       correctly in every box the banner appears in. -->
+                  <div v-else class="group/banner relative rounded-xl overflow-hidden">
+                    <!-- 3:1 (1200×400), the shape the banner is actually shown
+                         at, so what you frame here is what gets published. The
+                         box was a flat 128px strip — a much wider crop than the
+                         real thing, so a banner could look right while editing
+                         and wrong on the form. aspect-ratio rather than a fixed
+                         height keeps that true at any panel width. -->
+                    <BannerPositioner
+                      v-model="form.banner_position"
+                      :src="form.banner_url"
+                      editable
+                      box-class="w-full aspect-[3/1]">
+                      <div v-if="uploadingBanner" class="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <i class="pi pi-spin pi-spinner text-white text-xl" />
+                      </div>
+                      <template v-else>
+                        <Button icon="pi pi-upload" severity="secondary" rounded size="small" class="absolute top-2 right-11" @click="triggerBannerUpload" />
+                        <Button icon="pi pi-times" severity="danger" rounded size="small" class="absolute top-2 right-2"
+                          @click="form.banner_url = ''; form.banner_position = ''" />
+                      </template>
+                    </BannerPositioner>
                   </div>
                   <input ref="bannerInput" type="file" accept="image/*" class="hidden" @change="handleBannerUpload" />
                 </div>
@@ -393,6 +416,36 @@
                (its own "Add a registration form" prompt flips attendeeAction), and
                making the public path public still forces a form on its own. -->
 
+          <!-- 2. How many can come. Moved here from Settings: capacity is a
+               question about the guest list, so it belongs beside the people
+               being invited, not under the display toggles two steps later. -->
+          <div class="bg-white rounded-xl border border-gray-200 p-5 mb-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg flex-1">
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium text-gray-700">Limit capacity</p>
+                  <div class="flex items-center gap-2">
+                    <p class="text-xs text-gray-500">Set max attendees</p>
+                    <template v-if="form.has_capacity">
+                      <InputNumber v-model="form.capacity_max" :min="1" size="small" placeholder="Max" class="w-20" />
+                      <span class="text-xs text-gray-500">spots</span>
+                    </template>
+                  </div>
+                </div>
+                <ToggleSwitch v-model="form.has_capacity" class="ml-3 shrink-0" />
+              </div>
+              <!-- Only meaningful once there IS a cap — a waitlist for an
+                   uncapped event has nothing to overflow into. -->
+              <div v-if="form.has_capacity" class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg flex-1">
+                <div>
+                  <p class="text-sm font-medium text-gray-700">Enable waitlist</p>
+                  <p class="text-xs text-gray-500">Overflow joins a waitlist</p>
+                </div>
+                <ToggleSwitch v-model="form.has_waitlist" class="ml-3 shrink-0" />
+              </div>
+            </div>
+          </div>
+
           <!-- The invitee picker (classes, individuals, a searchable roster). -->
           <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
             <i class="pi pi-spin pi-spinner text-xl text-gray-300 block mb-2" />
@@ -421,7 +474,7 @@
             :class="formFullBleed ? 'flex-1 min-h-0' : 'rounded-xl border border-gray-200'"
             :style="formFullBleed ? '' : 'height:70vh; min-height:560px'">
             <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax" :gender-restriction="form.genderRestriction" :live-event="liveEventForForm"
-              :fee-line-items="form.is_paid ? form.fees : []" embedded class="flex-1 min-h-0" @invite-only="setInviteOnly" @update:event="onFormEventEdit" />
+              :fee-line-items="form.is_paid ? form.fees : []" embedded basic class="flex-1 min-h-0" @invite-only="setInviteOnly" @update:event="onFormEventEdit" />
           </div>
         </div>
 
@@ -436,14 +489,12 @@
           <div class="mb-4">
             <h3 class="text-sm font-semibold text-gray-800 mb-3">Visibility</h3>
           <div class="bg-white rounded-xl border border-gray-200 p-5">
-            <!-- Honesty notice: these choices are saved but not yet enforced. -->
-            <div class="flex items-start gap-2 mb-4 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
-              <i class="pi pi-info-circle text-amber-500 text-xs mt-0.5" />
-              <p class="text-xs text-amber-800">
-                These choices are saved with the event, but aren't enforced yet — the public events page is still
-                being built. For now, anyone with the registration link can sign up.
-              </p>
-            </div>
+            <!-- The amber "these choices aren't enforced yet" notice was here.
+                 Removed on review: it was scaffolding for us, not information a
+                 club needs while creating an event, and it sat above the
+                 controls telling people the thing they were about to do might
+                 not work. (The caveat itself still stands — enforcing
+                 visibility on the public events page is outstanding work.) -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div v-for="vis in visibilityOptions" :key="vis.key" class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
                 <div>
@@ -453,28 +504,10 @@
                 <ToggleSwitch v-model="form[vis.key]" />
               </div>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-3 sm:mt-4">
-              <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg flex-1">
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-gray-700">Limit capacity</p>
-                  <div class="flex items-center gap-2">
-                    <p class="text-xs text-gray-500">Set max attendees</p>
-                    <template v-if="form.has_capacity">
-                      <InputNumber v-model="form.capacity_max" :min="1" size="small" placeholder="Max" class="w-20" />
-                      <span class="text-xs text-gray-500">spots</span>
-                    </template>
-                  </div>
-                </div>
-                <ToggleSwitch v-model="form.has_capacity" class="ml-3 shrink-0" />
-              </div>
-              <div v-if="form.has_capacity" class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg flex-1">
-                <div>
-                  <p class="text-sm font-medium text-gray-700">Enable waitlist</p>
-                  <p class="text-xs text-gray-500">Overflow joins a waitlist</p>
-                </div>
-                <ToggleSwitch v-model="form.has_waitlist" class="ml-3 shrink-0" />
-              </div>
-            </div>
+            <!-- Capacity + waitlist used to sit here. They moved to the Choose
+                 invitees step: "how many can come" is a question about the
+                 GUEST LIST, and it belongs beside the people you're inviting
+                 rather than buried under display toggles two steps later. -->
           </div>
           </div>
 
@@ -545,8 +578,12 @@
          that step full-bleed). ── -->
     <aside v-if="stepped && !isStep('form')" class="hidden lg:flex w-80 shrink-0 flex-col border-l border-gray-200 bg-white overflow-y-auto">
       <!-- Banner -->
+      <!-- Honours the chosen focal point. This rail is a DIFFERENT shape to the
+           editor above it, which is the whole argument for storing a focal
+           point rather than a crop: one value, framed correctly in both. -->
       <div v-if="form.banner_url" class="h-28 shrink-0 bg-gray-100">
-        <img :src="form.banner_url" class="w-full h-full object-cover" />
+        <img :src="form.banner_url" class="w-full h-full object-cover"
+          :style="{ objectPosition: form.banner_position || '50% 50%' }" />
       </div>
 
       <div class="p-5 space-y-4">
@@ -623,7 +660,9 @@
           </div>
         </div>
 
-        <p v-if="dateInvalidReason" class="text-xs text-red-500 border-t border-gray-100 pt-3">{{ dateInvalidReason }}</p>
+        <!-- The date error is NOT repeated here. It already shows as a red box
+             directly under the Date row, next to the control it's about; a copy
+             in the summary rail just said the same thing twice. -->
       </div>
     </aside>
 
@@ -812,6 +851,23 @@ function setInviteOnly() {
 // is valid when there's a start, and — if an end is given — it isn't before it.
 const dateInvalidReason = computed(() => {
   if (!form.start_date) return 'Pick a start date for the event.'
+  // The event can't START in the past. <DateTimeEditor> already stops you
+  // picking a past TIME when the date is today, but choosing an earlier DATE
+  // walked straight round that — you could create an event for last week.
+  // (An all-day event compares DATES only: "today, all day" is still valid at
+  // 4pm, where a datetime compare would call it past.)
+  const startAt = new Date(form.start_date as Date)
+  if (form.is_all_day) {
+    const midnight = new Date()
+    midnight.setHours(0, 0, 0, 0)
+    const startDay = new Date(startAt)
+    startDay.setHours(0, 0, 0, 0)
+    if (startDay < midnight) return 'The start date is in the past.'
+  } else if (form.start_time) {
+    const t = new Date(form.start_time as Date)
+    startAt.setHours(t.getHours(), t.getMinutes(), 0, 0)
+    if (startAt.getTime() < Date.now()) return 'The start date and time are in the past.'
+  }
   if (form.end_date && new Date(form.end_date as Date) < new Date(form.start_date as Date)) {
     return 'The end date is before the start date.'
   }
@@ -937,8 +993,11 @@ async function recheckAvailability() {
 // public events listing, and /r/event/:id serves any non-cancelled event
 // regardless of is_public. The copy below describes the INTENDED behaviour;
 // the step shows a "not enforced yet" notice so nobody is misled.
+// "Public event" is deliberately NOT here. Who can see the event is already
+// asked once, on step 1, by the <EventVisibilityPicker> ("Public and club" /
+// "Club only") — a second toggle saying the same thing further down let the two
+// disagree, and left the reader wondering which one actually won.
 const visibilityOptions = [
-  { key: 'is_public',           label: 'Public event',           desc: 'Anyone can find and register — shows on your public events page and is shareable by link. No login needed.' },
   { key: 'is_featured',         label: 'Featured',               desc: 'Pinned to the top of the events page and highlighted on member dashboards.' },
   { key: 'show_attendee_list',  label: 'Show attendee list',     desc: 'Registrants can see who else is coming, by name, on the event page.' },
   { key: 'show_attendee_count', label: 'Show attendee count',    desc: 'Shows how many have registered (and spots left) without naming them.' },
@@ -1085,6 +1144,9 @@ const form = reactive({
   discounts: [] as WizardDiscount[],
   // Settings
   banner_url: '',
+  // CSS object-position for the banner — which part of it shows once cropped
+  // to a box. Empty = centre (the browser default).
+  banner_position: '',
   custom_terms: [] as string[],
   // Does this event collect a form at all? (RSVP-only events don't.) The form
   // itself is NOT drafted here — <FormDesigner> owns it and autosaves against the
@@ -1139,6 +1201,47 @@ const mobileSteps = computed(() => ALL_STEPS.filter(s => !s.when || s.when()))
 // one page, where a step filling the viewport would swallow the others.
 const formFullBleed = computed(() => stepped.value && mobileSteps.value[mobileStep.value]?.key === 'form')
 const isStep = (key: string) => !stepped.value || mobileSteps.value[mobileStep.value]?.key === key
+
+/**
+ * What screen is showing, for review-comment capture. This route wears two very
+ * different faces — the stepped wizard and the one-page custom form (?mode=full)
+ * — and a reviewer's "remove this" means nothing without knowing which.
+ */
+const reviewScope = computed(() => {
+  if (!stepped.value) return 'Custom event (one-page, ?mode=full)'
+  const s = mobileSteps.value[mobileStep.value]
+  return s ? `Step ${mobileStep.value + 1} of ${mobileSteps.value.length} · ${s.label}` : 'Basic event wizard'
+})
+
+/**
+ * Jump to the step a review comment is about.
+ *
+ * Clicking a comment in the review panel asks to be taken to the thing it
+ * points at — but most of this wizard isn't in the DOM at any given moment, so
+ * there is nothing to scroll to until the right step is showing. The widget
+ * fires `review:goto` with the scope its pin captured; we read the step out of
+ * it and switch. Matching on the LABEL rather than the number, because steps
+ * are conditional (`mobileSteps` filters) so "step 4" can mean different things
+ * for different events, while "Fees" always means Fees.
+ */
+// Take me to what a review comment is about — see useReviewGoto for the pattern.
+useReviewGoto(({ stepLabel, dialog }) => {
+  // 1. The right step FIRST — a dialog opened from the wrong step would be the
+  //    wrong dialog, and some are only reachable from their own step anyway.
+  if (stepLabel && stepped.value) {
+    const idx = mobileSteps.value.findIndex(s => s.label.toLowerCase() === stepLabel)
+    if (idx >= 0 && idx !== mobileStep.value) mobileStep.value = idx
+  }
+
+  // 2. Then re-open the dialog the comment was made in.
+  //
+  //    A short explicit list, on purpose: opening the wrong dialog because a
+  //    title looked similar is worse than opening none. The wizard's OWN shell
+  //    title is the event name ("Prize Giving"), so it never matches here — it
+  //    isn't a dialog to open, it's the page you're already on.
+  const d = dialog?.trim().toLowerCase()
+  if (d === 'add discount' || d === 'new discount rule') openDiscount()
+})
 const stepDesc = (label: string) =>
   ALL_STEPS.find(s => s.label.toLowerCase() === label.toLowerCase())?.desc ?? ''
 
@@ -1244,6 +1347,7 @@ const liveEventForForm = computed(() => ({
   is_all_day: form.is_all_day,
   description: form.description || null,
   banner_url: form.banner_url || null,
+  banner_position: form.banner_position || null,
   location: summaryWhere.value || null,
 }))
 
@@ -1334,6 +1438,7 @@ async function saveEvent() {
       title: form.title.trim(),
       description: form.description.trim() || null,
       bannerUrl: form.banner_url || null,   // was omitted → the uploaded banner was dropped on save
+      bannerPosition: form.banner_position || null,
       categoryId: form.category_ids[0] ?? null,
       secondaryCategoryId: form.category_ids[1] ?? null,
       categoryIds: form.category_ids.length ? form.category_ids : null,
@@ -1439,9 +1544,15 @@ async function saveEvent() {
     // Finished — stop offering to resume it.
     forgetDraft()
     toast.add({ severity: 'success', summary: 'Event saved!', life: 3000 })
-    // Land on the same form as one page, not the tabbed editor — it's the event
-    // they just built, so they should see all of it and be able to keep editing.
-    navigateTo(`/events/new-basic?draft=${evtId}&mode=full`)
+    // Land on the FULL event editor, not the one-page form.
+    //
+    // This used to reopen the same wizard as a single scrolling page, on the
+    // reasoning that you'd want to keep editing what you just built. But the
+    // wizard only covers what it takes to CREATE an event — once it exists the
+    // work moves on to invitees, attendance, tickets, communication, which the
+    // one-pager has no room for. Sending you back into the creation form makes
+    // the event feel unfinished and hides everything you'd do next.
+    navigateTo(`/events/${evtId}`)
   } catch (err: any) {
     toast.add({ severity: 'error', summary: 'Could not save', detail: err?.message, life: 4000 })
   } finally {
@@ -1562,6 +1673,7 @@ async function resumeDraft(): Promise<boolean> {
   const evt = ev && ev.orgId === orgId.value ? {
     ...ev,
     banner_url: ev.bannerUrl,
+    banner_position: ev.bannerPosition || '',
     category_id: ev.categoryId,
     secondary_category_id: ev.secondaryCategoryId,
     age_min: ev.ageMin,

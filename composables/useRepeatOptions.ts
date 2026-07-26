@@ -37,6 +37,37 @@ export function buildRepeatOptions(date: Date | null): RepeatOption[] {
   ]
 }
 
+/** How many occurrences the rule is limited to, or null for "no limit". */
+export function rruleCount(rrule: string): number | null {
+  const m = /(?:^|;)COUNT=(\d+)/.exec(rrule || '')
+  const n = m ? parseInt(m[1], 10) : NaN
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+/**
+ * Set (or clear) the occurrence limit on an rrule.
+ *
+ * COUNT and UNTIL are mutually exclusive in RFC 5545 — a rule carrying both is
+ * malformed and different parsers disagree about which wins — so setting a count
+ * drops any UNTIL rather than quietly producing a rule that means two things.
+ */
+export function rruleWithCount(rrule: string, count: number | null): string {
+  if (!rrule || rrule === 'NONE') return rrule
+  const parts = rrule.split(';').filter(p => p && !/^COUNT=/.test(p) && (count == null || !/^UNTIL=/.test(p)))
+  if (count != null && count > 0) parts.push(`COUNT=${count}`)
+  return parts.join(';')
+}
+
+/**
+ * Is this rule one of the ready-made presets (as opposed to something built in
+ * the Custom dialog)? Compared ignoring COUNT, since the count is exactly what
+ * the caller is about to add.
+ */
+export function isPresetRrule(rrule: string, date: Date | null): boolean {
+  const bare = rruleWithCount(rrule, null)
+  return buildRepeatOptions(date).some(o => o.value !== 'CUSTOM' && o.value === bare)
+}
+
 export function rruleToSummary(rrule: string, fmtDate?: (d: Date) => string): string {
   if (!rrule || rrule === 'NONE' || rrule === '') return 'Does not repeat'
   const parts: Record<string, string> = {}

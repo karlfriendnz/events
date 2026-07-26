@@ -15,12 +15,7 @@ const toast = useToast()
 const { loadOrgTypes, resolveFields, fieldAppliesTo } = useOrgFieldPolicy()
 const { CORE_SECTIONS, coreStatus, loadConfig, coreErrors } = useCoreFields()
 
-const GENDERS = [
-  { label: 'Male', value: 'MALE' },
-  { label: 'Female', value: 'FEMALE' },
-  { label: 'Non-binary', value: 'NON_BINARY' },
-  { label: 'Unspecified', value: 'UNSPECIFIED' },
-]
+const GENDERS = PERSON_GENDERS  // shared vocabulary — composables/useGender.ts
 
 const person = ref<any>(null)
 const dobDate = ref<Date | null>(null)

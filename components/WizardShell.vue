@@ -29,6 +29,13 @@ const emit = defineEmits<{
 }>()
 
 const isLast = computed(() => props.modelValue >= props.steps.length - 1)
+
+/** "Step 4 of 7 · Who it's for" — read by the review widget's pin capture. */
+const reviewScope = computed(() => {
+  const s = props.steps[props.modelValue]
+  if (!s) return null
+  return `Step ${props.modelValue + 1} of ${props.steps.length} · ${s.label}`
+})
 function onNext() {
   if (isLast.value) emit('finish')
   else emit('update:modelValue', props.modelValue + 1)
@@ -42,8 +49,12 @@ function onNext() {
          Width SCALES with the window (min(1200px, 94vw)) rather than the old flat
          1000px — on a laptop that left two thick empty gutters while the step content
          (form + summary rail) was squeezed. 1200 is the ceiling: wider read as too big. -->
+    <!-- data-review-scope: a wizard is N screens sharing ONE route, so a review
+         comment left on step 4 is indistinguishable from one left on step 1
+         unless the shell says which step is showing. Declared once here and
+         every wizard built on WizardShell is covered. -->
     <div class="app-modal-overlay fixed inset-0 flex items-stretch sm:items-start justify-center sm:px-6 sm:pb-6 bg-slate-900/45 backdrop-blur-[2px]"
-      style="z-index:1000">
+      :data-review-scope="reviewScope" style="z-index:1000">
       <div class="flex flex-col bg-white w-full h-full sm:max-w-[min(1200px,94vw)] sm:rounded-xl shadow-2xl overflow-hidden">
 
         <!-- Header + step path (same brand bar as every dialog) -->

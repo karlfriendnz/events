@@ -6,7 +6,7 @@
 // this composable maps back to the app's native snake_case ROW shape at the
 // boundary. Consumers keep their existing shapes; only data access changed.
 import type {
-  PageReview, PageComment, PageSignoff, PageReviewer, ReviewReport,
+  PageReview, PageComment, PageSignoff, PageReviewer, ReviewReport, BriefResult,
 } from '../shared/contracts/review'
 
 // camelCase (seam) → snake_case (app row) mappers.
@@ -26,6 +26,11 @@ function toCommentRow(c: PageComment): any {
     resolved_by: c.resolvedBy, resolved_at: c.resolvedAt,
     reviewer_id: c.reviewerId, parent_id: c.parentId,
     anchor_selector: c.anchorSelector, created_at: c.createdAt,
+    context: c.context,
+    claude_status: c.claudeStatus, claude_note: c.claudeNote, claude_at: c.claudeAt,
+    ready: c.ready, ready_at: c.readyAt, attachments: c.attachments,
+    seq: c.seq,
+    mentions: c.mentions,
   }
 }
 function toSignoffRow(s: PageSignoff): any {
@@ -42,6 +47,10 @@ export interface CreateCommentPayload {
   orgId: string; path: string; body: string
   authorId?: string | null; authorName?: string | null; reviewerId?: string | null
   parentId?: string | null; x?: number | null; y?: number | null; anchorSelector?: string | null
+  /** page_reviewers ids named in the body (@kate). */
+  mentions?: string[] | null
+  /** The captured ReviewTarget — what this pin points at. */
+  context?: Record<string, any> | null
 }
 
 export function useReviewsApi() {
@@ -86,8 +95,78 @@ export function useReviewsApi() {
     return toCommentRow(c)
   }
 
+  /**
+   * Builder approving a suggestion as real work (or taking that back). Only
+   * ready comments can be handed to Claude.
+   */
+  async function setCommentReady(id: string, ready: boolean) {
+    const c = await $fetch<PageComment>(`/api/v1/reviews/comments/${id}`, { method: 'PATCH', body: { ready } })
+    return toCommentRow(c)
+  }
+
+  /** Replace a comment's attachment list (adding or removing an image). */
+  async function setCommentAttachments(id: string, attachments: { url: string; name?: string | null }[]) {
+    const c = await $fetch<PageComment>(`/api/v1/reviews/comments/${id}`, { method: 'PATCH', body: { attachments } })
+    return toCommentRow(c)
+  }
+
+  /**
+   * Re-anchor a pin onto a different element. Position and captured context go
+   * together — a pin whose coordinates and description disagree is worse than
+   * either on its own.
+   */
+  async function moveComment(id: string, anchor: {
+    x: number | null; y: number | null; anchorSelector: string | null; context: Record<string, any> | null
+  }) {
+    const c = await $fetch<PageComment>(`/api/v1/reviews/comments/${id}`, { method: 'PATCH', body: anchor })
+    return toCommentRow(c)
+  }
+
+  /**
+   * Every open comment in the org, across all pages — the whole backlog.
+   * The per-page bundle cannot answer "what is outstanding overall", which is
+   * the one question a queue has to be able to answer.
+   */
+  async function allOpenComments(orgId: string) {
+    const rows = await $fetch<PageComment[]>('/api/v1/reviews/all', { query: { orgId } })
+    return rows.map(toCommentRow)
+  }
+
+  /**
+   * Edit a comment's text. Mentions travel with it: an edit that deletes the
+   * "@kate" must stop addressing Kate, or she keeps seeing a question the
+   * comment no longer asks.
+   */
+  async function updateCommentBody(id: string, body: string, mentions?: string[] | null) {
+    const c = await $fetch<PageComment>(`/api/v1/reviews/comments/${id}`, {
+      method: 'PATCH', body: { body, ...(mentions === undefined ? {} : { mentions: mentions?.length ? mentions : null }) },
+    })
+    return toCommentRow(c)
+  }
+
+  /**
+   * Record that Claude actioned a comment. Deliberately NOT a resolve — the
+   * comment stays open with a robot icon and a human signs it off.
+   */
+  async function setCommentClaudeStatus(id: string, status: 'done' | 'needs_info' | null, note?: string | null) {
+    const c = await $fetch<PageComment>(`/api/v1/reviews/comments/${id}`, {
+      method: 'PATCH', body: { claudeStatus: status, claudeNote: note ?? null },
+    })
+    return toCommentRow(c)
+  }
+
   async function deleteComment(id: string): Promise<void> {
     await $fetch(`/api/v1/reviews/comments/${id}`, { method: 'DELETE' })
+  }
+
+  /**
+   * Write the open comments out as a task brief (docs/review-tasks.md) and
+   * return it. Dev-only on the server.
+   */
+  async function buildBrief(orgId: string, path?: string | null, ids?: string[] | null) {
+    return await $fetch<BriefResult>('/api/v1/reviews/brief', {
+      method: 'POST', body: { orgId, path: path ?? null, ids: ids?.length ? ids : null },
+    })
   }
 
   async function createSignoff(orgId: string, path: string, reviewerId: string, signedByUserId?: string | null) {
@@ -125,6 +204,15 @@ export function useReviewsApi() {
    * The org-wide sign-off report (pages/dev/review). Reviewers + signoffs come
    * back in the snake_case ROW shape the page's template reads (signed_at etc.).
    */
+  /**
+   * Open comments across the whole org that name this reviewer. The panel is
+   * page-scoped, so this is the only way a mention reaches its target.
+   */
+  async function mentionsFor(orgId: string, reviewerId: string) {
+    const rows = await $fetch<PageComment[]>('/api/v1/reviews/mentions', { query: { orgId, reviewerId } })
+    return rows.map(toCommentRow)
+  }
+
   async function report(orgId: string) {
     const r = await $fetch<ReviewReport>('/api/v1/reviews/report', { query: { orgId } })
     return {
@@ -137,8 +225,10 @@ export function useReviewsApi() {
 
   return {
     pageBundle, stage, approvedPaths, setStage,
-    createComment, setCommentResolved, deleteComment,
+    createComment, setCommentResolved, updateCommentBody, setCommentClaudeStatus,
+    setCommentReady, setCommentAttachments, moveComment, deleteComment,
+    allOpenComments,
     createSignoff, deleteSignoff,
-    reviewers, ensureReviewers, createReviewer, report,
+    reviewers, ensureReviewers, createReviewer, report, buildBrief, mentionsFor,
   }
 }

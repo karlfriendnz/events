@@ -35,7 +35,9 @@ const BODY_TABS = [
 </script>
 
 <template>
-  <div class="p-3 sm:p-6 max-w-5xl mx-auto">
+  <!-- 1200px, matching the Quick event modal that creates these — the roll carries
+       Age / Gender / Phone / sign-in columns and 1024px (max-w-5xl) crowded them. -->
+  <div class="p-3 sm:p-6 max-w-[1200px] mx-auto">
     <EventDetailsSummary class="block mb-4" :event-id="id" @loaded="onLoaded"
       @deleted="navigateTo('/events')"
       @duplicated="(newId) => navigateTo(`/events/view/${newId}`)" />
@@ -51,15 +53,17 @@ const BODY_TABS = [
       </button>
     </div>
 
-    <div v-show="activeTab === 'attendance'">
+    <!-- One shared `pt-4` on every panel so each tab's content clears the strip by the
+         same amount — the gap belongs to the tab shell, not to each tab's component. -->
+    <div v-show="activeTab === 'attendance'" class="pt-4">
       <!-- No `fit`: let the roll grow to its content so the PAGE is the only scroller
            (fit caps the table's own height, which produced a second scrollbar). -->
       <EventAttendance v-if="opened.has('attendance')" :event-id="id" />
     </div>
-    <div v-show="activeTab === 'communication'">
+    <div v-show="activeTab === 'communication'" class="pt-4">
       <EventCommunication v-if="opened.has('communication')" :event-id="id" />
     </div>
-    <div v-show="activeTab === 'notes'">
+    <div v-show="activeTab === 'notes'" class="pt-4">
       <EventNotesTab v-if="opened.has('notes')" :event-id="id" />
     </div>
     <Toast />

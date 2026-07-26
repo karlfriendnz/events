@@ -149,9 +149,10 @@
             <span class="text-surface-600">{{ data.email || '—' }}</span>
           </template>
         </Column>
+        <!-- A phone number is ONE token — never wrapped across lines. -->
         <Column v-if="visibleColSet.has('phone')" field="phone" header="Phone">
           <template #body="{ data }">
-            <span class="text-surface-600">{{ data.phone || '—' }}</span>
+            <span class="text-surface-600 whitespace-nowrap">{{ data.phone || '—' }}</span>
           </template>
         </Column>
         <Column v-if="visibleColSet.has('roles')" header="Roles" style="width:180px">
@@ -188,38 +189,39 @@
       </DataTable>
     </div>
 
-    <!-- Club members — people pulled up from the clubs beneath this org -->
+    <!-- Club members — the full rosters of this org's AFFILIATED clubs -->
     <div v-if="peopleScope === 'club'">
       <div class="flex items-start justify-between gap-3 mb-3 flex-wrap">
-        <p class="text-sm text-gray-500 max-w-xl">People pulled into this organisation's groups from the clubs beneath it. Each is owned by their club — their profile is edited at the club.</p>
+        <p class="text-sm text-gray-500 max-w-xl">Every member across your affiliated clubs. Each is owned by their club — you only see the fields <em>you</em> created about them. When you add one to one of your own groups, this setting decides how they're stored.</p>
         <div class="flex items-center gap-2 text-xs shrink-0">
-          <span class="text-gray-400" v-tooltip.left="'How a club member is stored when added to one of your groups'">Pull in as:</span>
+          <span class="text-gray-400" v-tooltip.left="'How a club member is stored when you add them to one of your groups'">Pull in as:</span>
           <div class="inline-flex rounded-lg border border-gray-200 p-0.5">
             <button type="button" class="px-2.5 py-1 rounded-md font-medium transition-colors" :class="pullMode === 'reference' ? 'bg-[#1E2157] text-white' : 'text-gray-500'" @click="setPullMode('reference')">Reference</button>
             <button type="button" class="px-2.5 py-1 rounded-md font-medium transition-colors" :class="pullMode === 'copy' ? 'bg-[#1E2157] text-white' : 'text-gray-500'" @click="setPullMode('copy')">Copy</button>
           </div>
         </div>
       </div>
+      <p v-if="!nsoOwnFields.length" class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-3">
+        You haven't created any fields yet, so only names show here. Create fields in <NuxtLink to="/settings/fields" class="underline font-medium">Settings → Fields</NuxtLink> and they'll appear as columns for every club member.
+      </p>
       <div class="card overflow-x-auto">
         <table class="w-full text-sm min-w-[560px]">
           <thead>
             <tr class="text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
               <th class="text-left font-medium px-4 py-2">Name</th>
               <th class="text-left font-medium px-4 py-2">Club</th>
-              <th class="text-left font-medium px-4 py-2">Email</th>
-              <th class="text-left font-medium px-4 py-2">Phone</th>
+              <th v-for="f in nsoOwnFields" :key="f.id" class="text-left font-medium px-4 py-2 whitespace-nowrap">{{ f.label }}</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-if="clubLoading"><td colspan="4" class="px-4 py-6 text-gray-400">Loading…</td></tr>
-            <tr v-else-if="!clubMembersFiltered.length"><td colspan="4" class="px-4 py-10 text-center text-gray-400">No club members pulled in yet. Add people from clubs when building a group.</td></tr>
-            <tr v-for="p in clubMembersFiltered" :key="p.id" class="border-b border-gray-50 hover:bg-gray-50">
-              <td class="px-4 py-2.5 font-medium text-gray-800">{{ p.first_name }} {{ p.last_name }}</td>
+            <tr v-if="clubLoading"><td :colspan="2 + nsoOwnFields.length" class="px-4 py-6 text-gray-400">Loading…</td></tr>
+            <tr v-else-if="!clubMembersFiltered.length"><td :colspan="2 + nsoOwnFields.length" class="px-4 py-10 text-center text-gray-400">No members found. Affiliate a club (Settings → Clubs) — approved clubs' members show here.</td></tr>
+            <tr v-for="p in clubMembersFiltered" :key="p.id" class="border-b border-gray-50 hover:bg-gray-50 cursor-pointer" @click="navigateTo(`/people/${p.id}`)">
+              <td class="px-4 py-2.5 font-medium text-primary hover:underline">{{ p.first_name }} {{ p.last_name }}</td>
               <td class="px-4 py-2.5">
                 <span class="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-100"><i class="pi pi-building text-[10px]" />{{ p.club_name }}</span>
               </td>
-              <td class="px-4 py-2.5 text-gray-600">{{ p.email || '—' }}</td>
-              <td class="px-4 py-2.5 text-gray-600">{{ p.phone || '—' }}</td>
+              <td v-for="f in nsoOwnFields" :key="f.id" class="px-4 py-2.5 text-gray-600">{{ nsoFieldDisplay(p, f) }}</td>
             </tr>
           </tbody>
         </table>
@@ -333,7 +335,7 @@
             </template>
           </Column>
           <Column field="email" header="Email" sortable><template #body="{ data }"><span class="text-surface-600">{{ data.email || '—' }}</span></template></Column>
-          <Column field="phone" header="Phone"><template #body="{ data }"><span class="text-surface-600">{{ data.phone || '—' }}</span></template></Column>
+          <Column field="phone" header="Phone"><template #body="{ data }"><span class="text-surface-600 whitespace-nowrap">{{ data.phone || '—' }}</span></template></Column>
         </DataTable>
       </div>
     </template>
@@ -465,7 +467,7 @@ const customFields = ref<any[]>([])
 const activeType = ref('all')
 
 // ── Cross-club members (governing orgs only, migration 250) ──
-const { savePullMode, clubMembersForOrg } = useCrossClubMembers()
+const { savePullMode, affiliatedClubMembers } = useCrossClubMembers()
 const orgLevel = ref<string | null>(null)
 const isGoverning = computed(() => !!orgLevel.value && orgLevel.value !== 'CLUB')
 const peopleScope = ref<'own' | 'club'>('own')
@@ -475,7 +477,7 @@ const pullMode = ref<'reference' | 'copy'>('reference')
 async function loadClubMembers() {
   if (!orgId.value || !isGoverning.value) return
   clubLoading.value = true
-  clubMembers.value = await clubMembersForOrg(orgId.value)
+  clubMembers.value = await affiliatedClubMembers(orgId.value)
   clubLoading.value = false
 }
 async function setPullMode(m: 'reference' | 'copy') {
@@ -492,8 +494,19 @@ async function loadGoverning() {
 const clubMembersFiltered = computed(() => {
   const q = search.value.trim().toLowerCase()
   if (!q) return clubMembers.value
-  return clubMembers.value.filter((p: any) => `${p.first_name ?? ''} ${p.last_name ?? ''} ${p.email ?? ''} ${p.club_name}`.toLowerCase().includes(q))
+  return clubMembers.value.filter((p: any) => `${p.first_name ?? ''} ${p.last_name ?? ''} ${p.club_name}`.toLowerCase().includes(q))
 })
+// A governing body sees only the fields IT created about club members — never the
+// club's own custom fields (or the club's contact details). `customFields` is the
+// resolved own+inherited set; own = org_id matches this org.
+const nsoOwnFields = computed(() => customFields.value.filter((f: any) => f.org_id === orgId.value))
+function nsoFieldDisplay(p: any, f: any) {
+  const v = p.custom_fields?.[f.id]
+  if (v === null || v === undefined || v === '') return '—'
+  if (f.field_type === 'checkbox') return v ? 'Yes' : 'No'
+  if (Array.isArray(v)) return v.join(', ')
+  return String(v)
+}
 
 // ── People | Admins | Organisations top-level view ──
 const view = ref<'people' | 'admins' | 'organisations'>('people')

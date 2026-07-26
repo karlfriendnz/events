@@ -24,6 +24,19 @@ const props = withDefaults(defineProps<{
   optionDisabled?: string
   /** The header select-all. On by default — it's a system-wide affordance. */
   showToggleAll?: boolean
+  /**
+   * Field on an option holding a colour — renders a small dot on each chip.
+   *
+   * For things whose colour IS their identity (an event category, a class code,
+   * a calendar): with the dropdown closed the chips are all you can see, so
+   * dropping the colour there makes the picker the one place in the app that
+   * doesn't recognise them by it.
+   *
+   * Opt-in and additive: unset means no dot, so every existing consumer is
+   * untouched. The dot only ever ADDS to a chip — chip size, weight and fill
+   * stay the system-wide ones (main.css), which is the rule this must not break.
+   */
+  chipColorField?: string
 }>(), {
   optionLabel: 'label',
   optionValue: 'key',
@@ -55,6 +68,15 @@ const selectedOpts = computed(() =>
 const isPrimitive = (o: any) => o === null || typeof o !== 'object'
 const labelOf = (o: any) => (isPrimitive(o) ? String(o) : o[props.optionLabel!])
 const keyOf = (o: any) => (isPrimitive(o) ? o : o[props.optionValue!])
+/**
+ * The chip's colour dot, or null for no dot. Blank/missing colours fall back to
+ * a neutral grey rather than black — an option that simply has no colour set
+ * shouldn't read as a deliberate black one.
+ */
+const colorOf = (o: any): string | null => {
+  if (!props.chipColorField || isPrimitive(o)) return null
+  return o[props.chipColorField] || '#cbd5e1'
+}
 
 function remove(o: any) {
   emit('update:modelValue', (props.modelValue ?? []).filter(v => v !== keyOf(o)))
@@ -119,12 +141,17 @@ onBeforeUnmount(() => { ro?.disconnect(); ro = null })
       <div v-else class="relative w-full min-w-0">
         <!-- invisible measuring row (intrinsic widths) -->
         <div ref="measure" class="absolute invisible flex gap-1 pointer-events-none whitespace-nowrap" aria-hidden="true">
-          <span v-for="o in selectedOpts" :key="'m-' + keyOf(o)" class="chip-ms">{{ labelOf(o) }}<i class="pi pi-times-circle chip-ms-x" /></span>
+          <!-- The dot is measured too. This row is what decides how many chips
+               fit; if it renders anything narrower than the visible one, the
+               count comes out too high and the chips overflow their box. -->
+          <span v-for="o in selectedOpts" :key="'m-' + keyOf(o)" class="chip-ms"><span
+            v-if="colorOf(o)" class="chip-ms-dot" />{{ labelOf(o) }}<i class="pi pi-times-circle chip-ms-x" /></span>
           <span ref="moreEl" class="chip-ms chip-ms-more">+9 more</span>
         </div>
         <!-- visible row -->
         <div ref="wrap" class="flex flex-nowrap items-center gap-1 overflow-hidden w-full">
           <span v-for="o in visibleOpts" :key="keyOf(o)" class="chip-ms">
+            <span v-if="colorOf(o)" class="chip-ms-dot" :style="{ background: colorOf(o) }" />
             {{ labelOf(o) }}
             <i class="pi pi-times-circle chip-ms-x" @mousedown.stop.prevent @click.stop="remove(o)" />
           </span>
@@ -148,6 +175,14 @@ onBeforeUnmount(() => { ro?.disconnect(); ro = null })
   background: #f1f5f9;
   color: #334155;
   white-space: nowrap;
+}
+/* Opt-in colour dot (chipColorField). Sized in em so it tracks the chip's own
+   font size — the chip itself stays exactly the system-wide size and fill. */
+.chip-ms-dot {
+  flex: 0 0 auto;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 9999px;
 }
 .chip-ms-x {
   font-size: 0.75rem;

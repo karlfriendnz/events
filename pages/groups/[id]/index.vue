@@ -339,7 +339,7 @@
                 </tr>
                 <tr v-for="c in displayCoaches" :key="c.id" class="border-b border-gray-100 transition-colors"
                   :class="hasFlags(c) ? 'bg-red-50 hover:bg-red-100/70' : 'hover:bg-gray-50'">
-                  <td v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 text-gray-700 align-top">
+                  <td v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 text-gray-700 align-top" :class="col.nowrap ? 'whitespace-nowrap' : ''">
                     <template v-if="col.key === 'name'">
                       <div class="flex items-center gap-2">
                         <span class="inline-flex items-center justify-center w-6 h-6 shrink-0">
@@ -396,7 +396,7 @@
                     </td>
                   </tr>
                   <tr v-for="s in codeStaffForGroup" v-show="codeStaffOpen" :key="`cs-${s.id}`" class="border-b border-gray-100 bg-gray-50/40">
-                    <td v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 text-gray-700 align-top">
+                    <td v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 text-gray-700 align-top" :class="col.nowrap ? 'whitespace-nowrap' : ''">
                       <template v-if="col.key === 'name'">
                         <div class="flex items-center gap-2">
                           <span class="inline-flex items-center justify-center w-6 h-6 shrink-0"><i class="pi pi-shield-o text-gray-300 text-[11px]" /></span>
@@ -453,7 +453,7 @@
                 </tr>
                 <tr v-for="m in displayMembers" :key="m.id" class="border-b border-gray-100 transition-colors"
                   :class="hasFlags(m) ? 'bg-red-50 hover:bg-red-100/70' : 'hover:bg-gray-50'">
-                  <td v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 text-gray-700 align-top">
+                  <td v-for="col in activeColumns" :key="col.key" class="px-4 py-2.5 text-gray-700 align-top" :class="col.nowrap ? 'whitespace-nowrap' : ''">
                     <template v-if="col.key === 'name'">
                       <div class="flex items-center gap-2">
                         <span class="inline-flex items-center justify-center w-6 h-6 shrink-0">
@@ -2043,11 +2043,12 @@ function personInitials(name: string) { const p = (name || '').trim().split(/\s+
 // Shared column definitions for the People table (coaches + members). Both sections
 // render from this one list so columns stay aligned and adding a column is a one-liner.
 // `name`/`roles` have bespoke cells; every other key reads `row[key]` (extensible).
-type PersonCol = { key: string; label: string; width?: string }
+// `nowrap`: a phone number is ONE token — never broken across lines.
+type PersonCol = { key: string; label: string; width?: string; nowrap?: boolean }
 const personColumns = ref<PersonCol[]>([
   { key: 'name', label: 'Name', width: 'w-1/2 md:w-[26%]' },
   { key: 'roles', label: 'Roles' },
-  { key: 'phone', label: 'Phone', width: 'w-32' },
+  { key: 'phone', label: 'Phone', width: 'w-32', nowrap: true },
   { key: 'email', label: 'Email' },
 ])
 // People-tab toolbar: search / filter / sort / columns / export. These only affect

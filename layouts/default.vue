@@ -249,15 +249,26 @@
         <ShareNotifications v-if="orgReady && user" />
 
         <!-- Comments & review — pops out the <ReviewWidget> drawer -->
+        <!-- Two DIFFERENT facts, so two badges rather than one summed number:
+             red = open comments on this page, amber @ = someone asked YOU
+             something (anywhere in the club). Being asked is the one you should
+             notice, so it takes the more prominent bottom-left corner and the
+             icon turns amber for it. -->
         <button v-if="orgReady && user && !gate.isDeveloper.value" type="button"
           class="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors shrink-0"
-          :class="reviewCount > 0 ? 'text-primary' : 'text-gray-500'"
-          v-tooltip.bottom="reviewCount > 0 ? `${reviewCount} open comment${reviewCount === 1 ? '' : 's'}` : 'Comments & review'"
+          :class="mentionCount > 0 ? 'text-amber-600' : (reviewCount > 0 ? 'text-primary' : 'text-gray-500')"
+          v-tooltip.bottom="mentionCount > 0
+            ? `${mentionCount} comment${mentionCount === 1 ? '' : 's'} mention${mentionCount === 1 ? 's' : ''} you`
+            : (reviewCount > 0 ? `${reviewCount} open comment${reviewCount === 1 ? '' : 's'}` : 'Comments & review')"
           @click="reviewPanel = true">
-          <i :class="reviewCount > 0 ? 'pi pi-comments' : 'pi pi-comment'" class="text-base" />
+          <i :class="(reviewCount > 0 || mentionCount > 0) ? 'pi pi-comments' : 'pi pi-comment'" class="text-base" />
           <span v-if="reviewCount > 0"
             class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center leading-none">
             {{ reviewCount > 99 ? '99+' : reviewCount }}
+          </span>
+          <span v-if="mentionCount > 0"
+            class="absolute -bottom-0.5 -left-0.5 min-w-[16px] h-[16px] px-1 bg-amber-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center leading-none ring-2 ring-white">
+            <i class="pi pi-at text-[8px]" />
           </span>
         </button>
 
@@ -546,6 +557,8 @@ const createItems = [
 const reviewPanel = useReviewPanel()
 const notesPanel = usePersonNotesPanel()
 const reviewCount = useReviewCount()
+// Mentions are a separate signal from page comments — see useReviewMentionCount.
+const mentionCount = useReviewMentionCount()
 function openReviewFromMobile() { mobileMenuOpen.value = false; reviewPanel.value = true }
 const userMenuOpen = ref(false)
 const userMenuWrapper = ref<HTMLElement | null>(null)

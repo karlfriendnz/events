@@ -112,6 +112,7 @@ function toEvent(r: typeof schema.events.$inferSelect): FMEvent {
     categoryId: r.categoryId ?? null,
     categoryIds: (r.categoryIds as string[] | null) ?? null,
     bannerUrl: r.bannerUrl ?? null,
+    bannerPosition: r.bannerPosition ?? null,
     locationType: r.locationType,
     bookableId: r.bookableId ?? null,
     address: r.address ?? null,
@@ -339,6 +340,7 @@ export async function createEvent(input: FMEventCreate): Promise<FMEvent> {
     categoryId: input.categoryId ?? (input.categoryIds?.[0] ?? null),
     categoryIds: input.categoryIds ?? (input.categoryId ? [input.categoryId] : null),
     bannerUrl: input.bannerUrl ?? null,
+    bannerPosition: input.bannerPosition ?? null,
     locationType: input.locationType ?? 'ADDRESS',
     bookableId: input.bookableId ?? null,
     address: input.address ?? null,
@@ -411,6 +413,7 @@ export async function updateEvent(id: string, patch: FMEventPatch): Promise<FMEv
     if (patch.categoryId === undefined) set.categoryId = patch.categoryIds?.[0] ?? null
   }
   if (patch.bannerUrl !== undefined) set.bannerUrl = patch.bannerUrl
+  if (patch.bannerPosition !== undefined) set.bannerPosition = patch.bannerPosition
   if (patch.locationType !== undefined) set.locationType = patch.locationType
   if (patch.bookableId !== undefined) set.bookableId = patch.bookableId
   if (patch.address !== undefined) set.address = patch.address

@@ -26,22 +26,41 @@
             :min-date="minEndDate ?? startDate ?? undefined"
             :max-date="maxDate ?? undefined"
             @update:model-value="onEndDate" />
-          <TimeWheel v-if="showTime" ref="endTimeRef" :model-value="endTime" :placeholder="`${endLabel} time`" class="flex-1 min-w-0"
+          <!-- An impossible end time is SHOWN as wrong rather than silently
+               corrected — the ring marks the control the person just used, so
+               the feedback is where they are looking. -->
+          <TimeWheel v-if="showTime" ref="endTimeRef" :model-value="endTime" :placeholder="`${endLabel} time`"
+            class="flex-1 min-w-0 rounded-md"
+            :class="endTimeInvalid ? 'ring-2 ring-red-400' : ''"
             :disabled="isAllDay" :min-time="endMinTime"
             @update:model-value="onEndTime" />
         </div>
-        <!-- All day — only sits ON the date line when there's no Repeat row to put it
-             on. It's a real flex child, so keeping it here made this row's four
-             pickers narrower than an otherwise-identical row without a toggle (the
-             Date row vs the Sign-up row under it) — they neither lined up nor had
-             room. With a Repeat row present it moves down there instead. -->
-        <div v-if="showAllDay && !showRepeat" class="flex items-center gap-2 shrink-0">
+        <!-- All day lives ON the date line, where the thing it applies to is.
+             It used to drop down to the Repeat row whenever there was one,
+             because as a flex child it stole width and left this row's pickers
+             narrower than the identical Sign-up row beneath — they stopped
+             lining up. That alignment is now kept by `reserveAllDaySpace`,
+             which lets a sibling editor with no toggle hold the same gap open,
+             so the control can sit where it belongs. -->
+        <div v-if="showAllDay" class="flex items-center gap-2 shrink-0">
           <span class="text-xs text-gray-500" :class="stack ? '' : 'lg:hidden'">All day</span>
           <ToggleSwitch :model-value="isAllDay" v-tooltip.top="'All day'"
             @update:model-value="emit('update:isAllDay', $event)" />
         </div>
+        <!-- Holds open exactly the gap an All-day toggle would occupy, so a row
+             WITHOUT one (the sign-up window) keeps its pickers aligned with the
+             row above that has one. Opt-in: most consumers have no sibling row
+             to line up with and would just get dead space. -->
+        <div v-else-if="reserveAllDaySpace" aria-hidden="true"
+          class="flex items-center gap-2 shrink-0 invisible">
+          <span class="text-xs" :class="stack ? '' : 'lg:hidden'">All day</span>
+          <ToggleSwitch :model-value="false" />
+        </div>
       </div>
     </div>
+    <!-- No message here on purpose. The red ring marks the offending control,
+         and the host page already says why in one place; adding a third copy of
+         the same sentence was noise, not help. -->
     <!-- Outside event dates (session-only affordance) -->
     <div v-if="showOutsideEventDates" class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4" :class="rowPadding">
       <span class="field-label shrink-0" :class="labelWidth">Outside</span>
@@ -67,12 +86,10 @@
           @update:model-value="emit('update:repeat', $event)"
           @update:exdates="emit('update:exdates', $event)"
           @customRepeat="emit('customRepeat')" />
-        <!-- All day lives here (see the date row above) — it keeps the four date
-             pickers full-width and identical to a row that has no toggle at all. -->
-        <label v-if="showAllDay" class="flex items-center gap-2 shrink-0 h-10 cursor-pointer select-none">
-          <span class="text-xs text-gray-500">All day</span>
-          <ToggleSwitch :model-value="isAllDay" @update:model-value="emit('update:isAllDay', $event)" />
-        </label>
+        <!-- All day used to ALSO live here, on the Repeat row, whenever there
+             was one. It now sits on the Date row in every case (see there), and
+             this copy is gone: with both rendering the toggle appeared twice,
+             two controls bound to the same value. -->
       </div>
     </div>
     <!-- Outside dates warning -->
@@ -95,6 +112,12 @@ const props = withDefaults(defineProps<{
   // Turn the editor into a plain start→end range picker (used by the sign-up
   // window, which has no all-day or recurrence concept).
   showAllDay?: boolean
+  /**
+   * Hold open the space an All-day toggle would take, without showing one.
+   * For a row that sits directly under one that HAS the toggle (the sign-up
+   * window under the event date) so their pickers stay in the same columns.
+   */
+  reserveAllDaySpace?: boolean
   showRepeat?: boolean
   // Hide the time pickers for a date-only range (keeps the date → date arrow).
   showTime?: boolean
@@ -192,7 +215,6 @@ function onStartDate(v: Date | null) {
   // a blank — never overwrites an end the user already picked.
   if (v && !props.endDate) emit('update:endDate', v)
   emit('change')
-  syncEndTime(props.startTime, props.endTime, v)
   if (!v) return
   // Auto-advance the sequence: date → time (or → end date when there are no time wheels).
   nextTick(() => {
@@ -203,8 +225,8 @@ function onStartDate(v: Date | null) {
 function onEndDate(v: Date | null) {
   emit('update:endDate', v)
   emit('change')
-  // Collapsing a multi-day event back onto one day can strand the end time.
-  syncEndTime(props.startTime, props.endTime, v)
+  // Collapsing a multi-day event back onto one day can strand the end time —
+  // that now surfaces as the red invalid state rather than being auto-corrected.
   // Auto-advance: end date → end time.
   if (v && props.showTime && !props.isAllDay) nextTick(() => endTimeRef.value?.open?.())
 }
@@ -213,29 +235,35 @@ function onStartTime(v: Date | null) {
   // A blank end time defaults to start + 1 hour (only fills a blank).
   if (v && !props.endTime) emit('update:endTime', plusHour(v))
   emit('change')
-  syncEndTime(v, props.endTime)
+  // Moving the start past an existing end no longer rewrites that end — the
+  // range simply reads as invalid until one of them is fixed.
   // Auto-advance: start time → end date.
   if (v) openEndDate()
 }
 function onEndTime(v: Date | null) {
-  // Reject an end that's at or before the start on the same day — snap it forward.
-  if (v && props.startTime && sameDay(props.startDate, props.endDate) && minsOfDay(v) <= minsOfDay(props.startTime)) {
-    emit('update:endTime', plusHour(props.startTime))
-    emit('change')
-    return
-  }
+  // Keep what the user picked, even when it's before the start.
+  //
+  // This used to silently snap an invalid end forward to start + 1h. The
+  // intention was kind — don't let them build a broken range — but the effect
+  // was that choosing 8am put 10am in the box: the control answered a question
+  // nobody asked, and the person is left wondering what they did wrong. An
+  // invalid choice should be SHOWN as invalid, not quietly replaced.
   emit('update:endTime', v)
   emit('change')
 }
 
-// Keeps the end time valid after the start (or the dates) move under it.
-function syncEndTime(start: Date | null, end: Date | null, endDate: Date | null = props.endDate) {
-  if (!start || !end) return
-  if (!sameDay(props.startDate, endDate)) return
-  if (minsOfDay(end) > minsOfDay(start)) return
-  emit('update:endTime', plusHour(start))
-  emit('change')
-}
+/**
+ * Is the current range impossible — an end at or before the start on one day?
+ *
+ * Only meaningful when both ends sit on the same calendar day: an 8pm → 6am
+ * overnight event is perfectly valid.
+ */
+const endTimeInvalid = computed(() => {
+  if (!props.showTime || props.isAllDay) return false
+  if (!props.startTime || !props.endTime) return false
+  if (!sameDay(props.startDate, props.endDate)) return false
+  return minsOfDay(props.endTime) <= minsOfDay(props.startTime)
+})
 
 </script>
 

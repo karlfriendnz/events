@@ -263,6 +263,44 @@ body {
   .app-modal-overlay > * { max-height: none; }
 }
 
+/* Clicking a review comment rings the element it points at for a moment, so
+   "which control did they mean?" is answered by looking rather than guessing.
+   outline (not border/box-shadow) so it can't shift the layout of whatever it
+   lands on — that would move the very thing being pointed at. */
+.review-flash {
+  outline: 3px solid #f59e0b !important;
+  outline-offset: 2px;
+  border-radius: 4px;
+  animation: review-flash-pulse 1.6s ease-out;
+}
+@keyframes review-flash-pulse {
+  0%, 100% { outline-color: rgba(245, 158, 11, 0); }
+  15%, 70% { outline-color: rgba(245, 158, 11, 1); }
+}
+
+/* ── Modals get out of the way of the review panel ───────────────────────────
+   The review drawer DOCKS: it pushes the page left (md:mr-[440px] in
+   layouts/default.vue) rather than overlaying it, so you can read a comment and
+   look at what it's about at the same time.
+
+   Modals broke that. Every modal is <Teleport>ed to <body> — deliberately, so it
+   can out-rank the nav rail — which also puts it outside the element being
+   pushed, so a wizard stayed dead-centre and sat under the panel. The whole
+   point of a docked panel is defeated if the thing you're commenting on is
+   hidden behind it.
+
+   <ReviewWidget> toggles .review-panel-open on <body>; these shift the modal
+   layers by the same 440px. !important because Tailwind's `inset-0` utility
+   ships after this file in the cascade. Desktop only — on mobile the panel is
+   full-width and there is nowhere to shift to. */
+@media (min-width: 768px) {
+  body.review-panel-open .app-modal-overlay,
+  body.review-panel-open .p-dialog-mask {
+    right: 440px !important;
+    transition: right 150ms ease;
+  }
+}
+
 /* ── Print: attendance roll ──────────────────────────────────────────────────
    printAttendanceRoll() adds .printing-roll to <body>. Print ONLY the roster table
    (.roll-print-area): hide the rest of the page, drop the drag(1st) / select(2nd) /
@@ -278,6 +316,10 @@ body {
   body.printing-roll .roll-print-title { display: block !important; font-size: 16px; font-weight: 700; margin-bottom: 10px; }
   body.printing-roll .roll-print-area thead { display: table-header-group; }
   body.printing-roll .roll-print-area thead th { position: static !important; background: #fff !important; border-bottom: 2px solid #9ca3af !important; }
+  /* The sign in / sign out / actions columns are sticky-right ON SCREEN (so they stay
+     reachable on a wide roll). Paper doesn't scroll — un-pin them, or they'd stack on
+     the sheet's right edge. Same reason the thead is un-stuck above. */
+  body.printing-roll .roll-print-area td { position: static !important; }
   /* #54 — the Members header is a <button>; its label goes blank on repeated thead pages
      in Chrome. Swap it for the plain-text twin so it prints on every page. */
   body.printing-roll .roll-print-area .roll-sort-btn { display: none !important; }

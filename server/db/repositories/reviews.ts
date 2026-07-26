@@ -4,7 +4,7 @@
 // page_reviewers is READ/seeded here too so <ReviewWidget> has one seam to call
 // (admin.ts also lists reviewers for the master screens — both just read the table).
 import { randomUUID } from 'node:crypto'
-import { and, asc, eq, or } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   PageReview,
@@ -13,6 +13,7 @@ import type {
   PageReviewer,
   ReviewPageBundle,
   CreateCommentInput,
+  PatchCommentInput,
 } from '../../../shared/contracts/review'
 
 // created_at/updated_at are TIMESTAMPs — a Date from the driver, or an ISO string.
@@ -27,6 +28,32 @@ function toNum(v: unknown): number | null {
   if (v == null) return null
   const n = Number(v)
   return Number.isFinite(n) ? n : null
+}
+
+// `context` is a json column holding the captured ReviewTarget. Kept as an
+// opaque object: the capture module owns its shape (so it can be lifted into a
+// browser extension), and a comment from a newer or older client must still load.
+function toContext(v: unknown): Record<string, any> | null {
+  if (v == null) return null
+  if (typeof v === 'object') return v as Record<string, any>
+  if (typeof v === 'string') {
+    try { const p = JSON.parse(v); return p && typeof p === 'object' ? p : null } catch { return null }
+  }
+  return null
+}
+
+/** Attachment list, tolerant of a null column and of json handed back as text. */
+function toAttachments(v: unknown): { url: string; name?: string | null }[] | null {
+  const raw = typeof v === 'string' ? (() => { try { return JSON.parse(v) } catch { return null } })() : v
+  if (!Array.isArray(raw)) return null
+  return raw.filter(a => a && typeof a.url === 'string').map(a => ({ url: a.url, name: a.name ?? null }))
+}
+
+/** A json string[] column (mentions), tolerant of null or text-encoded json. */
+function toStringArray(v: unknown): string[] | null {
+  const raw = typeof v === 'string' ? (() => { try { return JSON.parse(v) } catch { return null } })() : v
+  if (!Array.isArray(raw)) return null
+  return raw.filter((s): s is string => typeof s === 'string')
 }
 
 function toReview(r: typeof schema.pageReviews.$inferSelect): PageReview {
@@ -57,6 +84,17 @@ function toComment(r: typeof schema.pageComments.$inferSelect): PageComment {
     reviewerId: r.reviewerId ?? null,
     parentId: r.parentId ?? null,
     anchorSelector: r.anchorSelector ?? null,
+    // mysql2 parses a json column into an object already; a legacy row may hold
+    // a string, and TiDB has been known to hand json back as text.
+    context: toContext(r.context),
+    claudeStatus: r.claudeStatus ?? null,
+    claudeNote: r.claudeNote ?? null,
+    claudeAt: toIso(r.claudeAt),
+    ready: Boolean(r.ready),
+    readyAt: toIso(r.readyAt),
+    attachments: toAttachments(r.attachments),
+    seq: r.seq ?? null,
+    mentions: toStringArray(r.mentions),
     createdAt: toIso(r.createdAt),
   }
 }
@@ -164,10 +202,25 @@ async function getComment(id: string): Promise<PageComment | null> {
   return r ? toComment(r) : null
 }
 
+/**
+ * The next permanent number for a page. Counts from the HIGHEST ever issued,
+ * not from how many exist — deleting or resolving a comment must not free its
+ * number for reuse, or two different things end up having been "pin 7".
+ */
+async function nextSeq(orgId: string, path: string): Promise<number> {
+  const [row] = await db
+    .select({ max: sql<number>`coalesce(max(${schema.pageComments.seq}), 0)` })
+    .from(schema.pageComments)
+    .where(and(eq(schema.pageComments.orgId, orgId), eq(schema.pageComments.path, path)))
+  return Number(row?.max ?? 0) + 1
+}
+
 export async function createComment(input: CreateCommentInput): Promise<PageComment> {
   const id = randomUUID()
   await db.insert(schema.pageComments).values({
     id,
+    seq: await nextSeq(input.orgId, input.path),
+    mentions: input.mentions ?? null,
     orgId: input.orgId,
     path: input.path,
     body: input.body,
@@ -178,9 +231,141 @@ export async function createComment(input: CreateCommentInput): Promise<PageComm
     x: input.x ?? null,
     y: input.y ?? null,
     anchorSelector: input.anchorSelector ?? null,
+    context: input.context ?? null,
+    // A reply inherits its parent's standing: it is a clarification ON approved
+    // work, not a new suggestion needing its own approval.
+    ready: input.ready ?? false,
+    readyAt: input.ready ? new Date() : null,
     resolved: false,
   } as any)
   return (await getComment(id))!
+}
+
+/**
+ * Partial update of one comment: resolve/reopen, edit the text, or record the
+ * agent hand-back. Only the keys PRESENT in the input are written, so a resolve
+ * can't blank a note and an edit can't quietly reopen something.
+ *
+ * Note `claudeStatus` deliberately does NOT resolve the comment. Claude marks
+ * its work done and a robot icon appears; a human still signs it off. An agent
+ * closing its own work would take the review out of the reviewer's hands, which
+ * is the one thing this system exists to prevent.
+ */
+export async function patchComment(id: string, input: PatchCommentInput): Promise<PageComment | null> {
+  const set: Record<string, any> = {}
+  if (input.body !== undefined) set.body = input.body
+  if (input.resolved !== undefined) {
+    set.resolved = input.resolved
+    set.resolvedBy = input.resolved ? input.resolvedById ?? null : null
+    set.resolvedAt = input.resolved ? new Date() : null
+  }
+  if (input.claudeStatus !== undefined) {
+    set.claudeStatus = input.claudeStatus
+    set.claudeAt = input.claudeStatus ? new Date() : null
+    // Clearing the status clears its note too — a note about work that is no
+    // longer marked done is just a lie left lying around.
+    if (!input.claudeStatus) set.claudeNote = null
+  }
+  if (input.claudeNote !== undefined) set.claudeNote = input.claudeNote
+  if (input.ready !== undefined) {
+    set.ready = input.ready
+    set.readyAt = input.ready ? new Date() : null
+  }
+  if (input.attachments !== undefined) set.attachments = input.attachments
+  if (input.mentions !== undefined) set.mentions = input.mentions
+  // Re-anchoring: position and element description move together.
+  if (input.x !== undefined) set.x = input.x
+  if (input.y !== undefined) set.y = input.y
+  if (input.anchorSelector !== undefined) set.anchorSelector = input.anchorSelector
+  if (input.context !== undefined) set.context = input.context
+  if (Object.keys(set).length) {
+    await db.update(schema.pageComments).set(set).where(eq(schema.pageComments.id, id))
+  }
+  // Blocking on a question? Post it as a REPLY as well as a status.
+  //
+  // A note tucked into a chip is a dead end — there is nowhere to answer it. As
+  // a reply it lands in the thread, Karl answers underneath, and the whole
+  // exchange sits against the comment it is about (and rides along in the next
+  // task brief, which already carries replies under their parent).
+  if (input.claudeStatus === 'needs_info' && input.claudeNote?.trim()) {
+    await addAgentReply(id, input.claudeNote.trim())
+  }
+  return getComment(id)
+}
+
+/**
+ * A reply authored by the agent. Idempotent on the exact text so re-marking the
+ * same question doesn't stack duplicates in the thread.
+ */
+export async function addAgentReply(parentId: string, body: string): Promise<void> {
+  const parent = await getComment(parentId)
+  if (!parent) return
+  const existing = await db.select().from(schema.pageComments)
+    .where(and(eq(schema.pageComments.parentId, parentId), eq(schema.pageComments.body, body)))
+    .limit(1)
+  if (existing.length) return
+  await db.insert(schema.pageComments).values({
+    id: randomUUID(),
+    orgId: parent.orgId,
+    path: parent.path,
+    parentId,
+    body,
+    authorName: AGENT_AUTHOR,
+    authorId: null,
+    reviewerId: null,
+    x: null, y: null,
+    // A reply carries its parent's standing — it clarifies approved work rather
+    // than proposing something new.
+    ready: parent.ready,
+    readyAt: parent.ready ? new Date() : null,
+    resolved: false,
+  } as any)
+}
+
+/** Author name on agent-written replies, so the panel can style them. */
+export const AGENT_AUTHOR = 'Claude'
+
+/**
+ * Every unresolved comment ACROSS THE ORG that names this reviewer.
+ *
+ * Deliberately not page-scoped: the panel shows the page you're standing on, so
+ * without a cross-page read an @mention would only ever be seen by someone who
+ * happened to wander onto the right screen — which is precisely the problem
+ * mentions exist to solve.
+ *
+ * Filtering happens in JS rather than SQL because `mentions` is a json array and
+ * the predicate differs between MySQL and Postgres; the row count here is small
+ * (one org's open review comments) and correctness across both beats a clever query.
+ */
+export async function listMentionsFor(orgId: string, reviewerId: string): Promise<PageComment[]> {
+  const rows = await db.select().from(schema.pageComments)
+    .where(and(eq(schema.pageComments.orgId, orgId), eq(schema.pageComments.resolved, false)))
+    .orderBy(asc(schema.pageComments.createdAt))
+  return rows.map(toComment).filter(c => c.mentions?.includes(reviewerId))
+}
+
+/**
+ * Stamp comments as handed over. Only touches ones with NO status yet: an item
+ * already marked done (or asking a question) must not be dragged back to
+ * "queued" just because it rode along in a later export.
+ */
+export async function markCommentsQueued(ids: string[]): Promise<void> {
+  if (!ids.length) return
+  await db.update(schema.pageComments)
+    .set({ claudeStatus: 'queued', claudeAt: new Date() })
+    .where(and(inArray(schema.pageComments.id, ids), isNull(schema.pageComments.claudeStatus)))
+}
+
+/**
+ * Every UNRESOLVED comment in the org, newest page first — the raw material for
+ * the exported task brief. Replies come too (parentId is set): a reply often
+ * carries the clarification that makes the parent actionable.
+ */
+export async function listOpenComments(orgId: string): Promise<PageComment[]> {
+  const rows = await db.select().from(schema.pageComments)
+    .where(and(eq(schema.pageComments.orgId, orgId), eq(schema.pageComments.resolved, false)))
+    .orderBy(asc(schema.pageComments.path), asc(schema.pageComments.createdAt))
+  return rows.map(toComment)
 }
 
 export async function setCommentResolved(

@@ -11,6 +11,15 @@
     </div>
 
     <template v-else>
+      <!-- Notice when viewing a member owned by another org (a governing body looking
+           at one of its affiliated clubs' members). Edits are allowed but stay on the
+           NSO's private overlay until pushed to the club. -->
+      <div v-if="foreign" class="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5">
+        <i class="pi pi-building text-xs" />
+        <span>This member belongs to their club. Your edits stay on your organisation — <strong>push to the club</strong> to share them. You see only the fields you created.</span>
+        <span v-if="hasOverride" class="ml-auto inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200"><i class="pi pi-pencil text-[10px]" />Unpushed edits</span>
+      </div>
+
       <!-- ── Tab strip (identity shown in the top-bar breadcrumbs) ── -->
       <div class="card p-0 overflow-hidden mb-4">
         <div class="flex items-center gap-1 px-2 sm:px-4 border-b border-gray-100 overflow-x-auto overflow-y-hidden no-scrollbar">
@@ -177,7 +186,7 @@
             <SettingsRow label="Gender">
               <Select v-if="editing" v-model="form.gender" :options="GENDER_OPTIONS" optionLabel="label" optionValue="value"
                 placeholder="Unspecified" class="w-full" showClear />
-              <span v-else class="text-sm text-gray-700">{{ genderLabel || '—' }}</span>
+              <span v-else class="text-sm text-gray-700">{{ genderText || '—' }}</span>
             </SettingsRow>
             <SettingsRow label="Membership type" description="e.g. Senior, Junior, Social.">
               <InputText v-if="editing" v-model="form.membership_type" class="w-full" placeholder="—" />
@@ -208,16 +217,26 @@
           </div>
         </AppCard>
 
-        <!-- Save / Delete actions for the profile -->
-        <div class="flex items-center justify-between gap-3 mt-4">
+        <!-- Save / Delete actions for the profile (own members) -->
+        <div v-if="!foreign" class="flex items-center justify-between gap-3 mt-4">
           <Button label="Delete" icon="pi pi-trash" severity="danger" text size="small" @click="deletePerson" />
+          <Button label="Save" icon="pi pi-check" size="small" :loading="saving"
+            :disabled="!isDirty || !(form.first_name || '').trim() || !(form.last_name || '').trim()"
+            style="background:#1E2157;border-color:#1E2157" @click="save" />
+        </div>
+        <!-- Club-owned member: save to the NSO's overlay, push to the club, or discard.
+             No Delete — the NSO can't delete a club's member. -->
+        <div v-else class="flex flex-wrap items-center justify-end gap-2 mt-4">
+          <Button v-if="hasOverride" label="Discard edits" text severity="secondary" size="small" @click="discardOverlay" />
+          <Button v-if="hasOverride" label="Push to club" icon="pi pi-arrow-up-right" size="small" severity="secondary" outlined
+            :loading="pushing" @click="pushToClub" />
           <Button label="Save" icon="pi pi-check" size="small" :loading="saving"
             :disabled="!isDirty || !(form.first_name || '').trim() || !(form.last_name || '').trim()"
             style="background:#1E2157;border-color:#1E2157" @click="save" />
         </div>
 
         <!-- Login / access -->
-        <AppCard title="Login access" description="Give this person a login to sign in and see their own dashboard." class="mt-4">
+        <AppCard v-if="!foreign" title="Login access" description="Give this person a login to sign in and see their own dashboard." class="mt-4">
           <div class="p-4 sm:p-5">
             <div v-if="!(form.email || '').trim()" class="text-sm text-gray-500">Add an email above and save, then you can send a login invite.</div>
             <div v-else class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -371,18 +390,21 @@ const TABS = computed(() => [
 ])
 const VALID_TABS = ['dashboard', 'profile', 'links', 'membership', 'events']
 
-const GENDER_OPTIONS = [
-  { label: 'Male', value: 'MALE' },
-  { label: 'Female', value: 'FEMALE' },
-  { label: 'Non-binary', value: 'NON_BINARY' },
-  { label: 'Unspecified', value: 'UNSPECIFIED' },
-]
+const GENDER_OPTIONS = PERSON_GENDERS  // shared vocabulary — composables/useGender.ts
 
 const today = new Date()
 const loading = ref(true)
 const saving = ref(false)
 const editing = ref(true)  // profile shows the fields as live inputs (a form), not read-only
 const person = ref<any>(null)
+// A person owned by ANOTHER org (a governing body viewing one of its affiliated
+// clubs' members). The NSO CAN edit them, but the edits live in a private overlay
+// (person_org_overrides) and never touch the club's row until PUSHED.
+const foreign = computed(() => !!person.value && !!orgId.value && person.value.org_id !== orgId.value)
+const overrideRow = ref<import('~/shared/contracts/personOverride').PersonOverride | null>(null)
+const hasOverride = computed(() => !!overrideRow.value && (
+  Object.keys(overrideRow.value.core || {}).length > 0 || Object.keys(overrideRow.value.customFields || {}).length > 0))
+const pushing = ref(false)
 const allGroups = ref<any[]>([])
 const customFields = ref<any[]>([])
 // The person's FULL stored custom_fields, kept verbatim from load. save() only
@@ -471,6 +493,7 @@ const isDirty = computed(() => canonForm() !== snapshot.value)
 const inviting = ref(false)
 const inviteLink = ref<string | null>(null)
 async function sendInvite() {
+  if (foreign.value) return // a governing body can't invite a club's member
   if (!(form.email || '').trim()) { toast.add({ severity: 'warn', summary: 'Add an email first', life: 3000 }); return }
   inviting.value = true
   try {
@@ -504,7 +527,7 @@ async function onAvatarFile(e: Event) {
 const initials = computed(() =>
   `${(form.first_name || '').charAt(0)}${(form.last_name || '').charAt(0)}`.toUpperCase() || '?'
 )
-const genderLabel = computed(() => GENDER_OPTIONS.find(g => g.value === form.gender)?.label ?? '')
+const genderText = computed(() => genderLabel(form.gender))
 // Primary type = first role (anchors the designed layout + dashboard catalogue).
 const primaryType = computed(() => form.person_types[0] ?? null)
 const personTypeLabel = computed(() =>
@@ -564,7 +587,7 @@ const renderUnits = computed(() => {
 function coreDisplay(item: any) {
   const c = item.core
   if (c === 'dob') return form.dob ? formatDate(form.dob) : '—'
-  if (c === 'gender') return genderLabel.value || '—'
+  if (c === 'gender') return genderText.value || '—'
   if (c === 'role') return personTypeLabel.value || '—'
   return (form as any)[c] || '—'
 }
@@ -641,9 +664,10 @@ function displayCustom(f: any) {
   return String(v)
 }
 
-const actionsMenuItems = computed(() => [
-  { label: 'Delete person', icon: 'pi pi-trash', class: 'text-red-500', command: deletePerson },
-])
+const actionsMenuItems = computed(() =>
+  foreign.value ? [] : [
+    { label: 'Delete person', icon: 'pi pi-trash', class: 'text-red-500', command: deletePerson },
+  ])
 
 useBreadcrumbs([
   { label: 'People', to: '/people' },
@@ -724,6 +748,38 @@ async function load() {
       custom[f.id] = v ?? (f.field_type === 'checkbox' ? false : null)
     }
     form.custom = custom
+  }
+
+  // ── Governing-body overlay: a foreign person's form starts from the club's values,
+  //    then the NSO's own private edits (person_org_overrides) are layered on top. ──
+  overrideRow.value = null
+  if (p && orgId.value && p.org_id !== orgId.value) {
+    const ov = await usePeopleApi().getOverride(String(route.params.id), orgId.value as string).catch(() => null)
+    overrideRow.value = ov
+    if (ov) {
+      const c: any = ov.core || {}
+      if (c.firstName != null) form.first_name = c.firstName
+      if (c.lastName != null) form.last_name = c.lastName
+      if (c.email != null) form.email = c.email
+      if (c.phone != null) form.phone = c.phone
+      if (c.phone2 != null) form.phone2 = c.phone2
+      if (c.dob !== undefined) form.dob = c.dob ? new Date(c.dob) : null
+      if (c.gender != null) form.gender = c.gender
+      if (c.membershipType != null) form.membership_type = c.membershipType
+      for (const f of customFields.value) {
+        if (Object.prototype.hasOwnProperty.call(ov.customFields || {}, f.id)) {
+          let v = (ov.customFields as any)[f.id]
+          if (f.field_type === 'date' && v) v = new Date(v)
+          if (f.field_type === 'checkbox') v = !!v
+          form.custom[f.id] = v ?? (f.field_type === 'checkbox' ? false : null)
+        }
+      }
+      // reflect onto the loaded person so the Dashboard tab + breadcrumb show the overlay
+      if (person.value) Object.assign(person.value, {
+        first_name: form.first_name, last_name: form.last_name, email: form.email,
+        phone: form.phone, gender: form.gender, membership_type: form.membership_type,
+      })
+    }
   }
 
   // ── Designed profile layout for this person's PRIMARY type (falls back to default list) ──
@@ -808,6 +864,44 @@ function cancelEdit() {
 
 async function save() {
   if (!(form.first_name || '').trim() || !(form.last_name || '').trim()) return
+  // A foreign (club-owned) person → edits go to the NSO's PRIVATE overlay, never the
+  // club's row. Only the fields shown here (core + the NSO's own fields) are captured.
+  if (foreign.value) {
+    if (!orgId.value) return
+    saving.value = true
+    const overlayCustom: Record<string, any> = {}
+    for (const f of customFields.value) {
+      const v = form.custom[f.id]
+      overlayCustom[f.id] = (v === null || v === undefined || v === '')
+        ? null
+        : (f.field_type === 'date' ? toIsoDate(v instanceof Date ? v : new Date(v)) : v)
+    }
+    const core = {
+      firstName: (form.first_name || '').trim(),
+      lastName: (form.last_name || '').trim(),
+      email: (form.email || '').trim() || null,
+      phone: (form.phone || '').trim() || null,
+      phone2: (form.phone2 || '').trim() || null,
+      dob: toIsoDate(form.dob),
+      gender: form.gender || null,
+      membershipType: (form.membership_type || '').trim() || null,
+    }
+    try {
+      overrideRow.value = await usePeopleApi().saveOverride(String(route.params.id), { orgId: orgId.value as string, core, customFields: overlayCustom })
+    } catch (e: any) {
+      toast.add({ severity: 'error', summary: 'Could not save', detail: e?.message, life: 4000 })
+      saving.value = false
+      return
+    }
+    if (person.value) Object.assign(person.value, {
+      first_name: core.firstName, last_name: core.lastName, email: core.email,
+      phone: core.phone, gender: core.gender, membership_type: core.membershipType,
+    })
+    snapshot.value = canonForm()
+    toast.add({ severity: 'success', summary: 'Saved to your organisation', detail: 'These edits stay here until you push them to the club.', life: 4000 })
+    saving.value = false
+    return
+  }
   saving.value = true
 
   // serialise custom fields — MERGE, don't overwrite. Start from the full stored
@@ -887,7 +981,31 @@ async function syncGroups() {
   }
 }
 
+async function pushToClub() {
+  if (!foreign.value || !orgId.value) return
+  pushing.value = true
+  try {
+    await usePeopleApi().pushOverride(String(route.params.id), orgId.value as string)
+    toast.add({ severity: 'success', summary: 'Pushed to the club', detail: 'Your edits are now on the club’s record.', life: 4000 })
+    await load()
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not push', detail: e?.message, life: 4000 })
+  }
+  pushing.value = false
+}
+async function discardOverlay() {
+  if (!foreign.value || !orgId.value) return
+  try {
+    await usePeopleApi().discardOverride(String(route.params.id), orgId.value as string)
+    toast.add({ severity: 'success', summary: 'Edits discarded', life: 2500 })
+    await load()
+  } catch (e: any) {
+    toast.add({ severity: 'error', summary: 'Could not discard', detail: e?.message, life: 4000 })
+  }
+}
+
 async function deletePerson() {
+  if (foreign.value) return // a governing body can't delete a club's member
   await usePeopleApi().remove(String(route.params.id))
   toast.add({ severity: 'success', summary: 'Person deleted', life: 2500 })
   navigateTo('/people')

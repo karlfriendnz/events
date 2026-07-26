@@ -87,6 +87,8 @@ async function run() {
 }
 function cellValue(p: any, key: string) {
   const v = cr.personValue(p, key)
+  // Gender is stored as a code (MALE/NON_BINARY) — never print the code.
+  if (key === 'gender') return genderLabel(v)
   return Array.isArray(v) ? v.join(', ') : (v ?? '')
 }
 function personName(p: any) { return `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || '—' }

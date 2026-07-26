@@ -4,7 +4,10 @@
        hover. -->
   <div v-if="imageUrl" class="relative overflow-hidden group" style="height:400px">
     <div class="absolute inset-0 bg-gradient-to-br from-primary to-[#2e38a8]" />
-    <img :src="imageUrl" class="absolute inset-0 w-full h-full object-cover" />
+    <!-- 400px tall here vs a 128px strip in the wizard editor — the same focal
+         point frames both, which a baked crop could not. -->
+    <img :src="imageUrl" class="absolute inset-0 w-full h-full object-cover"
+      :style="{ objectPosition: event?.banner_position || '50% 50%' }" />
     <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
     <div class="absolute bottom-5 left-4 right-4 sm:left-6 sm:right-6">
       <input v-if="editable" :value="event?.title || ''" @input="emitTitle" @keydown.enter.prevent="($event.target as any).blur()"
@@ -38,7 +41,7 @@
 <script setup lang="ts">
 const props = defineProps<{
   design: { header?: 'event' | 'custom' | 'none'; headerImage?: string | null }
-  event: { title?: string | null; banner_url?: string | null } | null
+  event: { title?: string | null; banner_url?: string | null; banner_position?: string | null } | null
   /** Builder mode: title is editable + a banner-upload control shows. */
   editable?: boolean
 }>()

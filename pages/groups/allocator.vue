@@ -284,7 +284,7 @@ function personMeta(p: AllocPerson) {
   const bits: string[] = []
   const age = allocator.ageFromDob(p.dob)
   if (age != null) bits.push(`${age} yrs`)
-  if (p.gender) bits.push(p.gender.charAt(0) + p.gender.slice(1).toLowerCase())
+  if (p.gender) bits.push(genderLabel(p.gender))
   return bits.join(' · ')
 }
 

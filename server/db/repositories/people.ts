@@ -9,6 +9,7 @@ import { db, schema } from '../client'
 import type { Person, PersonCreate, PersonPatch, PersonWithOrg } from '../../../shared/contracts/person'
 import type { PersonNote } from '../../../shared/contracts/circle'
 import type { PersonNoteCreate, PersonNoteUpdate } from '../../../shared/contracts/personNote'
+import type { PersonOverride, PersonOverridePatch } from '../../../shared/contracts/personOverride'
 
 // A json() column may hand back an already-parsed value OR a JSON string depending
 // on the driver/column — normalise to an array, defaulting to [] on anything odd.
@@ -241,6 +242,69 @@ export async function setTypeForMany(orgId: string, ids: string[], typeKey: stri
 export async function deletePeople(orgId: string, ids: string[]): Promise<void> {
   if (!ids.length) return
   await db.delete(schema.persons).where(and(eq(schema.persons.orgId, orgId), inArray(schema.persons.id, ids)))
+}
+
+// ── Person org overrides (a governing body's private overlay on a club's person) ──
+// The NSO edits a person it doesn't own; the edits live here keyed by (org_id = NSO,
+// person_id) and never touch the club's persons row until pushed.
+function toOverride(r: typeof schema.personOrgOverrides.$inferSelect): PersonOverride {
+  return {
+    orgId: r.orgId,
+    personId: r.personId,
+    core: asObj(r.core),
+    customFields: asObj(r.customFields),
+    updatedAt: toIso(r.updatedAt),
+  }
+}
+
+export async function getPersonOverride(orgId: string, personId: string): Promise<PersonOverride | null> {
+  const [r] = await db
+    .select()
+    .from(schema.personOrgOverrides)
+    .where(and(eq(schema.personOrgOverrides.orgId, orgId), eq(schema.personOrgOverrides.personId, personId)))
+    .limit(1)
+  return r ? toOverride(r) : null
+}
+
+/** Insert or merge the overlay. core/customFields each MERGE onto the stored value
+ *  (a patch of just the changed keys), so a save of one field never wipes the rest. */
+export async function upsertPersonOverride(orgId: string, personId: string, patch: PersonOverridePatch): Promise<PersonOverride> {
+  const existing = await getPersonOverride(orgId, personId)
+  const core = { ...(existing?.core ?? {}), ...(patch.core ?? {}) }
+  const customFields = { ...(existing?.customFields ?? {}), ...(patch.customFields ?? {}) }
+  if (existing) {
+    await db
+      .update(schema.personOrgOverrides)
+      .set({ core, customFields, updatedAt: new Date() } as any)
+      .where(and(eq(schema.personOrgOverrides.orgId, orgId), eq(schema.personOrgOverrides.personId, personId)))
+  } else {
+    await db.insert(schema.personOrgOverrides).values({
+      id: randomUUID(), orgId, personId, core, customFields,
+    } as any)
+  }
+  return (await getPersonOverride(orgId, personId))!
+}
+
+/** Apply the overlay onto the CLUB's persons row (core overwrites; customFields MERGE
+ *  so the club's own fields survive), then clear the overlay — once pushed, base ==
+ *  overlay so the row is redundant. Returns the updated person. */
+export async function pushPersonOverride(orgId: string, personId: string): Promise<Person | null> {
+  const override = await getPersonOverride(orgId, personId)
+  const base = await getPerson(personId)
+  if (!override || !base) return base
+  const patch: PersonPatch = { ...(override.core as any) }
+  // Merge the NSO's field values into the club's existing custom_fields (never replace,
+  // or the club's own fields would be wiped).
+  patch.customFields = { ...(base.customFields ?? {}), ...(override.customFields ?? {}) }
+  const updated = await updatePerson(personId, patch)
+  await deletePersonOverride(orgId, personId)
+  return updated
+}
+
+export async function deletePersonOverride(orgId: string, personId: string): Promise<void> {
+  await db
+    .delete(schema.personOrgOverrides)
+    .where(and(eq(schema.personOrgOverrides.orgId, orgId), eq(schema.personOrgOverrides.personId, personId)))
 }
 
 // ── Person notes (writes) ──

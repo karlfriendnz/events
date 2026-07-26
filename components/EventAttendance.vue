@@ -95,11 +95,17 @@ async function searchInlinePeople(e: { query: string }) {
     .map((p: any) => ({ id: p.id, name: [p.firstName, p.lastName].filter(Boolean).join(' ') || p.email || 'Unnamed', email: p.email }))
 }
 // A recurring event = a master + weekly children. Adding a person can target just this
-// occurrence or this + every following one, so the invitee lands on the whole series.
+// occurrence or the whole run, so the invitee lands on every following event too. The
+// choice is made UP FRONT, as a radio pair in the add row (it used to be a dialog that
+// interrupted after Add) — defaulting to THIS event, the safe, least-surprising scope.
 const isRecurring = computed(() => !!(event.value?.recurrence_rule || event.value?.recurrence_parent_id))
-const addScopeOpen = ref(false)
-const addScope = ref<'this' | 'following'>('following')   // default = the whole run
-const pendingAddPerson = ref<any>(null)
+const addScope = ref<'this' | 'following'>('this')
+const ADD_SCOPES = [
+  { value: 'this', label: 'This event' },
+  // "All events" = this occurrence + every later one. Past occurrences are deliberately
+  // left alone — a roll that already happened is a record, not a roster to edit.
+  { value: 'following', label: 'All events' },
+]
 
 async function addInviteeToEvents(p: any, eventIds: string[]): Promise<number> {
   let ok = 0
@@ -116,8 +122,6 @@ async function doAddInline(p: any, eventIds: string[]) {
     const ok = await addInviteeToEvents(p, eventIds)
     inlineAddPerson.value = null
     inlineAddOptions.value = []
-    addScopeOpen.value = false
-    pendingAddPerson.value = null
     await loadInvitees()
     toast.add({ severity: 'success', summary: 'Added', detail: eventIds.length > 1 ? `${p.name} added to ${ok} events` : `${p.name} added`, life: 2500 })
   } catch (err: any) {
@@ -126,17 +130,11 @@ async function doAddInline(p: any, eventIds: string[]) {
     inlineAddBusy.value = false
   }
 }
+// Resolve the chosen scope into a concrete list of event ids, then add.
 async function addInlinePerson() {
   const p = inlineAddPerson.value
   if (!p || typeof p !== 'object' || !p.id || inlineAddBusy.value) return
-  if (isRecurring.value) { pendingAddPerson.value = p; addScope.value = 'following'; addScopeOpen.value = true; return }
-  await doAddInline(p, [props.eventId])
-}
-// Resolve the chosen scope into a concrete list of event ids, then add.
-async function confirmAddScope() {
-  const p = pendingAddPerson.value
-  if (!p) return
-  if (addScope.value === 'this') { await doAddInline(p, [props.eventId]); return }
+  if (!isRecurring.value || addScope.value === 'this') { await doAddInline(p, [props.eventId]); return }
   const master = event.value?.recurrence_parent_id || props.eventId
   const rows = await eventsApi.series(master).catch(() => [] as any[])
   const cur = event.value?.start_at || event.value?.startAt || null
@@ -325,7 +323,7 @@ async function loadFieldDefs() {
     customFieldDefs.value = cat.filter((f: any) => f.source === 'custom').map((f: any) => ({ key: String(f.key), label: f.label }))
   } catch { customFieldDefs.value = [] }
 }
-const allColumns = computed<{ key: string; label: string; type: string; get: (inv: any) => any; auto: () => boolean }[]>(() => {
+const allColumns = computed<{ key: string; label: string; type: string; nowrap?: boolean; get: (inv: any) => any; auto: () => boolean }[]>(() => {
   // Ticket type / Paid only exist when the event can actually handle them — a ticketed
   // event (has_tickets) or one that's collected a real fee. Otherwise they're not offered.
   const hasTickets = !!event.value?.has_tickets
@@ -334,9 +332,11 @@ const allColumns = computed<{ key: string; label: string; type: string; get: (in
   ...(hasTickets ? [{ key: 'ticket', label: 'Ticket type', type: 'text', get: (inv: any) => inv.ticket_type, auto: () => true }] : []),
   ...(hasFees ? [{ key: 'paid', label: 'Paid', type: 'paid', get: (inv: any) => inv.paid_at, auto: () => true }] : []),
   { key: 'age', label: 'Age', type: 'text', get: (inv) => inv.person?.dob ? (ageFromDob(inv.person.dob) ?? null) : null, auto: () => invitees.value.some(i => i.person?.dob) },
-  { key: 'gender', label: 'Gender', type: 'text', get: (inv) => inv.person?.gender, auto: () => invitees.value.some(i => i.person?.gender) },
-  { key: 'phone', label: 'Phone', type: 'text', get: (inv) => inv.person?.phone, auto: () => false },
-  { key: 'phone2', label: 'Secondary phone', type: 'text', get: (inv) => inv.person?.phone2, auto: () => false },
+  { key: 'gender', label: 'Gender', type: 'text', get: (inv) => genderLabel(inv.person?.gender) || null, auto: () => invitees.value.some(i => i.person?.gender) },
+  // `nowrap`: a phone number is ONE token — broken across lines ("0216 / 707 / 3384")
+  // it stops being dialable at a glance. The column takes the width it needs instead.
+  { key: 'phone', label: 'Phone', type: 'text', nowrap: true, get: (inv) => inv.person?.phone, auto: () => false },
+  { key: 'phone2', label: 'Secondary phone', type: 'text', nowrap: true, get: (inv) => inv.person?.phone2, auto: () => false },
   { key: 'email', label: 'Email', type: 'text', get: (inv) => inv.person?.email, auto: () => false },
   { key: 'membership', label: 'Membership', type: 'text', get: (inv) => inv.person?.membership_type, auto: () => false },
   { key: 'photo', label: 'Photo', type: 'photo', get: (inv) => inv.person?.photo_url, auto: () => invitees.value.some(i => i.person?.photo_url) },
@@ -361,8 +361,21 @@ function loadSavedColumns() {
 }
 function toggleCol(key: string) { colOverride[key] = !colVisible(key); persistColumns() }
 const visibleColumns = computed(() => allColumns.value.filter(c => colVisible(c.key)))
+// Photo is a column you TURN ON, but not a column that gets its own place in the table —
+// a face belongs beside the name it belongs to, so it renders as an avatar inside the
+// Members cell. It stays in `allColumns` (so the Columns chooser + persistence are
+// unchanged) and is filtered out of everything that lays out cells.
+const showPhoto = computed(() => colVisible('photo'))
+const tableColumns = computed(() => visibleColumns.value.filter(c => c.key !== 'photo'))
+// Initials stand in when someone has no photo, so every row's name starts at the same
+// x — a missing face must not shunt the name left.
+function personInitials(inv: any) {
+  const f = inv?.person?.first_name?.[0] ?? ''
+  const l = inv?.person?.last_name?.[0] ?? ''
+  return (f + l).toUpperCase() || '?'
+}
 // Fixed cols: drag + select + Members + Status + Signed-in + Out + actions = 7, plus the visible optional cols.
-const colCount = computed(() => 7 + visibleColumns.value.length)
+const colCount = computed(() => 7 + tableColumns.value.length)
 
 function toggleAttendanceSelectAll() {
   attendanceSelected.value = attendanceSelectAll.value ? invitees.value.map(i => i.id) : []
@@ -421,6 +434,29 @@ async function markSelectedIn() {
 const selectedSignedIn = computed(() => invitees.value.filter(
   i => attendanceSelected.value.includes(i.id) && isAttendedForContext(i) && !i.signed_out,
 ))
+
+// ── Message the selection (NOT BUILT — affordance only) ──────────────────────────
+// Ad-hoc message to a hand-picked subset of the roll. Deliberately NOT wired to
+// /api/send-event-invitations: that sends THE INVITATION to everyone invited, which is
+// a different act. When this is built it needs its own compose step (subject + body,
+// probably the <EventInvitationDialog> shell) and, for `notification`, a push/in-app
+// channel that doesn't exist yet. Until then the button says what it WOULD do rather
+// than pretending to send — a toast that lies is worse than no button.
+const selectedWithEmail = computed(() => invitees.value.filter(
+  i => attendanceSelected.value.includes(i.id) && i.person?.email,
+))
+function bulkSend(channel: 'email' | 'notification') {
+  const n = attendanceSelected.value.length
+  const reachable = channel === 'email' ? selectedWithEmail.value.length : n
+  toast.add({
+    severity: 'info',
+    summary: channel === 'email' ? 'Email — not built yet' : 'Notifications — not built yet',
+    detail: channel === 'email'
+      ? `Would email ${reachable} of ${n} selected (${n - reachable} have no email address).`
+      : `Would send an app notification to ${n} selected.`,
+    life: 4000,
+  })
+}
 async function markSelectedOut() {
   const targets = selectedSignedIn.value
   if (!targets.length) return
@@ -761,10 +797,14 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
       </div>
     </div>
 
-    <!-- Right: Attendance table -->
-    <div class="flex-1 min-w-0 flex flex-col bg-white" :class="fit ? '' : 'overflow-hidden'">
-    <div class="bg-white rounded-xl border border-gray-200 flex flex-col"
-      :class="attendanceInSessionMode ? 'rounded-none border-0 flex-1 overflow-hidden' : (fit ? 'w-full' : 'mx-3 sm:mx-6 mb-4 sm:mb-6 max-w-5xl self-center w-full')">
+    <!-- Right: Attendance table. In SESSION mode the outer div is the panel surface
+         beside the session list, so it keeps `bg-white`; the plain roll has no outer
+         surface of its own — the card IS the white box, filling its container edge to
+         edge (it used to sit inset via mx-3/sm:mx-6 and capped at max-w-5xl, which
+         left a white margin around a narrower table). -->
+    <div class="flex-1 min-w-0 flex flex-col" :class="[attendanceInSessionMode ? 'bg-white' : '', fit ? '' : 'overflow-hidden']">
+    <div class="bg-white rounded-xl border border-gray-200 flex flex-col w-full"
+      :class="attendanceInSessionMode ? 'rounded-none border-0 flex-1 overflow-hidden' : ''">
 
       <!-- Toolbar -->
       <div class="flex items-center justify-between bg-gray-50 px-4 py-2.5 border-b border-gray-200 shrink-0">
@@ -806,6 +846,12 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
         <i class="pi pi-user-plus text-gray-400 shrink-0" />
         <AutoComplete v-model="inlineAddPerson" :suggestions="inlineAddOptions" optionLabel="name" :delay="250"
           placeholder="Search for a person…" class="flex-1" inputClass="w-full" forceSelection @complete="searchInlinePeople" />
+        <!-- Repeating event: choose the scope BEFORE adding (defaults to this occurrence).
+             A <SelectButton> pair, exactly like the wizard's "Public and club / Club only"
+             — one control for one either/or question, and it matches the neighbouring
+             buttons' height for free (a hand-rolled radio+label pair did neither). -->
+        <SelectButton v-if="isRecurring" v-model="addScope" :options="ADD_SCOPES"
+          option-label="label" option-value="value" :allow-empty="false" class="shrink-0" />
         <Button label="Add" icon="pi pi-plus" size="small" :loading="inlineAddBusy"
           :disabled="!inlineAddPerson || typeof inlineAddPerson !== 'object'" @click="addInlinePerson"
           style="background:var(--brand-primary); border-color:var(--brand-primary)" />
@@ -854,10 +900,19 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                 </button>
               </th>
               <th class="py-3 pr-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-24">Status</th>
-              <th v-for="col in visibleColumns" :key="col.key" class="py-3 pr-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{{ col.label }}</th>
-              <th class="py-3 pr-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide w-20">Sign In</th>
-              <th class="py-3 pr-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide w-20">Sign Out</th>
-              <th class="py-3 w-20" />
+              <th v-for="col in tableColumns" :key="col.key" class="py-3 pr-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap">{{ col.label }}</th>
+              <!-- The three DOING columns (sign in / sign out / email + notes) are PINNED
+                   RIGHT so they stay reachable however wide the roll gets — same pattern
+                   as the group Trainings report's pinned Total. **Widths are inline and
+                   hard (88 / 88 / 72), and the offsets are the running total of the ones
+                   to their right (160 → 72 → 0).** A Tailwind `w-20` is only a SUGGESTION
+                   under `table-layout:auto` — the browser shrank these cells to fit, the
+                   80px offsets then over-shot, and a scrolling column showed through the
+                   gap between Sign In and Sign Out. Change a width → change the offsets
+                   to match. `z-20` beats the sticky thead's own z-10. -->
+              <th class="py-3 px-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap sticky right-[160px] bg-white z-20 shadow-[inset_2px_0_0_#e5e7eb]" style="width:88px;min-width:88px;max-width:88px">Sign In</th>
+              <th class="py-3 px-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap sticky right-[72px] bg-white z-20" style="width:88px;min-width:88px;max-width:88px">Sign Out</th>
+              <th class="py-3 px-2 sticky right-0 bg-white z-20" style="width:72px;min-width:72px;max-width:72px" />
             </tr>
           </thead>
 
@@ -877,12 +932,12 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                 </td>
               </tr>
               <template v-if="expandedMemberGroups[mg.group?.id ?? '__none__'] !== false">
-                <tr v-for="inv in mg.invitees" :key="inv.id" class="hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
+                <tr v-for="inv in mg.invitees" :key="inv.id" class="bg-white hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
                   <td class="pl-3 pr-1 py-2.5 w-8 text-center align-middle text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
                   <td class="pl-1 pr-2 py-2.5 w-8 text-center align-middle"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
-                  <td class="py-2.5 pr-3 font-medium"><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></td>
+                  <td class="py-2.5 pr-3 font-medium whitespace-nowrap"><div class="flex items-center gap-2"><img v-if="showPhoto && inv.person?.photo_url" :src="inv.person.photo_url" alt="" class="w-7 h-7 rounded-full object-cover shrink-0" /><span v-else-if="showPhoto" class="w-7 h-7 rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold flex items-center justify-center shrink-0">{{ personInitials(inv) }}</span><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></div></td>
                   <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
-                  <td v-for="col in visibleColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600">
+                  <td v-for="col in tableColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600" :class="col.nowrap ? 'whitespace-nowrap' : ''">
                     <template v-if="col.type === 'photo'">
                       <img v-if="col.get(inv)" :src="col.get(inv)" class="w-7 h-7 rounded-full object-cover" />
                       <span v-else class="text-gray-300">—</span>
@@ -893,9 +948,9 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                     </template>
                     <span v-else>{{ col.get(inv) ?? '—' }}</span>
                   </td>
-                  <td class="py-2.5 pr-3 text-center"><Checkbox :model-value="isAttendedForContext(inv)" binary @change="toggleAttendance(inv)" /></td>
-                  <td class="py-2.5 pr-3 text-center"><Checkbox :model-value="inv.signed_out" binary :disabled="!isAttendedForContext(inv)" @change="toggleSignOut(inv)" /></td>
-                  <td class="py-2.5">
+                  <td class="py-2.5 px-2 text-center sticky right-[160px] bg-inherit z-[5] shadow-[inset_2px_0_0_#e5e7eb]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="isAttendedForContext(inv)" binary @change="toggleAttendance(inv)" /></td>
+                  <td class="py-2.5 px-2 text-center sticky right-[72px] bg-inherit z-[5]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="inv.signed_out" binary :disabled="!isAttendedForContext(inv)" @change="toggleSignOut(inv)" /></td>
+                  <td class="py-2.5 px-2 sticky right-0 bg-inherit z-[5]" style="width:72px;min-width:72px;max-width:72px">
                     <div class="flex items-center gap-2 text-gray-400">
                       <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
                       <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
@@ -919,12 +974,12 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
           <!-- Flat view -->
           <tbody v-else-if="attendanceViewMode === 'all'" class="divide-y divide-gray-100">
             <tr v-for="inv in filteredSortedAttendees" :key="inv.id" draggable="true" @dragstart="onDragStart($event, inv.id)"
-              class="hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
+              class="bg-white hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
               <td class="pl-3 pr-1 py-2.5 w-8 text-center align-middle text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
               <td class="pl-1 pr-2 py-2.5 w-8 text-center align-middle"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
-              <td class="py-2.5 pr-3 font-medium"><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></td>
+              <td class="py-2.5 pr-3 font-medium whitespace-nowrap"><div class="flex items-center gap-2"><img v-if="showPhoto && inv.person?.photo_url" :src="inv.person.photo_url" alt="" class="w-7 h-7 rounded-full object-cover shrink-0" /><span v-else-if="showPhoto" class="w-7 h-7 rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold flex items-center justify-center shrink-0">{{ personInitials(inv) }}</span><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></div></td>
               <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
-              <td v-for="col in visibleColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600">
+              <td v-for="col in tableColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600" :class="col.nowrap ? 'whitespace-nowrap' : ''">
                 <template v-if="col.type === 'photo'">
                   <img v-if="col.get(inv)" :src="col.get(inv)" class="w-7 h-7 rounded-full object-cover" />
                   <span v-else class="text-gray-300">—</span>
@@ -935,9 +990,9 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                 </template>
                 <span v-else>{{ col.get(inv) ?? '—' }}</span>
               </td>
-              <td class="py-2.5 pr-3 text-center"><Checkbox :model-value="isAttendedForContext(inv)" binary @change="toggleAttendance(inv)" /></td>
-              <td class="py-2.5 pr-3 text-center"><Checkbox :model-value="inv.signed_out" binary :disabled="!isAttendedForContext(inv)" @change="toggleSignOut(inv)" /></td>
-              <td class="py-2.5">
+              <td class="py-2.5 px-2 text-center sticky right-[160px] bg-inherit z-[5] shadow-[inset_2px_0_0_#e5e7eb]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="isAttendedForContext(inv)" binary @change="toggleAttendance(inv)" /></td>
+              <td class="py-2.5 px-2 text-center sticky right-[72px] bg-inherit z-[5]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="inv.signed_out" binary :disabled="!isAttendedForContext(inv)" @change="toggleSignOut(inv)" /></td>
+              <td class="py-2.5 px-2 sticky right-0 bg-inherit z-[5]" style="width:72px;min-width:72px;max-width:72px">
                 <div class="flex items-center gap-2 text-gray-400">
                   <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
                   <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
@@ -977,12 +1032,12 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               </tr>
               <tr v-if="expandedSubGroups[section.group.id] !== false" v-for="inv in section.invitees" :key="inv.id"
                 draggable="true" @dragstart="onDragStart($event, inv.id)"
-                class="hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
+                class="bg-white hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
                 <td class="pl-3 pr-1 py-2.5 w-8 text-center align-middle text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
                 <td class="pl-1 pr-2 py-2.5 w-8 text-center align-middle"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
-                <td class="py-2.5 pr-3 font-medium"><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></td>
+                <td class="py-2.5 pr-3 font-medium whitespace-nowrap"><div class="flex items-center gap-2"><img v-if="showPhoto && inv.person?.photo_url" :src="inv.person.photo_url" alt="" class="w-7 h-7 rounded-full object-cover shrink-0" /><span v-else-if="showPhoto" class="w-7 h-7 rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold flex items-center justify-center shrink-0">{{ personInitials(inv) }}</span><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></div></td>
                 <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
-                <td v-for="col in visibleColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600">
+                <td v-for="col in tableColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600" :class="col.nowrap ? 'whitespace-nowrap' : ''">
                   <template v-if="col.type === 'photo'">
                     <img v-if="col.get(inv)" :src="col.get(inv)" class="w-7 h-7 rounded-full object-cover" />
                     <span v-else class="text-gray-300">—</span>
@@ -993,9 +1048,9 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                   </template>
                   <span v-else>{{ col.get(inv) ?? '—' }}</span>
                 </td>
-                <td class="py-2.5 pr-3 text-center"><Checkbox :model-value="isAttendedForContext(inv)" binary @change="toggleAttendance(inv)" /></td>
-                <td class="py-2.5 pr-3 text-center"><Checkbox :model-value="inv.signed_out" binary :disabled="!isAttendedForContext(inv)" @change="toggleSignOut(inv)" /></td>
-                <td class="py-2.5">
+                <td class="py-2.5 px-2 text-center sticky right-[160px] bg-inherit z-[5] shadow-[inset_2px_0_0_#e5e7eb]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="isAttendedForContext(inv)" binary @change="toggleAttendance(inv)" /></td>
+                <td class="py-2.5 px-2 text-center sticky right-[72px] bg-inherit z-[5]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="inv.signed_out" binary :disabled="!isAttendedForContext(inv)" @change="toggleSignOut(inv)" /></td>
+                <td class="py-2.5 px-2 sticky right-0 bg-inherit z-[5]" style="width:72px;min-width:72px;max-width:72px">
                   <div class="flex items-center gap-2 text-gray-400">
                     <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
                     <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
@@ -1027,12 +1082,12 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                 </td>
               </tr>
               <tr v-for="inv in groupedInvitees.ungrouped" :key="inv.id" draggable="true" @dragstart="onDragStart($event, inv.id)"
-                class="hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
+                class="bg-white hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
                 <td class="pl-3 pr-1 py-2.5 w-8 text-center align-middle text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
                 <td class="pl-1 pr-2 py-2.5 w-8 text-center align-middle"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
-                <td class="py-2.5 pr-3 font-medium"><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></td>
+                <td class="py-2.5 pr-3 font-medium whitespace-nowrap"><div class="flex items-center gap-2"><img v-if="showPhoto && inv.person?.photo_url" :src="inv.person.photo_url" alt="" class="w-7 h-7 rounded-full object-cover shrink-0" /><span v-else-if="showPhoto" class="w-7 h-7 rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold flex items-center justify-center shrink-0">{{ personInitials(inv) }}</span><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></div></td>
                 <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
-                <td v-for="col in visibleColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600">
+                <td v-for="col in tableColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600" :class="col.nowrap ? 'whitespace-nowrap' : ''">
                   <template v-if="col.type === 'photo'">
                     <img v-if="col.get(inv)" :src="col.get(inv)" class="w-7 h-7 rounded-full object-cover" />
                     <span v-else class="text-gray-300">—</span>
@@ -1043,9 +1098,9 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                   </template>
                   <span v-else>{{ col.get(inv) ?? '—' }}</span>
                 </td>
-                <td class="py-2.5 pr-3 text-center"><Checkbox :model-value="isAttendedForContext(inv)" binary @change="toggleAttendance(inv)" /></td>
-                <td class="py-2.5 pr-3 text-center"><Checkbox :model-value="inv.signed_out" binary :disabled="!isAttendedForContext(inv)" @change="toggleSignOut(inv)" /></td>
-                <td class="py-2.5">
+                <td class="py-2.5 px-2 text-center sticky right-[160px] bg-inherit z-[5] shadow-[inset_2px_0_0_#e5e7eb]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="isAttendedForContext(inv)" binary @change="toggleAttendance(inv)" /></td>
+                <td class="py-2.5 px-2 text-center sticky right-[72px] bg-inherit z-[5]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="inv.signed_out" binary :disabled="!isAttendedForContext(inv)" @change="toggleSignOut(inv)" /></td>
+                <td class="py-2.5 px-2 sticky right-0 bg-inherit z-[5]" style="width:72px;min-width:72px;max-width:72px">
                   <div class="flex items-center gap-2 text-gray-400">
                     <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
                     <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
@@ -1095,6 +1150,15 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
             class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/15 transition-colors whitespace-nowrap"
             v-tooltip.top="`Sign out ${selectedSignedIn.length} of ${attendanceSelected.length}`"
             @click="markSelectedOut"><i class="pi pi-sign-out text-xs" />Sign out</button>
+          <!-- Message the selection: two channels, one affordance each. NOT BUILT YET —
+               the buttons exist so the shape of the feature is agreed; each toasts what
+               it WOULD do rather than pretending to send (see bulkSend). -->
+          <button class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/15 transition-colors whitespace-nowrap"
+            v-tooltip.top="`Email ${selectedWithEmail.length} of ${attendanceSelected.length}`"
+            @click="bulkSend('email')"><i class="pi pi-envelope text-xs" />Email</button>
+          <button class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/15 transition-colors whitespace-nowrap"
+            v-tooltip.top="`Send an app notification to ${attendanceSelected.length}`"
+            @click="bulkSend('notification')"><i class="pi pi-bell text-xs" />Notify</button>
           <button class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/15 transition-colors whitespace-nowrap" @click="showAddToSubGroupDialog = true"><i class="pi pi-user-plus text-xs" />Sub-group</button>
           <button class="w-8 h-8 rounded-full hover:bg-white/15 flex items-center justify-center shrink-0" v-tooltip.top="'Clear selection'" @click="clearAttendanceSelection"><i class="pi pi-times text-sm" /></button>
         </div>
@@ -1228,30 +1292,6 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
       </template>
     </Dialog>
 
-    <!-- Recurring add scope — add to just this occurrence or this + every following one -->
-    <Dialog v-model:visible="addScopeOpen" modal :draggable="false" header="Add to the series?" :style="{ width: '95vw', maxWidth: '440px' }">
-      <p class="text-sm text-gray-600 mb-3">This event repeats. Add <span class="font-medium text-gray-900">{{ pendingAddPerson?.name }}</span> to just this occurrence, or this and every following one?</p>
-      <div class="space-y-1.5">
-        <label v-for="opt in [
-          { value: 'this', label: 'This event only', desc: 'Just this occurrence' },
-          { value: 'following', label: 'This and following events', desc: 'This occurrence and every later one in the series' },
-        ]" :key="opt.value"
-          class="flex items-start gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors"
-          :class="addScope === opt.value ? 'border-primary bg-primary/5' : 'border-gray-200 hover:bg-gray-50'">
-          <RadioButton v-model="addScope" :value="opt.value" :inputId="`addscope-${opt.value}`" class="mt-0.5" />
-          <span class="min-w-0">
-            <span class="block text-sm font-medium text-gray-800">{{ opt.label }}</span>
-            <span class="block text-xs text-gray-500">{{ opt.desc }}</span>
-          </span>
-        </label>
-      </div>
-      <template #footer>
-        <Button label="Cancel" severity="secondary" text size="small" @click="addScopeOpen = false" />
-        <Button label="Add" icon="pi pi-check" size="small" :loading="inlineAddBusy"
-          style="background:var(--brand-primary);border-color:var(--brand-primary)" @click="confirmAddScope" />
-      </template>
-    </Dialog>
-
     <!-- #25 Print preview + config drawer -->
     <Dialog v-model:visible="printPreviewOpen" modal header="Print preview" :style="{ width: '95vw', maxWidth: '1100px' }" :pt="{ content: { style: 'padding:0' } }">
       <div class="flex flex-col sm:flex-row" style="height:70vh">
@@ -1264,16 +1304,22 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                 <tr class="border-b-2 border-gray-300 text-left text-xs uppercase tracking-wide text-gray-500">
                   <th class="py-2 pr-3">{{ t('member') }}</th>
                   <th v-if="printStatus" class="py-2 pr-3">Status</th>
-                  <th v-for="col in visibleColumns" :key="col.key" class="py-2 pr-3 whitespace-nowrap">{{ col.label }}</th>
+                  <th v-for="col in tableColumns" :key="col.key" class="py-2 pr-3 whitespace-nowrap">{{ col.label }}</th>
                   <th class="py-2 pr-3 text-center">Sign In</th>
                   <th class="py-2 text-center">Sign Out</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="inv in previewInvitees" :key="inv.id" class="border-b border-gray-100">
-                  <td class="py-1.5 pr-3 font-medium text-gray-800 whitespace-nowrap">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</td>
+                  <td class="py-1.5 pr-3 font-medium text-gray-800 whitespace-nowrap">
+                    <span class="flex items-center gap-2">
+                      <img v-if="showPhoto && inv.person?.photo_url" :src="inv.person.photo_url" alt="" class="w-6 h-6 rounded-full object-cover shrink-0" />
+                      <span v-else-if="showPhoto" class="w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-[10px] font-semibold flex items-center justify-center shrink-0">{{ personInitials(inv) }}</span>
+                      {{ inv.person?.first_name }} {{ inv.person?.last_name }}
+                    </span>
+                  </td>
                   <td v-if="printStatus" class="py-1.5 pr-3 text-gray-600">{{ inviteStatus(inv).label }}</td>
-                  <td v-for="col in visibleColumns" :key="col.key" class="py-1.5 pr-3 text-gray-600">{{ col.get(inv) ?? '—' }}</td>
+                  <td v-for="col in tableColumns" :key="col.key" class="py-1.5 pr-3 text-gray-600" :class="col.nowrap ? 'whitespace-nowrap' : ''">{{ col.get(inv) ?? '—' }}</td>
                   <td class="py-1.5 pr-3 text-center">
                     <span v-if="printSignStyle === 'tick'" class="inline-block w-4 h-4 border border-gray-400 rounded-sm" />
                     <span v-else class="inline-block w-24 border-b border-gray-500 align-bottom" style="height:15px" />

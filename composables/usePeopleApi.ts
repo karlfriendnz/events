@@ -5,6 +5,7 @@
 import type { Person, PersonCreate, PersonPatch, PersonWithOrg } from '../shared/contracts/person'
 import type { PersonNote } from '../shared/contracts/circle'
 import type { PersonNoteCreate, PersonNoteUpdate } from '../shared/contracts/personNote'
+import type { PersonOverride, PersonOverridePatch } from '../shared/contracts/personOverride'
 
 export function usePeopleApi() {
   /** Everyone in an org, with optional paging + a name/email search. */
@@ -78,5 +79,25 @@ export function usePeopleApi() {
   async function removeNote(id: string): Promise<void> {
     await $fetch(`/api/v1/person-notes/${id}`, { method: 'DELETE' })
   }
-  return { list, get, findByEmail, byIds, findAllByEmail, create, update, remove, setTypeForMany, removeMany, addNote, updateNote, removeNote }
+  // ── Governing-body private overlay (edits on a club-owned person) ──
+  /** The NSO's private overlay of edits on a person, or null if none yet. */
+  async function getOverride(personId: string, orgId: string): Promise<PersonOverride | null> {
+    // A no-overlay person returns 204 (→ undefined); normalise anything not an object to null.
+    const r = await $fetch<PersonOverride | null>(`/api/v1/people/${personId}/override`, { query: { orgId } })
+    return r && typeof r === 'object' ? r : null
+  }
+  /** Save the NSO's edits to the overlay (merges onto any existing overlay). */
+  async function saveOverride(personId: string, patch: PersonOverridePatch): Promise<PersonOverride> {
+    return await $fetch<PersonOverride>(`/api/v1/people/${personId}/override`, { method: 'PATCH', body: patch })
+  }
+  /** Push the overlay onto the club's person row + clear it. Returns the updated person. */
+  async function pushOverride(personId: string, orgId: string): Promise<Person> {
+    return await $fetch<Person>(`/api/v1/people/${personId}/override-push`, { method: 'POST', body: { orgId } })
+  }
+  /** Discard the overlay (revert to the club's values). */
+  async function discardOverride(personId: string, orgId: string): Promise<void> {
+    await $fetch(`/api/v1/people/${personId}/override`, { method: 'DELETE', query: { orgId } })
+  }
+
+  return { list, get, findByEmail, byIds, findAllByEmail, create, update, remove, setTypeForMany, removeMany, addNote, updateNote, removeNote, getOverride, saveOverride, pushOverride, discardOverride }
 }

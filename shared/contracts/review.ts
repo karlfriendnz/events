@@ -41,6 +41,28 @@ export const pageCommentSchema = z.object({
   reviewerId: z.string().nullable(),
   parentId: z.string().nullable(),
   anchorSelector: z.string().nullable(),
+  // The captured ReviewTarget (utils/reviewTarget.ts). Held as a passthrough
+  // object rather than a mirrored zod shape ON PURPOSE: the capture module is
+  // deliberately standalone so it can be lifted into a browser extension, and
+  // re-declaring its fields here would make it two things to keep in step. A
+  // comment must survive a capture from a newer/older client either way.
+  context: z.record(z.any()).nullable(),
+  claudeStatus: z.string().nullable(),
+  claudeNote: z.string().nullable(),
+  claudeAt: z.string().nullable(),
+  /** Approved by the builder as real work. Only ready comments reach an agent. */
+  ready: z.boolean(),
+  readyAt: z.string().nullable(),
+  /** Images dropped on the comment — screenshots, mock-ups, references. */
+  attachments: z.array(z.object({ url: z.string(), name: z.string().nullable().optional() })).nullable(),
+  /**
+   * The comment's PERMANENT number on its page. Assigned once and never reused,
+   * so resolving one comment can't renumber the rest — "pin 7" means the same
+   * thing tomorrow. Nullable only for rows created before migration 0020.
+   */
+  seq: z.number().nullable(),
+  /** page_reviewers ids this comment addresses (@kate). */
+  mentions: z.array(z.string()).nullable(),
   createdAt: z.string().nullable(),
 })
 export type PageComment = z.infer<typeof pageCommentSchema>
@@ -87,13 +109,81 @@ export const createCommentInputSchema = z.object({
   x: z.number().nullable().optional(),
   y: z.number().nullable().optional(),
   anchorSelector: z.string().nullable().optional(),
+  mentions: z.array(z.string()).nullable().optional(),
+  context: z.record(z.any()).nullable().optional(),
+  /**
+   * Set by the client when the author IS the builder — his own comments are
+   * work by definition, so the triage gate never costs him a second click.
+   * Everyone else's default to false and wait for his approval.
+   */
+  ready: z.boolean().optional(),
 })
 export type CreateCommentInput = z.infer<typeof createCommentInputSchema>
 
-export const setCommentResolvedInputSchema = z.object({
-  resolved: z.boolean(),
+/**
+ * ONE partial patch for a comment. Resolve/reopen, fix a typo in the body, or
+ * record that Claude actioned it — every field optional, only what is sent is
+ * written. Three near-identical routes would have been three places to keep the
+ * "what may a client change" rule in step.
+ */
+export const patchCommentInputSchema = z.object({
+  resolved: z.boolean().optional(),
   resolvedById: z.string().nullable().optional(),
+  /** Edited comment text. */
+  body: z.string().min(1).optional(),
+  /**
+   * Agent hand-back; null clears it back to untouched.
+   *  - 'queued'     → included in a task brief and handed over; not started.
+   *                   Stamped by the export itself, so the panel shows what is
+   *                   in flight rather than looking identical to untouched work.
+   *  - 'done'       → actioned, awaiting a human sign-off.
+   *  - 'needs_info' → could not be placed or understood; `claudeNote` holds the
+   *    question. This exists so the honest answer to an ambiguous note is a
+   *    QUESTION rather than a guessed change to the wrong element.
+   */
+  claudeStatus: z.enum(['queued', 'done', 'needs_info']).nullable().optional(),
+  claudeNote: z.string().nullable().optional(),
+  /** Builder approving (or un-approving) a suggestion as real work. */
+  ready: z.boolean().optional(),
+  /** Whole replacement of the attachment list (add or remove an image). */
+  attachments: z.array(z.object({ url: z.string(), name: z.string().nullable().optional() })).nullable().optional(),
+  /** Re-derived from the body whenever the text is edited. */
+  mentions: z.array(z.string()).nullable().optional(),
+  /**
+   * RE-ANCHORING an existing pin — the capture guessed the wrong element, or
+   * the comment was left before capture existed. Sent as a set (position AND
+   * the element description together), because a pin whose coordinates say one
+   * thing and whose context says another is worse than either alone.
+   */
+  x: z.number().nullable().optional(),
+  y: z.number().nullable().optional(),
+  anchorSelector: z.string().nullable().optional(),
+  context: z.record(z.any()).nullable().optional(),
 })
+export type PatchCommentInput = z.infer<typeof patchCommentInputSchema>
+
+/** @deprecated kept so an older client's resolve payload still parses. */
+export const setCommentResolvedInputSchema = patchCommentInputSchema
+
+// ── Task brief (the "hand these to Claude" export) ───────────────────────────
+export const buildBriefInputSchema = z.object({
+  orgId: z.string().min(1),
+  /** Limit the brief to one page key; omitted = every open comment in the org. */
+  path: z.string().nullable().optional(),
+  /**
+   * Hand over just these comments. Takes precedence over `path` — an explicit
+   * pick is a stronger statement of intent than the page filter it was made on.
+   * Omitted/empty = fall back to the path scope.
+   */
+  ids: z.array(z.string()).nullable().optional(),
+})
+export const briefResultSchema = z.object({
+  file: z.string(),
+  taskCount: z.number(),
+  pageCount: z.number(),
+  markdown: z.string(),
+})
+export type BriefResult = z.infer<typeof briefResultSchema>
 
 export const createSignoffInputSchema = z.object({
   orgId: z.string().min(1),

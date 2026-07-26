@@ -733,6 +733,9 @@ export const events = mysqlTable('events', {
   masterEventId: varchar('master_event_id', { length: 36 }),
   sharingConfig: json('sharing_config'),
   bannerUrl: text('banner_url'),
+  // CSS object-position ("50% 30%") picking which part of the banner shows when
+  // it's cropped to fit a box. Null = centre. See migration 0021.
+  bannerPosition: varchar('banner_position', { length: 24 }),
   attachments: json('attachments'),
   tcContent: text('tc_content'),
   isFeatured: boolean('is_featured').notNull(),
@@ -1258,6 +1261,28 @@ export const pageComments = mysqlTable('page_comments', {
   reviewerId: varchar('reviewer_id', { length: 36 }),
   parentId: varchar('parent_id', { length: 36 }),
   anchorSelector: text('anchor_selector'),
+  // The captured ReviewTarget — what the pin points AT (field/section/component
+  // /dom_path). Makes a two-word comment actionable, and lets the pin be redrawn
+  // from its element instead of the frozen x/y. See migration 0017.
+  context: json('context'),
+  // Agent hand-back: 'done' + what changed. The comment stays open; a human
+  // still resolves it.
+  claudeStatus: varchar('claude_status', { length: 20 }),
+  claudeNote: text('claude_note'),
+  claudeAt: timestamp('claude_at'),
+  // A comment is a SUGGESTION until the builder marks it ready. Only ready
+  // comments can be sent to an agent. See migration 0018.
+  ready: boolean('ready').notNull().default(false),
+  readyAt: timestamp('ready_at'),
+  // Images dropped onto the comment ([{ url, name }]) — a marked-up screenshot
+  // often explains feedback faster than a sentence. See migration 0019.
+  attachments: json('attachments'),
+  // The comment's PERMANENT number on its page. Assigned once, never reused, so
+  // resolving one comment can't renumber the others. See migration 0020.
+  seq: int('seq'),
+  // page_reviewers ids this comment addresses (@kate). Stored as ids, not
+  // re-parsed from the text. See migration 0022.
+  mentions: json('mentions'),
 })
 
 export const pageReviewers = mysqlTable('page_reviewers', {
@@ -1386,6 +1411,20 @@ export const persons = mysqlTable('persons', {
   commsTopics: json('comms_topics'),
   phone2: text('phone2'),
   invitedAt: timestamp('invited_at'),
+})
+
+// A governing body's private EDITS to a club-owned person. Keyed by (org_id = the
+// NSO, person_id = the club's person). `core` overrides identity/contact columns,
+// `custom_fields` overrides the NSO's own field values. The club's persons row is
+// never touched until the NSO explicitly PUSHES these overrides to the club.
+export const personOrgOverrides = mysqlTable('person_org_overrides', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  orgId: varchar('org_id', { length: 36 }).notNull(),
+  personId: varchar('person_id', { length: 36 }).notNull(),
+  core: json('core'),
+  customFields: json('custom_fields'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 export const physicalSchedules = mysqlTable('physical_schedules', {

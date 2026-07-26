@@ -352,14 +352,16 @@ function save() {
                   <InputText v-else-if="getValueType(cond.key) === 'string'"
                     v-model="cond.value" placeholder="e.g. SAVE20" class="w-full font-mono text-sm h-9 px-3" />
 
-                  <!-- enum -->
+                  <!-- enum — label is English, value stays the stored code -->
                   <Select v-else-if="getValueType(cond.key) === 'enum'"
-                    v-model="cond.value" :options="getConditionOptions(cond.key)" class="w-full text-sm"
+                    v-model="cond.value" :options="getConditionOptions(cond.key)"
+                    option-label="label" option-value="value" class="w-full text-sm"
                     :pt="{ root: { style: 'border: none; box-shadow: none; background: transparent; padding: 0' } }" />
 
                   <!-- array -->
                   <MultiSelect v-else-if="getValueType(cond.key) === 'array'"
                     v-model="cond.value" :options="getConditionOptions(cond.key)"
+                    option-label="label" option-value="value"
                     placeholder="Select…" class="w-full text-sm" />
                 </template>
                 <div v-else class="h-9" />

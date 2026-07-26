@@ -18,8 +18,9 @@ const props = withDefaults(defineProps<{
   /** Rendered as a labelled row (label left) unless the host wants bare controls. */
   label?: string
   labelWidth?: string
-  /** Hide the Custom option (its combination-picker isn't enforced yet). Opt-in per
-   *  surface so re-enabling is a one-line flip. */
+  /** Hide the Custom option (its combination-picker isn't enforced yet). Hidden by
+   *  DEFAULT on every surface — pass `:hide-custom="false"` to bring it back, so
+   *  re-enabling it (here or per surface) stays a one-line flip. */
   hideCustom?: boolean
 }>(), {
   typeKeys: () => [],
@@ -27,7 +28,7 @@ const props = withDefaults(defineProps<{
   personIds: () => [],
   label: 'Visibility',
   labelWidth: 'sm:w-20',
-  hideCustom: false,
+  hideCustom: true,
 })
 
 const emit = defineEmits<{
@@ -45,7 +46,12 @@ const VISIBILITY_OPTIONS: { label: string; value: string }[] = [
   { label: 'All members', value: 'all_members' },
   { label: 'Custom', value: 'custom' },
 ]
-const options = computed(() => props.hideCustom ? VISIBILITY_OPTIONS.filter(o => o.value !== 'custom') : VISIBILITY_OPTIONS)
+// An event ALREADY saved as custom keeps the option on show — dropping it would
+// leave the SelectButton with nothing selected and silently re-answer the question.
+const options = computed(() =>
+  props.hideCustom && props.modelValue !== 'custom'
+    ? VISIBILITY_OPTIONS.filter(o => o.value !== 'custom')
+    : VISIBILITY_OPTIONS)
 
 const typeOptions = ref<{ value: string; label: string }[]>([])
 const groupOptions = ref<{ value: string; label: string; color?: string }[]>([])

@@ -47,7 +47,10 @@ export const APPLY_TO_OPTIONS = [
 ]
 
 // Config-driven condition system — each entry maps to {key, operator, value} in JSONB.
-export const CONDITION_DEFS: Record<string, { label: string; group: string; operators: string[]; valueType: string; options?: string[] }> = {
+// `label` names the condition in the picker; `sentence` (optional) is the same
+// condition read back inside a summary chip, where the operator supplies the word
+// the label already carries ("Register before" + "before" stuttered).
+export const CONDITION_DEFS: Record<string, { label: string; group: string; operators: string[]; valueType: string; options?: string[]; sentence?: string }> = {
   // Age min/max are NOT offered in the picker (see ACTIVE_CONDITION_KEYS) —
   // `participant_age_between` with an open min OR max subsumes both, so they were
   // redundant. Kept here (and their eval cases in useDiscountEval) so any legacy
@@ -70,8 +73,8 @@ export const CONDITION_DEFS: Record<string, { label: string; group: string; oper
   booked_full_day:                          { label: 'Whole day booked',                 group: 'Registration',  operators: ['is_true'],            valueType: 'boolean' },
   booked_full_week:                         { label: 'Whole week booked',                group: 'Registration',  operators: ['is_true'],            valueType: 'boolean' },
   ticket_quantity_min:                      { label: 'Ticket quantity',                  group: 'Registration',  operators: ['>=', '>', '='],       valueType: 'number' },
-  registration_date_before:                 { label: 'Register before',                  group: 'Registration',  operators: ['<=', '<'],            valueType: 'datetime'},
-  registration_within_first_n_registrations:{ label: 'Within first N registrations',    group: 'Registration',  operators: ['<='],                 valueType: 'number' },
+  registration_date_before:                 { label: 'Register before',                  group: 'Registration',  operators: ['<=', '<'],            valueType: 'datetime', sentence: 'Register' },
+  registration_within_first_n_registrations:{ label: 'Within the first # of registrations', group: 'Registration', operators: ['<='],              valueType: 'number' },
   promo_code:                               { label: 'Promo code',                       group: 'Registration',  operators: ['equals'],             valueType: 'string' },
   event_category:                           { label: 'Event category',                   group: 'Event/Session', operators: ['in', 'not_in'],       valueType: 'array',  options: ['holiday_programme', 'tournament', 'workshop', 'class', 'camp'] },
   session_category:                         { label: 'Session category',                 group: 'Event/Session', operators: ['in', 'not_in'],       valueType: 'array',  options: ['morning', 'afternoon', 'full_day', 'skills', 'fitness'] },
@@ -97,6 +100,40 @@ export const OPERATOR_LABELS: Record<string, string> = {
   'within': 'within', 'contains': 'contains',
 }
 
+// A DATE reads as a date, not a quantity — "Register before ≤ at most 12 Jul" is
+// nonsense, so date-valued conditions get their own wording for the SAME operators
+// (the numeric labels must stay put: "age ≤ at most 12" is right).
+// Deliberately no "after": useDiscountEval tests a date one way only
+// (`now <= value`) regardless of operator, so offering it would silently evaluate
+// backwards — that needs the evaluator changing first.
+export const DATE_OPERATOR_LABELS: Record<string, string> = {
+  '<=': 'on or before', '<': 'before',
+}
+
+export function operatorLabel(conditionKey: string | null | undefined, operator: string | null | undefined): string {
+  if (!operator) return ''
+  const def = conditionKey ? CONDITION_DEFS[conditionKey] : undefined
+  if (def?.valueType === 'datetime' && DATE_OPERATOR_LABELS[operator]) return DATE_OPERATOR_LABELS[operator]
+  return OPERATOR_LABELS[operator] ?? operator
+}
+
+// Option VALUES are stored codes ('active_member') because the evaluator compares
+// them — but a rule row is a sentence a club reads, so nothing prints the code.
+// Overrides are for the ones plain de-snake-casing gets wrong; everything else
+// (family_pass → "Family pass") falls through to the generic path.
+const OPTION_LABEL_OVERRIDES: Record<string, string> = {
+  active_member: 'Active member',
+  inactive_member: 'Inactive member',
+  non_member: 'Not a member',
+  member: 'Member',
+}
+
+export function conditionOptionLabel(value: string): string {
+  if (OPTION_LABEL_OVERRIDES[value]) return OPTION_LABEL_OVERRIDES[value]
+  const words = String(value ?? '').replace(/_/g, ' ')
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
 export const DISCOUNT_TEMPLATES = [
   { label: 'Member Discount', description: 'Only applies to active members', icon: 'pi-id-card',
     preset: { name: 'Member Discount', form_text: 'Member discount', modifier_value: 10, modifier_type: 'PERCENT', apply_to: 'per_person',
@@ -110,6 +147,18 @@ export const DISCOUNT_TEMPLATES = [
   { label: 'First in, first served', description: 'Discount for the first N people to register', icon: 'pi-bolt',
     preset: { name: 'First in, first served', form_text: 'Early registration bonus', modifier_value: 15, modifier_type: 'PERCENT', apply_to: 'registration_total',
       conditions: [{ key: 'registration_within_first_n_registrations', operator: '<=', value: 50 }] } },
+  // The programme-shaped presets. They mirror quickProgrammeDiscounts() (the
+  // multi-session wizard's inline toggles) so a club that isn't in that wizard can
+  // still start from them here rather than hand-building the same rule.
+  { label: 'Sibling or family', description: 'Off each person when 2+ register together', icon: 'pi-users',
+    preset: { name: 'Sibling discount', form_text: 'Sibling discount', modifier_value: 25, modifier_type: 'PERCENT', apply_to: 'per_person',
+      conditions: [{ key: 'registration_group_size_min', operator: '>=', value: 2 }] } },
+  { label: 'Whole day', description: 'Set price when every session that day is booked', icon: 'pi-sun',
+    preset: { name: 'Full day discount', form_text: 'Book the whole day', modifier_value: 50, modifier_type: 'REPLACE', apply_to: 'registration_total',
+      conditions: [{ key: 'booked_full_day', operator: 'is_true', value: true }] } },
+  { label: 'Whole week', description: 'Set price when the whole week is booked', icon: 'pi-calendar',
+    preset: { name: 'Full week discount', form_text: 'Book the whole week', modifier_value: 200, modifier_type: 'REPLACE', apply_to: 'registration_total',
+      conditions: [{ key: 'booked_full_week', operator: 'is_true', value: true }] } },
 ]
 
 // The three QUICK discounts offered at the top of the Holiday Programme
@@ -151,15 +200,16 @@ export function makeDiscountDraft(): DiscountDraft {
   }
 }
 
-// Only these conditions are offered in the picker for now — they line up with
-// the 4 templates (Member Discount / Early Bird / Age range / First in, first
-// served). The rest stay in CONDITION_DEFS so existing rules still render and
-// the set is a one-line change to expand.
+// Only these conditions are offered in the picker for now — every DISCOUNT_TEMPLATES
+// condition MUST be in here, or the template lands in the editor with a condition
+// row whose Select shows an empty placeholder. The rest stay in CONDITION_DEFS so
+// existing rules still render and the set is a one-line change to expand.
 export const ACTIVE_CONDITION_KEYS = [
   'participant_member_status',              // Membership status
   'participant_age_between',                // Participant age range
   'registration_date_before',              // Register before
-  'registration_within_first_n_registrations', // Within first N registrations
+  'registration_within_first_n_registrations', // Within the first # of registrations
+  'registration_group_size_min',            // Group size (sibling/family)
   'booked_full_day',                        // Whole day booked (programmes)
   'booked_full_week',                       // Whole week booked (programmes)
   'booked_day_count_min',                   // Full days booked (count)
@@ -174,9 +224,12 @@ export function useEventDiscounts() {
     .map(key => ({ key, label: CONDITION_DEFS[key].label }))
 
   const getOperatorOptions = (key: string) =>
-    (CONDITION_DEFS[key]?.operators ?? []).map(op => ({ value: op, label: OPERATOR_LABELS[op] ?? op }))
+    (CONDITION_DEFS[key]?.operators ?? []).map(op => ({ value: op, label: operatorLabel(key, op) }))
   const getValueType = (key: string) => CONDITION_DEFS[key]?.valueType ?? 'number'
-  const getConditionOptions = (key: string) => CONDITION_DEFS[key]?.options ?? []
+  // {label, value} — the label is English, the value stays the stored code the
+  // evaluator compares against.
+  const getConditionOptions = (key: string) =>
+    (CONDITION_DEFS[key]?.options ?? []).map(v => ({ label: conditionOptionLabel(v), value: v }))
 
   function onConditionKeyChange(cond: DiscountCondition, newKey: string) {
     cond.key = newKey
@@ -198,7 +251,7 @@ export function useEventDiscounts() {
     if (!c?.key) return '?'
     const def = CONDITION_DEFS[c.key]
     if (!def) return c.key
-    const opLabel = OPERATOR_LABELS[c.operator ?? ''] ?? c.operator ?? ''
+    const opLabel = operatorLabel(c.key, c.operator)
     // "3 sessions within 3 days" / "3 days within 12 Jul–16 Jul" — a self-contained sentence.
     if (def.valueType === 'period') {
       const v = c.value || {}
@@ -217,15 +270,16 @@ export function useEventDiscounts() {
     let valLabel = ''
     if (def.valueType === 'boolean') valLabel = ''
     else if (def.valueType === 'range') valLabel = `${c.value?.min ?? '?'}–${c.value?.max ?? '?'}`
-    else if (def.valueType === 'array') valLabel = Array.isArray(c.value) ? c.value.join(', ') : ''
+    else if (def.valueType === 'enum') valLabel = c.value ? conditionOptionLabel(String(c.value)) : '?'
+    else if (def.valueType === 'array') valLabel = Array.isArray(c.value) ? c.value.map(v => conditionOptionLabel(String(v))).join(', ') : ''
     else if (def.valueType === 'datetime') valLabel = c.value ? new Date(c.value).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '?'
     else valLabel = String(c.value ?? '?')
-    return [def.label, opLabel, valLabel].filter(Boolean).join(' ')
+    return [def.sentence ?? def.label, opLabel, valLabel].filter(Boolean).join(' ')
   }
 
   return {
     DISCOUNT_TYPES, APPLY_TO_OPTIONS, DISCOUNT_TEMPLATES, CONDITION_DEFS, OPERATOR_LABELS,
     conditionTypeOptions, getOperatorOptions, getValueType, getConditionOptions,
-    onConditionKeyChange, conditionLabel, makeDiscountDraft,
+    onConditionKeyChange, conditionLabel, conditionOptionLabel, operatorLabel, makeDiscountDraft,
   }
 }

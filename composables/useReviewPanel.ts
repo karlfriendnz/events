@@ -9,3 +9,15 @@ export function useReviewPanel() {
 export function useReviewCount() {
   return useState<number>('review-open-count', () => 0)
 }
+
+/**
+ * How many open comments ACROSS THE ORG @mention the signed-in reviewer.
+ *
+ * Kept separate from useReviewCount rather than folded into it: "there are 6
+ * comments on this page" and "someone asked YOU something" are different facts,
+ * and adding them together would produce a number that means neither. The
+ * header shows them as two badges for the same reason.
+ */
+export function useReviewMentionCount() {
+  return useState<number>('review-mention-count', () => 0)
+}

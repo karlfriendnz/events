@@ -46,6 +46,13 @@ const props = defineProps<{
   hideHeader?: boolean          // embed: hide the banner/info/description header
   registerToLogin?: boolean     // embed: "Register" sends the visitor to the system login, then back here
   edit?: boolean                // builder edit mode: fields are click-to-edit (inert inputs)
+  /**
+   * The basic/simple event path (the creation wizards). An ordinary event's form is
+   * ONE page: no step bar, no Next, no "Fill in the form to register" preamble — the
+   * fields on screen already say what to do, and a wizard inside a wizard read as a
+   * second, competing set of steps. The advanced editor keeps all of it.
+   */
+  basic?: boolean
 }>()
 const emit = defineEmits<{
   (e: 'submit', payload: any): void
@@ -125,7 +132,10 @@ const activeGroupId = computed(() => {
 // event keeps its design under 'general', so reading strictly by group id returned {}
 // and the preview lost its info-icons / description / wizard steps.
 const design = computed(() => props.config?.designs?.[activeGroupId.value] ?? props.config?.designs?.general ?? {})
-const isWizard = computed(() => design.value?.style === 'tabs')
+// The basic path is single-page by construction, whatever the stored style says — the
+// designer's default design is style:'tabs', so a basic event would otherwise inherit
+// step chrome it has no control to turn off (Form Style is hidden there).
+const isWizard = computed(() => !props.basic && design.value?.style === 'tabs')
 // The club's own brand colours (Settings → General → Branding). A form inherits them
 // so it looks like the club by default; Form Design can override per form.
 const brand = ref<{ bg: string | null; text: string | null }>({ bg: null, text: null })
@@ -1099,7 +1109,10 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
       <button type="button" class="text-xs font-semibold text-gray-500 hover:text-gray-700" @click="changeIdentity">Change</button>
     </div>
 
-    <div class="prose prose-sm max-w-none text-gray-900 mb-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="formHeading" />
+    <!-- The form's own preamble. Dropped on the basic path: the event's banner and
+         title sit directly above, so "Fill in the form to register" was a second
+         heading saying what the form underneath it already shows. -->
+    <div v-if="!basic" class="prose prose-sm max-w-none text-gray-900 mb-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="formHeading" />
 
     <!-- Step indicator — segments, not a row of dots-and-chevrons: each step gets its
          number and its NAME, and the one you're on is filled with the form's own step

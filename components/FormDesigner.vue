@@ -10,10 +10,19 @@ import { genderRestrictionLabel } from '~/composables/useEventRestrictions'
 import { applicableDiscounts as evalApplicableDiscounts, type DiscountCtx } from '~/composables/useDiscountEval'
 import { conditionsPass } from '~/composables/useFormConditions'
 
-const props = withDefaults(defineProps<{ eventId: string | null; groupId?: string | null; formId?: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean; embedded?: boolean; ageMin?: number | null; ageMax?: number | null; genderRestriction?: string | null;
+const props = withDefaults(defineProps<{ eventId: string | null; groupId?: string | null; formId?: string | null; sessions?: any[]; orgId?: string | null; discounts?: any[]; publicPreview?: boolean; discountSettings?: any; feeLineItems?: any[]; ticketTypes?: any[]; hasTickets?: boolean; embedded?: boolean;
+  /**
+   * The SIMPLE event path (the basic creation wizard). Trims the builder to the
+   * decisions that path actually needs and forces the form to a single page —
+   * the stored default style is 'tabs', so without this a basic event inherits
+   * step chrome (a "Step 1 / Summary" bar and a Next button) it never asked for.
+   * Deliberately NOT derived from `embedded`: that only means "a wizard owns my
+   * footer", and one flag meaning two things is how these drift apart.
+   */
+  basic?: boolean; ageMin?: number | null; ageMax?: number | null; genderRestriction?: string | null;
   /** The host's in-progress event details (wizard) — override the stored draft row. */
   liveEvent?: Record<string, any> | null }>(), {
-  liveEvent: null, groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false, embedded: false, ageMin: null, ageMax: null, genderRestriction: null })
+  liveEvent: null, groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false, embedded: false, basic: false, ageMin: null, ageMax: null, genderRestriction: null })
 
 const emit = defineEmits<{ (e: 'building', v: boolean): void; (e: 'invite-only'): void; (e: 'update:event', v: { title?: string; banner_url?: string | null }): void }>()
 const formsApi = useFormsApi()
@@ -2555,8 +2564,34 @@ function evtAddSubjectType(key: string) {
 function evtConfirmSubjects() {
   chooseEvtFormType('scratch')
   const design = evtFormGroupDesigns[selectedFormGroupId.value]
-  if (design) design.style = 'tabs'
+  if (design) design.style = props.basic ? 'single' : 'tabs'
 }
+
+/**
+ * On the basic path the single-page style is STORED, not just rendered.
+ *
+ * <FormRenderer> is also mounted by the live public page (/r/:context/:id) and
+ * the staff register-on-behalf page, and neither passes `basic` — nor should
+ * they have to, since they only know they're showing a form. If the design were
+ * left saying 'tabs' and only overridden at render here, the builder would show
+ * one page while the registrant still got a "Step 1 / Summary" bar and a Next
+ * button: WYSIWYG broken in the other direction, which is the whole complaint.
+ *
+ * Writing it into the design means the builder, the public page and the staff
+ * page all read the same answer with no prop to thread. It also self-heals a
+ * form created before this change, the next time it is opened in the basic
+ * builder. The advanced editor keeps the Form Style control, so a club that
+ * wants steps can still choose them there.
+ */
+watch(
+  [() => props.basic, selectedFormGroupId, () => evtFormGroupDesigns[selectedFormGroupId.value]?.style],
+  () => {
+    if (!props.basic) return
+    const d = evtFormGroupDesigns[selectedFormGroupId.value]
+    if (d && d.style !== 'single') d.style = 'single'
+  },
+  { immediate: true },
+)
 
 // ── Start from a previous form ──────────────────────────────────────────────
 // List the org's designer-shaped forms, preview one live, then clone its first
@@ -3479,6 +3514,7 @@ defineExpose({ reload })
             <!-- DESIGN/SETTINGS section settings -->
             <template v-else-if="evtSelectedFormSection === 'design'">
               <EventFormDesignPanel
+                :basic="basic"
                 :brand-color="evtBrand.bg"
                 :design="currentEvtFormDesign"
                 :audience="(evtFormGroupsList.find(g => g.id === selectedFormGroupId)?.audience ?? 'all')"
@@ -4082,7 +4118,7 @@ defineExpose({ reload })
                a wide panel is harder to scan, not easier. (The panel behind it is
                full-bleed; that's the part that needed the room.) -->
           <div v-if="!evtFormGroups.length || !evtFormGroupModes[selectedFormGroupId]" class="flex items-start justify-center py-10 px-6">
-            <div class="bg-white rounded-xl shadow-lg overflow-hidden w-full max-w-[580px] flex flex-col max-h-[calc(100%-2rem)]">
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden w-full max-w-[780px] flex flex-col max-h-[calc(100%-2rem)]">
               <!-- Back sits in the header beside the title — it's navigation, and one
                    button in a fixed place beats the same button repeated inside each
                    step's scrolling body (where it moved with the content). -->
@@ -4228,7 +4264,7 @@ defineExpose({ reload })
                     </button>
                     <div v-if="prevPreview?.id === f.id" class="border-t border-gray-100 bg-gray-50 p-3 space-y-2.5">
                       <div class="max-h-[42vh] overflow-y-auto rounded-lg bg-white border border-gray-100 p-1">
-                        <FormRenderer preview :config="prevPreview.config" :context="previewContext" :event="evtDisplayEvent" />
+                        <FormRenderer preview :basic="basic" :config="prevPreview.config" :context="previewContext" :event="evtDisplayEvent" />
                       </div>
                       <button type="button" class="w-full py-2 rounded-lg text-white text-sm font-semibold transition-colors"
                         style="background:var(--brand-primary)" @click="useEvtPreviousForm(f.id)">
@@ -4256,7 +4292,7 @@ defineExpose({ reload })
                chrome as the builder preview so it reads identically, just non-submittable. -->
           <div v-else-if="evtPublicPreview" class="relative z-10 mx-auto my-6 bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"
             :class="evtPreviewDevice === 'mobile' ? 'max-w-[390px]' : 'max-w-[1000px]'">
-            <FormRenderer preview :config="previewConfig" :context="previewContext" :event="evtDisplayEvent"
+            <FormRenderer preview :basic="basic" :config="previewConfig" :context="previewContext" :event="evtDisplayEvent"
               :sessions="previewSessions" :fee-line-items="feeLineItems" />
           </div>
 
@@ -4265,7 +4301,7 @@ defineExpose({ reload })
                evtUnifiedCanvas while it's brought to parity with the EvtFieldCell canvas. -->
           <div v-else-if="evtUnifiedCanvas" class="relative z-10 mx-auto my-6 bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"
             :class="evtPreviewDevice === 'mobile' ? 'max-w-[390px]' : 'max-w-[1000px]'">
-            <FormRenderer edit :config="previewConfig" :context="previewContext" :event="evtDisplayEvent"
+            <FormRenderer edit :basic="basic" :config="previewConfig" :context="previewContext" :event="evtDisplayEvent"
               :sessions="previewSessions" :fee-line-items="feeLineItems"
               @edit-field="onUnifiedEditField" @restructure="onUnifiedRestructure" @drop-field="onUnifiedDrop"
               @edit-subject-intro="onUnifiedSubjectIntro" @edit-section-intro="onUnifiedSectionIntro"

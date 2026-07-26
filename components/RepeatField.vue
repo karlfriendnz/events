@@ -2,12 +2,29 @@
   <div class="flex-1 flex flex-col gap-2 w-full">
     <!-- Row: dropdown + skip button -->
     <div class="flex items-stretch gap-2 w-full">
+      <!-- The dropdown is given the rule WITHOUT its count. It matches options by
+           exact value, so "FREQ=WEEKLY;BYDAY=SU;COUNT=8" would match nothing and
+           the Select would sit there blank while a repeat was clearly set. -->
       <RepeatSelect
-        :model-value="modelValue"
+        :model-value="bareRule"
         :date="baseDate ?? null"
         :show-custom="true"
         @update:model-value="onRuleChange"
         @customRepeat="openCustom" />
+
+      <!-- How many times it runs. Sits ON the repeat row: choosing "Weekly on
+           Sunday" immediately raises "how many Sundays?", and answering it
+           shouldn't mean opening the Custom dialog and rebuilding the rule you
+           just picked. Hidden for a CUSTOM rule, which sets its own end. -->
+      <div v-if="showOccurrences" class="shrink-0 flex items-center gap-1.5">
+        <InputNumber :model-value="occurrences" :min="1" :max="999"
+          :use-grouping="false" class="w-16" :input-class="'w-16 text-center'"
+          placeholder="∞"
+          @update:model-value="onOccurrences" />
+        <span class="text-xs text-gray-500 whitespace-nowrap">
+          {{ occurrences ? `time${occurrences === 1 ? '' : 's'}` : 'times' }}
+        </span>
+      </div>
 
       <button v-if="hasRule && baseDate" type="button"
         class="shrink-0 inline-flex items-center gap-1.5 px-3 rounded-md text-sm font-medium border transition-colors h-[2.625rem]"
@@ -131,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { rruleToSummary } from '~/composables/useRepeatOptions'
+import { rruleToSummary, rruleCount, rruleWithCount, isPresetRrule } from '~/composables/useRepeatOptions'
 
 const props = withDefaults(defineProps<{
   modelValue: string             // rrule
@@ -151,6 +168,21 @@ const emit = defineEmits<{
 
 const hasRule = computed(() => !!props.modelValue && props.modelValue !== 'NONE')
 
+/**
+ * The occurrence box shows for a PRESET repeat only. A rule built in the Custom
+ * dialog already carries its own ending (a count or an until date), so offering
+ * a second control for the same thing would let the row and the dialog disagree.
+ */
+/** The rule minus its count — what the dropdown matches its options against. */
+const bareRule = computed(() => rruleWithCount(props.modelValue, null))
+const showOccurrences = computed(() => hasRule.value && isPresetRrule(props.modelValue, props.baseDate ?? null))
+const occurrences = computed(() => rruleCount(props.modelValue))
+function onOccurrences(v: number | null) {
+  // Blank means "no limit" — the series simply runs on, which is what an rrule
+  // with no COUNT already means.
+  emit('update:modelValue', rruleWithCount(props.modelValue, v && v > 0 ? v : null))
+}
+
 // ── Skip-dates dialog ────────────────────────────────────
 const exclusionsOpen = ref(false)
 
@@ -166,8 +198,13 @@ function formatExdateLabel(key: string) {
 }
 
 function onRuleChange(v: string) {
-  emit('update:modelValue', v)
-  if (!v || v === 'NONE') emit('update:exdates', [])
+  // Keep the count across a frequency change: someone who said "8 times" and
+  // then switched Daily → Weekly still means 8 times, and silently dropping it
+  // makes the box feel like it didn't take.
+  const keep = rruleCount(props.modelValue)
+  const next = v && v !== 'NONE' && v !== 'CUSTOM' ? rruleWithCount(v, keep) : v
+  emit('update:modelValue', next)
+  if (!next || next === 'NONE') emit('update:exdates', [])
 }
 
 // ── Custom recurrence dialog ─────────────────────────────

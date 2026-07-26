@@ -213,7 +213,6 @@ function toggleField(c: CfgItem, key: string) {
 }
 
 // ── Value lookup / formatting ──
-const GENDER_LABEL: Record<string, string> = { MALE: 'Male', FEMALE: 'Female', NON_BINARY: 'Non-binary', UNSPECIFIED: 'Unspecified' }
 function rawValue(person: any, key: string) {
   const f = fieldByKey.value[key]
   if (!f) return person?.[key]
@@ -223,7 +222,7 @@ function fmtValue(person: any, key: string) {
   const f = fieldByKey.value[key]
   let v = rawValue(person, key)
   if (v === null || v === undefined || v === '') return '—'
-  if (key === 'gender') return GENDER_LABEL[v] || v
+  if (key === 'gender') return genderLabel(v) || v
   if (f?.field_type === 'date' || key === 'dob') {
     const d = v instanceof Date ? v : new Date(v)
     return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -502,7 +501,7 @@ function statusSeverity(s: string) {
                   <thead><tr class="text-left text-xs text-gray-400"><th class="font-semibold pb-2">Name</th><th class="font-semibold pb-2">Phone</th><th class="font-semibold pb-2">Email</th><th class="font-semibold pb-2">Relationship</th></tr></thead>
                   <tbody>
                     <tr v-for="(p, i) in (data.parents || [])" :key="i" class="border-t border-gray-50">
-                      <td class="py-1.5">{{ p.name }}</td><td class="py-1.5 text-gray-500">{{ p.phone }}</td><td class="py-1.5 text-gray-500">{{ p.email }}</td><td class="py-1.5 text-gray-500">{{ p.relationship }}</td>
+                      <td class="py-1.5">{{ p.name }}</td><td class="py-1.5 text-gray-500 whitespace-nowrap">{{ p.phone }}</td><td class="py-1.5 text-gray-500">{{ p.email }}</td><td class="py-1.5 text-gray-500">{{ p.relationship }}</td>
                     </tr>
                     <tr v-if="!(data.parents || []).length"><td colspan="4" class="py-3 text-gray-400 text-center">No caregivers linked yet.</td></tr>
                   </tbody>

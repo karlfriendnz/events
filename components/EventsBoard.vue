@@ -22,7 +22,11 @@
           <Button icon="pi pi-chevron-left" severity="secondary" text size="small" @click="prev" />
           <span class="text-sm font-semibold text-gray-800 sm:min-w-36 text-center truncate">{{ calendarTitle }}</span>
           <Button icon="pi pi-chevron-right" severity="secondary" text size="small" @click="next" />
-          <Button label="Today" severity="secondary" outlined size="small" class="ml-1 shrink-0" @click="goToday" />
+          <!-- Light blue, on request — it's the "jump back to now" anchor, and a
+               soft tint sets it apart from the plain grey nav buttons without
+               shouting like the primary New Event button does. -->
+          <Button label="Today" size="small" class="ml-1 shrink-0"
+            style="background:#EFF6FF;border-color:#BFDBFE;color:#1D4ED8" @click="goToday" />
         </div>
         <span class="md:hidden text-base font-semibold text-gray-900">{{ t('event', true) }}</span>
       </div>
@@ -79,12 +83,10 @@
 
         <!-- ── Display ───────────────────────────────────────────── -->
         <div v-if="calTab === 'display'" class="flex flex-col gap-5">
-          <!-- "＋ New calendar" — only offered when NOT already editing/creating one -->
-          <button v-if="!editingCalendarId && !creatingNewCal" type="button"
-            class="flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg border border-dashed border-gray-300 text-sm font-medium text-gray-600 hover:border-primary hover:text-primary transition-colors"
-            @click="startNewCalendar">
-            <i class="pi pi-plus text-xs" /> New calendar
-          </button>
+          <!-- No "＋ New calendar" button here: this drawer is the settings for the
+               calendar you're LOOKING at, and an add-another control read as part of
+               them. Creating one still lives in the left menu's "New calendar" item,
+               which drops into this same pane via `nav-new-calendar` → startNewCalendar(). -->
 
           <!-- Create / edit a calendar — shown only when editing an existing calendar or creating a new one -->
           <div v-if="editingCalendarId || creatingNewCal" class="flex flex-col gap-2">
@@ -110,10 +112,11 @@
               <div class="flex flex-col gap-1.5 mt-2">
                 <label class="text-xs font-medium text-gray-600">Categories in this calendar</label>
                 <ChipMultiSelect v-model="newCalendarCategoryIds" :options="allCategories"
-                  option-label="name" option-value="id" placeholder="Any category"   class="w-full">
+                  option-label="name" option-value="id" chip-color-field="color"
+                  placeholder="Any category"   class="w-full">
                   <template #option="{ option }">
                     <div class="flex items-center gap-2">
-                      <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: option.color ?? '#94a3b8' }" />
+                      <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: option.color || '#94a3b8' }" />
                       <span>{{ option.name }}</span>
                     </div>
                   </template>
@@ -223,9 +226,19 @@
               option-label="name" option-value="id" placeholder="Any category" display="chip" filter class="w-full">
               <template #option="{ option }">
                 <div class="flex items-center gap-2">
-                  <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: option.color ?? '#94a3b8' }" />
+                  <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: option.color || '#94a3b8' }" />
                   <span>{{ option.name }}</span>
                 </div>
+              </template>
+              <!-- The colour is how a category is recognised on the board, so the
+                   CHOSEN ones carry it too — not just the list you chose them from. -->
+              <template #chip="{ value, removeCallback }">
+                <span class="inline-flex items-center gap-1.5 pl-1.5 pr-2 py-px text-xs rounded-full bg-slate-100 text-slate-700">
+                  <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: categoryColor(value) }" />
+                  {{ categoriesById[value]?.name ?? value }}
+                  <i class="pi pi-times-circle text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                    @mousedown.stop.prevent @click.stop="removeCallback($event)" />
+                </span>
               </template>
             </MultiSelect>
 
@@ -667,9 +680,9 @@
          invitees — then create. A draft is created on open so the reusable
          invitee manager can write to a real event id; Create publishes it,
          Cancel deletes the draft (onQuickClose) so nothing is left behind. -->
-    <!-- 1000px; top-anchoring comes from the global modal rule in main.css. -->
+    <!-- 1200px; top-anchoring comes from the global modal rule in main.css. -->
     <Dialog v-model:visible="quickOpen" :header="`Quick ${t('event', false, true)}`" modal
-      :style="{ width: '95vw', maxWidth: '1000px' }" @hide="onQuickClose">
+      :style="{ width: '95vw', maxWidth: '1200px' }" @hide="onQuickClose">
       <div class="space-y-3 pt-1">
         <!-- Two tiny steps: essentials, then people. Keeps step 1 phone-simple. -->
         <div class="flex items-center gap-1.5 text-xs mb-1">
@@ -718,6 +731,7 @@
           <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Category</span>
             <ChipMultiSelect v-model="quickForm.category_ids" :options="allCategories" option-label="name" option-value="id"
+              chip-color-field="color"
               placeholder="No category"   class="w-full sm:w-64" :show-toggle-all="false">
               <template #option="{ option }">
                 <span class="inline-flex items-center gap-1.5">
@@ -767,20 +781,33 @@
           </div>
         </div>
       </div>
+      <!-- Footer: the step-back control sits LEFT (it goes backwards, so it reads
+           against the flow), the forward action right. -->
       <template #footer>
-        <template v-if="quickStep === 1">
-          <Button label="Cancel" severity="secondary" text @click="quickOpen = false" />
-          <Button label="Next" icon="pi pi-arrow-right" icon-pos="right"
-            :disabled="!quickForm.name.trim() || !quickForm.start_date"
-            style="background:var(--brand-primary);border-color:var(--brand-primary)"
-            @click="quickNext" />
-        </template>
-        <template v-else>
-          <Button label="Back" icon="pi pi-arrow-left" severity="secondary" text @click="quickStep = 1" />
-          <Button label="Create event" icon="pi pi-check" :loading="creatingQuick"
-            style="background:var(--brand-primary);border-color:var(--brand-primary)"
-            @click="createQuickEvent" />
-        </template>
+        <div class="flex items-center gap-3 w-full">
+          <template v-if="quickStep === 1">
+            <Button label="Cancel" severity="secondary" text @click="quickOpen = false" />
+            <span class="flex-1" />
+            <Button label="Next" icon="pi pi-arrow-right" icon-pos="right"
+              :disabled="!quickForm.name.trim() || !quickForm.start_date"
+              style="background:var(--brand-primary);border-color:var(--brand-primary)"
+              @click="quickNext" />
+          </template>
+          <template v-else>
+            <Button label="Back" icon="pi pi-arrow-left" severity="secondary" text @click="quickStep = 1" />
+            <span class="flex-1" />
+            <!-- Ticked by default — you picked these people to tell them. Untick to
+                 create quietly. Sending runs AFTER the event is created (and after the
+                 series is materialised) and never blocks the create. -->
+            <label class="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-600 hover:text-gray-800">
+              <Checkbox v-model="quickSendInvite" binary input-id="quick-send-invite" />
+              Send invite
+            </label>
+            <Button label="Create event" icon="pi pi-check" :loading="creatingQuick"
+              style="background:var(--brand-primary);border-color:var(--brand-primary)"
+              @click="createQuickEvent" />
+          </template>
+        </div>
       </template>
     </Dialog>
 
@@ -1125,6 +1152,28 @@ function startHolidayProgramme() {
 // mounted directly. "Create" flips it to PUBLISHED + saves the details; cancelling
 // deletes the draft (onQuickClose) so an abandoned modal leaves nothing behind.
 const quickOpen = ref(false)
+
+/**
+ * Take me to what a review comment is about (see composables/useReviewGoto).
+ *
+ * Several comments on this board were left INSIDE a dialog — the New-event
+ * chooser, the Quick-event modal — and a closed dialog has no element to scroll
+ * to, so clicking those comments did nothing at all. Reopening the dialog is
+ * what makes them reachable.
+ *
+ * Matched on the dialog's captured title against a short explicit list. The
+ * titles are terminology-driven (`t('event')`), so a club that renames Event to
+ * Fixture gets "New fixture" — hence matching on the STABLE part ("new" /
+ * "quick") rather than the whole string, which would silently stop matching the
+ * moment a club renamed anything.
+ */
+useReviewGoto(({ dialog }) => {
+  const d = dialog?.trim().toLowerCase()
+  if (!d) return
+  if (d.startsWith('quick')) quickOpen.value = true
+  else if (d.startsWith('new')) showEventNameModal.value = true
+})
+
 const quickNameInput = ref<any>(null)
 const creatingQuick = ref(false)
 const quickDraftId = ref<string | null>(null)
@@ -1156,6 +1205,7 @@ const quickForm = reactive<{
 })
 
 const quickStep = ref(1)                 // 1 = details, 2 = invitees
+const quickSendInvite = ref(true)        // ticked by default: email the invitees on create
 const quickShowLocation = ref(false)     // location starts collapsed to a slim row
 const quickLocationSummary = computed(() => {
   const l: any = quickForm.locations[0]
@@ -1206,6 +1256,7 @@ async function openQuick() {
   quickForm.locations = [{ type: 'ADDRESS', venue_name: '', address: '', meeting_link: '', bookable_ids: [] }]
   quickCreated.value = false
   quickStep.value = 1
+  quickSendInvite.value = true    // each new event starts from "tell the people I invite"
   quickShowLocation.value = false
   quickForm.category_id = activeCalendarStampCategory.value || null
   quickForm.category_ids = activeCalendarStampCategory.value ? [activeCalendarStampCategory.value] : []
@@ -1285,12 +1336,46 @@ async function createQuickEvent() {
     }
     quickCreated.value = true
     const id = quickDraftId.value
+    // "Send invite" ticked → mail the people just invited. Best-effort by design: the
+    // event exists either way, so a mail failure toasts rather than losing the create.
+    // Only the MASTER is mailed — one invitation for the run, not one per occurrence.
+    if (quickSendInvite.value) await sendQuickInvites(id)
     quickOpen.value = false
     navigateTo(`/events/view/${id}`)
   } catch (error: any) {
     toast.add({ severity: 'error', summary: 'Could not create the event', detail: error?.message, life: 4000 })
   } finally {
     creatingQuick.value = false
+  }
+}
+
+// Mail the invitation to everyone just invited (the footer's "Send invite"). Uses the
+// same endpoint + wording resolution as <EventInvitationDialog> — the event's override,
+// else the club's default template, else the built-in copy — so a quick send and a
+// composed send say the same thing. Nobody invited (or all already told) = a quiet note,
+// not an error: the event is created either way.
+async function sendQuickInvites(eventId: string) {
+  try {
+    const res: any = await $fetch('/api/send-event-invitations', { method: 'POST', body: { eventId } })
+    if (res?.sent) {
+      toast.add({
+        severity: 'success',
+        summary: `Invitation sent to ${res.sent} ${res.sent === 1 ? 'person' : 'people'}`,
+        detail: res.failed ? `${res.failed} failed to send.` : undefined,
+        life: 4000,
+      })
+    } else if (res?.failed) {
+      toast.add({ severity: 'warn', summary: 'Invitations could not be sent', detail: res.errors?.[0] ?? 'Every send failed.', life: 5000 })
+    } else {
+      toast.add({ severity: 'info', summary: 'No invitations to send', detail: 'Nobody invited has an email address we can reach.', life: 4000 })
+    }
+  } catch (e: any) {
+    toast.add({
+      severity: 'warn',
+      summary: `${t('event', false)} created, but the invitation didn't send`,
+      detail: e?.data?.message ?? e?.statusMessage ?? 'You can send it from the event page.',
+      life: 5000,
+    })
   }
 }
 
@@ -1626,6 +1711,10 @@ const bookableTree = computed(() => {
   return out
 })
 const categoriesById = computed(() => Object.fromEntries(allCategories.value.map((c: any) => [c.id, c])))
+// The ONE category-colour lookup for this board's pickers — a category with no colour
+// (or one deleted since a filter saved its id) falls back to neutral grey rather than
+// rendering a black dot. `||` not `??`: an empty-string colour is "unset", not a colour.
+const categoryColor = (id: string) => (categoriesById.value[id]?.color as string | undefined) || '#94a3b8'
 
 const activeCalendar = computed(() => {
   const calId = route.query.calendar as string | undefined
@@ -2111,10 +2200,12 @@ function openEvent(evt: { id: string; status?: string; created_via?: string | nu
     navigateTo(`/events/new-basic?draft=${evt.id}`)
     return
   }
-  // Everything single-session — a finished wizard event, or a Custom one —
-  // opens the SAME form as one long page.
+  // An unfinished CUSTOM draft resumes where it was being built — the one-page form.
+  // (A finished basic event does NOT: it opens the full editor below, same as an
+  // advanced one. Once an event exists it's a thing you run, not a form you're
+  // still filling in, and the tabs are where invitees/attendance/forms live.)
   const singleSession = (evt.style ?? 'BASIC') === 'BASIC'
-  if (singleSession && evt.created_via !== 'advanced' && evt.created_via !== 'multi') {
+  if (unfinished && singleSession && evt.created_via !== 'advanced' && evt.created_via !== 'multi') {
     navigateTo(`/events/new-basic?draft=${evt.id}&mode=full`)
     return
   }

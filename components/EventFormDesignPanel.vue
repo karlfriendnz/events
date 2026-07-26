@@ -33,8 +33,10 @@
         </div>
       </div>
 
-      <!-- Form Style -->
-      <div>
+      <!-- Form Style — ADVANCED ONLY. The basic event path is one page by
+           construction (<FormRenderer :basic> forces single-page), so offering
+           Single Page / Steps here would be a control with nothing behind it. -->
+      <div v-if="!basic">
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Form Style</p>
         <div class="flex p-1 bg-gray-100 rounded-xl gap-1">
           <button type="button" class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors"
@@ -80,7 +82,7 @@
       <div>
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Event Info Icons</p>
         <div class="grid grid-cols-2 gap-y-1 gap-x-2">
-          <label v-for="icon in iconKeys" :key="icon"
+          <label v-for="icon in visibleIconKeys" :key="icon"
             class="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors">
             <Checkbox v-model="design.icons[icon]" binary />
             <span class="text-sm text-gray-700 capitalize">{{ icon }}</span>
@@ -111,8 +113,10 @@
           class="w-full h-9 px-3 text-xs border border-gray-200 rounded-lg outline-none focus:border-[#0e43a3] transition-colors" />
       </div>
 
-      <!-- Add Person Button -->
-      <div>
+      <!-- Add Person Button — ADVANCED ONLY. Picking the shade of one button is
+           branding fiddle, not a decision the basic path needs to make; it falls
+           back to #0e43a3 when nobody sets it. -->
+      <div v-if="!basic">
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Add Person Button</p>
         <div class="flex items-center gap-2 p-2 border border-gray-200 rounded-xl">
           <input type="color" v-model="design.addPersonColor" class="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white" />
@@ -122,8 +126,10 @@
         </div>
       </div>
 
-      <!-- Steps (Form Style = Steps) — inherits the club's brand colour until set. -->
-      <div>
+      <!-- Steps (Form Style = Steps) — inherits the club's brand colour until set.
+           Hidden on the basic path for the same reason as Form Style: with no steps
+           to fill, a "Step colour" swatch configures something that never renders. -->
+      <div v-if="!basic">
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Step colour</p>
         <div class="flex items-center gap-2 p-2 border border-gray-200 rounded-xl">
           <input type="color" :value="design.stepColor || brandColor || '#111827'" class="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white"
@@ -189,7 +195,7 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+const props = defineProps<{
   /**
    * The currentEvtFormDesign object — bound by reference, so direct mutations
    * (e.g. `design.style = 'tabs'`) propagate back to the parent's reactive
@@ -200,6 +206,13 @@ defineProps<{
   audience: 'all' | 'members' | 'public'
   /** The club's brand colour — what the form uses when this form doesn't override it. */
   brandColor?: string | null
+  /**
+   * The basic/simple event path (the creation wizards), as opposed to the advanced
+   * event editor. It hides the chrome controls a club shouldn't have to think about
+   * while creating an ordinary event — the panel keeps ONE set of controls and drops
+   * the advanced ones, rather than the two paths growing separate panels.
+   */
+  basic?: boolean
 }>()
 defineEmits<{
   (e: 'back'): void
@@ -219,4 +232,9 @@ const backgroundOptions = [
   { label: 'Image',   value: 'custom' },
 ]
 const iconKeys = ['date', 'time', 'cost', 'location', 'criteria'] as const
+// "Criteria" is the invitee-restriction line (age/gender). The advanced editor keeps
+// it — a restricted event should be able to say so on its form — but a basic event
+// rarely has restrictions, so the toggle is noise on that path.
+const visibleIconKeys = computed(() =>
+  props.basic ? iconKeys.filter(k => k !== 'criteria') : [...iconKeys])
 </script>
