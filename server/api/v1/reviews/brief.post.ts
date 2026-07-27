@@ -48,7 +48,10 @@ export default defineEventHandler(async (event) => {
     comments = all.filter(c => c.path === path || all.some(p => p.id === c.parentId && p.path === path))
   }
 
-  const { markdown, taskCount, pageCount } = buildBriefMarkdown(comments, { orgId, path })
+  // Stamp the origin this was served from into the brief, so the hand-back PATCHes name
+  // the port the app is ACTUALLY on (Nuxt takes the next free one when 3000 is busy).
+  const baseUrl = getRequestURL(event).origin
+  const { markdown, taskCount, pageCount } = buildBriefMarkdown(comments, { orgId, path, baseUrl })
 
   const file = join(process.cwd(), BRIEF_PATH)
   await mkdir(dirname(file), { recursive: true })

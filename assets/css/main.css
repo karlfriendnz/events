@@ -302,76 +302,43 @@ body {
 }
 
 /* ── Print: attendance roll ──────────────────────────────────────────────────
-   printAttendanceRoll() adds .printing-roll to <body>. Print ONLY the roster table
-   (.roll-print-area): hide the rest of the page, drop the drag(1st) / select(2nd) /
-   actions(last) columns, keep the group-header rows (.roll-group-row, colspan) whole,
-   and repeat the table header on every page (sticky positioning would suppress that). */
+   WHAT PRINTS IS THE PREVIEW SHEET (.roll-print-sheet), which the Print-preview dialog
+   renders — the printout is its own document, not a screenshot of the on-screen roll.
+
+   This block used to be three times this size because it printed the LIVE table and had
+   to undo it: hide the drag/select/actions columns by nth-child, un-stick the pinned
+   ones, swap the sortable header <button> for a plain-text twin, hide the Status column
+   via a body class. None of that is needed now — the sheet is built to be printed, so
+   the only job left is: hide everything else on the page, keep it monochrome, and let it
+   paginate with a repeating header. Column choices, the Status column and the tick-box
+   vs signature-line style all live in the sheet's own markup.
+
+   printAttendanceRoll() adds .printing-roll to <body> and MOVES the sheet to be a direct
+   child of <body> — inside the dialog it descends from a fixed-position mask, and a fixed
+   element doesn't paginate (every page after the first is dropped). */
 @media print {
-  /* printAttendanceRoll() MOVES .roll-print-area to be a direct child of <body> so it
-     prints in NORMAL FLOW — an absolutely-positioned table doesn't paginate, so page 2+
-     was being dropped. We just hide every other body child; the table then flows across
-     pages and thead (table-header-group) repeats on each. */
-  body.printing-roll > *:not(.roll-print-area) { display: none !important; }
-  body.printing-roll .roll-print-area { max-height: none !important; overflow: visible !important; }
-  body.printing-roll .roll-print-title { display: block !important; font-size: 16px; font-weight: 700; margin-bottom: 10px; }
-  body.printing-roll .roll-print-area thead { display: table-header-group; }
-  body.printing-roll .roll-print-area thead th { position: static !important; background: #fff !important; border-bottom: 2px solid #9ca3af !important; }
-  /* The sign in / sign out / actions columns are sticky-right ON SCREEN (so they stay
-     reachable on a wide roll). Paper doesn't scroll — un-pin them, or they'd stack on
-     the sheet's right edge. Same reason the thead is un-stuck above. */
-  body.printing-roll .roll-print-area td { position: static !important; }
-  /* #54 — the Members header is a <button>; its label goes blank on repeated thead pages
-     in Chrome. Swap it for the plain-text twin so it prints on every page. */
-  body.printing-roll .roll-print-area .roll-sort-btn { display: none !important; }
-  body.printing-roll .roll-print-area .roll-print-members { display: inline !important; }
-  body.printing-roll .roll-print-area tr { break-inside: avoid; }
+  body.printing-roll > *:not(.roll-print-sheet) { display: none !important; }
+  /* On screen the sheet is a shadowed, fixed-width page mock inside the dialog; on paper
+     the @page margin is the margin, so it fills the sheet. */
+  body.printing-roll .roll-print-sheet {
+    width: 100% !important; max-width: none !important;
+    margin: 0 !important; padding: 0 !important;
+    box-shadow: none !important;
+  }
+  /* thead repeats on every page; break-inside keeps a person's row off a page seam. */
+  body.printing-roll .roll-print-sheet thead { display: table-header-group; }
+  body.printing-roll .roll-print-sheet tr { break-inside: avoid; }
   /* MONOCHROME — a printed roll carries NO colour except the club logo. Screen tints
-     (the green "already signed in" row, status pills, category dots, group-header
-     bands, brand-coloured text) mean nothing on paper and print as stray boxes
-     wherever the browser has background graphics on. Everything is black on white;
-     <img> is the one exception, so the logo prints as itself. */
-  body.printing-roll .roll-print-area *:not(img) {
+     mean nothing on paper and print as stray boxes wherever the browser has background
+     graphics on. Everything is black on white; <img> is the one exception, so a logo or
+     member photo prints as itself. The ruled signature line is drawn with a border, not
+     a background, so it survives this without needing an exception. */
+  body.printing-roll .roll-print-sheet *:not(img) {
     color: #000 !important;
     background-color: transparent !important;
     background-image: none !important;
     box-shadow: none !important;
     border-color: #9ca3af !important;
   }
-  body.printing-roll .roll-print-area tbody tr { background: #fff !important; }
-  body.printing-roll .roll-print-area td, body.printing-roll .roll-print-area th { padding-top: 6px; padding-bottom: 6px; }
-  /* drop the checkbox(2) / drag(1) / actions(last) columns — header + data rows, not group headers */
-  body.printing-roll .roll-print-area thead th:nth-child(1),
-  body.printing-roll .roll-print-area thead th:nth-child(2),
-  body.printing-roll .roll-print-area thead th:last-child { display: none; }
-  body.printing-roll .roll-print-area tbody tr:not(.roll-group-row) > td:nth-child(1),
-  body.printing-roll .roll-print-area tbody tr:not(.roll-group-row) > td:nth-child(2),
-  body.printing-roll .roll-print-area tbody tr:not(.roll-group-row) > td:last-child { display: none; }
-  /* #37 — Status column (4th) hidden when turned off in the preview drawer */
-  body.printing-roll.print-no-status .roll-print-area thead th:nth-child(4),
-  body.printing-roll.print-no-status .roll-print-area tbody tr:not(.roll-group-row) > td:nth-child(4) { display: none; }
-  /* #36 — Signed In (3rd-last) / Out (2nd-last) as a place to SIGN + write the time
-     instead of tick boxes: hide the checkbox and give the cell a writable ruled line. */
-  body.printing-roll.print-sign-time .roll-print-area td:nth-last-child(2) .p-checkbox,
-  body.printing-roll.print-sign-time .roll-print-area td:nth-last-child(3) .p-checkbox,
-  body.printing-roll.print-sign-time .roll-print-area td:nth-last-child(2) .print-tick,
-  body.printing-roll.print-sign-time .roll-print-area td:nth-last-child(3) .print-tick { display: none; }
-  /* The rule is drawn as a BACKGROUND that stops short of the cell's right edge, not
-     as a border-bottom — two neighbouring borders touch and print as ONE continuous
-     line, so Sign In and Sign Out ran together with nowhere to tell them apart. */
-  body.printing-roll.print-sign-time .roll-print-area tbody tr:not(.roll-group-row) > td:nth-last-child(2),
-  body.printing-roll.print-sign-time .roll-print-area tbody tr:not(.roll-group-row) > td:nth-last-child(3) {
-    min-width: 110px; height: 30px; padding-right: 16px;
-    /* !important because the monochrome rule above blanks every background — this
-       black rule is the one background that must survive it (it's the line you sign
-       on, not decoration). The fill stays cleared, so no tinted box comes with it. */
-    background-image: linear-gradient(#000, #000) !important;
-    background-repeat: no-repeat !important;
-    background-position: left bottom 4px !important;
-    background-size: calc(100% - 16px) 1px !important;
-    background-color: transparent !important;
-    -webkit-print-color-adjust: exact; print-color-adjust: exact;
-  }
-  /* …and the same breathing room in the header so the two labels don't collide. */
-  body.printing-roll.print-sign-time .roll-print-area thead th:nth-last-child(2),
-  body.printing-roll.print-sign-time .roll-print-area thead th:nth-last-child(3) { padding-right: 16px; }
+  body.printing-roll .roll-print-sheet thead th { border-bottom: 2px solid #9ca3af !important; }
 }

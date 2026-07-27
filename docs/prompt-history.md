@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1781 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+332 sessions · 1791 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-26 19:54 (41 prompts)
@@ -29621,9 +29621,33 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > </task-notification>
 
 
-## Session 2026-07-26 22:49 (2 prompts)
+## Session 2026-07-26 22:49 (12 prompts)
 
 **22:49** — are there anything to deploy? just give me yes or no - hide bash responce
 
 **22:50** — please deploy
+
+**23:08** — not working on live
+
+**23:35** — rtd
+
+**23:52** — yay
+
+**23:59** — dtr
+
+**00:06** — the Print preview dialog should be what prints - because the print is different to the attenedees table
+
+**00:11** — can you make it so you check the dev server is checked when the server starts and you know to update the dtr
+
+**00:15** — yes please
+
+**01:42** — <task-notification>
+> <task-id>bcd71oi9s</task-id>
+> <summary>Monitor event: "new review tasks written to docs/review-tasks.md"</summary>
+> <event>NEW REVIEW TASKS: docs/review-tasks.md updated — 1 task(s) sent.</event>
+> </task-notification>
+
+**01:44** — please do the retd of them
+
+**01:48** — commmit
 

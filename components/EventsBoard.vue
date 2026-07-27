@@ -1239,7 +1239,12 @@ async function ensureCreatorCoordinator(eventId: string) {
     if (!person?.id) return
     const existing = await eventsApi.eventCoordinators(eventId)
     if (Array.isArray(existing) && existing.some((c: any) => c.personId === person.id)) return
-    await eventsApi.addEventCoordinator(eventId, person.id, ['registration', 'payment', 'cancellation', 'capacity'])
+    // NO NOTIFICATIONS. Being the person who made the event is not a request to be
+    // emailed about it — someone running a term of weekly sessions would be subscribing
+    // themselves to every registration, payment and cancellation on all of them without
+    // ever asking. They're on the event as its coordinator, and can turn any of the four
+    // on from the event page if they want them.
+    await eventsApi.addEventCoordinator(eventId, person.id, [])
   } catch { /* a missing coordinator must never fail the create */ }
 }
 

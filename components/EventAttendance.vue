@@ -308,6 +308,18 @@ const filteredSortedAttendees = computed(() => {
 })
 const attendedCount = computed(() => invitees.value.filter(i => i.attended).length)
 
+// ── Quick events are a single moment, not a session you sign out of ──
+// A quick event is created by the 2-step modal on the calendar (`created_via='quick'`):
+// a one-off you're recording turnout for, where "did they come?" is the whole question.
+// So the roll drops Sign Out entirely and the remaining column says Attended — signing
+// someone OUT of an event with no duration is a question nobody asked.
+const isQuickEvent = computed(() => event.value?.created_via === 'quick')
+const showSignOut = computed(() => !isQuickEvent.value)
+const signInLabel = computed(() => isQuickEvent.value ? 'Attended' : 'Sign In')
+// The pinned-right offsets are the running total of the columns to their RIGHT (see the
+// comment on the header row). Drop Sign Out (88px) and Sign In inherits its slot: 72px.
+const signInStickyClass = computed(() => showSignOut.value ? 'right-[160px]' : 'right-[72px]')
+
 // ── Columns: any person detail can be surfaced ──
 // Every column that CAN be shown: event data (ticket/paid) + person details + each
 // custom field the club has defined. `auto` sets the default (shown when the data
@@ -375,7 +387,7 @@ function personInitials(inv: any) {
   return (f + l).toUpperCase() || '?'
 }
 // Fixed cols: drag + select + Members + Status + Signed-in + Out + actions = 7, plus the visible optional cols.
-const colCount = computed(() => 7 + tableColumns.value.length)
+const colCount = computed(() => (showSignOut.value ? 7 : 6) + tableColumns.value.length)
 
 function toggleAttendanceSelectAll() {
   attendanceSelected.value = attendanceSelectAll.value ? invitees.value.map(i => i.id) : []
@@ -476,31 +488,40 @@ function openInviteeEmail(inv: any) {
   if (email) window.location.href = `mailto:${email}`
   else toast.add({ severity: 'warn', summary: 'No email', detail: 'This person has no email on file.', life: 3000 })
 }
-// Print ONLY the roll table: a body class scopes the @media print rules (main.css)
-// that hide the rest of the page + the checkbox/drag/actions columns, and repeat the
-// header on every page. Class is cleared after printing (or on cancel via afterprint).
+// WHAT PRINTS IS THE PREVIEW SHEET (.roll-print-sheet), not the on-screen roll.
+//
+// It used to clone `.roll-print-area` — the live attendance table — and beat it into
+// shape with print CSS: hide the drag/select/actions columns by nth-child, un-stick the
+// pinned ones, strip every screen tint, swap the sortable header button for a plain-text
+// twin. The preview dialog was then a SECOND, hand-written approximation of that, so the
+// two drifted and anything changed in the preview never reached paper.
+//
+// A printed roll is its own document, not a screenshot of a data grid, so the sheet the
+// preview shows IS the thing we print. All that nth-child CSS goes away: the sheet has no
+// drag/select/actions columns to hide, its Status column is already conditional, and the
+// tick-box vs signature-line choice is rendered in its markup.
+//
+// The sheet still has to be moved to be a direct child of <body> to print: inside the
+// dialog it's a descendant of a fixed-position mask, and a fixed element doesn't
+// paginate — every page after the first is dropped. A comment marks where to put it back.
 function printAttendanceRoll() {
-  const el = document.querySelector('.roll-print-area') as HTMLElement | null
+  const el = document.querySelector('.roll-print-sheet') as HTMLElement | null
   if (!el) return
-  // Move the table to be a direct child of <body> so it prints in NORMAL FLOW and
-  // paginates (an absolutely-positioned table drops every page after the first). A
-  // comment marks where to slot it back afterwards.
   const slot = document.createComment('roll-print-slot')
   el.parentNode?.replaceChild(slot, el)
   document.body.appendChild(el)
   document.body.classList.add('printing-roll')
-  if (!printStatus.value) document.body.classList.add('print-no-status')
-  if (printSignStyle.value === 'sign') document.body.classList.add('print-sign-time')
   // Orientation from the preview drawer — injected + removed per print.
   const style = document.createElement('style')
   style.id = 'roll-print-page'
   style.textContent = `@page { size: ${printOrientation.value}; margin: 12mm; }`
   document.head.appendChild(style)
   const done = () => {
-    document.body.classList.remove('printing-roll', 'print-no-status', 'print-sign-time')
+    document.body.classList.remove('printing-roll')
     document.getElementById('roll-print-page')?.remove()
-    slot.parentNode?.replaceChild(el, slot)   // put the table back where it lives
+    slot.parentNode?.replaceChild(el, slot)   // put the sheet back inside the dialog
     window.removeEventListener('afterprint', done)
+    printPreviewOpen.value = false
   }
   window.addEventListener('afterprint', done)
   window.print()
@@ -514,9 +535,56 @@ const printPreviewOpen = ref(false)
 const printOrientation = ref<'landscape' | 'portrait'>('landscape')
 const printStatus = ref(true)                              // #37 include the Status column
 const printSignStyle = ref<'tick' | 'sign'>('tick')        // #36 tick boxes vs sign + time
-const previewInvitees = computed(() => invitees.value.slice(0, 40))
+// Time columns: a ruled space to WRITE the clock time in, beside the tick/signature.
+// They are blank by design — `attended` and `signedOut` are booleans, so the system has
+// no record of WHEN anyone signed in or out to print. Off by default; a roll only wants
+// them when the club is actually timing attendance.
+const printSignInTime = ref(false)
+const printSignOutTime = ref(false)
+// ── The sheet's own sort ──
+// Paper is ordered for READING — you scan down it looking for a name — so the sheet
+// sorts by FIRST NAME by default rather than inheriting the screen's last-name order.
+// Any column header can be clicked to re-sort before printing; the choice is per-print
+// and deliberately not persisted (you sort for the sheet in front of you).
+const sheetSort = ref<{ key: string; dir: 'asc' | 'desc' }>({ key: 'first_name', dir: 'asc' })
+function sheetSortValue(inv: any, key: string): string | number | null {
+  if (key === 'first_name') return inv.person?.first_name ?? null
+  if (key === 'last_name') return inv.person?.last_name ?? null
+  if (key === 'status') return inviteStatus(inv).label ?? null
+  return tableColumns.value.find(c => c.key === key)?.get(inv) ?? null
+}
+// Only the ACTIVE column shows a caret — an arrow on every header says nothing about
+// which one is in force. `print:hidden` keeps it off the paper.
+function sheetSortIcon(key: string) {
+  if (sheetSort.value.key !== key) return 'hidden'
+  return `pi ${sheetSort.value.dir === 'asc' ? 'pi-sort-up-fill' : 'pi-sort-down-fill'} text-[9px] ml-1 print:hidden`
+}
+function toggleSheetSort(key: string) {
+  sheetSort.value = sheetSort.value.key === key
+    ? { key, dir: sheetSort.value.dir === 'asc' ? 'desc' : 'asc' }
+    : { key, dir: 'asc' }
+}
+// The sheet is the printout, so it shows EVERY row — a capped preview would print a
+// capped roll. It follows the roll's search (print what you filtered to) but carries its
+// own sort, since a sheet of paper is ordered for reading, not for the screen's benefit.
+const previewInvitees = computed(() => {
+  const { key, dir } = sheetSort.value
+  const mul = dir === 'asc' ? 1 : -1
+  return [...filteredSortedAttendees.value].sort((a, b) => {
+    const av = sheetSortValue(a, key)
+    const bv = sheetSortValue(b, key)
+    // Blanks sort LAST whichever way the column points — an empty cell is "nothing
+    // recorded", not a value, and a run of blanks at the top makes a roll unusable.
+    const aEmpty = av == null || av === ''
+    const bEmpty = bv == null || bv === ''
+    if (aEmpty || bEmpty) return aEmpty && bEmpty ? 0 : aEmpty ? 1 : -1
+    if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * mul
+    return String(av).localeCompare(String(bv), undefined, { numeric: true }) * mul
+  })
+})
 function doPrintFromPreview() {
-  printPreviewOpen.value = false
+  // The dialog stays OPEN through printing — the sheet inside it is what we print, and
+  // closing first would take it out of the DOM. printAttendanceRoll closes it afterwards.
   nextTick(() => printAttendanceRoll())
 }
 
@@ -553,8 +621,10 @@ watch(inviteOpen, v => { if (v) { showFullInvite.value = false; quickSel.value =
 // ---- Attendance action menu ----
 const attendanceActionMenu = ref()
 const attendanceActionMenuItems = computed(() => [
-  { label: 'Sign Selected In', icon: 'pi pi-check', command: markSelectedIn, disabled: !selectedNotIn.value.length },
-  { label: 'Sign Selected Out', icon: 'pi pi-sign-out', command: markSelectedOut, disabled: !selectedSignedIn.value.length },
+  { label: isQuickEvent.value ? 'Mark Selected Attended' : 'Sign Selected In', icon: 'pi pi-check', command: markSelectedIn, disabled: !selectedNotIn.value.length },
+  // Signing out is meaningless on a quick event (no Sign Out column) — the action goes
+  // with the column rather than lingering as a write nothing can show.
+  ...(showSignOut.value ? [{ label: 'Sign Selected Out', icon: 'pi pi-sign-out', command: markSelectedOut, disabled: !selectedSignedIn.value.length }] : []),
   { separator: true },
   { label: 'Assign to Sub-group', icon: 'pi pi-user-plus', command: () => { showAddToSubGroupDialog.value = true } },
 ])
@@ -866,19 +936,9 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
         <i class="pi pi-users text-3xl mb-3 block" />No invitees yet
       </div>
 
-      <div v-else class="overflow-auto roll-print-area" :class="fit ? 'max-h-[calc(100vh-19rem)]' : ''">
-        <!-- Only shows on the printed roll (a bare title so the sheet has context). -->
-        <!-- Print-only roll header (inside the print area so it actually prints):
-             event name + date/time on the left, club logo on the right. -->
-        <div class="roll-print-title hidden">
-          <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:12px;">
-            <div>
-              <div style="font-size:18px; font-weight:700; color:#111827;">{{ event?.title || 'Attendance roll' }}</div>
-              <div v-if="rollHeaderWhen" style="font-size:13px; color:#4b5563;">{{ rollHeaderWhen }}</div>
-            </div>
-            <img v-if="orgLogoUrl" :src="orgLogoUrl" alt="" style="height:40px; width:auto; object-fit:contain; flex-shrink:0;" />
-          </div>
-        </div>
+      <!-- The printed roll is NOT this table — it's the sheet in the Print-preview dialog
+           (.roll-print-sheet), which is its own document. Nothing here is print-only. -->
+      <div v-else class="overflow-auto" :class="fit ? 'max-h-[calc(100vh-19rem)]' : ''">
         <table class="w-full text-sm">
           <thead class="sticky top-0 z-10 bg-white">
             <tr class="border-b border-gray-200">
@@ -892,8 +952,6 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               </th>
               <th class="pl-1 pr-2 py-3 w-8 text-center align-middle"><Checkbox v-model="attendanceSelectAll" binary @change="toggleAttendanceSelectAll" /></th>
               <th class="py-3 pr-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-40">
-                <!-- Print-only plain text: a <button>'s label doesn't repaint on repeated thead pages in Chrome, so page 2+ came up blank (#54). -->
-                <span class="roll-print-members hidden">Members</span>
                 <button class="roll-sort-btn flex items-center gap-1 hover:text-gray-900 transition-colors" @click="toggleAttendanceSort">
                   Members
                   <i :class="`pi text-[10px] ${attendanceSort.dir === 'asc' ? 'pi-sort-up-fill text-primary' : 'pi-sort-down-fill text-primary'}`" />
@@ -910,8 +968,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                    80px offsets then over-shot, and a scrolling column showed through the
                    gap between Sign In and Sign Out. Change a width → change the offsets
                    to match. `z-20` beats the sticky thead's own z-10. -->
-              <th class="py-3 px-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap sticky right-[160px] bg-white z-20 shadow-[inset_2px_0_0_#e5e7eb]" style="width:88px;min-width:88px;max-width:88px">Sign In</th>
-              <th class="py-3 px-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap sticky right-[72px] bg-white z-20" style="width:88px;min-width:88px;max-width:88px">Sign Out</th>
+              <th class="py-3 px-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap sticky bg-white z-20 shadow-[inset_2px_0_0_#e5e7eb]" :class="signInStickyClass" style="width:88px;min-width:88px;max-width:88px">{{ signInLabel }}</th>
+              <th v-if="showSignOut" class="py-3 px-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-nowrap sticky right-[72px] bg-white z-20" style="width:88px;min-width:88px;max-width:88px">Sign Out</th>
               <th class="py-3 px-2 sticky right-0 bg-white z-20" style="width:72px;min-width:72px;max-width:72px" />
             </tr>
           </thead>
@@ -948,8 +1006,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                     </template>
                     <span v-else>{{ col.get(inv) ?? '—' }}</span>
                   </td>
-                  <td class="py-2.5 px-2 text-center sticky right-[160px] bg-inherit z-[5] shadow-[inset_2px_0_0_#e5e7eb]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="isAttendedForContext(inv)" binary @change="toggleAttendance(inv)" /></td>
-                  <td class="py-2.5 px-2 text-center sticky right-[72px] bg-inherit z-[5]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="inv.signed_out" binary :disabled="!isAttendedForContext(inv)" @change="toggleSignOut(inv)" /></td>
+                  <td class="py-2.5 px-2 text-center sticky bg-inherit z-[5] shadow-[inset_2px_0_0_#e5e7eb]" :class="signInStickyClass" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="isAttendedForContext(inv)" binary @change="toggleAttendance(inv)" /></td>
+                  <td v-if="showSignOut" class="py-2.5 px-2 text-center sticky right-[72px] bg-inherit z-[5]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="inv.signed_out" binary :disabled="!isAttendedForContext(inv)" @change="toggleSignOut(inv)" /></td>
                   <td class="py-2.5 px-2 sticky right-0 bg-inherit z-[5]" style="width:72px;min-width:72px;max-width:72px">
                     <div class="flex items-center gap-2 text-gray-400">
                       <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
@@ -990,8 +1048,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                 </template>
                 <span v-else>{{ col.get(inv) ?? '—' }}</span>
               </td>
-              <td class="py-2.5 px-2 text-center sticky right-[160px] bg-inherit z-[5] shadow-[inset_2px_0_0_#e5e7eb]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="isAttendedForContext(inv)" binary @change="toggleAttendance(inv)" /></td>
-              <td class="py-2.5 px-2 text-center sticky right-[72px] bg-inherit z-[5]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="inv.signed_out" binary :disabled="!isAttendedForContext(inv)" @change="toggleSignOut(inv)" /></td>
+              <td class="py-2.5 px-2 text-center sticky bg-inherit z-[5] shadow-[inset_2px_0_0_#e5e7eb]" :class="signInStickyClass" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="isAttendedForContext(inv)" binary @change="toggleAttendance(inv)" /></td>
+              <td v-if="showSignOut" class="py-2.5 px-2 text-center sticky right-[72px] bg-inherit z-[5]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="inv.signed_out" binary :disabled="!isAttendedForContext(inv)" @change="toggleSignOut(inv)" /></td>
               <td class="py-2.5 px-2 sticky right-0 bg-inherit z-[5]" style="width:72px;min-width:72px;max-width:72px">
                 <div class="flex items-center gap-2 text-gray-400">
                   <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
@@ -1048,8 +1106,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                   </template>
                   <span v-else>{{ col.get(inv) ?? '—' }}</span>
                 </td>
-                <td class="py-2.5 px-2 text-center sticky right-[160px] bg-inherit z-[5] shadow-[inset_2px_0_0_#e5e7eb]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="isAttendedForContext(inv)" binary @change="toggleAttendance(inv)" /></td>
-                <td class="py-2.5 px-2 text-center sticky right-[72px] bg-inherit z-[5]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="inv.signed_out" binary :disabled="!isAttendedForContext(inv)" @change="toggleSignOut(inv)" /></td>
+                <td class="py-2.5 px-2 text-center sticky bg-inherit z-[5] shadow-[inset_2px_0_0_#e5e7eb]" :class="signInStickyClass" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="isAttendedForContext(inv)" binary @change="toggleAttendance(inv)" /></td>
+                <td v-if="showSignOut" class="py-2.5 px-2 text-center sticky right-[72px] bg-inherit z-[5]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="inv.signed_out" binary :disabled="!isAttendedForContext(inv)" @change="toggleSignOut(inv)" /></td>
                 <td class="py-2.5 px-2 sticky right-0 bg-inherit z-[5]" style="width:72px;min-width:72px;max-width:72px">
                   <div class="flex items-center gap-2 text-gray-400">
                     <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
@@ -1098,8 +1156,8 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                   </template>
                   <span v-else>{{ col.get(inv) ?? '—' }}</span>
                 </td>
-                <td class="py-2.5 px-2 text-center sticky right-[160px] bg-inherit z-[5] shadow-[inset_2px_0_0_#e5e7eb]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="isAttendedForContext(inv)" binary @change="toggleAttendance(inv)" /></td>
-                <td class="py-2.5 px-2 text-center sticky right-[72px] bg-inherit z-[5]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="inv.signed_out" binary :disabled="!isAttendedForContext(inv)" @change="toggleSignOut(inv)" /></td>
+                <td class="py-2.5 px-2 text-center sticky bg-inherit z-[5] shadow-[inset_2px_0_0_#e5e7eb]" :class="signInStickyClass" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="isAttendedForContext(inv)" binary @change="toggleAttendance(inv)" /></td>
+                <td v-if="showSignOut" class="py-2.5 px-2 text-center sticky right-[72px] bg-inherit z-[5]" style="width:88px;min-width:88px;max-width:88px"><Checkbox :model-value="inv.signed_out" binary :disabled="!isAttendedForContext(inv)" @change="toggleSignOut(inv)" /></td>
                 <td class="py-2.5 px-2 sticky right-0 bg-inherit z-[5]" style="width:72px;min-width:72px;max-width:72px">
                   <div class="flex items-center gap-2 text-gray-400">
                     <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
@@ -1143,10 +1201,11 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                that is. -->
           <button v-if="selectedNotIn.length"
             class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/15 transition-colors whitespace-nowrap"
-            v-tooltip.top="`Sign in ${selectedNotIn.length} of ${attendanceSelected.length}`"
-            @click="markSelectedIn"><i class="pi pi-check text-xs" />Sign in</button>
-          <!-- Only offered once the selection actually contains someone signed in. -->
-          <button v-if="selectedSignedIn.length"
+            v-tooltip.top="`${isQuickEvent ? 'Mark attended' : 'Sign in'} ${selectedNotIn.length} of ${attendanceSelected.length}`"
+            @click="markSelectedIn"><i class="pi pi-check text-xs" />{{ isQuickEvent ? 'Mark attended' : 'Sign in' }}</button>
+          <!-- Only offered once the selection actually contains someone signed in — and
+               never on a quick event, which has no Sign Out column to show the result in. -->
+          <button v-if="selectedSignedIn.length && showSignOut"
             class="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-full hover:bg-white/15 transition-colors whitespace-nowrap"
             v-tooltip.top="`Sign out ${selectedSignedIn.length} of ${attendanceSelected.length}`"
             @click="markSelectedOut"><i class="pi pi-sign-out text-xs" />Sign out</button>
@@ -1297,41 +1356,84 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
       <div class="flex flex-col sm:flex-row" style="height:70vh">
         <!-- The sheet as it will print (columns follow the drawer; a light first-cut render) -->
         <div class="flex-1 min-w-0 overflow-auto bg-gray-100 p-4 sm:p-6">
-          <div class="mx-auto bg-white shadow-md p-6" :style="{ width: printOrientation === 'landscape' ? '100%' : '640px', maxWidth: '100%' }">
-            <h2 class="text-lg font-bold text-gray-900 mb-3">{{ event?.title || 'Attendance roll' }}</h2>
+          <!-- THIS ELEMENT IS THE PRINTOUT — printAttendanceRoll() lifts it out to <body>
+               and prints it. What you see here is literally what comes out. -->
+          <div class="roll-print-sheet mx-auto bg-white shadow-md p-6" :style="{ width: printOrientation === 'landscape' ? '100%' : '640px', maxWidth: '100%' }">
+            <!-- Sheet header: what this roll IS (event + when) on the left, club logo on
+                 the right — a printed page leaves the screen behind and has to say so. -->
+            <div class="flex items-start justify-between gap-4 mb-3">
+              <div>
+                <h2 class="text-lg font-bold text-gray-900">{{ event?.title || 'Attendance roll' }}</h2>
+                <p v-if="rollHeaderWhen" class="text-sm text-gray-600">{{ rollHeaderWhen }}</p>
+              </div>
+              <img v-if="orgLogoUrl" :src="orgLogoUrl" alt="" class="h-10 w-auto object-contain shrink-0" />
+            </div>
             <table class="w-full text-sm border-collapse">
               <thead>
+                <!-- Every data column is a sort control: click to sort the sheet by it,
+                     click again to reverse. The caret is screen-only chrome — `print:hidden`
+                     keeps it off the paper, where a stray arrow reads as a typo. -->
                 <tr class="border-b-2 border-gray-300 text-left text-xs uppercase tracking-wide text-gray-500">
-                  <th class="py-2 pr-3">{{ t('member') }}</th>
-                  <th v-if="printStatus" class="py-2 pr-3">Status</th>
-                  <th v-for="col in tableColumns" :key="col.key" class="py-2 pr-3 whitespace-nowrap">{{ col.label }}</th>
-                  <th class="py-2 pr-3 text-center">Sign In</th>
-                  <th class="py-2 text-center">Sign Out</th>
+                  <th class="py-2 pr-3">
+                    <button type="button" class="sheet-sort-btn" @click="toggleSheetSort('first_name')">
+                      First name<i :class="sheetSortIcon('first_name')" />
+                    </button>
+                  </th>
+                  <th class="py-2 pr-3">
+                    <button type="button" class="sheet-sort-btn" @click="toggleSheetSort('last_name')">
+                      Last name<i :class="sheetSortIcon('last_name')" />
+                    </button>
+                  </th>
+                  <th v-if="printStatus" class="py-2 pr-3">
+                    <button type="button" class="sheet-sort-btn" @click="toggleSheetSort('status')">
+                      Status<i :class="sheetSortIcon('status')" />
+                    </button>
+                  </th>
+                  <th v-for="col in tableColumns" :key="col.key" class="py-2 pr-3 whitespace-nowrap">
+                    <button type="button" class="sheet-sort-btn" @click="toggleSheetSort(col.key)">
+                      {{ col.label }}<i :class="sheetSortIcon(col.key)" />
+                    </button>
+                  </th>
+                  <th class="py-2 pr-3 text-center">{{ signInLabel }}</th>
+                  <th v-if="printSignInTime" class="py-2 pr-3 text-center">Sign in time</th>
+                  <th v-if="showSignOut" class="py-2 text-center">Sign Out</th>
+                  <th v-if="showSignOut && printSignOutTime" class="py-2 pl-3 text-center">Sign out time</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="inv in previewInvitees" :key="inv.id" class="border-b border-gray-100">
+                  <!-- Name is TWO columns on the sheet, so a printed roll can be read down
+                       either one (and sorted by either). The photo stays with the first
+                       name — it belongs to the person, not to a surname column. -->
                   <td class="py-1.5 pr-3 font-medium text-gray-800 whitespace-nowrap">
                     <span class="flex items-center gap-2">
                       <img v-if="showPhoto && inv.person?.photo_url" :src="inv.person.photo_url" alt="" class="w-6 h-6 rounded-full object-cover shrink-0" />
                       <span v-else-if="showPhoto" class="w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-[10px] font-semibold flex items-center justify-center shrink-0">{{ personInitials(inv) }}</span>
-                      {{ inv.person?.first_name }} {{ inv.person?.last_name }}
+                      {{ inv.person?.first_name }}
                     </span>
                   </td>
+                  <td class="py-1.5 pr-3 font-medium text-gray-800 whitespace-nowrap">{{ inv.person?.last_name }}</td>
                   <td v-if="printStatus" class="py-1.5 pr-3 text-gray-600">{{ inviteStatus(inv).label }}</td>
                   <td v-for="col in tableColumns" :key="col.key" class="py-1.5 pr-3 text-gray-600" :class="col.nowrap ? 'whitespace-nowrap' : ''">{{ col.get(inv) ?? '—' }}</td>
                   <td class="py-1.5 pr-3 text-center">
                     <span v-if="printSignStyle === 'tick'" class="inline-block w-4 h-4 border border-gray-400 rounded-sm" />
                     <span v-else class="inline-block w-24 border-b border-gray-500 align-bottom" style="height:15px" />
                   </td>
-                  <td class="py-1.5 text-center">
+                  <!-- Blank ruled space to write the clock time in — nothing to print,
+                       because the system stores WHETHER someone signed in, not when. -->
+                  <td v-if="printSignInTime" class="py-1.5 pr-3 text-center">
+                    <span class="inline-block w-16 border-b border-gray-500 align-bottom" style="height:15px" />
+                  </td>
+                  <td v-if="showSignOut" class="py-1.5 text-center">
                     <span v-if="printSignStyle === 'tick'" class="inline-block w-4 h-4 border border-gray-400 rounded-sm" />
                     <span v-else class="inline-block w-24 border-b border-gray-500 align-bottom" style="height:15px" />
+                  </td>
+                  <td v-if="showSignOut && printSignOutTime" class="py-1.5 pl-3 text-center">
+                    <span class="inline-block w-16 border-b border-gray-500 align-bottom" style="height:15px" />
                   </td>
                 </tr>
               </tbody>
             </table>
-            <p v-if="invitees.length > previewInvitees.length" class="text-xs text-gray-400 mt-2">…and {{ invitees.length - previewInvitees.length }} more on the printout</p>
           </div>
         </div>
         <!-- Config drawer -->
@@ -1343,7 +1445,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               :class="printOrientation === o ? 'border-primary text-primary bg-primary/5 font-semibold' : 'border-gray-200 text-gray-600 hover:border-gray-300'"
               @click="printOrientation = (o as any)">{{ o }}</button>
           </div>
-          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Sign in / Sign out</p>
+          <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">{{ showSignOut ? 'Sign in / Sign out' : 'Attended' }}</p>
           <div class="flex gap-2 mb-5">
             <button type="button" class="flex-1 text-sm py-1.5 rounded-lg border transition-colors"
               :class="printSignStyle === 'tick' ? 'border-primary text-primary bg-primary/5 font-semibold' : 'border-gray-200 text-gray-600 hover:border-gray-300'"
@@ -1355,6 +1457,12 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
           <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Columns</p>
           <label class="flex items-center gap-2 py-1 cursor-pointer text-sm text-gray-700">
             <Checkbox v-model="printStatus" binary /> Status
+          </label>
+          <label class="flex items-center gap-2 py-1 cursor-pointer text-sm text-gray-700">
+            <Checkbox v-model="printSignInTime" binary /> {{ isQuickEvent ? 'Time attended' : 'Sign in time' }}
+          </label>
+          <label v-if="showSignOut" class="flex items-center gap-2 py-1 cursor-pointer text-sm text-gray-700">
+            <Checkbox v-model="printSignOutTime" binary /> Sign out time
           </label>
           <label v-for="c in allColumns" :key="c.key" class="flex items-center gap-2 py-1 cursor-pointer text-sm text-gray-700">
             <Checkbox :model-value="colVisible(c.key)" binary @change="toggleCol(c.key)" />{{ c.label }}
@@ -1370,6 +1478,17 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
 </template>
 
 <style scoped>
+/* The print sheet's sortable headers. A <button> so it's keyboard-reachable, but it must
+   LOOK like the header text it replaced — inheriting the th's size/weight/case — and on
+   paper it has to be indistinguishable from plain text. */
+.sheet-sort-btn {
+  display: inline-flex; align-items: center;
+  font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit;
+  background: none; border: 0; padding: 0; cursor: pointer;
+}
+.sheet-sort-btn:hover { color: #111827; }
+@media print { .sheet-sort-btn { cursor: auto; } }
+
 /* #30 bulk action bar slide-up */
 .fm-actionbar-enter-active,
 .fm-actionbar-leave-active { transition: transform .28s cubic-bezier(.2, .9, .3, 1), opacity .2s ease; }

@@ -47,6 +47,14 @@ export interface BriefOptions {
   path?: string | null
   /** ISO timestamp for the header — passed in so the output is testable. */
   now?: string
+  /**
+   * Origin the brief was served from (e.g. http://localhost:3005), stamped into the
+   * hand-back instructions. The dev server's port MOVES — Nuxt takes the next free one
+   * when 3000 is busy — and an agent reading this file has no way to know which. It
+   * guessed 3002, got connection-refused, and reported the items as unmarkable. The
+   * server generating the brief is the one thing that knows its own address, so it says.
+   */
+  baseUrl?: string | null
 }
 
 export function buildBriefMarkdown(comments: PageComment[], opts: BriefOptions): {
@@ -83,10 +91,16 @@ export function buildBriefMarkdown(comments: PageComment[], opts: BriefOptions):
     })
   }
 
+  // The dev server's address, so every PATCH below is copy-pasteable as written.
+  const base = opts.baseUrl || 'http://localhost:3000'
+
   const L: string[] = []
   L.push(`# Review tasks — ${roots.length} open across ${byPath.size} page${byPath.size === 1 ? '' : 's'}`)
   L.push('')
   L.push(`Generated ${opts.now ?? new Date().toISOString()} from the in-app review widget.`)
+  L.push('')
+  L.push(`The app is running at **${base}** — that's where the PATCHes below go. Don't`)
+  L.push('assume a port: this line is written by the server that served the brief.')
   L.push('')
   L.push('**How to work this list** — triage first, then one at a time.')
   L.push('')
@@ -104,7 +118,7 @@ export function buildBriefMarkdown(comments: PageComment[], opts: BriefOptions):
   L.push('against the comment in the panel and Karl signs it off himself:')
   L.push('')
   L.push('```')
-  L.push('PATCH /api/v1/reviews/comments/<id>')
+  L.push(`PATCH ${base}/api/v1/reviews/comments/<id>`)
   L.push('{ "claudeStatus": "done", "claudeNote": "what changed, one line" }')
   L.push('```')
   L.push('')
@@ -113,7 +127,7 @@ export function buildBriefMarkdown(comments: PageComment[], opts: BriefOptions):
   L.push('the comment itself where Karl will see it:')
   L.push('')
   L.push('```')
-  L.push('PATCH /api/v1/reviews/comments/<id>')
+  L.push(`PATCH ${base}/api/v1/reviews/comments/<id>`)
   L.push('{ "claudeStatus": "needs_info", "claudeNote": "the question, one line" }')
   L.push('```')
   L.push('')
