@@ -608,6 +608,16 @@ export const disciplines = mysqlTable('disciplines', {
   personTypeKeys: json('person_type_keys'),
 })
 
+// A club's saved discount templates — see migration 0023. `preset` holds a
+// DiscountDraft, so applying one is the same operation as applying a built-in.
+export const discountTemplates = mysqlTable('discount_templates', {
+  id: varchar('id', { length: 36 }).primaryKey(),
+  orgId: varchar('org_id', { length: 36 }).notNull(),
+  name: text('name').notNull(),
+  preset: json('preset').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const discounts = mysqlTable('discounts', {
   id: varchar('id', { length: 36 }).primaryKey(),
   eventId: varchar('event_id', { length: 36 }),

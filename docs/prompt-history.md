@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-333 sessions · 1884 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+333 sessions · 1892 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-26 19:54 (41 prompts)
@@ -29621,7 +29621,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > </task-notification>
 
 
-## Session 2026-07-26 22:49 (79 prompts)
+## Session 2026-07-26 22:49 (87 prompts)
 
 **22:49** — are there anything to deploy? just give me yes or no - hide bash responce
 
@@ -29845,6 +29845,44 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **02:19** — dtr
 
 **03:14** — Yes tags is a thing on people. - see old platform for this
+
+**03:36** — deploy live
+
+**03:44** — <task-notification>
+> <task-id>bcd71oi9s</task-id>
+> <summary>Monitor event: "new review tasks written to docs/review-tasks.md"</summary>
+> <event>NEW REVIEW TASKS: docs/review-tasks.md updated — 1 task(s) sent.</event>
+> </task-notification>
+
+**03:46** — <task-notification>
+> <task-id>bcd71oi9s</task-id>
+> <summary>Monitor event: "new review tasks written to docs/review-tasks.md"</summary>
+> <event>NEW REVIEW TASKS: docs/review-tasks.md updated — 1 task(s) sent.</event>
+> </task-notification>
+
+**03:51** — <task-notification>
+> <task-id>bcd71oi9s</task-id>
+> <summary>Monitor event: "new review tasks written to docs/review-tasks.md"</summary>
+> <event>NEW REVIEW TASKS: docs/review-tasks.md updated — 2 task(s) sent.</event>
+> </task-notification>
+
+**03:53** — <task-notification>
+> <task-id>bcd71oi9s</task-id>
+> <summary>Monitor event: "new review tasks written to docs/review-tasks.md"</summary>
+> <event>NEW REVIEW TASKS: docs/review-tasks.md updated — 3 task(s) sent.</event>
+> </task-notification>
+
+**03:59** — <task-notification>
+> <task-id>bcd71oi9s</task-id>
+> <summary>Monitor event: "new review tasks written to docs/review-tasks.md"</summary>
+> <event>NEW REVIEW TASKS: docs/review-tasks.md updated — 1 task(s) sent.</event>
+> </task-notification>
+
+**04:02** — [Image #29] These buttons here are very confusing for a user because they look like that you're clicking next for the choose a template, but the reality is that we're next on the wizard. What ideas could we do here to make this easier?
+
+**04:03** — Your solution kind of works, but the problem is that when you click who your true things, only say you choose, parent and child, it then takes you to an other step where then asks you to configure the parent and child, and then when you're inside the form, you still see the next and back buttons.
+> 
+> So this doesn't quite work. We almost need like a complete form button or something.
 
 
 ## Session 2026-07-27 19:34 (26 prompts)

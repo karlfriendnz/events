@@ -120,11 +120,7 @@
 
         <!-- ─ Event Info ─ -->
         <div :class="isStep('info') ? 'px-1' : 'hidden'">
-          <!-- Headings are for the ONE-PAGE view only. In the wizard the step path
-               at the top already says which step you're on, so a title repeating it
-               (plus a description of a step you're standing in) is noise above every
-               screen. Kept for `?mode=full`, where nothing else separates sections. -->
-          <div v-if="!stepped" class="mb-3">
+          <div class="mb-3">
             <h2 class="section-title">Event info</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Event info') }}</p>
           </div>
@@ -250,7 +246,7 @@
 
         <!-- ─ Location ─ -->
         <div :class="isStep('location') ? 'px-1' : 'hidden'">
-          <div v-if="!stepped" class="mb-3">
+          <div class="mb-3">
             <h2 class="section-title">Location</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Location') }}</p>
           </div>
@@ -271,7 +267,7 @@
 
         <!-- ─ Fees ─ -->
         <div :class="isStep('fees') ? 'px-1' : 'hidden'">
-          <div v-if="!stepped" class="mb-3">
+          <div class="mb-3">
             <h2 class="section-title">Fees</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Fees') }}</p>
           </div>
@@ -295,17 +291,27 @@
           <!-- Discounts — the SAME <EventDiscountDialog> + condition model as
                the advanced event editor (useEventDiscounts). One discount
                system, not a wizard-only variant. -->
-          <div v-if="form.is_paid" class="bg-white rounded-xl border border-gray-200 p-5 space-y-4 mt-4">
-            <div class="flex items-start justify-between gap-4">
-              <div>
+          <!-- Behind a switch. Most events have no discounts at all, so the whole
+               apparatus (a list, an Add button, and a rule about how several of them
+               interact) sat there as a question nobody had asked. Off is the honest
+               default; turning it on reveals the box and everything inside it. -->
+          <div v-if="form.is_paid" class="bg-white rounded-xl border border-gray-200 mt-4">
+            <div class="px-5 py-3.5 flex items-center justify-between gap-4"
+              :class="useDiscounts ? 'border-b border-gray-100' : ''">
+              <div class="min-w-0">
                 <p class="text-sm font-medium text-gray-700">Discounts</p>
                 <p class="text-xs text-gray-500 mt-0.5">Early bird, members only, siblings, promo codes — set who qualifies.</p>
               </div>
+              <ToggleSwitch v-model="useDiscounts" class="shrink-0" />
+            </div>
+
+            <div v-if="useDiscounts" class="p-5 space-y-4">
+            <div class="flex justify-end">
               <Button label="Add discount" icon="pi pi-plus" size="small" severity="secondary" outlined @click="openDiscount" />
             </div>
 
             <div v-if="!form.discounts.length" class="text-center py-4 text-sm text-gray-400">
-              No discounts. Everyone pays the full {{ money(totalFees) }}.
+              No discounts yet. Everyone pays the full {{ money(totalFees) }}.
             </div>
 
             <div v-else class="space-y-2">
@@ -329,15 +335,18 @@
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- One-discount-only setting (same as the advanced editor) -->
-          <div v-if="form.is_paid" class="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-5 py-3.5 mt-4">
-            <div>
-              <p class="text-sm font-medium text-gray-700">Limit to one discount per registration</p>
-              <p class="text-xs text-gray-400 mt-0.5">When multiple rules match, only the best discount is applied.</p>
+            <!-- Lives INSIDE the box: it's a rule about how these discounts interact,
+                 so it means nothing on an event that has none. It was a card of its
+                 own, which read as a separate feature. -->
+            <div class="flex items-center justify-between gap-4 pt-4 border-t border-gray-100">
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-700">Limit to one discount per registration</p>
+                <p class="text-xs text-gray-400 mt-0.5">When several rules match, only the best discount is applied.</p>
+              </div>
+              <ToggleSwitch v-model="discountSettings.one_discount_only" class="shrink-0" />
             </div>
-            <ToggleSwitch v-model="discountSettings.one_discount_only" />
+            </div>
           </div>
 
           <EventDiscountDialog v-model:visible="discountFlowOpen" :edit="discountEditDraft" :currency-symbol="currencySymbol"
@@ -360,54 +369,50 @@
               <p class="field-help mt-0.5">Who can see it, who can sign up, and how many can come.</p>
             </div>
             <div class="divide-y divide-gray-100">
-              <!-- Who can see it — moved here from step 1, beside the people it
-                   applies to: it's the same decision at a different scale. -->
-              <div class="px-5 py-4">
-                <EventVisibilityPicker
-                  v-model="form.visibility"
-                  v-model:type-keys="form.visibility_type_keys"
-                  v-model:group-ids="form.visibility_group_ids"
-                  v-model:person-ids="form.visibility_person_ids"
-                  as-switch :hide-custom="false"
-                  label="Calendar visibility" label-width="sm:w-[150px]" />
-              </div>
-
+              <!-- Calendar visibility used to sit at the top of this card. It moved
+                   to the Settings step, with the other display toggles it belongs
+                   with: this step is about WHO you're inviting, and where the event
+                   shows up on the calendar is a different question. -->
               <div class="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+                <!-- A switch, not two options. "Public and club / Club only" made you
+                     read both labels to find the difference, when the question is
+                     simply whether STRANGERS can sign up — off is club-only, which is
+                     what most events are. NB turning it on forces a registration form:
+                     someone with no profile has to identify themselves somehow. -->
                 <div class="flex-1">
                   <p class="field-label">Public registrations</p>
-                  <p class="field-help mt-0.5">Can anyone with the link sign up, or is this for your club only?</p>
+                  <p class="field-help mt-0.5">Let anyone with the link sign up, not just your club.</p>
                 </div>
-                <SelectButton :model-value="invitePublic" :options="publicOptions"
-                  option-label="label" option-value="value" :allow-empty="false" class="shrink-0"
+                <ToggleSwitch :model-value="invitePublic" class="shrink-0"
                   @update:model-value="setInvitePublic" />
               </div>
 
               <!-- Capacity. Moved here from Settings: how many can come is a question
                    about the guest list, so it belongs beside the people being invited,
                    not under the display toggles two steps later. -->
-              <div class="px-5 py-4">
-                <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-                  <div class="flex-1">
-                    <p class="field-label">Limit capacity</p>
-                    <p class="field-help mt-0.5">Cap how many people can attend.</p>
-                  </div>
-                  <div class="flex items-center gap-2 shrink-0">
-                    <template v-if="form.has_capacity">
-                      <InputNumber v-model="form.capacity_max" :min="1" size="small" placeholder="Max" class="w-20" />
-                      <span class="field-help">spots</span>
-                    </template>
-                    <ToggleSwitch v-model="form.has_capacity" />
-                  </div>
+              <!-- ONE row. The cap and the waitlist were stacked as two settings
+                   with a rule between them, which made a cap look like a section.
+                   They're one sentence — "cap it at 20, and take a waitlist after
+                   that" — so the waitlist rides on the same row and only appears
+                   once there IS a cap (a waitlist on an uncapped event has nothing
+                   to overflow into). -->
+              <div class="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+                <div class="flex-1 min-w-0">
+                  <p class="field-label">Limit capacity</p>
+                  <p class="field-help mt-0.5">Cap how many people can attend.</p>
                 </div>
-                <!-- Only meaningful once there IS a cap — a waitlist for an uncapped
-                     event has nothing to overflow into. Indented so it reads as a
-                     consequence of the cap rather than a fourth top-level setting. -->
-                <div v-if="form.has_capacity" class="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2 sm:gap-6">
-                  <div class="flex-1">
-                    <p class="field-label">Enable waitlist</p>
-                    <p class="field-help mt-0.5">Once it's full, extra sign-ups join a waitlist.</p>
-                  </div>
-                  <ToggleSwitch v-model="form.has_waitlist" class="shrink-0" />
+                <div class="flex items-center gap-2 shrink-0 flex-wrap">
+                  <template v-if="form.has_capacity">
+                    <InputNumber v-model="form.capacity_max" :min="1" size="small" placeholder="Max" class="w-20" />
+                    <span class="field-help">spots</span>
+                    <span class="hidden sm:inline text-gray-200">|</span>
+                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                      <ToggleSwitch v-model="form.has_waitlist" />
+                      <span class="field-help" v-tooltip.top="'Once it\'s full, extra sign-ups join a waitlist.'">Waitlist</span>
+                    </label>
+                    <span class="hidden sm:inline text-gray-200">|</span>
+                  </template>
+                  <ToggleSwitch v-model="form.has_capacity" />
                 </div>
               </div>
             </div>
@@ -442,19 +447,19 @@
             :class="formFullBleed ? 'flex-1 min-h-0' : 'rounded-xl border border-gray-200'"
             :style="formFullBleed ? '' : 'height:70vh; min-height:560px'">
             <FormDesigner :event-id="draftEventId" :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax" :gender-restriction="form.genderRestriction" :live-event="liveEventForForm"
-              :fee-line-items="form.is_paid ? form.fees : []" embedded basic class="flex-1 min-h-0" @invite-only="setInviteOnly" @update:event="onFormEventEdit" />
+              :fee-line-items="form.is_paid ? form.fees : []" embedded basic class="flex-1 min-h-0"
+              @invite-only="setInviteOnly" @update:event="onFormEventEdit"
+              @back="mobileBack" @done="mobileNext" />
           </div>
         </div>
 
         <!-- ─ Settings ─ -->
         <div :class="isStep('settings') ? 'px-1' : 'hidden'">
-          <div v-if="!stepped" class="mb-3">
+          <div class="mb-3">
             <h2 class="section-title">Settings</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Settings') }}</p>
           </div>
-          <!-- Visibility — the display toggles + capacity. "Who can see it" (the
-               <EventVisibilityPicker>) is asked earlier, on the Choose-invitees
-               step, beside the people it applies to; this is the rest. -->
+          <!-- Visibility — where the event shows up, and the display toggles. -->
           <div class="mb-4">
             <h3 class="text-sm font-semibold text-gray-800 mb-3">Visibility</h3>
           <div class="bg-white rounded-xl border border-gray-200 p-5">
@@ -464,6 +469,17 @@
                  controls telling people the thing they were about to do might
                  not work. (The caveat itself still stands — enforcing
                  visibility on the public events page is outstanding work.) -->
+            <!-- Who sees it on the calendar. Leads the card: the toggles below are
+                 details of HOW it appears, which only matter once it appears at all. -->
+            <div class="pb-4 mb-4 border-b border-gray-100">
+              <EventVisibilityPicker
+                v-model="form.visibility"
+                v-model:type-keys="form.visibility_type_keys"
+                v-model:group-ids="form.visibility_group_ids"
+                v-model:person-ids="form.visibility_person_ids"
+                as-switch :hide-custom="false"
+                label="Calendar visibility" label-width="sm:w-[150px]" />
+            </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div v-for="vis in visibilityOptions" :key="vis.key" class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
                 <div>
@@ -608,23 +624,12 @@
             </div>
           </div>
 
-          <!-- How people sign up. It said just "Replies yes or no" — a sentence with
-               no subject, on a step whose controls never mention it, so it read as a
-               line of someone else's notes. The label is the whole point: it names
-               the RSVP-vs-form choice this event is currently set to.
-               ("Sign-up required" used to live here — now that every event has a
-               sign-up window it told the user nothing.) -->
-          <div class="flex gap-2.5">
-            <i class="pi text-xs mt-1 shrink-0 text-primary"
-              :class="attendeeAction === 'form' ? 'pi-file-edit' : 'pi-check-circle'" />
-            <div class="min-w-0">
-              <p class="text-[11px] font-bold uppercase tracking-wide text-gray-400">How they sign up</p>
-              <p class="text-sm text-gray-800">
-                {{ attendeeAction === 'form' ? 'Fills in a registration form' : 'Replies yes or no' }}
-              </p>
-            </div>
-          </div>
-
+          <!-- "How they sign up" (RSVP vs form) used to be summarised here. It was
+               reporting a DEFAULT nobody had chosen — the RSVP/form control isn't on
+               any step any more, it's implied by making the event public or by
+               building a form — so the rail was stating a decision as though it had
+               been made. A summary of an unmade choice is worse than no line at all.
+               If the choice becomes explicit again, this is where it would show. -->
           <div v-if="form.is_public" class="flex gap-2.5">
             <i class="pi pi-globe text-xs mt-1 shrink-0 text-primary" />
             <p class="text-sm text-gray-800">Public event</p>
@@ -645,8 +650,13 @@
     </div>
 
     <!-- ── Mobile bottom navigation ── -->
-    <!-- Step nav — stepped mode only; the full page saves from its header. -->
-    <div v-if="stepped" class="bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-3 shrink-0">
+    <!-- Step nav — stepped mode only; the full page saves from its header.
+         HIDDEN on the Registration form step: the form builder is a task with its
+         own screens (registration type → template → who's registering → the
+         builder) and it carries its own footer, whose "Form complete" both finishes
+         the form and moves this wizard on. Two footers stacked meant a Next that
+         belonged to a flow you weren't looking at. -->
+    <div v-if="stepped && !isStep('form')" class="bg-white border-t border-gray-200 px-4 py-3 flex items-center gap-3 shrink-0">
       <Button
         v-if="mobileStep > 0"
         label="Back"
@@ -745,12 +755,10 @@ const invitationOpen = ref(false)
 // ALWAYS available (that's the Choose-invitees step), so the only real question
 // is whether STRANGERS can sign up too. Front end of the existing is_public setting.
 const invitePublic = ref(false)
-// Say what each choice MEANS rather than yes/no — inviting your own club happens
-// either way (that's the picker below); the question is whether strangers can too.
-const publicOptions = [
-  { label: 'Public and club', value: true },
-  { label: 'Club only', value: false },
-]
+// It's a plain yes/no now (a ToggleSwitch): inviting your own club happens either
+// way — that's the picker below — so the only question is whether strangers can too.
+// The old "Public and club / Club only" pair spelled that out as two options you had
+// to compare; off = club only says the same thing at a glance.
 
 // ── And what do they have to DO? ───────────────────────────────────────────
 // Two ends of one dial, NOT two mechanisms:
@@ -1299,6 +1307,14 @@ const { conditionLabel } = useEventDiscounts()
 // Best-discount-only policy — ON by default; persisted into the form config by
 // <FormDesigner> (shared reactive), same as the advanced editor.
 const discountSettings = reactive({ one_discount_only: true })
+// Does this event have discounts at all? Off by default — but ON whenever there are
+// already discounts (resuming a draft, or an event that had some before), or the
+// switch would hide rules that are live and still being applied.
+const useDiscounts = ref(false)
+watch(() => form.discounts.length, n => { if (n) useDiscounts.value = true })
+// Turning it OFF clears them: a discount you can't see is a price change you can't
+// explain. (Turning it back on starts from empty, as the box says.)
+watch(useDiscounts, on => { if (!on && form.discounts.length) form.discounts.splice(0) })
 const discountFlowOpen = ref(false)
 const discountEditIdx = ref<number | null>(null)
 const discountEditDraft = ref<DiscountDraft | null>(null)

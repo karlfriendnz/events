@@ -1116,10 +1116,18 @@
                       { key: 'absent', label: 'Did not attend', people: attReportAbsent, on: attReportFilter.absent, totals: false },
                     ]" :key="sec.key">
                       <template v-if="sec.on && sec.people.length">
+                        <!-- The band label pins to the left like the names do. It was
+                             ONE cell spanning every column, and a full-width cell can't
+                             stick to an edge — so scrolling to a later date took
+                             "Did not attend" off screen and the rows beneath it lost
+                             the only thing saying what they were. Split in two: a
+                             sticky label cell (opaque — a translucent one shows the
+                             scrolling ticks through it) and a filler for the rest. -->
                         <tr class="bg-gray-100/70 border-y border-gray-200">
-                          <td :colspan="attReportSessions.length + 2" class="px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-gray-500">
+                          <td class="px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-gray-500 sticky left-0 bg-[#f1f2f4] border-r border-gray-200 z-20 whitespace-nowrap">
                             {{ sec.label }} <span class="text-gray-400">({{ sec.people.length }})</span>
                           </td>
+                          <td :colspan="attReportSessions.length + 1" class="px-4 py-1.5" />
                         </tr>
                         <tr v-for="p in sec.people" :key="sec.key + p.id" class="border-b border-gray-200 hover:bg-gray-50/60">
                           <td class="px-4 py-2 border-r border-gray-200 sticky left-0 bg-white z-10">

@@ -6,6 +6,8 @@ import type {
   Discount,
   DiscountCreate,
   DiscountPatch,
+  DiscountTemplate,
+  DiscountTemplateCreate,
   BookingDiscount,
   XeroConnection,
   XeroConnectionMappingPatch,
@@ -37,6 +39,18 @@ export function useFinancesApi() {
   async function removeDiscount(id: string): Promise<void> {
     await $fetch(`/api/v1/discounts/${id}`, { method: 'DELETE' })
   }
+  // ── Saved discount templates ──
+  /** The club's own reusable discount rules (migration 0023). */
+  async function discountTemplates(orgId: string): Promise<DiscountTemplate[]> {
+    return await $fetch<DiscountTemplate[]>('/api/v1/discount-templates', { query: { orgId } })
+  }
+  async function createDiscountTemplate(input: DiscountTemplateCreate): Promise<DiscountTemplate> {
+    return await $fetch<DiscountTemplate>('/api/v1/discount-templates', { method: 'POST', body: input })
+  }
+  async function removeDiscountTemplate(id: string): Promise<void> {
+    await $fetch(`/api/v1/discount-templates/${id}`, { method: 'DELETE' })
+  }
+
   /** Every booking (resource) discount for an org. */
   async function bookingDiscounts(orgId: string): Promise<BookingDiscount[]> {
     return await $fetch<BookingDiscount[]>('/api/v1/booking-discounts', { query: { orgId } })
@@ -116,6 +130,9 @@ export function useFinancesApi() {
     createDiscount,
     updateDiscount,
     removeDiscount,
+    discountTemplates,
+    createDiscountTemplate,
+    removeDiscountTemplate,
     bookingDiscounts,
     xeroConnection,
     updateXeroMapping,

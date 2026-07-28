@@ -20,7 +20,15 @@ const props = withDefaults(defineProps<{
   /** Full-bleed body for the current step: fill the modal body (small even inset,
    *  no max-width, no summary rail) so an embedded builder looks native. */
   fullBleed?: boolean
-}>(), { canNext: true, saving: false, finishLabel: 'Create', fullBleed: false })
+  /**
+   * Let the STEP own the footer. A step that is itself a multi-screen task (the
+   * form builder: registration type → template → who's registering → the builder)
+   * carries its own Back and its own finishing action; the wizard's pair underneath
+   * then offers a "Next" belonging to a flow the user isn't looking at. The step
+   * drives navigation instead, via v-model on the step index.
+   */
+  hideFooter?: boolean
+}>(), { canNext: true, saving: false, finishLabel: 'Create', fullBleed: false, hideFooter: false })
 
 const emit = defineEmits<{
   (e: 'update:modelValue', v: number): void
@@ -108,7 +116,7 @@ function onNext() {
         </div>
 
         <!-- Footer nav — Back + Next both grouped on the RIGHT (global wizard rule). -->
-        <div class="shrink-0 border-t border-gray-200 bg-white px-4 sm:px-6 py-3 flex items-center justify-end gap-2">
+        <div v-if="!hideFooter" class="shrink-0 border-t border-gray-200 bg-white px-4 sm:px-6 py-3 flex items-center justify-end gap-2">
           <Button v-if="modelValue > 0" label="Back" icon="pi pi-chevron-left"
             severity="secondary" outlined size="small"
             @click="emit('update:modelValue', modelValue - 1)" />

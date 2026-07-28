@@ -24,7 +24,10 @@ const props = withDefaults(defineProps<{ eventId: string | null; groupId?: strin
   liveEvent?: Record<string, any> | null }>(), {
   liveEvent: null, groupId: null, formId: null, sessions: () => [], orgId: null, discounts: () => [], publicPreview: false, feeLineItems: () => [], ticketTypes: () => [], hasTickets: false, embedded: false, basic: false, ageMin: null, ageMax: null, genderRestriction: null })
 
-const emit = defineEmits<{ (e: 'building', v: boolean): void; (e: 'invite-only'): void; (e: 'update:event', v: { title?: string; banner_url?: string | null }): void }>()
+// `back`/`done` are the EMBEDDED footer's two ways out of the form step — the host
+// wizard maps them onto its own steps. Nothing is emitted in standalone mode: the
+// event page navigates by tabs and has its own Done, so it needs no footer at all.
+const emit = defineEmits<{ (e: 'building', v: boolean): void; (e: 'invite-only'): void; (e: 'update:event', v: { title?: string; banner_url?: string | null }): void; (e: 'back'): void; (e: 'done'): void }>()
 const formsApi = useFormsApi()
 const groupsApi = useGroupsApi()
 const eventsApi = useEventsApi()
@@ -2385,6 +2388,27 @@ async function onEvtBannerUpload(file: File) {
 // give the builder full width (e.g. the wizard hides its summary rail).
 const evtIsBuilding = computed(() => evtFormGroupsList.value.length > 0 && !!evtFormGroupModes[selectedFormGroupId.value])
 watch(evtIsBuilding, v => emit('building', v), { immediate: true })
+
+/**
+ * Back, for the embedded footer — one screen at a time, in the thing you're looking at.
+ *
+ * Inside the builder that's "back to how people register" (which un-picks the form
+ * shape, returning to the chooser); inside the chooser it walks its own steps; and at
+ * the very first screen there's nothing left of ours, so it falls through to the
+ * wizard's previous step. The LABEL says which of those will happen — a Back that
+ * sometimes leaves the step and sometimes doesn't is the ambiguity we're fixing.
+ */
+const embeddedBackLabel = computed(() => {
+  if (evtIsBuilding.value) return 'Registration type'
+  if (evtChooserBackTo.value === 'template') return 'Templates'
+  if (evtChooserBackTo.value === 'type') return 'Registration type'
+  return 'Back'
+})
+function onEmbeddedBack() {
+  if (evtIsBuilding.value) { changeEvtFormType(); return }
+  if (evtChooserBackTo.value) { evtChooserStep.value = evtChooserBackTo.value as any; return }
+  emit('back')
+}
 
 const evtFormGroups = computed(() =>
   evtFormGroupsList.value.map(({ id, name }) => {
@@ -4978,10 +5002,37 @@ defineExpose({ reload })
 
         </div>
 
-        <!-- Sticky bottom nav — hidden when embedded (the wizard owns Back/Next). -->
-        <div v-if="!embedded && evtFormGroupModes[selectedFormGroupId] && evtFormGroupModes[selectedFormGroupId] !== 'skip'" class="flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-white shrink-0">
-          <button type="button" class="px-5 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">Back</button>
-          <button type="button" class="px-5 py-2 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-[#161a45] transition-colors">Next: Configure Discounts</button>
+        <!--
+          THE FORM STEP'S OWN FOOTER.
+
+          Building a form is a task with several screens of its own (registration
+          type → template → who's registering → the builder). A wizard footer sitting
+          under all of that offered a "Next" that belonged to a different flow: on the
+          template screen it looked like it meant "next template screen", and inside
+          the builder it looked like a form control. So while this step is open the
+          wizard hides its footer and THIS one drives everything.
+
+          Back always means "one screen back in the thing I'm looking at", falling
+          through to the wizard's previous step once there's nothing behind it. The
+          primary action only appears once the form actually exists, and it says what
+          it does — the form is finished, carry on — which is Karl's "complete form"
+          button: finishing the form and moving the wizard on are one action, because
+          to the person doing it they are one thought.
+        -->
+        <div v-if="embedded" class="flex items-center justify-between gap-3 px-6 py-3 border-t border-gray-200 bg-white shrink-0">
+          <button type="button"
+            class="px-5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors inline-flex items-center gap-1.5"
+            @click="onEmbeddedBack">
+            <i class="pi pi-chevron-left text-[10px]" />{{ embeddedBackLabel }}
+          </button>
+          <button v-if="evtIsBuilding" type="button"
+            class="px-5 py-2.5 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-[#161a45] transition-colors inline-flex items-center gap-1.5"
+            @click="emit('done')">
+            Form complete<i class="pi pi-chevron-right text-[10px]" />
+          </button>
+          <!-- No form chosen yet: the cards ARE the forward action, so there's nothing
+               to press here. The way past without one is "No registration" in the list. -->
+          <span v-else class="text-xs text-gray-400">Choose how people register to continue</span>
         </div>
 
   <!-- Edit T&C Agree Text Dialog -->

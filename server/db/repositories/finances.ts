@@ -23,6 +23,8 @@ import { and, asc, desc, eq, gte, inArray, lt, or, sql } from 'drizzle-orm'
 import { db, schema } from '../client'
 import type {
   Discount,
+  DiscountTemplate,
+  DiscountTemplateCreate,
   BookingDiscount,
   XeroConnection,
   DiscountCreate,
@@ -125,6 +127,42 @@ function toXeroConnection(r: typeof schema.xeroConnections.$inferSelect): XeroCo
 }
 
 /** Every event discount in an org (scoped via each discount's event), author order. */
+// ── Saved discount templates (migration 0023) ────────────────────────────────
+// A club's own reusable rules, sitting beside the built-in presets in the picker.
+// Org-scoped and event-free by design: the point is to use one on the NEXT event.
+export async function listDiscountTemplates(orgId: string): Promise<DiscountTemplate[]> {
+  const rows = await db
+    .select()
+    .from(schema.discountTemplates)
+    .where(eq(schema.discountTemplates.orgId, orgId))
+    .orderBy(desc(schema.discountTemplates.createdAt))
+  return rows.map(toDiscountTemplate)
+}
+
+export async function createDiscountTemplate(input: DiscountTemplateCreate): Promise<DiscountTemplate> {
+  const id = randomUUID()
+  await db.insert(schema.discountTemplates).values({
+    id, orgId: input.orgId, name: input.name, preset: input.preset ?? {},
+  } as any)
+  const [row] = await db.select().from(schema.discountTemplates).where(eq(schema.discountTemplates.id, id)).limit(1)
+  return toDiscountTemplate(row)
+}
+
+export async function removeDiscountTemplate(id: string): Promise<void> {
+  await db.delete(schema.discountTemplates).where(eq(schema.discountTemplates.id, id))
+}
+
+function toDiscountTemplate(r: any): DiscountTemplate {
+  return {
+    id: r.id,
+    orgId: r.orgId,
+    name: r.name,
+    // mysql2 parses json columns for us; a string means an older hand-written row.
+    preset: typeof r.preset === 'string' ? (() => { try { return JSON.parse(r.preset) } catch { return {} } })() : (r.preset ?? {}),
+    createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : null,
+  }
+}
+
 export async function listDiscounts(orgId: string): Promise<Discount[]> {
   const rows = await db
     .select({ d: schema.discounts })

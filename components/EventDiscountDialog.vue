@@ -86,6 +86,7 @@ watch(() => props.visible, (open) => {
       Object.assign(draft, makeDiscountDraft())
       showPicker.value = true
       showRule.value = false
+      loadSavedTemplates()
     }
   } else {
     showPicker.value = false
@@ -141,9 +142,49 @@ function ensureCustomVal(cond: any) {
   return c.val
 }
 
+// ── The club's own saved templates ────────────────────────────────────────────
+// "Save as template" was a switch that did nothing: the flag was set on the draft
+// and read by no one, so a rule the club built for one event had to be built again
+// for the next. Now it writes a `discount_templates` row, and those rows show at the
+// TOP of the picker — above the built-ins, because your own are the ones you want.
+const financesApi = useFinancesApi()
+const { orgId } = useOrg()
+const savedTemplates = ref<any[]>([])
+
+async function loadSavedTemplates() {
+  if (!orgId.value) return
+  try { savedTemplates.value = await financesApi.discountTemplates(orgId.value) }
+  catch { savedTemplates.value = [] }   // never block adding a discount
+}
+
+/** One line saying what a saved template actually does, e.g. "25% off · 2 conditions". */
+function savedTemplateSummary(t: any) {
+  const p = t?.preset ?? {}
+  const v = Number(p.modifier_value ?? 0)
+  const amount = p.modifier_type === 'PERCENT' ? `${v}% off`
+    : p.modifier_type === 'REPLACE' ? `Set price ${props.currencySymbol}${v}`
+    : `${props.currencySymbol}${v} off`
+  const n = (p.conditions ?? []).filter((c: any) => c?.key).length
+  return n ? `${amount} · ${n} condition${n === 1 ? '' : 's'}` : `${amount} · always applies`
+}
+
+async function deleteSavedTemplate(id: string) {
+  savedTemplates.value = savedTemplates.value.filter(t => t.id !== id)
+  try { await financesApi.removeDiscountTemplate(id) } catch { await loadSavedTemplates() }
+}
+
 function save() {
   if (!draft.name) return
-  emit('save', JSON.parse(JSON.stringify(draft)))
+  const out: DiscountDraft = JSON.parse(JSON.stringify(draft))
+  // Saving the template is best-effort and never holds up the discount itself —
+  // the rule going onto the event is what the user asked for.
+  if (out.save_as_template && orgId.value) {
+    const { save_as_template, ...preset } = out as any
+    financesApi.createDiscountTemplate({ orgId: orgId.value, name: out.name, preset })
+      .then(() => loadSavedTemplates())
+      .catch(() => {})
+  }
+  emit('save', out)
   close()
 }
 </script>
@@ -153,6 +194,31 @@ function save() {
   <Dialog :visible="showPicker" @update:visible="v => { if (!v) close() }" header="Add Discount" modal :style="{ width: '95vw', maxWidth: '560px' }">
     <div class="py-1 space-y-4">
       <p class="text-sm text-gray-500">Start from a template or build your own from scratch.</p>
+
+      <!-- The club's OWN saved rules first — they're the ones you meant. -->
+      <div v-if="savedTemplates.length" class="space-y-2">
+        <p class="text-[11px] font-bold uppercase tracking-wide text-gray-400">Your saved templates</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div v-for="t in savedTemplates" :key="t.id"
+            class="relative rounded-xl border border-gray-200 hover:border-primary hover:bg-primary/5 transition-all group">
+            <button class="w-full text-left px-4 py-3.5" @click="openWithTemplate(t.preset)">
+              <div class="flex items-center gap-2.5 mb-1">
+                <div class="w-7 h-7 rounded-lg bg-primary/10 group-hover:bg-primary/15 flex items-center justify-center shrink-0 transition-colors">
+                  <i class="pi pi-bookmark-fill text-primary text-sm" />
+                </div>
+                <span class="text-sm font-semibold text-gray-800 truncate">{{ t.name }}</span>
+              </div>
+              <p class="text-xs text-gray-500">{{ savedTemplateSummary(t) }}</p>
+            </button>
+            <button class="absolute top-2 right-2 w-6 h-6 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+              v-tooltip.top="'Delete this template'" @click.stop="deleteSavedTemplate(t.id)">
+              <i class="pi pi-times text-[10px]" />
+            </button>
+          </div>
+        </div>
+        <p class="text-[11px] font-bold uppercase tracking-wide text-gray-400 pt-1">Ready-made</p>
+      </div>
+
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button v-for="tpl in DISCOUNT_TEMPLATES" :key="tpl.label"
           class="text-left rounded-xl border border-gray-200 hover:border-primary hover:bg-primary/5 transition-all px-4 py-3.5 group"
@@ -179,16 +245,19 @@ function save() {
   <Dialog :visible="showRule" @update:visible="v => { if (!v) close() }" modal :style="{ width: '95vw', maxWidth: '860px', padding: '0' }" :pt="{ header: { class: 'hidden' }, content: { class: 'p-0' }, footer: { class: 'hidden' } }">
     <div class="flex flex-col" style="max-height:88vh">
 
-      <!-- Custom header -->
-      <div class="flex items-center justify-between px-6 py-3.5 border-b border-gray-100 shrink-0">
-        <div class="flex items-center gap-2.5">
-          <div class="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
-            <i class="pi pi-tag text-white" style="font-size:11px" />
-          </div>
-          <h2 class="text-sm font-semibold text-gray-800">{{ isEditing ? 'Edit Discount Rule' : 'New Discount Rule' }}</h2>
-        </div>
-        <button class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-all" @click="close">
-          <i class="pi pi-times text-xs" />
+      <!-- The standard modal header. This dialog hides PrimeVue's own header (its
+           body is a full-bleed layout) and so had hand-rolled a white bar — the one
+           modal in the app not wearing the brand chrome. `.modal-header-bar` /
+           `.modal-header-title` are the SAME classes main.css styles for every
+           page-as-modal, so it matches without restyling anything per-instance. -->
+      <div class="modal-header-bar flex items-center justify-between shrink-0">
+        <span class="modal-header-title flex items-center gap-2">
+          <i class="pi pi-tag" style="font-size:11px" />
+          {{ isEditing ? 'Edit Discount Rule' : 'New Discount Rule' }}
+        </span>
+        <button class="w-7 h-7 flex items-center justify-center rounded-md text-white/75 hover:text-white hover:bg-white/15 transition-colors"
+          aria-label="Close" @click="close">
+          <i class="pi pi-times text-sm" />
         </button>
       </div>
 

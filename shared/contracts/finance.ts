@@ -45,6 +45,27 @@ export type Discount = z.infer<typeof discountSchema>
 
 export const discountListSchema = z.array(discountSchema)
 
+// A club's SAVED discount template (migration 0023) — a reusable rule, not a rule
+// attached to an event. `preset` is a DiscountDraft as the dialog builds it, kept as
+// a free payload for the same reason `conditions` is: the discount vocabulary lives
+// in useEventDiscounts and evolves there, not at the boundary.
+export const discountTemplateSchema = z.object({
+  id: z.string(),
+  orgId: z.string(),
+  name: z.string(),
+  preset: z.any(),
+  createdAt: z.string().nullable(),
+})
+export type DiscountTemplate = z.infer<typeof discountTemplateSchema>
+export const discountTemplateListSchema = z.array(discountTemplateSchema)
+
+export const discountTemplateCreateSchema = z.object({
+  orgId: z.string(),
+  name: z.string().min(1),
+  preset: z.any(),
+})
+export type DiscountTemplateCreate = z.infer<typeof discountTemplateCreateSchema>
+
 // WRITE contracts. Create omits the server-owned id AND orgId (the table has no
 // org_id — it's resolved from the linked event by the repo). name is required; the
 // notNull columns (type / modifierType / modifierValue / applyTo / conditions /

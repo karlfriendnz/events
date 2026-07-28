@@ -6,6 +6,7 @@
     :can-next="canNext"
     :saving="saving"
     :full-bleed="step === 3"
+    :hide-footer="step === 3"
     finish-label="Create programme"
     @finish="createEvent"
     @close="navigateTo('/events')">
@@ -295,7 +296,8 @@
       <FormDesigner v-else :event-id="draftEventId" :org-id="orgId"
         :sessions="wizardSessions" :fee-line-items="wizardFeeLineItems" :discounts="activeDiscounts"
         :discount-settings="discountSettings" :age-min="form.ageMin" :age-max="form.ageMax" :gender-restriction="form.genderRestriction"
-        embedded class="flex flex-col flex-1 min-h-0" />
+        embedded class="flex flex-col flex-1 min-h-0"
+        @back="step = 2" @done="step = 4" />
     </div>
 
     <!-- ── Step 5 · Summary ── -->
