@@ -18,7 +18,12 @@
 
     <!-- Body -->
     <div class="px-4 py-4 space-y-5 overflow-y-auto flex-1">
-      <!-- Audience -->
+      <!-- Audience ("Who is this form for?" — Everyone / Members / Public) HIDDEN
+           for now. The wizard already asks who the event is for, twice over: public
+           sign-ups on the Choose-invitees step and Calendar visibility in Settings.
+           A third answer here, on the form itself, could contradict both.
+           The value still rides on `audience`, so un-hiding restores any club's
+           existing choice.
       <div>
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Who is this form for?</p>
         <div class="flex p-1 bg-gray-100 rounded-xl gap-1">
@@ -32,11 +37,14 @@
           </button>
         </div>
       </div>
+      -->
 
-      <!-- Form Style — ADVANCED ONLY. The basic event path is one page by
-           construction (<FormRenderer :basic> forces single-page), so offering
-           Single Page / Steps here would be a control with nothing behind it. -->
-      <div v-if="!basic">
+      <!-- Form Style — on EVERY path. It was hidden on the basic one while
+           <FormRenderer :basic> forced single-page; the renderer now honours the
+           stored style everywhere, so a basic event can be one page or steps like
+           any other. (Control and behaviour move together: hiding this again means
+           forcing the style again, or the choice does nothing.) -->
+      <div>
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Form Style</p>
         <div class="flex p-1 bg-gray-100 rounded-xl gap-1">
           <button type="button" class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors"
@@ -127,9 +135,10 @@
       </div>
 
       <!-- Steps (Form Style = Steps) — inherits the club's brand colour until set.
-           Hidden on the basic path for the same reason as Form Style: with no steps
-           to fill, a "Step colour" swatch configures something that never renders. -->
-      <div v-if="!basic">
+           Shown when the form IS stepped, on any path: a "Step colour" swatch on a
+           single-page form configures something that never renders. Keyed to the
+           style rather than to basic-vs-advanced now that both can be stepped. -->
+      <div v-if="design.style === 'tabs'">
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Step colour</p>
         <div class="flex items-center gap-2 p-2 border border-gray-200 rounded-xl">
           <input type="color" :value="design.stepColor || brandColor || '#111827'" class="w-8 h-8 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white"
@@ -174,7 +183,11 @@
         </template>
       </div>
 
-      <!-- Sponsors -->
+      <!-- Sponsors — HIDDEN for now. There's nowhere to record a sponsor yet (that's
+           its own build: a sponsor record, a logo, where it appears), so the toggle
+           only ever chose between showing nothing and hiding nothing. The setting
+           still lives on `design.sponsors`, so bring the block back when sponsors are
+           real and any club that had flipped it keeps its answer.
       <div>
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Sponsors</p>
         <div class="flex p-1 bg-gray-100 rounded-xl gap-1">
@@ -186,6 +199,7 @@
             @click="design.sponsors = 'hide'">Hide</button>
         </div>
       </div>
+      -->
 
       <button type="button"
         class="w-full py-2.5 rounded-xl bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors"

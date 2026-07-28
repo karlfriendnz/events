@@ -1,6 +1,6 @@
 # Review tasks — 1 open across 1 page
 
-Generated 2026-07-28T04:05:45.242Z from the in-app review widget.
+Generated 2026-07-28T04:33:54.253Z from the in-app review widget.
 
 The app is running at **http://localhost:3005** — that's where the PATCHes below go. Don't
 assume a port: this line is written by the server that served the brief.
@@ -36,13 +36,13 @@ PATCH http://localhost:3005/api/v1/reviews/comments/<id>
 
 ---
 
-## `/events/:id()?tab=forms` — 1 open
+## `/events/new-basic` — 1 open
 
-### 1. Can we move the add person entity to the right hand side of who is registering?
+### 1. Let's remove this continue button because it's confusing.
 
-- **id**: `2474aba9-3dbc-4d04-8bb8-fcf0ab892195`
-- **where**: ProgrammeHolidays K › Add a person or entity › button "Add a person or entity"
+- **id**: `896f933b-1df3-428f-8929-ed1acbc1fd9c`
+- **where**: Step 5 of 6 · Registration form › dialog "Create Event" › Continue › button "Continue"
 - **file**: `components/FormDesigner.vue`
-- **components**: FormDesigner › [id] › RouteProvider › RouterView › NuxtPage › default
-- **selector**: `div > div > div > button.font-semibold`
+- **components**: FormDesigner › new-basic › RouteProvider › RouterView › NuxtPage › default
+- **selector**: `div > div.shrink-0 > div > button.font-semibold`
 - **by**: Karl · 0m ago

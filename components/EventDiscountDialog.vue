@@ -242,27 +242,22 @@ function save() {
   </Dialog>
 
   <!-- Rule editor -->
-  <Dialog :visible="showRule" @update:visible="v => { if (!v) close() }" modal :style="{ width: '95vw', maxWidth: '860px', padding: '0' }" :pt="{ header: { class: 'hidden' }, content: { class: 'p-0' }, footer: { class: 'hidden' } }">
-    <div class="flex flex-col" style="max-height:88vh">
+  <!--
+    A PLAIN <Dialog>, like every other modal in the app.
 
-      <!-- The standard modal header. This dialog hides PrimeVue's own header (its
-           body is a full-bleed layout) and so had hand-rolled a white bar — the one
-           modal in the app not wearing the brand chrome. `.modal-header-bar` /
-           `.modal-header-title` are the SAME classes main.css styles for every
-           page-as-modal, so it matches without restyling anything per-instance. -->
-      <div class="modal-header-bar flex items-center justify-between shrink-0">
-        <span class="modal-header-title flex items-center gap-2">
-          <i class="pi pi-tag" style="font-size:11px" />
-          {{ isEditing ? 'Edit Discount Rule' : 'New Discount Rule' }}
-        </span>
-        <button class="w-7 h-7 flex items-center justify-center rounded-md text-white/75 hover:text-white hover:bg-white/15 transition-colors"
-          aria-label="Close" @click="close">
-          <i class="pi pi-times text-sm" />
-        </button>
-      </div>
+    It used to hide PrimeVue's header, content padding and footer (`pt`) and rebuild
+    all three by hand — which is exactly what the system rule forbids, and why it was
+    the one modal that looked like it came from somewhere else. Now the header is the
+    `header` prop (main.css gives every dialog the brand bar), the body is ordinary
+    dialog content, and the buttons are in the `#footer` slot.
+  -->
+  <Dialog :visible="showRule" @update:visible="v => { if (!v) close() }" modal
+    :header="isEditing ? 'Edit Discount Rule' : 'New Discount Rule'"
+    :style="{ width: '95vw', maxWidth: '860px' }">
+    <div class="flex flex-col">
 
       <!-- Scrollable body -->
-      <div class="flex-1 overflow-y-auto p-4">
+      <div class="flex-1 overflow-y-auto -mx-1 px-1" style="max-height:66vh">
        <div class="rounded-xl border border-gray-200 overflow-hidden">
 
         <!-- Names row -->
@@ -524,12 +519,11 @@ function save() {
        </div>
       </div>
 
-      <!-- Footer buttons -->
-      <div class="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-gray-100 shrink-0">
-        <Button label="Cancel" severity="secondary" outlined size="small" @click="close" />
-        <Button :label="isEditing ? 'Save Changes' : 'Add Discount'" size="small" :disabled="!draft.name" @click="save" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
-      </div>
-
     </div>
+    <template #footer>
+      <Button label="Cancel" severity="secondary" text @click="close" />
+      <Button :label="isEditing ? 'Save Changes' : 'Add Discount'" :disabled="!draft.name" @click="save"
+        style="background:var(--brand-primary); border-color:var(--brand-primary)" />
+    </template>
   </Dialog>
 </template>

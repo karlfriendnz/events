@@ -22,8 +22,13 @@
       : ''"
     :data-review-scope="reviewScope"
     :style="stepped ? 'z-index: 1000' : ''">
+  <!-- 1200px suits a form of labelled rows. The Registration form step is a
+       two-panel EDITOR (section list + live preview of the real form) and every
+       pixel taken off it comes out of the preview, so that step widens to the
+       screen — the modal grows for the one step that needs the room. -->
   <div :class="stepped
-      ? 'flex flex-col bg-white w-full h-full sm:h-[92vh] sm:max-w-[1200px] sm:rounded-xl shadow-2xl overflow-hidden'
+      ? ['flex flex-col bg-white w-full h-full sm:h-[92vh] sm:rounded-xl shadow-2xl overflow-hidden',
+         formFullBleed ? 'sm:max-w-none' : 'sm:max-w-[1200px]']
       : 'flex flex-col bg-white h-[calc(100vh-3.5rem)]'">
 
     <!-- ── Stepped header (step nav + progress bar) — same brand bar as the
@@ -129,7 +134,7 @@
             <div class="px-5 py-4 border-b border-gray-100">
               <!-- Label sits LEFT of the field, in the stepped view too (it only
                    stacks on a genuinely narrow screen). -->
-              <div class="grid grid-cols-1 sm:grid-cols-[120px_1fr] items-center gap-1.5 sm:gap-4">
+              <div class="grid grid-cols-1 sm:grid-cols-[100px_1fr] items-center gap-1.5 sm:gap-4">
                 <label class="field-label">Event Title <span class="text-red-400">*</span></label>
                 <InputText ref="titleInput" v-model="form.title" placeholder="Enter the name of your event" class="w-full" />
               </div>
@@ -142,7 +147,7 @@
                  field. (The plain rows had drifted to py-2 — restored on review.) -->
             <div class="px-5 py-0 border-b border-gray-100">
               <!-- No accordion: the fields ARE the summary. Each editor row carries
-                   its own 120px label column, matching the card's, so every input
+                   its own 100px label column, matching the card's, so every input
                    lines up with Event Title. -->
               <DateTimeEditor
                 v-model:startDate="form.start_date"
@@ -157,7 +162,7 @@
                 no-past-today
                 label="Date"
                 required
-                label-width="w-[120px]"
+                label-width="w-[100px]"
                 label-class="text-gray-800 font-semibold"
                 row-padding="px-0 py-2"
                 divider
@@ -165,7 +170,7 @@
               <!-- Why you can't proceed — a disabled button with no reason is a
                    dead end. Only nags once the user has engaged with the form. -->
               <div v-if="dateInvalidReason && (form.title.trim() || form.start_date)"
-                class="py-1 sm:pl-[136px]">
+                class="py-1 sm:pl-[116px]">
                 <span class="inline-flex items-center gap-2 rounded-md bg-red-50 border border-red-100 px-2.5 py-1.5">
                   <i class="pi pi-exclamation-circle text-red-500 text-xs" />
                   <span class="text-xs font-medium text-red-600">{{ dateInvalidReason }}</span>
@@ -177,13 +182,16 @@
                  two date fields stay out of the way until someone actually wants
                  something else. One either/or question, one SelectButton. -->
             <div class="px-5 py-4" :class="signupMode === 'custom' ? '' : 'border-b border-gray-100'">
-              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4 items-center'">
+              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[100px_1fr] gap-4 items-center'">
                 <label class="field-label">Sign up</label>
-                <div class="flex flex-col gap-2 min-w-0">
+                <!-- The summary sits BESIDE the buttons, not under them: it's what
+                     the chosen option means, and on its own line it read as a
+                     separate note about the row. Wraps below on a narrow screen. -->
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 min-w-0">
                   <SelectButton :model-value="signupMode" :options="SIGNUP_MODES"
                     option-label="label" option-value="value" :allow-empty="false"
-                    class="w-max" @update:model-value="setSignupMode" />
-                  <p v-if="signupMode === 'auto'" class="field-help">{{ signupAutoSummary }}</p>
+                    class="w-max shrink-0" @update:model-value="setSignupMode" />
+                  <p v-if="signupMode === 'auto'" class="field-help min-w-0">{{ signupAutoSummary }}</p>
                 </div>
               </div>
             </div>
@@ -202,7 +210,7 @@
                 label=""
                 start-label="Opens"
                 end-label="Closes"
-                label-width="w-[120px]"
+                label-width="w-[100px]"
                 label-class="text-gray-800 font-semibold"
                 row-padding="px-0 py-2"
                 :mark-dates="[
@@ -212,7 +220,7 @@
             </div>
             <!-- Description -->
             <div class="px-5 py-4 border-b border-gray-100">
-              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
+              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[100px_1fr] gap-4'">
                 <label class="field-label pt-1">Description</label>
                 <RichTextEditor v-model="form.description" placeholder="Describe your event here…" />
               </div>
@@ -227,7 +235,7 @@
                    body defines no disciplines there's only ONE field left, so it takes
                    the normal left label like every other row. -->
               <EventCategoryRow v-model="form.category_ids" :categories="categories"
-                :event-id="draftEventId" :stacked="isMobile"
+                :event-id="draftEventId" :stacked="isMobile" label-width="100px"
                 @created="c => categories.push(c)"
                 @discipline-empty="v => disciplineEmpty = v" />
             </div>

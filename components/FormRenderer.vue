@@ -132,10 +132,12 @@ const activeGroupId = computed(() => {
 // event keeps its design under 'general', so reading strictly by group id returned {}
 // and the preview lost its info-icons / description / wizard steps.
 const design = computed(() => props.config?.designs?.[activeGroupId.value] ?? props.config?.designs?.general ?? {})
-// The basic path is single-page by construction, whatever the stored style says — the
-// designer's default design is style:'tabs', so a basic event would otherwise inherit
-// step chrome it has no control to turn off (Form Style is hidden there).
-const isWizard = computed(() => !props.basic && design.value?.style === 'tabs')
+// The stored style decides, on EVERY path. The basic path used to force single-page,
+// because Form Style was hidden from its design panel and the designer's default is
+// 'tabs' — so a basic event would have inherited step chrome with no control to turn
+// it off. Form Style is back in that panel, so the choice is the club's again;
+// forcing it here would leave the control doing nothing.
+const isWizard = computed(() => design.value?.style === 'tabs')
 // The club's own brand colours (Settings → General → Branding). A form inherits them
 // so it looks like the club by default; Form Design can override per form.
 const brand = ref<{ bg: string | null; text: string | null }>({ bg: null, text: null })

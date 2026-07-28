@@ -2591,31 +2591,18 @@ function evtConfirmSubjects() {
   if (design) design.style = props.basic ? 'single' : 'tabs'
 }
 
-/**
- * On the basic path the single-page style is STORED, not just rendered.
+/*
+ * A watcher used to FORCE `style = 'single'` on the basic path — every time the
+ * style changed, it changed it back. That was right while Form Style was hidden
+ * there (the design had to agree with what the public page would render, since
+ * /r/:context/:id doesn't know it came from the basic wizard). With the control
+ * restored, it made the Steps button dead: you pressed it and nothing happened,
+ * because the watcher had already undone it.
  *
- * <FormRenderer> is also mounted by the live public page (/r/:context/:id) and
- * the staff register-on-behalf page, and neither passes `basic` — nor should
- * they have to, since they only know they're showing a form. If the design were
- * left saying 'tabs' and only overridden at render here, the builder would show
- * one page while the registrant still got a "Step 1 / Summary" bar and a Next
- * button: WYSIWYG broken in the other direction, which is the whole complaint.
- *
- * Writing it into the design means the builder, the public page and the staff
- * page all read the same answer with no prop to thread. It also self-heals a
- * form created before this change, the next time it is opened in the basic
- * builder. The advanced editor keeps the Form Style control, so a club that
- * wants steps can still choose them there.
+ * Single page is still what a basic event STARTS as — see evtConfirmSubjects —
+ * but it's a default now, not a lock, and whatever the club picks is what gets
+ * stored and what every renderer reads.
  */
-watch(
-  [() => props.basic, selectedFormGroupId, () => evtFormGroupDesigns[selectedFormGroupId.value]?.style],
-  () => {
-    if (!props.basic) return
-    const d = evtFormGroupDesigns[selectedFormGroupId.value]
-    if (d && d.style !== 'single') d.style = 'single'
-  },
-  { immediate: true },
-)
 
 // ── Start from a previous form ──────────────────────────────────────────────
 // List the org's designer-shaped forms, preview one live, then clone its first
@@ -2841,6 +2828,31 @@ const evtFormSections = computed(() => {
 
 const evtFormSectionCompletedCount = computed(() => evtFormSections.value.filter(s => s.complete).length)
 
+/**
+ * Is the form finished? Every section on the checklist has to have been through —
+ * that's the gate on "Form complete".
+ *
+ * Deliberately counted over the SAME `evtFormSections` list the panel renders, so
+ * the progress line ("2 of 3 sections complete") and the button can never disagree
+ * about what's outstanding.
+ */
+const evtFormAllSectionsDone = computed(() =>
+  evtFormSections.value.length > 0 && evtFormSections.value.every(s => s.complete))
+
+/*
+ * There was an `evtCanLeaveFormStep` here, gating a second forward button in the
+ * footer. Both are gone: the only way out of this step is "Form complete" on the
+ * checklist, which asks `evtFormAllSectionsDone` directly, and the no-form case
+ * advances the wizard the moment it's chosen. One question, asked in one place.
+ */
+/** What's still to do, named — a disabled button with no reason is a dead end. */
+const evtFormRemainingLabel = computed(() => {
+  const left = evtFormSections.value.filter(s => !s.complete)
+  if (!left.length) return ''
+  if (left.length === 1) return `${left[0].label} still to set up`
+  return `${left.length} sections still to set up`
+})
+
 // Two-step chooser: 'type' (Basic / Start from scratch / …) → 'template' (who's registering).
 const evtChooserStep = ref<'type' | 'template' | 'subjects' | 'previous'>('type')
 // Where the header's Back goes from here — null on the first step (nothing behind it).
@@ -2893,6 +2905,11 @@ function chooseEvtFormType(mode: string) {
   // "Invite only" (the simple, no-form, Yes/No path): let a host wizard flip the
   // event to RSVP-only (is_public off, no registration form) — new-basic wires this.
   if (mode === 'simple') emit('invite-only')
+  // No form at all? Then this step has nothing left to show, so don't strand the
+  // user on an empty screen hunting for a way forward — saying "no registration"
+  // IS the answer, and the wizard moves on. (Back returns here and the choice is
+  // still made, so it's not a one-way door.)
+  if (mode === 'none' && props.embedded) nextTick(() => emit('done'))
 }
 
 function changeEvtFormType() {
@@ -3103,11 +3120,17 @@ defineExpose({ reload })
                       class="text-base font-bold text-gray-900 bg-transparent border-0 outline-none p-0 focus:ring-0 w-full"
                       @input="e => { const g = evtFormGroupsList.find(x => x.id === selectedFormGroupId); if (g) g.name = (e.target as HTMLInputElement).value }"
                     />
-                    <p class="text-xs text-gray-400 mt-0.5">{{ evtFormSectionCompletedCount }} of {{ evtFormSections.length }} sections complete</p>
+                    <!-- Reads red until it's all done, matching the rows below —
+                         the tally and the list must agree on sight, not on arithmetic. -->
+                    <p class="text-xs mt-0.5" :class="evtFormAllSectionsDone ? 'text-green-600' : 'text-red-500 font-medium'">
+                      {{ evtFormSectionCompletedCount }} of {{ evtFormSections.length }} sections complete
+                    </p>
                   </div>
                   <div class="shrink-0 mt-1">
                     <div class="w-20 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                      <div class="h-full rounded-full bg-[#1ab4e8] transition-all" :style="`width:${evtFormSections.length ? (evtFormSectionCompletedCount/evtFormSections.length)*100 : 0}%`" />
+                      <div class="h-full rounded-full transition-all"
+                        :class="evtFormAllSectionsDone ? 'bg-green-500' : 'bg-red-400'"
+                        :style="`width:${evtFormSections.length ? (evtFormSectionCompletedCount/evtFormSections.length)*100 : 0}%`" />
                     </div>
                   </div>
                 </div>
@@ -3180,7 +3203,29 @@ defineExpose({ reload })
                 </div>
               </div>
               <div class="px-4 py-4 border-t border-gray-100 space-y-2 shrink-0">
-                <button type="button" class="w-full py-2.5 rounded-xl bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors" @click="evtFormShowSections = false">Done</button>
+                <!--
+                  FINISHING THE FORM lives here, at the foot of the checklist it's
+                  about — not in the wizard's footer, where it sat next to Back and
+                  read as page navigation. The checklist above says what's left; the
+                  button is the end of that list.
+
+                  It's GATED: every section has to have been through before the form
+                  can be called complete. A form left half-configured still publishes,
+                  and the club finds out from a registrant.
+                -->
+                <button v-if="embedded" type="button"
+                  class="w-full py-2.5 rounded-xl font-semibold text-sm transition-colors"
+                  :class="evtFormAllSectionsDone
+                    ? 'bg-[#1ab4e8] hover:bg-[#16a0d0] text-white'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'"
+                  :disabled="!evtFormAllSectionsDone"
+                  @click="emit('done')">
+                  Form complete
+                </button>
+                <p v-if="embedded && !evtFormAllSectionsDone" class="text-xs text-gray-400 text-center">
+                  {{ evtFormRemainingLabel }}
+                </p>
+                <button v-else-if="!embedded" type="button" class="w-full py-2.5 rounded-xl bg-[#1ab4e8] hover:bg-[#16a0d0] text-white font-semibold text-sm transition-colors" @click="evtFormShowSections = false">Done</button>
                 <div class="flex items-center justify-between pt-1">
                   <button type="button" class="text-xs text-gray-400 hover:text-[#182e59] transition-colors" @click="changeEvtFormType()">Change form type</button>
                   <button type="button" class="text-xs text-red-400 hover:text-red-600 transition-colors" @click="formToDelete = selectedFormGroupId">Delete form</button>
@@ -3805,6 +3850,9 @@ defineExpose({ reload })
                 </div>
               </div>
               <div class="px-4 py-3 space-y-1.5 overflow-y-auto flex-1">
+                <!-- Same reason as the payment panel: name the question the list is
+                     asking, not just what each row does. -->
+                <p class="field-help pb-1">Choose the terms people must agree to before they can sign up.</p>
                 <!-- Club T&C — always required, locked -->
                 <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-100 opacity-60 cursor-not-allowed">
                   <div class="w-5 h-5 rounded border-2 border-[#0e43a3] bg-[#0e43a3] shrink-0 flex items-center justify-center">
@@ -3856,6 +3904,10 @@ defineExpose({ reload })
                 </button>
               </div>
               <div class="overflow-y-auto flex-1 px-4 py-3 space-y-3">
+                <!-- Says what the switches are FOR. A column of "Enable pay by …"
+                     toggles tells you what each one does but not what the panel is
+                     asking, and the answer here decides how the club gets paid. -->
+                <p class="field-help">Choose the ways people can pay when they sign up.</p>
 
                 <!-- Invoice -->
                 <div class="border border-gray-200 rounded-xl p-3 space-y-3">
@@ -5025,14 +5077,21 @@ defineExpose({ reload })
             @click="onEmbeddedBack">
             <i class="pi pi-chevron-left text-[10px]" />{{ embeddedBackLabel }}
           </button>
-          <button v-if="evtIsBuilding" type="button"
-            class="px-5 py-2.5 bg-primary text-white rounded-lg text-sm font-semibold hover:bg-[#161a45] transition-colors inline-flex items-center gap-1.5"
-            @click="emit('done')">
-            Form complete<i class="pi pi-chevron-right text-[10px]" />
-          </button>
-          <!-- No form chosen yet: the cards ARE the forward action, so there's nothing
-               to press here. The way past without one is "No registration" in the list. -->
-          <span v-else class="text-xs text-gray-400">Choose how people register to continue</span>
+          <!-- Normally nothing on the right: going FORWARD out of this step is
+               finishing the form, and that button belongs at the foot of the
+               checklist that says what's left — not here beside Back, where it reads
+               as page navigation. While choosing, the cards are the forward action.
+               The exception is "No registration": there's no checklist to finish, so
+               the way on has to live somewhere, and here is the only place left. -->
+          <!-- NOTHING forward here, ever. There is exactly one way out of this step
+               and it's "Form complete" at the foot of the checklist on the left, next
+               to the list of what's still missing. A second forward button down here
+               was read as page navigation and, worse, as a way past a form that
+               wasn't finished. Choosing "No registration" moves the wizard on by
+               itself, so that case needs no button either. -->
+          <span v-if="evtPublicPreview" class="text-xs text-gray-400">Previewing — exit the preview to carry on</span>
+          <span v-else-if="!evtIsBuilding" class="text-xs text-gray-400">Choose how people register to continue</span>
+          <span v-else class="text-xs text-gray-400">Finish the form on the left to continue</span>
         </div>
 
   <!-- Edit T&C Agree Text Dialog -->
