@@ -301,6 +301,38 @@ body {
   }
 }
 
+/* ── Date pickers: a MARKED day ──────────────────────────────────────────────
+   A day circled for CONTEXT — "the event runs on this day" beside a sign-up date you
+   are choosing. Used via a DatePicker's #date slot (see <DateTimeEditor markDates> and
+   the Sign Up row of <EventDetailsCard>); global rather than scoped so every picker
+   that shows context uses one set of colours.
+
+   The app's INFO blue: a marked day is information, not a warning or a success. The
+   fill is blue-100 rather than the notice boxes' blue-50 because a 2rem circle shows
+   far less colour than a full-width strip, and blue-50 all but disappears at that size. */
+.dt-day {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem; height: 2rem;
+  line-height: 1;
+  border-radius: 9999px;
+}
+.dt-day--marked {
+  background: #dbeafe;   /* blue-100 */
+  color: #1d4ed8;        /* blue-700 — the info-notice text colour */
+  font-weight: 600;
+}
+/* The SELECTED day wins: PrimeVue fills its cell solid brand-navy, so a marked day that
+   is also the chosen one keeps a soft ring — the only mark still legible on the fill —
+   rather than a blue pill fighting white text on navy. */
+.p-datepicker-day-selected .dt-day--marked {
+  background: transparent;
+  color: inherit;
+  box-shadow: inset 0 0 0 2px #93c5fd;      /* blue-300 */
+}
+
 /* ── Print: attendance roll ──────────────────────────────────────────────────
    WHAT PRINTS IS THE PREVIEW SHEET (.roll-print-sheet), which the Print-preview dialog
    renders — the printout is its own document, not a screenshot of the on-screen roll.

@@ -417,6 +417,28 @@ const sessionDateTable = computed(() => {
   })
   return { columns, rows }
 })
+
+/**
+ * The sessions the registrant is ACTUALLY OFFERED.
+ *
+ * On the date table this is not the same as `visibleSessions`. Columns are keyed by
+ * START TIME and each cell is a single `.find()`, so when two sessions share a time on
+ * one day (a second 5pm session added to the Monday) only the first gets a checkbox —
+ * the other is in the data but on no row anyone can tick.
+ *
+ * Everything downstream — "is this day full", the Full-day / Whole-week collapse in the
+ * order summary, and therefore the whole-day and whole-week discounts — must measure
+ * against what was OFFERED. Measuring against every session meant that day could never
+ * be complete: it listed session-by-session while every other day read "Full day", and
+ * its discount silently never applied.
+ */
+const offeredSessions = computed<any[]>(() => {
+  if (!isDateTable.value) return visibleSessions.value
+  const offered = sessionDateTable.value.rows.flatMap(r => r.cells).filter(Boolean)
+  // Undated sessions have no cell on a date table but are still choosable elsewhere.
+  return [...offered, ...visibleSessions.value.filter((s: any) => !s.start_at)]
+})
+
 function dtSelSet(key: string, inst: number): Record<string, boolean> { return sessionSel[key]?.[inst - 1] ?? {} }
 function dtSel(key: string, inst: number, s: any) { return !!(s?.required || dtSelSet(key, inst)[s?.id]) }
 function dtSetMany(key: string, inst: number, list: any[], on: boolean) { for (const s of list) toggleSession(key, inst, s.id, on) }
@@ -529,7 +551,8 @@ function orderLines(key: string, inst: number): { label: string; amount: number 
     }
   }
   rows.push(...collapseSessionRows({
-    sessions: visibleSessions.value,
+    // Offered, not merely visible — see offeredSessions.
+    sessions: offeredSessions.value,
     isSelected: (s: any) => s.required || sessionSelected(key, inst, s.id),
     feeOf: (s: any) => Number(s.fee) || 0,
     dateTable: isDateTable.value,
@@ -563,7 +586,7 @@ function instanceAge(key: string, inst: number): number | null {
 }
 function instanceDiscountCtx(key: string, inst: number): DiscountCtx {
   const positiveAmounts = orderLines(key, inst).map(l => l.amount).filter(a => a > 0)
-  const selected = visibleSessions.value.filter((s: any) => s.required || sessionSelected(key, inst, s.id))
+  const selected = offeredSessions.value.filter((s: any) => s.required || sessionSelected(key, inst, s.id))
   const dayKeys = new Set(selected.filter((s: any) => s.start_at).map((s: any) => new Date(s.start_at).toDateString()))
   const rows = sessionDateTable.value.rows
   const fullDay = rows.some(r => dtRowFull(key, inst, r))
@@ -635,13 +658,45 @@ function money(n: number) {
 
 // ── Payment + terms ──────────────────────────────────────────────────────────
 const payment = computed(() => props.config?.payment ?? {})
+/**
+ * The ways this form lets someone pay, each with a line saying what it MEANS.
+ *
+ * NB no card fields are collected here even for "Credit card": nothing in the app takes
+ * a payment yet (the submit stores the chosen METHOD and nothing else), and a form that
+ * asks for a card number it cannot charge is worse than one that says a payment link
+ * follows. The builder's preview shows mocked card inputs because it is a picture of a
+ * finished form; this is the real one. Wire a processor and the detail line becomes the
+ * card fields.
+ */
 const paymentMethods = computed(() => {
   const p = payment.value
-  const out: { key: string; label: string }[] = []
-  if (p.invoice?.enabled) out.push({ key: 'invoice', label: 'Pay by invoice' })
-  if (p.credit_card?.enabled) out.push({ key: 'credit_card', label: 'Credit card' })
-  if (p.plan?.enabled) out.push({ key: 'plan', label: 'Payment plan' })
-  if (p.coupon?.enabled) out.push({ key: 'coupon', label: 'Coupon' })
+  const out: { key: string; label: string; icon: string; detail: string }[] = []
+  if (p.invoice?.enabled) {
+    out.push({
+      key: 'invoice', label: 'Pay by invoice', icon: 'pi-file-edit',
+      detail: p.invoice.description || 'An invoice will be sent to you after you register, with payment details on it.',
+    })
+  }
+  if (p.credit_card?.enabled) {
+    out.push({
+      key: 'credit_card', label: 'Pay by credit card', icon: 'pi-credit-card',
+      detail: p.credit_card.description || 'You’ll be sent a secure payment link once your registration is confirmed.',
+    })
+  }
+  if (p.plan?.enabled) {
+    const n = Number(p.plan.instalments) || 0
+    out.push({
+      key: 'plan', label: 'Pay by payment plan', icon: 'pi-calendar',
+      detail: p.plan.description || (n > 1 ? `Split into ${n} payments.` : 'Pay in instalments — we’ll confirm the schedule with you.'),
+    })
+  }
+  if (p.coupon?.enabled) {
+    const q = Number(p.coupon.quantity) || 1
+    out.push({
+      key: 'coupon', label: `Pay by coupon (${q} coupon${q === 1 ? '' : 's'} required)`, icon: 'pi-tag',
+      detail: p.coupon.description || 'Your coupons will be redeemed against this registration.',
+    })
+  }
   return out
 })
 const selectedPayment = ref('')
@@ -1392,12 +1447,47 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
         </div>
       </div>
 
+      <!-- Payment: the same option CARDS the builder previews (shared
+           <FormsPaymentOptionCard>), not bare radios — a registrant choosing how to pay
+           needs to know what each choice means, and the live form was showing only the
+           words "Pay by invoice". The picked one expands with what happens next. -->
       <div v-if="paymentMethods.length" class="mb-4">
         <p class="text-sm font-semibold text-gray-700 mb-2">Payment</p>
-        <label v-for="m in paymentMethods" :key="m.key" class="flex items-center gap-2 py-1.5 text-sm cursor-pointer">
-          <input type="radio" class="accent-primary" :value="m.key" v-model="selectedPayment" />
-          <span class="text-gray-700">{{ m.label }}</span>
-        </label>
+        <div class="space-y-2">
+          <FormsPaymentOptionCard v-for="m in paymentMethods" :key="m.key"
+            :icon="m.icon" :title="m.label" :selected="selectedPayment === m.key"
+            @click="selectedPayment = m.key">
+            <!-- Card fields are a MOCK: disabled, bound to nothing, never submitted.
+                 They exist so the finished flow can be demonstrated — no processor is
+                 wired yet, so a live input here would collect a card number the app
+                 cannot charge and has nowhere to put. Replace this block with the real
+                 payment element when one lands; the note goes with it. -->
+            <template v-if="m.key === 'credit_card'">
+              <div class="space-y-2 opacity-60 pointer-events-none select-none" aria-hidden="true">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                  <span class="text-xs text-gray-500 w-full sm:w-28 shrink-0">Name on card</span>
+                  <InputText disabled placeholder="John Smith" class="w-full sm:max-w-[240px]" />
+                </div>
+                <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                  <span class="text-xs text-gray-500 w-full sm:w-28 shrink-0">Card number</span>
+                  <InputText disabled placeholder="1234 1234 1234 1234" class="w-full sm:max-w-[280px]" />
+                </div>
+                <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                  <span class="text-xs text-gray-500 w-full sm:w-28 shrink-0">Expiry</span>
+                  <div class="flex items-center gap-2">
+                    <InputText disabled placeholder="12 / 26" class="w-[104px]" />
+                    <span class="text-xs text-gray-500">CVC</span>
+                    <InputText disabled placeholder="999" class="w-[84px]" />
+                  </div>
+                </div>
+              </div>
+              <p class="text-xs text-amber-700 bg-amber-50 rounded-lg px-2.5 py-1.5">
+                Example only — card details aren't collected here. {{ m.detail }}
+              </p>
+            </template>
+            <p v-else class="text-sm text-gray-600">{{ m.detail }}</p>
+          </FormsPaymentOptionCard>
+        </div>
       </div>
 
     </section>

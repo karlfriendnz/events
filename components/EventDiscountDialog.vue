@@ -15,7 +15,39 @@ const props = withDefaults(defineProps<{
   currencySymbol?: string
   /** The event's custom fields, for the "Custom field" condition picker. */
   fields?: { id: string; label: string; field_type?: string; options?: string[] }[]
-}>(), { edit: null, currencySymbol: '$', fields: () => [] })
+  /**
+   * The event's own age limits, used to SEED an age-range condition.
+   *
+   * "Participant age range" on an event that already says 10–14 should start at 10–14,
+   * not empty: retyping numbers the form captured two steps ago is how you end up with
+   * a discount aimed at an age nobody attending can be.
+   */
+  eventAgeMin?: number | null
+  eventAgeMax?: number | null
+}>(), { edit: null, currencySymbol: '$', fields: () => [], eventAgeMin: null, eventAgeMax: null })
+
+/**
+ * Choosing a condition type, then seeding it from what the event already knows.
+ *
+ * `onConditionKeyChange` resets the value to the new type's empty shape; an age range
+ * then starts blank even though the event was given an age limit on step 1. Seeding
+ * only fills what's still empty, so it can never overwrite a number you typed.
+ */
+function pickCondition(cond: any, key: string) {
+  onConditionKeyChange(cond, key)
+  if (getValueType(key) !== 'range') return
+  if (props.eventAgeMin == null && props.eventAgeMax == null) return
+  if (!cond.value) cond.value = {}
+  if (cond.value.min == null) cond.value.min = props.eventAgeMin ?? null
+  if (cond.value.max == null) cond.value.max = props.eventAgeMax ?? null
+}
+
+/** A range's max can never sit below its min — raising min carries max up with it. */
+function setRangeMin(cond: any, v: number | null) {
+  if (!cond.value) cond.value = {}
+  cond.value.min = v
+  if (v != null && cond.value.max != null && cond.value.max < v) cond.value.max = v
+}
 
 const fieldOptions = computed(() => (props.fields ?? []).filter(f => f?.id && f?.label))
 const fieldById = (id: string | null | undefined) => fieldOptions.value.find(f => f.id === id)
@@ -245,7 +277,7 @@ function save() {
                   placeholder="Choose condition…"
                   class="w-full text-sm"
                   :pt="{ root: { style: 'border: none; box-shadow: none; background: transparent; padding: 0' } }"
-                  @update:modelValue="v => onConditionKeyChange(cond, v)" />
+                  @update:modelValue="v => pickCondition(cond, v)" />
               </div>
 
               <!-- Compound "within a period" spans the operator + value columns -->
@@ -335,12 +367,13 @@ function save() {
                   <!-- range -->
                   <div v-else-if="getValueType(cond.key) === 'range'" class="flex items-center gap-1.5">
                     <InputNumber :modelValue="cond.value?.min"
-                      @update:modelValue="v => { if (!cond.value) cond.value = {}; cond.value.min = v }"
+                      @update:modelValue="v => setRangeMin(cond, v)"
                       :min="0" placeholder="Min" inputClass="h-9 text-sm text-center w-full px-2" class="flex-1" />
                     <span class="text-gray-300 text-sm shrink-0">–</span>
+                    <!-- Floor follows Min, so "between 10 and 6" can't be typed. -->
                     <InputNumber :modelValue="cond.value?.max"
                       @update:modelValue="v => { if (!cond.value) cond.value = {}; cond.value.max = v }"
-                      :min="0" placeholder="Max" inputClass="h-9 text-sm text-center w-full px-2" class="flex-1" />
+                      :min="cond.value?.min ?? 0" placeholder="Max" inputClass="h-9 text-sm text-center w-full px-2" class="flex-1" />
                   </div>
 
                   <!-- datetime: full width -->

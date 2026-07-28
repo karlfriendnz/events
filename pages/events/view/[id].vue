@@ -10,6 +10,10 @@ definePageMeta({ layout: 'default' })
 
 const route = useRoute()
 const id = computed(() => route.params.id as string)
+// `?session=` opens the roll on one session of a multi-date event — the programme
+// Dates list links straight to the date you clicked. Reactive, so following another
+// date from the same page switches the roll rather than needing a reload.
+const sessionId = computed(() => (route.query.session as string) || null)
 const breadcrumbs = useBreadcrumbs()
 const activeTab = ref<'attendance' | 'communication' | 'notes'>('attendance')
 void useToast() // ensure the Toast service is available to child components
@@ -58,7 +62,7 @@ const BODY_TABS = [
     <div v-show="activeTab === 'attendance'" class="pt-4">
       <!-- No `fit`: let the roll grow to its content so the PAGE is the only scroller
            (fit caps the table's own height, which produced a second scrollbar). -->
-      <EventAttendance v-if="opened.has('attendance')" :event-id="id" />
+      <EventAttendance v-if="opened.has('attendance')" :event-id="id" :session-id="sessionId" />
     </div>
     <div v-show="activeTab === 'communication'" class="pt-4">
       <EventCommunication v-if="opened.has('communication')" :event-id="id" />

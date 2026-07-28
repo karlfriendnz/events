@@ -219,6 +219,21 @@ function findLabel(el: Element): string | null {
   const aria = clean(el.getAttribute('aria-label'))
   if (aria) return aria
 
+  // A BUTTON IS NAMED BY ITS OWN TEXT. Everything below this looks for a label
+  // pointing AT the element (aria-labelledby, label[for], a wrapping <label>, a
+  // sibling .field-label) — all form-field conventions that a button matches
+  // none of. So a pin dropped on a button came back with no name at all, and
+  // "New event › button" is unactionable when the dialog holds five of them
+  // sharing a class: the only way to resolve it was to ask which one.
+  const tag = el.tagName.toLowerCase()
+  if (tag === 'button' || tag === 'a' || tag === 'summary' || el.getAttribute('role') === 'button') {
+    const own = clean(el.textContent)
+    if (own) return own
+    // An icon-only button has no text — fall back to what the tooltip says.
+    const tip = clean(el.getAttribute('title') || el.getAttribute('data-pc-tooltip'))
+    if (tip) return tip
+  }
+
   const labelledBy = el.getAttribute('aria-labelledby')
   if (labelledBy) {
     const ref = document.getElementById(labelledBy)

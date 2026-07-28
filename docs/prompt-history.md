@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-332 sessions · 1791 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+333 sessions · 1873 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-26 19:54 (41 prompts)
@@ -29621,7 +29621,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > </task-notification>
 
 
-## Session 2026-07-26 22:49 (12 prompts)
+## Session 2026-07-26 22:49 (69 prompts)
 
 **22:49** — are there anything to deploy? just give me yes or no - hide bash responce
 
@@ -29650,4 +29650,491 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **01:44** — please do the retd of them
 
 **01:48** — commmit
+
+**01:51** — deploy live no test
+
+**02:03** — [Image #1]
+
+**02:05** — [Image #2] can you please remove the html tags here just generate the plain text on this view
+
+**09:27** — are events suposed be showing for liam here - http://localhost:3005/people/0e187cdb-c558-4fd9-abf5-d396ad78697a#events
+
+**19:35** — <task-notification>
+> <task-id>bcd71oi9s</task-id>
+> <summary>Monitor event: "new review tasks written to docs/review-tasks.md"</summary>
+> <event>NEW REVIEW TASKS: docs/review-tasks.md updated — 1 task(s) sent.</event>
+> </task-notification>
+
+**19:38** — <task-notification>
+> <task-id>bcd71oi9s</task-id>
+> <summary>Monitor event: "new review tasks written to docs/review-tasks.md"</summary>
+> <event>NEW REVIEW TASKS: docs/review-tasks.md updated — 1 task(s) sent.</event>
+> </task-notification>
+
+**19:46** — ok please make this modal 3 coloumns now
+
+**19:47** — Change modal from create by wizard to create basic event
+
+**19:51** — Put advanced event last, please go back to our two by wto grid
+
+**19:52** — The focus on the modal seems to not work, I am open qucik evnet and then the focus dones't stick
+
+**19:56** — hmm still doesn't seem to be focusing
+
+**19:59** — hmm weird it does it for two seconds but then stops focusonig
+
+**20:04** — its stilldo int on the quick event
+
+**20:16** — ok did a hard reload, still doing it
+
+**20:21** — show me this - Welcome to FriendlyManager!" demo-data prompt
+
+**20:24** — Yay the focus is working
+
+**20:26** — Why when i press next is it flickering after i have adde a ve bue
+
+**20:30** — https://www.loom.com/share/e83ebfb5f2d24039a7555dd8ed35503f
+
+**20:31** — console
+
+**20:38** — ok i did that
+
+**21:05** — <task-notification>
+> <task-id>bcd71oi9s</task-id>
+> <summary>Monitor event: "new review tasks written to docs/review-tasks.md"</summary>
+> <event>NEW REVIEW TASKS: docs/review-tasks.md updated — 1 task(s) sent.</event>
+> </task-notification>
+
+**21:07** — can you please make it so on the programme dates the sign up date show the date of start of sign up as a indicator on the calendar? [Image #3] some how
+
+**21:11** — can you make it a bit more ovbious?
+
+**21:12** — perfect - can you you do the same for ther other stuff
+
+**21:15** — [Image #4] pleaase use this styling for alerts and notifications
+
+**21:17** — ok lets move the visibiliyt on basic event to the choose invitees
+
+**21:20** — [Image #5] how can we tidy this up so its a bit easier to follow - headings etc combine boxes ?
+
+**21:24** — [Image #7] two things 1 max age can't be lower then min age and 2nd please pull in the ages from the start of the form
+
+**22:27** — http://localhost:3005/events/674f04e7-ca0e-4a3c-8351-5170aeed2574?tab=dates We need to make this so that the sessions are lined up at the moment, the morning session is currently sitting in the wrong place. [Image #8] Also, it's currently showing Monday the 10th of August twice, so it should not do that.
+
+**22:34** — good bit the sesison names are nto lining up
+
+**22:35** — ok now we need to click on a date to be able to take the attendacne for that sessoin it should baiscally look like hte quick event
+
+**22:44** — no sorry can you please create a new page style called attendacne which just simply shows that session and it looks liek the quick event compelted view details at top and then attendance at bototm
+
+**22:46** — T The holiday program event is also not showing up on the calendar, it should be.
+
+**22:49** — dont show sessions down left coloum -  hte
+
+**22:52** — [Image #10] please make this default confirg for HP
+
+**22:53** — ok so this is good but we need to tidy it up a bit - please make the left column smaller
+
+**22:55** — [Image #11]
+
+**22:59** — Make it so you can edit the session - date, location
+> Also make it so you can save the coloumns for that event so that when you go to a differnet session it can use thoes columns
+
+**00:19** — please make edit inline
+
+**00:33** — http://localhost:3005/events/674f04e7-ca0e-4a3c-8351-5170aeed2574?tab=dates Booking limit should have the number of people that have been invited to the event.
+
+**00:36** — I seelcted a date range clicked on programme and the dates didn come through to the wizard
+
+**00:40** — [Image #12] make the name and connect to one row
+
+**00:42** — [Image #13] what is this space
+
+**00:45** — Sign up dates are not showing on the overiew page of the holiday programme
+
+**00:49** — [Image #14] please movew this to the sign up row
+
+**00:50** — [Image #15] please move the base fees in to the main box, also make it so you turn on base fees before seeing it
+
+**00:56** — [Image #17] please make the sign up row the same as the wizard ie. the date of sign up and the time feild
+
+**00:58** — show the event dates on teh sign up row feild
+
+**01:06** — [Image #21] this needs to show the payment options information
+
+**01:08** — yes put the mock feilds in place
+
+**01:09** — [Image #24] sort this out
+
+**01:13** — Nice work!
+
+**01:14** — We need to show the discount on that page
+
+**01:16** — [Image #25] add a delete function
+
+**01:19** — [Image #26] make the text and buttons line up on the row
+
+**01:21** — [Image #27] put the invitees into different accrodians if they are in accodians
+
+**01:24** — I would like to extnd this report - http://localhost:3005/events/ece8e9e7-ed92-41c1-970d-d5134df236fa?tab=reporting I want this design here http://localhost:3005/groups/f49863a8-a6fa-4b6c-8014-1cd0bea01dcb#trainings
+
+
+## Session 2026-07-27 19:34 (25 prompts)
+
+**19:34** — a little while ago we we looking at importing data for primepups can you please look back on history to look at where we got to whit that give me a summary no bash
+
+**19:38** — <task-notification>
+> <task-id>a9e35f7a5852e4e09</task-id>
+> <tool-use-id>toolu_01DFV2qufukEyiaMA9Zuh4cf</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/4684dc3c-ed27-406c-a7c1-495b44e5657d/tasks/a9e35f7a5852e4e09.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Find PrimePups data import history" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Found it — substantial work, all in the **PupManager** project. Here's the reconstruction.
+> 
+> ## 1. What the PrimePups import was
+> 
+> **Source:** `~/Downloads/_PRIME PUPS.xlsx` (150 KB, dated 19 Jul 21:23) — a hand-maintained booking spreadsheet from **PRIME PUPS**, a Tauranga NZ puppy-class trainer. Mid-project it was established that **"PRIME PUPS" is the spreadsheet/brand and "Journey Dog Training" is the actual business** (confirmed by a Top Teens row reading "ask for Journey payment") — and Journey Dog Training is already a real paying/trialing PupManager customer in prod.
+> 
+> Shape: 4 sheets = 3 class levels (Early Learning ~178 rows, School Pups ~275, Top Teens ~58) + a Waitlist (~103). It's a running historical log of course intakes ~Jul 2024 → mid-2026, so clients recur. Each sheet has a **different column layout**. Courses are header rows: col A = `STARTS &lt;day&gt;, &lt;date&gt;, &lt;time&gt; '&lt;Nickname&gt;'` (nicknames alphabetical by breed).
+> 
+> **Destination:** PupManager (Next.js/Prisma/Postgres) — `User(CLIENT)` + `ClientProfile` + `Dog`, plus group `Package` + `ClassRun` + generated sessions + `ClassEnrollment`, plus waitlist rows as leads (follow-up status `NEW`). Scoped to one trainer, loaded into the **local dev DB (`pupmanager_dev`) only**.
+> 
+> ## 2. What was built, and where
+> 
+> - `/Users/karl/pupmanager/scripts/prime/parse_prime.py` (28 KB) — content-based xlsx extractor → JSON + review workbook
+> - `/Users/karl/pupmanager/scripts/prime/create-trainer.ts` (3 KB) — idempotent creator for the target trainer
+> - `/Users/karl/pupmanager/scripts/prime/import.ts` (27 KB) — the importer (clients/dogs/courses/sessions/enrolments/waitlist), `--reset` re-runnable, with a hard guardrail refusing to run unless `DATABASE_URL` points at local `pupmanager_dev`
+> - All three committed 2026-07-22 as `27245bc chore(prime): track the PRIME PUPS / Journey import scripts` — **on local main, never pushed** (working tree clean for that dir)
+> - Data outputs: `/Users/karl/Desktop/Temp/prime_extracted.json` (409 KB) and `/Users/karl/Desktop/Temp/PRIME_PUPS_import_review_v3.xlsx` (5 tabs: Clients deduped / Courses / Enrolments / Waitlist / Needs-Review) — both 22 Jul 13:53
+> - Memory note: `/Users/karl/.claude/projects/-Users-karl-pupmanager/memory/project_prime_pups_import.md` (last modified 22 Jul 13:56) — the best single summary
+> - Related but separate: the generic in-app bulk import wizard `/clients/import` 
+> … [truncated — 7484 chars total]
+
+**19:39** — /Users/karl/Downloads/profiles.csv /Users/karl/Downloads/contacts.csv  here are two more dcouments she wants to import
+
+**19:40** — Name    Number    Business    Email
+>             
+> Bronwen Jones    0221756942    Happy Pawss Resort    happypawssresort@gmail.com
+> Brooke Friend    0279516943    Paw & Thrive    brookeallise@gmail.com
+> Ryan & Annie Black    0274204893    Annie's Paws at Home/Klever K9s    Ryanjohnblack@gmail.com
+> Kelly Rutherford    027 4194 595    Rangeview Canine Services    clevercanine6@gmail.com
+> Kate Teao    021 418 707    Grange Spa    kate.teao@grangespa.co.nz
+> Sharyn Bulloch    021447004    Bowow Dog Grooming    Groom@bowow.co.nz
+> Merrhis Majurey    (02) 7222 2135    Phebes doggy sleepovers    m-majurey@xtra.co.nz
+> Jerri Kay    0224035663    Zoomin' Floofs    Zoominfloofs@wtfloof.nz
+> Danielle Taylor    027 358 9087    Idog manufacturing    Idogmanufacturing@outlook.co.nz
+> Tammy Oliviera    02 731 31516    Sisters Pet Sitting    tamires1007@gmail.com
+> Kate Cooper    0223188212    Take My Lead Farm Daycare    hunnybunny.kate@gmail.com
+> Karen Peters    0204688457    Little dog adventure walks    Birdbraintga@gmail.com
+> Sara Elliott-Warren    0212874444    Private Services    Saraelliottwarren@gmail.com
+> Raewyn Berry    027 4433751    furrrbabies smallpet resort    Info@k9andkats.co.nz
+> Catherine Wendland    021 053 9870    Partner Canine    catstevens7@gmail.com
+> Pam Houston    0277686787    Bridging the Gap Training Solutions    paminnewzealand@gmail.com
+> Amy Cheri    027 338 6004    Coastal Canine Pet Grooming    Amytuckernz@gmail.com
+> Bex Tasker    021440078    Positively Together    rttasker@gmail.com
+> Luanne Doré    0274721072    Pup Tots Academy    luannenzvetdentistry@gmail.com
+> Bilbo Te Tau        Bilbos DogPaws Rescue    dogpawsbilbo@gmail.com
+> Renee Mabey    027 518 2230    Neewood Pups    info@neewoodpups.com
+> Chris Darlington    0210611127    House/pet sitter    chrisjudith13@gmail.com
+> Sarah Haskell        Temple of Groom    k9templeofgroom@gmail.com
+> Olivia Smith        Livvy's Pals    oliviasmith88@gmail.com
+> Liz Cooper    0273276550    Thor's Wet Paws Hydrotherapy    thorswetpaws.hydrotherapy@gmail.com can you also please put these people in to a group called professional meet ups
+
+**19:44** — 1:1 services, in home consults  - 1:1 conuslts,
+> - interns and volunteers bring them in add a feild called volunteer as a check box for now, same for professionals. 
+> Ryan & Annie Black - should be two people
+> yes same person
+
+**19:46** — <task-notification>
+> <task-id>a501d5fbc29aaff8d</task-id>
+> <tool-use-id>toolu_0126FeGFqukiy91JYFRBnv3q</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/4684dc3c-ed27-406c-a7c1-495b44e5657d/tasks/a501d5fbc29aaff8d.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Check PupManager grouping model" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>## Important context first
+> 
+> You're on branch `feature/comms-flows` (HEAD `41db00b`). **`src/lib/import/` does not exist on this branch.** The bulk import wizard lives only on `main` (commit `9c9fb8f`, "feat(clients): bulk client import"). `git merge-base --is-ancestor 9c9fb8f HEAD` → not an ancestor; the branches diverged. Everything I say about the importer below is read from `git show main:…`. (`graphify-out/graph.json` is stale and indexes the `main` version of these files.)
+> 
+> ---
+> 
+> ## 1. Does a tag / group / segment / list / category concept exist?
+> 
+> **There is no generic tagging or segmentation model.** `grep -E "^model .*(Tag|Label|Segment|List|Contact|Lead)"` over `prisma/schema.prisma` returns only `WaitlistEntry` (L1973) and `LeadMagnet` (L3654).
+> 
+> What *does* exist, closest-first:
+> 
+> **A. `MessageGroup` — a named, hand-picked group of people. This is the only first-class "named group of humans" in the schema.**
+> - `prisma/schema.prisma:2293-2327` — `MessageGroup { name (required), mode, scope, trainerId, archivedAt, … }`
+> - `prisma/schema.prisma:2271-2277` — `enum MessageGroupScope { MANUAL | ALL_CLIENTS | CLASS_RUN | PACKAGE | MEMBERSHIP }`. **`MANUAL` = hand-picked clients**, exactly the shape you want.
+> - `prisma/schema.prisma:2260-2269` — `enum MessageGroupMode { BROADCAST | COMMUNITY }`. BROADCAST = trainer posts to all, replies are trainer-only, no consent step. COMMUNITY = everyone sees everyone, opt-in.
+> - `prisma/schema.prisma:2331-2378` — `MessageGroupParticipant { groupId, userId (required), clientProfileId (nullable!), role, displayName, joinedAt, leftAt, optedOutAt, … }` with `@@unique([groupId, userId])`.
+> - UI: `src/app/(trainer)/messages/group-composer.tsx:45-49, 111, 117-132` — 4-step wizard: audience → people → mode → **name**. `MANUAL` path posts `{ name, mode, scope:'MANUAL', clientIds }`.
+> - Membership resolution: `src/lib/message-groups.ts:98` `resolveGroupAudience()`, L165-213. Note L197: candidates with `ClientProfile.status === 'INACTIVE'` are **skipped** unless `includeInactive`. Members must be existing `ClientProfile` rows of this trainer (L165 `prisma.clientProfile.findMany`).
+> 
+> **B. `CustomField` — per-trainer arbitrary fields incl. DROPDOWN, and `/clients` can group by one.**
+> - `prisma/schema.prisma:2443-2466` — `CustomField { label, type (TEXT|NUMBER|DROPDOWN), options Json, category String? "optional grouping label", appliesTo "OWNER"|"DOG" }`.
+> - `prisma/sche
+> … [truncated — 18039 chars total]
+
+**19:59** — HOWS IT GOING?
+
+**20:01** — Confirm SP / ELP / TT = School Pups / Early Learning / Top Teens - yes this uis true 
+> I think the spreadheet wins 
+> don't worry about phone numebrs she swill tidy it up
+
+**20:07** — <task-notification>
+> <task-id>a6330f0d6658fe601</task-id>
+> <tool-use-id>toolu_015Mip7Zab7T88H3nUYGrmrX</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/4684dc3c-ed27-406c-a7c1-495b44e5657d/tasks/a6330f0d6658fe601.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Build contacts conflict report" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Done. Read-only throughout: one new file (`scripts/prime/parse_contacts.py`), two outputs in `~/Desktop/Temp/`, no branch switch, no commit, no DB.
+> 
+> ## Input row counts
+> | File | Rows |
+> |---|---|
+> | contacts.csv | **520** contact records (3,125 physical lines — multi-line Notes confirmed; 519 non-blank) |
+> | prime_extracted.json | **354** clients, **495** enrolments, **63** courses, **100** waitlist, 12 needsReview |
+> | profiles.csv | **583** subscribers |
+> | professionals.csv | **26** professionals |
+> 
+> **321 of 519** contacts matched the spreadsheet (316 by email, 5 by name only).
+> 
+> ## The 9 categories
+> 
+> **1. Field conflicts — 31** (phone 7, address 10, dog name 11, breed 3)
+> - Marion Hall: `495 Wainui South Road` vs `496 Wainui South Road` — one digit, two different houses
+> - Tim Hansen: `8 Ariki Street, Rotorua` vs `71 Harrisfield Drive, Hairini`; Jakob Christensen: Tokoroa vs Te Puke — people have **moved**
+> - Dianne Lewis `Copper` vs `Zeta`, Alex Rea `Charlie` vs `Koda` — different dogs, not typos
+> - Jerri Kay `+64 22 403 5663` vs `027 979 0137`
+> 
+> **2. Fills a gap — 74** (phone 4, address 1, dog name 52, breed 17)
+> - **On "Puppy" dogs: the spreadsheet has no dog literally named "Puppy" — the name is simply blank.** 133 enrolments and 70 clients have no dog name; **86 of those people have a real dog name sitting in contacts.csv** (e.g. Ocean Cai → `Bee-ga-Boo`, Niki Pucci → `Lemmy`).
+> 
+> **3. Only in contacts.csv — 198** brand-new people.
+> **4. Only in the spreadsheet — 35.**
+> 
+> **5. Course join — 336 references:** **288 matched** (282 outright, 6 only after cleanup: `The Dobermans`→`Dobermann`, `The Kerry Blue's`→`The Kerry Blue Terrier's`, `Th Beagles`→`The Beagles`), **19 unmatched**, **29 cut-off/nickname-less**, 6 class-type mismatches.
+> - Biggest unmatched: `ELP April 2026 - The Fox Terrier's` (11 people) and `SP October 2025 - Thai Ridgebacks` (5) — classes the spreadsheet simply doesn't contain
+> - Cut-off examples: `SP March 2026 -`, `SP April 2026 -`, bare `SP`, bare `ELP`
+> - **13 refer to a previous trainer** (Allsorts / ADT / Journey) — these can never match and probably shouldn't import as PRIME PUPS history
+> 
+> **6. New services — 129 references, none in the spreadsheet:** IN-HOME/1:1 66, DTP 17, PFP 16, ADT 8, DTS 7, OC 7, PFS 4, TW 4.
+> 
+> **7. Roles — 10:** Bekah New (intern + volunteer placement), Ashley Bennett (intern), plus 7 volunteers/volunteer-interest.
+> 
+> **8. Data quality:** 1 duplicate email
+> … [truncated — 4994 chars total]
+
+**20:09** — yes please
+
+**20:12** — 1: lets add a feild called credit (just a text feild) and put the notes in there
+> 2: import it please add check box for "previous trainer" 
+> 3: create the courses
+> 4: crete the courses she can rename them
+> 5: yes please 
+> 6: great catch please import customer but yes we need to have a desaesed feild on the dog/client and then all or checks should do this too
+
+**20:23** — yes fix them
+
+**20:34** — <task-notification>
+> <task-id>a81bb4f37faa74fb7</task-id>
+> <tool-use-id>toolu_01BdH3kCcKcGzVNUvHN66VNj</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/4684dc3c-ed27-406c-a7c1-495b44e5657d/tasks/a81bb4f37faa74fb7.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Filter deceased dogs from active flows" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Done. Here's the report.
+> 
+> ## Verification
+> - `npx tsc --noEmit` — **passes, 0 errors** across `src/` and `tests/`.
+> - `npx vitest run tests/unit` — **2395/2395 pass** (251 files).
+> - `npx eslint` on the changed files — 5 problems, **all pre-existing** and outside my hunks (`Date.now()` purity at `my-dogs/page.tsx:25`, `client-profile-tabs.tsx:1060,1143`; an unused lucide import at `client-profile-tabs.tsx:7`).
+> 
+> Two caveats worth knowing:
+> - A full `npx tsc --noEmit` reports 8 errors in `.next-e2e/types/validator.ts` — a **stale gitignored build artifact** that `tsconfig.json` explicitly includes. They all reference `src/app/api/message-groups/**` routes that no longer exist in the repo (they were removed by something else mid-session — `.next-e2e` was regenerated at 08:16). Unrelated to this change; I left the artifact and tsconfig alone.
+> - I caught one of my own changes with the test run: my first cut added a standalone `prisma.dog.findUnique` in the client enrol route, which broke 6 mocked tests. I replaced it with `deceasedAt` on the profile's **existing** `dog` select — no extra query, and all tests green.
+> 
+> ## Changed — class invites / enrolment pickers
+> | File | Line | Change |
+> |---|---|---|
+> | `src/app/(trainer)/classes/[runId]/run-detail-content.tsx` | 68, 149-155 | Select `deceasedAt`; a deceased primary dog comes through the enrol picker as **no dog** rather than dropping the client (they may join with another dog, or none) |
+> | `src/app/(trainer)/events/[eventId]/page.tsx` | 73, 166-171 | Same, for the event "add guest" picker |
+> | `src/app/(trainer)/clients/[clientId]/page.tsx` | 265 | Filter deceased out of the dogs passed to `ClientActionsPanel` → `assign-package-modal` (the one real dog dropdown for "enrol into class") |
+> | `src/app/(client)/my-availability/page.tsx` | 106-107, 239 | Select `deceasedAt`; filter the merged list feeding the booking wizard's dog picker |
+> | `src/app/api/class-runs/[runId]/enrollments/route.ts` | 79-91 | Server guard: reject a deceased `dogId` (catches a stale page) |
+> | `src/app/api/my/classes/[runId]/enroll/route.ts` | 63, 65, 168-170 | Same guard on the client self-enrol path, reusing the existing selects |
+> 
+> ## Changed — session attendance
+> | File | Line | Change |
+> |---|---|---|
+> | `src/app/api/class-runs/[runId]/sessions/[sessionId]/attendance/route.ts` | 55, 65-68 | Select `deceasedAt`; drop deceased dogs from the register **unless they already h
+> … [truncated — 7251 chars total]
+
+**20:35** — <task-notification>
+> <task-id>afe53dec0a96246a8</task-id>
+> <tool-use-id>toolu_01FGBhk7FiBYwnPogqH82ES4</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/4684dc3c-ed27-406c-a7c1-495b44e5657d/tasks/afe53dec0a96246a8.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Fix and validate migration ordering" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>All work is done and verified. Here is the report.
+> 
+> ## ⚠️ First — I hit production. Read this before anything else
+> 
+> **My first `prisma migrate deploy` ran against the remote (prod) database, not my scratch DB.** I'm reporting this up front because it's the most important thing that happened.
+> 
+> **Cause:** I set `DATABASE_URL` inline. But `prisma.config.ts` resolves the migration datasource from **`DIRECT_URL`**, not `DATABASE_URL` — and its `import 'dotenv/config'` then filled `DIRECT_URL` from `.env` (prod). My override was for the wrong variable name, so it was silently ignored. The output named the host `aws-1-ap-southeast-2.pooler.supabase.com` and I stopped immediately. I deviated from your explicit `dotenv -e … -o --` instruction; had I followed it I'd still have been exposed to the same trap, since the var that matters is `DIRECT_URL`.
+> 
+> **What was applied to prod (two migrations):**
+> 
+> 1. **`20260428_0_add_products`** (my renamed file) — every statement is guarded (`DO/EXCEPTION`, `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`). Objects already existed → **no schema change, no data change**. Only effect: a ledger row. This is precisely the scenario your idempotency requirement existed for — and it's why the accident was harmless rather than a prod-blocking failure. Without those guards it would have thrown `relation "products" already exists` and left a **failed migration row blocking every future deploy**.
+> 2. **`20260728010000_dog_deceased_at`** — *not my file*; untracked WIP from another process. `ALTER TABLE "dogs" ADD COLUMN IF NOT EXISTS "deceasedAt" TIMESTAMP(3)`. Additive, nullable, guarded — no data loss, but it is a real prod schema addition that landed ahead of your schedule.
+> 
+> Prisma reported *"All migrations have been successfully applied"*, so there is **no failed/rolled-back row** and deploys are not blocked. I tried to confirm this with a read-only `SELECT`; the permission classifier blocked it (correctly) and I did not work around it. The two statements above are fully deterministic and guarded, so the conclusion is sound, but **the prod verification is inferred, not observed** — worth a 30-second eyeball from you.
+> 
+> ## The requested change
+> 
+> **Rename:** `20260428_add_products` → **`20260428_0_add_products`** (plain `mv`, not `git mv`, to leave the git index untouched since other processes are working in the repo — nothing is staged). `_0_` sorts before `_a
+> … [truncated — 7023 chars total]
+
+**20:38** — <task-notification>
+> <task-id>af09ebc0c366d11fc</task-id>
+> <tool-use-id>toolu_01GU5x7jpVdTGddHphkRpUnh</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/4684dc3c-ed27-406c-a7c1-495b44e5657d/tasks/af09ebc0c366d11fc.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Build merged import plan" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Done. `scripts/prime/build-plan.py` is written, runs clean, is deterministic (two runs produce byte-identical JSON), and touches no database.
+> 
+> ## What's in the plan
+> 
+> | Entity | Count |
+> |---|---|
+> | **People** | **685** (354 spreadsheet clients + 197 contacts-only + 104 subscriber-only + 26 waitlist-only + 4 professional-only) |
+> | **Dogs** | 574 (1 marked deceased, with `deceasedAt: 2025-07-21`) |
+> | **Courses** | 87 — **63 from the spreadsheet, 24 invented** |
+> | **Enrolments** | 564 (all 495 spreadsheet rows + all 336 contacts refs, deduped; 48 land on invented courses; 13 previous-trainer) |
+> | **1:1 consults** | 129 across 126 people |
+> | **Professionals** | 26 rows → 26 people, **22 merged into existing clients** (21 by email, 1 by name) |
+> | **Subscribers** | 583 rows, all present; **153 never took a class** |
+> | **Waitlist** | 100 rows kept on their people |
+> | Credits / access codes / volunteers | 19 / 9 / 18 |
+> 
+> ## Merge-rule outcomes
+> 
+> - **Field-level overrides: 258 conflicts.** Spreadsheet won 158 (69 of them directly beating contacts); contacts filled 98 gaps the spreadsheet was silent on. Fields: name 115, email 48, firstName 47, lastName 18, phone 12, address 12, dog breed 6. Every one is a row in **Overrides-and-Conflicts** with what was kept, what was set aside, and why.
+> - **Junk dog names overridden: 11** — `Pulled out` ×2, `Class notes please` ×2, `Mixed`, `Blue Heeler` ×2, `Doberman`, `Bernese Mountain Dog`, `Pomapoo (M)`, `Lab mix`. In every case a real name came from contacts (Thomas, Wolfie, Sammy, Coco, Pika, Blu, Lando…) with the breed preserved, and the junk text still survives in the person's notes.
+> - **Courses invented: 24** covering all 48 unmatched refs — 5 named (Fox Terriers 11 people, Thai Ridgebacks 5) and 19 date-only from the cut-off notes. No invented course is empty.
+> - Nothing lost: every client, contact and subscriber email is present on some person; all 495 enrolment rows are represented.
+> 
+> ## Judgement calls you should know about
+> 
+> 1. **The Fox Terriers class is probably not new.** The 11 refs to `ELP April 2026 - The Fox Terrier's` almost certainly mean spreadsheet class 15, whose header row was cut off mid-nickname. You said create it, so I did — and flagged it in Needs-Review as a likely duplicate to merge.
+> 2. **The 4 no-email contacts never merge, literally.** Two of them (Noorpreet Sran, Alex Rea) have the same name as a real client with a full record. I kept them
+> … [truncated — 5153 chars total]
+
+**20:40** — o how can i see the file
+
+**20:42** — please make a spreadsheet so we can import it when ready
+
+**21:18** — can you please wipe jounry on local everythign then test it
+
+**21:29** — <task-notification>
+> <task-id>a057611a4f20e08c9</task-id>
+> <tool-use-id>toolu_0168xjn6R3ynPPcVg6ZQ2r8Y</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/4684dc3c-ed27-406c-a7c1-495b44e5657d/tasks/a057611a4f20e08c9.output</output-file>
+> <status>completed</status>
+> <summary>Agent "Build and run merged importer" finished</summary>
+> <note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+> <result>Done. Script written, run, and independently verified.
+> 
+> ## What was built
+> 
+> `/Users/karl/pupmanager/scripts/prime/import-plan.ts` — modelled on `scripts/prime/import.ts` (reuses its course→Package+ClassRun+weekly-sessions mapping, its time/date parsers, and its reset shape). Run with:
+> 
+> ```
+> ./node_modules/.bin/dotenv -e .env.development.local -o -- npx tsx scripts/prime/import-plan.ts [--reset]
+> ```
+> 
+> Trainer resolved at runtime from `journey@pupmanager.dev` (→ `cms3qea0s0002zl8oq906sb0d`). `assertLocalDb()` guard copied from `ensure-fields.ts`. No Prisma CLI was run, no `.env*`/schema/migration/branch/commit touched.
+> 
+> ## Counts — plan vs imported
+> 
+> | | Plan | Imported | |
+> |---|---|---|---|
+> | People | 685 | **684** clients | 2 plan rows share one email → 1 client (below) |
+> | Dogs | 574 | **574** | 1 deceased ✓ (Ruby, 2025-07-21), 10 nameless |
+> | Courses | 87 (63 sheet + 24 invented) | **87** packages + 87 runs + **435** sessions | 24 runs named `… [reconstructed]` |
+> | Enrolments | 564 | **564** (561 ENROLLED, 3 WITHDRAWN) | `didNotAttend` → WITHDRAWN; 0 unmatched |
+> | Subscribers | 583 | **583** | |
+> | 1:1 consults | 129 | **129** ClientPackages over 8 1:1 Packages | |
+> | Custom fields | Prof 26 / Business 26 / Credit 19 / Volunteer 18 / Prev-trainer 12 = 101 | 25 / 25 / 19 / 18 / 12 = **99** | the merged pair were both professionals |
+> | Placeholder emails | 9 | **9** | |
+> | Access codes | 9 people | **9** notes carry `Access code:` | |
+> | AF refs / waitlist | 40 / 88 people | **40 / 88** | |
+> 
+> Statuses: 462 ACTIVE (has enrolments or consults), 222 NEW (lead). Idempotency proven — a second run without `--reset` created **0** of everything and left every count identical.
+> 
+> ## The one real discrepancy
+> 
+> `P0459 "Ryan &amp; Annie Black"` and `P0578 "Annie Black"` carry the same email (`ryanjohnblack@gmail.com`). `User.email` is unique, so they became one client. Both are Professionals with the same Business, neither has dogs or enrolments — nothing was lost, but it's why people is 684 and Professional/Business are 25 not 26.
+> 
+> ## 1:1 consults
+> 
+> `ClientPackage` fits cleanly, so no schema was invented: one `Package` per service (8 — In-home 66, DTP 17, PFP 16, ADT 8, OC 7, DTS 7, Training Walk 4, PFS 4) with `isGroup=false, sessionCount=1`, plus a `ClientPackage` per consult. **No TrainingSessions** — the source has no real session dates. 99 of 129 have a month+year → day 1 of that month; the other 30 got a `20
+> … [truncated — 4828 chars total]
+
+**22:47** — showing - Internal Server Error
+
+**22:56** — Runtime PrismaClientKnownRequestError
+> Server
+> 
+> 
+> 
+> Invalid `prisma.user.findUnique()` invocation:
+> 
+> 
+> The table `public.users` does not exist in the current database.
+> src/generated/prisma/runtime/client.js (69:8286) @ zr.handleRequestError
+> 
+> 
+>   67 | ...
+>   68 | ...
+> > 69 | ...t u=s?{modelName:s,...t.meta}:t.meta;throw new b.PrismaClientKnownRequestError(l,{code:...
+>      |                                               ^
+>   70 | ...
+>   71 | ...
+>   72 | ...
+> Call Stack
+> 10
+> 
+> Show 5 ignore-listed frame(s)
+> zr.handleRequestError
+> src/generated/prisma/runtime/client.js (69:8286)
+> zr.handleAndLogRequestError
+> src/generated/prisma/runtime/client.js (69:7581)
+> zr.request
+> src/generated/prisma/runtime/client.js (69:7288)
+> a
+> src/generated/prisma/runtime/client.js (79:6862)
+> Home
+> src/app/page.tsx (15:16)
+
+**22:57** — do waht you need to get it running
+
+**23:29** — <task-notification>
+> <task-id>b3svv42cd</task-id>
+> <tool-use-id>toolu_01QMXSXrSfwz762yYADBduka</tool-use-id>
+> <output-file>/private/tmp/claude-501/-Users-karl-fm-events/4684dc3c-ed27-406c-a7c1-495b44e5657d/tasks/b3svv42cd.output</output-file>
+> <status>killed</status>
+> <summary>Background command "Start the dev server pinned to local dev" was stopped</summary>
+> </task-notification>
+
+**01:13** — What is a new client?
+
+**01:22** — ok lets put this in to the live version of the Journey Dogs
 

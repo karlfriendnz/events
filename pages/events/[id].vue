@@ -1018,21 +1018,10 @@
           </div>
         </div>
 
-        <!-- Sign Up Window -->
-        <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
-          <h3 class="text-sm font-semibold text-gray-700">Sign Up Window</h3>
-          <p class="text-xs text-gray-500 -mt-2">Set when sign-ups open and close for this {{ t('event', false, true) }}.</p>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div class="flex flex-col gap-1.5">
-              <label class="text-sm font-medium text-gray-700">Opens</label>
-              <DatePicker v-model="editForm.reg_open_at" show-icon show-time hour-format="12" date-format="dd/mm/yy" class="w-full" placeholder="No open date" />
-            </div>
-            <div class="flex flex-col gap-1.5">
-              <label class="text-sm font-medium text-gray-700">Closes</label>
-              <DatePicker v-model="editForm.reg_close_at" show-icon show-time hour-format="12" date-format="dd/mm/yy" class="w-full" placeholder="No close date" />
-            </div>
-          </div>
-        </div>
+        <!-- The Sign Up Window used to sit here. It's on the OVERVIEW tab now, beside
+             the event's own dates, where the same `editForm.reg_open_at` /
+             `reg_close_at` are bound — two editors for one pair of dates on the same
+             page is a chance for them to look like different settings. -->
 
         <!-- Registration Window -->
         <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
@@ -1338,7 +1327,8 @@
 
 
   <!-- Discount Template Picker -->
-  <EventDiscountDialog v-model:visible="showDiscountFlow" :edit="discountEditDraft" :fields="discountFields" @save="onDiscountSave" />
+  <EventDiscountDialog v-model:visible="showDiscountFlow" :edit="discountEditDraft" :fields="discountFields"
+    :event-age-min="editForm.age_min" :event-age-max="editForm.age_max" @save="onDiscountSave" />
 
   <!-- Ticket Type Dialog -->
   <Dialog v-model:visible="showTicketDialog" :header="editingTicket?.id ? 'Edit Ticket Type' : 'New Ticket Type'" modal :style="{ width: '95vw', maxWidth: '520px' }" @hide="ticketDraft = null">
@@ -4430,15 +4420,18 @@ watch(activeTab, (tab, oldTab) => {
   if (tab === 'invitees' || tab === 'attendance') {
     if (!invitees.value.length) loadInvitees()
     if (tab === 'attendance') {
-      if (!sessions.value.length) {
-        loadSessions().then(() => {
-          if (!selectedAttendanceSessionId.value && attendanceSessions.value.length) {
-            selectAttendanceSession(attendanceSessions.value[0].id)
-          }
-        })
-      } else if (!selectedAttendanceSessionId.value && attendanceSessions.value.length) {
-        selectAttendanceSession(attendanceSessions.value[0].id)
+      // `?session=` targets ONE session's roll — the Dates tab links straight to the
+      // session you clicked, rather than dropping you on the first one and making you
+      // find it again. Falls back to the first session when absent or unknown.
+      const wanted = (route.query.session as string) || null
+      const pick = () => {
+        const target = wanted && attendanceSessions.value.some(s => s.id === wanted)
+          ? wanted
+          : (attendanceSessions.value[0]?.id ?? null)
+        if (target && selectedAttendanceSessionId.value !== target) selectAttendanceSession(target)
       }
+      if (!sessions.value.length) loadSessions().then(pick)
+      else if (wanted || !selectedAttendanceSessionId.value) pick()
     }
   }
   if (tab === 'details') { loadCategories() }
@@ -4519,15 +4512,18 @@ onMounted(async () => {
   // select the first one so toggling checkboxes records per-session
   // attendance instead of falling through to the event-level flag.
   if (activeTab.value === 'attendance') {
-    if (!sessions.value.length) {
-      loadSessions().then(() => {
-        if (!selectedAttendanceSessionId.value && attendanceSessions.value.length) {
-          selectAttendanceSession(attendanceSessions.value[0].id)
-        }
-      })
-    } else if (!selectedAttendanceSessionId.value && attendanceSessions.value.length) {
-      selectAttendanceSession(attendanceSessions.value[0].id)
+    // Same `?session=` targeting as the tab watcher — this path is the one that runs
+    // when you LAND on ?tab=attendance&session=… from the Dates tab, since activeTab
+    // is initialised from the query and so never changes.
+    const wanted = (route.query.session as string) || null
+    const pick = () => {
+      const target = wanted && attendanceSessions.value.some(s => s.id === wanted)
+        ? wanted
+        : (attendanceSessions.value[0]?.id ?? null)
+      if (target && selectedAttendanceSessionId.value !== target) selectAttendanceSession(target)
     }
+    if (!sessions.value.length) loadSessions().then(pick)
+    else if (wanted || !selectedAttendanceSessionId.value) pick()
   }
 
   // Apply query-param date prefill and persist to DB

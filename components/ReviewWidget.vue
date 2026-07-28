@@ -1336,6 +1336,7 @@ async function load() {
 watch([orgId, pageKey], load, { immediate: true })
 watch(orgId, loadReviewers, { immediate: true })
 
+
 // ── Stage transitions ────────────────────────────────────────────────
 // Manual stage changes are gated by canEditStage (UI hides the toggle).
 // Auto-promotions (first comment → in_review, all-signed → approved,
@@ -2380,6 +2381,53 @@ function formatRelative(iso: string): string {
   if (days < 7) return `${days}d ago`
   return d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
 }
+
+// ── Keep the open panel LIVE ────────────────────────────────────────────
+// Comments are marked from OUTSIDE the browser: Claude PATCHes claude_status
+// from the CLI as it works. `load()` only ran when the org or the page key
+// changed, so a panel you were sitting in front of never learned any of it — you
+// watched "Sent to Claude — queued" for an hour on work that had been built and
+// noted twenty minutes in, and the only honest reading from that seat is that
+// the agent is ignoring you.
+//
+// Not a notification system, and deliberately not a socket: it re-reads the same
+// page bundle when you come back to the tab, plus a slow tick while the panel is
+// open. Cheap, and its failure mode is being a few seconds stale.
+//
+// THIS BLOCK LIVES AT THE BOTTOM ON PURPOSE. `<script setup>` consts are not
+// hoisted, so a watcher declared above `editOpenFor`/`replyOpenFor`/`composeBody`
+// reads them before init the first time it fires → TDZ, and the whole page 500s.
+const LIVE_POLL_MS = 15000
+let liveTimer: ReturnType<typeof setInterval> | null = null
+/**
+ * A refresh replaces `comments` wholesale, so it must NEVER land while you are
+ * part-way through saying something — a poll that eats a half-typed reply is a
+ * worse bug than the stale chip it fixes. Composing anything defers it; the next
+ * tick picks it up once you've posted or closed.
+ */
+function busyComposing() {
+  return pinning.value || !!editOpenFor.value || !!replyOpenFor.value
+    || !!composeBody.value.trim() || !!newGeneralBody.value.trim()
+}
+function refreshIfIdle() {
+  if (!expanded.value || document.visibilityState !== 'visible' || busyComposing()) return
+  load()
+}
+function startLive() {
+  if (liveTimer) return
+  liveTimer = setInterval(refreshIfIdle, LIVE_POLL_MS)
+  window.addEventListener('focus', refreshIfIdle)
+  document.addEventListener('visibilitychange', refreshIfIdle)
+}
+function stopLive() {
+  if (liveTimer) { clearInterval(liveTimer); liveTimer = null }
+  window.removeEventListener('focus', refreshIfIdle)
+  document.removeEventListener('visibilitychange', refreshIfIdle)
+}
+watch(expanded, (open) => {
+  if (open) { refreshIfIdle(); startLive() } else stopLive()
+}, { immediate: true })
+onBeforeUnmount(stopLive)
 </script>
 
 <style scoped>

@@ -526,12 +526,14 @@
     <!-- Event hover tooltip -->
     <ClientOnly>
     <Teleport to="body">
-      <div v-if="tooltip.visible" class="fixed z-50 pointer-events-none"
+      <div v-if="tooltip.visible" ref="tooltipEl" class="fixed z-50 pointer-events-none"
         :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px' }">
         <div class="bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden w-72">
           <!-- Banner image -->
           <div v-if="tooltip.event?.banner_url" class="h-32 overflow-hidden">
-            <img :src="tooltip.event.banner_url" class="w-full h-full object-cover" />
+            <!-- Re-place on load: an image that arrives after the first measurement
+                 makes the card ~130px taller, which can push it off the bottom. -->
+            <img :src="tooltip.event.banner_url" class="w-full h-full object-cover" @load="placeTooltip" />
           </div>
           <!-- Category colour bar (only when no banner) -->
           <div v-else class="h-1 rounded-full mx-4 mt-4" :style="{ background: tooltip.event?.category?.color ?? '#1E2157' }" />
@@ -556,7 +558,9 @@
             </div>
             <div v-if="tooltip.event?.description" class="flex items-start gap-2 pt-1 border-t border-gray-100">
               <i class="pi pi-align-left w-3.5 shrink-0 mt-0.5" />
-              <span class="line-clamp-2 leading-relaxed">{{ tooltip.event.description }}</span>
+              <!-- The description is stored as HTML (RichTextEditor). This is a
+                   two-line summary, not a rendered document, so show its TEXT. -->
+              <span class="line-clamp-2 leading-relaxed">{{ plainText(tooltip.event.description) }}</span>
             </div>
           </div>
           <div class="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between">
@@ -642,26 +646,8 @@
             <span class="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center mb-2">
               <i class="pi pi-list-check text-primary text-sm" />
             </span>
-            <span class="block text-sm font-semibold text-gray-900">Create by wizard</span>
+            <span class="block text-sm font-semibold text-gray-900">Create basic {{ t('event', false, true) }}</span>
             <span class="block text-xs text-gray-500 mt-0.5 leading-relaxed">Guided, one step at a time.</span>
-          </button>
-
-          <button type="button" class="group bg-white text-left p-4 transition-colors hover:bg-[#F5F8FA]"
-            @click="startCustom">
-            <span class="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center mb-2">
-              <i class="pi pi-sliders-h text-purple-700 text-sm" />
-            </span>
-            <span class="block text-sm font-semibold text-gray-900">Custom {{ t('event', false, true) }}</span>
-            <span class="block text-xs text-gray-500 mt-0.5 leading-relaxed">Choose the type and set it up yourself.</span>
-          </button>
-
-          <button v-if="isGoverningOrg" type="button" class="group bg-white text-left p-4 transition-colors hover:bg-[#F5F8FA]"
-            @click="startAdvanced">
-            <span class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center mb-2">
-              <i class="pi pi-sliders-v text-amber-700 text-sm" />
-            </span>
-            <span class="block text-sm font-semibold text-gray-900">Advanced {{ t('event', false, true) }}</span>
-            <span class="block text-xs text-gray-500 mt-0.5 leading-relaxed">Sessions, fees, forms, discounts and automation.</span>
           </button>
 
           <button type="button" class="group bg-white text-left p-4 transition-colors hover:bg-[#F5F8FA]"
@@ -671,6 +657,22 @@
             </span>
             <span class="block text-sm font-semibold text-gray-900">Programme</span>
             <span class="block text-xs text-gray-500 mt-0.5 leading-relaxed">Runs across many days &mdash; book sessions per day.</span>
+          </button>
+
+          <!-- LAST on purpose: it is the only one you cannot actually use yet.
+               Shows to EVERYONE, but as a promise rather than a door — disabled +
+               "Coming soon". It was previously governing-orgs-only and live for
+               them; see the note on startAdvanced() before re-enabling. -->
+          <button type="button" disabled
+            class="group bg-white text-left p-4 opacity-60 cursor-not-allowed">
+            <span class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center mb-2">
+              <i class="pi pi-sliders-v text-amber-700 text-sm" />
+            </span>
+            <span class="flex items-center gap-2">
+              <span class="text-sm font-semibold text-gray-900">Advanced {{ t('event', false, true) }}</span>
+              <span class="text-xs font-medium text-gray-600 bg-gray-100 rounded-full px-2 py-0.5">Coming soon</span>
+            </span>
+            <span class="block text-xs text-gray-500 mt-0.5 leading-relaxed">Sessions, fees, forms, discounts and automation.</span>
           </button>
         </div>
       </div>
@@ -682,7 +684,7 @@
          Cancel deletes the draft (onQuickClose) so nothing is left behind. -->
     <!-- 1200px; top-anchoring comes from the global modal rule in main.css. -->
     <Dialog v-model:visible="quickOpen" :header="`Quick ${t('event', false, true)}`" modal
-      :style="{ width: '95vw', maxWidth: '1200px' }" @hide="onQuickClose">
+      :style="{ width: '95vw', maxWidth: '1200px' }" @show="focusQuickName" @hide="onQuickClose">
       <div class="space-y-3 pt-1">
         <!-- Two tiny steps: essentials, then people. Keeps step 1 phone-simple. -->
         <div class="flex items-center gap-1.5 text-xs mb-1">
@@ -697,7 +699,12 @@
           <!-- Name -->
           <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
             <span class="field-label shrink-0 sm:w-20">Name <span class="text-red-500">*</span></span>
-            <InputText ref="quickNameInput" v-model="quickForm.name" :placeholder="`${t('event', false)} name`" class="flex-1 min-w-0"
+            <!-- `autofocus` is the FRAMEWORK-NATIVE path: PrimeVue's Dialog looks for
+                 [autofocus] inside itself when it opens and focuses it, with no timers
+                 of ours involved. focusQuickName() (@show) stays as the belt to this
+                 braces — between them, one of the two always wins the race against the
+                 closing New-event dialog handing focus back to its trigger. -->
+            <InputText ref="quickNameInput" v-model="quickForm.name" autofocus :placeholder="`${t('event', false)} name`" class="flex-1 min-w-0"
               @keydown.enter="quickNext" />
           </div>
 
@@ -1099,14 +1106,19 @@ function startWizard() {
   showEventNameModal.value = false
   chooseSingleSession()
 }
-function startCustom() {
-  creationMode.value = 'custom'
-  showEventNameModal.value = false
-  chooseSingleSession()
-}
+// NB there is no startCustom() any more — "Custom event" was removed from the New
+// event modal. The one-page custom editor itself STAYS: `creationMode 'custom'` and
+// /events/new-basic?mode=full are still how openEvent() reopens an existing
+// single-session event, so the route has to keep working. Only the way IN is gone.
 // Advanced = the full event editor page (/events/:id), not the modal builder.
 // Create the draft row here (same shape new-advanced's ensureDraft used) and
 // land the user on it. openEvent() routes created_via:'advanced' back here too.
+//
+// NOTHING CALLS THIS RIGHT NOW — the Advanced card in the New event modal is
+// disabled and badged "Coming soon". It is kept, working, because that badge is a
+// promise: re-enabling is deleting `disabled` on the card and putting @click back.
+// It WAS live for governing orgs before the badge went on, so if they need it back
+// the fix is to restore the old `v-if="isGoverningOrg"` gate rather than rebuild it.
 const creatingAdvanced = ref(false)
 async function startAdvanced() {
   if (creatingAdvanced.value) return
@@ -1143,6 +1155,13 @@ function startHolidayProgramme() {
   const params = new URLSearchParams({ programme: '1' })
   if (newEventName.value.trim()) params.set('name', newEventName.value.trim())
   if (activeCalendarStampCategory.value) params.set('category', activeCalendarStampCategory.value)
+  // CARRY THE SELECTED DATES. Dragging a range on the calendar and then choosing
+  // Programme threw the range away — every other way in passes these (the wizard, the
+  // custom page, the quick modal all read clickedDate/clickedEndDate), and new-multi
+  // has always read ?date= / ?endDate= into its Programme dates. Only this entry point
+  // never sent them, so the one flow where a date RANGE matters most started blank.
+  if (clickedDate.value) params.set('date', clickedDate.value)
+  if (clickedEndDate.value) params.set('endDate', clickedEndDate.value)
   navigateTo(`/events/new-multi?${params}`)
 }
 
@@ -1175,6 +1194,39 @@ useReviewGoto(({ dialog }) => {
 })
 
 const quickNameInput = ref<any>(null)
+/**
+ * Put the cursor in the name box when the Quick event dialog opens.
+ *
+ * WHY THIS IS NOT JUST ONE focus() CALL. Opening Quick event closes the New event
+ * dialog and opens this one in the same tick. PrimeVue's Dialog RESTORES FOCUS to
+ * whatever was focused before it opened when it hides — so the closing dialog hands
+ * focus back to the "New event" button a frame or two later, stealing it from the
+ * field we just focused. A single `nextTick(() => input.focus())` therefore appears
+ * to work and then silently loses: the cursor ends up nowhere and your first
+ * keystrokes go to the page.
+ *
+ * So: focus on this dialog's own `show` (which fires after PrimeVue's own focus
+ * handling), then again on the next frame, then once more after the closing
+ * dialog's leave transition has finished. Re-focusing an already-focused input is
+ * a no-op, so the extra passes cost nothing when nothing steals it.
+ */
+function focusQuickName() {
+  const put = () => {
+    const c: any = quickNameInput.value
+    const el: HTMLElement | undefined = c?.$el ?? c
+    if (!el) return
+    const active = document.activeElement as HTMLElement | null
+    // Only stand down for a field the USER chose. PrimeVue parks focus on the
+    // dialog container / its close button when it opens, and an earlier version of
+    // this guard treated "focus is somewhere inside .p-dialog" as "leave it alone" —
+    // which is true of PrimeVue's own initial focus, so it never focused at all.
+    if (active && active !== el && /^(input|textarea|select)$/i.test(active.tagName)) return
+    el.focus?.()
+  }
+  put()
+  requestAnimationFrame(put)
+  setTimeout(put, 180)
+}
 const creatingQuick = ref(false)
 const quickDraftId = ref<string | null>(null)
 const quickCreated = ref(false)
@@ -1279,9 +1331,9 @@ async function openQuick() {
     quickDraftId.value = created.id
     showEventNameModal.value = false
     quickOpen.value = true
-    // Cursor lands on the name — the first thing you'd type. `autofocus` doesn't
-    // fire here (the dialog mounts long after page load), so focus it by hand.
-    nextTick(() => quickNameInput.value?.$el?.focus?.())
+    // The cursor is placed by the dialog's own @show (focusQuickName) — doing it
+    // here instead loses the race against the closing New-event dialog handing
+    // focus back to its trigger.
   } catch (error: any) {
     toast.add({ severity: 'error', summary: 'Could not start the event', detail: error?.message, life: 4000 })
   }
@@ -2362,38 +2414,77 @@ function setCalView(view: string) {
 // Hover tooltip
 const tooltip = reactive({ visible: false, x: 0, y: 0, event: null as any })
 let tooltipTimer: ReturnType<typeof setTimeout> | null = null
+// The pill we're hovering, kept so the card can be re-placed once its real size is
+// known (and again if the banner image loads and makes it taller).
+let tooltipAnchor: DOMRect | null = null
+const tooltipEl = ref<HTMLElement | null>(null)
 
-function showTooltip(info: any) {
-  if (tooltipTimer) clearTimeout(tooltipTimer)
-  const rect = info.el.getBoundingClientRect()
-  // Position to the right of the event pill, flip left if near edge
-  let x = rect.right + 10
-  let y = rect.top
-  if (x + 290 > window.innerWidth) x = rect.left - 300
-  if (y + 280 > window.innerHeight) y = window.innerHeight - 290
-  tooltip.event = info.event.extendedProps
+const TOOLTIP_GAP = 10   // breathing room between the pill and the card
+const TOOLTIP_EDGE = 8   // never touch the viewport edge
+
+/**
+ * Place the hover card so it is ALWAYS fully on screen.
+ *
+ * This used to be two copies of `if (y + 280 > innerHeight) y = innerHeight - 290`,
+ * i.e. a guess that the card is 280px tall. With a banner image it's more like 430,
+ * so on a row near the bottom the card ran off the screen and you couldn't read it —
+ * and the guess was duplicated, so any fix had to be made twice.
+ *
+ * Now it measures the rendered card and flips: right of the pill by preference, left
+ * if it won't fit; top-aligned by preference, bottom-aligned ("hovering up") if it
+ * won't fit below. Clamping is the last resort, so the card can never be cut off.
+ */
+function placeTooltip() {
+  const el = tooltipEl.value
+  const r = tooltipAnchor
+  if (!el || !r) return
+  const w = el.offsetWidth
+  const h = el.offsetHeight
+  const vw = window.innerWidth
+  const vh = window.innerHeight
+
+  // Horizontal: right of the pill → flip to its left → clamp inside the viewport.
+  let x = r.right + TOOLTIP_GAP
+  if (x + w > vw - TOOLTIP_EDGE) x = r.left - TOOLTIP_GAP - w
+  if (x < TOOLTIP_EDGE) x = Math.max(TOOLTIP_EDGE, Math.min(vw - w - TOOLTIP_EDGE, r.right + TOOLTIP_GAP))
+
+  // Vertical: aligned with the pill's top → flip to sit ABOVE (bottom edge level with
+  // the pill's bottom) → clamp. The flip is what "hover up" means for a low row.
+  let y = r.top
+  if (y + h > vh - TOOLTIP_EDGE) y = r.bottom - h
+  if (y < TOOLTIP_EDGE) y = TOOLTIP_EDGE
+  if (y + h > vh - TOOLTIP_EDGE) y = Math.max(TOOLTIP_EDGE, vh - h - TOOLTIP_EDGE)
+
   tooltip.x = x
   tooltip.y = y
-  tooltipTimer = setTimeout(() => { tooltip.visible = true }, 200)
+}
+
+function openTooltip(rect: DOMRect, event: any) {
+  if (tooltipTimer) clearTimeout(tooltipTimer)
+  tooltipAnchor = rect
+  tooltip.event = event
+  // Provisional spot; placeTooltip corrects it as soon as the card has a real size.
+  tooltip.x = rect.right + TOOLTIP_GAP
+  tooltip.y = rect.top
+  tooltipTimer = setTimeout(() => {
+    tooltip.visible = true
+    nextTick(placeTooltip)
+  }, 200)
+}
+
+function showTooltip(info: any) {
+  openTooltip(info.el.getBoundingClientRect(), info.event.extendedProps)
 }
 
 function hideTooltip() {
   if (tooltipTimer) clearTimeout(tooltipTimer)
   tooltip.visible = false
+  tooltipAnchor = null
 }
 
 // Hover handler for BookingsCalendar event bars/blocks
 function onCalendarEventHover(item: any, ev: MouseEvent) {
-  if (tooltipTimer) clearTimeout(tooltipTimer)
-  const rect = (ev.currentTarget as HTMLElement).getBoundingClientRect()
-  let x = rect.right + 10
-  let y = rect.top
-  if (x + 290 > window.innerWidth) x = rect.left - 300
-  if (y + 280 > window.innerHeight) y = window.innerHeight - 290
-  tooltip.event = item.extendedProps ?? item
-  tooltip.x = x
-  tooltip.y = y
-  tooltipTimer = setTimeout(() => { tooltip.visible = true }, 200)
+  openTooltip((ev.currentTarget as HTMLElement).getBoundingClientRect(), item.extendedProps ?? item)
 }
 
 function eventColor(e: any) {
@@ -2610,12 +2701,18 @@ async function load() {
   allCategories.value = cats ?? []
   // The seam returns ALL events newest-first; apply the filters the old query did
   // server-side (this programme mode, not archived) and the start_at ordering.
+  // The PROGRAMME board shows only programmes. The EVENTS board shows everything,
+  // programmes included: a holiday programme runs on real days at the club, so it
+  // belongs on the club's calendar. It used to be `!!e.isProgramme === isProgramme`,
+  // which read as a symmetry but meant /events silently hid them — the programme was
+  // on the calendar's data, just filtered out of every view of it.
+  const wanted = (e: any) => isProgramme.value ? !!e.isProgramme : true
   const ownRows = (evList ?? [])
-    .filter((e: any) => !!e.isProgramme === isProgramme.value && e.status !== 'ARCHIVED')
+    .filter((e: any) => wanted(e) && e.status !== 'ARCHIVED')
     .map(toEventRow)
   // Shared (accepted) events from a governing body — read-only, tagged with who shared them.
   const sharedRows = (sharedList ?? [])
-    .filter((e: any) => !!e.isProgramme === isProgramme.value && e.status !== 'ARCHIVED' && e.status !== 'CANCELLED')
+    .filter((e: any) => wanted(e) && e.status !== 'ARCHIVED' && e.status !== 'CANCELLED')
     .map((e: any) => ({ ...toEventRow(e), is_shared: true, shared_from: e.sharedFromOrgName, discipline_name: e.disciplineName }))
   events.value = [...ownRows, ...sharedRows]
     .sort((a: any, b: any) => {
@@ -2802,14 +2899,37 @@ onMounted(async () => {
   // is a blocking modal, so this resolves within a couple of seconds).
   if (!openingNewCal && !isProgramme.value && events.value.length === 0 && !localStorage.getItem(DEMO_PROMPTED_KEY)) {
     const ackd = () => sessionStorage.getItem('prototype_acknowledged') === '1'
-    if (ackd()) { showDemoPrompt.value = true }
+    /**
+     * RE-CHECK AT FIRING TIME, not just at mount. Two reasons, both bugs we hit:
+     *
+     * 1. `events` IS USUALLY EMPTY AT MOUNT because the load hasn't come back yet.
+     *    So a club with a full calendar still qualified here, and up to 30 seconds
+     *    later got a "you have no events, want demo data?" modal over the top of it.
+     *
+     * 2. IT STOLE FOCUS MID-TASK. This fires on a 400ms poll waiting for the
+     *    disclaimer, so it lands SECONDS after the page settles — long enough that
+     *    you've opened Quick event and started typing. A modal opening takes focus,
+     *    so the cursor vanished from the name field a few seconds in. It looked like
+     *    the Quick-event dialog failing to hold focus, which is where two fixes went
+     *    before this was found; the giveaway was that only Quick event was affected,
+     *    because it's the only create flow that stays ON the board — the others
+     *    navigate to their own route and leave this timer behind.
+     *
+     * A welcome prompt is the lowest-priority thing on the screen: it must never
+     * interrupt work in progress, so it also stands down while any dialog is open.
+     */
+    const stillWanted = () => events.value.length === 0
+      && !localStorage.getItem(DEMO_PROMPTED_KEY)
+      && !quickOpen.value && !showEventNameModal.value
+      && !document.querySelector('.p-dialog')
+    if (ackd() && stillWanted()) { showDemoPrompt.value = true }
     else {
       let tries = 0
       const t = setInterval(() => {
-        if (ackd() || ++tries > 75) {   // ~30s cap so it never polls forever
-          clearInterval(t)
-          if (!localStorage.getItem(DEMO_PROMPTED_KEY)) showDemoPrompt.value = true
-        }
+        if (++tries > 75) { clearInterval(t); return }   // ~30s cap so it never polls forever
+        if (!ackd()) return
+        clearInterval(t)
+        if (stillWanted()) showDemoPrompt.value = true
       }, 400)
     }
   }

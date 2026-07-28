@@ -34,7 +34,17 @@ const props = withDefaults(defineProps<{
   contextLabel?: string
   canEditAll?: boolean    // true when the viewer may edit anyone's notes here
   canDeleteAll?: boolean  // true when the viewer has permission to delete notes
-}>(), { personName: '', links: () => [], scopeToLinks: true, initialCount: null, contextLabel: '', canEditAll: false, canDeleteAll: false })
+  /**
+   * Offer a CHOICE of what a new note is filed against.
+   *
+   * On a multi-date event the same note can mean two different things — "left early
+   * today" belongs to Wednesday morning, "allergic to nuts" belongs to the whole
+   * programme — and filing the second against one session buries it on a day nobody
+   * will look at again. With 2+ options the composer shows a scope picker; the first
+   * is the default. Absent (or one option), nothing renders and `links` is used as-is.
+   */
+  scopeOptions?: { label: string; links: NoteLink[] }[]
+}>(), { personName: '', links: () => [], scopeToLinks: true, initialCount: null, contextLabel: '', canEditAll: false, canDeleteAll: false, scopeOptions: () => [] })
 
 const emit = defineEmits<{ (e: 'count-change', v: number): void }>()
 
@@ -141,13 +151,23 @@ async function openDrawer() {
 }
 function closeDrawer() { if (open.value) activePanel.value = null }
 
+// Which scope a NEW note is filed against. Index into `scopeOptions`; ignored (and the
+// picker hidden) when the host didn't offer a choice.
+const scopeChoice = ref(0)
+const hasScopeChoice = computed(() => (props.scopeOptions?.length ?? 0) > 1)
+const newNoteLinks = computed<NoteLink[]>(() =>
+  hasScopeChoice.value
+    ? (props.scopeOptions[scopeChoice.value]?.links ?? props.links ?? [])
+    : (props.links ?? []),
+)
+
 async function add() {
   const body = newNote.value.trim()
   if (!body) return
   saving.value = true
   try {
     const created = await peopleApi.addNote({
-      orgId: orgId.value!, personId: props.personId, body, links: props.links ?? [], channel: noteChannel.value,
+      orgId: orgId.value!, personId: props.personId, body, links: newNoteLinks.value, channel: noteChannel.value,
       visibleTo: buildVisibleTo(), visibility: noteAudiences.value[0] || 'staff', isImportant: noteImportant.value,
       dueDate: aud.toISODate(noteDue.value),
       authorId: user.value?.id ?? null,
@@ -248,6 +268,15 @@ onBeforeUnmount(() => { if (open.value) activePanel.value = null })
           <div class="p-4 border-b border-gray-100 space-y-2">
             <Textarea v-model="newNote" rows="3" autoResize class="w-full" placeholder="Write a note…"
               @keydown.meta.enter="add" @keydown.ctrl.enter="add" />
+            <!-- Scope: one either/or question, so one SelectButton (the app's standing
+                 rule). Above the audience row because it changes what the note IS, not
+                 who sees it — and it's asked BEFORE posting, since re-filing afterwards
+                 means finding a note that's already in the wrong place. -->
+            <div v-if="hasScopeChoice" class="flex items-center gap-2">
+              <span class="text-[11px] font-semibold text-gray-400 shrink-0">This note is for</span>
+              <SelectButton v-model="scopeChoice" :options="scopeOptions.map((o, i) => ({ label: o.label, value: i }))"
+                option-label="label" option-value="value" :allow-empty="false" size="small" class="shrink-0" />
+            </div>
             <div class="flex items-center gap-2">
               <span class="text-[11px] font-semibold text-gray-400 shrink-0">Show to</span>
               <MultiSelect v-model="noteAudiences" :options="audienceOptions" optionLabel="label" optionValue="value"

@@ -14,9 +14,21 @@
           <DatePicker :model-value="startDate" :manual-input="false" show-icon date-format="dd/mm/yy" :placeholder="`${startLabel} date`" fluid class="flex-1 min-w-0"
             :min-date="minStartDate"
             :max-date="maxDate ?? undefined"
-            @update:model-value="onStartDate" />
-          <TimeWheel v-if="showTime" ref="startTimeRef" :model-value="startTime" :placeholder="`${startLabel} time`" class="flex-1 min-w-0"
-            :disabled="isAllDay" :min-time="startMinTime"
+            @update:model-value="onStartDate">
+            <!-- v-tooltip, not the native `title`: it matches every other tooltip in
+                 the app and shows straight away, where the browser's own takes a
+                 second or so — long enough that you'd never discover what the green
+                 circle means by hovering it. -->
+            <template v-if="hasMarks" #date="{ date }">
+              <span class="dt-day" :class="isMarkedDay(date) ? 'dt-day--marked' : ''"
+                v-tooltip.top="markTooltip(date)">{{ date.day }}</span>
+            </template>
+          </DatePicker>
+          <!-- All day HIDES the times rather than disabling them: a greyed-out box you
+               cannot use is still a box you have to read past, and "all day" already
+               says there is no time to set. The date picker takes the freed width. -->
+          <TimeWheel v-if="showTime && !isAllDay" ref="startTimeRef" :model-value="startTime" :placeholder="`${startLabel} time`" class="flex-1 min-w-0"
+            :min-time="startMinTime"
             @update:model-value="onStartTime" />
         </div>
         <span v-if="!stack" class="text-sm text-gray-300 shrink-0 hidden lg:inline">→</span>
@@ -25,14 +37,23 @@
           <DatePicker ref="endDateRef" :model-value="endDate" :manual-input="false" show-icon date-format="dd/mm/yy" :placeholder="`${endLabel} date`" fluid class="flex-1 min-w-0"
             :min-date="minEndDate ?? startDate ?? undefined"
             :max-date="maxDate ?? undefined"
-            @update:model-value="onEndDate" />
+            @update:model-value="onEndDate">
+            <!-- v-tooltip, not the native `title`: it matches every other tooltip in
+                 the app and shows straight away, where the browser's own takes a
+                 second or so — long enough that you'd never discover what the green
+                 circle means by hovering it. -->
+            <template v-if="hasMarks" #date="{ date }">
+              <span class="dt-day" :class="isMarkedDay(date) ? 'dt-day--marked' : ''"
+                v-tooltip.top="markTooltip(date)">{{ date.day }}</span>
+            </template>
+          </DatePicker>
           <!-- An impossible end time is SHOWN as wrong rather than silently
                corrected — the ring marks the control the person just used, so
                the feedback is where they are looking. -->
-          <TimeWheel v-if="showTime" ref="endTimeRef" :model-value="endTime" :placeholder="`${endLabel} time`"
+          <TimeWheel v-if="showTime && !isAllDay" ref="endTimeRef" :model-value="endTime" :placeholder="`${endLabel} time`"
             class="flex-1 min-w-0 rounded-md"
             :class="endTimeInvalid ? 'ring-2 ring-red-400' : ''"
-            :disabled="isAllDay" :min-time="endMinTime"
+            :min-time="endMinTime"
             @update:model-value="onEndTime" />
         </div>
         <!-- All day lives ON the date line, where the thing it applies to is.
@@ -144,6 +165,17 @@ const props = withDefaults(defineProps<{
   // For narrow containers on a WIDE viewport (e.g. the compact Quick-event modal),
   // where the single-row desktop layout would cram the pickers and clip the date.
   stack?: boolean
+  /**
+   * Days to MARK on the calendar as context — a dot under the number, not a selection.
+   *
+   * A sign-up window is chosen relative to something else: "opens two weeks before the
+   * programme starts". Without the programme's own dates on the calendar you're picking
+   * against a date you have to hold in your head, then scrolling back up to check it.
+   * Nulls are allowed so a host can pass a not-yet-set date without guarding.
+   */
+  markDates?: (Date | string | null | undefined | { date: Date | string | null | undefined; label?: string })[]
+  /** Fallback tooltip for entries passed as a bare date rather than { date, label }. */
+  markLabel?: string
 }>(), {
   isAllDay: false,
   repeat: 'NONE',
@@ -161,6 +193,35 @@ const props = withDefaults(defineProps<{
   labelWidth: 'w-12',
   labelClass: '',   // .field-label owns the colour now
 })
+
+// Marked days, as a Set of 'y-m-d' keys. PrimeVue's #date slot hands us
+// { day, month, year } (month 0-based) rather than a Date, so the key is built from
+// those parts — comparing Date objects would drag timezone into a purely visual mark.
+// key → its own tooltip, so each marked day can say which end it is ("Event starts"
+// vs "Event ends") instead of sharing one vague label.
+const markKeySet = computed(() => {
+  const out = new Map<string, string | undefined>()
+  for (const entry of props.markDates ?? []) {
+    if (!entry) continue
+    const raw = entry instanceof Date || typeof entry === 'string' ? entry : entry.date
+    const label = entry instanceof Date || typeof entry === 'string' ? props.markLabel : (entry.label ?? props.markLabel)
+    if (!raw) continue
+    const dt = raw instanceof Date ? raw : new Date(raw)
+    if (Number.isNaN(dt.getTime())) continue
+    const key = `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`
+    // First writer wins: a one-day event whose start and end are the same day should
+    // read "Event starts", not be overwritten by "Event ends".
+    if (!out.has(key)) out.set(key, label)
+  }
+  return out
+})
+const hasMarks = computed(() => markKeySet.value.size > 0)
+function isMarkedDay(d: { day: number; month: number; year: number }) {
+  return markKeySet.value.has(`${d.year}-${d.month}-${d.day}`)
+}
+function markTooltip(d: { day: number; month: number; year: number }) {
+  return markKeySet.value.get(`${d.year}-${d.month}-${d.day}`)
+}
 
 const emit = defineEmits<{
   (e: 'update:startDate', v: Date | null): void
@@ -272,3 +333,9 @@ const endTimeInvalid = computed(() => {
      them — a third size in a row that already had two. The real fix was to make
      every form control one size (14px) app-wide; see the form-control type rule
      in assets/css/main.css. -->
+
+<!-- NB `.dt-day` / `.dt-day--marked` are GLOBAL (assets/css/main.css), not scoped here:
+     a marked day is a visual convention shared by every date picker that shows context
+     — this editor and the event card's Sign Up row so far — and two copies of the
+     colours would drift the moment one is tweaked. -->
+

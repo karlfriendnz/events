@@ -4188,24 +4188,29 @@ defineExpose({ reload })
                      height the panel doesn't have. -->
                 <div v-for="(profile, i) in currentEvtFormProfiles" :key="i"
                   class="py-3 space-y-2.5 border-t border-gray-100 first-of-type:border-t-0">
-                  <!-- Name -->
+                  <!-- Name + the type it connects to, ON ONE ROW: they're one sentence
+                       ("a Child, which is a Player"), and stacked they left a wide empty
+                       gap beside the name and pushed How-many off the panel. The remove
+                       ✕ sits at the end of the row it removes. -->
                   <div class="flex items-end gap-2">
                     <div class="flex-1 min-w-0">
                       <label class="field-label block mb-1">Name</label>
                       <InputText :model-value="profile.label" placeholder="e.g. Player, Child, Swimmer" class="w-full"
                         @update:model-value="v => profile.label = v" />
                     </div>
+                    <div v-if="evtHasSubjectTypes" class="flex-1 min-w-0">
+                      <label class="field-label block mb-1">Connect to <span class="text-gray-400 font-normal">— optional</span></label>
+                      <Select :model-value="evtConnectedKey(profile)" :options="evtTypeConnectOptions" option-label="label" option-value="key"
+                        class="w-full" @update:model-value="k => evtSetSubjectType(i, k)" />
+                    </div>
                     <button v-if="currentEvtFormProfiles.length > 1" type="button" class="w-9 h-9 flex items-center justify-center text-gray-300 hover:text-red-500 shrink-0" @click="removeEvtProfile(i)">
                       <i class="pi pi-times-circle" />
                     </button>
                   </div>
-                  <!-- Optional type connection — only when the club HAS types. -->
-                  <div v-if="evtHasSubjectTypes">
-                    <label class="field-label block mb-1">Connect to a member type <span class="text-gray-400 font-normal">— optional</span></label>
-                    <Select :model-value="evtConnectedKey(profile)" :options="evtTypeConnectOptions" option-label="label" option-value="key"
-                      class="w-full" @update:model-value="k => evtSetSubjectType(i, k)" />
-                    <p class="field-help mt-1">{{ evtConnectedKey(profile) === EVT_NO_TYPE ? 'Standalone — this group has only the fields you add.' : 'Inherits the fields defined for this member type.' }}</p>
-                  </div>
+                  <!-- The explanation stays under the row it explains. -->
+                  <p v-if="evtHasSubjectTypes" class="field-help -mt-1">
+                    {{ evtConnectedKey(profile) === EVT_NO_TYPE ? 'Standalone — this group has only the fields you add.' : 'Inherits the fields defined for this member type.' }}
+                  </p>
                   <!-- How many.
                        Was: two horizontal-button InputNumbers (their +/- chevrons read
                        as dropdowns and collided) plus a bare ToggleSwitch that never
@@ -4264,7 +4269,7 @@ defineExpose({ reload })
                     </button>
                     <div v-if="prevPreview?.id === f.id" class="border-t border-gray-100 bg-gray-50 p-3 space-y-2.5">
                       <div class="max-h-[42vh] overflow-y-auto rounded-lg bg-white border border-gray-100 p-1">
-                        <FormRenderer preview :basic="basic" :config="prevPreview.config" :context="previewContext" :event="evtDisplayEvent" />
+                        <FormRenderer preview :basic="basic" :config="prevPreview.config" :context="previewContext" :event="evtDisplayEvent" :discounts="discounts" />
                       </div>
                       <button type="button" class="w-full py-2 rounded-lg text-white text-sm font-semibold transition-colors"
                         style="background:var(--brand-primary)" @click="useEvtPreviousForm(f.id)">
@@ -4292,7 +4297,7 @@ defineExpose({ reload })
                chrome as the builder preview so it reads identically, just non-submittable. -->
           <div v-else-if="evtPublicPreview" class="relative z-10 mx-auto my-6 bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"
             :class="evtPreviewDevice === 'mobile' ? 'max-w-[390px]' : 'max-w-[1000px]'">
-            <FormRenderer preview :basic="basic" :config="previewConfig" :context="previewContext" :event="evtDisplayEvent"
+            <FormRenderer preview :basic="basic" :config="previewConfig" :context="previewContext" :event="evtDisplayEvent" :discounts="discounts"
               :sessions="previewSessions" :fee-line-items="feeLineItems" />
           </div>
 
@@ -4301,7 +4306,7 @@ defineExpose({ reload })
                evtUnifiedCanvas while it's brought to parity with the EvtFieldCell canvas. -->
           <div v-else-if="evtUnifiedCanvas" class="relative z-10 mx-auto my-6 bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300"
             :class="evtPreviewDevice === 'mobile' ? 'max-w-[390px]' : 'max-w-[1000px]'">
-            <FormRenderer edit :basic="basic" :config="previewConfig" :context="previewContext" :event="evtDisplayEvent"
+            <FormRenderer edit :basic="basic" :config="previewConfig" :context="previewContext" :event="evtDisplayEvent" :discounts="discounts"
               :sessions="previewSessions" :fee-line-items="feeLineItems"
               @edit-field="onUnifiedEditField" @restructure="onUnifiedRestructure" @drop-field="onUnifiedDrop"
               @edit-subject-intro="onUnifiedSubjectIntro" @edit-section-intro="onUnifiedSectionIntro"

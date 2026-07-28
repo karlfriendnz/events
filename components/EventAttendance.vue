@@ -14,7 +14,25 @@ import { useToast } from 'primevue/usetoast'
 
 // `fit`: size to content (capped + scroll) instead of filling the parent — for the
 // simple run-the-event view, so a short roster doesn't leave a tall empty box.
-const props = defineProps<{ eventId: string; fit?: boolean; clubOrgId?: string | null }>()
+const props = defineProps<{
+  eventId: string
+  fit?: boolean
+  clubOrgId?: string | null
+  /**
+   * Open on THIS session's roll rather than the first one. A programme has twenty
+   * dates; arriving from "Wed 12 Aug · Afternoon" and landing on Monday morning
+   * means finding it again in a list you just clicked out of.
+   */
+  sessionId?: string | null
+  /**
+   * Show ONLY the chosen session's roll — no session list down the left, no session
+   * dropdown on mobile. For a page that is already about one date (the attendance
+   * page a programme's Dates list links to): the picker is how you'd get there, and
+   * you're there. Kept explicit rather than inferred from `sessionId`, because
+   * pre-selecting a session and hiding the way to change it are different requests.
+   */
+  singleSession?: boolean
+}>()
 
 const eventsApi = useEventsApi()
 const attendanceApi = useAttendanceApi()
@@ -36,6 +54,26 @@ const canEditNotes = computed(() => rbacNotes.can('notes', 'update'))
 const canDeleteNotes = computed(() => rbacNotes.can('notes', 'delete'))
 const attNoteLinks = computed(() => [{ type: 'event', id: props.eventId, label: event.value?.title || 'Event' }])
 const attNoteContextLabel = computed(() => event.value?.title || 'Event')
+
+// On a multi-date event, a note about a person can mean two different things: something
+// that happened TODAY ("picked up late") or something true for the whole run ("inhaler
+// in her bag"). Filing the second against one session buries it on a day nobody opens
+// again, so the composer asks which — see <PersonNotes scope-options>.
+const attNoteScopeOptions = computed(() => {
+  const sid = selectedAttendanceSessionId.value
+  if (!sid) return []
+  const sess: any = attendanceSessions.value.find(s => s.id === sid)
+  const when = sess?.start_at
+    ? new Date(sess.start_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' })
+    : ''
+  const sessionLabel = [when, sess?.title].filter(Boolean).join(' — ') || 'This session'
+  const eventLink = { type: 'event', id: props.eventId, label: event.value?.title || 'Event' }
+  return [
+    // Session FIRST = the default, because you're standing in that session.
+    { label: 'This session', links: [{ type: 'session', id: sid, label: sessionLabel }, eventLink] },
+    { label: 'Whole event', links: [eventLink] },
+  ]
+})
 const attNoteCounts = ref<Record<string, number>>({})
 async function loadAttNoteCounts() {
   const personIds = invitees.value.map((inv: any) => inv.person_id).filter(Boolean)
@@ -359,15 +397,32 @@ function colVisible(key: string) {
   if (key in colOverride) return colOverride[key]
   return allColumns.value.find(c => c.key === key)?.auto() ?? false
 }
-// Column choices persist per club (localStorage) automatically — toggling a column
-// remembers it; reloaded on mount so the selection sticks across events/sessions.
-const colsKey = () => `fm_attendance_cols_${orgId.value || ''}`
+/**
+ * Column choices are saved PER EVENT, falling back to the club-wide set.
+ *
+ * A holiday programme's roll wants different columns from a prizegiving (medical notes
+ * and a guardian's phone vs nothing at all), and a programme has twenty sessions — so
+ * the choice has to survive moving between them, which a club-wide key can't do once a
+ * different event changes it. Toggling a column writes the EVENT key; the club key is
+ * still written too, so an event you've never touched starts from your usual set
+ * rather than from nothing.
+ */
+const clubColsKey = () => `fm_attendance_cols_${orgId.value || ''}`
+const eventColsKey = () => `fm_attendance_cols_${orgId.value || ''}_${props.eventId}`
+/** True once this EVENT has its own saved columns — category defaults must not override them. */
+const hasEventColumns = ref(false)
 function persistColumns() {
-  try { localStorage.setItem(colsKey(), JSON.stringify(colOverride)) } catch { /* ignore */ }
+  try {
+    localStorage.setItem(eventColsKey(), JSON.stringify(colOverride))
+    localStorage.setItem(clubColsKey(), JSON.stringify(colOverride))
+    hasEventColumns.value = true
+  } catch { /* ignore */ }
 }
 function loadSavedColumns() {
   try {
-    const raw = localStorage.getItem(colsKey())
+    const own = localStorage.getItem(eventColsKey())
+    hasEventColumns.value = !!own
+    const raw = own || localStorage.getItem(clubColsKey())
     if (raw) Object.assign(colOverride, JSON.parse(raw))
   } catch { /* ignore bad json */ }
 }
@@ -798,25 +853,62 @@ async function applyCategoryColumnDefaults() {
   const ev: any = event.value
   const catId = ev?.category_id || (Array.isArray(ev?.category_ids) ? ev.category_ids[0] : null)
   if (!catId || !orgId.value) return
+  // A DEFAULT, so it must not overwrite a choice already made for this event —
+  // otherwise every visit silently reset the columns the club had just set.
+  if (hasEventColumns.value) return
   const cats = await eventsApi.categories(orgId.value).catch(() => [] as any[])
   const cols = (cats.find((c: any) => c.id === catId) as any)?.defaultColumns
   if (!Array.isArray(cols) || !cols.length) return
   for (const c of allColumns.value) colOverride[c.key] = cols.includes(c.key)
 }
 
+/**
+ * Print defaults for a HOLIDAY PROGRAMME (`events.is_programme`).
+ *
+ * A programme roll is a paper sheet carried to the door for a whole day, and the club
+ * writes the times people actually arrived and left on it. So it wants signatures and
+ * time columns, not tick boxes — and not the Status column, which says whether someone
+ * REGISTERED and is noise once you're standing at the door with the list.
+ *
+ * Only the print settings are touched. The person-detail columns (Age, Phone, …) are
+ * the club's saved choice and shared with the on-screen roll, so forcing those would
+ * change a screen the club had already set up.
+ */
+function applyProgrammePrintDefaults() {
+  if (!(event.value as any)?.is_programme) return
+  printOrientation.value = 'landscape'
+  printSignStyle.value = 'sign'
+  printStatus.value = false
+  printSignInTime.value = true
+  printSignOutTime.value = true
+}
+
 async function load() {
   selectedAttendanceSessionId.value = null
   sessionAttendanceData.value = {}
   await Promise.all([loadEvent(), loadSessions(), loadFieldDefs()])
+  applyProgrammePrintDefaults()
   await applyCategoryColumnDefaults()
   await loadInvitees()
   if (attendanceInSessionMode.value && !selectedAttendanceSessionId.value && attendanceSessions.value.length) {
-    await selectAttendanceSession(attendanceSessions.value[0].id)
+    // The requested session when it exists, else the first — an id that no longer
+    // resolves (a deleted session, a stale link) must not leave the roll blank.
+    const wanted = props.sessionId && attendanceSessions.value.some(s => s.id === props.sessionId)
+      ? props.sessionId
+      : attendanceSessions.value[0].id
+    await selectAttendanceSession(wanted)
   }
 }
 onMounted(() => { rbacNotes.load(); loadSavedColumns(); load(); loadOrgLogo() })
-watch(orgId, () => loadSavedColumns())
+// Re-read on either key input: the saved set is per (org, event), so moving to another
+// event must pick up ITS columns rather than keep the ones on screen.
+watch([orgId, () => props.eventId], () => loadSavedColumns())
 watch(() => props.eventId, () => load())
+// Following a link to a different session on the SAME event (dates list → roll →
+// back → another date) changes only the prop, so switch without a full reload.
+watch(() => props.sessionId, (id) => {
+  if (id && attendanceSessions.value.some(s => s.id === id)) selectAttendanceSession(id)
+})
 
 // Let a parent drive the session (event page's "Take attendance") or force a reload
 // (the simple view after inviting more people).
@@ -827,7 +919,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
   <div class="flex flex-col lg:flex-row min-h-0" :class="fit ? '' : 'flex-1 overflow-hidden'">
 
     <!-- Mobile: session dropdown chooser -->
-    <div v-if="attendanceInSessionMode" class="lg:hidden bg-white border-b border-gray-200 px-3 py-2.5 shrink-0">
+    <div v-if="attendanceInSessionMode && !singleSession" class="lg:hidden bg-white border-b border-gray-200 px-3 py-2.5 shrink-0">
       <Select :modelValue="selectedAttendanceSessionId" :options="attendanceSessions" optionValue="id" class="w-full"
         @update:modelValue="sid => selectAttendanceSession(sid)">
         <template #value="{ value }">
@@ -841,24 +933,29 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
     </div>
 
     <!-- Left: Session list (desktop) -->
-    <div v-if="attendanceInSessionMode"
-      class="w-full lg:w-[260px] shrink-0 border-b lg:border-b-0 lg:border-r border-gray-200 bg-white hidden lg:flex flex-col overflow-hidden lg:flex-1 lg:min-h-0">
-      <div class="px-4 py-3 border-b border-gray-100 shrink-0">
-        <span class="text-sm font-bold text-gray-900">Sessions</span>
+    <!-- 200px FIXED. It used to carry `lg:flex-1` as well as a width, and flex-1 wins:
+         it sets flex-basis 0 and grows, so the column stretched to fill whatever the
+         roll didn't use — a 200px list of dates spread across half the screen, with a
+         selected row highlighted the full width of it and a dead white gap before the
+         table. The width is the width; only the list INSIDE it flexes. -->
+    <div v-if="attendanceInSessionMode && !singleSession"
+      class="w-full lg:w-[200px] shrink-0 border-b lg:border-b-0 lg:border-r border-gray-200 bg-white hidden lg:flex flex-col overflow-hidden lg:min-h-0">
+      <div class="px-3 py-2.5 border-b border-gray-100 shrink-0">
+        <span class="text-xs font-bold text-gray-500 uppercase tracking-wide">Sessions</span>
       </div>
-      <div class="overflow-y-auto p-2 space-y-0.5 max-h-[34vh] lg:max-h-none lg:flex-1">
+      <div class="overflow-y-auto p-1.5 space-y-0.5 max-h-[34vh] lg:max-h-none lg:flex-1">
         <template v-for="(session, sIdx) in attendanceSessions" :key="session.id">
           <div v-if="sIdx > 0 && session.start_at && attendanceSessions[sIdx - 1].start_at &&
             new Date(session.start_at).toDateString() !== new Date(attendanceSessions[sIdx - 1].start_at).toDateString()"
-            class="mx-3 my-2 border-t-2 border-gray-100" />
-          <div class="group/item flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer transition-colors select-none"
+            class="mx-2 my-1.5 border-t border-gray-100" />
+          <div class="group/item flex items-center gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-colors select-none"
             :class="{ 'bg-primary text-white shadow-sm': selectedAttendanceSessionId === session.id, 'hover:bg-gray-100': selectedAttendanceSessionId !== session.id }"
             @click="selectAttendanceSession(session.id)">
             <div class="flex-1 min-w-0">
               <p class="text-sm font-medium truncate" :class="selectedAttendanceSessionId === session.id ? 'text-white' : 'text-gray-800'">
                 <template v-if="session.start_at">{{ new Date(session.start_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) }} — </template>{{ session.title || 'Untitled' }}
               </p>
-              <p class="text-xs truncate mt-0.5" :class="selectedAttendanceSessionId === session.id ? 'text-white/60' : 'text-gray-400'">
+              <p class="text-xs truncate" :class="selectedAttendanceSessionId === session.id ? 'text-white/60' : 'text-gray-400'">
                 {{ Object.values(sessionAttendanceData[session.id] ?? {}).length }}/{{ invitees.length }} present
               </p>
             </div>
@@ -1013,7 +1110,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                       <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
                       <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
                         :person-name="((inv.person?.first_name || '') + ' ' + (inv.person?.last_name || '')).trim()"
-                        :links="attNoteLinks" :context-label="attNoteContextLabel" :can-edit-all="canEditNotes" :can-delete-all="canDeleteNotes"
+                        :links="attNoteLinks" :scope-options="attNoteScopeOptions" :context-label="attNoteContextLabel" :can-edit-all="canEditNotes" :can-delete-all="canDeleteNotes"
                         :initial-count="attNoteCounts[inv.person_id] ?? 0" @count-change="v => attNoteCounts[inv.person_id] = v">
                         <template #trigger="{ open, count }">
                           <button class="hover:text-primary transition-colors relative" v-tooltip.top="'Notes'" @click="open">
@@ -1055,7 +1152,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                   <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
                   <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
                     :person-name="((inv.person?.first_name || '') + ' ' + (inv.person?.last_name || '')).trim()"
-                    :links="attNoteLinks" :context-label="attNoteContextLabel" :can-edit-all="canEditNotes" :can-delete-all="canDeleteNotes"
+                    :links="attNoteLinks" :scope-options="attNoteScopeOptions" :context-label="attNoteContextLabel" :can-edit-all="canEditNotes" :can-delete-all="canDeleteNotes"
                     :initial-count="attNoteCounts[inv.person_id] ?? 0" @count-change="v => attNoteCounts[inv.person_id] = v">
                     <template #trigger="{ open, count }">
                       <button class="hover:text-primary transition-colors relative" v-tooltip.top="'Notes'" @click="open">
@@ -1113,7 +1210,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                     <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
                     <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
                       :person-name="((inv.person?.first_name || '') + ' ' + (inv.person?.last_name || '')).trim()"
-                      :links="attNoteLinks" :context-label="attNoteContextLabel" :can-edit-all="canEditNotes" :can-delete-all="canDeleteNotes"
+                      :links="attNoteLinks" :scope-options="attNoteScopeOptions" :context-label="attNoteContextLabel" :can-edit-all="canEditNotes" :can-delete-all="canDeleteNotes"
                       :initial-count="attNoteCounts[inv.person_id] ?? 0" @count-change="v => attNoteCounts[inv.person_id] = v">
                       <template #trigger="{ open, count }">
                         <button class="hover:text-primary transition-colors relative" v-tooltip.top="'Notes'" @click="open">
@@ -1163,7 +1260,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                     <button class="hover:text-gray-700 transition-colors" v-tooltip.top="'Email'" @click="openInviteeEmail(inv)"><i class="pi pi-envelope text-sm" /></button>
                     <PersonNotes v-if="inv.person_id" :person-id="inv.person_id"
                       :person-name="((inv.person?.first_name || '') + ' ' + (inv.person?.last_name || '')).trim()"
-                      :links="attNoteLinks" :context-label="attNoteContextLabel" :can-edit-all="canEditNotes" :can-delete-all="canDeleteNotes"
+                      :links="attNoteLinks" :scope-options="attNoteScopeOptions" :context-label="attNoteContextLabel" :can-edit-all="canEditNotes" :can-delete-all="canDeleteNotes"
                       :initial-count="attNoteCounts[inv.person_id] ?? 0" @count-change="v => attNoteCounts[inv.person_id] = v">
                       <template #trigger="{ open, count }">
                         <button class="hover:text-primary transition-colors relative" v-tooltip.top="'Notes'" @click="open">

@@ -188,7 +188,11 @@
                 end-label="Closes"
                 label-width="w-[120px]"
                 label-class="text-gray-800 font-semibold"
-                row-padding="px-0 py-2" />
+                row-padding="px-0 py-2"
+                :mark-dates="[
+                  { date: form.start_date, label: 'Event starts' },
+                  { date: form.end_date, label: 'Event ends' },
+                ]" />
             </div>
             <!-- Description -->
             <div class="px-5 py-4 border-b border-gray-100">
@@ -238,19 +242,11 @@
                 </div>
               </div>
             </div>
-            <!-- Who can see it — sits right under Category. The rest of Visibility
-                 (display toggles, capacity) is on the Settings step. Shared
-                 <EventVisibilityPicker>, same as the quick + advanced paths. -->
-            <div class="px-5 py-4 border-b border-gray-100">
-              <EventVisibilityPicker
-                v-model="form.visibility"
-                v-model:type-keys="form.visibility_type_keys"
-                v-model:group-ids="form.visibility_group_ids"
-                v-model:person-ids="form.visibility_person_ids"
-                hide-custom
-                label="Who can see it" label-width="sm:w-[120px]" />
-            </div>
-            <!-- Age & gender restrictions were removed from the basic event. -->
+            <!-- Age & gender restrictions were removed from the basic event.
+                 "Who can see it" used to sit here, under Category. It moved to the
+                 Choose-invitees step: seeing it and being invited to it are the same
+                 question asked twice, and answering them three steps apart meant
+                 picking an audience before you'd picked any people. -->
             <!-- Banner -->
             <div class="px-5 py-4">
               <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
@@ -389,64 +385,81 @@
             <ToggleSwitch v-model="discountSettings.one_discount_only" />
           </div>
 
-          <EventDiscountDialog v-model:visible="discountFlowOpen" :edit="discountEditDraft" :currency-symbol="currencySymbol" @save="onDiscountSave" />
+          <EventDiscountDialog v-model:visible="discountFlowOpen" :edit="discountEditDraft" :currency-symbol="currencySymbol"
+            :event-age-min="form.ageMin" :event-age-max="form.ageMax" @save="onDiscountSave" />
         </div>
 
         <!-- ─ Who it's for + Choose invitees (one step) ─
              The public-registration toggle + form style sit above the invitee
              picker; picking the people is the main job of the step. -->
         <div :class="isStep('people') ? 'px-1' : 'hidden'">
-          <!-- 1. Public registrations -->
-          <div class="bg-white rounded-xl border border-gray-200 p-5 mb-4">
-            <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-              <div class="flex-1">
-                <p class="text-sm font-medium text-gray-800">Public registrations</p>
-                <p class="text-xs text-gray-500 mt-0.5">
-                  Can anyone with the link sign up, or is this for your club only?
-                </p>
-              </div>
-              <SelectButton :model-value="invitePublic" :options="publicOptions"
-                option-label="label" option-value="value" :allow-empty="false" class="shrink-0"
-                @update:model-value="setInvitePublic" />
+          <!-- ONE card, not three. These are three parts of a single question — who
+               this event is for — and as separate boxes they read as three unrelated
+               settings, with the capacity toggle sitting in a grey box inside a white
+               box for no reason. Broadest first: who can SEE it, then who can SIGN UP,
+               then how many fit. NB there's no "RSVP or form?" question here — this
+               step is about WHO; the Registration form step adds a form. -->
+          <div class="bg-white rounded-xl border border-gray-200 mb-4">
+            <div class="px-5 pt-4 pb-3 border-b border-gray-100">
+              <h3 class="section-title">Who it's for</h3>
+              <p class="field-help mt-0.5">Who can see it, who can sign up, and how many can come.</p>
             </div>
-          </div>
+            <div class="divide-y divide-gray-100">
+              <!-- Who can see it — moved here from step 1, beside the people it
+                   applies to: it's the same decision at a different scale. -->
+              <div class="px-5 py-4">
+                <EventVisibilityPicker
+                  v-model="form.visibility"
+                  v-model:type-keys="form.visibility_type_keys"
+                  v-model:group-ids="form.visibility_group_ids"
+                  v-model:person-ids="form.visibility_person_ids"
+                  hide-custom
+                  label="Who can see it" label-width="sm:w-[150px]" />
+              </div>
 
-          <!-- NB there's no "RSVP or form?" question here any more — this step is
-               about WHO. The Registration form step is where a form gets added
-               (its own "Add a registration form" prompt flips attendeeAction), and
-               making the public path public still forces a form on its own. -->
+              <div class="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+                <div class="flex-1">
+                  <p class="field-label">Public registrations</p>
+                  <p class="field-help mt-0.5">Can anyone with the link sign up, or is this for your club only?</p>
+                </div>
+                <SelectButton :model-value="invitePublic" :options="publicOptions"
+                  option-label="label" option-value="value" :allow-empty="false" class="shrink-0"
+                  @update:model-value="setInvitePublic" />
+              </div>
 
-          <!-- 2. How many can come. Moved here from Settings: capacity is a
-               question about the guest list, so it belongs beside the people
-               being invited, not under the display toggles two steps later. -->
-          <div class="bg-white rounded-xl border border-gray-200 p-5 mb-4">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              <div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg flex-1">
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-gray-700">Limit capacity</p>
-                  <div class="flex items-center gap-2">
-                    <p class="text-xs text-gray-500">Set max attendees</p>
+              <!-- Capacity. Moved here from Settings: how many can come is a question
+                   about the guest list, so it belongs beside the people being invited,
+                   not under the display toggles two steps later. -->
+              <div class="px-5 py-4">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+                  <div class="flex-1">
+                    <p class="field-label">Limit capacity</p>
+                    <p class="field-help mt-0.5">Cap how many people can attend.</p>
+                  </div>
+                  <div class="flex items-center gap-2 shrink-0">
                     <template v-if="form.has_capacity">
                       <InputNumber v-model="form.capacity_max" :min="1" size="small" placeholder="Max" class="w-20" />
-                      <span class="text-xs text-gray-500">spots</span>
+                      <span class="field-help">spots</span>
                     </template>
+                    <ToggleSwitch v-model="form.has_capacity" />
                   </div>
                 </div>
-                <ToggleSwitch v-model="form.has_capacity" class="ml-3 shrink-0" />
-              </div>
-              <!-- Only meaningful once there IS a cap — a waitlist for an
-                   uncapped event has nothing to overflow into. -->
-              <div v-if="form.has_capacity" class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg flex-1">
-                <div>
-                  <p class="text-sm font-medium text-gray-700">Enable waitlist</p>
-                  <p class="text-xs text-gray-500">Overflow joins a waitlist</p>
+                <!-- Only meaningful once there IS a cap — a waitlist for an uncapped
+                     event has nothing to overflow into. Indented so it reads as a
+                     consequence of the cap rather than a fourth top-level setting. -->
+                <div v-if="form.has_capacity" class="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2 sm:gap-6">
+                  <div class="flex-1">
+                    <p class="field-label">Enable waitlist</p>
+                    <p class="field-help mt-0.5">Once it's full, extra sign-ups join a waitlist.</p>
+                  </div>
+                  <ToggleSwitch v-model="form.has_waitlist" class="shrink-0" />
                 </div>
-                <ToggleSwitch v-model="form.has_waitlist" class="ml-3 shrink-0" />
               </div>
             </div>
           </div>
 
-          <!-- The invitee picker (classes, individuals, a searchable roster). -->
+          <!-- The invitee picker (classes, individuals, a searchable roster). It
+               brings its own "Choose invitees" heading, so none is added here. -->
           <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
             <i class="pi pi-spin pi-spinner text-xl text-gray-300 block mb-2" />
             Setting up invitees…
@@ -485,7 +498,8 @@
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Settings') }}</p>
           </div>
           <!-- Visibility — the display toggles + capacity. "Who can see it" (the
-               <EventVisibilityPicker>) is asked earlier, on step 1; this is the rest. -->
+               <EventVisibilityPicker>) is asked earlier, on the Choose-invitees
+               step, beside the people it applies to; this is the rest. -->
           <div class="mb-4">
             <h3 class="text-sm font-semibold text-gray-800 mb-3">Visibility</h3>
           <div class="bg-white rounded-xl border border-gray-200 p-5">
@@ -994,7 +1008,7 @@ async function recheckAvailability() {
 // regardless of is_public. The copy below describes the INTENDED behaviour;
 // the step shows a "not enforced yet" notice so nobody is misled.
 // "Public event" is deliberately NOT here. Who can see the event is already
-// asked once, on step 1, by the <EventVisibilityPicker> ("Public and club" /
+// asked once, on the Choose-invitees step, by the <EventVisibilityPicker> ("Public and club" /
 // "Club only") — a second toggle saying the same thing further down let the two
 // disagree, and left the reader wondering which one actually won.
 const visibilityOptions = [
@@ -1043,8 +1057,22 @@ function withTime(base: Date | null, t: Date | null): Date | null {
 const signupTouched = ref(false)
 function seedSignupWindow() {
   if (signupTouched.value) return
-  if (!form.reg_open_at) form.reg_open_at = new Date()          // from now…
-  if (form.start_date) form.reg_close_at = eventStartsAt()      // …until it starts
+  // Sign-up dates default to MIDNIGHT, not the current clock time. "Opens 27 Jul"
+  // means the whole of the 27th — seeding 2:14pm because that happens to be when
+  // the event was made is an arbitrary cut-off nobody chose, and it reads as noise
+  // in a field the club mostly thinks about in whole days.
+  if (!form.reg_open_at) form.reg_open_at = atMidnight(new Date())   // from today…
+  // …to midnight on the day it starts. BOTH ends are whole days by default: the
+  // close used to inherit the event's own start time, so a 6pm event closed sign-ups
+  // at 18:00 — a precise-looking rule nobody actually chose. NB this means the
+  // default now closes at the START of the event's day; set a time to say otherwise.
+  const starts = eventStartsAt()
+  if (starts) form.reg_close_at = atMidnight(starts)
+}
+function atMidnight(d: Date): Date {
+  const out = new Date(d)
+  out.setHours(0, 0, 0, 0)
+  return out
 }
 // The event's start as one Date (the wizard keeps date + time apart).
 function eventStartsAt(): Date | null {

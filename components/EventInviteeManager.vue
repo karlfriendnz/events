@@ -107,10 +107,22 @@
         Use the selector on the left to add {{ t('group', true, true) }} of people
       </div>
 
-      <!-- Group sections -->
+      <!-- Group sections, nested under their TERM when the event spans more than one.
+           The same class runs again next term under the same name, so a flat list
+           showed "Under 8s" twice with nothing to tell them apart. -->
       <template v-else>
+        <template v-for="sec in invitedByTerm" :key="sec.termId ?? '__none'">
+          <button v-if="showTermSections" type="button"
+            class="w-full flex items-center gap-2 px-1 py-1.5 text-left"
+            @click="collapsedTerms[sec.termId ?? '__none'] = !collapsedTerms[sec.termId ?? '__none']">
+            <i :class="`pi text-xs text-gray-400 ${collapsedTerms[sec.termId ?? '__none'] ? 'pi-chevron-down' : 'pi-chevron-up'}`" />
+            <span class="text-sm font-semibold text-gray-800">{{ sec.name }}</span>
+            <span class="text-xs text-gray-400">{{ sec.groupIds.length }} {{ sec.groupIds.length === 1 ? 'class' : 'classes' }}</span>
+          </button>
+
+          <template v-if="!showTermSections || !collapsedTerms[sec.termId ?? '__none']">
         <!-- Per-group section -->
-        <div v-for="groupId in selectedInviteeGroups.filter(g => groupInvitees(g).length > 0)" :key="groupId" class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div v-for="groupId in sec.groupIds" :key="groupId" class="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <!-- Group header -->
           <div class="flex items-center gap-2.5 px-4 py-3">
             <button @click="expandedGroupSections[groupId] = !expandedGroupSections[groupId]" class="text-gray-400 hover:text-gray-700 shrink-0">
@@ -155,6 +167,8 @@
             </button>
           </div>
         </div>
+          </template>
+        </template>
 
         <!-- Individually added / unassigned -->
         <div v-if="unassignedInvitees.length" class="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -405,8 +419,57 @@ const GROUP_PREVIEW = 12
 
 async function loadMemberGroups() {
   const groups = await groupsApi.list(orgId.value)
-  allMemberGroups.value = groups.map(g => ({ id: g.id, name: g.name, color: g.color, parent_id: g.parentId }))
+  // termId comes along so the invited list can be grouped by term — see invitedByTerm.
+  allMemberGroups.value = groups.map(g => ({ id: g.id, name: g.name, color: g.color, parent_id: g.parentId, code_id: g.codeId, term_id: g.termId }))
 }
+
+// ── Invited classes, grouped by TERM ────────────────────────────────────────
+// A class belongs to a term, and the same class runs again next term under the same
+// name — so a flat list showed "Under 8s" twice with nothing to tell them apart.
+// Nesting them under their term is the only thing that makes the list readable.
+const gc = useGroupCodes()
+const codesById = ref<Record<string, any>>({})
+const termNames = ref<Record<string, string>>({})
+async function loadTermContext() {
+  const [codes, terms] = await Promise.all([
+    gc.loadCodes().catch(() => [] as any[]),
+    useTermsMemberships().loadTerms(orgId.value).catch(() => [] as any[]),
+  ])
+  codesById.value = Object.fromEntries((codes as any[]).map(c => [c.id, c]))
+  termNames.value = Object.fromEntries((terms as any[]).map(t => [t.id, t.name]))
+}
+
+/** A class's term: its own, else inherited from its code chain. */
+function termOfGroup(groupId: string): string | null {
+  const g = allMemberGroups.value.find(x => x.id === groupId)
+  if (!g) return null
+  return gc.effectiveTermId(g, codesById.value) ?? g.term_id ?? null
+}
+
+/**
+ * The invited classes as term sections. Terms in their own order, then anything with
+ * no term — an event can invite a class that isn't term-bound, and it must not vanish.
+ */
+const invitedByTerm = computed(() => {
+  const withPeople = selectedInviteeGroups.value.filter(g => groupInvitees(g).length > 0)
+  const buckets = new Map<string, { termId: string | null; name: string; groupIds: string[] }>()
+  for (const gid of withPeople) {
+    const tid = termOfGroup(gid)
+    const key = tid ?? '__none'
+    if (!buckets.has(key)) buckets.set(key, { termId: tid, name: tid ? (termNames.value[tid] || 'Term') : 'No term', groupIds: [] })
+    buckets.get(key)!.groupIds.push(gid)
+  }
+  // Named terms first, in the order the club lists them; "No term" last.
+  const order = Object.keys(termNames.value)
+  return [...buckets.values()].sort((a, b) => {
+    if (!a.termId) return 1
+    if (!b.termId) return -1
+    return order.indexOf(a.termId) - order.indexOf(b.termId)
+  })
+})
+/** One term section on its own is just noise — only nest when there's more than one. */
+const showTermSections = computed(() => invitedByTerm.value.length > 1)
+const collapsedTerms = reactive<Record<string, boolean>>({})
 
 // The selector hands back the ids; adding/removing invitees is our job.
 async function toggleWholeCode(groupIds: string[], adding: boolean, who: 'all' | 'members' | 'staff' = 'all') {
@@ -702,6 +765,7 @@ const inviteeActionMenuItems = [
 onMounted(async () => {
   scoped.loadRoleDefs()
   loadMemberGroups()
+  loadTermContext()   // codes + term names, so invited classes can nest under their term
   loadEventRow()
   // People power the name-join on each invitee pill — load them before the invitees.
   await loadPeople()

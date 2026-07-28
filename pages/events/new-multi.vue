@@ -57,7 +57,7 @@
     </template>
 
     <!-- ── Step 1 · Event details ── -->
-    <div v-show="step === 0" class="space-y-6">
+    <div v-show="step === 0" class="!mt-0 space-y-6">
 
         <!-- Event Details -->
         <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -75,7 +75,12 @@
               <div class="flex items-center gap-2 flex-wrap">
                 <InputNumber v-model="form.ageMin" :min="0" :max="120" placeholder="Min" class="w-20" inputClass="w-20" />
                 <span class="text-sm text-gray-400">to</span>
-                <InputNumber v-model="form.ageMax" :min="0" :max="120" placeholder="Max" class="w-20" inputClass="w-20" />
+                <!-- Max can never sit below Min: the floor follows whatever Min is, so
+                     an impossible range can't be typed in the first place. Raising Min
+                     past Max pushes Max up with it (see the watch) rather than blocking
+                     the edit — being trapped in a range you're trying to change is worse
+                     than the invalid state itself. -->
+                <InputNumber v-model="form.ageMax" :min="form.ageMin ?? 0" :max="120" placeholder="Max" class="w-20" inputClass="w-20" />
                 <span class="text-sm text-gray-500">years</span>
                 <label class="text-sm font-medium text-gray-700 ml-4">Gender</label>
                 <Select v-model="form.genderRestriction" :options="GENDER_RESTRICTION_OPTIONS" optionLabel="label" optionValue="value" class="w-40" />
@@ -167,13 +172,22 @@
               start-label="Opens"
               end-label="Closes"
               label-width="w-[160px]"
-              row-padding="px-0 py-2" />
+              row-padding="px-0 py-2"
+              :mark-dates="[
+                { date: form.startDate, label: 'Programme starts' },
+                { date: form.endDate, label: 'Programme ends' },
+              ]" />
           </div>
         </div>
     </div>
 
+    <!-- NB every step panel carries `!mt-0`. They are siblings inside WizardShell's
+         content wrapper, which is `space-y-6` — and space-y targets `* + *`, counting
+         hidden siblings, so steps 2..5 each inherited a 24px top margin that step 1
+         never had. It showed as an unexplained gap above the first card on every step
+         but the first. Mutually-exclusive panels are never spaced from each other. -->
     <!-- ── Step 2 · Session details ── -->
-    <div v-show="step === 1" class="space-y-6">
+    <div v-show="step === 1" class="!mt-0 space-y-6">
 
         <!-- Session Templates — each carries its own location (per daily session) -->
         <BulkSessionTemplates
@@ -186,7 +200,7 @@
     </div>
 
     <!-- ── Step 3 · Discounts (the shared <EventDiscountDialog> system) ── -->
-    <div v-show="step === 2" class="space-y-6">
+    <div v-show="step === 2" class="!mt-0 space-y-6">
       <!-- Quick discounts — the three common presets, OFF by default. Flip one on
            and change the amount/type inline; the pencil opens the full editor. -->
       <div class="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
@@ -274,7 +288,7 @@
          DEFINITE height or it collapses to nothing. The WizardShell wraps steps in a
          padded max-width scroll block, so give this step a real height + cancel that
          padding so the designer fills the body edge-to-edge. -->
-    <div v-show="step === 3" class="flex-1 min-h-0 flex flex-col rounded-xl border border-gray-200 overflow-hidden bg-white">
+    <div v-show="step === 3" class="!mt-0 flex-1 min-h-0 flex flex-col rounded-xl border border-gray-200 overflow-hidden bg-white">
       <div v-if="!draftEventId" class="flex-1 flex items-center justify-center text-sm text-gray-400">
         Preparing the form…
       </div>
@@ -285,7 +299,7 @@
     </div>
 
     <!-- ── Step 5 · Summary ── -->
-    <div v-show="step === 4" class="space-y-6">
+    <div v-show="step === 4" class="!mt-0 space-y-6">
       <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div class="px-5 py-3 border-b border-gray-100 bg-gray-50">
           <h2 class="text-sm font-semibold text-gray-700">Review your programme</h2>
@@ -327,7 +341,8 @@
     </div>
 
     <!-- Shared event-discount modal (template picker → rule editor) -->
-    <EventDiscountDialog v-model:visible="discountFlowOpen" :edit="discountEditDraft" :currency-symbol="currencySymbol" @save="onDiscountSave" />
+    <EventDiscountDialog v-model:visible="discountFlowOpen" :edit="discountEditDraft" :currency-symbol="currencySymbol"
+      :event-age-min="form.ageMin" :event-age-max="form.ageMax" @save="onDiscountSave" />
 
     <!-- Skip-dates calendar (opened from the Programme dates on step 1; teleports) -->
     <Dialog v-model:visible="skipDatesOpen" modal header="Skip dates" :style="{ width: '95vw', maxWidth: '480px' }" :pt="{ content: { class: 'p-4' } }">
@@ -411,6 +426,15 @@ const form = reactive({
   // the three quick discounts below are the common presets; anything bespoke is
   // added here.
   discounts: [] as WizardDiscount[],
+})
+
+// Raising the minimum age above the maximum carries the maximum up with it. The Max
+// input's floor already stops you typing a max below the min, but that only guards one
+// direction — without this, setting Min to 10 against an existing Max of 8 leaves an
+// age range nobody can be in, silently. Pushing Max up keeps the pair valid while you
+// edit, instead of blocking the keystroke and stranding you mid-change.
+watch(() => form.ageMin, (min) => {
+  if (min != null && form.ageMax != null && form.ageMax < min) form.ageMax = min
 })
 
 // The three QUICK discounts (Full day / Full week set-price + Sibling %). Shown
@@ -772,6 +796,11 @@ async function createEvent() {
       ageMin: form.ageMin ?? null,
       ageMax: form.ageMax ?? null,
       genderRestriction: form.genderRestriction ?? null,
+      // The sign-up window step 1 collects. It was gathered, shown in the summary rail,
+      // and then dropped on the floor — never in this payload, so the programme was
+      // created with no registration dates and the Overview had nothing to show.
+      regOpenAt: form.regOpen ? form.regOpen.toISOString() : null,
+      regCloseAt: form.regClose ? form.regClose.toISOString() : null,
       // Auto-tagged from a named calendar's sole category (?category=…) when created there.
       ...(route.query.category ? { categoryId: route.query.category as string } : {}),
       // Event-level location = the first session's location (each session carries its own).
