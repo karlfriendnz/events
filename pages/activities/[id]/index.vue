@@ -517,7 +517,7 @@ const bookingLink = computed(() => {
 })
 const linkCopied = ref(false)
 async function copyBookingLink() {
-  await navigator.clipboard.writeText(bookingLink.value)
+  await copyText(bookingLink.value)
   linkCopied.value = true
   setTimeout(() => { linkCopied.value = false }, 2000)
 }

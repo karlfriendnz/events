@@ -188,14 +188,14 @@ function setByGroup(key: string, byGroup: boolean) {
   const s = getSection(key)
   const updated: PricingSection = { ...s, all_equal: !byGroup }
   if (byGroup && !s.groups.length) {
-    updated.groups = PRESET_GROUPS.map(label => ({ id: crypto.randomUUID(), label, fees: [] }))
+    updated.groups = PRESET_GROUPS.map(label => ({ id: uid(), label, fees: [] }))
   }
   updateSection(key, updated)
 }
 
 function addGroup(key: string, label: string) {
   const s = getSection(key)
-  updateSection(key, { ...s, groups: [...s.groups, { id: crypto.randomUUID(), label, fees: [] }] })
+  updateSection(key, { ...s, groups: [...s.groups, { id: uid(), label, fees: [] }] })
 }
 
 function removeGroup(key: string, groupId: string) {

@@ -39,12 +39,14 @@
       </div>
       -->
 
-      <!-- Form Style — on EVERY path. It was hidden on the basic one while
-           <FormRenderer :basic> forced single-page; the renderer now honours the
-           stored style everywhere, so a basic event can be one page or steps like
-           any other. (Control and behaviour move together: hiding this again means
-           forcing the style again, or the choice does nothing.) -->
-      <div>
+      <!-- Form Style — on every path EXCEPT invite-only, which has one short block
+           of fields and nothing to split into steps. It was hidden on the whole basic
+           path while <FormRenderer :basic> forced single-page; the renderer honours
+           the stored style everywhere now, so a basic event can be one page or steps
+           like any other. (Control and behaviour move together: hiding this means
+           forcing the style too, or the choice does nothing — hence the watcher
+           below.) -->
+      <div v-if="!singlePageOnly">
         <p class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Form Style</p>
         <div class="flex p-1 bg-gray-100 rounded-xl gap-1">
           <button type="button" class="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors"
@@ -227,6 +229,13 @@ const props = defineProps<{
    * the advanced ones, rather than the two paths growing separate panels.
    */
   basic?: boolean
+  /**
+   * The invite-only form (mode 'simple'): one short block of fields, no subjects to
+   * split across steps. Steps would render a wizard with a single step in it, so the
+   * style is fixed at Single Page and the control goes away rather than offering a
+   * choice with one real answer.
+   */
+  singlePageOnly?: boolean
 }>()
 defineEmits<{
   (e: 'back'): void
@@ -234,6 +243,13 @@ defineEmits<{
   (e: 'update:audience', value: 'all' | 'members' | 'public'): void
   (e: 'image-upload', key: 'headerImage', event: Event): void
 }>()
+
+// Hiding the control isn't enough — the stored style is what every renderer reads,
+// so an invite-only form that had been set to Steps would still show step chrome to
+// the registrant with nothing here to turn it off.
+watch(() => props.singlePageOnly, (only) => {
+  if (only && props.design && props.design.style !== 'single') props.design.style = 'single'
+}, { immediate: true })
 
 const audienceOptions = [
   { value: 'all',     label: 'Everyone' },

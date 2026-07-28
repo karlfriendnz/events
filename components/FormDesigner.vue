@@ -6,7 +6,7 @@
 -->
 <script setup lang="ts">
 import { useToast } from 'primevue/usetoast'
-import { genderRestrictionLabel } from '~/composables/useEventRestrictions'
+import { ageRangeLabel, genderRestrictionLabel, configCollects, RESTRICTION_FIELD_LABELS } from '~/composables/useEventRestrictions'
 import { applicableDiscounts as evalApplicableDiscounts, type DiscountCtx } from '~/composables/useDiscountEval'
 import { conditionsPass } from '~/composables/useFormConditions'
 
@@ -47,14 +47,10 @@ const event = ref<any>(null)
 // Age restriction → the header "Invitee Restrictions" line. Prefer the props (the
 // wizard passes its in-progress age before the event row is updated), fall back to
 // the loaded event's persisted age.
-const evtAgeCriteria = computed(() => {
-  const lo = props.ageMin ?? event.value?.age_min ?? null
-  const hi = props.ageMax ?? event.value?.age_max ?? null
-  if (lo != null && hi != null) return `Ages ${lo}–${hi}`
-  if (lo != null) return `Ages ${lo}+`
-  if (hi != null) return `Up to age ${hi}`
-  return ''
-})
+const evtAgeCriteria = computed(() => ageRangeLabel(
+  props.ageMin ?? event.value?.age_min ?? null,
+  props.ageMax ?? event.value?.age_max ?? null,
+))
 // Gender restriction → the same "Invitee Restrictions" line, joined after age.
 const evtGenderCriteria = computed(() => {
   const g = props.genderRestriction ?? event.value?.gender_restriction ?? null
@@ -134,18 +130,14 @@ const previewSessions = computed(() => sessions.value.map((s: any) => ({
 })))
 const previewContext = computed(() => ({ type: props.groupId ? 'group' : 'event', id: (props.eventId ?? props.groupId) as any, orgId: orgId.value }))
 
-// Does the form collect a Date of Birth anywhere? (age validation needs it.)
-const evtHasDobField = computed(() => {
-  const scan = (v: any): boolean => {
-    if (Array.isArray(v)) return v.some(scan)
-    if (v && typeof v === 'object') {
-      if (typeof v.label === 'string' && /date of birth|^dob$/i.test(v.label.trim())) return true
-      return Object.values(v).some(scan)
-    }
-    return false
-  }
-  return scan(evtFormGroupFields)
-})
+// An event restriction is only enforceable if the form ASKS the question — the live
+// form (<FormRenderer>) looks each answer up BY LABEL and silently skips the check
+// when the field isn't there. So a restriction with no matching field is a rule that
+// quietly does nothing, which is worse than no rule at all. `configCollects` is the
+// same exact-label match the live form makes, so this warning can't say "enforceable"
+// where the renderer would come up empty.
+const evtHasDobField = computed(() => configCollects(evtFormGroupFields, RESTRICTION_FIELD_LABELS.age))
+const evtHasGenderField = computed(() => configCollects(evtFormGroupFields, RESTRICTION_FIELD_LABELS.gender))
 const evtDiscountSettings = props.discountSettings ?? reactive({ one_discount_only: true })
 
 // ── moved form-builder script (from events/[id].vue 5308–7361) ──
@@ -602,7 +594,7 @@ function evtEnsureCoreFields(subject: any) {
       continue
     }
     seed.push({
-      id: crypto.randomUUID(), label: cf.label, field_type: cf.field_type,
+      id: uid(), label: cf.label, field_type: cf.field_type,
       is_required: true, locked: true, core: true, pinned: true, account: cf.account,
       placeholder: evtNamePlaceholder(cf, subject), options: cf.options || [],
       col_span: 1, visibility_conditions: [], financial_rules: [], target: subject.key,
@@ -624,7 +616,7 @@ function evtSeedOptionalCoreFields(subject: any) {
   for (const cf of EVT_CORE_FIELDS.filter(c => !c.pinned)) {
     if (fields.some((f: any) => f.label === cf.label && (f.target || '') === subject.key)) continue
     fields.push({
-      id: crypto.randomUUID(), label: cf.label, field_type: cf.field_type, system_name: evtNameFromLabel(cf.label),
+      id: uid(), label: cf.label, field_type: cf.field_type, system_name: evtNameFromLabel(cf.label),
       is_required: false, locked: false, core: true, account: cf.account,
       has_placeholder: true, placeholder: cf.placeholder || '', options: cf.options || [],
       col_span: 1, visibility_conditions: [], financial_rules: [], target: subject.key, connected_to: 'profile',
@@ -649,6 +641,31 @@ const currentEvtFormProfiles = computed({
 // owns its own slice of the form's fields via field.target === subject key.
 const evtFieldTarget = ref<string>('')
 const currentEvtSubject = computed(() => currentEvtFormProfiles.value.find(p => p.key === evtFieldTarget.value) ?? null)
+
+// ── Restriction enforcement: putting a missing core field back ────────────────
+// The event's own age/gender limits are only checked at sign-up if the form asks
+// for the answer. These two put the missing field back on the FIRST person subject
+// — the primary registrant, who the restriction is about — rather than on every
+// subject, since an emergency contact has no business supplying a date of birth.
+/** Whose form a restored field lands on — named on the button so it's no surprise. */
+const evtPrimarySubject = computed(() =>
+  currentEvtFormProfiles.value.find(p => (p.kind ?? '') !== 'entity') ?? null)
+function evtRestoreCoreField(label: string) {
+  const cf = EVT_CORE_FIELDS.find(c => c.label === label)
+  const subject = evtPrimarySubject.value
+  if (!cf || !subject) return
+  const fields = ensureEvtGroupFields()
+  if (fields.some((f: any) => f.label === cf.label && (f.target || '') === subject.key)) return
+  fields.push({
+    id: uid(), label: cf.label, field_type: cf.field_type, system_name: evtNameFromLabel(cf.label),
+    is_required: true, locked: false, core: true, account: cf.account,
+    has_placeholder: true, placeholder: cf.placeholder || '', options: cf.options || [],
+    col_span: 1, visibility_conditions: [], financial_rules: [], target: subject.key, connected_to: 'profile',
+  } as any)
+  evtFieldTarget.value = subject.key
+  persistEvtFormConfig()
+}
+
 function fieldTargetOf(f: any) { return f.target || '' }
 // Memoised: fields bucketed by their resolved subject key (legacy untargeted →
 // first subject). Built once per fields/profiles change, so per-subject reads in
@@ -777,7 +794,7 @@ function evtAddRequiredFieldsFor(key: string) {
     const inherited = inheritedFieldLabels.value.includes(d.label)
     // Required fields are ALWAYS on the form — locked so they can't be dragged off or
     // deleted (the field editor hides delete + keeps Required on for locked fields).
-    fields.push({ id: crypto.randomUUID(), label: d.label, field_type: meta.field_type, is_required: true, locked: true, placeholder: meta.placeholder, options: meta.options, col_span: 1, visibility_conditions: [], financial_rules: [], target: key, connected_to: inherited ? 'profile' : evtDefaultConnectedTo.value })
+    fields.push({ id: uid(), label: d.label, field_type: meta.field_type, is_required: true, locked: true, placeholder: meta.placeholder, options: meta.options, col_span: 1, visibility_conditions: [], financial_rules: [], target: key, connected_to: inherited ? 'profile' : evtDefaultConnectedTo.value })
   }
 }
 // ── Global / locked fields ────────────────────────────────────────────────────
@@ -808,7 +825,7 @@ function evtEnsureGlobalFields(subject: any) {
     if (!g.applies(subject)) continue
     if (fields.some((f: any) => f.label === g.label && (f.target || '') === subject.key)) continue
     const item = {
-      id: crypto.randomUUID(), label: g.label, field_type: g.field_type,
+      id: uid(), label: g.label, field_type: g.field_type,
       is_required: true, locked: true, placeholder: g.placeholder || '', options: g.options || [],
       col_span: 1, visibility_conditions: [], financial_rules: [], target: subject.key,
     }
@@ -829,7 +846,7 @@ function evtEnsureParentSectionFields(subject: any) {
   if (!subject?.key || !evtIsParentSubject(subject)) return
   const fields = ensureEvtGroupFields()
   if (fields.some((f: any) => f.target === subject.key && f.auto_section === 'parent_account_comms')) return
-  const sectionId = crypto.randomUUID()
+  const sectionId = uid()
   fields.push({
     id: sectionId, label: 'Login & communications', field_type: 'section',
     is_required: false, placeholder: 'Set up a login for this parent/guardian and choose which club updates they’d like to receive.',
@@ -837,12 +854,12 @@ function evtEnsureParentSectionFields(subject: any) {
     target: subject.key, auto_section: 'parent_account_comms',
   } as any)
   fields.push({
-    id: crypto.randomUUID(), label: 'Create a login', field_type: 'account',
+    id: uid(), label: 'Create a login', field_type: 'account',
     system: true, is_required: false, placeholder: '', options: [],
     col_span: 2, visibility_conditions: [], financial_rules: [], target: subject.key, parent_section: sectionId,
   } as any)
   fields.push({
-    id: crypto.randomUUID(), label: 'Communication preferences', field_type: 'comms',
+    id: uid(), label: 'Communication preferences', field_type: 'comms',
     system: true, is_required: false, placeholder: '', options: [],
     col_span: 2, visibility_conditions: [], financial_rules: [], target: subject.key, parent_section: sectionId,
   } as any)
@@ -1275,7 +1292,7 @@ const evtDefaultConnectedTo = computed(() => (props.eventId ? 'event' : 'profile
 function addEvtFormField(label: string, parentSection: string | null = null) {
   if (isEvtFieldAdded(label)) return null
   const meta = evtFieldMeta[label] ?? { field_type: 'text', icon: 'pi-minus', placeholder: '' }
-  const id = crypto.randomUUID()
+  const id = uid()
   // National (inherited) fields keep their data wired to the subject's profile —
   // the club can't reassign where it lives.
   const inherited = inheritedFieldLabels.value.includes(label)
@@ -1291,7 +1308,7 @@ function evtSystemFieldAdded(sf: { field_type: string }) {
 }
 function addEvtSystemField(sf: { field_type: string; label: string }) {
   if (evtSystemFieldAdded(sf)) return
-  ensureEvtGroupFields().push({ id: crypto.randomUUID(), label: sf.label, field_type: sf.field_type, is_required: false, system: true, placeholder: '', options: [], col_span: 1, visibility_conditions: [], financial_rules: [], target: evtFieldTarget.value })
+  ensureEvtGroupFields().push({ id: uid(), label: sf.label, field_type: sf.field_type, is_required: false, system: true, placeholder: '', options: [], col_span: 1, visibility_conditions: [], financial_rules: [], target: evtFieldTarget.value })
 }
 
 function removeEvtFormField(id: string) {
@@ -1309,14 +1326,14 @@ function duplicateEvtFormField(id: string) {
   const original = fields[idx]
   const copy: FormField = {
     ...original,
-    id: crypto.randomUUID(),
+    id: uid(),
     label: original.label + ' (copy)',
     system_name: original.system_name ? original.system_name + '_copy' : undefined,
-    visibility_conditions: original.visibility_conditions.map(c => ({ ...c, id: crypto.randomUUID() })),
+    visibility_conditions: original.visibility_conditions.map(c => ({ ...c, id: uid() })),
     financial_rules: original.financial_rules.map(r => ({
       ...r,
-      id: crypto.randomUUID(),
-      conditions: r.conditions.map(c => ({ ...c, id: crypto.randomUUID() })),
+      id: uid(),
+      conditions: r.conditions.map(c => ({ ...c, id: uid() })),
     })),
   }
   fields.splice(idx + 1, 0, copy)
@@ -1349,7 +1366,7 @@ function startEvtBlockDrag(e: DragEvent, type: string) {
 function evtAddBlockOfType(type: string, key: string, parentSection: string | null = null) {
   // Sections can't nest inside sections (one level only).
   if (type === 'section' && parentSection) parentSection = null
-  const id = crypto.randomUUID()
+  const id = uid()
   const base: any = { id, is_required: false, has_placeholder: false, placeholder: '', visibility_conditions: [], financial_rules: [], target: key, parent_section: parentSection }
   const fields = ensureEvtGroupFields()
   if (type === 'section')      fields.push({ ...base, label: 'Section',    field_type: 'section',   col_span: 2 })
@@ -1475,7 +1492,7 @@ function saveEvtNewField() {
   if (!evtNewFieldDraft.label.trim()) return
   const label = uniqueEvtLabel(evtNewFieldDraft.label.trim())
   const field: FormField = {
-    id: crypto.randomUUID(),
+    id: uid(),
     label,
     // Name defaults to the label with spaces removed.
     system_name: evtNameFromLabel(label),
@@ -1577,7 +1594,7 @@ const evtBlockTypes = [
 // the blocks (section/image/text/button) open their own config page.
 function evtStartNewField(type: string) {
   if (type === 'field') {
-    const id = crypto.randomUUID()
+    const id = uid()
     ensureEvtGroupFields().push({ id, label: uniqueEvtLabel('New Field'), field_type: 'text', is_required: false, placeholder: '', has_placeholder: false, col_span: 1, visibility_conditions: [], financial_rules: [], target: evtFieldTarget.value } as any)
     evtSelectedFieldId.value = id
     evtFieldEditorTab.value = 'details'
@@ -1597,7 +1614,7 @@ const evtNewButtonDraft = reactive({ label: '', url: '', style: 'primary' })
 function saveEvtNewSection() {
   if (!evtNewSectionDraft.label.trim()) return
   ensureEvtGroupFields().push({
-    id: crypto.randomUUID(),
+    id: uid(),
     label: evtNewSectionDraft.label.trim(),
     field_type: 'section',
     is_required: false,
@@ -1615,7 +1632,7 @@ function saveEvtNewBlock(type: 'image' | 'text' | 'button') {
   const drafts: Record<string, any> = { image: evtNewImageDraft, text: evtNewTextDraft, button: evtNewButtonDraft }
   const draft = drafts[type]
   ensureEvtGroupFields().push({
-    id: crypto.randomUUID(),
+    id: uid(),
     label: type === 'image' ? (evtNewImageDraft.alt || 'Image') : type === 'text' ? 'Text Block' : evtNewButtonDraft.label || 'Button',
     // 'textblock' so a static Text block doesn't collide with a Short Text *field* (both were 'text').
     field_type: type === 'text' ? 'textblock' : type,
@@ -2473,7 +2490,7 @@ function openAddFormDialog() {
 
 function confirmAddEvtFormGroup() {
   const name = newFormName.value.trim() || `Form ${evtFormGroupsList.value.length + 1}`
-  const newId = crypto.randomUUID()
+  const newId = uid()
   evtFormGroupsList.value.push({ id: newId, name, person_type: 'all', audience: newFormAudience.value })
   evtFormGroupModes[newId] = ''
   evtFormGroupSessions[newId] = {}
@@ -2486,7 +2503,7 @@ function confirmAddEvtFormGroup() {
 // "Choose a registration type" chooser — the same starting point as when there
 // are no forms (no separate New Form name/audience dialog).
 function addEvtFormGroupViaChooser() {
-  const newId = crypto.randomUUID()
+  const newId = uid()
   evtFormGroupsList.value.push({ id: newId, name: `Form ${evtFormGroupsList.value.length + 1}`, person_type: 'all', audience: 'all' })
   evtFormGroupModes[newId] = ''
   evtFormGroupSessions[newId] = {}
@@ -2633,11 +2650,11 @@ async function previewPrevForm(id: string) {
 function cloneFieldIds(fields: any[]): any[] {
   return (fields ?? []).map(fl => ({
     ...fl,
-    id: crypto.randomUUID(),
-    visibility_conditions: (fl.visibility_conditions ?? []).map((c: any) => ({ ...c, id: crypto.randomUUID() })),
+    id: uid(),
+    visibility_conditions: (fl.visibility_conditions ?? []).map((c: any) => ({ ...c, id: uid() })),
     financial_rules: (fl.financial_rules ?? []).map((r: any) => ({
-      ...r, id: crypto.randomUUID(),
-      conditions: (r.conditions ?? []).map((c: any) => ({ ...c, id: crypto.randomUUID() })),
+      ...r, id: uid(),
+      conditions: (r.conditions ?? []).map((c: any) => ({ ...c, id: uid() })),
     })),
   }))
 }
@@ -2706,7 +2723,14 @@ function buildEvtFormConfig() {
     subjectSessions: JSON.parse(JSON.stringify(evtFormSubjectSessions)),
     sectionSaved: { ...evtFormSectionSaved },
     payment: JSON.parse(JSON.stringify(evtFormPayment)),
+    // `terms` is what the club TICKED (the optional ones) — the builder's own state.
+    // `termsShown` is what a registrant actually has to agree to: the club's T&C and
+    // any required terms, which are always on and were therefore never in `terms`.
+    // The renderer used to read `terms` alone, so a form with nothing optional ticked
+    // showed no terms at all — most visibly on an invite-only form, where you'd tick
+    // none. Persisting the resolved list means the live form and the builder agree.
     terms: evtFormTermsSelections.value,
+    termsShown: JSON.parse(JSON.stringify(evtFormTermsShown.value)),
     discountSettings: { ...evtDiscountSettings },
     groupFields: JSON.parse(JSON.stringify(evtFormGroupFields)),
     groupProfiles: JSON.parse(JSON.stringify(evtFormGroupProfiles)),
@@ -2873,7 +2897,7 @@ function selectEvtFormGroup(id: string) {
 function ensureEvtFormGroupSelected(): string {
   let id = selectedFormGroupId.value
   if (!id || !evtFormGroupsList.value.some(g => g.id === id)) {
-    id = crypto.randomUUID()
+    id = uid()
     evtFormGroupsList.value.push({ id, name: 'Registration Form', person_type: 'all', audience: 'all' })
     evtFormGroupModes[id] = ''
     evtFormGroupSessions[id] = {}
@@ -3584,6 +3608,7 @@ defineExpose({ reload })
             <template v-else-if="evtSelectedFormSection === 'design'">
               <EventFormDesignPanel
                 :basic="basic"
+                :single-page-only="evtFormGroupModes[selectedFormGroupId] === 'simple'"
                 :brand-color="evtBrand.bg"
                 :design="currentEvtFormDesign"
                 :audience="(evtFormGroupsList.find(g => g.id === selectedFormGroupId)?.audience ?? 'all')"
@@ -4180,11 +4205,23 @@ defineExpose({ reload })
           <!-- Scrollable content wrapper -->
           <div class="absolute inset-0 overflow-y-auto z-10 px-2.5">
 
-          <!-- Age limit set but the form collects no DOB → it can't be enforced. -->
-          <div v-if="evtAgeCriteria && !evtHasDobField && evtFormGroups.length && !evtPublicPreview"
+          <!-- A restriction the form can't check is a rule that silently does nothing:
+               the live form looks the answer up by field label and skips the check when
+               the field isn't there. So each unenforceable restriction says so, and
+               offers to put the field back rather than sending you hunting for it. -->
+          <div v-if="evtFormGroups.length && !evtPublicPreview && evtAgeCriteria && !evtHasDobField"
             class="mx-auto max-w-[1000px] mt-4 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
             <i class="pi pi-exclamation-triangle mt-0.5 shrink-0" />
-            <span>This event has an age limit ({{ evtAgeCriteria }}). Add a <strong>Date of Birth</strong> field so it can be enforced when people register.</span>
+            <span class="flex-1">This event has an age limit ({{ evtAgeCriteria }}), but the form doesn't ask for a <strong>Date of Birth</strong> — so nobody will be turned away for it.</span>
+            <button v-if="evtPrimarySubject" type="button" class="shrink-0 font-semibold underline hover:no-underline"
+              @click="evtRestoreCoreField('Date of Birth')">Add it to {{ evtPrimarySubject.label }}</button>
+          </div>
+          <div v-if="evtFormGroups.length && !evtPublicPreview && evtGenderCriteria && !evtHasGenderField"
+            class="mx-auto max-w-[1000px] mt-4 flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
+            <i class="pi pi-exclamation-triangle mt-0.5 shrink-0" />
+            <span class="flex-1">This event is restricted ({{ evtGenderCriteria }}), but the form doesn't ask for <strong>Gender</strong> — so nobody will be turned away for it.</span>
+            <button v-if="evtPrimarySubject" type="button" class="shrink-0 font-semibold underline hover:no-underline"
+              @click="evtRestoreCoreField('Gender')">Add it to {{ evtPrimarySubject.label }}</button>
           </div>
 
 

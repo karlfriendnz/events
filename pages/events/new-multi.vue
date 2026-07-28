@@ -70,23 +70,13 @@
               <label class="text-sm font-medium text-gray-700">Event Name <span class="text-red-400">*</span></label>
               <InputText ref="titleInput" v-model="form.title" placeholder="e.g. Easter Holiday Programme" class="w-full" />
             </div>
-            <!-- Age Limit + Gender on one row -->
-            <div class="grid grid-cols-1 sm:grid-cols-[160px_1fr] sm:items-center gap-1.5 sm:gap-4">
-              <label class="text-sm font-medium text-gray-700">Age Limit</label>
-              <div class="flex items-center gap-2 flex-wrap">
-                <InputNumber v-model="form.ageMin" :min="0" :max="120" placeholder="Min" class="w-20" inputClass="w-20" />
-                <span class="text-sm text-gray-400">to</span>
-                <!-- Max can never sit below Min: the floor follows whatever Min is, so
-                     an impossible range can't be typed in the first place. Raising Min
-                     past Max pushes Max up with it (see the watch) rather than blocking
-                     the edit — being trapped in a range you're trying to change is worse
-                     than the invalid state itself. -->
-                <InputNumber v-model="form.ageMax" :min="form.ageMin ?? 0" :max="120" placeholder="Max" class="w-20" inputClass="w-20" />
-                <span class="text-sm text-gray-500">years</span>
-                <label class="text-sm font-medium text-gray-700 ml-4">Gender</label>
-                <Select v-model="form.genderRestriction" :options="GENDER_RESTRICTION_OPTIONS" optionLabel="label" optionValue="value" class="w-40" />
-              </div>
-            </div>
+            <!-- Who is ALLOWED to register. Shared with the basic wizard + the event
+                 editor's Overview row so all three read the same and grow together. -->
+            <EventRestrictionsEditor
+              v-model:age-min="form.ageMin"
+              v-model:age-max="form.ageMax"
+              v-model:gender-restriction="form.genderRestriction"
+              row-padding="py-2" :divided="false" />
           </div>
         </div>
 
@@ -368,7 +358,6 @@ import { ref, reactive, computed } from 'vue'
 import type { LocationEntry } from '~/composables/useLocation'
 import type { FeeLineItem } from '~/composables/useFeeGroups'
 import { makeDiscountDraft, quickProgrammeDiscounts, type DiscountDraft } from '~/composables/useEventDiscounts'
-import { GENDER_RESTRICTION_OPTIONS } from '~/composables/useEventRestrictions'
 
 const events = useEventsApi()
 const formsApi = useFormsApi()
@@ -430,14 +419,8 @@ const form = reactive({
   discounts: [] as WizardDiscount[],
 })
 
-// Raising the minimum age above the maximum carries the maximum up with it. The Max
-// input's floor already stops you typing a max below the min, but that only guards one
-// direction — without this, setting Min to 10 against an existing Max of 8 leaves an
-// age range nobody can be in, silently. Pushing Max up keeps the pair valid while you
-// edit, instead of blocking the keystroke and stranding you mid-change.
-watch(() => form.ageMin, (min) => {
-  if (min != null && form.ageMax != null && form.ageMax < min) form.ageMax = min
-})
+// (The min-above-max clamp moved into <EventRestrictionsEditor> — it belongs with the
+// inputs, and every wizard that renders them now inherits it.)
 
 // The three QUICK discounts (Full day / Full week set-price + Sibling %). Shown
 // at the top of the Discounts step, OFF by default — the club flips one on and
@@ -446,7 +429,7 @@ type QuickDiscount = DiscountDraft & { id: string; key: string; label: string; d
 const quickDiscounts = reactive<QuickDiscount[]>(
   quickProgrammeDiscounts().map(q => ({
     ...makeDiscountDraft(), ...q.preset,
-    id: crypto.randomUUID(), key: q.key, label: q.label, description: q.description, enabled: false,
+    id: uid(), key: q.key, label: q.label, description: q.description, enabled: false,
   })) as QuickDiscount[]
 )
 
@@ -722,7 +705,7 @@ function onDiscountSave(draft: DiscountDraft) {
     const keepId = form.discounts[discountEditIdx.value].id
     form.discounts.splice(discountEditIdx.value, 1, { id: keepId, ...draft })
   } else {
-    form.discounts.push({ id: crypto.randomUUID(), ...draft })
+    form.discounts.push({ id: uid(), ...draft })
   }
   discountEditIdx.value = null
   quickEditKey.value = null

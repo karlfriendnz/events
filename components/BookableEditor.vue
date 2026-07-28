@@ -604,7 +604,7 @@ function formatPrice(n: number | null): string {
 function openModeDialog(mode?: VenueMode) {
   editingMode.value = mode
     ? { ...mode }
-    : { _key: crypto.randomUUID(), name: '', description: '', color: MODE_COLORS[modes.value.length % MODE_COLORS.length], min_players: null, max_players: null, price_per_hour: null, price_per_slot: null, flat_fee: null, price_per_person: null }
+    : { _key: uid(), name: '', description: '', color: MODE_COLORS[modes.value.length % MODE_COLORS.length], min_players: null, max_players: null, price_per_hour: null, price_per_slot: null, flat_fee: null, price_per_person: null }
   showModeDialog.value = true
 }
 

@@ -104,7 +104,7 @@ const emit = defineEmits<{
 }>()
 
 function addGroup() {
-  const newGroup: PersonTypeFeeGroup = { id: crypto.randomUUID(), person_type: '', fees: [] }
+  const newGroup: PersonTypeFeeGroup = { id: uid(), person_type: '', fees: [] }
   emit('update:modelValue', { ...props.modelValue, groups: [...(props.modelValue.groups ?? []), newGroup] })
 }
 

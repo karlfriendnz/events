@@ -63,7 +63,7 @@ function exportCsv() {
 }
 function copyEmails() {
   const emails = [...new Set(shownPeople.value.map(p => p.email).filter(Boolean))].join(', ')
-  if (emails) navigator.clipboard?.writeText(emails)
+  if (emails) copyText(emails)
 }
 </script>
 

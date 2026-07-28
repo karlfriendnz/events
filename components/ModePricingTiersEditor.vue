@@ -329,7 +329,7 @@ const tierOpen = reactive<Record<string, boolean>>({})
 function toggleTier(id: string) { tierOpen[id] = !tierOpen[id] }
 
 function addTier() {
-  const id = crypto.randomUUID()
+  const id = uid()
   tierOpen[id] = true
   const newTier: PricingTier = {
     id, name: '', criteria_rules: [],
@@ -372,10 +372,10 @@ function confirmCriteriaRule(tierId: string) {
   let rule: CriteriaRule
   if (newRule.field === 'group') {
     if (!newRule.groupIds.length) return
-    rule = { id: crypto.randomUUID(), field: 'group', operator: 'in', value: [...newRule.groupIds] }
+    rule = { id: uid(), field: 'group', operator: 'in', value: [...newRule.groupIds] }
   } else {
     rule = {
-      id: crypto.randomUUID(), field: 'age', operator: newRule.operator,
+      id: uid(), field: 'age', operator: newRule.operator,
       value: newRule.ageValue,
       ...(newRule.operator === 'between' ? { value2: newRule.ageValue2 } : {}),
     }

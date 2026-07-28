@@ -139,7 +139,7 @@ const menu = ref<any>(null)
 function add(type: string) {
   emit('update:modelValue', [
     ...props.modelValue,
-    { id: crypto.randomUUID(), type, op: 'between', val1: null, val2: null },
+    { id: uid(), type, op: 'between', val1: null, val2: null },
   ])
 }
 

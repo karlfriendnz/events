@@ -309,7 +309,7 @@ function insertToken(token: string) {
 function addFee() {
   emit('update:modelValue', [
     ...props.modelValue,
-    { id: crypto.randomUUID(), name: props.defaultName ?? '', xero_code: '', amount: null },
+    { id: uid(), name: props.defaultName ?? '', xero_code: '', amount: null },
   ])
 }
 

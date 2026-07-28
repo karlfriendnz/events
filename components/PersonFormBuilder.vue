@@ -115,24 +115,24 @@ async function load() {
   const chain = expandTypeKeys([target.value], links ?? [], myType ? [myType.id] : [])
   libDefs.value = all.filter((f: any) => chain.some(k => fieldAppliesTo(f, k)))
   const cfg = pf?.config?.fields
-  layout.value = Array.isArray(cfg) ? cfg.map((f: any) => ({ ...f, _key: f._key || crypto.randomUUID() })) : []
+  layout.value = Array.isArray(cfg) ? cfg.map((f: any) => ({ ...f, _key: f._key || uid() })) : []
   // Entities (Team / Company / Club / Group …) are not people — no person default layout.
   if (!props.entity) ensureRequired()
   loading.value = false
 }
 
 function makeSection(label: string, system_name = '', col_span: 1 | 2 = 2, placeholder = ''): LField {
-  return { _key: crypto.randomUUID(), label, field_type: 'section', is_required: false, options: [], placeholder, system_name, col_span, block: [], tab_id: null }
+  return { _key: uid(), label, field_type: 'section', is_required: false, options: [], placeholder, system_name, col_span, block: [], tab_id: null }
 }
 // Email / Phone / Secondary Phone span the full row of their section.
 const FULL_WIDTH_CORES = ['email', 'phone', 'phone2']
 function seedCore(core: string): LField {
   const c = CORE_FIELDS.find(x => x.core === core)!
   const optional = core === 'dob' || core === 'gender' || core === 'phone2'
-  return { _key: crypto.randomUUID(), label: c.label, field_type: c.field_type, is_required: !optional, options: (c as any).options ?? [], placeholder: (c as any).placeholder ?? '', system_name: core, col_span: FULL_WIDTH_CORES.includes(core) ? 2 : 1, block: [], core, tab_id: null }
+  return { _key: uid(), label: c.label, field_type: c.field_type, is_required: !optional, options: (c as any).options ?? [], placeholder: (c as any).placeholder ?? '', system_name: core, col_span: FULL_WIDTH_CORES.includes(core) ? 2 : 1, block: [], core, tab_id: null }
 }
 function seedComms(): LField {
-  return { _key: crypto.randomUUID(), label: 'Communication', field_type: 'comms', is_required: false, options: [], placeholder: '', system_name: 'comms', col_span: 2, block: [], tab_id: null }
+  return { _key: uid(), label: 'Communication', field_type: 'comms', is_required: false, options: [], placeholder: '', system_name: 'comms', col_span: 2, block: [], tab_id: null }
 }
 
 // Guarantee the mandatory fields, grouped into two locked sections at the top:
@@ -264,22 +264,22 @@ const conditionFieldOptions = computed(() => layout.value
 // New items land in the tab you're currently viewing (null = top level).
 function addCore(c: typeof CORE_FIELDS[number]) {
   if (onLayoutCore.value.has(c.core)) return
-  layout.value.push({ _key: crypto.randomUUID(), label: c.label, field_type: c.field_type, is_required: c.core !== 'dob', options: (c as any).options ?? [], placeholder: (c as any).placeholder ?? '', system_name: c.core, col_span: 1, block: [], core: c.core, tab_id: activeTabId.value || null })
+  layout.value.push({ _key: uid(), label: c.label, field_type: c.field_type, is_required: c.core !== 'dob', options: (c as any).options ?? [], placeholder: (c as any).placeholder ?? '', system_name: c.core, col_span: 1, block: [], core: c.core, tab_id: activeTabId.value || null })
 }
 function addDef(d: any) {
   if (onLayoutDef.value.has(d.id)) return
-  layout.value.push({ _key: crypto.randomUUID(), label: d.label, field_type: d.field_type || 'text', is_required: !!d.is_required, options: Array.isArray(d.options) ? d.options : [], placeholder: d.meta?.placeholder ?? d.help_text ?? '', system_name: d.key ?? '', col_span: d.meta?.col_span ?? 1, block: d.meta?.block ?? [], def_id: d.id, inherited: !!d.inherited, tab_id: activeTabId.value || null })
+  layout.value.push({ _key: uid(), label: d.label, field_type: d.field_type || 'text', is_required: !!d.is_required, options: Array.isArray(d.options) ? d.options : [], placeholder: d.meta?.placeholder ?? d.help_text ?? '', system_name: d.key ?? '', col_span: d.meta?.col_span ?? 1, block: d.meta?.block ?? [], def_id: d.id, inherited: !!d.inherited, tab_id: activeTabId.value || null })
   editingKey.value = layout.value[layout.value.length - 1]._key
 }
 function addBlock(type: string) {
   if (type === 'tabs') {
-    layout.value.push({ _key: crypto.randomUUID(), label: 'Tabs', field_type: 'tabs', is_required: false, options: [], placeholder: '', system_name: '', col_span: 2, block: [], tabs: [{ id: crypto.randomUUID(), label: 'Tab 1' }, { id: crypto.randomUUID(), label: 'Tab 2' }] })
+    layout.value.push({ _key: uid(), label: 'Tabs', field_type: 'tabs', is_required: false, options: [], placeholder: '', system_name: '', col_span: 2, block: [], tabs: [{ id: uid(), label: 'Tab 1' }, { id: uid(), label: 'Tab 2' }] })
     editingKey.value = layout.value[layout.value.length - 1]._key
     return
   }
   const block = type === 'button' ? ['Button', '', 'primary'] : type === 'image' ? ['', '', 'center'] : []
   const label = type === 'section' ? 'Section heading' : type === 'image' ? 'Image' : type === 'text-block' ? 'Text block' : 'Button'
-  layout.value.push({ _key: crypto.randomUUID(), label, field_type: type, is_required: false, options: [], placeholder: '', system_name: '', col_span: 2, block, tab_id: activeTabId.value || null })
+  layout.value.push({ _key: uid(), label, field_type: type, is_required: false, options: [], placeholder: '', system_name: '', col_span: 2, block, tab_id: activeTabId.value || null })
   editingKey.value = layout.value[layout.value.length - 1]._key
 }
 // "Add new field" also creates a field_definition (library + events), then places it.
@@ -300,7 +300,7 @@ async function addNewField() {
 function addTab() {
   const e = editing.value as any; if (!e) return
   if (!Array.isArray(e.tabs)) e.tabs = []
-  e.tabs.push({ id: crypto.randomUUID(), label: 'Tab ' + (e.tabs.length + 1) })
+  e.tabs.push({ id: uid(), label: 'Tab ' + (e.tabs.length + 1) })
 }
 function removeTab(id: string) {
   const e = editing.value as any; if (!e || !Array.isArray(e.tabs) || e.tabs.length <= 1) return
@@ -310,7 +310,7 @@ function removeTab(id: string) {
 }
 async function addSystemField(sf: typeof SYSTEM_FIELDS[number]) {
   if (layout.value.some(f => f.field_type === sf.field_type)) return
-  layout.value.push({ _key: crypto.randomUUID(), label: sf.label, field_type: sf.field_type, is_required: false, options: [], placeholder: '', system_name: sf.key, col_span: 2, block: [], tab_id: activeTabId.value || null })
+  layout.value.push({ _key: uid(), label: sf.label, field_type: sf.field_type, is_required: false, options: [], placeholder: '', system_name: sf.key, col_span: 2, block: [], tab_id: activeTabId.value || null })
 }
 function systemAdded(sf: typeof SYSTEM_FIELDS[number]) { return layout.value.some(f => f.field_type === sf.field_type) }
 

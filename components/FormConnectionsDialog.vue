@@ -33,7 +33,7 @@ async function load() {
 }
 
 function copyLink() {
-  navigator.clipboard?.writeText(link.value)
+  copyText(link.value)
   toast.add({ severity: 'success', summary: 'Registration link copied', life: 2000 })
 }
 

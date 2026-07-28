@@ -298,6 +298,25 @@ body {
   .app-modal-overlay > * { max-height: none; }
 }
 
+/* EMBEDDED IN THE OLD PLATFORM — modals keep their shape, but lose the scrim.
+   The BACKDROP is what gives the iframe away: it dims only as far as the frame
+   reaches, so the club sees a grey rectangle stopping short of their own page
+   chrome, bright around it. The modal itself is still a modal — same size,
+   position, rounding and shadow — it just floats on the page instead of on a
+   dimmed sheet. Covers page-as-modal shells and PrimeVue dialog masks alike. */
+/* EMBEDDED IN THE OLD PLATFORM — modals keep their shape and BLUR what is
+   behind them, but without the dark sheet. The dim was the giveaway: a grey
+   rectangle ending at the frame edge with the host page bright around it. A
+   blur still says "the page behind is not what you're working on" while
+   reading as depth rather than as a panel bolted on. */
+html.fm-embedded .app-modal-overlay.app-modal-overlay,
+html.fm-embedded .p-dialog-mask {
+  background: transparent !important;
+  backdrop-filter: blur(6px) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
+}
+
+
 /* Clicking a review comment rings the element it points at for a moment, so
    "which control did they mean?" is answered by looking rather than guessing.
    outline (not border/box-shadow) so it can't shift the layout of whatever it

@@ -67,7 +67,7 @@ const formId = ref<string | null>(isNew.value ? null : (route.params.id as strin
 const returnTo = computed(() => (route.query.return as string | undefined) || null)
 const returnLabel = computed(() => returnTo.value ? 'Back' : 'Forms')
 
-function freshKey() { return crypto.randomUUID() }
+function freshKey() { return uid() }
 
 function coreFields() {
   return [

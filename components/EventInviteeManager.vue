@@ -737,7 +737,7 @@ function copyRsvpLinks() {
   const rows = (chosen.length ? chosen : invitees.value)
     .map(i => `${i.person?.first_name ?? ''} ${i.person?.last_name ?? ''}`.trim() + `\t${rsvpLink(i)}`)
   if (!rows.length) return
-  navigator.clipboard?.writeText(rows.join('\n'))
+  copyText(rows.join('\n'))
   toast.add({
     severity: 'success',
     summary: `Copied ${rows.length} RSVP link${rows.length === 1 ? '' : 's'}`,

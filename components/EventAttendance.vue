@@ -759,7 +759,7 @@ function addSubGroup() {
   let sessionIds: string[] | null = null
   if (newGroupScope.value === 'this' && selectedAttendanceSessionId.value) sessionIds = [selectedAttendanceSessionId.value]
   else if (newGroupScope.value === 'multiple') sessionIds = [...newGroupSessionIds.value]
-  subGroups.value.push({ id: crypto.randomUUID(), name: newGroupName.value.trim(), color: newGroupColor.value, session_ids: sessionIds })
+  subGroups.value.push({ id: uid(), name: newGroupName.value.trim(), color: newGroupColor.value, session_ids: sessionIds })
   newGroupName.value = ''
   newGroupColor.value = '#3B82F6'
   newGroupScope.value = 'all'

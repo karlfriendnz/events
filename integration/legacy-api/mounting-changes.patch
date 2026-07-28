@@ -1,0 +1,95 @@
+diff --git a/application/pages/attendance/switch.php b/application/pages/attendance/switch.php
+index 4e7e88cc9..2011984cb 100644
+--- a/application/pages/attendance/switch.php
++++ b/application/pages/attendance/switch.php
+@@ -1,6 +1,21 @@
+ <?php
+ if ($USER['role'] < Person::ROLE_BASIC) return 403;
+ 
++// Attendance has moved to the FM Events module.
++// NB the legacy reports under /attendance (awards, hours, non-attendance,
++// trialist, visitors) are NOT part of the module yet, so they are deliberately
++// left on the old pages until they are rebuilt.
++if ($CLUB_DB->setting('fmevents-url')
++    && !in_array($components[1], ['awards', 'hours', 'nonattendance', 'trialist', 'visitors', 'report'], true)) {
++    $PAGE->title = 'Attendance';
++    $GLOBALS['FMEVENTS'] = [
++        'view'  => 'attendance',
++        'event' => ($components[1] && $components[1] !== 'new') ? $components[1] : null,
++    ];
++    $PAGE->contentFile = 'fmevents/embed.php';
++    return 1;
++}
++
+ if ($components[1] == 'new') {
+     if ($USER['role'] < Person::ROLE_MANAGER) return 403;
+     $PAGE->title = "New Attendance";
+diff --git a/application/pages/events/switch.php b/application/pages/events/switch.php
+index 87f5b7b52..12107ecee 100644
+--- a/application/pages/events/switch.php
++++ b/application/pages/events/switch.php
+@@ -1,4 +1,16 @@
+ <?php
++// Events have moved to the FM Events module. Clearing the `fmevents-url`
++// setting puts every legacy events page back exactly as it was.
++if ($CLUB_DB->setting('fmevents-url')) {
++    $PAGE->title = 'Events';
++    $GLOBALS['FMEVENTS'] = [
++        'view'  => $components[1] === 'new' ? 'new' : 'calendar',
++        'event' => ($components[1] && !in_array($components[1], ['new', 'list', 'report'], true)) ? $components[1] : null,
++    ];
++    $PAGE->contentFile = 'fmevents/embed.php';
++    return 1;
++}
++
+ if ($components[1] == 'new') {
+     if ($USER['role'] < Person::ROLE_MANAGER) return 403;
+     $PAGE->title = "New Event";
+diff --git a/application/pages/people/tabs/tab-content.php b/application/pages/people/tabs/tab-content.php
+index 674704f2f..f93f05251 100644
+--- a/application/pages/people/tabs/tab-content.php
++++ b/application/pages/people/tabs/tab-content.php
+@@ -34,7 +34,17 @@
+     if ($tabs['events']) {
+         ?>
+         <div class="tab-pane" id="events">
+-            <?php include 'pages/events/calendar.php' ?>
++            <?php
++            // This tab is the club calendar scoped to one person, so when the
++            // FM Events module is on it shows the module's calendar filtered to
++            // them instead of the legacy FullCalendar widget.
++            if ($CLUB_DB->setting('fmevents-url')) {
++                $GLOBALS['FMEVENTS'] = ['view'=>'calendar', 'person'=>$person->id];
++                include 'pages/fmevents/embed.php';
++            } else {
++                include 'pages/events/calendar.php';
++            }
++            ?>
+         </div>
+         <?php
+     }
+diff --git a/application/pages/programs/switch.php b/application/pages/programs/switch.php
+index 6cb3d90fb..597423395 100644
+--- a/application/pages/programs/switch.php
++++ b/application/pages/programs/switch.php
+@@ -1,6 +1,20 @@
+ <?php
+ if (!$CLUB_DB->setting('module-program')) return 404;
+ 
++// Holiday programmes have moved to the FM Events module.
++// The member-facing booking journey (/programs/book/...) is left on the old
++// pages on purpose: it is a payment flow mid-transaction, and the module has
++// its own public registration to replace it with rather than half-swap it.
++if ($CLUB_DB->setting('fmevents-url') && $components[1] !== 'book') {
++    $PAGE->title = $CLUB_DB->text('program');
++    $GLOBALS['FMEVENTS'] = [
++        'view'    => 'programmes',
++        'program' => $components[1] ?: null,
++    ];
++    $PAGE->contentFile = 'fmevents/embed.php';
++    return 1;
++}
++
+ if ($components[1] == 'book') {
+     if ($components[2] == 'dates') {
+         $PAGE->title = $CLUB_DB->text('program')." Dates";

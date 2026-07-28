@@ -183,7 +183,7 @@ function typeStyle(type: string) {
 }
 
 function addAddon() {
-  const id = crypto.randomUUID()
+  const id = uid()
   expanded[id] = true
   emit('update:modelValue', [
     ...props.modelValue,

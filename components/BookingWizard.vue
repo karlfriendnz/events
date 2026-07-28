@@ -1069,7 +1069,7 @@ const icsHref = computed(() => {
     'VERSION:2.0',
     'PRODID:-//FriendlyManager//Events//EN',
     'BEGIN:VEVENT',
-    `UID:${bookedId.value || crypto.randomUUID()}@friendlymanager`,
+    `UID:${bookedId.value || uid()}@friendlymanager`,
     `DTSTAMP:${fmt(new Date())}`,
     `DTSTART:${fmt(booking.startAt)}`,
     `DTEND:${fmt(booking.endAt)}`,

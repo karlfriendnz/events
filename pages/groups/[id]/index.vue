@@ -2178,7 +2178,7 @@ async function persistSubGroups() {
 }
 async function addSubGroup() {
   const name = newSubGroupName.value.trim(); if (!name) return
-  subGroups.value = [...subGroups.value, { id: crypto.randomUUID(), name, color: newSubGroupColor.value }]
+  subGroups.value = [...subGroups.value, { id: uid(), name, color: newSubGroupColor.value }]
   newSubGroupName.value = ''
   newSubGroupColor.value = SUBGROUP_PALETTE[subGroups.value.length % SUBGROUP_PALETTE.length]
   await persistSubGroups()
@@ -2707,7 +2707,7 @@ async function renderRegQr() {
   } catch { regQr.value = '' }
 }
 function copyRegLink() {
-  navigator.clipboard?.writeText(publicRegLink.value)
+  copyText(publicRegLink.value)
   toast.add({ severity: 'success', summary: 'Registration link copied', life: 2000 })
 }
 async function setGroupForm(formId: string | null) {

@@ -380,7 +380,7 @@ const financialFieldOptions = computed(() => {
 })
 
 function makeCondition(): Condition {
-  return { id: crypto.randomUUID(), field: '', operator: 'Equals', value: '' }
+  return { id: uid(), field: '', operator: 'Equals', value: '' }
 }
 function makeFinancialRule(): FinancialRule {
   // Default the first condition to THIS field — the common case is
@@ -388,7 +388,7 @@ function makeFinancialRule(): FinancialRule {
   const first = makeCondition()
   first.field = props.field?.label ?? ''
   return {
-    id: crypto.randomUUID(),
+    id: uid(),
     conditions: [first],
     account_code: '',
     fee_name: '',

@@ -423,6 +423,15 @@
                   <ToggleSwitch v-model="form.has_capacity" />
                 </div>
               </div>
+
+              <!-- Who is ALLOWED, as opposed to who's invited. It belongs on this
+                   step: an age or gender limit is part of answering "who is this
+                   for", and it's what stops an uninvited stranger with the public
+                   link from signing up when they don't qualify. -->
+              <EventRestrictionsEditor
+                v-model:age-min="form.ageMin"
+                v-model:age-max="form.ageMax"
+                v-model:gender-restriction="form.genderRestriction" />
             </div>
           </div>
 
@@ -744,7 +753,7 @@ const setFees = (paid: boolean) => {
   // fee is for, and it saves retyping it. Only when there's nothing there yet.
   if (paid && !form.fees.length) {
     form.fees.push({
-      id: crypto.randomUUID(),
+      id: uid(),
       name: form.title.trim(),
       xero_code: '',
       amount: null,
@@ -1308,7 +1317,6 @@ const totalFees = computed(() =>
 // (<EventDiscountDialog> + useEventDiscounts). One discount system, not a
 // wizard-only variant; rows persist to `discounts` at saveEvent().
 import type { DiscountDraft } from '~/composables/useEventDiscounts'
-import { GENDER_RESTRICTION_OPTIONS } from '~/composables/useEventRestrictions'
 type WizardDiscount = DiscountDraft & { id: string }
 
 const { conditionLabel } = useEventDiscounts()
@@ -1346,7 +1354,7 @@ function onDiscountSave(draft: DiscountDraft) {
     const keepId = form.discounts[discountEditIdx.value].id
     form.discounts.splice(discountEditIdx.value, 1, { id: keepId, ...draft })
   } else {
-    form.discounts.push({ id: crypto.randomUUID(), ...draft })
+    form.discounts.push({ id: uid(), ...draft })
   }
   discountEditIdx.value = null
   discountEditDraft.value = null
@@ -1443,7 +1451,7 @@ const summaryWhere = computed(() => {
 
 // <FeeLineItemsTable> owns add/remove/reorder now; kept for the AI prefill path.
 function addFee() {
-  form.fees.push({ id: crypto.randomUUID(), name: '', xero_code: '', amount: null })
+  form.fees.push({ id: uid(), name: '', xero_code: '', amount: null })
 }
 
 // Uploading the banner belongs to the Registration form designer now (it writes
@@ -1466,7 +1474,20 @@ function buildDateTime(date: Date | null, time: Date | null): string | null {
 // its config jsonb). There is one form schema in the app again.
 
 async function saveEvent() {
-  if (!form.title.trim()) return
+  // A resumed draft can reach the last step with no title (the earlier steps
+  // still show as complete), and this used to `return` silently — the Save
+  // button simply did nothing, with no clue why. Say what is missing and go
+  // back to the step that fixes it.
+  if (!form.title.trim()) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Your event needs a name',
+      detail: 'Add a title on the first step, then save.',
+      life: 4000,
+    })
+    mobileStep.value = 0
+    return
+  }
   saving.value = true
   try {
     const payload: any = {

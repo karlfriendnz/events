@@ -23,7 +23,14 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const isPublic = to.path.startsWith('/book') || to.path.startsWith('/r/') || to.path.startsWith('/rsvp')
     || to.path.startsWith('/embed') || isEventCheckIn
     || to.path === '/set-password' || to.path === '/clubs'
-  if (!user.value && to.path !== '/login' && !isPublic) {
+
+  // Embedded in the OLD platform: the user is already logged in over there, and
+  // /embed proved it by exchanging a single-use token server-side. Without this
+  // they get bounced to /login the moment they click New Event, because the
+  // create screens are not themselves public.
+  const embedSession = useState<boolean>('fmEmbedSession', () => false)
+
+  if (!user.value && !embedSession.value && to.path !== '/login' && !isPublic) {
     return navigateTo('/login')
   }
   if (user.value && to.path === '/login') {

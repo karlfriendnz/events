@@ -1453,7 +1453,7 @@ function migrateLineItems(tier: any): any {
     const timeFees = oldItems.length
       ? oldItems
       : (result.price != null && result.price_type !== 'free')
-        ? [{ id: crypto.randomUUID(), name: '', xero_code: '', amount: result.price }]
+        ? [{ id: uid(), name: '', xero_code: '', amount: result.price }]
         : []
     result = { ...result, time_fees: timeFees, flat_fees: result.flat_fees ?? [] }
   }
@@ -1632,8 +1632,8 @@ function removeTier(i: number) {
 function cloneTier(i: number) {
   const src = form.value.price_tiers[i]
   const clone = JSON.parse(JSON.stringify(src))
-  clone.time_fees = (clone.time_fees ?? []).map((li: any) => ({ ...li, id: crypto.randomUUID() }))
-  clone.flat_fees = (clone.flat_fees ?? []).map((li: any) => ({ ...li, id: crypto.randomUUID() }))
+  clone.time_fees = (clone.time_fees ?? []).map((li: any) => ({ ...li, id: uid() }))
+  clone.flat_fees = (clone.flat_fees ?? []).map((li: any) => ({ ...li, id: uid() }))
   form.value.price_tiers.splice(i + 1, 0, clone)
 }
 

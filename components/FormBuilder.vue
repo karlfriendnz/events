@@ -682,7 +682,7 @@ function findPeopleField(label: string) {
 }
 
 // ── Field actions ───────────────────────────────────────────
-function freshKey() { return crypto.randomUUID() }
+function freshKey() { return uid() }
 
 function makeField(type: string): FormBuilderField {
   const labels: Record<string, string> = {

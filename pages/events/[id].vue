@@ -208,6 +208,41 @@
               </div>
             </div>
 
+            <!-- Restrictions row — who is ALLOWED to register, as opposed to who was
+                 invited. It has to be visible here: it's set during creation and was
+                 previously invisible + uneditable afterwards, so an event could carry
+                 an age or gender limit nobody in the club could see. -->
+            <div>
+              <div class="flex flex-col sm:flex-row sm:items-center px-4 sm:px-6 py-4 gap-1 sm:gap-6 group hover:bg-gray-50/50 transition-colors"
+                :class="fieldEditing.restrictions ? '' : 'cursor-pointer'"
+                @click="!fieldEditing.restrictions && startFieldEdit('restrictions')">
+                <span class="text-sm font-semibold text-gray-700 w-full sm:w-28 shrink-0">Restrictions</span>
+                <div class="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
+                  <span v-if="restrictionsLabel" class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 px-2.5 py-0.5 text-xs font-medium">
+                    <i class="pi pi-lock text-[10px]" />{{ restrictionsLabel }}
+                  </span>
+                  <span v-else class="text-sm text-gray-400">Open to anyone</span>
+                  <span v-if="restrictionsLabel && restrictionsUnenforced"
+                    class="text-xs text-amber-600"
+                    v-tooltip.bottom="'The registration form doesn\'t collect this, so it can\'t be checked at sign-up.'">
+                    <i class="pi pi-exclamation-triangle text-[10px] mr-1" />not enforced on the form
+                  </span>
+                </div>
+                <i v-if="!fieldEditing.restrictions" class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0 !hidden sm:!block" />
+              </div>
+              <div v-if="fieldEditing.restrictions" class="border-t border-gray-100 py-1" @click.stop>
+                <EventRestrictionsEditor
+                  v-model:age-min="editForm.age_min"
+                  v-model:age-max="editForm.age_max"
+                  v-model:gender-restriction="editForm.gender_restriction"
+                  row-padding="px-4 sm:px-6 py-3" />
+                <div class="flex justify-end gap-2 px-4 sm:px-6 py-3 border-t border-gray-100">
+                  <Button label="Cancel" size="small" severity="secondary" text @click="cancelFieldEdit('restrictions')" />
+                  <Button label="Save" icon="pi pi-check" size="small" :loading="savingField === 'restrictions'" @click="saveField('restrictions')" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+                </div>
+              </div>
+            </div>
+
           </div>
 
           <EventDetailsCard
@@ -1829,7 +1864,7 @@
         <div v-else-if="subSessionTab === 'fees'" class="space-y-4">
           <div class="flex items-center justify-between">
             <p class="text-sm text-gray-500">Additional fees for this sub-session.</p>
-            <Button label="Add Fee" icon="pi pi-plus" size="small" @click="(editingSubSession.fees=editingSubSession.fees??[]).push({id:crypto.randomUUID(),name:'',amount:0,type:'STANDARD'})" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+            <Button label="Add Fee" icon="pi pi-plus" size="small" @click="(editingSubSession.fees=editingSubSession.fees??[]).push({id:uid(),name:'',amount:0,type:'STANDARD'})" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
           </div>
           <div v-if="(editingSubSession.fees ?? []).length" class="border border-gray-200 rounded-xl overflow-x-auto">
             <table class="w-full text-sm">
@@ -1856,7 +1891,7 @@
         <div v-else-if="subSessionTab === 'discounts'" class="space-y-4">
           <div class="flex items-center justify-between">
             <p class="text-sm text-gray-500">Discount codes for this sub-session.</p>
-            <Button label="Add Discount" icon="pi pi-plus" size="small" @click="(editingSubSession.discounts=editingSubSession.discounts??[]).push({id:crypto.randomUUID(),code:'',type:'PERCENT',value:0,max_uses:null})" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
+            <Button label="Add Discount" icon="pi pi-plus" size="small" @click="(editingSubSession.discounts=editingSubSession.discounts??[]).push({id:uid(),code:'',type:'PERCENT',value:0,max_uses:null})" style="background:var(--brand-primary);border-color:var(--brand-primary)" />
           </div>
           <div v-if="(editingSubSession.discounts ?? []).length" class="border border-gray-200 rounded-xl overflow-x-auto">
             <table class="w-full text-sm">
@@ -1986,7 +2021,7 @@ const basicTabs = ['overview', 'invitees', 'attendance', 'communication', 'notes
 
 import type { LocationEntry } from '~/composables/useLocation'
 import { makeDiscountDraft, type DiscountDraft } from '~/composables/useEventDiscounts'
-import { GENDER_RESTRICTION_OPTIONS } from '~/composables/useEventRestrictions'
+import { configCollects, restrictionSummary, RESTRICTION_FIELD_LABELS } from '~/composables/useEventRestrictions'
 function defaultLocation(): LocationEntry { return { type: 'ADDRESS', venue_name: '', address: '', meeting_link: '', bookable_ids: [] } }
 
 const twoWeeksAgo = new Date()
@@ -2100,6 +2135,11 @@ function startFieldEdit(field: string) {
     editForm.value.has_capacity = !!event.value.capacity_max
     editForm.value.capacity_max = event.value.capacity_max ?? null
   }
+  if (field === 'restrictions') {
+    editForm.value.age_min = event.value.age_min ?? null
+    editForm.value.age_max = event.value.age_max ?? null
+    editForm.value.gender_restriction = event.value.gender_restriction ?? null
+  }
   if (field === 'visibility') {
     editForm.value.is_public = event.value.is_public ?? false
     editForm.value.is_featured = event.value.is_featured ?? false
@@ -2154,6 +2194,36 @@ const locationSummary = computed(() => {
   }).join(' · ') || '—'
 })
 
+// ---- Restrictions (who is ALLOWED to register, vs who was invited) ----
+// The Overview row prints this and the edit panel writes it. Both go through
+// useEventRestrictions so the wording matches the form header and the public page.
+const restrictionsLabel = computed(() =>
+  restrictionSummary(event.value?.age_min, event.value?.age_max, event.value?.gender_restriction))
+
+// A restriction is only real if the form ASKS the question — `<FormRenderer>` looks
+// the answer up by label and silently skips the check when it isn't there. So the row
+// says so rather than implying a limit is being applied when it isn't.
+const restrictionFormConfig = ref<any>(null)
+const restrictionsUnenforced = computed(() => {
+  const e: any = event.value
+  if (!e) return false
+  const needsAge = e.age_min != null || e.age_max != null
+  const needsGender = !!e.gender_restriction
+  if (!needsAge && !needsGender) return false
+  if (!e.form_id) return true          // no form at all — nothing can be checked
+  if (!restrictionFormConfig.value) return false   // not loaded yet: claim nothing
+  const cfg = restrictionFormConfig.value
+  if (needsAge && !configCollects(cfg, RESTRICTION_FIELD_LABELS.age)) return true
+  if (needsGender && !configCollects(cfg, RESTRICTION_FIELD_LABELS.gender)) return true
+  return false
+})
+async function loadRestrictionEnforcement(formId: string | null) {
+  restrictionFormConfig.value = null
+  if (!formId) return
+  // Best-effort — a hint that can't load is a missing hint, never a broken page.
+  try { restrictionFormConfig.value = (await useFormsApi().get(formId))?.config ?? null } catch { /* ignore */ }
+}
+
 async function saveField(field: string) {
   savingField.value = field
   const update: Record<string, any> = {}
@@ -2183,6 +2253,11 @@ async function saveField(field: string) {
   }
   if (field === 'capacity') {
     update.capacity_max = editForm.value.has_capacity ? (editForm.value.capacity_max ?? null) : null
+  }
+  if (field === 'restrictions') {
+    update.age_min = editForm.value.age_min ?? null
+    update.age_max = editForm.value.age_max ?? null
+    update.gender_restriction = editForm.value.gender_restriction ?? null
   }
   if (field === 'visibility') {
     update.is_public = editForm.value.is_public
@@ -2274,7 +2349,7 @@ const attendanceRef = ref<any>(null)
 
 // The public registration page for this event (guest-fillable, /r/event/:id).
 function copyPublicRegLink() {
-  navigator.clipboard?.writeText(`${window.location.origin}/r/event/${id}`)
+  copyText(`${window.location.origin}/r/event/${id}`)
   toast.add({ severity: 'success', summary: 'Registration link copied', life: 2000 })
 }
 
@@ -2328,10 +2403,10 @@ const embedCode = computed(() => {
 })
 const embedCodeCopied = ref(false)
 async function copyEmbed() {
-  try { await navigator.clipboard.writeText(embedUrl.value); embedCopied.value = true; setTimeout(() => embedCopied.value = false, 1500) } catch { /* ignore */ }
+  try { await copyText(embedUrl.value); embedCopied.value = true; setTimeout(() => embedCopied.value = false, 1500) } catch { /* ignore */ }
 }
 async function copyEmbedCode() {
-  try { await navigator.clipboard.writeText(embedCode.value); embedCodeCopied.value = true; setTimeout(() => embedCodeCopied.value = false, 1500) } catch { /* ignore */ }
+  try { await copyText(embedCode.value); embedCodeCopied.value = true; setTimeout(() => embedCodeCopied.value = false, 1500) } catch { /* ignore */ }
 }
 
 // ---- Edit form ----
@@ -3351,7 +3426,7 @@ function addSubGroup() {
     sessionIds = [...newGroupSessionIds.value]
   }
   subGroups.value.push({
-    id: crypto.randomUUID(),
+    id: uid(),
     name: newGroupName.value.trim(),
     color: newGroupColor.value,
     session_ids: sessionIds,
@@ -3492,7 +3567,7 @@ function makeSessionLocations(s: any): LocationEntry[] {
 
 function makeFreshSession(overrides = {}) {
   return {
-    id: crypto.randomUUID(),
+    id: uid(),
     title: '',
     description: '',
     start_at: null,
@@ -3772,9 +3847,9 @@ function addSession() {
 
 function duplicateSession(idx: number) {
   const clone = JSON.parse(JSON.stringify(sessions.value[idx]))
-  clone.id = crypto.randomUUID()
+  clone.id = uid()
   clone.title = clone.title + ' (copy)'
-  clone.sub_sessions = (clone.sub_sessions ?? []).map((s: any) => ({ ...s, id: crypto.randomUUID() }))
+  clone.sub_sessions = (clone.sub_sessions ?? []).map((s: any) => ({ ...s, id: uid() }))
   sessions.value.splice(idx + 1, 0, clone)
 }
 
@@ -3806,7 +3881,7 @@ async function deleteSelectedSessions() {
 function addSubSession(session: any) {
   if (!session.sub_sessions) session.sub_sessions = []
   const sub = {
-    id: crypto.randomUUID(),
+    id: uid(),
     title: '',
     description: '',
     address: '',
@@ -4274,6 +4349,7 @@ async function loadEvent() {
     }
     // Load sub-groups
     subGroups.value = Array.isArray(data.sub_groups) ? data.sub_groups : []
+    loadRestrictionEnforcement(data.form_id ?? null)
   }
   loading.value = false
   breadcrumbs.value = event.value?.is_programme

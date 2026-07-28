@@ -612,7 +612,7 @@ const showBankAccounts = ref(false)
 const savingBankAccounts = ref(false)
 let bankAccountsBackup: any[] = []
 function addBankAccount() {
-  bankAccounts.value.push({ id: crypto.randomUUID(), name: '', details: '', _new: true })
+  bankAccounts.value.push({ id: uid(), name: '', details: '', _new: true })
 }
 function removeBankAccount(id: string) {
   bankAccounts.value = bankAccounts.value.filter(b => b.id !== id)

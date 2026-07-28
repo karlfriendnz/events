@@ -1657,7 +1657,7 @@ const embedSnippet = computed(() =>
 )
 
 async function copyEmbed() {
-  await navigator.clipboard.writeText(embedSnippet.value)
+  await copyText(embedSnippet.value)
   embedCopied.value = true
   setTimeout(() => { embedCopied.value = false }, 2000)
 }
@@ -2233,6 +2233,13 @@ const bookingsCalEvents = computed(() => {
 // opens on the full event page. (created_via, migration 257: `style` couldn't tell
 // a wizard draft from a Custom one — both are BASIC.)
 function openEvent(evt: { id: string; status?: string; created_via?: string | null; style?: string; is_programme?: boolean; is_shared?: boolean; shared_from?: string | null }) {
+  // An event that still lives in the OLD platform. It rides in on the shared
+  // feed, so it must be caught BEFORE the is_shared branch below — that page
+  // loads from this module's own store and would find nothing.
+  if (typeof evt.id === 'string' && evt.id.startsWith('legacy-')) {
+    navigateTo(`/events/legacy/${evt.id.slice('legacy-'.length)}`)
+    return
+  }
   // A SHARED event belongs to another org (a national/governing body shared it, this
   // club accepted). The club sees the full event (read-only) AND invites its OWN people
   // on the club-scoped shared-event page — never the owner's editor.

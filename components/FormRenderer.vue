@@ -704,7 +704,22 @@ const paymentMethods = computed(() => {
 const selectedPayment = ref('')
 watchEffect(() => { if (!selectedPayment.value && paymentMethods.value.length) selectedPayment.value = paymentMethods.value[0].key })
 
-const termsList = computed<string[]>(() => props.config?.terms ?? [])
+/**
+ * What the registrant must agree to.
+ *
+ * `termsShown` is the RESOLVED list the builder displays — the club's T&C, anything
+ * marked required, plus the optional ones ticked. `terms` (the ticked ones only) is
+ * the older shape and stays as the fallback so existing forms keep working; reading
+ * it alone is what hid the terms on any form with nothing optional ticked.
+ */
+const termsList = computed<any[]>(() => {
+  const shown = props.config?.termsShown
+  if (Array.isArray(shown) && shown.length) return shown
+  return props.config?.terms ?? []
+})
+/** The names, for the accept line — "the Club T&C and Photos Policy". */
+const termsNames = computed(() =>
+  termsList.value.map((t: any) => (typeof t === 'string' ? t : t?.label)).filter(Boolean))
 const termsAccepted = ref(false)
 
 // ── Step wizard ──────────────────────────────────────────────────────────────
@@ -1424,7 +1439,12 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
     <section v-if="(!isWizard || isTermsStep(step)) && termsList.length" class="mb-6">
       <label class="flex items-start gap-2 text-sm cursor-pointer">
         <input type="checkbox" class="w-4 h-4 mt-0.5 accent-primary" v-model="termsAccepted" />
-        <span class="text-gray-700">I accept the <span class="font-medium">terms &amp; conditions</span> and privacy policy.</span>
+        <!-- Name what's being agreed to. "Terms & conditions and privacy policy" was
+             the same sentence whatever the club had actually attached. -->
+        <span class="text-gray-700">
+          I accept the
+          <span class="font-medium">{{ termsNames.length ? termsNames.join(', ') : 'terms &amp; conditions' }}</span>.
+        </span>
       </label>
     </section>
 

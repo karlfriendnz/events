@@ -104,7 +104,7 @@ const expanded = reactive<Record<string, boolean>>({})
 function toggle(id: string) { expanded[id] = !expanded[id] }
 
 function add() {
-  const id = crypto.randomUUID()
+  const id = uid()
   expanded[id] = true
   emit('update:modelValue', [
     ...props.modelValue,

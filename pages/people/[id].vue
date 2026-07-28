@@ -506,7 +506,7 @@ async function sendInvite() {
   }
   inviting.value = false
 }
-async function copyInviteLink() { if (inviteLink.value) { await navigator.clipboard.writeText(inviteLink.value); toast.add({ severity: 'success', summary: 'Link copied', life: 1500 }) } }
+async function copyInviteLink() { if (inviteLink.value) { await copyText(inviteLink.value); toast.add({ severity: 'success', summary: 'Link copied', life: 1500 }) } }
 
 // Avatar upload
 const { uploadFile } = useUpload()

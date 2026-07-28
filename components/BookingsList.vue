@@ -729,27 +729,27 @@ function openMenu(event: Event, row: any) {
 }
 
 async function copyEmbedCode() {
-  await navigator.clipboard.writeText(embedCode.value)
+  await copyText(embedCode.value)
   toast.add({ severity: 'success', summary: 'Embed code copied!', life: 3000 })
   sharePopover.value.hide()
 }
 
 async function copyOrgLink() {
   const url = orgUrl()
-  await navigator.clipboard.writeText(url)
+  await copyText(url)
   toast.add({ severity: 'success', summary: 'Link copied!', detail: url, life: 3000 })
   sharePopover.value.hide()
 }
 
 async function copyActivityLink(activityId: string) {
   const url = activityUrl(activityId)
-  await navigator.clipboard.writeText(url)
+  await copyText(url)
   toast.add({ severity: 'success', summary: 'Link copied!', detail: url, life: 3000 })
   sharePopover.value.hide()
 }
 
 async function copyEmbedFor(activityId?: string) {
-  await navigator.clipboard.writeText(embedSnippet(activityId))
+  await copyText(embedSnippet(activityId))
   toast.add({
     severity: 'success',
     summary: activityId ? 'Activity embed copied!' : 'Picker embed copied!',

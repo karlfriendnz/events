@@ -1,7 +1,10 @@
 <template>
   <div class="flex h-screen overflow-hidden" style="background:#F5F8FA">
-    <!-- Icon-rail sidebar (desktop only — mobile uses the bottom tab bar) -->
-    <aside class="shrink-0 hidden md:flex flex-col py-3 gap-1 relative z-[60] transition-[width] duration-200"
+    <!-- Icon-rail sidebar (desktop only — mobile uses the bottom tab bar).
+         Hidden when embedded in the old platform: that shell supplies the
+         navigation, and two left menus side by side is nobody's idea of one
+         product. -->
+    <aside v-if="!embedSession" class="shrink-0 hidden md:flex flex-col py-3 gap-1 relative z-[60] transition-[width] duration-200"
       :class="railExpanded ? 'w-56 items-stretch px-2' : 'w-14 items-center'"
       style="background: linear-gradient(180deg, var(--brand-primary) 0%, var(--brand-primary-dark, #21278E) 100%)">
       <button type="button" @click="toggleRail"
@@ -158,8 +161,9 @@
          drawer slides out on the right (desktop only; it overlays on mobile). -->
     <div class="flex flex-col flex-1 min-w-0 transition-[margin] duration-300 ease-out"
       :class="(reviewPanel || notesPanel) ? 'md:mr-[440px]' : ''">
-      <!-- Top header bar -->
-      <header class="h-14 shrink-0 bg-white border-b border-gray-200 flex items-center px-3 sm:px-6 gap-2 sm:gap-4 z-30 relative">
+      <!-- Top header bar. Suppressed in the embed for the same reason as the
+           rail — the old platform already has one directly above it. -->
+      <header v-if="!embedSession" class="h-14 shrink-0 bg-white border-b border-gray-200 flex items-center px-3 sm:px-6 gap-2 sm:gap-4 z-30 relative">
         <!-- Mobile brand mark (icon rail is hidden on mobile) — tap to go home -->
         <NuxtLink to="/dashboard" class="md:hidden w-8 h-8 shrink-0 rounded-lg flex items-center justify-center overflow-hidden" style="background: var(--brand-primary)" :title="activeOrgName">
           <img v-if="brandMark" :src="brandMark" class="w-full h-full object-cover" />
@@ -309,8 +313,9 @@
         </button>
       </header>
 
-      <!-- Page content -->
-      <main class="flex-1 overflow-y-auto relative pb-16 md:pb-0">
+      <!-- Page content. In the embed there is no bottom tab bar to clear, so
+           the padding that reserves room for it would just be dead space. -->
+      <main class="flex-1 overflow-y-auto relative" :class="embedSession ? '' : 'pb-16 md:pb-0'">
         <!-- Preview-as-type banner: an admin is viewing the app as a person type -->
         <div v-if="preview.active.value" class="sticky top-0 z-40 flex items-center justify-center gap-3 px-4 py-2 bg-amber-500 text-white text-sm font-medium">
           <i class="pi pi-eye text-xs" />
@@ -355,8 +360,9 @@
       <Toast />
     </div>
 
-    <!-- Mobile bottom tab bar -->
-    <nav class="md:hidden fixed bottom-0 left-0 right-0 z-[55] bg-white border-t border-gray-200 flex items-stretch h-16"
+    <!-- Mobile bottom tab bar (never in the embed — the old platform owns
+         navigation, and a fixed bar would sit over the host page's own). -->
+    <nav v-if="!embedSession" class="md:hidden fixed bottom-0 left-0 right-0 z-[55] bg-white border-t border-gray-200 flex items-stretch h-16"
       style="padding-bottom: env(safe-area-inset-bottom)">
       <NuxtLink v-for="item in mobilePrimaryForModules" :key="item.href" :to="item.href"
         class="flex-1 flex flex-col items-center justify-center gap-0.5"
@@ -583,6 +589,14 @@ async function handleLogout() {
   navigateTo('/login')
 }
 
+/**
+ * True when the app is running inside the OLD platform's iframe (set by
+ * /embed once its login token has been exchanged). The old platform is the
+ * shell in that case, so this layout drops its own rail, header and tab bar
+ * rather than stacking a second set of navigation inside the first.
+ */
+const embedSession = useState<boolean>('fmEmbedSession', () => false)
+
 const showDisclaimer = ref(false)
 
 function acknowledgeDisclaimer() {
@@ -591,6 +605,11 @@ function acknowledgeDisclaimer() {
 }
 
 onMounted(() => {
+  // Never inside the old platform's iframe: the club is looking at their own
+  // system, and a prototype warning popping up mid-page reads as the OLD
+  // system throwing an error at them.
+  if (embedSession.value) return
+
   if (!sessionStorage.getItem('prototype_acknowledged')) {
     showDisclaimer.value = true
   }
