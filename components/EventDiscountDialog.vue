@@ -440,12 +440,13 @@ function save() {
           </div>
         </div>
 
-        <!-- Settings toggles -->
-        <div class="px-5 py-3.5 flex items-center justify-between">
-          <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
-            <ToggleSwitch v-model="draft.is_active" />
-            Enabled
-          </label>
+        <!-- "Enabled" used to sit here beside Save-as-template. It said the same
+             thing as the validity window directly above it — a discount that runs
+             from a date until another date is on between them and off outside them —
+             and two controls for one fact can disagree, leaving a discount that looks
+             live and isn't. A discount you're adding is on; to stop it, change the
+             dates or delete it. (draft.is_active still exists and stays true.) -->
+        <div class="px-5 py-3.5 flex items-center justify-end">
           <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
             <ToggleSwitch v-model="draft.save_as_template" />
             Save as template

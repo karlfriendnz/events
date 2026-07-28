@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-333 sessions · 1877 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+333 sessions · 1884 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-26 19:54 (41 prompts)
@@ -29621,7 +29621,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > </task-notification>
 
 
-## Session 2026-07-26 22:49 (72 prompts)
+## Session 2026-07-26 22:49 (79 prompts)
 
 **22:49** — are there anything to deploy? just give me yes or no - hide bash responce
 
@@ -29783,6 +29783,68 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **01:31** — actually lets make it so the report sits under a differnet page under "attendace" tab
 
 **01:36** — deploy live
+
+**01:50** — <task-notification>
+> <task-id>bcd71oi9s</task-id>
+> <summary>Monitor event: "new review tasks written to docs/review-tasks.md"</summary>
+> <event>NEW REVIEW TASKS: docs/review-tasks.md updated — 1 task(s) sent.</event>
+> </task-notification>
+
+**01:53** — <task-notification>
+> <task-id>bcd71oi9s</task-id>
+> <summary>Monitor event: "new review tasks written to docs/review-tasks.md"</summary>
+> <event>NEW REVIEW TASKS: docs/review-tasks.md updated — 1 task(s) sent.</event>
+> </task-notification>
+
+**01:56** — This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.
+> 
+> Summary:
+> 1. **Primary Request and Intent:**
+> 
+>    - **Deploy to production** (twice): first deploy of a large batch (12 commits + ~90 uncommitted files), then later "deploy live" for the programme/attendance work. Karl's standing rule (CLAUDE.md): a deploy includes applying pending DB migrations to BOTH prod TiDB and Supabase, not just `git push`.
+>    - **Fix prod breakage** after the first deploy ("not working on live", "orgs not loading").
+>    - **Work the review-comment loop** (`dtr` / `rtd` = read `docs/review-tasks.md`, triage, build one at a time, mark each via `PATCH /api/v1/reviews/comments/<id>`).
+>    - **Make the dev-server port detection part of the session ritual** so review comments always get marked.
+>    - **Fix Quick-event focus loss**, which took three attempts.
+>    - **Extensive UI iteration** on: the New event modal, the programme Dates tab, a new per-session attendance page, the event details card, registration form payment/discounts, and an attendance report matrix.
+>    - Most recent: three review tasks on `/events/new-basic` — blank end date/time, equal start/end times allowed, and (in progress) sign-up date must not be after the event's end date.
+>    - Outstanding request not yet started: "update all seed data emails to @example.com".
+> 
+> 2. **Key Technical Concepts:**
+>    - Nuxt 3 (`ssr: false`), Vue 3 `<script setup>`, PrimeVue v4, Tailwind
+>    - MySQL/TiDB seam (`use*Api` → `/api/v1` → drizzle repositories); Supabase legacy hybrid
+>    - SFC compile-check validation (`@vue/compiler-sfc` parse + compileScript + compileTemplate) — used INSTEAD of `npm run build` whenever the dev server is running
+>    - `claude-in-chrome` browser automation for reproducing bugs in Karl's own browser
+>    - TDZ hazard in `<script setup>` (consts not hoisted — watchers must sit below the refs they read)
+>    - Local vs UTC date keys; PrimeVue Dialog focus-restore; `v-show` vs `v-if` for state retention
+>    - localStorage-gated behaviour causing non-reproducible bugs
+> 
+> 3. **Files and Code Sections:**
+> 
+>    - **`components/EventAttendance.vue`** — the attendance roll. Many changes:
+>      - Quick-event mode: `isQuickEvent` (`event.value?.created_via === 'quick'`), `showSignOut`, `signInLabel`, `signInStickyClass` (`right-[160px]` → `right-[72px]` when Sign Out hidden), `colCount` 7→6
+>      - Print rework: `printAttendanceRoll()` now lifts `.roll-print-sheet` (the preview) to `<body>` instead of cloning `.roll-print-area`
+>      - Sheet: First name / Last name columns, `sheetSort`/`toggleSheetSort`/`sheetSortIcon` (default first-name A–Z, blanks last), `printSignInTime`/`printSignOutTime` blank ruled columns
+>      - `applyProgrammePrintDefaults()` — landscape/signature/no-status/both time columns when `is_programme`
+>      - `singleSession` prop hides the session list; `sessionId` prop preselects
+>      - Columns saved per event: 
+> … [truncated — 14153 chars total]
+
+**01:57** — <task-notification>
+> <task-id>bcd71oi9s</task-id>
+> <summary>Monitor event: "new review tasks written to docs/review-tasks.md"</summary>
+> <event>NEW REVIEW TASKS: docs/review-tasks.md updated — 2 task(s) sent.</event>
+> </task-notification>
+
+**02:03** — <task-notification>
+> <task-id>bcd71oi9s</task-id>
+> <summary>Monitor event: "new review tasks written to docs/review-tasks.md"</summary>
+> <event>NEW REVIEW TASKS: docs/review-tasks.md updated — 1 task(s) sent.</event>
+> </task-notification>
+
+**02:19** — dtr
+
+**03:14** — Yes tags is a thing on people. - see old platform for this
 
 
 ## Session 2026-07-27 19:34 (26 prompts)

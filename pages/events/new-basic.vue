@@ -54,19 +54,21 @@
       <div class="flex items-center px-4 md:px-6 py-3 gap-0 overflow-x-auto no-scrollbar">
         <template v-for="(s, idx) in mobileSteps" :key="s.key">
           <div class="flex items-center gap-2 shrink-0"
-            :class="idx < mobileStep ? 'cursor-pointer' : ''"
-            @click="idx < mobileStep && (mobileStep = idx)">
+            :class="canJumpTo(idx) ? 'cursor-pointer' : ''"
+            @click="jumpToStep(idx)">
             <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all"
               :class="idx < mobileStep
                 ? 'bg-primary text-white'
                 : idx === mobileStep
                   ? 'bg-primary text-white ring-4 ring-primary/20'
-                  : 'bg-gray-100 text-gray-400'">
+                  : idx <= furthestStep
+                    ? 'bg-primary/10 text-primary'  /* been there, can go back to it */
+                    : 'bg-gray-100 text-gray-400'">
               <i v-if="idx < mobileStep" class="pi pi-check text-[10px]" />
               <span v-else>{{ idx + 1 }}</span>
             </div>
             <span class="text-xs font-medium whitespace-nowrap hidden sm:inline"
-              :class="idx <= mobileStep ? 'text-gray-800' : 'text-gray-400'">
+              :class="idx <= mobileStep ? 'text-gray-800' : (idx <= furthestStep ? 'text-primary' : 'text-gray-400')">
               {{ s.label }}
             </span>
           </div>
@@ -118,7 +120,11 @@
 
         <!-- ─ Event Info ─ -->
         <div :class="isStep('info') ? 'px-1' : 'hidden'">
-          <div class="mb-3">
+          <!-- Headings are for the ONE-PAGE view only. In the wizard the step path
+               at the top already says which step you're on, so a title repeating it
+               (plus a description of a step you're standing in) is noise above every
+               screen. Kept for `?mode=full`, where nothing else separates sections. -->
+          <div v-if="!stepped" class="mb-3">
             <h2 class="section-title">Event info</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Event info') }}</p>
           </div>
@@ -170,9 +176,22 @@
                 </span>
               </div>
             </div>
-            <!-- Sign-up window — moved to the first tab (opens now → event start by default).
-                 py-2 for the same reason as the Date block above. -->
-            <div class="px-5 py-0 border-b border-gray-100">
+            <!-- Sign-up window. Nearly every event wants "from now until it starts",
+                 and that answer needs no dates at all — so it's the default and the
+                 two date fields stay out of the way until someone actually wants
+                 something else. One either/or question, one SelectButton. -->
+            <div class="px-5 py-4" :class="signupMode === 'custom' ? '' : 'border-b border-gray-100'">
+              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4 items-center'">
+                <label class="field-label">Sign up</label>
+                <div class="flex flex-col gap-2 min-w-0">
+                  <SelectButton :model-value="signupMode" :options="SIGNUP_MODES"
+                    option-label="label" option-value="value" :allow-empty="false"
+                    class="w-max" @update:model-value="setSignupMode" />
+                  <p v-if="signupMode === 'auto'" class="field-help">{{ signupAutoSummary }}</p>
+                </div>
+              </div>
+            </div>
+            <div v-if="signupMode === 'custom'" class="px-5 py-0 border-b border-gray-100">
               <DateTimeEditor
                 v-model:startDate="regOpenDate"
                 v-model:startTime="regOpenTime"
@@ -183,7 +202,8 @@
                 :show-repeat="false"
                 :min-start-date="today"
                 :min-end-date="regOpenDate ?? today"
-                label="Sign up"
+                :max-date="signupMaxDate"
+                label=""
                 start-label="Opens"
                 end-label="Closes"
                 label-width="w-[120px]"
@@ -210,92 +230,27 @@
                    left label can name two side-by-side things. But when the governing
                    body defines no disciplines there's only ONE field left, so it takes
                    the normal left label like every other row. -->
-              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] items-start gap-4'">
-                <span v-if="disciplineEmpty" class="field-label sm:pt-2">Category</span>
-                <span v-else />
-                <div :class="disciplineEmpty ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-1 lg:grid-cols-2 gap-4'">
-                  <!-- Category -->
-                  <div class="min-w-0">
-                  <label v-if="!disciplineEmpty" class="field-label block mb-1.5">Category</label>
-                  <div class="flex items-center gap-2 min-w-0">
-                    <ChipMultiSelect v-model="form.category_ids" :options="categories" option-label="name" option-value="id"
-                      placeholder="Choose categories"   class="flex-1 min-w-0" :show-toggle-all="false">
-                      <template #option="{ option }">
-                        <span class="inline-flex items-center gap-1.5">
-                          <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: option.color || '#94a3b8' }" />
-                          {{ option.name }}
-                        </span>
-                      </template>
-                    </ChipMultiSelect>
-                    <Button icon="pi pi-plus" size="small" severity="secondary" outlined v-tooltip.top="'New calendar'" @click="showNewCategoryDialog = true" />
-                  </div>
-                  </div>
-                  <!-- Discipline — hidden entirely when the governing body defines
-                       none (Category then takes the full row). -->
-                  <div v-show="!disciplineEmpty" class="min-w-0">
-                    <label class="field-label block mb-1.5">Discipline</label>
-                    <DisciplineLinker v-if="draftEventId" entity-type="event" :entity-id="draftEventId" @empty="disciplineEmpty = $event" />
-                    <p v-else class="text-sm text-gray-400 flex items-center gap-2">
-                      <i class="pi pi-spin pi-spinner text-xs" /> Preparing…
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <EventCategoryRow v-model="form.category_ids" :categories="categories"
+                :event-id="draftEventId" :stacked="isMobile"
+                @created="c => categories.push(c)"
+                @discipline-empty="v => disciplineEmpty = v" />
             </div>
             <!-- Age & gender restrictions were removed from the basic event.
                  "Who can see it" used to sit here, under Category. It moved to the
                  Choose-invitees step: seeing it and being invited to it are the same
                  question asked twice, and answering them three steps apart meant
                  picking an audience before you'd picked any people. -->
-            <!-- Banner -->
-            <div class="px-5 py-4">
-              <div :class="isMobile ? 'space-y-1.5' : 'grid grid-cols-[120px_1fr] gap-4'">
-                <label class="field-label pt-1">Banner</label>
-                <div>
-                  <div v-if="!form.banner_url"
-                    class="border-2 border-dashed border-gray-300 rounded-xl px-4 py-5 flex flex-col items-center gap-2 hover:border-primary transition-colors cursor-pointer"
-                    @click="triggerBannerUpload">
-                    <i class="pi pi-image text-2xl text-gray-400" />
-                    <Button label="Upload banner image" severity="secondary" outlined size="small" icon="pi pi-upload" />
-                    <!-- Matches the 3:1 frame below, so the advice and the crop
-                         agree — it said 350 while the box cropped to something else. -->
-                    <p class="text-xs text-gray-500">For best results upload an image that is 1200 × 400</p>
-                  </div>
-                  <!-- Drag the image to choose which part of it shows. Stores a
-                       focal point, not a crop, so the same file re-frames
-                       correctly in every box the banner appears in. -->
-                  <div v-else class="group/banner relative rounded-xl overflow-hidden">
-                    <!-- 3:1 (1200×400), the shape the banner is actually shown
-                         at, so what you frame here is what gets published. The
-                         box was a flat 128px strip — a much wider crop than the
-                         real thing, so a banner could look right while editing
-                         and wrong on the form. aspect-ratio rather than a fixed
-                         height keeps that true at any panel width. -->
-                    <BannerPositioner
-                      v-model="form.banner_position"
-                      :src="form.banner_url"
-                      editable
-                      box-class="w-full aspect-[3/1]">
-                      <div v-if="uploadingBanner" class="absolute inset-0 bg-black/40 flex items-center justify-center">
-                        <i class="pi pi-spin pi-spinner text-white text-xl" />
-                      </div>
-                      <template v-else>
-                        <Button icon="pi pi-upload" severity="secondary" rounded size="small" class="absolute top-2 right-11" @click="triggerBannerUpload" />
-                        <Button icon="pi pi-times" severity="danger" rounded size="small" class="absolute top-2 right-2"
-                          @click="form.banner_url = ''; form.banner_position = ''" />
-                      </template>
-                    </BannerPositioner>
-                  </div>
-                  <input ref="bannerInput" type="file" accept="image/*" class="hidden" @change="handleBannerUpload" />
-                </div>
-              </div>
-            </div>
+            <!-- The banner USED to be captured here. It's the registration form's
+                 header image, so it's set on the Registration form step where you can
+                 see it in place — asking for it on step 1 meant choosing a picture for
+                 a page you hadn't seen. The value still lives on the event (the
+                 designer writes it, the summary rail shows it). -->
           </div>
         </div>
 
         <!-- ─ Location ─ -->
         <div :class="isStep('location') ? 'px-1' : 'hidden'">
-          <div class="mb-3">
+          <div v-if="!stepped" class="mb-3">
             <h2 class="section-title">Location</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Location') }}</p>
           </div>
@@ -316,7 +271,7 @@
 
         <!-- ─ Fees ─ -->
         <div :class="isStep('fees') ? 'px-1' : 'hidden'">
-          <div class="mb-3">
+          <div v-if="!stepped" class="mb-3">
             <h2 class="section-title">Fees</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Fees') }}</p>
           </div>
@@ -413,8 +368,8 @@
                   v-model:type-keys="form.visibility_type_keys"
                   v-model:group-ids="form.visibility_group_ids"
                   v-model:person-ids="form.visibility_person_ids"
-                  hide-custom
-                  label="Who can see it" label-width="sm:w-[150px]" />
+                  as-switch :hide-custom="false"
+                  label="Calendar visibility" label-width="sm:w-[150px]" />
               </div>
 
               <div class="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
@@ -493,7 +448,7 @@
 
         <!-- ─ Settings ─ -->
         <div :class="isStep('settings') ? 'px-1' : 'hidden'">
-          <div class="mb-3">
+          <div v-if="!stepped" class="mb-3">
             <h2 class="section-title">Settings</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Settings') }}</p>
           </div>
@@ -653,14 +608,21 @@
             </div>
           </div>
 
-          <!-- What attendees have to do. ("Sign-up required" used to live here —
-               now that every event has a sign-up window it told the user nothing.) -->
+          <!-- How people sign up. It said just "Replies yes or no" — a sentence with
+               no subject, on a step whose controls never mention it, so it read as a
+               line of someone else's notes. The label is the whole point: it names
+               the RSVP-vs-form choice this event is currently set to.
+               ("Sign-up required" used to live here — now that every event has a
+               sign-up window it told the user nothing.) -->
           <div class="flex gap-2.5">
             <i class="pi text-xs mt-1 shrink-0 text-primary"
               :class="attendeeAction === 'form' ? 'pi-file-edit' : 'pi-check-circle'" />
-            <p class="text-sm text-gray-800">
-              {{ attendeeAction === 'form' ? 'Fills in a form' : 'Replies yes or no' }}
-            </p>
+            <div class="min-w-0">
+              <p class="text-[11px] font-bold uppercase tracking-wide text-gray-400">How they sign up</p>
+              <p class="text-sm text-gray-800">
+                {{ attendeeAction === 'form' ? 'Fills in a registration form' : 'Replies yes or no' }}
+              </p>
+            </div>
           </div>
 
           <div v-if="form.is_public" class="flex gap-2.5">
@@ -712,37 +674,7 @@
 
   <!-- Add Admin Dialog -->
 
-  <!-- New Category Dialog -->
-  <Dialog v-model:visible="showNewCategoryDialog" header="New Category" modal :style="{ width: '95vw', maxWidth: '360px' }">
-    <div class="flex flex-col gap-4 py-1">
-      <div class="flex flex-col gap-1.5">
-        <label class="text-sm font-medium">Name</label>
-        <InputText v-model="newCategoryName" placeholder="Category name" autofocus />
-      </div>
-      <div class="flex flex-col gap-2">
-        <label class="text-sm font-medium">Colour</label>
-        <div class="flex flex-wrap gap-2">
-          <button v-for="color in categoryColorPalette" :key="color"
-            class="w-7 h-7 rounded-full border-2 transition-transform hover:scale-110"
-            :class="newCategoryColor === color ? 'border-gray-900 scale-110' : 'border-transparent'"
-            :style="{ background: color }"
-            @click="newCategoryColor = color" />
-          <div class="flex items-center gap-1.5">
-            <input type="color" v-model="newCategoryColor" class="w-7 h-7 rounded cursor-pointer border border-gray-200" />
-            <span class="text-xs text-gray-500">Custom</span>
-          </div>
-        </div>
-      </div>
-      <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-        <span class="w-3 h-3 rounded-full shrink-0" :style="{ background: newCategoryColor }" />
-        <span class="text-sm font-medium text-gray-700">{{ newCategoryName || 'Category name' }}</span>
-      </div>
-    </div>
-    <template #footer>
-      <Button label="Cancel" severity="secondary" text @click="showNewCategoryDialog = false" />
-      <Button label="Create" :disabled="!newCategoryName.trim()" :loading="savingCategory" @click="createCategory" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
-    </template>
-  </Dialog>
+  <!-- New Category lives inside <EventCategoryRow> — one dialog, every create flow. -->
 
   <Toast />
 </template>
@@ -763,10 +695,6 @@ const orgCurrency = ref('NZD')
 const saving = ref(false)
 const draftEventId = ref<string | null>(null)
 const categories = ref<any[]>([])
-const showNewCategoryDialog = ref(false)
-const newCategoryName = ref('')
-const newCategoryColor = ref('#1E2157')
-const savingCategory = ref(false)
 
 // ── Mobile wizard ──────────────────────────────────────────────────────────
 // This page has TWO presentations of the same form:
@@ -893,11 +821,41 @@ const dateInvalidReason = computed(() => {
     const s = new Date(form.start_time as Date), e = new Date(form.end_time as Date)
     const sameDay = !form.end_date
       || new Date(form.end_date as Date).toDateString() === new Date(form.start_date as Date).toDateString()
-    if (sameDay && e <= s) return 'The end time is before the start time.'
+    // `<` not `<=`: an end EQUAL to the start is allowed (a zero-length slot is a real
+    // thing to record — a check-in, a briefing), only an end BEFORE it is wrong.
+    if (sameDay && e < s) return 'The end time is before the start time.'
+  }
+  // The sign-up window gets the SAME rule as the event's own times: closing may equal
+  // opening, never precede it. Both ends are full datetimes, so one compare covers the
+  // date and the time — and the editor's red ring alone didn't stop you pressing Next.
+  if (form.reg_open_at && form.reg_close_at
+    && new Date(form.reg_close_at as Date) < new Date(form.reg_open_at as Date)) {
+    return 'Sign-ups close before they open.'
   }
   return ''
 })
 const step1Complete = computed(() => !!form.title.trim() && !dateInvalidReason.value)
+
+/**
+ * Jumping around the wizard.
+ *
+ * Only BACKWARDS steps used to be clickable, which made the header a progress bar
+ * rather than navigation: having gone Fees → Settings you couldn't get back to
+ * Settings without pressing Next through everything between. Once a step has been
+ * REACHED it stays reachable, forwards or back.
+ *
+ * The one hard gate is step 1: nothing downstream is meaningful without a name and
+ * a valid date, so blanking the title strands you there exactly as Next does.
+ */
+const furthestStep = ref(0)
+watch(mobileStep, v => { if (v > furthestStep.value) furthestStep.value = v })
+const canJumpTo = (idx: number) =>
+  idx !== mobileStep.value && idx <= furthestStep.value && (idx === 0 || step1Complete.value)
+function jumpToStep(idx: number) {
+  if (!canJumpTo(idx)) return
+  mobileStep.value = idx
+  nextTick(() => { document.querySelector('.overflow-y-auto')?.scrollTo(0, 0) })
+}
 
 function mobileNext() {
   // Don't advance past step 1 on an incomplete/invalid date.
@@ -929,31 +887,9 @@ function mobileBack() {
 
 // ──────────────────────────────────────────────────────────────────────────
 
-const categoryColorPalette = [
-  '#1E2157', '#3B82F6', '#8B5CF6', '#EC4899',
-  '#EF4444', '#F59E0B', '#10B981', '#06B6D4',
-  '#6B7280', '#1EA97C', '#F97316', '#84CC16',
-]
+// Creating a category is <EventCategoryRow>'s job now (it owns the dialog and hands
+// the new row back via @created) — the wizard just keeps its own list in step.
 
-async function createCategory() {
-  if (!newCategoryName.value.trim()) return
-  savingCategory.value = true
-  try {
-    const data = await events.createCategory({
-      orgId: orgId.value,
-      name: newCategoryName.value.trim(),
-      color: newCategoryColor.value,
-    })
-    categories.value.push({ id: data.id, name: data.name, color: data.color })
-    form.category_ids.push(data.id)
-    toast.add({ severity: 'success', summary: 'Calendar created', life: 2000 })
-  } catch { /* dialog closes below */ }
-  showNewCategoryDialog.value = false
-  newCategoryName.value = ''
-  newCategoryColor.value = '#1E2157'
-  savingCategory.value = false
-}
-const bannerInput = ref<HTMLInputElement | null>(null)
 
 import type { LocationEntry } from '~/composables/useLocation'
 import type { FeeLineItem } from '~/composables/useFeeGroups'
@@ -1055,6 +991,39 @@ function withTime(base: Date | null, t: Date | null): Date | null {
 // is what nearly every event wants. We SEED it rather than force it: once the
 // user has touched either end, we stop moving it under them.
 const signupTouched = ref(false)
+
+/**
+ * "From now until it starts" or "Custom".
+ *
+ * The window itself always exists — this only decides whether the club has to SEE
+ * it. In `auto` the two ends keep following the event (move the event, the window
+ * moves with it); the moment someone picks `custom` the dates are theirs and
+ * nothing shifts them again.
+ */
+const signupMode = ref<'auto' | 'custom'>('auto')
+const SIGNUP_MODES = [
+  { label: 'Now until it starts', value: 'auto' },
+  { label: 'Custom', value: 'custom' },
+]
+function setSignupMode(v: 'auto' | 'custom' | null) {
+  if (!v) return
+  signupMode.value = v
+  if (v === 'auto') {
+    // Back to following the event — forget any hand-picked dates, or the summary
+    // would claim "now until it starts" while holding last week's numbers.
+    signupTouched.value = false
+    form.reg_open_at = null
+    form.reg_close_at = null
+    seedSignupWindow()
+  }
+}
+const signupAutoSummary = computed(() => {
+  const starts = form.start_date as Date | null
+  if (!starts) return 'Opens straight away and closes when the event starts.'
+  const d = new Date(starts).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'long' })
+  return `Opens straight away and closes on ${d}, when the event starts.`
+})
+
 function seedSignupWindow() {
   if (signupTouched.value) return
   // Sign-up dates default to MIDNIGHT, not the current clock time. "Opens 27 Jul"
@@ -1197,12 +1166,42 @@ watch(() => [form.start_date, form.start_time, form.is_all_day], () => seedSignu
 // still null (never clobbers a chosen/cleared one — the watcher tracks the DATE, not
 // the times, so editing or clearing a time is never re-seeded). buildDateTime uses only
 // the clock, so the seed's day is irrelevant. MUST stay below `form` (TDZ, as above).
-watch(() => [form.start_date, form.is_all_day], () => {
-  if (form.is_all_day || !form.start_date) return
-  const base = new Date(form.start_date as Date)
-  if (!form.start_time) { const s = new Date(base); s.setHours(9, 0, 0, 0); form.start_time = s }
-  if (!form.end_time)   { const e = new Date(base); e.setHours(11, 0, 0, 0); form.end_time = e }
-}, { immediate: true })
+/**
+ * Sign-ups can't open or close AFTER the event has finished — registering for
+ * something that already happened isn't a window, it's a dead link. The end date when
+ * there is one, else the start (a one-day event ends the day it begins).
+ */
+const signupMaxDate = computed<Date | null>(() => {
+  const d = (form.end_date ?? form.start_date) as Date | null
+  if (!d) return null
+  const out = new Date(d)
+  out.setHours(23, 59, 59, 999)   // the whole of the last day is still "before the end"
+  return out
+})
+// Moving the event EARLIER can strand a sign-up date past the new end — the picker's
+// cap only guards what you choose next, not what was already chosen.
+watch(signupMaxDate, (max) => {
+  if (!max) return
+  if (form.reg_open_at && new Date(form.reg_open_at as Date) > max) form.reg_open_at = new Date(max)
+  if (form.reg_close_at && new Date(form.reg_close_at as Date) > max) form.reg_close_at = new Date(max)
+})
+
+// TIMES START BLANK, and the END follows the start.
+//
+// This used to seed 9:00–11:00 whenever a date existed, so an event dragged off the
+// calendar arrived claiming a two-hour morning slot nobody chose — and the end time
+// was already filled, so the wrong one got saved unless you noticed it. A date can
+// come from the calendar (?date= / ?endDate=); a TIME never does.
+//
+// So: nothing is seeded on arrival, and picking a start time fills the end an hour
+// later — only when the end is still blank, so a chosen end is never overwritten and
+// clearing one doesn't immediately grow another. MUST stay below `form` (TDZ).
+watch(() => form.start_time, (t) => {
+  if (form.is_all_day || !t || form.end_time) return
+  const e = new Date(t as Date)
+  e.setHours(e.getHours() + 1)
+  form.end_time = e
+})
 
 // The wizard's steps. Keyed, not index-based, because the step list is DYNAMIC —
 // the registration-form step only exists when the event actually collects a form
@@ -1423,24 +1422,8 @@ function addFee() {
   form.fees.push({ id: crypto.randomUUID(), name: '', xero_code: '', amount: null })
 }
 
-const { uploadFile } = useUpload()
-const uploadingBanner = ref(false)
-
-function triggerBannerUpload() {
-  bannerInput.value?.click()
-}
-
-async function handleBannerUpload(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0]
-  if (!file) return
-  form.banner_url = URL.createObjectURL(file)
-  uploadingBanner.value = true
-  try {
-    form.banner_url = await uploadFile(file)
-  } finally {
-    uploadingBanner.value = false
-  }
-}
+// Uploading the banner belongs to the Registration form designer now (it writes
+// back through onFormEventEdit); the wizard only carries the value.
 
 function buildDateTime(date: Date | null, time: Date | null): string | null {
   if (!date) return null
@@ -1751,8 +1734,10 @@ async function resumeDraft(): Promise<boolean> {
   form.has_capacity = evt.capacity_max != null
   if (evt.reg_open_at) form.reg_open_at = new Date(evt.reg_open_at)
   if (evt.reg_close_at) form.reg_close_at = new Date(evt.reg_close_at)
-  // A saved window is a deliberate one — don't let the seeder move it.
+  // A saved window is a deliberate one — don't let the seeder move it, and show the
+  // dates rather than a summary claiming they follow the event.
   signupTouched.value = !!(evt.reg_open_at || evt.reg_close_at)
+  if (signupTouched.value) signupMode.value = 'custom'
 
   // Restore the Invitees-step choices, or resuming a draft would silently drop
   // them: a public event would come back private, and an event whose form is

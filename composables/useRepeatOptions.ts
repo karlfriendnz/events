@@ -58,13 +58,40 @@ export function rruleWithCount(rrule: string, count: number | null): string {
   return parts.join(';')
 }
 
+/** The date the rule stops on (UNTIL), or null when it runs on unbounded. */
+export function rruleUntil(rrule: string): Date | null {
+  const m = /(?:^|;)UNTIL=(\d{4})(\d{2})(\d{2})/.exec(rrule || '')
+  if (!m) return null
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+}
+
+/**
+ * Set (or clear) the END DATE of an rrule.
+ *
+ * The mirror of rruleWithCount, and mutually exclusive with it for the same
+ * RFC 5545 reason: a rule carrying both a COUNT and an UNTIL means two different
+ * things depending on who parses it, so setting one drops the other.
+ *
+ * UNTIL is stamped at 23:59:59 so the last day is INCLUDED — an event repeating
+ * "until 30 June" that stops on the 29th is a bug the user can't see the cause of.
+ */
+export function rruleWithUntil(rrule: string, until: Date | null): string {
+  if (!rrule || rrule === 'NONE') return rrule
+  const parts = rrule.split(';').filter(p => p && !/^UNTIL=/.test(p) && (until == null || !/^COUNT=/.test(p)))
+  if (until) {
+    const p2 = (n: number) => String(n).padStart(2, '0')
+    parts.push(`UNTIL=${until.getFullYear()}${p2(until.getMonth() + 1)}${p2(until.getDate())}T235959Z`)
+  }
+  return parts.join(';')
+}
+
 /**
  * Is this rule one of the ready-made presets (as opposed to something built in
- * the Custom dialog)? Compared ignoring COUNT, since the count is exactly what
- * the caller is about to add.
+ * the Custom dialog)? Compared ignoring both endings, since the ending is exactly
+ * what the caller is about to add.
  */
 export function isPresetRrule(rrule: string, date: Date | null): boolean {
-  const bare = rruleWithCount(rrule, null)
+  const bare = rruleWithUntil(rruleWithCount(rrule, null), null)
   return buildRepeatOptions(date).some(o => o.value !== 'CUSTOM' && o.value === bare)
 }
 

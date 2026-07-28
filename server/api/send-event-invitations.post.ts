@@ -98,11 +98,67 @@ export default defineEventHandler(async (event) => {
       ? and(eq(schema.invitees.eventId, eventId), inArray(schema.invitees.personId, personIds))
       : eq(schema.invitees.eventId, eventId))
 
-  const recipients = inviteeRows.filter((i) => {
-    if (!i.email) return false            // nothing to send to
-    if (!resend && i.inviteSentAt) return false  // already told
-    return true
-  })
+  // ── Who actually gets the email ──
+  //
+  // Invite a child and the invitation had nowhere to go: children rarely have
+  // their own email, so they were silently counted as "skipped" and their parents
+  // — who ARE reachable and have asked for the club's mail — never heard about the
+  // event. So an invitee who can't be reached themselves is routed to their
+  // CONTACTS: family members flagged "receives communication on their behalf"
+  // (circle_members.receives_comms), whether or not those contacts are invited.
+  //
+  // The email is still ABOUT the invitee — their name in the merge fields, their
+  // RSVP link — because it's their attendance being asked about. Only the envelope
+  // changes. A contact of two invited children gets one email per child for that
+  // reason: two children, two answers.
+  const unreachable = inviteeRows.filter(i => !i.email && (resend || !i.inviteSentAt))
+  const viaContacts: { personId: string; email: string; firstName: string | null; lastName: string | null; inviteeId: string; onBehalfOf: string }[] = []
+  if (unreachable.length) {
+    const subjectIds = unreachable.map(i => i.personId)
+    // Every circle the unreachable people belong to, then everyone else in those
+    // circles who takes their mail. Two hops, because membership is the link.
+    const myCircles = await db.select({ circleId: schema.circleMembers.circleId, personId: schema.circleMembers.personId })
+      .from(schema.circleMembers)
+      .where(inArray(schema.circleMembers.personId, subjectIds))
+    if (myCircles.length) {
+      const contactRows = await db.select({
+        circleId: schema.circleMembers.circleId,
+        personId: schema.circleMembers.personId,
+        receivesComms: schema.circleMembers.receivesComms,
+        email: schema.persons.email,
+        firstName: schema.persons.firstName,
+        lastName: schema.persons.lastName,
+      })
+        .from(schema.circleMembers)
+        .innerJoin(schema.persons, eq(schema.persons.id, schema.circleMembers.personId))
+        .where(inArray(schema.circleMembers.circleId, myCircles.map(c => c.circleId)))
+
+      for (const inv of unreachable) {
+        const circleIds = myCircles.filter(c => c.personId === inv.personId).map(c => c.circleId)
+        const seen = new Set<string>()
+        for (const c of contactRows) {
+          if (!circleIds.includes(c.circleId)) continue
+          if (c.personId === inv.personId || !c.receivesComms || !c.email) continue
+          if (seen.has(c.email.toLowerCase())) continue   // one circle or three, one email
+          seen.add(c.email.toLowerCase())
+          viaContacts.push({
+            personId: inv.personId, email: c.email, inviteeId: inv.id,
+            firstName: inv.firstName, lastName: inv.lastName,
+            onBehalfOf: [inv.firstName, inv.lastName].filter(Boolean).join(' ') || 'them',
+          })
+        }
+      }
+    }
+  }
+
+  const recipients = [
+    ...inviteeRows.filter((i) => {
+      if (!i.email) return false            // nothing to send to
+      if (!resend && i.inviteSentAt) return false  // already told
+      return true
+    }).map(i => ({ ...i, onBehalfOf: null as string | null })),
+    ...viaContacts.map(c => ({ id: c.inviteeId, personId: c.personId, inviteSentAt: null as any, firstName: c.firstName, lastName: c.lastName, email: c.email, onBehalfOf: c.onBehalfOf })),
+  ]
 
   // Where the event is, in one line — the same summary the RSVP page shows.
   const locs: any = typeof ev.locations === 'string' ? (() => { try { return JSON.parse(ev.locations as any) } catch { return [] } })() : ev.locations
@@ -121,7 +177,10 @@ export default defineEventHandler(async (event) => {
     clubName: org?.name ?? '',
   }
 
-  const results = { sent: 0, failed: 0, skipped: inviteeRows.length - recipients.length }
+  // Skipped = invitees nothing was sent ABOUT. Counted over people rather than
+  // emails, or a parent covering two children would make the number go negative.
+  const covered = new Set(recipients.map(r => r.personId))
+  const results = { sent: 0, failed: 0, skipped: inviteeRows.filter(i => !covered.has(i.personId)).length }
   const errors: string[] = []
 
   for (const inv of recipients) {
@@ -154,7 +213,12 @@ export default defineEventHandler(async (event) => {
         ],
       },
       actions,
-      footnote: wantsForm ? undefined : 'Tap an answer above — it takes one click, no login needed.',
+      // A contact must know WHOSE invitation this is before they answer it —
+      // "Yes, I'll be there" means something different when you're replying for
+      // your child, and a parent of two needs to tell the two emails apart.
+      footnote: inv.onBehalfOf
+        ? `You're getting this because you receive club communication for ${inv.onBehalfOf}. Your answer is recorded as theirs.`
+        : (wantsForm ? undefined : 'Tap an answer above — it takes one click, no login needed.'),
     })
 
     try {

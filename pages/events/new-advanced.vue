@@ -112,33 +112,10 @@
                  (club's sport → its NSO chain), NOT a local list — <DisciplineLinker>
                  resolves + persists event_disciplines itself, so it needs the draft row. -->
             <div class="px-5 py-2 border-b border-gray-100">
-              <div class="grid grid-cols-1 sm:grid-cols-[120px_1fr] items-start gap-1.5 sm:gap-4">
-                <span class="hidden sm:block" />
-                <div :class="disciplineEmpty ? 'grid grid-cols-1 gap-4' : 'grid grid-cols-1 lg:grid-cols-2 gap-4'">
-                  <div class="min-w-0">
-                    <label class="block text-sm font-semibold text-gray-800 mb-1.5">Category</label>
-                    <div class="flex items-center gap-2 min-w-0">
-                      <ChipMultiSelect v-model="form.category_ids" :options="categories" option-label="name" option-value="id"
-                        placeholder="Choose categories"   class="flex-1 min-w-0" :show-toggle-all="false">
-                        <template #option="{ option }">
-                          <span class="inline-flex items-center gap-1.5">
-                            <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: option.color || '#94a3b8' }" />
-                            {{ option.name }}
-                          </span>
-                        </template>
-                      </ChipMultiSelect>
-                      <Button icon="pi pi-plus" size="small" severity="secondary" outlined v-tooltip.top="'New category'" @click="showNewCategoryDialog = true" />
-                    </div>
-                  </div>
-                  <div v-show="!disciplineEmpty" class="min-w-0">
-                    <label class="block text-sm font-semibold text-gray-800 mb-1.5">Discipline</label>
-                    <DisciplineLinker v-if="draftEventId" entity-type="event" :entity-id="draftEventId" @empty="disciplineEmpty = $event" />
-                    <p v-else class="text-sm text-gray-400 flex items-center gap-2">
-                      <i class="pi pi-spin pi-spinner text-xs" /> Preparing…
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <EventCategoryRow v-model="form.category_ids" :categories="categories"
+                :event-id="draftEventId"
+                @created="c => categories.push(c)"
+                @discipline-empty="v => disciplineEmpty = v" />
             </div>
             <!-- Banner -->
             <div class="px-5 py-4">
@@ -319,7 +296,7 @@
                 v-model:type-keys="form.visibility_type_keys"
                 v-model:group-ids="form.visibility_group_ids"
                 v-model:person-ids="form.visibility_person_ids"
-                label="Who can see it" label-width="sm:w-32" />
+                label="Calendar visibility" label-width="sm:w-32" />
             </div>
             <div v-for="opt in visibilityOptions" :key="opt.key" class="flex items-center gap-4 px-5 py-4">
               <div class="flex-1">
@@ -451,30 +428,7 @@
   </div>
   </Teleport>
 
-  <!-- New Category Dialog -->
-  <Dialog v-model:visible="showNewCategoryDialog" header="New Category" modal :style="{ width: '95vw', maxWidth: '360px' }">
-    <div class="flex flex-col gap-4 py-1">
-      <div class="flex flex-col gap-1.5">
-        <label class="text-sm font-medium">Name</label>
-        <InputText v-model="newCategoryName" placeholder="Category name" autofocus />
-      </div>
-      <div class="flex flex-col gap-2">
-        <label class="text-sm font-medium">Colour</label>
-        <div class="flex flex-wrap gap-2">
-          <button v-for="color in colorPalette" :key="color"
-            class="w-7 h-7 rounded-full border-2 transition-transform hover:scale-110"
-            :class="newCategoryColor === color ? 'border-gray-900 scale-110' : 'border-transparent'"
-            :style="{ background: color }"
-            @click="newCategoryColor = color" />
-        </div>
-      </div>
-    </div>
-    <template #footer>
-      <Button label="Cancel" severity="secondary" text @click="showNewCategoryDialog = false" />
-      <Button label="Create" :disabled="!newCategoryName.trim()" :loading="savingCategory" @click="createCategory"
-        style="background:var(--brand-primary); border-color:var(--brand-primary)" />
-    </template>
-  </Dialog>
+  <!-- New Category lives inside <EventCategoryRow> — one dialog, every create flow. -->
 
   <Toast />
 </template>
@@ -666,27 +620,8 @@ function buildSessionDatetime(date: Date, time: Date | null, fallbackHour = 0): 
 
 // ── Categories ────────────────────────────────────────────────────────────
 const categories = ref<any[]>([])
-const showNewCategoryDialog = ref(false)
-const newCategoryName = ref('')
-const newCategoryColor = ref('#1E2157')
-const savingCategory = ref(false)
-const colorPalette = ['#1E2157','#3B82F6','#8B5CF6','#EC4899','#EF4444','#F59E0B','#10B981','#06B6D4','#6B7280','#1EA97C','#F97316','#84CC16']
-
-async function createCategory() {
-  if (!newCategoryName.value.trim()) return
-  savingCategory.value = true
-  try {
-    const data = await events.createCategory({
-      orgId: orgId.value, name: newCategoryName.value.trim(), color: newCategoryColor.value,
-    })
-    categories.value.push({ id: data.id, name: data.name, color: data.color })
-    form.category_ids.push(data.id)
-  } catch { /* ignore — dialog closes below */ }
-  showNewCategoryDialog.value = false
-  newCategoryName.value = ''
-  newCategoryColor.value = '#1E2157'
-  savingCategory.value = false
-}
+// Creating one is <EventCategoryRow>'s job (it owns the dialog and hands the new row
+// back via @created) — this list just stays in step.
 
 // ── Banner ────────────────────────────────────────────────────────────────
 const bannerInput = ref<HTMLInputElement | null>(null)

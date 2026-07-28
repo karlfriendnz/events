@@ -116,6 +116,41 @@ body {
   font-size: 0.875rem;
 }
 
+/* ── SYSTEM RULE: the CHOSEN option of a SelectButton is the brand colour ──
+   PrimeVue marks the selection with a white pill on a grey track — two greys a
+   shade apart, which people genuinely could not see ("which one is picked?" on
+   the Quick event's Visibility row). A SelectButton is how the app asks every
+   either/or question, so the answer has to be unmistakable: selected = solid
+   brand, unselected = plain. Global on purpose — never restyle one instance. */
+.p-selectbutton .p-togglebutton.p-togglebutton-checked .p-togglebutton-content,
+.p-togglebutton.p-togglebutton-checked .p-togglebutton-content {
+  background: var(--brand-primary);
+  box-shadow: none;
+}
+/* The checked BUTTON stays invisible — only its content is filled. A SelectButton
+   already draws one border around the whole group, so a border (or a second
+   background) on the button inside it reads as a doubled outline around the chosen
+   option. The fill marks the selection; the group's border stays the group's. */
+.p-selectbutton .p-togglebutton.p-togglebutton-checked,
+.p-togglebutton.p-togglebutton-checked {
+  background: transparent;
+  border-color: transparent;
+}
+/* The label + any icon ride on the brand fill, so they invert. */
+.p-togglebutton.p-togglebutton-checked .p-togglebutton-label,
+.p-togglebutton.p-togglebutton-checked .p-togglebutton-icon,
+.p-togglebutton.p-togglebutton-checked .p-togglebutton-content > * {
+  color: #fff;
+}
+/* Hovering the one already chosen must not fade it back towards grey. */
+.p-selectbutton .p-togglebutton.p-togglebutton-checked:not(:disabled):hover .p-togglebutton-content,
+.p-togglebutton.p-togglebutton-checked:not(:disabled):hover .p-togglebutton-content {
+  background: var(--brand-primary-hover);
+}
+.p-togglebutton.p-togglebutton-checked:not(:disabled):hover .p-togglebutton-label {
+  color: #fff;
+}
+
 /* ── SYSTEM RULE: form typography — SIZE says "what kind of text", WEIGHT says
    "what role" (apply everywhere) ──
    The wizard had field labels at three different weights (400 / 500 / 600) at

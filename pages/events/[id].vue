@@ -4438,16 +4438,15 @@ async function generateOccurrences() {
   }
   generatingSeries.value = true
   try {
-    const { expandRrule, dateKey } = await import('~/composables/useRecurrence')
+    const { expandRrule, dateKey, seriesWindowEnd } = await import('~/composables/useRecurrence')
 
     const masterStart = buildDateTime(editForm.value.start_date, editForm.value.is_all_day ? null : editForm.value.start_time)
     const masterEnd = buildDateTime(editForm.value.end_date, editForm.value.is_all_day ? null : editForm.value.end_time)
     const startDt = new Date(masterStart!)
     const duration = masterEnd ? (new Date(masterEnd).getTime() - startDt.getTime()) : 0
 
-    // Cap window at 12 months ahead unless rule has UNTIL/COUNT
-    const windowEnd = new Date(startDt)
-    windowEnd.setFullYear(windowEnd.getFullYear() + 1)
+    // 12 months ahead for an endless rule; a rule with its own end date runs to it.
+    const windowEnd = seriesWindowEnd(rule, startDt)
     const occurrences = expandRrule(rule, startDt, windowEnd, 200)
 
     const exdateSet = new Set(editForm.value.exdates ?? [])

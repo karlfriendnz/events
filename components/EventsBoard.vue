@@ -734,20 +734,12 @@
             </button>
           </div>
 
-          <!-- Category -->
-          <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
-            <span class="field-label shrink-0 sm:w-20">Category</span>
-            <ChipMultiSelect v-model="quickForm.category_ids" :options="allCategories" option-label="name" option-value="id"
-              chip-color-field="color"
-              placeholder="No category"   class="w-full sm:w-64" :show-toggle-all="false">
-              <template #option="{ option }">
-                <span class="inline-flex items-center gap-1.5">
-                  <span class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: option.color || '#94a3b8' }" />
-                  {{ option.name }}
-                </span>
-              </template>
-            </ChipMultiSelect>
-          </div>
+          <!-- Category + Discipline — the same row the wizards use, so the quickest
+               create flow classifies an event exactly like the slower ones (and can
+               make a category on the spot). Disciplines bind to the draft row. -->
+          <EventCategoryRow v-model="quickForm.category_ids" :categories="allCategories"
+            :event-id="quickDraftId" label-width="5rem"
+            @created="c => allCategories.push(c)" />
 
           <!-- Visibility — who can see this event (defaults to Internal). The picker
                and its option loaders now live in <EventVisibilityPicker>, shared with
@@ -1379,7 +1371,8 @@ async function createQuickEvent() {
         const { expandRrule, dateKey } = await import('~/composables/useRecurrence')
         const startDt = new Date(patch.startAt)
         const duration = patch.endAt ? (new Date(patch.endAt).getTime() - startDt.getTime()) : 0
-        const windowEnd = new Date(startDt); windowEnd.setFullYear(windowEnd.getFullYear() + 1)
+        const { seriesWindowEnd } = await import('~/composables/useRecurrence')
+        const windowEnd = seriesWindowEnd(quickForm.repeat, startDt)
         const exdateSet = new Set(quickForm.exdates ?? [])
         const masterKey = dateKey(startDt)
         const occ = expandRrule(quickForm.repeat, startDt, windowEnd, 200)
@@ -1445,9 +1438,9 @@ async function openSeriesPreview() {
   if (!quickForm.repeat) return
   const startIso = quickBuildDateTime(quickForm.start_date, quickForm.start_time, quickForm.is_all_day)
   if (!startIso) return
-  const { expandRrule, dateKey } = await import('~/composables/useRecurrence')
+  const { expandRrule, dateKey, seriesWindowEnd } = await import('~/composables/useRecurrence')
   const startDt = new Date(startIso)
-  const windowEnd = new Date(startDt); windowEnd.setFullYear(windowEnd.getFullYear() + 1)
+  const windowEnd = seriesWindowEnd(quickForm.repeat, startDt)
   const exdateSet = new Set(quickForm.exdates ?? [])
   seriesPreviewRows.value = expandRrule(quickForm.repeat, startDt, windowEnd, 200).filter((d) => !exdateSet.has(dateKey(d)))
   seriesPreviewOpen.value = true

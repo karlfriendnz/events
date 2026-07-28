@@ -458,10 +458,10 @@ async function propagate(
 async function rebuildSeries(startAt: string | null, endAt: string | null, rule: string | null | undefined) {
   try {
     if (!rule || !startAt) { await eventsApi.deleteSeries(props.eventId); return }
-    const { expandRrule, dateKey } = await import('~/composables/useRecurrence')
+    const { expandRrule, dateKey, seriesWindowEnd } = await import('~/composables/useRecurrence')
     const startDt = new Date(startAt)
     const duration = endAt ? new Date(endAt).getTime() - startDt.getTime() : 0
-    const windowEnd = new Date(startDt); windowEnd.setFullYear(windowEnd.getFullYear() + 1)
+    const windowEnd = seriesWindowEnd(rule, startDt)
     const exdateSet = new Set(form.exdates ?? [])
     const masterKey = dateKey(startDt)
     const occ = expandRrule(rule, startDt, windowEnd, 200)

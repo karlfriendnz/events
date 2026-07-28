@@ -105,3 +105,25 @@ export function expandRrule(
 export function stripTime(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate())
 }
+
+/**
+ * How far ahead to materialise a series.
+ *
+ * A rule with no ending would run forever, so a year is the safety bound. But a
+ * rule that names its own end date must be honoured in full — an event the user
+ * said runs until next December, quietly cut off at twelve months, loses
+ * occurrences nobody can see the reason for.
+ *
+ * Every caller that expands a rule into real rows uses this, so the PREVIEW of a
+ * series and the rows actually created can never disagree about where it stops.
+ */
+export function seriesWindowEnd(rrule: string, startAt: Date): Date {
+  const end = new Date(startAt)
+  end.setFullYear(end.getFullYear() + 1)
+  const u = parseRrule(rrule || '')['UNTIL']
+  if (u) {
+    const until = new Date(Number(u.slice(0, 4)), Number(u.slice(4, 6)) - 1, Number(u.slice(6, 8)), 23, 59, 59)
+    if (until > end) return until
+  }
+  return end
+}

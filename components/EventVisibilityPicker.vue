@@ -22,11 +22,23 @@ const props = withDefaults(defineProps<{
    *  DEFAULT on every surface — pass `:hide-custom="false"` to bring it back, so
    *  re-enabling it (here or per surface) stays a one-line flip. */
   hideCustom?: boolean
+  /**
+   * Ask it as a SWITCH instead of four options: "Display for others" off (only the
+   * people you invite see it) → on, and only then "the whole club" or "certain
+   * people". Four flat options made you weigh four audiences before deciding the
+   * real question, which is whether anyone beyond the invitees sees it at all.
+   * Public isn't offered here — the surfaces using this ask about public sign-ups
+   * as their own question.
+   */
+  asSwitch?: boolean
 }>(), {
   typeKeys: () => [],
   groupIds: () => [],
   personIds: () => [],
-  label: 'Visibility',
+  // Names what it actually controls: where the event SHOWS UP (the club calendar
+  // and the public site), not who is invited to it — that's the invitee list next to
+  // it, and "Who can see it" beside "Choose invitees" read as the same question twice.
+  label: 'Calendar visibility',
   labelWidth: 'sm:w-20',
   hideCustom: true,
 })
@@ -80,13 +92,39 @@ async function loadOptions() {
 // edited event would show its saved picks as bare ids with no labels to match them.
 watch(() => props.modelValue, v => { if (v === 'custom') loadOptions() })
 onMounted(() => { if (props.modelValue === 'custom') loadOptions() })
+
+// ── Switch form ───────────────────────────────────────────────────────────
+// "Shown to others" is everything except invitees-only. `public` counts as shown
+// (an event on the public site is certainly displayed) so an already-public event
+// doesn't render with the switch off.
+const shownToOthers = computed(() => props.modelValue !== 'internal')
+const AUDIENCE_OPTIONS = [
+  { label: 'The whole club', value: 'all_members' },
+  { label: 'Certain people', value: 'custom' },
+]
+function setShown(on: boolean) {
+  // Off returns to invitees-only. On lands on the whole club — the common answer,
+  // and one more click gets you to a narrower list.
+  emit('update:modelValue', on ? 'all_members' : 'internal')
+}
 </script>
 
 <template>
   <div class="flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-4">
     <span v-if="label" class="field-label shrink-0 sm:pt-1.5" :class="labelWidth">{{ label }}</span>
     <div class="flex-1 min-w-0 space-y-2">
-      <SelectButton :model-value="modelValue" :options="options"
+      <template v-if="asSwitch">
+        <div class="flex items-center gap-3">
+          <ToggleSwitch :model-value="shownToOthers" @update:model-value="setShown" />
+          <span class="text-sm text-gray-700">Display for others</span>
+        </div>
+        <p v-if="!shownToOthers" class="field-help">Only the people you invite below will see it.</p>
+        <SelectButton v-else :model-value="modelValue === 'custom' ? 'custom' : 'all_members'"
+          :options="AUDIENCE_OPTIONS" option-label="label" option-value="value"
+          :allow-empty="false" size="small"
+          @update:model-value="emit('update:modelValue', $event)" />
+      </template>
+      <SelectButton v-else :model-value="modelValue" :options="options"
         option-label="label" option-value="value" :allow-empty="false" size="small"
         @update:model-value="emit('update:modelValue', $event)" />
       <div v-if="modelValue === 'custom'" class="space-y-2 rounded-lg border border-gray-200 p-3 bg-gray-50/60">

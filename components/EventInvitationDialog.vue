@@ -16,6 +16,9 @@ import { EVENT_TOKENS, DEFAULT_INVITATION, substituteEventTokens } from '~/compo
 
 const props = defineProps<{ eventId: string }>()
 const visible = defineModel<boolean>('visible', { default: false })
+// Fired only when mail actually left the building, so a host showing the send log
+// can refresh it. Nothing is emitted when there was nobody to send to.
+const emit = defineEmits<{ (e: 'sent', count: number): void }>()
 
 const eventsApi = useEventsApi()
 const orgsApi = useOrganisationsApi()
@@ -126,6 +129,7 @@ async function send() {
         life: 4000,
       })
       visible.value = false
+      emit('sent', res.sent)
     } else {
       const detail = res.failed ? (res.errors?.[0] ?? 'Every send failed.') : 'Everyone invited has already been sent this invitation.'
       if (res.failed) errorMsg.value = detail

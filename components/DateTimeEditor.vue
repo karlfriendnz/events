@@ -269,12 +269,21 @@ function openEndDate() {
   nextTick(() => (endDateRef.value?.$el?.querySelector('input') as HTMLInputElement | undefined)?.focus())
 }
 function onStartDate(v: Date | null) {
+  const prevStart = props.startDate
   emit('update:startDate', v)
-  // End date before the new start → drop it rather than keep an invalid range.
-  if (v && props.endDate && v > props.endDate) emit('update:endDate', null)
-  // A blank end date defaults to the start date (single-day by default). Only fills
-  // a blank — never overwrites an end the user already picked.
-  if (v && !props.endDate) emit('update:endDate', v)
+  // THE END DATE FOLLOWS THE START. Three cases, all landing on "match the start":
+  //  · blank end            → a new event is single-day until told otherwise
+  //  · end was ON the old start (a single-day event that's being MOVED) → move it too,
+  //    or picking a new date leaves the event ending on the day it no longer starts
+  //  · end now BEFORE the start → snap it up rather than blank it, which is what it
+  //    used to do: the field emptied itself and you had to re-enter a date you'd
+  //    already given.
+  // A genuine multi-day range (end after the old start) is left alone — that span is
+  // the user's, not ours to rewrite.
+  if (v) {
+    const wasSingleDay = props.endDate && sameDay(prevStart, props.endDate)
+    if (!props.endDate || wasSingleDay || v > props.endDate!) emit('update:endDate', v)
+  }
   emit('change')
   if (!v) return
   // Auto-advance the sequence: date → time (or → end date when there are no time wheels).
@@ -323,7 +332,9 @@ const endTimeInvalid = computed(() => {
   if (!props.showTime || props.isAllDay) return false
   if (!props.startTime || !props.endTime) return false
   if (!sameDay(props.startDate, props.endDate)) return false
-  return minsOfDay(props.endTime) <= minsOfDay(props.startTime)
+  // `<` not `<=` — an end EQUAL to the start is valid (a zero-length slot: a check-in,
+  // a briefing). Only an end that lands BEFORE the start is wrong.
+  return minsOfDay(props.endTime) < minsOfDay(props.startTime)
 })
 
 </script>

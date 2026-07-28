@@ -14,6 +14,8 @@ const commsLoading = ref(false)
 
 // ── Send composer ──
 const showSendComms = ref(false)
+// The real invitation send (see the header button).
+const invitationOpen = ref(false)
 const sendingComms = ref(false)
 const newComms = ref({ channel: 'EMAIL', audience: 'ALL', subject: '', body: '' })
 const audienceOptions = [
@@ -99,6 +101,13 @@ watch(() => props.eventId, loadComms)
         <p class="text-sm text-gray-500 mt-0.5">Below are a list of all communications that have been sent to your invitees</p>
       </div>
       <div class="flex flex-wrap items-center gap-2 shrink-0">
+        <!-- The one button here that REALLY sends. It opens the same invitation
+             composer the wizard uses (club wording, merge fields, live preview) and
+             posts to the send endpoint, which mails each invitee an RSVP or Register
+             link and records an honest recipient count. The two beside it still only
+             write a log row — that's the composer's own gap, not this one's. -->
+        <Button label="Send invitation" icon="pi pi-send" size="small" outlined
+          @click="invitationOpen = true" />
         <Button label="Create email" icon="pi pi-envelope" size="small" severity="secondary" outlined @click="showSendComms = true" />
         <Button label="Send App notifications" icon="pi pi-send" size="small" @click="showSendComms = true" style="background:#34B66D; border-color:#34B66D" />
       </div>
@@ -213,6 +222,10 @@ watch(() => props.eventId, loadComms)
         <Button label="Send" :loading="sendingComms" :disabled="!newComms.subject || !newComms.body" @click="handleSendComms" style="background:var(--brand-primary); border-color:var(--brand-primary)" />
       </template>
     </Dialog>
+
+    <!-- The real thing: club wording + merge fields + preview, then an actual send.
+         Reloads the log so the row it writes appears without a refresh. -->
+    <EventInvitationDialog v-model:visible="invitationOpen" :event-id="eventId" @sent="loadComms" />
 
   </div>
 </template>

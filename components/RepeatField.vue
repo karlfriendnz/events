@@ -12,18 +12,20 @@
         @update:model-value="onRuleChange"
         @customRepeat="openCustom" />
 
-      <!-- How many times it runs. Sits ON the repeat row: choosing "Weekly on
-           Sunday" immediately raises "how many Sundays?", and answering it
-           shouldn't mean opening the Custom dialog and rebuilding the rule you
-           just picked. Hidden for a CUSTOM rule, which sets its own end. -->
+      <!-- WHEN IT STOPS. Sits ON the repeat row: choosing "Weekly on Sunday"
+           immediately raises "until when?", and answering it shouldn't mean
+           opening the Custom dialog and rebuilding the rule you just picked.
+           Hidden for a CUSTOM rule, which sets its own end.
+
+           A DATE, not a count of occurrences: clubs think in terms of "runs to
+           the end of term", never "runs 14 times" — and a count makes you do the
+           arithmetic yourself. Seeded a year out the first time a repeat is
+           chosen, so the series is bounded by default rather than infinite. -->
       <div v-if="showOccurrences" class="shrink-0 flex items-center gap-1.5">
-        <InputNumber :model-value="occurrences" :min="1" :max="999"
-          :use-grouping="false" class="w-16" :input-class="'w-16 text-center'"
-          placeholder="∞"
-          @update:model-value="onOccurrences" />
-        <span class="text-xs text-gray-500 whitespace-nowrap">
-          {{ occurrences ? `time${occurrences === 1 ? '' : 's'}` : 'times' }}
-        </span>
+        <span class="text-xs text-gray-500 whitespace-nowrap">until</span>
+        <DatePicker :model-value="until" date-format="d M yy" placeholder="No end"
+          show-icon icon-display="input" show-button-bar :min-date="baseDate ?? undefined"
+          class="w-44" @update:model-value="onUntil" />
       </div>
 
       <button v-if="hasRule && baseDate" type="button"
@@ -148,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { rruleToSummary, rruleCount, rruleWithCount, isPresetRrule } from '~/composables/useRepeatOptions'
+import { rruleToSummary, rruleCount, rruleWithCount, rruleUntil, rruleWithUntil, isPresetRrule } from '~/composables/useRepeatOptions'
 
 const props = withDefaults(defineProps<{
   modelValue: string             // rrule
@@ -169,18 +171,46 @@ const emit = defineEmits<{
 const hasRule = computed(() => !!props.modelValue && props.modelValue !== 'NONE')
 
 /**
- * The occurrence box shows for a PRESET repeat only. A rule built in the Custom
+ * The end-date box shows for a PRESET repeat only. A rule built in the Custom
  * dialog already carries its own ending (a count or an until date), so offering
  * a second control for the same thing would let the row and the dialog disagree.
  */
-/** The rule minus its count — what the dropdown matches its options against. */
-const bareRule = computed(() => rruleWithCount(props.modelValue, null))
+/** The rule minus its ending — what the dropdown matches its options against. */
+const bareRule = computed(() => rruleWithUntil(rruleWithCount(props.modelValue, null), null))
 const showOccurrences = computed(() => hasRule.value && isPresetRrule(props.modelValue, props.baseDate ?? null))
-const occurrences = computed(() => rruleCount(props.modelValue))
-function onOccurrences(v: number | null) {
-  // Blank means "no limit" — the series simply runs on, which is what an rrule
-  // with no COUNT already means.
-  emit('update:modelValue', rruleWithCount(props.modelValue, v && v > 0 ? v : null))
+
+/**
+ * A rule from before this control existed may still carry a COUNT. Rather than
+ * showing an empty date box beside a rule that plainly does end, the count is
+ * projected onto the calendar so the box shows the date it actually stops.
+ */
+const until = computed(() => rruleUntil(props.modelValue) ?? countEndDate())
+function countEndDate(): Date | null {
+  const n = rruleCount(props.modelValue)
+  if (!n || !props.baseDate) return null
+  const freq = /FREQ=(\w+)/.exec(props.modelValue)?.[1] ?? 'WEEKLY'
+  const step = Number(/INTERVAL=(\d+)/.exec(props.modelValue)?.[1] ?? 1)
+  const d = new Date(props.baseDate)
+  const gaps = (n - 1) * step
+  if (freq === 'DAILY') d.setDate(d.getDate() + gaps)
+  else if (freq === 'WEEKLY') d.setDate(d.getDate() + gaps * 7)
+  else if (freq === 'MONTHLY') d.setMonth(d.getMonth() + gaps)
+  else if (freq === 'YEARLY') d.setFullYear(d.getFullYear() + gaps)
+  return d
+}
+
+function onUntil(v: Date | null) {
+  // Cleared means "no end" — the series simply runs on, which is what an rrule
+  // with neither UNTIL nor COUNT already means.
+  emit('update:modelValue', rruleWithUntil(props.modelValue, v ?? null))
+}
+
+/** A year from the start — a sane bound for "every week" that nobody has to type. */
+function defaultUntil(): Date | null {
+  if (!props.baseDate) return null
+  const d = new Date(props.baseDate)
+  d.setFullYear(d.getFullYear() + 1)
+  return d
 }
 
 // ── Skip-dates dialog ────────────────────────────────────
@@ -198,11 +228,12 @@ function formatExdateLabel(key: string) {
 }
 
 function onRuleChange(v: string) {
-  // Keep the count across a frequency change: someone who said "8 times" and
-  // then switched Daily → Weekly still means 8 times, and silently dropping it
-  // makes the box feel like it didn't take.
-  const keep = rruleCount(props.modelValue)
-  const next = v && v !== 'NONE' && v !== 'CUSTOM' ? rruleWithCount(v, keep) : v
+  // Keep the end date across a frequency change: someone who said "until 30 June"
+  // and then switched Daily → Weekly still means until 30 June, and silently
+  // dropping it makes the box feel like it didn't take. Turning a repeat ON for
+  // the first time seeds a year out rather than leaving it unbounded.
+  const keep = until.value ?? defaultUntil()
+  const next = v && v !== 'NONE' && v !== 'CUSTOM' ? rruleWithUntil(v, keep) : v
   emit('update:modelValue', next)
   if (!next || next === 'NONE') emit('update:exdates', [])
 }

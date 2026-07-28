@@ -588,7 +588,11 @@ function printAttendanceRoll() {
 // so the preview and the real print stay in sync). "Print" fires the real print.
 const printPreviewOpen = ref(false)
 const printOrientation = ref<'landscape' | 'portrait'>('landscape')
-const printStatus = ref(true)                              // #37 include the Status column
+// Status column. Starts OFF and is switched on by applyStatusPrintDefault() only for
+// an event that charges — see there. `Touched` stops that default from overwriting a
+// deliberate tick when the roll reloads (switching session, refreshing invitees).
+const printStatus = ref(false)
+const printStatusTouched = ref(false)
 const printSignStyle = ref<'tick' | 'sign'>('tick')        // #36 tick boxes vs sign + time
 // Time columns: a ruled space to WRITE the clock time in, beside the tick/signature.
 // They are blank by design — `attended` and `signedOut` are booleans, so the system has
@@ -883,10 +887,31 @@ function applyProgrammePrintDefaults() {
   printSignOutTime.value = true
 }
 
+/**
+ * Status is a MONEY column in practice — "Confirmed / Pending" mostly answers "have
+ * they paid?", and on a free event every row says the same thing, so it's a column of
+ * noise on a sheet you're holding at the door. Ticked by default only when the event
+ * actually charges for something.
+ *
+ * Runs BEFORE the programme defaults are applied, which force it off regardless.
+ * Never overrides a choice the user has made in the drawer (`printStatusTouched`).
+ */
+async function applyStatusPrintDefault() {
+  if (printStatusTouched.value) return
+  let charges = false
+  try {
+    const sessionIds = attendanceSessions.value.map((s: any) => s.id)
+    const fees = await eventsApi.feeComponents({ eventId: props.eventId, sessionIds })
+    charges = (fees ?? []).some((f: any) => Number(f.amount ?? 0) > 0)
+  } catch { /* can't tell → leave it as it was */ return }
+  printStatus.value = charges
+}
+
 async function load() {
   selectedAttendanceSessionId.value = null
   sessionAttendanceData.value = {}
   await Promise.all([loadEvent(), loadSessions(), loadFieldDefs()])
+  await applyStatusPrintDefault()
   applyProgrammePrintDefaults()
   await applyCategoryColumnDefaults()
   await loadInvitees()
@@ -1553,7 +1578,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
           </div>
           <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Columns</p>
           <label class="flex items-center gap-2 py-1 cursor-pointer text-sm text-gray-700">
-            <Checkbox v-model="printStatus" binary /> Status
+            <Checkbox v-model="printStatus" binary @update:model-value="printStatusTouched = true" /> Status
           </label>
           <label class="flex items-center gap-2 py-1 cursor-pointer text-sm text-gray-700">
             <Checkbox v-model="printSignInTime" binary /> {{ isQuickEvent ? 'Time attended' : 'Sign in time' }}
