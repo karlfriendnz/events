@@ -1052,7 +1052,114 @@
       <div v-else-if="activeTab === 'communication'" class="max-w-[1140px] mx-auto px-3 sm:px-6 py-4 sm:py-6 overflow-y-auto flex-1"><EventCommunication :event-id="id" /></div>
 
       <!-- ATTENDANCE TAB -->
-      <EventAttendance v-else-if="activeTab === 'attendance'" :event-id="id" ref="attendanceRef" class="flex-1 min-h-0" />
+      <!-- ATTENDANCE = two views of the same thing: the roll you tick on the day, and
+           the report of what was ticked. The report used to live on Reporting, a tab
+           about money and registrations — it belongs beside the roll it summarises.
+           v-show on the roll, never v-if: it holds the selected session + unsaved
+           column choices, and remounting would drop them every time you glance at the
+           report. Full width for the report, since it is a column per session. -->
+      <div v-else-if="activeTab === 'attendance'" class="flex-1 min-h-0 flex flex-col">
+        <div class="px-3 sm:px-6 pt-3 shrink-0">
+          <SelectButton :model-value="attendanceView" :options="ATTENDANCE_VIEWS"
+            option-label="label" option-value="value" :allow-empty="false" size="small"
+            @update:model-value="setAttendanceView" />
+        </div>
+        <EventAttendance v-show="attendanceView === 'roll'" :event-id="id" ref="attendanceRef" class="flex-1 min-h-0" />
+        <div v-if="attendanceView === 'report'" class="w-full px-3 sm:px-6 py-4 space-y-5 overflow-y-auto flex-1">
+          <!-- ── Attendance report: people × sessions ──
+               The same matrix the group Trainings tab shows, over this event's
+               sessions. Sticky name column + sticky Total so a wide programme can be
+               scrolled sideways without losing who a row belongs to. -->
+          <div v-if="attReportSessions.length" class="space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 class="text-sm font-semibold text-gray-800">Attendance</h3>
+                <p class="field-help">Who came to which session.</p>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <InputText v-model="attReportSearch" placeholder="Search name…" class="w-44" />
+                <Button icon="pi pi-filter" label="Filter" outlined size="small" severity="secondary"
+                  @click="attReportFilterPanel?.toggle($event)" />
+                <Button icon="pi pi-download" label="Export" outlined size="small" severity="secondary"
+                  @click="exportAttendanceReport" />
+              </div>
+            </div>
+
+            <Popover ref="attReportFilterPanel">
+              <div class="p-2 space-y-2 text-sm w-48">
+                <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Show</p>
+                <label class="flex items-center gap-2 cursor-pointer"><Checkbox v-model="attReportFilter.attendees" binary /><span>Attended</span></label>
+                <label class="flex items-center gap-2 cursor-pointer"><Checkbox v-model="attReportFilter.staff" binary /><span>Staff</span></label>
+                <label class="flex items-center gap-2 cursor-pointer"><Checkbox v-model="attReportFilter.absent" binary /><span>Did not attend</span></label>
+              </div>
+            </Popover>
+
+            <div class="card overflow-hidden">
+              <div class="overflow-x-auto">
+                <table class="text-sm border-collapse min-w-full">
+                  <thead>
+                    <tr class="border-b-2 border-gray-200">
+                      <th class="text-left px-4 py-3 font-bold text-gray-700 min-w-[14rem] border-r border-gray-200 sticky left-0 bg-white z-20">Name</th>
+                      <th v-for="s in attReportSessions" :key="s.id"
+                        class="px-2 py-2 text-center font-semibold whitespace-nowrap border-l border-gray-200">
+                        <NuxtLink :to="`/events/attendance/${id}/${s.id}`" class="text-primary hover:underline text-xs leading-tight block">
+                          {{ attReportColLabel(s) }}<br><span class="text-gray-400 font-normal">{{ s.title || 'Session' }}</span>
+                        </NuxtLink>
+                      </th>
+                      <th class="px-3 py-2 text-center font-bold sticky right-0 bg-gray-50 z-10 shadow-[inset_2px_0_0_#d1d5db]">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template v-for="sec in [
+                      { key: 'attendees', label: 'Attended', people: attReportAttendees, on: attReportFilter.attendees, totals: true },
+                      { key: 'staff', label: 'Staff', people: attReportStaff, on: attReportFilter.staff, totals: false },
+                      { key: 'absent', label: 'Did not attend', people: attReportAbsent, on: attReportFilter.absent, totals: false },
+                    ]" :key="sec.key">
+                      <template v-if="sec.on && sec.people.length">
+                        <tr class="bg-gray-100/70 border-y border-gray-200">
+                          <td :colspan="attReportSessions.length + 2" class="px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-gray-500">
+                            {{ sec.label }} <span class="text-gray-400">({{ sec.people.length }})</span>
+                          </td>
+                        </tr>
+                        <tr v-for="p in sec.people" :key="sec.key + p.id" class="border-b border-gray-200 hover:bg-gray-50/60">
+                          <td class="px-4 py-2 border-r border-gray-200 sticky left-0 bg-white z-10">
+                            <NuxtLink :to="`/people/${p.id}`" class="text-primary hover:underline">{{ p.name }}</NuxtLink>
+                          </td>
+                          <td v-for="s in attReportSessions" :key="s.id"
+                            class="px-2 py-2 text-center border-l border-gray-200" :class="attReportCame(p.id, s.id) ? 'bg-green-50' : ''">
+                            <i v-if="attReportCame(p.id, s.id)" class="pi pi-check text-green-600 text-xs" />
+                          </td>
+                          <td class="px-3 py-2 text-center font-medium sticky right-0 bg-gray-50 z-10 shadow-[inset_2px_0_0_#d1d5db]">
+                            {{ attReportPersonTotal(p.id) }}
+                          </td>
+                        </tr>
+                        <tr v-if="sec.totals" class="bg-gray-50 border-y-2 border-gray-200 font-bold">
+                          <td class="px-4 py-2.5 border-r border-gray-200 sticky left-0 bg-gray-50 z-10">Total</td>
+                          <td v-for="s in attReportSessions" :key="s.id" class="px-2 py-2.5 text-center border-l border-gray-200">
+                            {{ attReportSessionTotal(sec.people, s.id) }}
+                          </td>
+                          <td class="px-3 py-2.5 text-center sticky right-0 bg-gray-50 z-10 shadow-[inset_2px_0_0_#d1d5db]">
+                            {{ sec.people.reduce((n, p) => n + attReportPersonTotal(p.id), 0) }}
+                          </td>
+                        </tr>
+                      </template>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+              <div v-if="attReportStats" class="flex flex-wrap gap-x-6 gap-y-1 px-4 py-2.5 border-t border-gray-200 bg-gray-50/60 text-xs text-gray-500">
+                <span><span class="font-semibold text-gray-800">Highest:</span> {{ attReportStats.high.n }} ({{ attReportColLabel({ start_at: attReportStats.high.at }) }})</span>
+                <span><span class="font-semibold text-gray-800">Lowest:</span> {{ attReportStats.low.n }} ({{ attReportColLabel({ start_at: attReportStats.low.at }) }})</span>
+                <span><span class="font-semibold text-gray-800">Average:</span> {{ attReportStats.avg }}</span>
+              </div>
+            </div>
+          </div>
+
+          <p v-if="!attReportSessions.length" class="bg-white rounded-xl border border-gray-200 py-16 text-center text-sm text-gray-400">
+            This event has no sessions, so there is nothing to report on yet.
+          </p>
+        </div>
+      </div>
 
       <!-- Reporting tab -->
       <div v-else-if="activeTab === 'reporting'" class="max-w-[1140px] mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-5 overflow-y-auto flex-1">
@@ -2573,6 +2680,112 @@ const reportingRecentRegistrations = ref<any[]>([])
 // Approximate (since per-session amounts aren't stored on the
 // registration_sessions junction), but stable and traceable.
 const reportingSessionBreakdown = ref<any[]>([])
+
+// ── Attendance report: people × sessions ────────────────────────────────────
+// The same matrix the group Trainings tab shows, pointed at an event's sessions
+// instead of a class's weekly slots: who came to what, at a glance, with the
+// per-person and per-session totals a coach actually reads off it.
+const attMatrix = ref<Record<string, Record<string, boolean>>>({})   // sessionId → personId → came
+const attReportFilterPanel = ref()
+
+// Roll vs report, deep-linked as ?view= so a report can be sent to someone.
+const ATTENDANCE_VIEWS = [
+  { label: 'Take attendance', value: 'roll' },
+  { label: 'Report', value: 'report' },
+]
+const attendanceView = ref<'roll' | 'report'>((route.query.view as any) === 'report' ? 'report' : 'roll')
+function setAttendanceView(v: 'roll' | 'report') {
+  attendanceView.value = v
+  router.replace({ query: { ...route.query, view: v === 'roll' ? undefined : v } })
+  // Numbers are only worth showing when they're current — refresh on each open.
+  if (v === 'report') { loadAttendanceMatrix(); if (!invitees.value.length) loadInvitees() }
+}
+const attReportSearch = ref('')
+const attReportFilter = reactive({ attendees: true, staff: true, absent: true })
+
+/** Sessions as columns — real occurrences only, in time order. */
+const attReportSessions = computed(() =>
+  [...sessions.value.filter((s: any) => !s.is_master && !s.isMaster)]
+    .sort((a: any, b: any) => new Date(a.start_at ?? 0).getTime() - new Date(b.start_at ?? 0).getTime()))
+
+function attReportCame(personId: string, sessionId: string) { return !!attMatrix.value[sessionId]?.[personId] }
+function attReportPersonTotal(personId: string) {
+  return attReportSessions.value.reduce((n, s: any) => n + (attReportCame(personId, s.id) ? 1 : 0), 0)
+}
+function attReportSessionTotal(people: any[], sessionId: string) {
+  return people.reduce((n, p) => n + (attReportCame(p.id, sessionId) ? 1 : 0), 0)
+}
+
+/** Invitees split the way the group report splits them: who's playing, who's running it. */
+const attReportPeople = computed(() => invitees.value
+  .filter((i: any) => i.person_id)
+  .map((i: any) => ({
+    id: i.person_id,
+    name: `${i.person?.first_name ?? ''} ${i.person?.last_name ?? ''}`.trim() || 'Unnamed',
+    // Staff = holds an event role whose group is 'staff' (the scoped-roles catalogue).
+    staff: scopedEv.isStaff('event', Array.isArray(i.roles) ? i.roles : []),
+  }))
+  .sort((a, b) => a.name.localeCompare(b.name)))
+const attReportMatches = (p: any) =>
+  !attReportSearch.value.trim() || p.name.toLowerCase().includes(attReportSearch.value.trim().toLowerCase())
+const attReportAttendees = computed(() => attReportPeople.value.filter(p => !p.staff && attReportPersonTotal(p.id) > 0 && attReportMatches(p)))
+const attReportStaff = computed(() => attReportPeople.value.filter(p => p.staff && attReportMatches(p)))
+// Invited, never turned up — the useful half of an attendance report.
+const attReportAbsent = computed(() => attReportPeople.value.filter(p => !p.staff && attReportPersonTotal(p.id) === 0 && attReportMatches(p)))
+
+/** Highest / lowest / average turnout across the sessions. */
+const attReportStats = computed(() => {
+  const people = attReportPeople.value.filter(p => !p.staff)
+  const counts = attReportSessions.value.map((s: any) => ({ at: s.start_at, n: attReportSessionTotal(people, s.id) }))
+  if (!counts.length) return null
+  const high = counts.reduce((a, b) => (b.n > a.n ? b : a))
+  const low = counts.reduce((a, b) => (b.n < a.n ? b : a))
+  const avg = Math.round((counts.reduce((s, c) => s + c.n, 0) / counts.length) * 10) / 10
+  return { high, low, avg }
+})
+
+const attReportColLabel = (s: any) => s.start_at
+  ? `${new Date(s.start_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}`
+  : (s.title || 'Session')
+
+/** One call for every session, not one per session. */
+async function loadAttendanceMatrix() {
+  const ids = attReportSessions.value.map((s: any) => s.id)
+  if (!ids.length) { attMatrix.value = {}; return }
+  const rows = await attendanceApi.bySessions(ids).catch(() => [] as any[])
+  const m: Record<string, Record<string, boolean>> = {}
+  for (const r of rows as any[]) {
+    const sid = r.sessionId ?? r.session_id
+    const pid = r.personId ?? r.person_id
+    if (!sid || !pid) continue
+    ;(m[sid] ||= {})[pid] = true
+  }
+  attMatrix.value = m
+}
+
+/** CSV of exactly what's on screen — the filters and search carry through. */
+function exportAttendanceReport() {
+  const cols = attReportSessions.value
+  const head = ['Name', 'Type', ...cols.map((s: any) => `${attReportColLabel(s)} ${s.title ?? ''}`.trim()), 'Total']
+  const line = (p: any, type: string) => [
+    p.name, type,
+    ...cols.map((s: any) => (attReportCame(p.id, s.id) ? 'Y' : '')),
+    String(attReportPersonTotal(p.id)),
+  ]
+  const rows: string[][] = []
+  if (attReportFilter.attendees) for (const p of attReportAttendees.value) rows.push(line(p, 'Attendee'))
+  if (attReportFilter.staff) for (const p of attReportStaff.value) rows.push(line(p, 'Staff'))
+  if (attReportFilter.absent) for (const p of attReportAbsent.value) rows.push(line(p, 'Did not attend'))
+  const csv = [head, ...rows]
+    .map(r => r.map(c => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(','))
+    .join('\n')
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${(event.value?.title || 'event').replace(/[^\w-]+/g, '-')}-attendance.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 async function loadReporting() {
   if (reportingLoading.value) return
@@ -4430,8 +4643,13 @@ watch(activeTab, (tab, oldTab) => {
           : (attendanceSessions.value[0]?.id ?? null)
         if (target && selectedAttendanceSessionId.value !== target) selectAttendanceSession(target)
       }
-      if (!sessions.value.length) loadSessions().then(pick)
-      else if (wanted || !selectedAttendanceSessionId.value) pick()
+      const afterSessions = () => {
+        pick()
+        // Landing straight on ?tab=attendance&view=report needs the matrix loaded too.
+        if (attendanceView.value === 'report') loadAttendanceMatrix()
+      }
+      if (!sessions.value.length) loadSessions().then(afterSessions)
+      else afterSessions()
     }
   }
   if (tab === 'details') { loadCategories() }
@@ -4522,8 +4740,12 @@ onMounted(async () => {
         : (attendanceSessions.value[0]?.id ?? null)
       if (target && selectedAttendanceSessionId.value !== target) selectAttendanceSession(target)
     }
-    if (!sessions.value.length) loadSessions().then(pick)
-    else if (wanted || !selectedAttendanceSessionId.value) pick()
+    const afterSessions = () => {
+      pick()
+      if (attendanceView.value === 'report') loadAttendanceMatrix()
+    }
+    if (!sessions.value.length) loadSessions().then(afterSessions)
+    else afterSessions()
   }
 
   // Apply query-param date prefill and persist to DB

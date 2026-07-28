@@ -1,7 +1,7 @@
 # Prompt history — fm-events
 
 Every prompt given to Claude Code on this project, extracted from local session transcripts.
-333 sessions · 1873 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
+333 sessions · 1877 prompts. Grouped by session, oldest first. Regenerate with `node scripts/extract-prompts.mjs` (script lives in the repo).
 
 
 ## Session 2026-06-26 19:54 (41 prompts)
@@ -29621,7 +29621,7 @@ Every prompt given to Claude Code on this project, extracted from local session 
 > </task-notification>
 
 
-## Session 2026-07-26 22:49 (69 prompts)
+## Session 2026-07-26 22:49 (72 prompts)
 
 **22:49** — are there anything to deploy? just give me yes or no - hide bash responce
 
@@ -29778,8 +29778,14 @@ Every prompt given to Claude Code on this project, extracted from local session 
 
 **01:24** — I would like to extnd this report - http://localhost:3005/events/ece8e9e7-ed92-41c1-970d-d5134df236fa?tab=reporting I want this design here http://localhost:3005/groups/f49863a8-a6fa-4b6c-8014-1cd0bea01dcb#trainings
 
+**01:30** — please make the report full screen
 
-## Session 2026-07-27 19:34 (25 prompts)
+**01:31** — actually lets make it so the report sits under a differnet page under "attendace" tab
+
+**01:36** — deploy live
+
+
+## Session 2026-07-27 19:34 (26 prompts)
 
 **19:34** — a little while ago we we looking at importing data for primepups can you please look back on history to look at where we got to whit that give me a summary no bash
 
@@ -30137,4 +30143,6 @@ Every prompt given to Claude Code on this project, extracted from local session 
 **01:13** — What is a new client?
 
 **01:22** — ok lets put this in to the live version of the Journey Dogs
+
+**01:26** — we need to clear out all the data from journey dog training. and then import the data
 
