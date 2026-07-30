@@ -1,7 +1,7 @@
 <template>
   <div class="px-4 sm:px-6 py-5">
     <!-- Public / read-only: static text (custom if set, else the event's own words). -->
-    <div v-if="readonly" class="prose prose-sm max-w-none text-gray-600 leading-relaxed" v-html="displayHtml" />
+    <div v-if="readonly" class="fm-rich prose prose-sm max-w-none text-gray-600 leading-relaxed" v-html="displayHtml" />
 
     <!-- Builder: ONE inline rich-text editor — no box, hover shows an underline + text
          cursor, click to edit with TipTap (multi-line). Same interaction as the form

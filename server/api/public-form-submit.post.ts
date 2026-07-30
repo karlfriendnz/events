@@ -1,4 +1,8 @@
-import { createClient } from '@supabase/supabase-js'
+import { randomUUID } from 'node:crypto'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { db, schema } from '../db/client'
+import { orgGoverning } from '../db/repositories/admin'
+import { onAttendeeConfirmed } from '../db/repositories/events'
 import { applicableDiscounts, aggregateDiscountLines, discountActive } from '../../composables/useDiscountEval'
 import { ageFromDob } from '../../composables/useAge'
 // The SAME evaluator the form uses on screen — see useFormConditions' header for why.
@@ -15,9 +19,21 @@ import { conditionsPass } from '../../composables/useFormConditions'
  *      memberships), and
  *   3. always records one uniform row in form_submissions + a staff notification.
  *
- * Mirrors server/api/public-booking.post.ts: service-role client so an
- * unauthenticated public registrant can write, with org scoping enforced here.
+ * Reads and writes through the MySQL seam (server/db/client), the same backend the
+ * event editor and the public read surface (db/repositories/public.ts) already use.
+ * It ran on Supabase until the events themselves moved, at which point every
+ * submission 404'd on "Event not found" — the event existed, just not in the
+ * database this route was asking. There is no auth to satisfy here: the caller is
+ * an anonymous registrant by design, so org scoping is enforced below instead,
+ * derived from the context entity and never taken from the body.
  */
+
+/** MySQL DATETIME columns come back as Date; the maths below all expects ISO text. */
+function toIso(v: unknown): string | null {
+  if (v == null) return null
+  if (v instanceof Date) return v.toISOString()
+  return String(v)
+}
 
 interface Instance {
   first_name?: string; last_name?: string; email?: string; phone?: string
@@ -44,9 +60,11 @@ export default defineEventHandler(async (event) => {
   if (!Array.isArray(subjects) || !subjects.length) throw createError({ statusCode: 400, message: 'Nothing to submit' })
 
   // /r/form/:id passes the form as the context entity itself.
-  const effectiveFormId: string | null = formId || (context.type === 'form' ? (context.id ?? null) : null)
-
-  const supabase = createClient(supabaseUrl()!, serviceKey()!)
+  // For an event we fall back to the event's OWN form_id below: which subjects pay,
+  // and which fields can add money, are the form's business, and a client that
+  // omitted formId would otherwise silently skip both — the sort of thing that
+  // shows up as a wrong invoice rather than an error.
+  let effectiveFormId: string | null = formId || (context.type === 'form' ? (context.id ?? null) : null)
 
   // ── Resolve org + a human label for the context entity (org derived server-side) ──
   let orgId: string | null = null
@@ -54,20 +72,25 @@ export default defineEventHandler(async (event) => {
   let eventStartAt: string | null = null   // ages a registrant for discount rules (C1)
   let oneDiscountOnly = false               // form.discountSettings.one_discount_only (C1)
   if (context.type === 'event' && context.id) {
-    const { data: ev } = await supabase.from('events')
-      .select('id, org_id, title, status, hold_spot_enabled, start_at').eq('id', context.id).maybeSingle()
+    const [ev] = await db.select({
+      id: schema.events.id, orgId: schema.events.orgId, title: schema.events.title,
+      status: schema.events.status, startAt: schema.events.startAt, formId: schema.events.formId,
+    }).from(schema.events).where(eq(schema.events.id, context.id)).limit(1)
     if (!ev) throw createError({ statusCode: 404, message: 'Event not found' })
     if (ev.status === 'CANCELLED' || ev.status === 'ARCHIVED') throw createError({ statusCode: 409, message: 'Registrations are closed for this event.' })
-    orgId = ev.org_id; contextName = ev.title; eventStartAt = ev.start_at ?? null
+    orgId = ev.orgId; contextName = ev.title ?? ''; eventStartAt = toIso(ev.startAt)
+    effectiveFormId ??= ev.formId ?? null
   } else if (context.type === 'group' && context.id) {
-    const { data: g } = await supabase.from('member_groups').select('id, org_id, name').eq('id', context.id).maybeSingle()
+    const [g] = await db.select({ id: schema.memberGroups.id, orgId: schema.memberGroups.orgId, name: schema.memberGroups.name })
+      .from(schema.memberGroups).where(eq(schema.memberGroups.id, context.id)).limit(1)
     if (!g) throw createError({ statusCode: 404, message: 'Group not found' })
-    orgId = g.org_id; contextName = g.name
+    orgId = g.orgId; contextName = g.name ?? ''
   } else if (effectiveFormId) {
     // Generic form context — /r/form/:id (a form connected to 1+ groups) or a
     // bare ?form_id enquiry. The form itself resolves the org.
-    const { data: f } = await supabase.from('registration_forms').select('org_id, name').eq('id', effectiveFormId).maybeSingle()
-    if (f) { orgId = f.org_id; contextName = f.name }
+    const [f] = await db.select({ orgId: schema.registrationForms.orgId, name: schema.registrationForms.name })
+      .from(schema.registrationForms).where(eq(schema.registrationForms.id, effectiveFormId)).limit(1)
+    if (f) { orgId = f.orgId; contextName = f.name ?? '' }
   }
   if (!orgId) throw createError({ statusCode: 400, message: 'Could not resolve organisation for this submission.' })
 
@@ -81,19 +104,15 @@ export default defineEventHandler(async (event) => {
   // discipline_requirements (keyed by field_definition_id) can never see.
   const labelToDefId: Record<string, string> = {}
   try {
-    const [anc, sportAnc] = await Promise.all([
-      supabase.rpc('org_ancestors', { p_org: orgId }),
-      supabase.rpc('org_sport_ancestors', { p_org: orgId, p_sport: null }),
-    ])
-    const govIds = [...new Set([
-      ...(((anc.data as any[]) ?? []).map((a: any) => a.id)),
-      ...(((sportAnc.data as any[]) ?? []).map((a: any) => a.id)),
-    ])]
+    // orgGoverning() IS org_ancestors ∪ org_sport_ancestors — the recursive CTE that
+    // replaced both Postgres RPCs when the hierarchy moved to MySQL.
+    const govIds = [...new Set((await orgGoverning(orgId)).map(o => o.id))]
     const chain = [orgId, ...govIds]
-    const { data: defs } = await supabase.from('field_definitions').select('id, label, org_id').in('org_id', chain)
+    const defs = await db.select({ id: schema.fieldDefinitions.id, label: schema.fieldDefinitions.label, orgId: schema.fieldDefinitions.orgId })
+      .from(schema.fieldDefinitions).where(inArray(schema.fieldDefinitions.orgId, chain))
     // Own-org definitions win over inherited ones on a label clash.
-    for (const d of (defs ?? []).filter((d: any) => d.org_id !== orgId)) labelToDefId[d.label] = d.id
-    for (const d of (defs ?? []).filter((d: any) => d.org_id === orgId)) labelToDefId[d.label] = d.id
+    for (const d of defs.filter(d => d.orgId !== orgId)) labelToDefId[d.label] = d.id
+    for (const d of defs.filter(d => d.orgId === orgId)) labelToDefId[d.label] = d.id
   } catch { /* field engine optional — fall back to label-keyed custom_fields */ }
 
   // Core identity labels are stored on dedicated person columns, not custom_fields.
@@ -115,10 +134,24 @@ export default defineEventHandler(async (event) => {
   // C1 recompute below. The client applies them to what it SHOWS; the server has to
   // apply them too or the stored total silently drops them.
   const financialFields: any[] = []
+  // WHICH SUBJECTS ACTUALLY PAY.
+  //
+  // A form's people are not all attendees: an Emergency Contact is a person on the
+  // form, not a second ticket. The form charges only its "choosers" (FormRenderer's
+  // `choosers`: subjects flagged selectsOptions, else the first person subject) —
+  // the server charged EVERY person instance, so a $25 event with a required
+  // emergency contact invoiced $50 while the screen said $25. Same rule both sides.
+  const chooserKeys = new Set<string>()
   if (effectiveFormId) {
-    const { data: fr } = await supabase.from('registration_forms').select('config').eq('id', effectiveFormId).maybeSingle()
+    const [fr] = await db.select({ config: schema.registrationForms.config })
+      .from(schema.registrationForms).where(eq(schema.registrationForms.id, effectiveFormId)).limit(1)
     const cfg = (fr?.config ?? {}) as any
     oneDiscountOnly = !!cfg.discountSettings?.one_discount_only
+    for (const list of Object.values(cfg.groupProfiles ?? {}) as any[][]) {
+      const people = (list ?? []).filter((p: any) => p && (p.kind ?? 'person') !== 'entity')
+      const flagged = people.filter((p: any) => p.selectsOptions)
+      for (const c of (flagged.length ? flagged : people.slice(0, 1))) if (c?.key) chooserKeys.add(c.key)
+    }
     for (const fields of Object.values(cfg.groupFields ?? {}) as any[]) {
       for (const f of (fields ?? [])) {
         if (f?.label) fieldConn[f.label] = f.connected_to ?? 'none'
@@ -172,24 +205,34 @@ export default defineEventHandler(async (event) => {
     }
 
     if (email) {
-      const { data: existing } = await supabase.from('persons')
-        .select('id, custom_fields').eq('org_id', orgId).ilike('email', email).maybeSingle()
+      // Case-insensitive on purpose (Supabase used ilike): people type their address
+      // however they like, and a second Person for "Ana@" vs "ana@" is a duplicate
+      // profile plus a second invoice.
+      const [existing] = await db.select({ id: schema.persons.id, customFields: schema.persons.customFields })
+        .from(schema.persons)
+        .where(and(eq(schema.persons.orgId, orgId), sql`lower(${schema.persons.email}) = ${email}`))
+        .limit(1)
       if (existing?.id) {
-        await supabase.from('persons').update({
-          first_name: first || undefined, last_name: last || undefined,
-          phone: inst.phone || undefined, dob: dob || undefined, gender: gender || undefined,
-          custom_fields: { ...(existing.custom_fields ?? {}), ...customFields },
-        }).eq('id', existing.id)
+        // Only overwrite what they actually supplied — undefined would blank a column.
+        const patch: Record<string, any> = {
+          customFields: { ...((existing.customFields as Record<string, any>) ?? {}), ...customFields },
+        }
+        if (first) patch.firstName = first
+        if (last) patch.lastName = last
+        if (inst.phone) patch.phone = inst.phone
+        if (dob) patch.dob = dob
+        if (gender) patch.gender = gender
+        await db.update(schema.persons).set(patch).where(eq(schema.persons.id, existing.id))
         return existing.id
       }
     }
-    const { data: created, error: pErr } = await supabase.from('persons').insert({
-      org_id: orgId, first_name: first || '—', last_name: last || '—',
-      email: email || null, phone: inst.phone || null, dob, gender,
-      custom_fields: customFields,
-    }).select('id').single()
-    if (pErr) throw createError({ statusCode: 500, message: pErr.message })
-    return created.id
+    const personId = randomUUID()
+    await db.insert(schema.persons).values({
+      id: personId, orgId, firstName: first || '—', lastName: last || '—',
+      email: email || null, phone: inst.phone || null, dob: dob || null, gender: gender || null,
+      customFields,
+    })
+    return personId
   }
 
   // Materialise people for every person subject; remember the primary registrant.
@@ -223,46 +266,67 @@ export default defineEventHandler(async (event) => {
     return keys.some(k => k.includes('coach') || k.includes('manager') || k === 'staff')
   }
   async function enrolInGroup(groupId: string, entries: { pid: string; feeOptionId?: string | null }[]): Promise<{ waitlisted: boolean }> {
-    const { data: g } = await supabase.from('member_groups')
-      .select('id, org_id, term_id, capacity, waitlist_id').eq('id', groupId).maybeSingle()
-    if (!g || g.org_id !== orgId || !entries.length) return { waitlisted: false }
+    const [g] = await db.select({
+      id: schema.memberGroups.id, orgId: schema.memberGroups.orgId, termId: schema.memberGroups.termId,
+      capacity: schema.memberGroups.capacity, waitlistId: schema.memberGroups.waitlistId,
+    }).from(schema.memberGroups).where(eq(schema.memberGroups.id, groupId)).limit(1)
+    if (!g || g.orgId !== orgId || !entries.length) return { waitlisted: false }
 
     let isFull = false
     if (g.capacity != null) {
-      const { data: rows } = await supabase.from('member_group_memberships')
-        .select('role, roles').eq('group_id', groupId)
-      isFull = (rows ?? []).filter(r => !staffish(r)).length >= g.capacity
+      const rows = await db.select({ role: schema.memberGroupMemberships.role, roles: schema.memberGroupMemberships.roles })
+        .from(schema.memberGroupMemberships).where(eq(schema.memberGroupMemberships.groupId, groupId))
+      isFull = rows.filter(r => !staffish(r)).length >= g.capacity
     }
-    if (isFull && g.waitlist_id) {
-      await supabase.from('waitlist_entries').upsert(
-        entries.map(e => ({ org_id: orgId, waitlist_id: g.waitlist_id, person_id: e.pid, status: 'waiting' })),
-        { onConflict: 'waitlist_id,person_id', ignoreDuplicates: true },
-      )
+    if (isFull && g.waitlistId) {
+      // "Insert the ones that aren't already there" — MySQL has no onConflict, and
+      // re-queueing somebody already waiting would move them down their own queue.
+      const already = await db.select({ personId: schema.waitlistEntries.personId })
+        .from(schema.waitlistEntries).where(eq(schema.waitlistEntries.waitlistId, g.waitlistId))
+      const have = new Set(already.map(r => r.personId))
+      const fresh = entries.filter(e => !have.has(e.pid))
+      if (fresh.length) {
+        await db.insert(schema.waitlistEntries).values(fresh.map(e => ({
+          // sortOrder/priority are NOT NULL with no default; 0 is the back of the
+          // queue in creation order, which is what joining a waitlist means.
+          id: randomUUID(), orgId: orgId!, waitlistId: g.waitlistId!, personId: e.pid,
+          status: 'waiting', sortOrder: 0, priority: 0,
+        })))
+      }
       return { waitlisted: true }
     }
 
-    let term: { start_date: string | null; end_date: string | null } | null = null
-    if (g.term_id) {
-      const { data: t } = await supabase.from('org_terms').select('start_date, end_date').eq('id', g.term_id).maybeSingle()
+    let term: { startDate: string | null; endDate: string | null } | null = null
+    if (g.termId) {
+      const [t] = await db.select({ startDate: schema.orgTerms.startDate, endDate: schema.orgTerms.endDate })
+        .from(schema.orgTerms).where(eq(schema.orgTerms.id, g.termId)).limit(1)
       term = t ?? null
     }
     // Only stamp fee options that really belong to this group.
-    const { data: validOpts } = await supabase.from('group_fee_options').select('id').eq('group_id', groupId)
-    const validOptIds = new Set((validOpts ?? []).map((o: any) => o.id))
-    await supabase.from('member_group_memberships').upsert(
-      entries.map(e => ({
-        group_id: groupId, person_id: e.pid,
-        ...(e.feeOptionId && validOptIds.has(e.feeOptionId) ? { fee_option_id: e.feeOptionId } : {}),
+    const validOpts = await db.select({ id: schema.groupFeeOptions.id })
+      .from(schema.groupFeeOptions).where(eq(schema.groupFeeOptions.groupId, groupId))
+    const validOptIds = new Set(validOpts.map(o => o.id))
+    // Same ignore-duplicates rule: an existing enrolment keeps its own term/fee stamp
+    // rather than being silently rewritten by a later public sign-up.
+    const existingMembers = await db.select({ personId: schema.memberGroupMemberships.personId })
+      .from(schema.memberGroupMemberships).where(eq(schema.memberGroupMemberships.groupId, groupId))
+    const enrolled = new Set(existingMembers.map(r => r.personId))
+    const toAdd = entries.filter(e => !enrolled.has(e.pid))
+    if (toAdd.length) {
+      await db.insert(schema.memberGroupMemberships).values(toAdd.map(e => ({
+        groupId, personId: e.pid,
+        positions: [],   // NOT NULL json with no default
+
+        ...(e.feeOptionId && validOptIds.has(e.feeOptionId) ? { feeOptionId: e.feeOptionId } : {}),
         // Stamp the group's term so the enrolment records which term it joined.
-        ...(g.term_id ? {
-          term_id: g.term_id,
-          start_date: term?.start_date ?? null,
-          end_date: term?.end_date ?? null,
-          membership_status: 'active',
+        ...(g.termId ? {
+          termId: g.termId,
+          startDate: term?.startDate ?? null,
+          endDate: term?.endDate ?? null,
+          membershipStatus: 'active',
         } : {}),
-      })),
-      { onConflict: 'group_id,person_id', ignoreDuplicates: true },
-    )
+      })))
+    }
     return { waitlisted: false }
   }
 
@@ -273,6 +337,9 @@ export default defineEventHandler(async (event) => {
   const fullAnswers = { subjects, payment, termsAccepted, totals }
   let registrationId: string | null = null
   let waitlisted = false
+  // Who the club actually invoices. Defaults to everyone (non-event contexts keep
+  // their existing behaviour) and is narrowed to the paying subjects below.
+  let payingPersonIds: string[] = personIds
 
   // ── Context-specific materialisation ──
   if (context.type === 'event') {
@@ -280,24 +347,27 @@ export default defineEventHandler(async (event) => {
     // Prices come from the event's own sessions + fee_components; discounts from the
     // discounts table (with their real conditions), evaluated per registrant.
     {
-      const { data: sessRows } = await supabase.from('sessions')
-        .select('id, is_required, start_at').eq('event_id', context.id)
-      const realIds = new Set((sessRows ?? []).map((s: any) => s.id))
-      const requiredIds = (sessRows ?? []).filter((s: any) => s.is_required).map((s: any) => s.id)
+      const sessRowsRaw = await db.select({ id: schema.sessions.id, isRequired: schema.sessions.isRequired, startAt: schema.sessions.startAt })
+        .from(schema.sessions).where(eq(schema.sessions.eventId, context.id))
+      const sessRows = sessRowsRaw.map(s => ({ id: s.id, is_required: !!s.isRequired, start_at: toIso(s.startAt) }))
+      const realIds = new Set(sessRows.map(s => s.id))
+      const requiredIds = sessRows.filter(s => s.is_required).map(s => s.id)
       const startById: Record<string, string | null> = {}
-      for (const s of (sessRows ?? [])) startById[s.id] = s.start_at ?? null
+      for (const s of sessRows) startById[s.id] = s.start_at ?? null
 
       // Event-level fee lines (session_id null) + per-session components. Only our own
       // session ids feed the .in() — client ids are intersected with realIds, never
       // interpolated into a query (no filter injection from the submitted payload).
-      const { data: eventLineRows } = await supabase.from('fee_components')
-        .select('amount').eq('event_id', context.id).is('session_id', null)
-      const eventLines = (eventLineRows ?? []).map((f: any) => Number(f.amount) || 0)
+      const eventLineRows = await db.select({ amount: schema.feeComponents.amount })
+        .from(schema.feeComponents)
+        .where(and(eq(schema.feeComponents.eventId, context.id), isNull(schema.feeComponents.sessionId)))
+      const eventLines = eventLineRows.map(f => Number(f.amount) || 0)
       const eventBase = eventLines.reduce((a, b) => a + b, 0)
       const feeBySession: Record<string, number> = {}
       if (realIds.size) {
-        const { data: sfRows } = await supabase.from('fee_components').select('amount, session_id').in('session_id', [...realIds])
-        for (const f of (sfRows ?? [])) if (f.session_id) feeBySession[f.session_id] = (feeBySession[f.session_id] ?? 0) + (Number(f.amount) || 0)
+        const sfRows = await db.select({ amount: schema.feeComponents.amount, sessionId: schema.feeComponents.sessionId })
+          .from(schema.feeComponents).where(inArray(schema.feeComponents.sessionId, [...realIds]))
+        for (const f of sfRows) if (f.sessionId) feeBySession[f.sessionId] = (feeBySession[f.sessionId] ?? 0) + (Number(f.amount) || 0)
       }
 
       const dayKeyOf = (iso: string | null) => iso ? new Date(iso).toDateString() : ''
@@ -310,26 +380,34 @@ export default defineEventHandler(async (event) => {
       }
       const sessionsByDay: Record<string, string[]> = {}
       const sessionsByWeek: Record<string, string[]> = {}
-      for (const s of (sessRows ?? [])) {
+      for (const s of sessRows) {
         const dk = dayKeyOf(s.start_at); const wk = weekKeyOf(s.start_at)
         if (dk) (sessionsByDay[dk] ??= []).push(s.id)
         if (wk) (sessionsByWeek[wk] ??= []).push(s.id)
       }
 
-      const { data: discRows } = await supabase.from('discounts')
-        .select('name, form_text, modifier_type, modifier_value, conditions, apply_to, valid_from, expires_at, is_active')
-        .eq('event_id', context.id)
-      const activeDiscounts = (discRows ?? []).filter((d: any) => discountActive(d))
+      // camelCase straight from Drizzle: useDiscountEval reads BOTH shapes (see its
+      // discountActive header), so the rows need no renaming to be evaluated.
+      const discRows = await db.select({
+        name: schema.discounts.name, formText: schema.discounts.formText,
+        modifierType: schema.discounts.modifierType, modifierValue: schema.discounts.modifierValue,
+        conditions: schema.discounts.conditions, applyTo: schema.discounts.applyTo,
+        validFrom: schema.discounts.validFrom, expiresAt: schema.discounts.expiresAt,
+        isActive: schema.discounts.isActive,
+      }).from(schema.discounts).where(eq(schema.discounts.eventId, context.id))
+      const activeDiscounts = discRows.filter((d: any) => discountActive(d))
 
       // Membership status per registrant (from persons.membership_type) + the event's
       // current registration count, for the member / first-N discount conditions.
       const statusByPid: Record<string, string> = {}
       if (personIds.length) {
-        const { data: mrows } = await supabase.from('persons').select('id, membership_type').in('id', personIds)
-        for (const p of (mrows ?? [])) statusByPid[p.id] = p.membership_type ? 'member' : 'non_member'
+        const mrows = await db.select({ id: schema.persons.id, membershipType: schema.persons.membershipType })
+          .from(schema.persons).where(inArray(schema.persons.id, personIds))
+        for (const p of mrows) statusByPid[p.id] = p.membershipType ? 'member' : 'non_member'
       }
-      const { count: existingRegs } = await supabase.from('registrations')
-        .select('id', { count: 'exact', head: true }).eq('event_id', context.id)
+      const [regCount] = await db.select({ n: sql<number>`count(*)` })
+        .from(schema.registrations).where(eq(schema.registrations.eventId, context.id))
+      const existingRegs = Number(regCount?.n ?? 0)
 
       const personInstances: Instance[] = []
       for (const s of subjects) {
@@ -340,10 +418,21 @@ export default defineEventHandler(async (event) => {
       }
       const refDate = eventStartAt ? new Date(eventStartAt) : new Date()
 
+      // Only the paying subjects (see chooserKeys above). Everything downstream counts
+      // people off THIS list — including personCount, or a lone registrant who had to
+      // name an emergency contact would trip a "2 or more people" sibling discount.
+      const chargeable = chooserKeys.size
+        ? personInstances.filter(i => chooserKeys.has((i as any).__subjectKey ?? ''))
+        : personInstances
+      // The club's ledger has to agree with the registration: invoice the paying
+      // subjects only. Charging every person raised a second $25 against the
+      // emergency contact — $50 in their books against a $25 registration.
+      payingPersonIds = chargeable.map(i => instancePid.get(i)).filter(Boolean) as string[]
+
       let gross = 0
       let regIdx = existingRegs ?? 0
       const perPerson: { name: string; formText: string; amount: number }[][] = []
-      for (const inst of personInstances) {
+      for (const inst of chargeable) {
         regIdx++
         const picked = new Set<string>([...(inst.sessions ?? []).filter((id: string) => realIds.has(id)), ...requiredIds])
         const sessionAmounts = [...picked].map(id => feeBySession[id] ?? 0)
@@ -379,7 +468,7 @@ export default defineEventHandler(async (event) => {
         const fullWeek = Object.values(sessionsByWeek).some(ids => ids.length > 0 && ids.every(id => picked.has(id)))
         const pid = instancePid.get(inst)
         perPerson.push(applicableDiscounts(activeDiscounts, {
-          personCount: personInstances.length,
+          personCount: chargeable.length,
           personTotal,
           positiveAmounts,
           selectedSessionCount: picked.size,
@@ -396,32 +485,60 @@ export default defineEventHandler(async (event) => {
     }
 
     const regStatus = 'CONFIRMED'
-    const { data: reg, error: rErr } = await supabase.from('registrations').insert({
-      event_id: context.id,
-      person_id: primaryPersonId,
-      guest_name: submitter?.name || null,
-      guest_email: submitter?.email || null,
+    registrationId = randomUUID()
+    await db.insert(schema.registrations).values({
+      id: registrationId,
+      eventId: context.id,
+      personId: primaryPersonId,
+      guestName: submitter?.name || null,
+      guestEmail: submitter?.email || null,
       status: regStatus,
-      total_amount: total,
-      form_answers: fullAnswers,
-    }).select('id').single()
-    if (rErr) throw createError({ statusCode: 500, message: rErr.message })
-    registrationId = reg.id
+      totalAmount: String(total),
+      // NOT NULL with no column default, so they have to be stated. Nothing is paid
+      // at this point — an invoice registration is money owed, not money taken.
+      paidAmount: '0',
+      appliedDiscountTotal: String(discountTotal),
+      formAnswers: fullAnswers,
+    })
 
-    // Roster — one invitee per person (unique on event_id+person_id, so ignore dupes).
+    // Roster — one invitee per person. Already-invited people are UPDATED to
+    // CONFIRMED rather than skipped: somebody who was invited and has now paid and
+    // registered is not still merely "invited".
     if (personIds.length) {
-      await supabase.from('invitees').upsert(
-        personIds.map(pid => ({ event_id: context.id, person_id: pid, status: 'CONFIRMED' })),
-        { onConflict: 'event_id,person_id', ignoreDuplicates: true },
-      )
+      const existingInv = await db.select({ personId: schema.invitees.personId })
+        .from(schema.invitees).where(eq(schema.invitees.eventId, context.id))
+      const already = new Set(existingInv.map(r => r.personId).filter(Boolean) as string[])
+      const fresh = personIds.filter(pid => !already.has(pid))
+      if (fresh.length) {
+        await db.insert(schema.invitees).values(fresh.map(pid => ({
+          id: randomUUID(), eventId: context.id!, personId: pid, status: 'CONFIRMED',
+        })))
+      }
+      const returning = personIds.filter(pid => already.has(pid))
+      if (returning.length) {
+        await db.update(schema.invitees).set({ status: 'CONFIRMED' })
+          .where(and(eq(schema.invitees.eventId, context.id), inArray(schema.invitees.personId, returning)))
+      }
+      // REGISTERING RAISES THE INVOICE, same as accepting an invitation does. This
+      // is the path a stranger comes in on, so it's also where a profile gets
+      // created for them over there — an invoice in the club's books has to belong
+      // to somebody.
+      //
+      // After the registration is stored, and never allowed to fail it: somebody who
+      // signed up has signed up even if the club's system is unreachable. An
+      // uncharged registration can be fixed by hand; a refused one is a lost member.
+      for (const pid of payingPersonIds) {
+        await onAttendeeConfirmed(context.id, pid).catch(() => { /* logged inside */ })
+      }
     }
     // Selected sessions across every chooser instance.
     const sessionIds = Array.from(new Set(subjects.flatMap(s => s.instances.flatMap(i => i.sessions ?? []))))
     if (sessionIds.length) {
-      await supabase.from('registration_sessions').upsert(
-        sessionIds.map(sid => ({ registration_id: registrationId, session_id: sid, status: 'CONFIRMED' })),
-        { onConflict: 'registration_id,session_id', ignoreDuplicates: true },
-      )
+      // The registration row was just created, so there is nothing to conflict with —
+      // dedupe of the ids themselves is what the Set above is for.
+      await db.insert(schema.registrationSessions).values(sessionIds.map(sid => ({
+        id: randomUUID(), registrationId: registrationId!, sessionId: sid, status: 'CONFIRMED',
+      })))
     }
   } else if (context.type === 'group' && context.id) {
     // Everyone registered joins THIS group (or its waitlist when full — the
@@ -435,14 +552,17 @@ export default defineEventHandler(async (event) => {
     // each person joins the class(es) they picked in the form's "Choose your
     // class" block. Picks are validated against the connected set server-side —
     // code targets expand to every class in the code's subtree.
-    const { data: tgts } = await supabase.from('registration_form_targets')
-      .select('target_type, target_id').eq('form_id', effectiveFormId)
-    const allowed = new Set((tgts ?? []).filter((t: any) => t.target_type === 'group').map((t: any) => t.target_id))
-    const codeTargets = (tgts ?? []).filter((t: any) => t.target_type === 'code').map((t: any) => t.target_id)
+    const tgts = effectiveFormId
+      ? await db.select({ targetType: schema.registrationFormTargets.targetType, targetId: schema.registrationFormTargets.targetId })
+          .from(schema.registrationFormTargets).where(eq(schema.registrationFormTargets.formId, effectiveFormId))
+      : []
+    const allowed = new Set(tgts.filter(t => t.targetType === 'group').map(t => t.targetId))
+    const codeTargets = tgts.filter(t => t.targetType === 'code').map(t => t.targetId)
     if (codeTargets.length) {
-      const { data: codes } = await supabase.from('group_codes').select('id, parent_id').eq('org_id', orgId)
+      const codes = await db.select({ id: schema.groupCodes.id, parentId: schema.groupCodes.parentId })
+        .from(schema.groupCodes).where(eq(schema.groupCodes.orgId, orgId))
       const children: Record<string, string[]> = {}
-      for (const c of (codes ?? [])) if (c.parent_id) (children[c.parent_id] ??= []).push(c.id)
+      for (const c of codes) if (c.parentId) (children[c.parentId] ??= []).push(c.id)
       const expanded = new Set<string>()
       const stack = [...codeTargets]
       while (stack.length) {
@@ -451,8 +571,11 @@ export default defineEventHandler(async (event) => {
         expanded.add(id)
         for (const k of (children[id] ?? [])) stack.push(k)
       }
-      const { data: gs } = await supabase.from('member_groups').select('id').in('code_id', [...expanded])
-      for (const g of (gs ?? [])) allowed.add(g.id)
+      if (expanded.size) {
+        const gs = await db.select({ id: schema.memberGroups.id })
+          .from(schema.memberGroups).where(inArray(schema.memberGroups.codeId, [...expanded]))
+        for (const g of gs) allowed.add(g.id)
+      }
     }
     const byGroup: Record<string, { pid: string; feeOptionId?: string | null }[]> = {}
     for (const pid of personIds) {
@@ -472,28 +595,31 @@ export default defineEventHandler(async (event) => {
   //  the record of truth; richer materialisation can be added per context.)
 
   // ── Uniform submission record ──
-  const { data: sub, error: sErr } = await supabase.from('form_submissions').insert({
-    org_id: orgId,
-    form_id: effectiveFormId,
-    context_type: context.type,
-    context_id: context.id || null,
+  const submissionId = randomUUID()
+  await db.insert(schema.formSubmissions).values({
+    id: submissionId,
+    orgId,
+    formId: effectiveFormId,
+    contextType: context.type,
+    contextId: context.id || null,
     status: 'SUBMITTED',
-    submitter_name: submitter?.name || null,
-    submitter_email: submitter?.email || null,
-    submitter_phone: submitter?.phone || null,
+    submitterName: submitter?.name || null,
+    submitterEmail: submitter?.email || null,
+    submitterPhone: submitter?.phone || null,
     answers: fullAnswers,
-    total_amount: total,
-    discount_total: discountTotal,
-    registration_id: registrationId,
-  }).select('id').single()
-  if (sErr) throw createError({ statusCode: 500, message: sErr.message })
+    totalAmount: String(total),
+    discountTotal: String(discountTotal),
+    registrationId,
+  })
 
   // ── Staff notification ──
   const who = submitter?.name || submitter?.email || 'Someone'
   const link = context.type === 'event' ? `/events/${context.id}?tab=invitees`
     : context.type === 'group' ? `/groups/${context.id}` : '/registration'
-  const { data: notif } = await supabase.from('notifications').insert({
-    org_id: orgId,
+  const notificationId = randomUUID()
+  await db.insert(schema.notifications).values({
+    id: notificationId,
+    orgId,
     type: 'registration.created',
     title: waitlisted
       ? `New waitlist registration${contextName ? ' — ' + contextName : ''}`
@@ -502,11 +628,9 @@ export default defineEventHandler(async (event) => {
       ? `${who} joined the waitlist (class full)`
       : `${who} registered${total ? ' · ' + (totals?.currency || '') + ' ' + total.toFixed(2) : ''}`,
     link,
-    payload: { context_type: context.type, context_id: context.id, submission_id: sub.id, registration_id: registrationId },
-  }).select('id').single()
-  if (notif?.id) {
-    $fetch('/api/send-notification-email', { method: 'POST', body: { notificationId: notif.id } }).catch(() => {})
-  }
+    payload: { context_type: context.type, context_id: context.id, submission_id: submissionId, registration_id: registrationId },
+  })
+  $fetch('/api/send-notification-email', { method: 'POST', body: { notificationId } }).catch(() => {})
 
-  return { success: true, submissionId: sub.id, registrationId, personCount: personIds.length, waitlisted }
+  return { success: true, submissionId, registrationId, personCount: personIds.length, waitlisted }
 })

@@ -14,6 +14,11 @@
 import { randomUUID } from 'node:crypto'
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, ne, or } from 'drizzle-orm'
 import { db, schema } from '../client'
+import { legacyClub, legacy, LEGACY_ID_PREFIX } from '../../utils/legacy'
+import {
+  registerEventInLegacy, pushInviteesToLegacy,
+  setLegacyAttendeeStatus, chargeAttendeeInLegacy,
+} from '../../utils/legacyBridge'
 import type {
   FMEvent,
   Session,
@@ -390,7 +395,80 @@ export async function createEvent(input: FMEventCreate): Promise<FMEvent> {
     automation: input.automation ?? null,
     invitationEmail: input.invitationEmail ?? null,
   } as any)
+  await mirrorEventToLegacy(id)
   return (await getEvent(id))!
+}
+
+/**
+ * Put this event on the club's OWN calendar.
+ *
+ * A club running embedded looks at the old platform's calendar, member timelines
+ * and reports — all built from its `Event` rows. An event that exists only here is
+ * invisible in every one of them, and gives the club's mailer nothing to send
+ * about. So each save mirrors across and keeps the id that comes back.
+ *
+ * BEST-EFFORT BY DESIGN: never throws. The old platform being down must not stop
+ * anyone saving an event here — a missing mirror can be caught up, a lost event
+ * cannot. It also no-ops for an event that came FROM over there (a `legacy-` id
+ * is already their row; mirroring it would make a copy of itself).
+ */
+/**
+ * OFF by design (Karl, 2026-07-30): events are no longer created on the old
+ * platform. This module owns events; the old platform is not a second place they
+ * live. Set MIRROR_EVENTS_TO_LEGACY=1 to turn it back on.
+ *
+ * Why it went: a mirrored event has TWO identities, and every feed that reads both
+ * sides had to be taught to recognise that — the calendar listed each one twice,
+ * the profile's Events tab listed it twice, delete-by-mirror-id silently did
+ * nothing, and the copy landed on the wrong day because the mirror stores a UTC
+ * instant as wall clock. Not creating the second copy removes that whole class.
+ *
+ * KNOWN COST — invoicing. Their charge endpoint takes no amount and falls back to
+ * THEIR Event.fee, so with no mirrored event there is nothing on their calendar to
+ * charge against and chargeAttendeeInLegacy() returns "event not on the club
+ * calendar". Registrations and RSVPs still record correctly here; what stops is the
+ * fee appearing in the club's own ledger. See task: invoicing without a mirror.
+ */
+const MIRROR_EVENTS_TO_LEGACY = process.env.MIRROR_EVENTS_TO_LEGACY === '1'
+
+async function mirrorEventToLegacy(id: string) {
+  try {
+    if (!MIRROR_EVENTS_TO_LEGACY) return
+    if (id.startsWith('legacy-')) return
+    const club = legacyClub()
+    if (!club) return
+    const [row] = await db.select().from(schema.events).where(eq(schema.events.id, id)).limit(1)
+    if (!row || row.orgId !== club.orgId || !row.startAt) return
+    // The event's own price, so the club can invoice for it over there. Event-level
+    // components only (session_id IS NULL) — a per-session price is a different
+    // question (their model bills a programme, not a day) and summing the two would
+    // overstate what one attendee owes. The first coded line supplies the account,
+    // since their Event carries ONE account, not one per line.
+    const fees = await db.select({ amount: schema.feeComponents.amount, xeroCode: schema.feeComponents.xeroCode })
+      .from(schema.feeComponents)
+      .where(and(eq(schema.feeComponents.eventId, id), isNull(schema.feeComponents.sessionId)))
+    const feeTotal = fees.reduce((n, f) => n + Number(f.amount ?? 0), 0)
+    const account = fees.find(f => f.xeroCode)?.xeroCode ?? null
+
+    const legacyId = await registerEventInLegacy({
+      legacyEventId: row.legacyEventId ?? null,
+      fee: feeTotal || null,
+      account,
+      title: row.title,
+      startAt: row.startAt.toISOString(),
+      endAt: row.endAt ? row.endAt.toISOString() : null,
+      isAllDay: row.isAllDay,
+      address: row.address,
+      description: row.description,
+      capacityMax: row.capacityMax,
+      isPublic: row.isPublic,
+    })
+    if (legacyId && legacyId !== row.legacyEventId) {
+      await db.update(schema.events).set({ legacyEventId: legacyId }).where(eq(schema.events.id, id))
+    }
+  } catch (e: any) {
+    console.warn('[legacy] could not mirror the event to the club\'s calendar:', e?.message || e)
+  }
 }
 
 export async function updateEvent(id: string, patch: FMEventPatch): Promise<FMEvent | null> {
@@ -463,14 +541,101 @@ export async function updateEvent(id: string, patch: FMEventPatch): Promise<FMEv
   if (patch.automation !== undefined) set.automation = patch.automation
   if (patch.invitationEmail !== undefined) set.invitationEmail = patch.invitationEmail
   if (Object.keys(set).length) await db.update(schema.events).set(set).where(eq(schema.events.id, id))
+  // Keep the club's own calendar in step — same call, and it carries the stored
+  // legacy id, so this updates their row rather than making a second one.
+  await mirrorEventToLegacy(id)
   return getEvent(id)
 }
 
+/**
+ * Our event behind one of THEIR ids, or null if that id really is theirs.
+ *
+ * An event created here is mirrored onto the club's calendar, and their calendar
+ * links to their own copy — so following that link hands us `legacy-<n>` for an
+ * event WE own. Taken at face value the module then treats it as somebody else's:
+ * the Communication and Notes tabs disappear, the roll is read from their side (so
+ * it shows nobody), and delete quietly does nothing. This is the lookup that stops
+ * that — the mirror resolves back to the record that owns it.
+ */
+/**
+ * The legacy ids our own events are mirrored onto, for a set of event ids.
+ *
+ * Lets a caller holding OUR events recognise THEIR copies of the same thing —
+ * without it, folding in a bridged member's legacy events lists every mirrored
+ * event twice: once as ours, once as its own mirror.
+ */
+export async function legacyIdsForEventIds(eventIds: string[]): Promise<Set<number>> {
+  if (!eventIds.length) return new Set()
+  const rows = await db.select({ legacyEventId: schema.events.legacyEventId })
+    .from(schema.events)
+    .where(and(inArray(schema.events.id, eventIds), isNotNull(schema.events.legacyEventId)))
+  return new Set(rows.map(r => Number(r.legacyEventId)).filter(Number.isFinite))
+}
+
+/**
+ * Every legacy id this org's own events are mirrored onto.
+ *
+ * The club's calendar feed hands back OUR events alongside theirs; this is how a
+ * caller tells the two apart without asking per row.
+ */
+export async function legacyIdsOwnedByOrg(orgId: string): Promise<Set<number>> {
+  const rows = await db.select({ legacyEventId: schema.events.legacyEventId })
+    .from(schema.events)
+    .where(and(eq(schema.events.orgId, orgId), isNotNull(schema.events.legacyEventId)))
+  return new Set(rows.map(r => Number(r.legacyEventId)).filter(Number.isFinite))
+}
+
+export async function eventIdByLegacyId(legacyId: number): Promise<string | null> {
+  if (!Number.isFinite(legacyId)) return null
+  const [row] = await db.select({ id: schema.events.id })
+    .from(schema.events).where(eq(schema.events.legacyEventId, legacyId)).limit(1)
+  return row?.id ?? null
+}
+
 export async function deleteEvent(id: string): Promise<void> {
+  // A LEGACY id is not proof this is the club's own event. Ours are mirrored onto
+  // their calendar, and their calendar links to its copy — so a delete can arrive
+  // carrying the mirror's id for an event we own. Deleting by that id matched no row
+  // of ours, changed nothing, and still reported success: the UI said "Event deleted"
+  // and bounced you to a list the event was still on.
+  if (id.startsWith('legacy-')) {
+    const ours = await eventIdByLegacyId(Number(id.slice('legacy-'.length)))
+    // Genuinely theirs. Say so rather than pretending — the module does not delete
+    // the club's own calendar entries.
+    if (!ours) {
+      throw createError({
+        statusCode: 409,
+        statusMessage: 'This event belongs to the club\'s own calendar and can only be deleted there.',
+      })
+    }
+    id = ours
+  }
   // Clear any club invitations for this event first — a deleted event must leave no
   // orphan invite lingering on a club's dashboard.
   await db.delete(schema.eventOrgInvitees).where(eq(schema.eventOrgInvitees.eventId, id))
+  // Take the MIRROR with it. Creating an event registers a row on the club's own
+  // calendar; deleting it here and not there left that row behind — an event the
+  // club can see, click, and not delete, because the thing that owned it is gone.
+  // Best-effort and BEFORE our own delete is committed only in the sense that a
+  // failure must not block it: an unreachable platform can't be allowed to make an
+  // event undeletable.
+  await unmirrorEventFromLegacy(id)
   await db.delete(schema.events).where(eq(schema.events.id, id))
+}
+
+/** Soft-delete the old platform's copy of this event (their own convention: status 0). */
+async function unmirrorEventFromLegacy(id: string) {
+  try {
+    if (id.startsWith('legacy-')) return   // theirs to begin with — never ours to delete
+    const club = legacyClub()
+    if (!club) return
+    const [row] = await db.select({ legacyEventId: schema.events.legacyEventId })
+      .from(schema.events).where(eq(schema.events.id, id)).limit(1)
+    if (!row?.legacyEventId) return
+    await legacy.deleteEvent(club, row.legacyEventId)
+  } catch (e: any) {
+    console.warn('[legacy] could not remove the event from the club\'s calendar:', e?.message || e)
+  }
 }
 
 /**
@@ -717,21 +882,35 @@ export async function listTicketOrders(eventId: string): Promise<TicketOrder[]> 
  * a second query. Newest invite first. (cross-domain gap D9)
  */
 export async function inviteesForPerson(personId: string): Promise<InviteeForPerson[]> {
+  // ONE PERSON, TWO IDS. Their profile over there asks by the OLD id (`legacy-610`),
+  // but an invitee added here is stored against OUR id — the same human, under the
+  // uuid. Matching only the id we were handed made a bridged member's Events tab read
+  // "No upcoming events" while their invitation sat in the table. So a legacy id also
+  // matches every person row bridged to it.
+  const ids = [personId]
+  const legacyNum = /^legacy-(\d+)$/i.exec(personId)
+  if (legacyNum) {
+    const bridged = await db.select({ id: schema.persons.id })
+      .from(schema.persons).where(eq(schema.persons.legacyPersonId, Number(legacyNum[1])))
+    for (const b of bridged) ids.push(b.id)
+  }
   const rows = await db
     .select({
       inv: schema.invitees,
       eventTitle: schema.events.title,
       eventStartAt: schema.events.startAt,
+      eventEndAt: schema.events.endAt,
       eventStatus: schema.events.status,
     })
     .from(schema.invitees)
     .innerJoin(schema.events, eq(schema.invitees.eventId, schema.events.id))
-    .where(eq(schema.invitees.personId, personId))
+    .where(inArray(schema.invitees.personId, ids))
     .orderBy(desc(schema.invitees.invitedAt))
   return rows.map((r) => ({
     ...toInvitee(r.inv),
     eventTitle: r.eventTitle,
     eventStartAt: toIso(r.eventStartAt),
+    eventEndAt: toIso(r.eventEndAt),
     eventStatus: r.eventStatus,
   }))
 }
@@ -779,7 +958,34 @@ export async function createInvitee(input: {
     invitedViaGroupId: input.invitedViaGroupId ?? null,
   } as any)
   const [r] = await db.select().from(schema.invitees).where(eq(schema.invitees.id, id)).limit(1)
+  // Put them on the mirrored event over there too, so the club's own attendance
+  // and reports see them — and so its mailer has somebody to invite.
+  if (input.personId) await mirrorInviteeToLegacy(input.eventId, input.personId)
   return toInvitee(r)
+}
+
+/**
+ * Add one invitee to the club's copy of this event.
+ *
+ * Only somebody the old platform actually KNOWS can go across: a person created
+ * in this module has no record there, and inventing one would be a duplicate
+ * member. So they're skipped, quietly — which is precisely why people are bridged
+ * from over there in the first place, so most invitees already are their people.
+ *
+ * Best-effort, like the event mirror: never throws, never blocks an invite here.
+ */
+async function mirrorInviteeToLegacy(eventId: string, personId: string) {
+  try {
+    if (eventId.startsWith('legacy-')) return   // already their event, their roll
+    const club = legacyClub()
+    if (!club) return
+    const [row] = await db.select({ legacyEventId: schema.events.legacyEventId })
+      .from(schema.events).where(eq(schema.events.id, eventId)).limit(1)
+    if (!row?.legacyEventId) return             // not mirrored — nothing to add to
+    await pushInviteesToLegacy(row.legacyEventId, [personId])
+  } catch (e: any) {
+    console.warn('[legacy] could not add the invitee to the club\'s copy:', e?.message || e)
+  }
 }
 
 // ── Event coordinators ──
@@ -834,7 +1040,31 @@ export async function updateInvitee(id: string, patch: {
   if (patch.personId !== undefined) set.personId = patch.personId
   if (Object.keys(set).length) await db.update(schema.invitees).set(set).where(eq(schema.invitees.id, id))
   const [r] = await db.select().from(schema.invitees).where(eq(schema.invitees.id, id)).limit(1)
+  // SAYING YES RAISES THE INVOICE. Every path that confirms someone comes through
+  // here — the staff roll, the RSVP page, a registration — so it's the one place
+  // that has to know. Safe to reach twice: their endpoint refuses to charge the
+  // same person for the same event again.
+  if (r && patch.status === 'CONFIRMED' && r.personId) {
+    await onAttendeeConfirmed(r.eventId, r.personId)
+  }
   return r ? toInvitee(r) : null
+}
+
+/**
+ * Someone accepted: mirror the acceptance to the club's system and raise the
+ * invoice there. Both best-effort and BOTH after the local write, because neither
+ * is allowed to stop somebody signing up — a missing charge is recoverable by
+ * hand, a refused acceptance is a lost member.
+ */
+export async function onAttendeeConfirmed(eventId: string, personId: string) {
+  try {
+    // Their status first: confirmed over there is what makes the charge legitimate
+    // (and what the club sees on its own roll).
+    await setLegacyAttendeeStatus(eventId, personId, 'CONFIRMED')
+    await chargeAttendeeInLegacy(eventId, personId)
+  } catch (e: any) {
+    console.warn('[legacy] could not complete the acceptance:', e?.message || e)
+  }
 }
 
 /**
@@ -863,6 +1093,7 @@ export async function inviteesForEvent(eventId: string, clubOrgId?: string | nul
       phone2: schema.persons.phone2,
       membershipType: schema.persons.membershipType,
       customFields: schema.persons.customFields,
+      legacyPersonId: schema.persons.legacyPersonId,
     })
     .from(schema.invitees)
     .leftJoin(schema.persons, eq(schema.invitees.personId, schema.persons.id))
@@ -883,6 +1114,7 @@ export async function inviteesForEvent(eventId: string, clubOrgId?: string | nul
           phone2: r.phone2 ?? null,
           membershipType: r.membershipType ?? null,
           customFields: (r.customFields as Record<string, any>) ?? null,
+          legacyPersonId: r.legacyPersonId ?? null,
         }
       : null,
   }))
@@ -1224,7 +1456,7 @@ export async function listFeeComponents(opts: { eventId?: string; sessionIds?: s
   return rows.map(toFee)
 }
 
-export async function createFeeComponent(input: FeeComponentCreate): Promise<FeeComponent> {
+export async function createFeeComponent(input: FeeComponentCreate, opts: { mirror?: boolean } = {}): Promise<FeeComponent> {
   const id = randomUUID()
   await db.insert(schema.feeComponents).values({
     id,
@@ -1238,6 +1470,13 @@ export async function createFeeComponent(input: FeeComponentCreate): Promise<Fee
     sortOrder: input.sortOrder ?? 0,
   } as any)
   const [r] = await db.select().from(schema.feeComponents).where(eq(schema.feeComponents.id, id)).limit(1)
+  // WHAT IT COSTS CHANGED, so the club's copy of the event has to be told.
+  // Their Event carries the price, and their charge endpoint falls back to it when
+  // raising an invoice — leave it at 0 and every registration comes back "no amount
+  // to charge", which looks like registration working and invoicing silently not.
+  // (opts.mirror === false when a bulk replace will mirror ONCE at the end, rather
+  // than once per line — that is N round-trips to the club's system per save.)
+  if (input.eventId && opts.mirror !== false) await mirrorEventToLegacy(input.eventId)
   return toFee(r)
 }
 
@@ -1253,19 +1492,27 @@ export async function updateFeeComponent(id: string, patch: FeeComponentPatch): 
   if (patch.sortOrder !== undefined) set.sortOrder = patch.sortOrder
   if (Object.keys(set).length) await db.update(schema.feeComponents).set(set).where(eq(schema.feeComponents.id, id))
   const [r] = await db.select().from(schema.feeComponents).where(eq(schema.feeComponents.id, id)).limit(1)
+  if (r?.eventId) await mirrorEventToLegacy(r.eventId)
   return r ? toFee(r) : null
 }
 
 export async function deleteFeeComponent(id: string): Promise<void> {
+  // Read the owner BEFORE the row goes, or there is nothing left to re-price.
+  const [r] = await db.select({ eventId: schema.feeComponents.eventId })
+    .from(schema.feeComponents).where(eq(schema.feeComponents.id, id)).limit(1)
   await db.delete(schema.feeComponents).where(eq(schema.feeComponents.id, id))
+  if (r?.eventId) await mirrorEventToLegacy(r.eventId)
 }
 
 /** Replace every fee line for one event (delete-then-insert), keeping author order. */
 export async function replaceEventFeeComponents(eventId: string, items: FeeComponentCreate[]): Promise<FeeComponent[]> {
   await db.delete(schema.feeComponents).where(eq(schema.feeComponents.eventId, eventId))
   for (let i = 0; i < items.length; i++) {
-    await createFeeComponent({ ...items[i], eventId, sortOrder: items[i].sortOrder ?? i })
+    await createFeeComponent({ ...items[i], eventId, sortOrder: items[i].sortOrder ?? i }, { mirror: false })
   }
+  // Once, after the whole set is in place — and unconditionally, so REMOVING the last
+  // fee line pushes the price back down over there instead of leaving the old one.
+  await mirrorEventToLegacy(eventId)
   return listFeeComponents({ eventId })
 }
 
@@ -1376,10 +1623,60 @@ function toCategory(r: typeof schema.categories.$inferSelect): EventCategory {
     sortOrder: r.sortOrder,
   }
 }
+/**
+ * ONE category list, whether a category came from this module or from the old
+ * platform.
+ *
+ * A club running embedded has categories in two places — this module's own table
+ * and the legacy `EventCategory` rows its existing events actually use — and they
+ * were never reconciled, so which list you saw depended on which event you had
+ * open. That reads as the app losing your categories.
+ *
+ * Legacy rows are folded in under a `legacy-<id>` id (the same prefix legacy
+ * events, venues and sessions already wear) and DEDUPED BY NAME, legacy winning:
+ * the old platform owns club data while the module is embedded, so where both
+ * sides know a "Training", the one the club's existing events are already filed
+ * under is the real one. Reachability is what matters — a `legacy-` id is a
+ * perfectly good value for `events.category_id` (varchar(36)), it just isn't a
+ * row in this table.
+ *
+ * Best-effort: no legacy club configured, or that platform unreachable, and this
+ * is exactly the module-only list it has always been.
+ */
 export async function listCategories(orgId: string): Promise<EventCategory[]> {
   const rows = await db.select().from(schema.categories)
     .where(eq(schema.categories.orgId, orgId)).orderBy(asc(schema.categories.sortOrder))
-  return rows.map(toCategory)
+  const own = rows.map(toCategory)
+
+  const club = legacyClub()
+  if (!club) return own
+
+  const legacyRows = await legacy.categories(club).catch(() => [] as any[])
+  if (!Array.isArray(legacyRows) || !legacyRows.length) return own
+
+  const key = (n: string) => String(n ?? '').trim().toLowerCase()
+  const fromLegacy: EventCategory[] = legacyRows
+    .filter((c: any) => c && c.name)          // system rows carry a null name
+    .map((c: any, i: number) => ({
+      id: `${LEGACY_ID_PREFIX}${c.id}`,
+      orgId,
+      parentId: null,
+      name: String(c.name),
+      color: c.colour ?? null,
+      icon: null,
+      defaultTc: null,
+      defaultFormId: null,
+      defaultXeroCodes: null,
+      defaultDisciplineId: null,
+      disciplineIds: null,
+      accessTypeKeys: null,
+      accessPersonIds: null,
+      defaultColumns: null,
+      sortOrder: i,
+    }))
+
+  const taken = new Set(fromLegacy.map(c => key(c.name)))
+  return [...fromLegacy, ...own.filter(c => !taken.has(key(c.name)))]
 }
 /** How many events reference each category in an org → { categoryId: count }. Feeds the
  *  Settings → Calendars category list's per-row event-count badge. */

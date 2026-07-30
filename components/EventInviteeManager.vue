@@ -63,20 +63,33 @@
           @click="togglePillSearch">
           <i class="pi pi-search text-xs" />
         </button>
+        <!-- Picking people for a bulk action is a MODE you turn on, because the
+             plain click on a name now opens that person's profile. Both behaviours
+             wanted the same click; this is what separates them. -->
+        <button v-if="invitees.length" type="button"
+          class="h-7 px-2.5 rounded-lg text-xs font-semibold transition-colors shrink-0"
+          :class="selectMode ? 'text-primary bg-primary/10' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'"
+          @click="toggleSelectMode">
+          {{ selectMode ? 'Done' : 'Select' }}
+        </button>
       </div>
 
       <EventInvitationDialog v-if="showInvite" v-model:visible="invitationOpen" :event-id="eventId" />
 
-      <!-- Action bar (slides in when people are selected) -->
+      <!-- Action bar (slides in with select mode, not with the first selection —
+           it is what tells you the chips have stopped being links). -->
       <Transition name="slide-down">
-        <div v-if="bulkSelected.length" class="bg-primary rounded-xl px-4 py-3 flex items-center gap-3">
-          <span class="text-sm font-medium text-white">{{ bulkSelected.length }} selected</span>
+        <div v-if="selectMode" class="bg-primary rounded-xl px-4 py-3 flex items-center gap-3">
+          <span class="text-sm font-medium text-white">
+            {{ bulkSelected.length ? `${bulkSelected.length} selected` : 'Tap people to select them' }}
+          </span>
           <div class="flex-1" />
           <Button label="Action" icon="pi pi-chevron-down" icon-pos="right" size="small"
             class="!bg-white !text-primary !border-white font-semibold"
+            :disabled="!bulkSelected.length"
             @click="e => inviteeActionMenu.toggle(e)" />
           <Menu ref="inviteeActionMenu" :model="inviteeActionMenuItems" :popup="true" />
-          <button class="text-white/60 hover:text-white text-xs underline ml-1" @click="bulkSelected = []">Clear</button>
+          <button class="text-white/60 hover:text-white text-xs underline ml-1" @click="toggleSelectMode">Done</button>
         </div>
       </Transition>
 
@@ -139,21 +152,27 @@
           <div v-if="expandedGroupSections[groupId]" class="px-4 pb-3">
             <div class="flex flex-wrap gap-2">
               <span v-for="inv in visibleGroupInvitees(groupId)" :key="inv.id"
-                class="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm transition-colors cursor-pointer select-none"
-                :class="bulkSelected.includes(inv.id) ? 'bg-primary text-white'
+                class="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm transition-colors select-none"
+                :class="[selectMode ? 'cursor-pointer' : '',
+                  bulkSelected.includes(inv.id) ? 'bg-primary text-white'
                   : flashedPersonId === inv.person_id ? 'bg-emerald-100 text-emerald-900 ring-2 ring-emerald-400'
                   : isPillHighlighted(inv) ? 'bg-amber-100 text-amber-900 ring-2 ring-amber-400'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
-                @click="toggleBulkSelect(inv.id)">
-                <!-- Their RSVP, if they've given one. No icon = hasn't replied yet. -->
-                <i v-if="rsvpState(inv)" v-tooltip.top="rsvpState(inv) === 'yes' ? 'Coming' : 'Not coming'"
-                  class="pi text-xs"
-                  :class="rsvpState(inv) === 'yes'
-                    ? (bulkSelected.includes(inv.id) ? 'pi-check-circle text-white' : 'pi-check-circle text-emerald-600')
-                    : (bulkSelected.includes(inv.id) ? 'pi-times-circle text-white/70' : 'pi-times-circle text-gray-400')" />
-                {{ inv.person?.first_name }} {{ inv.person?.last_name }}
-                <span v-if="inviteeRole(inv) !== 'attendee'" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2494D2]/15 text-[#2494D2] font-semibold">{{ eventRoleLabel(inviteeRole(inv)) }}</span>
-                <span v-if="inv.club_org_id && inv.club_org_id !== orgId" class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">from {{ clubNameById.get(inv.club_org_id) ?? 'club' }}</span>
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200']"
+                @click="selectMode && toggleBulkSelect(inv.id)">
+                <!-- The chip opens the profile; in select mode it picks the person
+                     instead, which is what `disabled` turns off. -->
+                <PersonNameLink :person="inv.person" :person-id="inv.person_id" :disabled="selectMode"
+                  class="inline-flex items-center gap-1.5 text-inherit no-underline hover:underline">
+                  <!-- Their RSVP, if they've given one. No icon = hasn't replied yet. -->
+                  <i v-if="rsvpState(inv)" v-tooltip.top="rsvpState(inv) === 'yes' ? 'Coming' : 'Not coming'"
+                    class="pi text-xs"
+                    :class="rsvpState(inv) === 'yes'
+                      ? (bulkSelected.includes(inv.id) ? 'pi-check-circle text-white' : 'pi-check-circle text-emerald-600')
+                      : (bulkSelected.includes(inv.id) ? 'pi-times-circle text-white/70' : 'pi-times-circle text-gray-400')" />
+                  {{ inv.person?.first_name }} {{ inv.person?.last_name }}
+                  <span v-if="inviteeRole(inv) !== 'attendee'" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2494D2]/15 text-[#2494D2] font-semibold">{{ eventRoleLabel(inviteeRole(inv)) }}</span>
+                  <span v-if="inv.club_org_id && inv.club_org_id !== orgId" class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">from {{ clubNameById.get(inv.club_org_id) ?? 'club' }}</span>
+                </PersonNameLink>
                 <button class="transition-colors" :class="bulkSelected.includes(inv.id) ? 'text-white/60 hover:text-white' : 'text-gray-400 hover:text-red-500'" @click.stop="removeInvitee(inv.id)">
                   <i class="pi pi-times-circle text-sm" />
                 </button>
@@ -184,21 +203,27 @@
           <div v-if="expandedGroupSections['__individual'] !== false" class="px-4 pb-3">
             <div class="flex flex-wrap gap-2">
               <span v-for="inv in showAllInGroup['__individual'] ? unassignedInvitees : unassignedInvitees.slice(0, GROUP_PREVIEW)" :key="inv.id"
-                class="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm transition-colors cursor-pointer select-none"
-                :class="bulkSelected.includes(inv.id) ? 'bg-primary text-white'
+                class="inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm transition-colors select-none"
+                :class="[selectMode ? 'cursor-pointer' : '',
+                  bulkSelected.includes(inv.id) ? 'bg-primary text-white'
                   : flashedPersonId === inv.person_id ? 'bg-emerald-100 text-emerald-900 ring-2 ring-emerald-400'
                   : isPillHighlighted(inv) ? 'bg-amber-100 text-amber-900 ring-2 ring-amber-400'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
-                @click="toggleBulkSelect(inv.id)">
-                <!-- Their RSVP, if they've given one. No icon = hasn't replied yet. -->
-                <i v-if="rsvpState(inv)" v-tooltip.top="rsvpState(inv) === 'yes' ? 'Coming' : 'Not coming'"
-                  class="pi text-xs"
-                  :class="rsvpState(inv) === 'yes'
-                    ? (bulkSelected.includes(inv.id) ? 'pi-check-circle text-white' : 'pi-check-circle text-emerald-600')
-                    : (bulkSelected.includes(inv.id) ? 'pi-times-circle text-white/70' : 'pi-times-circle text-gray-400')" />
-                {{ inv.person?.first_name }} {{ inv.person?.last_name }}
-                <span v-if="inviteeRole(inv) !== 'attendee'" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2494D2]/15 text-[#2494D2] font-semibold">{{ eventRoleLabel(inviteeRole(inv)) }}</span>
-                <span v-if="inv.club_org_id && inv.club_org_id !== orgId" class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">from {{ clubNameById.get(inv.club_org_id) ?? 'club' }}</span>
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200']"
+                @click="selectMode && toggleBulkSelect(inv.id)">
+                <!-- The chip opens the profile; in select mode it picks the person
+                     instead, which is what `disabled` turns off. -->
+                <PersonNameLink :person="inv.person" :person-id="inv.person_id" :disabled="selectMode"
+                  class="inline-flex items-center gap-1.5 text-inherit no-underline hover:underline">
+                  <!-- Their RSVP, if they've given one. No icon = hasn't replied yet. -->
+                  <i v-if="rsvpState(inv)" v-tooltip.top="rsvpState(inv) === 'yes' ? 'Coming' : 'Not coming'"
+                    class="pi text-xs"
+                    :class="rsvpState(inv) === 'yes'
+                      ? (bulkSelected.includes(inv.id) ? 'pi-check-circle text-white' : 'pi-check-circle text-emerald-600')
+                      : (bulkSelected.includes(inv.id) ? 'pi-times-circle text-white/70' : 'pi-times-circle text-gray-400')" />
+                  {{ inv.person?.first_name }} {{ inv.person?.last_name }}
+                  <span v-if="inviteeRole(inv) !== 'attendee'" class="text-[10px] px-1.5 py-0.5 rounded-full bg-[#2494D2]/15 text-[#2494D2] font-semibold">{{ eventRoleLabel(inviteeRole(inv)) }}</span>
+                  <span v-if="inv.club_org_id && inv.club_org_id !== orgId" class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-600">from {{ clubNameById.get(inv.club_org_id) ?? 'club' }}</span>
+                </PersonNameLink>
                 <button class="transition-colors" :class="bulkSelected.includes(inv.id) ? 'text-white/60 hover:text-white' : 'text-gray-400 hover:text-red-500'" @click.stop="removeInvitee(inv.id)">
                   <i class="pi pi-times-circle text-sm" />
                 </button>
@@ -287,7 +312,14 @@ function toInviteeRow(inv: any) {
     attended: inv.attended,
     responded_at: inv.respondedAt,
     club_org_id: inv.clubOrgId ?? null,
-    person: p ? { id: p.id, first_name: p.firstName, last_name: p.lastName, email: p.email } : null,
+    // legacy_person_id has to survive this narrowing: it is what points a name at the
+    // OLD platform's profile while we are embedded in it. Dropping it here made every
+    // chip fall back to our own /people/:id, which inside the frame opens the module
+    // inside itself.
+    person: p ? {
+      id: p.id, first_name: p.firstName, last_name: p.lastName, email: p.email,
+      legacy_person_id: p.legacyPersonId ?? p.legacy_person_id ?? null,
+    } : null,
   }
 }
 // Resolve club_org_id → club name for the "from {club}" chip on cross-club invitees.
@@ -611,8 +643,23 @@ async function removeGroup(groupId: string) {
 }
 
 // ---- Bulk selection ----
+/**
+ * Picking people for a bulk action is a MODE, turned on by the Select button.
+ *
+ * A plain click on a chip opens that person's profile, so the two behaviours were
+ * competing for the same gesture — and selection won every time, which made the
+ * names unreachable. Off by default: opening a profile is the common act, running
+ * an action over several people is the deliberate one.
+ */
+const selectMode = ref(false)
 const bulkSelected = ref<string[]>([])
 const bulkDeleting = ref(false)
+
+/** Leaving the mode drops the selection — a hidden one would act on the next run. */
+function toggleSelectMode() {
+  selectMode.value = !selectMode.value
+  if (!selectMode.value) bulkSelected.value = []
+}
 
 function toggleBulkSelect(id: string) {
   const i = bulkSelected.value.indexOf(id)

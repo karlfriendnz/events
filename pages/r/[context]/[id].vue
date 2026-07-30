@@ -49,6 +49,11 @@ const orgLogo = ref<string | null>(null)
 const bannerUrl = ref<string | null>(null)
 const formEvent = ref<any>(null)   // drives <FormRenderer>'s designed banner/info/description
 
+// ?person= — arriving from an invitation the member has already accepted on their own
+// profile, where they were identified by the (event, person) pair. The form opens
+// filled in for them instead of asking who they are again.
+const identifyPersonId = computed(() => (useRoute().query.person as string) || null)
+
 const theme = ref<{ canvas: string; primary: string; on_primary: string }>({ canvas: '#F5F8FA', primary: '#1E2157', on_primary: '#FFFFFF' })
 // Embed options (query params from the "Add to website" snippet).
 const embedBg = computed(() => (route.query.bg as string) || theme.value.canvas)
@@ -324,6 +329,7 @@ onBeforeUnmount(() => _heightRO?.disconnect())
           :group-options="groupChoices"
           :currency="currency"
           :submitting="submitting"
+          :identify-person-id="identifyPersonId"
           @submit="onSubmit" />
         </template>
       </div>

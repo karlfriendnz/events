@@ -1,4 +1,4 @@
-# Mounting the module — the four edits, one at a time
+# Mounting the module — the six edits, one at a time
 
 `mounting-changes.patch` applies all of this in one go. If you'd rather see
 exactly what lands where, this is the same thing written out by hand.
@@ -218,7 +218,163 @@ public website embed too.
 
 ---
 
-## After all four
+## Edit 5 — `application/pages/settings/tabs.php`
+
+The module's **event settings** as a tab on the club's own Settings page.
+
+Categories, registration forms and event payment options are configured in the
+module, and today that means leaving Settings to find them. This puts them where
+a club already goes to configure everything else — the same treatment the
+profile's Events tab gets in edit 4.
+
+**Where:** two additions to the existing `$tabs` array, before the `?>` on
+line 38.
+
+**Before**
+```php
+if ($USER['role'] == Person::ROLE_EXPERIMENTAL) {
+    $tabs += [
+        'fields' => 'Custom Fields',
+    ];
+}
+```
+
+**After**
+```php
+if ($USER['role'] == Person::ROLE_EXPERIMENTAL) {
+    $tabs += [
+        'fields' => 'Custom Fields',
+    ];
+}
+// Event settings live in the FM Events module. Unset the `fmevents-url`
+// setting and the tab disappears — Settings is exactly as it is today.
+if ($CLUB_DB->setting('fmevents-url')) {
+    $tabs += [
+        'fmevents' => 'Events',
+    ];
+}
+```
+
+**Plus one new file** — `application/pages/settings/fmevents.php`. The tab loop
+does `include "$id.php"`, so the tab's key is its filename:
+
+```php
+<?php
+// The module's own event settings (categories, registration forms, payment
+// options), rendered inside the club's Settings page.
+$GLOBALS['FMEVENTS'] = ['view' => 'settings-events'];
+include 'pages/fmevents/embed.php';
+```
+
+**Why `$GLOBALS` again:** same reason as edit 1 — `embed.php` reads
+`$GLOBALS['FMEVENTS']` and nothing else. The module maps `view=settings-events`
+to its Settings → Events panel.
+
+**Height is already handled:** `embed.php` ships
+`.tab-pane .fmevents-embed iframe { height: 70vh; min-height: 420px; }`, so a
+tabbed embed sizes itself without further CSS.
+
+**Access:** `settings/switch.php` already gates the whole page on
+`ROLE_ADMIN`, so no extra check is needed here.
+
+**Affects:** `/settings` — one new tab. No existing tab changes.
+
+---
+
+## Edit 6 — `application/inc/menu.php`
+
+**Pinned calendars as menu items.**
+
+A club pins a calendar ("Holiday Programme", "Committee") to its menu in the
+module. Inside the platform that does nothing, because the module's own left
+rail is hidden — this shell supplies the navigation — so the one route to a
+pinned calendar doesn't exist. These become sub-items under the existing Events
+entry.
+
+**Where:** inside the existing `$menu['events']` block, around line 150.
+
+**Before**
+```php
+if ($USER['role'] >= Person::ROLE_COORD || ($USER['role'] >= Person::ROLE_MANAGER && $USER['staff'])) {
+    $menu['events'] = ['Events', 'calendar'];
+    if ($USER['role'] >= Person::ROLE_COORD && $CLUB_DB->setting('module-venues')) {
+        $menu['events'][2]['venues'] = ['Venues & Bookings', 'building'];
+    }
+}
+```
+
+**After**
+```php
+if ($USER['role'] >= Person::ROLE_COORD || ($USER['role'] >= Person::ROLE_MANAGER && $USER['staff'])) {
+    $menu['events'] = ['Events', 'calendar'];
+    // Calendars the club pinned in the FM Events module. Read from a cached
+    // setting, never from an HTTP call — this file runs on every page load, and
+    // an unreachable module must not be able to slow the platform down. An
+    // empty or missing setting simply adds nothing.
+    if ($CLUB_DB->setting('fmevents-url')) {
+        foreach (json_decode($CLUB_DB->setting('fmevents-calendars') ?: '[]', true) ?: [] as $cal) {
+            if (empty($cal['id']) || empty($cal['name'])) continue;
+            $menu['events'][2]['events/calendar/'.$cal['id']] = [$cal['name'], $cal['icon'] ?: 'calendar'];
+        }
+    }
+    if ($USER['role'] >= Person::ROLE_COORD && $CLUB_DB->setting('module-venues')) {
+        $menu['events'][2]['venues'] = ['Venues & Bookings', 'building'];
+    }
+}
+```
+
+**Plus the route.** `events/calendar/<id>` has to reach the module, so edit 1's
+block gains one line — `$components[1] === 'calendar'` passes the id through as
+`calendar` rather than treating it as an event id:
+
+```php
+if ($CLUB_DB->setting('fmevents-url')) {
+    $PAGE->title = 'Events';
+    $isCalendar = ($components[1] ?? null) === 'calendar';
+    $GLOBALS['FMEVENTS'] = [
+        'view'     => $components[1] === 'new' ? 'new' : 'calendar',
+        'calendar' => $isCalendar ? ($components[2] ?? null) : null,
+        'event'    => (!$isCalendar && $components[1] && !in_array($components[1], ['new', 'list', 'report'], true)) ? $components[1] : null,
+    ];
+    $PAGE->contentFile = 'fmevents/embed.php';
+    return 1;
+}
+```
+
+`embed.php` passes `calendar` through in its query string exactly as it does
+`event` and `person`; the module opens `/events?calendar=<id>`.
+
+### Filling `fmevents-calendars`
+
+The module serves the list at:
+
+```
+GET <fmevents-url>/api/v1/legacy/menu?club=<slug>
+Authorization: token <LEGACY_API_KEY>
+
+{ "calendars": [ { "id": "…", "name": "Holiday Programme",
+                   "icon": "calendar", "colour": "#1E2157" } ] }
+```
+
+Only pinned calendars, in the club's own order. **Cache it into the setting** —
+a nightly cron, or whatever the platform already uses for this kind of thing:
+
+```php
+$json = json_encode(fetch("<fmevents-url>/api/v1/legacy/menu?club=".CLUB_NAME));
+$CLUB_DB->setting('fmevents-calendars', $json);
+```
+
+Stale by up to a cron interval, which is the right trade: a menu built from a
+live call would put the module on the critical path of every page in the
+platform. If you'd rather not run a cron at all, the setting can be pasted in by
+hand — it changes about as often as a club renames a menu item.
+
+**Rollback:** clear `fmevents-calendars` (the sub-items vanish) or
+`fmevents-url` (everything reverts, as always).
+
+---
+
+## After all six
 
 Nothing has changed for anyone. Confirm that first if you like:
 
@@ -248,9 +404,17 @@ Takes effect on the next page load. No deploy, and it's per club.
 
 | File | Lines added | Existing lines changed |
 |---|---|---|
-| `pages/events/switch.php` | 12 | 0 |
+| `pages/events/switch.php` | 12 | 0 (+2 in edit 6, same block) |
 | `pages/attendance/switch.php` | 15 | 0 |
 | `pages/programs/switch.php` | 14 | 0 |
 | `pages/people/tabs/tab-content.php` | 10 | 1 (an `include` wrapped in if/else) |
+| `pages/settings/tabs.php` | 6 | 0 |
+| `inc/menu.php` | 8 | 0 |
 
-Two new files, four guarded blocks, one `include` wrapped. Nothing removed.
+Three new files (`fmevents/embed.php`, `Api/fmevents.php`,
+`settings/fmevents.php`), six guarded blocks, one `include` wrapped. Nothing
+removed.
+
+Edits 1–4 stand alone. **Edit 6 needs edit 1** (it extends that same block) and
+the `fmevents-calendars` setting; edit 5 needs its new file. Everything stays
+behind `fmevents-url`, so clearing that one setting is still the whole rollback.

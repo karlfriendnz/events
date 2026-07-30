@@ -8,6 +8,8 @@ import { sessionListSchema } from '../../../../../shared/contracts/event'
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
   if (!id) throw createError({ statusCode: 400, statusMessage: 'id required' })
+  // A legacy event has no sessions over there — it IS one occurrence.
+  if (id.startsWith('legacy-')) return []
   const { masters, parentSessionId } = getQuery(event)
   return sessionListSchema.parse(
     await listSessions(id, {

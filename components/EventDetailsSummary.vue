@@ -129,11 +129,11 @@ const STATUS_OPTIONS = [
 const editing = ref(false)
 const saving = ref(false)
 const form = reactive<{
-  title: string; status: string; is_all_day: boolean
+  title: string; description: string; status: string; is_all_day: boolean
   start_date: Date | null; start_time: Date | null; end_date: Date | null; end_time: Date | null
   category_id: string | null; locations: any[]; repeat: string; exdates: string[]
   visibility: string; visibility_type_keys: string[]; visibility_group_ids: string[]; visibility_person_ids: string[]
-}>({ title: '', status: 'PUBLISHED', is_all_day: false, start_date: null, start_time: null, end_date: null, end_time: null, category_id: null, locations: [], repeat: 'NONE', exdates: [],
+}>({ title: '', description: '', status: 'PUBLISHED', is_all_day: false, start_date: null, start_time: null, end_date: null, end_time: null, category_id: null, locations: [], repeat: 'NONE', exdates: [],
   visibility: 'internal', visibility_type_keys: [], visibility_group_ids: [], visibility_person_ids: [] })
 
 // What the repeat looked like when editing began — regenerating the series is
@@ -145,6 +145,7 @@ const originalStart = ref<string | null>(null)
 function startEdit() {
   const ev = event.value
   form.title = ev.title || ''
+  form.description = ev.description || ''
   form.status = ev.status || 'PUBLISHED'
   form.category_id = ev.categoryId ?? null
   form.is_all_day = !!ev.isAllDay
@@ -371,6 +372,7 @@ async function applySave(scope: 'this' | 'following' | 'all') {
     const endAt = buildDT(form.end_date || form.start_date, form.end_time, form.is_all_day)
     const patch: any = {
       title: form.title.trim(),
+      description: form.description.trim() || null,
       status: form.status,
       categoryId: form.category_id || null,
       isAllDay: form.is_all_day,
@@ -432,7 +434,7 @@ async function propagate(
     const duration = startAt && endAt ? new Date(endAt).getTime() - new Date(startAt).getTime() : null
     // Everything except the date itself — recurrence fields stay with the master.
     const shared: any = {
-      title: patch.title, status: patch.status, categoryId: patch.categoryId,
+      title: patch.title, description: patch.description, status: patch.status, categoryId: patch.categoryId,
       isAllDay: patch.isAllDay, locations: patch.locations, locationType: patch.locationType,
       address: patch.address, meetingLink: patch.meetingLink,
       visibility: patch.visibility, visibilityTypeKeys: patch.visibilityTypeKeys,
@@ -536,6 +538,14 @@ async function rebuildSeries(startAt: string | null, endAt: string | null, rule:
             <span class="field-label shrink-0 sm:w-20">Location</span>
             <span class="text-sm text-gray-700">{{ locationSummaryText }}</span>
           </div>
+          <!-- How many can come. Carried on every event and shown by nothing, so a
+               capped event looked uncapped — and on a legacy event it's one of the
+               few facts there IS. Hidden when there's no cap: "unlimited" is the
+               normal case and doesn't need saying. -->
+          <div v-if="event?.capacityMax" class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-4">
+            <span class="field-label shrink-0 sm:w-20">Places</span>
+            <span class="text-sm text-gray-700">{{ event.capacityMax }}</span>
+          </div>
         </div>
         <div class="flex items-center gap-1 shrink-0">
           <button class="text-gray-400 hover:text-primary w-8 h-8 flex items-center justify-center" v-tooltip.top="'Edit details'" @click="startEdit"><i class="pi pi-pencil" /></button>
@@ -543,6 +553,15 @@ async function rebuildSeries(startAt: string | null, endAt: string | null, rule:
           <Menu ref="menu" :model="menuItems" :popup="true" />
         </div>
       </div>
+      <!-- The description. It was carried on every event and rendered by NOTHING —
+           so what a club had written about its own event appeared nowhere, and on a
+           legacy event (where it's the "Additional Info" field) it's often the only
+           real detail there is. Full width below the two columns rather than in a
+           label/value row: it's prose, and prose in a 20ch column is unreadable.
+           `whitespace-pre-line` so typed line breaks survive. -->
+      <p v-if="event?.description" class="mt-3 pt-3 border-t border-gray-100 text-sm text-gray-700 whitespace-pre-line break-words">
+        {{ event.description }}
+      </p>
     </template>
 
     <!-- Edit mode -->
@@ -550,6 +569,16 @@ async function rebuildSeries(startAt: string | null, endAt: string | null, rule:
       <div class="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-4">
         <span class="field-label shrink-0 sm:w-20">Name</span>
         <InputText v-model="form.title" placeholder="Event name" class="flex-1 min-w-0" />
+      </div>
+      <!-- Description. It had no field here at all, so what a club wrote about its
+           own event could be read (once it rendered at all) but never changed.
+           A textarea, not an input: it's prose, and on a legacy event it's the
+           "Additional Info" field, which clubs use for arrival and kit notes. -->
+      <div class="flex flex-col sm:flex-row sm:items-start gap-1.5 sm:gap-4">
+        <span class="field-label shrink-0 sm:w-20 sm:pt-2">Description</span>
+        <Textarea v-model="form.description" rows="3" auto-resize
+          placeholder="What people need to know — arrival time, what to bring, where to go"
+          class="flex-1 min-w-0" />
       </div>
       <!-- Repeat IS editable here (it used to be :show-repeat="false", so a repeating
            event could be created and never changed). Only on the series master —

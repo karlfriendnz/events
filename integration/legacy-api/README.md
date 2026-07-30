@@ -8,6 +8,11 @@ today.
 
 Should take about ten minutes, and step 4 tells you whether it worked.
 
+> **Already applied the first version?** Read
+> **[CHANGES-SINCE-HANDOVER.md](CHANGES-SINCE-HANDOVER.md)** instead — it lists only
+> what's new (one endpoint, three richer payloads, two more mounting edits). The two
+> PHP files here are drop-in replacements, so there's nothing to merge by hand.
+
 ---
 
 ## 1. Add two files

@@ -7,6 +7,21 @@
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-5">
       <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+        <!-- WHICH calendar, before HOW you're looking at it. ONLY when the left rail
+             is hidden — i.e. embedded in the old platform, where its Events flyout
+             (View events / each calendar / New calendar) doesn't exist and a club
+             otherwise has no route to switch calendars or make one. Standalone the
+             flyout is right there, and a second control saying the same thing is
+             clutter. Hidden on /programme, a single fixed view. -->
+        <Select
+          v-if="!isProgramme && railHidden"
+          :model-value="activeCalendarValue"
+          :options="calendarPickerOptions"
+          option-label="label"
+          option-value="value"
+          size="small"
+          class="hidden md:inline-flex w-40 shrink-0"
+          @update:model-value="onCalendarPick" />
         <!-- View selector is desktop-only; mobile is forced to the agenda list
              view. /programme is List-only, so it's hidden there entirely. -->
         <Select
@@ -83,10 +98,14 @@
 
         <!-- ── Display ───────────────────────────────────────────── -->
         <div v-if="calTab === 'display'" class="flex flex-col gap-5">
-          <!-- No "＋ New calendar" button here: this drawer is the settings for the
+          <!-- No picker or "＋ New calendar" here: this drawer is the settings for the
                calendar you're LOOKING at, and an add-another control read as part of
-               them. Creating one still lives in the left menu's "New calendar" item,
-               which drops into this same pane via `nav-new-calendar` → startNewCalendar(). -->
+               them. Both live in the CALENDAR SELECT in the page header, beside the
+               view selector — picking a calendar is navigation, not a setting. (They
+               were rail-only, which left a club with no route to either while the
+               module runs inside the old platform and the rail is hidden.) The select's
+               "＋ New calendar" opens this drawer on this pane via startNewCalendar(),
+               the same flow the left menu's item uses. -->
 
           <!-- Create / edit a calendar — shown only when editing an existing calendar or creating a new one -->
           <div v-if="editingCalendarId || creatingNewCal" class="flex flex-col gap-2">
@@ -1730,7 +1749,10 @@ function runExport() {
 }
 
 const colorByOptions = [
-  { label: 'Calendar', value: 'category' },
+  // "Category", not "Calendar" — the value is `category` and the colour comes
+  // from the event's category (see the colour resolver below). The old label
+  // named the wrong thing entirely.
+  { label: 'Category', value: 'category' },
   { label: 'Status', value: 'status' },
   { label: 'Style', value: 'style' },
 ]
@@ -1771,6 +1793,51 @@ const activeCalendar = computed(() => {
   if (!calId) return null
   return namedCalendars.value.find(c => c.id === calId) ?? null
 })
+
+// Embedded in the old platform, our left rail is hidden (that shell supplies the
+// navigation) — so anything the rail was the ONLY way to reach needs a home here.
+// Switching calendars and creating one were both rail-only.
+const railHidden = useState<boolean>('fmEmbedSession', () => false)
+
+// ── One person's events (?person=…) ────────────────────────────────────────
+// The old platform's member profile has an Events tab, and it mounts this module
+// with the member's id. `null` means "not loaded yet" — distinct from an empty set,
+// which means "they're on nothing" — because the two must not look the same: one
+// waits, the other says so.
+const personScope = computed(() => String(route.query.person || ''))
+const personEventIds = ref<Set<string> | null>(null)
+watch(personScope, async (pid) => {
+  if (!pid) { personEventIds.value = null; return }
+  try {
+    const ids = await $fetch<string[]>('/api/v1/events/for-person', { query: { personId: pid } })
+    personEventIds.value = new Set(ids)
+  } catch { personEventIds.value = new Set() }
+}, { immediate: true })
+const NEW_CALENDAR = '__new__'
+// "All events" carries a real value, not ''. PrimeVue's Select reads an empty
+// string as NOTHING SELECTED, so the control rendered blank on the default view —
+// the one state it is in most of the time — instead of naming it.
+const ALL_EVENTS = '__all__'
+const calendarPickerOptions = computed(() => [
+  { label: 'All events', value: ALL_EVENTS },
+  ...namedCalendars.value.map((c: any) => ({ label: c.name, value: c.id })),
+  // Creating sits at the bottom of the list of things you can pick, which is
+  // where you look when the one you wanted isn't there.
+  { label: '＋ New calendar', value: NEW_CALENDAR },
+])
+const activeCalendarValue = computed(() => (route.query.calendar as string) || ALL_EVENTS)
+function onCalendarPick(id: string) {
+  if (id === NEW_CALENDAR) {
+    showCalSettings.value = true
+    calTab.value = 'display'
+    startNewCalendar()
+    return
+  }
+  switchCalendar(id === ALL_EVENTS ? '' : id)
+}
+function switchCalendar(id: string) {
+  navigateTo(id ? `/events?calendar=${encodeURIComponent(id)}` : '/events')
+}
 
 // ── Share this calendar with clubs (governing/parent orgs) ──────────────────
 // A governing org shares the OPEN calendar with the clubs beneath it; each club
@@ -2232,12 +2299,26 @@ const bookingsCalEvents = computed(() => {
 // to the wizard — a live event, or one made in the custom/advanced/multi builders,
 // opens on the full event page. (created_via, migration 257: `style` couldn't tell
 // a wizard draft from a Custom one — both are BASIC.)
-function openEvent(evt: { id: string; status?: string; created_via?: string | null; style?: string; is_programme?: boolean; is_shared?: boolean; shared_from?: string | null }) {
+function openEvent(evt: { id: string; status?: string; created_via?: string | null; style?: string; is_programme?: boolean; is_shared?: boolean; shared_from?: string | null; external_url?: string | null }) {
+  // Some events open somewhere else entirely. A competition fixture is one line
+  // of a draw, not an event page — the old platform's own calendar has always
+  // sent a click on a game to its division's draw anchored at the round, so this
+  // one does too. `_top` because that page lives in the platform AROUND this
+  // iframe; loading it inside would nest the whole app in itself.
+  if (evt.external_url) {
+    if (import.meta.client) window.open(evt.external_url, '_top')
+    return
+  }
   // An event that still lives in the OLD platform. It rides in on the shared
   // feed, so it must be caught BEFORE the is_shared branch below — that page
   // loads from this module's own store and would find nothing.
   if (typeof evt.id === 'string' && evt.id.startsWith('legacy-')) {
-    navigateTo(`/events/legacy/${evt.id.slice('legacy-'.length)}`)
+    // The run-the-event view — the same one a Quick event opens in. A legacy event
+    // has no fees breakdown, no form and no settings, but it DOES have people and
+    // their attendance, and this is the layout where that is the main event rather
+    // than a section that had to be hidden. The seam answers for `legacy-` ids, so
+    // the details summary and the roll work unchanged.
+    navigateTo(`/events/view/${evt.id}`)
     return
   }
   // A SHARED event belongs to another org (a national/governing body shared it, this
@@ -2504,6 +2585,15 @@ function eventColor(e: any) {
 // Every built filter must pass (AND). A filter with nothing chosen in it is
 // inert — it's a row the user is still filling in, not "show nothing".
 function passesFilters(e: any) {
+  // ONE PERSON'S events (?person=…) — the old platform's profile has an Events tab
+  // and mounts this module scoped to that member. Gated here rather than at load
+  // so the sessions view and the exports narrow with it, for free. Null while the
+  // id set is still loading: showing the whole club's calendar for a moment on a
+  // member's own tab is exactly the wrong way round, so nothing shows until we know.
+  if (personScope.value) {
+    if (!personEventIds.value) return false
+    if (!personEventIds.value.has(e.id)) return false
+  }
   for (const f of calSettings.filters) {
     if (f.key === 'category') {
       if (!f.value?.length) continue
@@ -2713,7 +2803,7 @@ async function load() {
   // Shared (accepted) events from a governing body — read-only, tagged with who shared them.
   const sharedRows = (sharedList ?? [])
     .filter((e: any) => wanted(e) && e.status !== 'ARCHIVED' && e.status !== 'CANCELLED')
-    .map((e: any) => ({ ...toEventRow(e), is_shared: true, shared_from: e.sharedFromOrgName, discipline_name: e.disciplineName }))
+    .map((e: any) => ({ ...toEventRow(e), is_shared: true, shared_from: e.sharedFromOrgName, discipline_name: e.disciplineName, external_url: e.externalUrl ?? null }))
   events.value = [...ownRows, ...sharedRows]
     .sort((a: any, b: any) => {
       // nullsFirst:false — undated events sort to the end.

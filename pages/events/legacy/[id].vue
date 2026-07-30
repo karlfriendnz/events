@@ -42,6 +42,19 @@ const categoryOptions = computed(() => (options.value?.categories ?? []).map((c:
   label: c.name, value: c.id,
 })))
 
+/**
+ * A name on the roll opens that person's profile.
+ *
+ * People still live in the old platform, so the profile is its page, not one of
+ * ours — `<webBase>/people/<id>`, and `target="_top"` so it replaces the whole
+ * platform page rather than loading the old app inside our own iframe. Without a
+ * legacy connection there is nothing to point at, so the name stays plain text
+ * rather than becoming a link that goes nowhere.
+ */
+const webBase = computed(() => String(options.value?.webBase || '').replace(/\/$/, ''))
+const personHref = (r: any) =>
+  webBase.value && r?.personID ? `${webBase.value}/people/${r.personID}` : null
+
 function startEdit() {
   const e = ev.value
   Object.assign(form, {
@@ -246,7 +259,12 @@ const money = (n: number) => `$${Number(n || 0).toFixed(2)}`
         </div>
         <div v-else class="divide-y divide-gray-100 max-h-[420px] overflow-y-auto">
           <div v-for="(r, i) in roll" :key="i" class="px-4 py-2.5 flex items-center gap-3">
-            <span class="text-sm text-gray-800 flex-1 min-w-0 truncate">
+            <a v-if="personHref(r)" :href="personHref(r)!" target="_top"
+              class="text-sm text-primary flex-1 min-w-0 truncate hover:underline"
+              :title="`Open ${r.name || 'this person'}'s profile`">
+              {{ r.name || `Person ${r.personID}` }}
+            </a>
+            <span v-else class="text-sm text-gray-800 flex-1 min-w-0 truncate">
               {{ r.name || `Person ${r.personID}` }}
             </span>
             <span v-if="r.signedInTime" class="text-xs text-gray-400">

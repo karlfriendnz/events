@@ -316,6 +316,29 @@ html.fm-embedded .p-dialog-mask {
   -webkit-backdrop-filter: blur(6px) !important;
 }
 
+/* EMBEDDED — hide the Nuxt DevTools pill.
+   It pins itself to the bottom of ITS viewport, which inside a frame is the frame —
+   so it floats in the middle of the platform's page instead of the corner of the
+   screen, over whatever the module is showing. Dev-only either way (Nuxt strips it
+   from production), but it gets in the way of judging these embedded layouts.
+   Hidden, not disabled: Shift+Alt+D still opens the panel when you want it. */
+html.fm-embedded #nuxt-devtools-anchor { display: none !important; }
+
+/* EMBEDDED ON A NARROW SCREEN — flow, don't fill.
+   The shell is normally a fixed-height column that scrolls internally, which is
+   right on a desktop and wrong in a phone-sized frame: a small scrolling window
+   inside a small scrolling page. Here it takes its natural height instead and the
+   HOST page does the scrolling, so there is one scrollbar and it's the one the
+   thumb is already on. Set by plugins/embed-height.client.ts, which also reports
+   the resulting height to the host (it can't measure us across origins). */
+html.fm-embed-flow,
+html.fm-embed-flow body { height: auto !important; overflow: visible !important; }
+html.fm-embed-flow .embed-root { height: auto !important; }
+/* The layout root (h-screen overflow-hidden) and its scrolling <main>. */
+html.fm-embed-flow .h-screen { height: auto !important; min-height: 0 !important; }
+html.fm-embed-flow .overflow-hidden { overflow: visible !important; }
+html.fm-embed-flow main { overflow: visible !important; }
+
 
 /* Clicking a review comment rings the element it points at for a moment, so
    "which control did they mean?" is answered by looking rather than guessing.
@@ -428,3 +451,32 @@ html.fm-embedded .p-dialog-mask {
   }
   body.printing-roll .roll-print-sheet thead th { border-bottom: 2px solid #9ca3af !important; }
 }
+
+/* ── Club-authored rich text (.fm-rich) ─────────────────────────────────────
+ *
+ * Anywhere an event description (or any editor-authored HTML) is rendered with
+ * v-html. Tailwind's preflight resets lists to `list-style: none`, strips their
+ * padding and zeroes heading/paragraph margins — so a description written with
+ * bullets came out as an unmarked run of lines. The markup was always correct;
+ * the styling had been reset out from under it.
+ *
+ * Global, not scoped: the same HTML is rendered on the event page, the RSVP
+ * dialog, the registration form header and the form designer's preview, and
+ * fixing them one at a time is how three of them stayed broken.
+ */
+.fm-rich p { margin: 0.5rem 0; }
+.fm-rich p:first-child { margin-top: 0; }
+.fm-rich p:last-child { margin-bottom: 0; }
+.fm-rich ul { list-style: disc; padding-left: 1.5rem; margin: 0.5rem 0; }
+.fm-rich ol { list-style: decimal; padding-left: 1.5rem; margin: 0.5rem 0; }
+.fm-rich li { margin: 0.25rem 0; }
+.fm-rich strong, .fm-rich b { font-weight: 600; color: #111827; }
+.fm-rich em, .fm-rich i { font-style: italic; }
+.fm-rich u { text-decoration: underline; }
+.fm-rich a { color: var(--brand-primary, #2494D2); text-decoration: underline; }
+.fm-rich h1, .fm-rich h2, .fm-rich h3 { font-weight: 600; color: #111827; margin: 0.75rem 0 0.25rem; }
+.fm-rich h1 { font-size: 1.125rem; }
+.fm-rich h2 { font-size: 1rem; }
+.fm-rich h3 { font-size: 0.9375rem; }
+.fm-rich hr { border-top: 1px solid #e5e7eb; margin: 0.75rem 0; }
+.fm-rich blockquote { border-left: 3px solid #e5e7eb; padding-left: 0.75rem; color: #4b5563; margin: 0.5rem 0; }

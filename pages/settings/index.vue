@@ -1,7 +1,10 @@
 <template>
   <div class="p-3 sm:p-6 min-h-full flex flex-col">
     <div class="flex flex-col md:flex-row gap-4 md:gap-6 flex-1 min-h-0">
-      <SettingsNav />
+      <!-- Embedded, this page IS one tab of the old platform's Settings, so the
+           panel is all that belongs on it: our own settings menu beside theirs
+           would be a second way to navigate settings inside their settings. -->
+      <SettingsNav v-if="!embedSession" />
       <div class="flex-1 min-w-0 settings-fill">
         <Tabs :value="activeTab">
           <TabPanels>
@@ -262,7 +265,9 @@
 
         <!-- ── EVENTS ── -->
         <TabPanel value="events" class="space-y-4 max-w-3xl">
-          <div class="mb-1">
+          <!-- Embedded, the tab the club clicked already says "Events" — a title
+               repeating it is the control-bar-redundancy rule across a seam. -->
+          <div v-if="!embedSession" class="mb-1">
             <h1 class="text-xl font-semibold text-gray-900">Events</h1>
             <p class="text-sm text-gray-500">Defaults applied to event registration.</p>
           </div>
@@ -538,6 +543,9 @@ const toast = useToast()
 // Active panel is driven by ?tab= so the shared <SettingsNav> tab bar controls it.
 const route = useRoute()
 const activeTab = computed(() => (route.query.tab as string) || 'general')
+// Running as a tab inside the old platform's own Settings page: drop our settings
+// menu and the panel's title, so what renders is the tab's CONTENT and nothing else.
+const embedSession = useState<boolean>('fmEmbedSession', () => false)
 
 const org = ref<{
   name: string

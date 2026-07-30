@@ -17,6 +17,12 @@ const props = defineProps<{
   /** Builder edit mode: inputs are inert so a click opens the field editor instead of
    *  typing. account/comms stay interactive (they handle their own clicks). */
   editable?: boolean
+  /**
+   * Why THIS field is invalid. Set → the control is outlined in red and the reason
+   * prints directly beneath it. A validation message that only appears at the bottom
+   * of a long form names a field you cannot see.
+   */
+  error?: string | null
 }>()
 const emit = defineEmits<{ (e: 'update', v: any): void; (e: 'edit'): void }>()
 const f = computed(() => props.field)
@@ -44,7 +50,12 @@ const buttonHref = computed(() => {
 
 // Explicit bg + text + placeholder colours: these inputs render on public pages
 // with designed backgrounds (and under OS dark mode), so they must not inherit.
-const inputClass = computed(() => 'w-full h-9 px-3 text-sm bg-white text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-lg outline-none focus:border-primary transition-colors' + (props.editable ? ' pointer-events-none' : ''))
+// ONE place styles every control, so the invalid state reaches all of them at once
+// instead of having to be remembered per field type.
+const inputClass = computed(() =>
+  'w-full h-9 px-3 text-sm bg-white text-gray-900 placeholder:text-gray-400 border rounded-lg outline-none transition-colors'
+  + (props.error ? ' border-red-500 ring-1 ring-red-500/30 bg-red-50/40 focus:border-red-500' : ' border-gray-200 focus:border-primary')
+  + (props.editable ? ' pointer-events-none' : ''))
 // In edit mode, non-text inputs (checkbox/select/date/…) are inert too so a click hits
 // the wrapper and opens the field editor. account/comms are excluded (interactive).
 const inert = computed(() => (props.editable ? 'pointer-events-none' : ''))
@@ -75,7 +86,8 @@ const inert = computed(() => (props.editable ? 'pointer-events-none' : ''))
 
   <!-- ── Data fields ── -->
   <div v-else :class="[colSpan, editable ? 'group relative cursor-pointer rounded-lg -mx-2 px-2 py-1 border border-transparent hover:border-gray-200 hover:bg-gray-50/70 transition-colors' : '']"
-    class="space-y-1" :data-field-id="editable ? f.id : undefined" :data-pinned="editable && f.pinned ? '1' : undefined" @click="onEditClick">
+    class="space-y-1" :data-field-id="editable ? f.id : undefined" :data-pinned="editable && f.pinned ? '1' : undefined"
+    :data-field-invalid="error ? '1' : undefined" @click="onEditClick">
     <!-- Edit affordances (builder only) — pinned name fields aren't draggable. -->
     <span v-if="editable && !f.pinned" class="field-drag-handle absolute right-0 top-0 w-5 h-5 flex items-center justify-center cursor-grab active:cursor-grabbing text-gray-300 hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity z-10" @click.stop @mousedown.stop>
       <i class="pi pi-arrows-alt text-[11px]" />
@@ -83,8 +95,8 @@ const inert = computed(() => (props.editable ? 'pointer-events-none' : ''))
     <i v-if="editable" class="pi pi-pencil absolute top-1 right-6 text-[9px] text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
     <!-- Checkbox: label above (like every other field), then the box + its own text -->
     <template v-if="f.field_type === 'checkbox'">
-      <label class="text-sm font-semibold text-gray-600">
-        {{ f.label }}<span v-if="f.is_required" class="text-red-400 ml-0.5">*</span>
+      <label class="text-sm font-semibold" :class="error ? 'text-red-600' : 'text-gray-600'">
+        {{ f.label }}<span v-if="f.is_required" class="ml-0.5" :class="error ? 'text-red-600' : 'text-red-400'">*</span>
       </label>
       <label class="flex items-start gap-2.5 cursor-pointer py-1">
         <input type="checkbox" class="w-4 h-4 mt-0.5 rounded border-gray-300 accent-primary" :class="inert"
@@ -95,8 +107,8 @@ const inert = computed(() => (props.editable ? 'pointer-events-none' : ''))
 
     <template v-else>
       <!-- account/comms say what they are inline, so the header label would just repeat it -->
-      <label v-if="!['account','comms'].includes(f.field_type)" class="text-sm font-semibold text-gray-600">
-        {{ f.label }}<span v-if="f.is_required" class="text-red-400 ml-0.5">*</span>
+      <label v-if="!['account','comms'].includes(f.field_type)" class="text-sm font-semibold" :class="error ? 'text-red-600' : 'text-gray-600'">
+        {{ f.label }}<span v-if="f.is_required" class="ml-0.5" :class="error ? 'text-red-600' : 'text-red-400'">*</span>
       </label>
 
       <!-- Account ("Create a login") — a yes/no toggle, not a text box -->
@@ -148,6 +160,14 @@ const inert = computed(() => (props.editable ? 'pointer-events-none' : ''))
         :value="value" :placeholder="f.placeholder || ''" :class="inputClass" @input="on" />
 
       <p v-if="f.has_helper_text && f.helper_text" class="text-[11px] text-gray-400">{{ f.helper_text }}</p>
+      <!-- The reason, under the field it belongs to. -->
+      <p v-if="error" class="flex items-start gap-1.5 text-xs font-medium text-red-600">
+        <i class="pi pi-exclamation-circle text-[11px] mt-0.5" />{{ error }}
+      </p>
     </template>
+    <!-- Checkbox branch ends before the block above, so it needs the message too. -->
+    <p v-if="error && f.field_type === 'checkbox'" class="flex items-start gap-1.5 text-xs font-medium text-red-600">
+      <i class="pi pi-exclamation-circle text-[11px] mt-0.5" />{{ error }}
+    </p>
   </div>
 </template>

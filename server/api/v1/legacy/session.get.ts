@@ -39,6 +39,11 @@ export default defineEventHandler(async (event) => {
       // The events UI renders as an organisation, so the embed needs this to
       // put the real board into the right club context.
       orgId: club.orgId,
+      // Where that platform lives, so the embedded module can link back INTO it —
+      // a person's real profile is its page, not ours, while we are one tab of it.
+      // Not a secret: it is the host the user is already looking at. The API key
+      // stays on the server, which is the thing that must not travel.
+      baseUrl: club.baseUrl,
     },
   }
 })

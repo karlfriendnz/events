@@ -758,9 +758,11 @@ async function saveEvent() {
     }
 
     // Sync venue bookings — surface this event on each linked venue's calendar.
+    // Legacy venues are named, not reserved — see new-basic. Booking one 500s.
     const bookableIds: string[] = (form.locations ?? [])
       .filter((l: any) => l.type === 'BOOKABLE')
       .flatMap((l: any) => l.bookable_ids ?? [])
+      .filter((bid: string) => !String(bid).startsWith('legacy-'))
     const eventStart = buildDateTime(form.start_date, form.is_all_day ? null : form.start_time)
     const eventEnd = buildDateTime(form.end_date, form.is_all_day ? null : form.end_time)
     if (bookableIds.length && eventStart && eventEnd) {

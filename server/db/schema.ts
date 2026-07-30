@@ -770,6 +770,10 @@ export const events = mysqlTable('events', {
   memberGroupId: varchar('member_group_id', { length: 36 }),
   memberGroupScheduleId: varchar('member_group_schedule_id', { length: 36 }),
   createdVia: text('created_via'),
+  // The old platform's Event row mirroring this one (migration 0024). Null = never
+  // registered there. Sending it back on save is what stops a re-save creating a
+  // second event over there.
+  legacyEventId: int('legacy_event_id'),
   invitationEmail: json('invitation_email'),
   isProgramme: boolean('is_programme').notNull(),
   ageMin: int('age_min'),
@@ -1421,6 +1425,10 @@ export const persons = mysqlTable('persons', {
   commsTopics: json('comms_topics'),
   phone2: text('phone2'),
   invitedAt: timestamp('invited_at'),
+  // The old platform's Person matching this one (migration 0025). An invoice over
+  // there requires a member, so a registrant has to exist there before they can be
+  // charged; this remembers who they turned out to be.
+  legacyPersonId: int('legacy_person_id'),
 })
 
 // A governing body's private EDITS to a club-owned person. Keyed by (org_id = the

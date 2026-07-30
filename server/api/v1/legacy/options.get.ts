@@ -19,5 +19,11 @@ export default defineEventHandler(async () => {
     legacy.categories(club).catch(() => [] as any[]),
   ])
 
-  return { venues, categories }
+  // The old platform's WEB root (the API hangs off it at /api/v1/fmevents/…).
+  // People, competitions and the rest still live over there, so anything this
+  // module can only point at — a person's profile, say — needs somewhere to
+  // point. It isn't discoverable from the browser: the iframe carries no host
+  // URL and its `referrerpolicy="same-origin"` strips the referrer, so the
+  // server has to hand it over.
+  return { venues, categories, webBase: club.baseUrl }
 })

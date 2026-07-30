@@ -74,6 +74,7 @@ function toDomain(r: typeof schema.persons.$inferSelect): Person {
     photoUrl: r.photoUrl ?? null,
     phone2: r.phone2 ?? null,
     commsTopics: asArray(r.commsTopics),
+    legacyPersonId: r.legacyPersonId ?? null,
     customFields: asObj(r.customFields),
     createdAt: toIso(r.createdAt),
   }

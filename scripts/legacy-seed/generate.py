@@ -513,7 +513,11 @@ def build(cfg):
         SLOTS=["09:00:00","10:30:00","12:00:00","13:30:00","15:00:00"]
         def mkgame(gm,rd,h,a,gtype,playoffs,placement,gname,gdate,slot,played=True):
             ev=g.nid("Event")
-            cevrows.append([str(ev),n(r.choice(coaches)),"2",q(gname),q("Competition venue"),str(r.choice(venues)),
+            # type 4 = Event::TYPE_GAME. This was seeded as 2 (a booking), which
+            # made every fixture look like an ordinary event: the platform's own
+            # calendar only resolves a CompGame for type 4, so a click on
+            # "Round 1: Chargers v Phantoms" went nowhere near its draw.
+            cevrows.append([str(ev),n(r.choice(coaches)),"4",q(gname),q("Competition venue"),str(r.choice(venues)),
                 dd(gdate),f"'{slot}'",dd(gdate),"'16:30:00'",money(0),dd(gdate),q("Competition fixture"),"NULL","NULL","0",dd(gdate),"''","0"])
             if played:
                 hs,as_=r.randint(10,40),r.randint(10,40); st=5   # STATUS_PLAYED

@@ -31,11 +31,30 @@ function onLoaded(ev: any) {
 }
 onUnmounted(() => { breadcrumbs.value = [] })
 
-const BODY_TABS = [
+// Landing here with a legacy id does NOT mean the event is theirs — ours are mirrored
+// onto the club's calendar, and its links carry the mirror's id. Reached that way, an
+// event we own rendered as a read-only stranger's: no Communication or Notes tabs, a
+// roll read from their side (so empty), and a delete that did nothing. Send it to the
+// real record instead. Only genuinely-theirs events stay on this view.
+watch(id, async (v) => {
+  if (!v?.startsWith('legacy-')) return
+  const ours = await $fetch<{ id: string | null }>('/api/v1/events/by-legacy-id', {
+    query: { legacyId: v },
+  }).catch(() => ({ id: null }))
+  if (ours?.id) await navigateTo(`/events/${ours.id}`, { replace: true })
+}, { immediate: true })
+
+// An event that still lives in the OLD platform. Its people and their attendance
+// cross the seam; club messages and notes have no counterpart over there, so those
+// tabs aren't offered rather than opening onto nothing.
+const isLegacy = computed(() => id.value.startsWith('legacy-'))
+const BODY_TABS = computed(() => [
   { k: 'attendance', l: 'Attendance', i: 'pi-check-square' },
-  { k: 'communication', l: 'Communication', i: 'pi-envelope' },
-  { k: 'notes', l: 'Notes & tasks', i: 'pi-clipboard' },
-]
+  ...(isLegacy.value ? [] : [
+    { k: 'communication', l: 'Communication', i: 'pi-envelope' },
+    { k: 'notes', l: 'Notes & tasks', i: 'pi-clipboard' },
+  ]),
+])
 </script>
 
 <template>

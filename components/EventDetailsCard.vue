@@ -184,7 +184,7 @@
         <template v-else>
           <!-- Rendered, not printed: now the editor is rich text, interpolating
                the value would show the reader "<p>Bring boots</p>". -->
-          <span v-if="hasDescription" class="text-sm flex-1 line-clamp-2 text-gray-700" v-html="description" />
+          <span v-if="hasDescription" class="fm-rich text-sm flex-1 line-clamp-2 text-gray-700" v-html="description" />
           <span v-else class="text-sm flex-1 text-gray-400">—</span>
           <i class="pi pi-pencil text-xs text-gray-300 group-hover:text-gray-500 transition-colors shrink-0 mt-1 !hidden sm:!block" />
         </template>

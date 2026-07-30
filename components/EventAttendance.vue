@@ -368,6 +368,14 @@ const customFieldDefs = ref<{ key: string; label: string }[]>([])
 const { loadFieldCatalogue } = usePersonFields()
 async function loadFieldDefs() {
   if (!orgId.value) { customFieldDefs.value = []; return }
+  // An event from the OLD platform lists that club's OWN custom fields. Ours are
+  // fields of this module — a club looking at its own roll was offered columns
+  // none of its members could ever have a value for.
+  if (String(props.eventId ?? '').startsWith('legacy-')) {
+    try { customFieldDefs.value = await $fetch<any[]>('/api/v1/legacy/custom-fields') }
+    catch { customFieldDefs.value = [] }
+    return
+  }
   try {
     const cat = await loadFieldCatalogue(orgId.value, null)
     customFieldDefs.value = cat.filter((f: any) => f.source === 'custom').map((f: any) => ({ key: String(f.key), label: f.label }))
@@ -830,7 +838,7 @@ async function loadInvitees() {
     person_id: inv.personId,
     sub_group_id: inv.subGroupId,
     signed_out: inv.signedOut,
-    person: inv.person ? { id: inv.person.id, first_name: inv.person.firstName, last_name: inv.person.lastName, email: inv.person.email, dob: inv.person.dateOfBirth, gender: inv.person.gender, photo_url: inv.person.photoUrl, phone: inv.person.phone, phone2: inv.person.phone2, membership_type: inv.person.membershipType, custom_fields: inv.person.customFields } : null,
+    person: inv.person ? { id: inv.person.id, first_name: inv.person.firstName, last_name: inv.person.lastName, email: inv.person.email, dob: inv.person.dateOfBirth, gender: inv.person.gender, photo_url: inv.person.photoUrl, phone: inv.person.phone, phone2: inv.person.phone2, membership_type: inv.person.membershipType, custom_fields: inv.person.customFields, legacy_person_id: inv.person.legacyPersonId ?? null } : null,
   }))
   memberGroupsForInvitees.value = []
   const map: Record<string, string> = {}
@@ -1115,7 +1123,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                 <tr v-for="inv in mg.invitees" :key="inv.id" class="bg-white hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
                   <td class="pl-3 pr-1 py-2.5 w-8 text-center align-middle text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
                   <td class="pl-1 pr-2 py-2.5 w-8 text-center align-middle"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
-                  <td class="py-2.5 pr-3 font-medium whitespace-nowrap"><div class="flex items-center gap-2"><img v-if="showPhoto && inv.person?.photo_url" :src="inv.person.photo_url" alt="" class="w-7 h-7 rounded-full object-cover shrink-0" /><span v-else-if="showPhoto" class="w-7 h-7 rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold flex items-center justify-center shrink-0">{{ personInitials(inv) }}</span><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></div></td>
+                  <td class="py-2.5 pr-3 font-medium whitespace-nowrap"><div class="flex items-center gap-2"><img v-if="showPhoto && inv.person?.photo_url" :src="inv.person.photo_url" alt="" class="w-7 h-7 rounded-full object-cover shrink-0" /><span v-else-if="showPhoto" class="w-7 h-7 rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold flex items-center justify-center shrink-0">{{ personInitials(inv) }}</span><PersonNameLink :person="inv.person" :person-id="inv.person_id" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</PersonNameLink></div></td>
                   <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
                   <td v-for="col in tableColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600" :class="col.nowrap ? 'whitespace-nowrap' : ''">
                     <template v-if="col.type === 'photo'">
@@ -1157,7 +1165,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
               class="bg-white hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
               <td class="pl-3 pr-1 py-2.5 w-8 text-center align-middle text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
               <td class="pl-1 pr-2 py-2.5 w-8 text-center align-middle"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
-              <td class="py-2.5 pr-3 font-medium whitespace-nowrap"><div class="flex items-center gap-2"><img v-if="showPhoto && inv.person?.photo_url" :src="inv.person.photo_url" alt="" class="w-7 h-7 rounded-full object-cover shrink-0" /><span v-else-if="showPhoto" class="w-7 h-7 rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold flex items-center justify-center shrink-0">{{ personInitials(inv) }}</span><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></div></td>
+              <td class="py-2.5 pr-3 font-medium whitespace-nowrap"><div class="flex items-center gap-2"><img v-if="showPhoto && inv.person?.photo_url" :src="inv.person.photo_url" alt="" class="w-7 h-7 rounded-full object-cover shrink-0" /><span v-else-if="showPhoto" class="w-7 h-7 rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold flex items-center justify-center shrink-0">{{ personInitials(inv) }}</span><PersonNameLink :person="inv.person" :person-id="inv.person_id" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</PersonNameLink></div></td>
               <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
               <td v-for="col in tableColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600" :class="col.nowrap ? 'whitespace-nowrap' : ''">
                 <template v-if="col.type === 'photo'">
@@ -1215,7 +1223,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                 class="bg-white hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
                 <td class="pl-3 pr-1 py-2.5 w-8 text-center align-middle text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
                 <td class="pl-1 pr-2 py-2.5 w-8 text-center align-middle"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
-                <td class="py-2.5 pr-3 font-medium whitespace-nowrap"><div class="flex items-center gap-2"><img v-if="showPhoto && inv.person?.photo_url" :src="inv.person.photo_url" alt="" class="w-7 h-7 rounded-full object-cover shrink-0" /><span v-else-if="showPhoto" class="w-7 h-7 rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold flex items-center justify-center shrink-0">{{ personInitials(inv) }}</span><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></div></td>
+                <td class="py-2.5 pr-3 font-medium whitespace-nowrap"><div class="flex items-center gap-2"><img v-if="showPhoto && inv.person?.photo_url" :src="inv.person.photo_url" alt="" class="w-7 h-7 rounded-full object-cover shrink-0" /><span v-else-if="showPhoto" class="w-7 h-7 rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold flex items-center justify-center shrink-0">{{ personInitials(inv) }}</span><PersonNameLink :person="inv.person" :person-id="inv.person_id" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</PersonNameLink></div></td>
                 <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
                 <td v-for="col in tableColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600" :class="col.nowrap ? 'whitespace-nowrap' : ''">
                   <template v-if="col.type === 'photo'">
@@ -1265,7 +1273,7 @@ defineExpose({ selectSession: selectAttendanceSession, reload: load })
                 class="bg-white hover:bg-gray-50 transition-colors" :class="{ 'bg-green-50': isAttendedForContext(inv) }">
                 <td class="pl-3 pr-1 py-2.5 w-8 text-center align-middle text-gray-300 cursor-grab"><i class="pi pi-bars text-xs" /></td>
                 <td class="pl-1 pr-2 py-2.5 w-8 text-center align-middle"><Checkbox v-model="attendanceSelected" :value="inv.id" /></td>
-                <td class="py-2.5 pr-3 font-medium whitespace-nowrap"><div class="flex items-center gap-2"><img v-if="showPhoto && inv.person?.photo_url" :src="inv.person.photo_url" alt="" class="w-7 h-7 rounded-full object-cover shrink-0" /><span v-else-if="showPhoto" class="w-7 h-7 rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold flex items-center justify-center shrink-0">{{ personInitials(inv) }}</span><NuxtLink v-if="inv.person_id" :to="`/people/${inv.person_id}`" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</NuxtLink><span v-else class="text-gray-800">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</span></div></td>
+                <td class="py-2.5 pr-3 font-medium whitespace-nowrap"><div class="flex items-center gap-2"><img v-if="showPhoto && inv.person?.photo_url" :src="inv.person.photo_url" alt="" class="w-7 h-7 rounded-full object-cover shrink-0" /><span v-else-if="showPhoto" class="w-7 h-7 rounded-full bg-gray-100 text-gray-500 text-[11px] font-semibold flex items-center justify-center shrink-0">{{ personInitials(inv) }}</span><PersonNameLink :person="inv.person" :person-id="inv.person_id" class="text-gray-800 hover:text-primary hover:underline">{{ inv.person?.first_name }} {{ inv.person?.last_name }}</PersonNameLink></div></td>
                 <td class="py-2.5 pr-3"><span class="text-[11px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap" :class="inviteStatus(inv).cls">{{ inviteStatus(inv).label }}</span></td>
                 <td v-for="col in tableColumns" :key="col.key" class="py-2.5 pr-3 text-sm text-gray-600" :class="col.nowrap ? 'whitespace-nowrap' : ''">
                   <template v-if="col.type === 'photo'">

@@ -52,6 +52,24 @@ a second call returns 401.
 `settings` is a whitelist — never the whole table, which holds secrets.
 `timezone` matters: stored times are wall clock with no zone.
 
+### The other direction — `GET <fmevents-url>/api/v1/legacy/menu?club=<slug>`
+
+The only call that goes the OTHER way: the platform asking the module what it
+should put in the menu. Everything else on this page is the module reading the
+platform.
+
+```json
+{ "calendars": [ { "id": "8f0c…", "name": "Holiday Programme",
+                   "icon": "calendar", "colour": "#1E2157" } ] }
+```
+
+The calendars a club pinned in the module, in its own order. Each becomes a
+sub-item under Events pointing at `/events/calendar/<id>` (MOUNTING.md edit 6).
+
+**Cache it into the `fmevents-calendars` setting; do not call it while rendering
+a menu.** `inc/menu.php` runs on every page load, and nothing the module does
+should be able to slow the platform down.
+
 ### `GET /categories`
 
 The club's own event categories. Rows with an `eventType` are the platform's
@@ -225,6 +243,47 @@ programID, awardID, categoryIDs, groupIDs, isPublic, allMembers`.
 `status` is a **bitmask**, not an enum — `1 DEFAULT | 2 GLOBAL | 4 PUBLIC`, so a
 public event is `5`. `type` is `0 default · 1 attendance · 2 booking · 4 game ·
 5 online · 6 programme`.
+
+### `POST /emailInvites`
+
+```json
+{ "eventID": 125, "all": false }  →  { "sent": 12 }
+```
+
+**The platform's own Send button, over the API** — the same flow as
+`post/manager/event.php?action=email`, not a generic mailer. It uses the event's
+own email content and banner, sends from the event's owner, routes through
+`commContacts()` so a child's invitation reaches their parents, gives each
+invitee their own reply token, honours the trial cap and `maxRecipients()`, and
+records an `Email` row with `STATUS_SENT_EVENT` so the send lands in the club's
+history.
+
+`all` false (default) emails only people never emailed; true re-sends to everyone
+still pending. Invitees move to `STATUS_INVITED` only if the send succeeded.
+
+This is what lets the module stop sending its own email: one flow, one history,
+one set of rules about who actually receives a member's mail.
+
+### `POST /fee`
+
+```json
+{ "eventID": 125, "personID": 390, "amount": 35, "account": "200" }
+```
+```json
+{ "feeID": 8821, "created": true, "amount": 35,
+  "credited": 1, "emailed": true, "xeroSent": true }
+```
+
+Charges one person for one event, and **completes the charge** the way
+`action=applyfee` does: applies any credit they hold, emails the invoice, and
+sends it (with the credit allocations) to Xero. Each step is reported so a caller
+can tell a finished invoice from one a human needs to re-send. Pass
+`email: false` / `xero: false` to suppress either.
+
+`amount` defaults to the event's own `fee`; `account` to its own account. Refuses
+to charge the same person twice for the same event, so a retried registration is
+safe. **A programme day charges the PROGRAMME, not the day** — that is how
+`EventPerson::fee()` looks it up, and what bills a family once for the week.
 
 ### `POST /eventDelete`
 

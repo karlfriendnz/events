@@ -26,6 +26,7 @@ exactly as it does today, which is also the rollback.
 |---|---|---|
 | `application/classes/Api/fmevents.php` | ~800 | The API. One endpoint class in the platform's existing framework. |
 | `application/pages/fmevents/embed.php` | ~90 | Renders the module in an iframe and mints its login token. |
+| `application/pages/settings/fmevents.php` | ~4 | The module's event settings as a tab on the club's Settings page. |
 
 ### Edited files — ~10 lines each, at the top, all guarded
 
@@ -35,6 +36,15 @@ exactly as it does today, which is also the rollback.
 | `pages/attendance/switch.php` | Same. The legacy reports (`awards`, `hours`, `nonattendance`, `trialist`, `visitors`) are deliberately excluded and stay on the old pages. |
 | `pages/programs/switch.php` | Same. `/programs/book/...` (the member payment journey) is deliberately excluded. |
 | `pages/people/tabs/tab-content.php` | The profile's Events tab renders the module scoped to that person. |
+| `pages/settings/tabs.php` | Adds an **Events** tab (6 lines) so event categories, forms and payment options are configured where a club already configures everything else. |
+| `inc/menu.php` | Adds the club's **pinned calendars** as sub-items under Events (8 lines). The module's own left rail is hidden while embedded, so this is otherwise the one feature with no route to it. Read from a cached `fmevents-calendars` setting — never a live call, since this file runs on every page load. |
+
+The last two are edits 5 and 6 in `integration/legacy-api/MOUNTING.md`, added
+after the first four were written. Edit 6 also extends edit 1's block by two
+lines so `/events/calendar/<id>` reaches the module, and needs the
+`fmevents-calendars` setting populated from
+`GET <fmevents-url>/api/v1/legacy/menu?club=<slug>` (a cron, or by hand — it
+changes about as often as a club renames a menu item).
 
 ### Data, per club
 

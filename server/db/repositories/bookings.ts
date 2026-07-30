@@ -1022,6 +1022,25 @@ function bookingSet(input: Partial<BookingCreate>): Record<string, any> {
 // Insert one booking (the staff insert path). Returns the created booking with the
 // org derived from its bookable.
 export async function createBooking(input: BookingCreate): Promise<Booking> {
+  // The bookable has to EXIST here first. A booking is read back through an inner
+  // join on it to derive the org, so booking something we don't own threw on the
+  // read — after the insert had already landed, leaving an orphan row behind and
+  // a 500 in the user's face while creating an event.
+  //
+  // Which happens for real: venues from the old platform are offered in the picker
+  // (they're the club's only venues while that module hasn't moved), but they are
+  // NAMED on an event, never reserved — this module cannot hold a booking against
+  // a venue another system owns. Refuse it plainly instead of half-writing it.
+  if (input.bookableId) {
+    const [b] = await db.select({ id: schema.bookables.id })
+      .from(schema.bookables).where(eq(schema.bookables.id, input.bookableId)).limit(1)
+    if (!b) {
+      throw createError({
+        statusCode: 422,
+        statusMessage: 'That venue is managed in the club\'s existing system, so it can be named on an event but not booked here.',
+      })
+    }
+  }
   const id = randomUUID()
   await db.insert(schema.bookings).values({
     id,

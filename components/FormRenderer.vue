@@ -53,6 +53,16 @@ const props = defineProps<{
    * second, competing set of steps. The advanced editor keeps all of it.
    */
   basic?: boolean
+  /**
+   * Open already knowing WHO is registering — skips the guest/sign-in chooser and
+   * prefills from that person's record.
+   *
+   * Set when the registrant was identified elsewhere: accepting an invitation from
+   * their own profile, where the (event, person) pair WAS the credential. Without
+   * it a member who just said "yes, I'm going" is handed a blank form and asked who
+   * they are.
+   */
+  identifyPersonId?: string | null
 }>()
 const emit = defineEmits<{
   (e: 'submit', payload: any): void
@@ -1068,6 +1078,15 @@ async function onSignedIn(payload: { email: string; firstName: string; lastName:
     else identifiedName.value = [payload.firstName, payload.lastName].filter(Boolean).join(' ').trim()
   }
 }
+// Already identified (see the `identifyPersonId` prop): resolve them and prefill, so
+// the form opens filled in rather than asking who they are a second time.
+watch(() => props.identifyPersonId, async (pid) => {
+  if (!pid || props.preview || props.edit) return
+  authResolved.value = true
+  const data = await peopleApi.get(pid).catch(() => null)
+  if (data) prefillPrimary(toSnakePerson(data))
+}, { immediate: true })
+
 function changeIdentity() {
   authResolved.value = false
   identifiedName.value = ''
@@ -1093,7 +1112,114 @@ onMounted(async () => {
   }
 })
 
-function onNext() { if (step.value < steps.value.length - 1) step.value++ }
+/**
+ * Validate what is ON THIS STEP, then advance.
+ *
+ * Next used to increment blindly, so a wizard could be walked to the end with every
+ * required field empty — the form only complained at Submit, by which point the
+ * offending field was several steps back and the message named a field you couldn't
+ * see. A step gate says it where it happened.
+ *
+ * Deliberately narrow: only the current step's subject (or the terms), never the
+ * whole form. Blocking step 1 because step 3 is empty would be its own bug.
+ */
+/**
+ * Per-field messages, keyed subject:instance:fieldId. Drives the red outline and the
+ * line under each field — a summary at the bottom of a long form points at something
+ * you cannot see, so the field states its own problem.
+ */
+const fieldErrors = reactive<Record<string, string>>({})
+const fieldErrorKey = (subjectKey: string, inst: number, fieldId: string) => `${subjectKey}:${inst}:${fieldId}`
+function fieldErrorFor(subjectKey: string, inst: number, f: any) {
+  return fieldErrors[fieldErrorKey(subjectKey, inst, f?.id)] ?? null
+}
+function clearFieldErrors() { for (const k of Object.keys(fieldErrors)) delete fieldErrors[k] }
+// Cleared as they type: a message that stays put after the problem is fixed reads as
+// a form that has stopped listening.
+watch(answers, () => { if (Object.keys(fieldErrors).length) clearFieldErrors() }, { deep: true })
+
+function validateStep(i: number): boolean {
+  error.value = ''
+  clearFieldErrors()
+  const s = steps.value[i] as any
+
+  if (s?.kind === 'terms') {
+    if (termsList.value.length && !termsAccepted.value) {
+      error.value = 'Please accept the terms to continue.'
+      return false
+    }
+    return true
+  }
+
+  const sub = s?.subject
+  if (!sub) return true
+
+  // EVERY offending field, not just the first — stopping at one makes a half-filled
+  // form a game of whack-a-mole, one Next click per missing answer.
+  for (let inst = 1; inst <= count(sub.key); inst++) {
+    for (const f of allFields(sub.key)) {
+      if (ELEMENT_TYPES.includes(f.field_type) || f.system) continue
+      if (!fieldVisible(f, sub.key, inst)) continue
+      const v = getVal(sub.key, inst, fkey(f))
+      if (f.is_required && (v == null || v === '' || v === false || (Array.isArray(v) && !v.length))) {
+        fieldErrors[fieldErrorKey(sub.key, inst, f.id)] = `${f.label} is required`
+        continue
+      }
+      if (f.field_type === 'email' && v && !emailOk(String(v))) {
+        fieldErrors[fieldErrorKey(sub.key, inst, f.id)] = 'Enter a valid email address'
+      }
+    }
+    // Creating a login needs all five SSO fields, same as at submit.
+    if (accountFieldFor(sub.key) && accountLoginOn(sub.key, inst)) {
+      for (const spec of SSO_SPECS) {
+        if (ssoValueFor(sub.key, inst, spec) == null || ssoValueFor(sub.key, inst, spec) === '') {
+          error.value = `Please complete “${spec.label}” to create a login for ${sub.label}${count(sub.key) > 1 ? ' ' + inst : ''}.`
+          return false
+        }
+      }
+    }
+  }
+
+  const n = Object.keys(fieldErrors).length
+  if (n) {
+    // The summary counts; the fields themselves say what and where.
+    error.value = n === 1
+      ? 'Please complete the highlighted field below.'
+      : `Please complete the ${n} highlighted fields below.`
+    // Bring the first one into view — on a long step the red outline can be well
+    // below the button that was just clicked.
+    if (import.meta.client) {
+      nextTick(() => {
+        document.querySelector('[data-field-invalid="1"]')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      })
+    }
+    return false
+  }
+  return true
+}
+
+function onNext() {
+  if (!validateStep(step.value)) return
+  if (step.value < steps.value.length - 1) step.value++
+}
+
+/**
+ * The step BAR is a shortcut, not an escape hatch. Jumping forward has to clear
+ * every step between here and there — otherwise a form with three subject steps
+ * could be skipped to the summary with all of them empty, which is the same hole
+ * Next had. Going backwards is always free: nothing is being asserted by leaving.
+ *
+ * Step count and contents come from the config, so this walks whatever the form
+ * actually has rather than assuming a shape.
+ */
+function goToStep(i: number) {
+  if (i <= step.value) { step.value = i; return }
+  for (let s = step.value; s < i; s++) {
+    if (!validateStep(s)) { step.value = s; return }
+  }
+  step.value = i
+}
 function onBack() { if (step.value > 0) step.value-- }
 function onSubmit() { if (props.preview) return; if (validate()) emit('submit', buildPayload()) }
 </script>
@@ -1111,7 +1237,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
     <div class="px-4 sm:px-6 py-6">
     <!-- LANDING: details + sessions (data table) → "Register" opens the auth modal -->
     <div v-if="!authResolved">
-      <div class="prose prose-sm max-w-none text-gray-900 mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="formHeading" />
+      <div class="fm-rich prose prose-sm max-w-none text-gray-900 mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="formHeading" />
 
       <!-- What's on offer, as a table (desktop) / stacked cards (mobile) -->
       <div v-if="weekSummary.length" class="sm:hidden space-y-2">
@@ -1184,7 +1310,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
     <!-- The form's own preamble. Dropped on the basic path: the event's banner and
          title sit directly above, so "Fill in the form to register" was a second
          heading saying what the form underneath it already shows. -->
-    <div v-if="!basic" class="prose prose-sm max-w-none text-gray-900 mb-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="formHeading" />
+    <div v-if="!basic" class="fm-rich prose prose-sm max-w-none text-gray-900 mb-4 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="formHeading" />
 
     <!-- Step indicator — segments, not a row of dots-and-chevrons: each step gets its
          number and its NAME, and the one you're on is filled with the form's own step
@@ -1194,7 +1320,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
         class="flex-1 min-w-0 px-3 py-2.5 text-center transition-colors"
         :class="i === step ? 'text-white' : 'hover:bg-gray-50'"
         :style="i === step ? { background: stepColor, color: stepTextColor } : undefined"
-        @click="step = i">
+        @click="goToStep(i)">
         <span class="block text-xs font-bold" :class="i === step ? '' : 'text-gray-700'">Step {{ i + 1 }}</span>
         <span class="block text-[11px] truncate" :class="i === step ? 'opacity-80' : 'text-gray-400'">{{ stepLabel(st) }}</span>
       </button>
@@ -1212,7 +1338,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
             @update:modelValue="html => emit('edit-subject-intro', { subjectKey: s.key, html })" />
         </div>
         <template v-else>
-          <div v-if="s.intro && s.intro.trim()" class="prose prose-sm max-w-none text-gray-800 mb-2 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="s.intro" />
+          <div v-if="s.intro && s.intro.trim()" class="fm-rich prose prose-sm max-w-none text-gray-800 mb-2 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="s.intro" />
           <h3 v-else class="text-base font-semibold text-gray-800">{{ s.heading || (s.label + ' register') }}</h3>
         </template>
 
@@ -1237,6 +1363,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
             <!-- Pinned (name) -->
             <FormRendererField v-for="f in leadFields(s.key)" :key="f.id"
               :field="f" :value="getVal(s.key, inst, fkey(f))" :editable="edit"
+              :error="fieldErrorFor(s.key, inst, f)"
               @update="v => setVal(s.key, inst, fkey(f), v)" @edit="emit('edit-field', f.id)" />
             <!-- Body items + sections -->
             <template v-for="f in bodyItems(s.key)" :key="f.id">
@@ -1250,7 +1377,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
                     @update:modelValue="html => emit('edit-section-intro', { sectionId: f.id, html })" />
                 </div>
                 <template v-else-if="f.intro && f.intro.trim()">
-                  <div class="prose prose-sm max-w-none text-gray-800 mb-2 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="f.intro" />
+                  <div class="fm-rich prose prose-sm max-w-none text-gray-800 mb-2 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-gray-800 [&_h2]:mb-0" v-html="f.intro" />
                 </template>
                 <template v-else>
                   <p class="text-sm font-bold text-gray-700">{{ f.label }}</p>
@@ -1265,6 +1392,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
                   <FormRendererField v-for="c in sectionChildren(s.key, f.id)" :key="c.id"
                     v-show="edit || fieldVisible(c, s.key, inst)"
                     :field="c" :value="getVal(s.key, inst, fkey(c))" :editable="edit"
+                    :error="fieldErrorFor(s.key, inst, c)"
                     :comms-people="commsRecipientOptions" :comms-topics="commsTopics" :subject-label="s.label"
                     @update="v => setVal(s.key, inst, fkey(c), v)" @edit="emit('edit-field', c.id)" />
                   <!-- Empty-section drop zone so fields can be dragged INTO a section. -->
@@ -1273,6 +1401,7 @@ function onSubmit() { if (props.preview) return; if (validate()) emit('submit', 
               </div>
               <FormRendererField v-else v-show="edit || fieldVisible(f, s.key, inst)"
                 :field="f" :value="getVal(s.key, inst, fkey(f))" :editable="edit"
+                :error="fieldErrorFor(s.key, inst, f)"
                 :comms-people="commsRecipientOptions" :comms-topics="commsTopics" :subject-label="s.label"
                 @update="v => setVal(s.key, inst, fkey(f), v)" @edit="emit('edit-field', f.id)" />
             </template>

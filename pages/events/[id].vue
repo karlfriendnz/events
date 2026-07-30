@@ -2017,7 +2017,10 @@ const allTabs = [
   { key: 'settings',       label: 'Settings',       icon: 'pi-cog' },
 ]
 
-const basicTabs = ['overview', 'invitees', 'attendance', 'communication', 'notes', 'settings']
+// A basic (wizard-built) event still needs FORMS: the wizard builds a registration
+// form on the way in, and without this tab there was no way back into it afterwards —
+// you could design the form once and never edit it again.
+const basicTabs = ['overview', 'forms', 'invitees', 'attendance', 'communication', 'notes', 'settings']
 
 import type { LocationEntry } from '~/composables/useLocation'
 import { makeDiscountDraft, type DiscountDraft } from '~/composables/useEventDiscounts'
@@ -2302,7 +2305,11 @@ async function syncVenueBookings() {
   const existingActive = (existing ?? []).filter((b) => b.status !== 'CANCELLED')
   const existingIds = existingActive.map((b) => b.bookableId)
 
-  const toAdd = bookableIds.filter(bid => !existingIds.includes(bid))
+  // A venue from the OLD platform is named on the event, never reserved — that
+  // module hasn't moved across, so we can't hold its calendar. Booking one used to
+  // 500 the whole save (the booking is read back through a join on a bookable we
+  // don't have), which meant picking a venue from the picker broke event creation.
+  const toAdd = bookableIds.filter(bid => !existingIds.includes(bid) && !String(bid).startsWith('legacy-'))
   const toCancel = existingActive.filter((b) => !bookableIds.includes(b.bookableId))
 
   const startAt = event.value?.start_at ?? null

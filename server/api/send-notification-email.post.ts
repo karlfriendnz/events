@@ -5,54 +5,48 @@
  * console, and stamps `email_sent_at` so we can see deliveries in the dashboard.
  *
  * To go live: pick a provider (Resend / SendGrid / Postmark / your SMTP) and
- * replace `dispatch()` below. Recipients come from org_members joined onto
- * auth.users; tweak that query to fit your access model.
+ * replace `dispatch()` below.
  *
- * The endpoint is called fire-and-forget from booking submit paths, but it's
- * safe to retry — `email_sent_at` is the idempotency key.
+ * Recipients are the org's managers — `org_manager_grants` joined onto `persons`,
+ * whose row already carries the email. This used to read `org_members` and resolve
+ * every `user_id` through Supabase auth, which is the only reason the route needed
+ * Supabase at all: org_members holds no email itself, so there was nothing to send
+ * to without that second hop.
+ *
+ * The endpoint is called fire-and-forget from the registration + booking submit
+ * paths, but it's safe to retry — `email_sent_at` is the idempotency key.
  */
-import { createClient } from '@supabase/supabase-js'
-
-interface NotificationRow {
-  id: string
-  org_id: string
-  type: string
-  title: string
-  body: string | null
-  link: string | null
-  payload: Record<string, any>
-  email_sent_at: string | null
-}
+import { and, eq, isNotNull, ne } from 'drizzle-orm'
+import { db, schema } from '../db/client'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const { notificationId } = body as { notificationId?: string }
   if (!notificationId) throw createError({ statusCode: 400, message: 'notificationId required' })
 
-  const supabase = createClient(supabaseUrl()!, serviceKey()!)
+  const [row] = await db.select({
+    id: schema.notifications.id,
+    orgId: schema.notifications.orgId,
+    title: schema.notifications.title,
+    body: schema.notifications.body,
+    link: schema.notifications.link,
+    emailSentAt: schema.notifications.emailSentAt,
+  }).from(schema.notifications).where(eq(schema.notifications.id, notificationId)).limit(1)
+  if (!row) throw createError({ statusCode: 404, message: 'notification not found' })
+  if (row.emailSentAt) return { skipped: 'already-sent' }
 
-  // Look up the notification + recipients in one shot.
-  const { data: row, error } = await supabase
-    .from('notifications')
-    .select('id, org_id, type, title, body, link, payload, email_sent_at')
-    .eq('id', notificationId)
-    .maybeSingle<NotificationRow>()
-  if (error || !row) throw createError({ statusCode: 404, message: 'notification not found' })
-  if (row.email_sent_at) return { skipped: 'already-sent' }
-
-  // Recipients: every member of the org. Replace with a finer-grained model
-  // (e.g. only members with role='admin' or with this notification type
-  // toggled on in their preferences) when the user model gets richer.
-  const { data: members } = await supabase
-    .from('org_members')
-    .select('user_id')
-    .eq('org_id', row.org_id)
-  const userIds = (members ?? []).map((m: any) => m.user_id).filter(Boolean)
-  const recipients: string[] = []
-  for (const uid of userIds) {
-    const { data: u } = await supabase.auth.admin.getUserById(uid)
-    if (u?.user?.email) recipients.push(u.user.email)
-  }
+  // Recipients: the org's managers. Replace with a finer-grained model (e.g. only
+  // those with this notification type toggled on in their preferences) when the
+  // user model gets richer.
+  const managers = await db.selectDistinct({ email: schema.persons.email })
+    .from(schema.orgManagerGrants)
+    .innerJoin(schema.persons, eq(schema.persons.id, schema.orgManagerGrants.personId))
+    .where(and(
+      eq(schema.orgManagerGrants.orgId, row.orgId),
+      isNotNull(schema.persons.email),
+      ne(schema.persons.email, ''),
+    ))
+  const recipients = managers.map(m => m.email).filter(Boolean) as string[]
   if (!recipients.length) return { skipped: 'no-recipients' }
 
   // Compose. Keep this minimal — the link will appear as a CTA so staff can
@@ -68,10 +62,9 @@ export default defineEventHandler(async (event) => {
 
   const result = await dispatch({ to: recipients, subject, text, link: row.link, baseUrl })
 
-  await supabase
-    .from('notifications')
-    .update({ email_sent_at: new Date().toISOString() })
-    .eq('id', row.id)
+  await db.update(schema.notifications)
+    .set({ emailSentAt: new Date() })
+    .where(eq(schema.notifications.id, row.id))
 
   return { sent: recipients.length, recipients, provider: result.provider, providerId: result.id ?? null }
 })

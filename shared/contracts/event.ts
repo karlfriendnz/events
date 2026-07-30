@@ -100,6 +100,12 @@ export type FMEvent = z.infer<typeof fmEventSchema>
 export const sharedEventSchema = fmEventSchema.extend({
   sharedFromOrgName: z.string().nullable(),
   disciplineName: z.string().nullable(),
+  // This event opens SOMEWHERE ELSE. A competition fixture isn't an event page —
+  // it's one line of a draw — so the old platform's calendar has always sent a
+  // click on a game to its division's draw, anchored at the round. Absolute, so
+  // the calendar can follow it without knowing where the other system lives.
+  // Null (the normal case) means the event opens here.
+  externalUrl: z.string().nullable().default(null),
 })
 export type SharedEvent = z.infer<typeof sharedEventSchema>
 export const sharedEventListSchema = z.array(sharedEventSchema)
@@ -274,6 +280,11 @@ export const inviteeWithPersonSchema = inviteeSchema.extend({
       phone2: z.string().nullable(),
       membershipType: z.string().nullable(),
       customFields: z.record(z.string(), z.any()).nullable(),
+      // Their id on the OLD platform, once ensureLegacyPerson() has bridged them.
+      // Read only to point a name at that platform's profile while the module is
+      // embedded in it. People read straight off the old roster don't need this —
+      // their id is already `legacy-<id>`. Optional, so nothing else has to supply it.
+      legacyPersonId: z.number().nullable().optional(),
     })
     .nullable(),
 })
@@ -347,6 +358,10 @@ export const ticketOrderListSchema = z.array(ticketOrderSchema)
 export const inviteeForPersonSchema = inviteeSchema.extend({
   eventTitle: z.string(),
   eventStartAt: z.string().nullable(),
+  // The END too, not just the start: the profile's calendar draws these as blocks,
+  // and a row with no end has no duration to draw — every event came out as a
+  // hairline sitting on its start time instead of spanning its hour.
+  eventEndAt: z.string().nullable(),
   eventStatus: z.string(),
 })
 export type InviteeForPerson = z.infer<typeof inviteeForPersonSchema>

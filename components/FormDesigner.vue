@@ -422,7 +422,12 @@ function toggleEvtPreviewAgree(label: string) {
   evtPreviewTermsAgreed.value = s
 }
 const evtFormPayment = reactive({
-  invoice: { enabled: false, bank_account: '' },
+  // Invoice starts ON — it is the method the badge beside it calls "Default", and the
+  // only one wired end to end (registering raises the fee on the club's own ledger).
+  // Starting every method off let a CHARGED event be published with no way to pay,
+  // which reads as "registration works" right up until nobody is billed. A saved form
+  // still wins: the loader assigns over this.
+  invoice: { enabled: true, bank_account: '' },
   plan: { enabled: false, frequencies: [] as string[], due_date: '', first_amount: 'scheduled', schedule_min: 'scheduled', schedule_min_value: '' },
   credit_card: { enabled: false },
   coupon: { enabled: false, quantity: 2 },
@@ -4474,7 +4479,7 @@ defineExpose({ reload })
                    Big/bold "Fill in the form to register" look, editable rich text with
                    TipTap controls — same treatment as a subject's "… register" heading. -->
               <div v-if="!evtOnDetailsStep" class="px-6 pt-6 pb-1 evt-heading-body">
-                <div v-if="evtPublicPreview" class="prose prose-sm max-w-none text-gray-800" v-html="evtFormHeadingBody" />
+                <div v-if="evtPublicPreview" class="fm-rich prose prose-sm max-w-none text-gray-800" v-html="evtFormHeadingBody" />
                 <div v-else @click.stop>
                   <RichTextEditor v-model="evtFormHeadingBody" bubble inline placeholder="Fill in the form to register" />
                 </div>
@@ -4533,7 +4538,7 @@ defineExpose({ reload })
                        from the left "Who is registering" list, not here.) -->
                   <div v-if="currentEvtFormProfiles.length" class="evt-subject-body">
                     <!-- Public preview: static -->
-                    <div v-if="evtPublicPreview" class="prose prose-sm max-w-none text-gray-800" v-html="evtSubjectBody(subject)" />
+                    <div v-if="evtPublicPreview" class="fm-rich prose prose-sm max-w-none text-gray-800" v-html="evtSubjectBody(subject)" />
                     <!-- Builder: editable rich text (heading + description in one) -->
                     <div v-else @click.stop>
                       <RichTextEditor :modelValue="evtSubjectBody(subject)" bubble inline
@@ -4614,7 +4619,7 @@ defineExpose({ reload })
                                    (same as the form heading + subject headings): no box,
                                    hover shows an underline + text cursor, TipTap on edit. -->
                               <div class="mb-4 evt-heading-body">
-                                <div v-if="evtPublicPreview" class="prose prose-sm max-w-none text-gray-800" v-html="evtSectionBody(field)" />
+                                <div v-if="evtPublicPreview" class="fm-rich prose prose-sm max-w-none text-gray-800" v-html="evtSectionBody(field)" />
                                 <div v-else @click.stop>
                                   <RichTextEditor :modelValue="evtSectionBody(field)" bubble inline
                                     placeholder="Section heading + optional description…"
@@ -4804,7 +4809,7 @@ defineExpose({ reload })
                             <div class="flex-1 min-w-0">
                               <p class="text-sm font-semibold text-gray-800">{{ s.title || 'Untitled Session' }}</p>
                               <p v-if="s.start_at" class="text-xs text-gray-500 mt-0.5">{{ new Date(s.start_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) }}<template v-if="s.end_at"> · {{ new Date(s.start_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) }}–{{ new Date(s.end_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) }}</template></p>
-                              <div v-if="s.description" class="text-xs text-gray-500 mt-0.5" v-html="s.description" />
+                              <div v-if="s.description" class="fm-rich text-xs text-gray-500 mt-0.5" v-html="s.description" />
                             </div>
                           </div>
                         </template>
@@ -4849,7 +4854,7 @@ defineExpose({ reload })
                                 <span v-if="s.required" class="text-[10px] font-bold uppercase tracking-wide text-primary/60 bg-primary/10 px-1.5 py-0.5 rounded">Required</span>
                               </div>
                               <p v-if="s.start_at" class="text-xs text-gray-500 mt-0.5">{{ new Date(s.start_at).toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short' }) }}<template v-if="s.end_at"> · {{ new Date(s.start_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) }}–{{ new Date(s.end_at).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }) }}</template></p>
-                              <div v-if="s.description" class="text-xs text-gray-500 mt-0.5 line-clamp-1" v-html="s.description" />
+                              <div v-if="s.description" class="fm-rich text-xs text-gray-500 mt-0.5 line-clamp-1" v-html="s.description" />
                             </div>
                             <!-- Price -->
                             <div class="shrink-0 text-right">

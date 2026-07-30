@@ -364,7 +364,10 @@
         <!-- ─ Who it's for + Choose invitees (one step) ─
              The public-registration toggle + form style sit above the invitee
              picker; picking the people is the main job of the step. -->
-        <div :class="isStep('people') ? 'px-1' : 'hidden'">
+        <!-- Invitees, the registration form and the settings block are all things
+             the OLD platform has no counterpart for, so a legacy event simply
+             doesn't show them — an empty builder is worse than an absent one. -->
+        <div v-if="!legacyHides" :class="isStep('people') ? 'px-1' : 'hidden'">
           <!-- ONE card, not three. These are three parts of a single question — who
                this event is for — and as separate boxes they read as three unrelated
                settings, with the capacity toggle sitting in a grey box inside a white
@@ -397,30 +400,39 @@
 
               <!-- Capacity. Moved here from Settings: how many can come is a question
                    about the guest list, so it belongs beside the people being invited,
-                   not under the display toggles two steps later. -->
-              <!-- ONE row. The cap and the waitlist were stacked as two settings
-                   with a rule between them, which made a cap look like a section.
-                   They're one sentence — "cap it at 20, and take a waitlist after
-                   that" — so the waitlist rides on the same row and only appears
-                   once there IS a cap (a waitlist on an uncapped event has nothing
-                   to overflow into). -->
-              <div class="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
-                <div class="flex-1 min-w-0">
-                  <p class="field-label">Limit capacity</p>
-                  <p class="field-help mt-0.5">Cap how many people can attend.</p>
+                   not under the display toggles two steps later.
+
+                   "No limit" is a CHOICE, not a switch (the standing rule): the cap,
+                   its number and the waitlist used to share one line as
+                   [Max][toggle] Waitlist | [toggle] — two identical toggles either
+                   side of a field, neither saying what it governed, and the number
+                   input overflowing its own box into the first of them. Now the
+                   either/or is a SelectButton like every other one on this step, and
+                   the number + waitlist appear underneath only when there IS a cap
+                   (a waitlist on an uncapped event has nothing to overflow into). -->
+              <div class="px-5 py-4">
+                <div class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+                  <div class="flex-1 min-w-0">
+                    <p class="field-label">Capacity</p>
+                    <p class="field-help mt-0.5">How many people can attend.</p>
+                  </div>
+                  <SelectButton :model-value="form.has_capacity" :options="CAPACITY_MODES"
+                    option-label="label" option-value="value" :allow-empty="false"
+                    class="w-max shrink-0" @update:model-value="setHasCapacity" />
                 </div>
-                <div class="flex items-center gap-2 shrink-0 flex-wrap">
-                  <template v-if="form.has_capacity">
-                    <InputNumber v-model="form.capacity_max" :min="1" size="small" placeholder="Max" class="w-20" />
-                    <span class="field-help">spots</span>
-                    <span class="hidden sm:inline text-gray-200">|</span>
-                    <label class="flex items-center gap-2 cursor-pointer select-none">
-                      <ToggleSwitch v-model="form.has_waitlist" />
-                      <span class="field-help" v-tooltip.top="'Once it\'s full, extra sign-ups join a waitlist.'">Waitlist</span>
-                    </label>
-                    <span class="hidden sm:inline text-gray-200">|</span>
-                  </template>
-                  <ToggleSwitch v-model="form.has_capacity" />
+
+                <div v-if="form.has_capacity" class="mt-4 pt-4 border-t border-gray-100 space-y-3">
+                  <div class="flex items-center gap-3">
+                    <label class="field-label w-28 shrink-0">Maximum</label>
+                    <InputNumber v-model="form.capacity_max" :min="1" :use-grouping="false"
+                      placeholder="20" class="w-24" :input-class="'w-24 text-center'" />
+                    <span class="field-help">people</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <label class="field-label w-28 shrink-0">Waitlist</label>
+                    <ToggleSwitch v-model="form.has_waitlist" class="shrink-0" />
+                    <span class="field-help min-w-0">Once it's full, extra sign-ups join a waitlist.</span>
+                  </div>
                 </div>
               </div>
 
@@ -451,7 +463,7 @@
              was a step that asked the same question with fewer answers. -->
         <!-- No heading here: the step path above already says "Registration form",
              and the builder fills the panel — a title + blurb just pushed it down. -->
-        <div :class="isStep('form') ? (formFullBleed ? 'flex-1 min-h-0 flex flex-col' : 'px-1') : 'hidden'">
+        <div v-if="!legacyHides" :class="isStep('form') ? (formFullBleed ? 'flex-1 min-h-0 flex flex-col' : 'px-1') : 'hidden'">
           <!-- ONE form, ONE builder — the same <FormDesigner> the advanced event uses
                (its own chooser, autosaves to registration_forms.config + events.form_id). -->
           <div v-if="!draftEventId" class="bg-white rounded-xl border border-gray-200 py-10 text-center text-sm text-gray-400">
@@ -471,7 +483,7 @@
         </div>
 
         <!-- ─ Settings ─ -->
-        <div :class="isStep('settings') ? 'px-1' : 'hidden'">
+        <div v-if="!legacyHides" :class="isStep('settings') ? 'px-1' : 'hidden'">
           <div class="mb-3">
             <h2 class="section-title">Settings</h2>
             <p class="text-xs text-gray-500 mt-0.5">{{ stepDesc('Settings') }}</p>
@@ -734,6 +746,17 @@ const categories = ref<any[]>([])
 // beside its field. It was previously conflated with "stepped", which is what
 // made reopening a draft dump you into the wrong layout.
 const stepped = computed(() => route.query.mode !== 'full')
+
+// ── An event that still lives in the OLD platform ──────────────────────────
+// `?legacy=<numeric id>` opens it in THIS layout instead of a bespoke page of its
+// own, so a club gets one event screen rather than two that look nothing alike.
+// It is NOT one of ours: there is no draft row, no form, no discounts — the old
+// platform owns it, and we only offer the fields it actually has a home for.
+// Everything else is hidden rather than shown broken (`legacyHides`).
+const legacyId = computed(() => String(route.query.legacy || '').replace(/^legacy-/i, ''))
+const isLegacyEvent = computed(() => !!legacyId.value)
+/** Sections with no counterpart over there. Shown for our own events as always. */
+const legacyHides = computed(() => isLegacyEvent.value)
 // Created from /programme (the events board carries programme=1) → tag the row.
 const isProgramme = route.query.programme === '1'
 const narrow = ref(false)
@@ -871,13 +894,42 @@ const step1Complete = computed(() => !!form.title.trim() && !dateInvalidReason.v
  *
  * The one hard gate is step 1: nothing downstream is meaningful without a name and
  * a valid date, so blanking the title strands you there exactly as Next does.
+ *
+ * "Reached" has to survive a RELOAD, and that's what was broken: `furthestStep`
+ * started at 0 every time the page mounted, so reopening an event you had already
+ * built left four of the six steps dead — the header showed Fees, Who, Form and
+ * Settings and none of them would take a click, with no explanation. It looked
+ * like nothing happened, because nothing did. `openedAtStep` fixes it: an event
+ * that already EXISTS has been all the way through the wizard, so every step is
+ * reachable (see resumeDraft). Only a genuinely new event walks forward one at a
+ * time, which is the case the "reached" rule was written for.
  */
 const furthestStep = ref(0)
 watch(mobileStep, v => { if (v > furthestStep.value) furthestStep.value = v })
+/** Open every step at once — for a resumed event, which has already been built. */
+function unlockAllSteps() { furthestStep.value = Math.max(0, mobileSteps.value.length - 1) }
+// Any step but the one you're on, once step 1 is valid. The old rule also required
+// `idx <= furthestStep` — you could only jump to a step you had already walked to —
+// which meant a brand-new event's header showed six steps of which four silently
+// ignored a click. No step depends on an earlier one (the draft row exists from the
+// moment the wizard opens, so the form step is ready immediately), so the ordering
+// was enforcing nothing. `furthestStep` still drives the "been there" styling.
 const canJumpTo = (idx: number) =>
-  idx !== mobileStep.value && idx <= furthestStep.value && (idx === 0 || step1Complete.value)
+  idx !== mobileStep.value && (idx === 0 || step1Complete.value)
 function jumpToStep(idx: number) {
-  if (!canJumpTo(idx)) return
+  if (idx === mobileStep.value) return
+  // Say why, rather than ignoring the click. A step that refuses silently is
+  // indistinguishable from a broken one — which is exactly how this was reported.
+  if (idx !== 0 && !step1Complete.value) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Finish the first step',
+      detail: dateInvalidReason.value || 'Give the event a name, then you can jump around.',
+      life: 3000,
+    })
+    mobileStep.value = 0
+    return
+  }
   mobileStep.value = idx
   nextTick(() => { document.querySelector('.overflow-y-auto')?.scrollTo(0, 0) })
 }
@@ -1025,6 +1077,21 @@ const signupTouched = ref(false)
  * moves with it); the moment someone picks `custom` the dates are theirs and
  * nothing shifts them again.
  */
+// Capacity is an either/or, so it reads as one — not as a bare toggle you have to
+// flip to find out what it hides. Turning the cap off clears the number and the
+// waitlist with it: a stored 20 behind an "Unlimited" setting is a contradiction
+// waiting to be saved, and a waitlist with nothing to overflow into is meaningless.
+const CAPACITY_MODES = [
+  { label: 'Unlimited', value: false },
+  { label: 'Set a limit', value: true },
+]
+function setHasCapacity(v: boolean | null) {
+  if (v === null || v === undefined) return        // SelectButton can emit null
+  form.has_capacity = v
+  if (!v) { form.capacity_max = null; form.has_waitlist = false }
+  else if (form.capacity_max == null) form.capacity_max = 20
+}
+
 const signupMode = ref<'auto' | 'custom'>('auto')
 const SIGNUP_MODES = [
   { label: 'Now until it starts', value: 'auto' },
@@ -1488,6 +1555,9 @@ async function saveEvent() {
     mobileStep.value = 0
     return
   }
+  // The old platform owns this one — save it back over the seam, never into our
+  // own tables (which hold no row for it).
+  if (isLegacyEvent.value) return await saveLegacyEvent()
   saving.value = true
   try {
     const payload: any = {
@@ -1577,9 +1647,13 @@ async function saveEvent() {
 
     // Sync venue bookings — create EVENT_DRIVEN booking rows so the event
     // shows up on each linked venue's bookings calendar.
+    // A venue from the OLD platform is NAMED on the event, never reserved — that
+    // module hasn't moved across, so we can't hold its calendar. Booking one 500'd
+    // the whole save, which made picking a venue break event creation outright.
     const bookableIds: string[] = (form.locations ?? [])
       .filter((l: any) => l.type === 'BOOKABLE')
       .flatMap((l: any) => l.bookable_ids ?? [])
+      .filter((bid: string) => !String(bid).startsWith('legacy-'))
     if (bookableIds.length && payload.startAt && payload.endAt) {
       // Clear any existing event-driven bookings so a re-save doesn't duplicate them.
       await bookingsApi.removeEventDrivenBookings(evtId)
@@ -1597,7 +1671,8 @@ async function saveEvent() {
       )
     }
 
-    // Finished — stop offering to resume it.
+    // Finished — stop offering to resume it, and keep the teardown's tidy-up off it.
+    finished.value = true
     forgetDraft()
     toast.add({ severity: 'success', summary: 'Event saved!', life: 3000 })
     // Land on the FULL event editor, not the one-page form.
@@ -1639,9 +1714,14 @@ onMounted(async () => {
   allBookables.value = (bookableData ?? []).map((b: any) => ({ id: b.id, name: b.name, parent_id: b.parentId ?? null }))
   for (const b of allBookables.value) availabilityMap[b.id] = 'available'
 
-  // Resume an unfinished draft if there is one, rather than stranding it and
-  // starting another. Falls through to a fresh draft when there's nothing to
-  // pick up (or the stored one has since been deleted/published).
+  // An event that still lives in the OLD platform. It opens in THIS layout rather
+  // than a page of its own, so a club sees one event screen — but it is not ours:
+  // no draft row is created for it, and saving goes back over the seam.
+  if (legacyId.value) { await loadLegacyEvent(); return }
+
+  // Reopened deliberately (?draft=<id>), or reloaded mid-wizard? Pick that up.
+  // Otherwise fall through and create a fresh draft — entering the wizard is a
+  // request for a NEW event, not a resumption of the last abandoned one.
   if (await resumeDraft()) return
 
   // Create a draft event so EventInviteeManager has an ID to work with
@@ -1659,10 +1739,94 @@ onMounted(async () => {
   }
 })
 
+// ── A legacy event, in this layout ─────────────────────────────────────────
+// Loaded from and saved back to the OLD platform. Only the fields it has a home
+// for cross the seam; the save is a PARTIAL update, so everything this screen has
+// no control for (awards, programme links, terms, the roll) is never sent and
+// cannot be quietly dropped by editing from here.
+const legacyRoll = ref<any[]>([])
+const legacyVenues = ref<{ label: string; value: number }[]>([])
+const legacyVenueId = ref<number | null>(null)
+
+async function loadLegacyEvent() {
+  const res: any = await $fetch('/api/v1/legacy/event', { query: { id: legacyId.value } }).catch(() => null)
+  const e = res?.event
+  if (!e) {
+    toast.add({ severity: 'error', summary: "Couldn't open this event", detail: 'It lives in the club\'s existing system, and that couldn\'t be reached.', life: 5000 })
+    return
+  }
+  legacyRoll.value = res.attendance ?? []
+  form.title = e.name || ''
+  form.description = e.notes || ''
+  // Dates are wall clock over there, with no zone — build them locally so they
+  // don't shift by the browser's offset on the way in.
+  const at = (d?: string, t?: string) => {
+    if (!d || String(d).startsWith('0000')) return null
+    const [y, m, day] = String(d).split('-').map(Number)
+    const [hh, mm] = String(t || '00:00:00').split(':').map(Number)
+    return new Date(y, (m || 1) - 1, day || 1, hh || 0, mm || 0)
+  }
+  form.start_date = at(e.date, e.startTime)
+  form.start_time = e.allDay ? null : at(e.date, e.startTime)
+  form.end_date = at(e.endDate || e.date, e.endTime)
+  form.end_time = e.allDay ? null : at(e.endDate || e.date, e.endTime)
+  form.is_all_day = !!e.allDay
+  form.locations = [{ type: 'ADDRESS', venue_name: '', address: e.location || '', meeting_link: '', bookable_ids: [] }]
+  form.has_capacity = !!e.maxAttendees
+  form.capacity_max = e.maxAttendees ?? null
+  form.is_public = !!e.isPublic
+  form.is_paid = !!e.fee
+  if (e.fee) form.fees = [{ id: uid(), name: 'Fee', xero_code: e.account || '', amount: Number(e.fee) }]
+  legacyVenueId.value = e.venueID ?? null
+
+  // Its venues + categories come from over there too — this module's own lists
+  // are not what an old event is filed under.
+  const opts: any = await $fetch('/api/v1/legacy/options').catch(() => null)
+  legacyVenues.value = (opts?.venues ?? []).map((v: any) => ({
+    label: v.location ? `${v.name} — ${v.location}` : v.name, value: v.id,
+  }))
+  categories.value = (opts?.categories ?? []).map((c: any) => ({ id: c.id, name: c.name, color: c.colour }))
+  form.category_ids = (e.categoryIDs ?? []).map((c: any) => String(c))
+}
+
+async function saveLegacyEvent() {
+  saving.value = true
+  try {
+    const d = (x: Date | null) => (x ? `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}` : null)
+    const t = (x: Date | null) => (x ? `${String(x.getHours()).padStart(2, '0')}:${String(x.getMinutes()).padStart(2, '0')}:00` : '00:00:00')
+    await $fetch('/api/v1/legacy/event', {
+      method: 'PATCH',
+      body: {
+        id: legacyId.value,
+        name: form.title.trim(),
+        date: d(form.start_date),
+        startTime: form.is_all_day ? '00:00:00' : t(form.start_time),
+        endDate: d(form.end_date) || d(form.start_date),
+        endTime: form.is_all_day ? '00:00:00' : t(form.end_time),
+        venueID: legacyVenueId.value ?? null,
+        location: form.locations?.[0]?.address || '',
+        maxAttendees: form.has_capacity ? Number(form.capacity_max) || 0 : 0,
+        fee: form.is_paid ? Number(totalFees.value) || 0 : 0,
+        notes: form.description,
+        isPublic: form.is_public,
+        categoryIDs: form.category_ids.map(c => Number(c)).filter(Boolean),
+      },
+    })
+    toast.add({ severity: 'success', summary: 'Event saved!', life: 3000 })
+    navigateTo('/events')
+  } catch (err: any) {
+    toast.add({ severity: 'error', summary: 'Could not save', detail: err?.statusMessage || err?.message, life: 4000 })
+  } finally {
+    saving.value = false
+  }
+}
+
 // ── Resume an in-progress draft ────────────────────────────────────────────
-// The wizard is a modal you can close mid-way. Remember WHICH draft you were on
-// and WHICH step you'd reached, so reopening picks up where you left off instead
-// of leaving an orphan "(draft)" behind and starting again.
+// Remember WHICH draft is open and WHICH step it's on, so a page RELOAD lands
+// back where you were. This is NOT "reopen the last thing I abandoned": closing
+// the wizard clears it (see onBeforeUnmount), so entering the wizard again always
+// starts a new event at step 1. Reopening a named draft is done deliberately,
+// from the events board, which arrives here as ?draft=<id>.
 const draftKey = computed(() => `fm_event_wizard:${orgId.value}`)
 
 function rememberDraft() {
@@ -1676,6 +1840,36 @@ function forgetDraft() {
   if (import.meta.client) localStorage.removeItem(draftKey.value)
 }
 
+/** Saved or deleted deliberately — the teardown below must not tidy up after it. */
+const finished = ref(false)
+
+/**
+ * LEAVING THE WIZARD ENDS IT.
+ *
+ * The remembered draft exists so a page RELOAD doesn't lose your place. It was
+ * doing something else as well: the pointer was only cleared on save, so closing
+ * the wizard part-way and then clicking "New Event" reopened the event you had
+ * just abandoned, at the step you abandoned it on. A new event is a NEW event —
+ * it starts at step 1, every time.
+ *
+ * Closing is a deliberate exit, so it clears the pointer. A browser reload never
+ * runs this hook, which is exactly the split we want: reload resumes, re-entering
+ * the wizard doesn't.
+ *
+ * An UNTITLED draft is also removed. It can never become an event (saving needs a
+ * title), so it only litters the events board with a "(draft)" row — and now that
+ * a fresh visit no longer reuses one, they would pile up one per abandoned click.
+ * A draft you named is real work: it stays on the board and reopens from there.
+ */
+onBeforeUnmount(() => {
+  // A legacy event has no draft of ours behind it — nothing to forget, and
+  // certainly nothing of theirs to delete.
+  if (isLegacyEvent.value) return
+  forgetDraft()
+  if (finished.value || !draftEventId.value || form.title.trim()) return
+  events.remove(draftEventId.value).catch(() => { /* best-effort tidy-up */ })
+})
+
 // ── Delete ─────────────────────────────────────────────────────────────────
 const confirmDeleteOpen = ref(false)
 const deleting = ref(false)
@@ -1688,6 +1882,7 @@ async function deleteEvent() {
     // Deleting the event cascades to its child rows (invitees, disciplines, fees,
     // discounts, sessions, bookings) via ON DELETE CASCADE FKs in the schema.
     await events.remove(id)
+    finished.value = true
     forgetDraft()
     confirmDeleteOpen.value = false
     toast.add({ severity: 'success', summary: 'Event deleted', life: 2500 })
@@ -1803,6 +1998,10 @@ async function resumeDraft(): Promise<boolean> {
   // produced a NaN step and hid every section.
   const lastStep = mobileSteps.value.length - 1
   mobileStep.value = Number.isFinite(step) ? Math.min(Math.max(step, 0), lastStep) : 0
+  // This event already exists, so every step has been through — unlock the whole
+  // strip. Without this the "furthest reached" counter restarted at 0 on each
+  // mount and the header's later steps quietly refused to be clicked.
+  unlockAllSteps()
 
   return true
 }

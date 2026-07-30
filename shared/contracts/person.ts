@@ -33,6 +33,12 @@ export const personSchema = z.object({
   // The person's own comms-topic subscriptions (migration 177) — the profile's
   // Communication field reads/writes it; a plain string[] at the boundary.
   commsTopics: z.array(z.string()),
+  // Their id on the OLD platform, once ensureLegacyPerson() has bridged them. Read to
+  // point a name at that platform's profile while the module is embedded in it —
+  // without it a name added from the picker links to OUR profile until a reload
+  // replaces it with the server-joined row. Optional: people read straight off the
+  // legacy roster carry the id in their `legacy-<id>` id instead.
+  legacyPersonId: z.number().nullable().optional(),
   // Free-form answers keyed by field id — shape varies by org, so kept open.
   // (Zod v4: z.record needs an explicit key schema.)
   customFields: z.record(z.string(), z.any()),

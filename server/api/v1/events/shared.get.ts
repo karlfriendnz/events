@@ -8,7 +8,7 @@
 //      whose events module is embedded there. They ride in on this feed because
 //      the calendar already knows how to show an event it does not own — the
 //      club sees one calendar, not "new events" and "old events" side by side.
-import { listAcceptedSharedEvents, listAcceptedSharedCalendarEvents } from '../../../db/repositories/events'
+import { listAcceptedSharedEvents, listAcceptedSharedCalendarEvents, legacyIdsOwnedByOrg } from '../../../db/repositories/events'
 import { sharedEventListSchema } from '../../../../shared/contracts/event'
 import { legacyClub, legacy, legacyEventToFm } from '../../../utils/legacy'
 
@@ -35,7 +35,14 @@ export default defineEventHandler(async (event) => {
       const to = new Date(now.getFullYear() + 2, 0, 1).toISOString().slice(0, 10)
       const rows = await legacy.events(club, from, to)
       const label = 'Friendly Manager'
+      // Their calendar carries OUR events too — everything created here is mirrored
+      // onto it. Folding all of it back in listed each mirrored event TWICE: once as
+      // ours, once as its own mirror. The pair doesn't even look like one event,
+      // because the mirror stores the UTC instant as wall clock, so the copy shows on
+      // a different day at a different time. Skip the ones we already own.
+      const ours = await legacyIdsOwnedByOrg(orgId)
       for (const row of rows) {
+        if (ours.has(Number(row?.id))) continue
         const mapped = legacyEventToFm(row, orgId, label)
         byId.set(mapped.id, mapped as any)
       }

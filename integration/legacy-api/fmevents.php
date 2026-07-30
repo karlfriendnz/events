@@ -64,6 +64,18 @@ class fmevents extends \ApiEndpoint {
         return $this->body()[$key] ?? $default;
     }
 
+    /**
+     * Log a step that failed without losing the work already done.
+     *
+     * Used where a follow-on action (emailing an invoice, sending it to Xero) is
+     * worth attempting but must not undo the thing it follows: an invoice that
+     * exists and was not emailed can be re-sent, an exception that loses the
+     * invoice cannot be undone.
+     */
+    private function warn(\Throwable $e): void {
+        error_log('[fmevents] '.$e->getMessage());
+    }
+
     /** Resolve a person id from the body, erroring clearly if it isn't real. */
     private function requirePerson($id): \Person {
         $person = $id ? $this->_db->Person($id) : null;
@@ -371,10 +383,6 @@ class fmevents extends \ApiEndpoint {
 
     /** One person in full, including their custom field values. */
     public function getPerson(\Person $person): array {
-        $custom = $this->_db->execute(
-            "SELECT field, value FROM CustomFieldPerson WHERE personID = ?", $person->id
-        )->fetchAll(\PDO::FETCH_KEY_PAIR);
-
         return $this->personSummary($person) + [
             'street'         => $person->street,
             'suburb'         => $person->suburb,
@@ -384,8 +392,23 @@ class fmevents extends \ApiEndpoint {
             'alternatePhone' => $person->alternatePhone,
             'role'           => (int)$person->role,
             'primaryContact' => $person->primaryContact ? (int)$person->primaryContact : null,
-            'customFields'   => $custom,
+            'customFields'   => $this->customFieldValues($person),
         ];
+    }
+
+    /**
+     * One person's custom-field answers, keyed by `CustomField.field`.
+     *
+     * Shared by getPerson and the attendance roll — the roll shows the club's own
+     * custom fields as columns, so it needs the same values, and duplicating the
+     * query is how the two drift apart. Returns an object, never an empty array,
+     * so JSON always encodes it as `{}` rather than `[]`.
+     */
+    private function customFieldValues(\Person $person) {
+        $rows = $this->_db->execute(
+            "SELECT field, value FROM CustomFieldPerson WHERE personID = ?", $person->id
+        )->fetchAll(\PDO::FETCH_KEY_PAIR);
+        return $rows ?: new \stdClass();
     }
 
     /**
@@ -510,6 +533,101 @@ class fmevents extends \ApiEndpoint {
         }
     }
 
+    /**
+     * Where a COMPETITION FIXTURE actually belongs.
+     *
+     * A game is not an event page — it is one line of a draw. The platform's own
+     * calendar has always sent a click on a game to its division's draw anchored
+     * at the round (CompGame::eventInfo), so the module sends it to the same
+     * place rather than opening an event view of a fixture.
+     *
+     * Null for everything that is not a game, and for a game whose CompGame row
+     * is missing or unviewable — one bad fixture must not take down the feed.
+     */
+    private function gameLink(\Event $event): ?string {
+        if ((int)$event->type !== \Event::TYPE_GAME) return null;
+        try {
+            $game = $this->_db->CompGame(['eventID' => $event->id]);
+            return $game ? ($game->eventInfo()['link'] ?? null) : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * SEND THE EVENT'S INVITATIONS — the platform's own Send button, over the API.
+     *
+     * Deliberately not a "send this text to these addresses" endpoint. This is the
+     * same flow as pages/events → Send (post/manager/event.php, action=email), so
+     * the module inherits all of it rather than growing a second, subtly different
+     * mailer:
+     *   - the event's own email content + banner, edited in the platform's builder
+     *   - from the event's owner
+     *   - commContacts(), so a child's invitation reaches their parents
+     *   - a per-person token, so each reply is recorded against the right invitee
+     *   - the trial cap and maxRecipients()
+     *   - an Email row with STATUS_SENT_EVENT, so it lands in the club's history
+     *
+     * `all` false (default) emails only people who have never been emailed; true
+     * re-sends to everyone still pending. Returns how many actually went.
+     *
+     *   POST /fmevents/emailInvites  { "eventID": 125, "all": false }
+     *   → { "sent": 12 }
+     */
+    public function postEmailInvites(): array {
+        $event = $this->_db->Event($this->need('eventID'));
+        if (!$event || !$event->status) throw new \UserException('Event not found.');
+
+        if ($this->_db->inTrial() && $this->_db->Email->count() >= \Email::TRIAL_LIMIT) {
+            throw new \UserException('Trial email limit reached.');
+        }
+
+        $all = (bool)$this->opt('all');
+        $mail = $this->_db->mailer($event->name);
+        $from = $event->person() ?? \Person::current();
+        $mail->setFrom($from->email, $from->fullName(false));
+        $content = $event->emailContent();
+        $mail->msgHTML($content, 'mailer');
+        $mail->addGlobals(['banner' => $event->emailBanner()]);
+
+        $eps = [];
+        $recipients = [];
+        foreach ($event->attendees() as $ep) {
+            if (!$ep->isNew() && !($all && $ep->status == \EventPerson::STATUS_INVITED)) continue;
+            $person = $ep->person();
+            $vars = ['token' => $ep->token()];
+            $added = 0;
+            $contacts = $person->commContacts(true);
+            foreach ($contacts as $contact) {
+                $vars['person'] = $person->id == $contact->id ? 'you' : $person->firstName;
+                $added += $mail->addRecipient($contact, $vars);
+            }
+            if ($added) $eps[] = $ep;
+            $recipients += $contacts;
+        }
+        if (!$recipients) return ['sent' => 0];
+
+        $max = $this->_db->Email->maxRecipients();
+        if ($max && count($recipients) > $max) {
+            throw new \UserException("This club is currently limited to $max recipients at a time.");
+        }
+
+        $sent = $mail->send();
+        if ($sent) {
+            foreach ($eps as $ep) {
+                if ($ep->isNew()) $ep->set('status', \EventPerson::STATUS_INVITED);
+            }
+            $this->_db->Email->create([
+                'status'     => \Email::STATUS_SENT_EVENT,
+                'subject'    => $event->name,
+                'message'    => $content,
+                'personID'   => $from->id,
+                'recipients' => implode(',', array_keys($recipients)),
+            ]);
+        }
+        return ['sent' => $sent];
+    }
+
     private function eventData(\Event $event): array {
         $categories = [];
         foreach ($event->categories() as $cat) $categories[] = ['id'=>$cat->id, 'name'=>$cat->name];
@@ -540,6 +658,17 @@ class fmevents extends \ApiEndpoint {
             'closeDate'    => $event->closeDate,
             'categoryIDs'  => array_column($categories, 'id'),
             'categories'   => $categories,
+            'gameLink'     => $this->gameLink($event),
+            // The event's COORDINATOR — the platform's own event form calls it that
+            // and shows it on every event, so the module has to be able to as well.
+            // Sent with the name resolved: the module would otherwise need a second
+            // request per event just to render one label.
+            'personID'     => $event->personID ? (int)$event->personID : null,
+            'coordinator'  => $event->person() ? [
+                'id'        => (int)$event->person()->id,
+                'firstName' => $event->person()->firstName,
+                'lastName'  => $event->person()->lastName,
+            ] : null,
             'groupIDs'     => array_map('intval', $event->groupIDs()),
             'attending'    => $event->attending(),
         ];
@@ -643,12 +772,23 @@ class fmevents extends \ApiEndpoint {
     public function getAttendance(\Event $event): array {
         $data = [];
         foreach ($event->attendees() as $ep) {
-            $data[] = [
+            // The roll shows more than a name: age, gender, contact details and the
+            // club's own custom fields are all columns on it. Sent WITH the roll
+            // rather than fetched per person — a roll of 200 would otherwise be 200
+            // more requests, which is the difference between a page and a stall.
+            $person = $ep->personID ? $ep->person() : null;
+            // personSummary() rather than re-listing the fields — hand-listing them
+            // here drifted immediately (dob vs dateOfBirth) and every roll came back
+            // with an empty date of birth, which the Age column silently reads.
+            $summary = $person ? $this->personSummary($person) : [];
+            unset($summary['id']);
+            $data[] = $summary + [
                 'personID'      => $ep->personID ? (int)$ep->personID : null,
                 // name() resolves the PERSON's full name; the bare `name` column
                 // only holds something for guests, so reading it directly left
                 // every real member showing as "Person 335".
                 'name'          => $ep->name(false),
+                'customFields'  => $person ? $this->customFieldValues($person) : new \stdClass(),
                 'status'        => (int)$ep->status,
                 'type'          => (int)$ep->type,
                 'signedInTime'  => $ep->signedInTime,
@@ -795,6 +935,40 @@ class fmevents extends \ApiEndpoint {
             'promptDiscount' => 0,
         ]);
 
-        return ['feeID'=>$fee->id, 'created'=>true, 'amount'=>(float)$fee->amount];
+        // FINISH THE JOB. Creating the row is one of FOUR things the platform does
+        // when a member is charged (post/manager/event.php, action=applyfee):
+        // apply any credit they already hold, email them the invoice, and send it
+        // (and the credit allocations) to Xero. Stopping at Fee->create left a club
+        // with invoices nobody was sent and Xero never saw — a silent hole in the
+        // books, which is the worst kind.
+        //
+        // Each step is guarded on its own: an invoice that exists and was not
+        // emailed is recoverable, an exception here that loses the invoice is not.
+        $credits = [];
+        try { $credits = $fee->autoCredit(); } catch (\Throwable $e) { $this->warn($e); }
+        $emailed = false;
+        if ($this->opt('email', true)) {
+            try { $fee->email(); $emailed = true; } catch (\Throwable $e) { $this->warn($e); }
+        }
+        $xeroSent = false;
+        if ($this->opt('xero', true) && $fee->account && !$this->_db->XeroError->count()) {
+            try {
+                $xero = $this->_db->xero();
+                $xero->sendInvoices([$fee]);
+                if ($credits) $xero->autoTransactions($credits);
+                $xeroSent = true;
+            } catch (\Throwable $e) { $this->warn($e); }
+        }
+
+        return [
+            'feeID'   => $fee->id,
+            'created' => true,
+            'amount'  => (float)$fee->amount,
+            // Reported, not assumed: the caller can tell a fully-processed invoice
+            // from one that needs a human to re-send it.
+            'credited' => count($credits),
+            'emailed'  => $emailed,
+            'xeroSent' => $xeroSent,
+        ];
     }
 }

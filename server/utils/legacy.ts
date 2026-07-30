@@ -165,6 +165,10 @@ export function legacyEventToFm(e: any, orgId: string, sharedFrom: string) {
     id: `${LEGACY_ID_PREFIX}${e.id}`,
     orgId,
     title: e.name || 'Untitled',
+    // Their "Additional Info" IS our Description — same field, different label, and
+    // the write path maps it back the same way. NB we ALSO have `events.notes`,
+    // which is internal staff notes and a different thing entirely; it stays null
+    // below on purpose, so a club's public description can't leak into it.
     description: e.notes || null,
     style: 'BASIC',
     status: 'PUBLISHED',
@@ -175,8 +179,16 @@ export function legacyEventToFm(e: any, orgId: string, sharedFrom: string) {
     isProgramme: e.type === 6,
     formId: null,
     memberGroupId: null,
-    categoryId: null,
-    categoryIds: null,
+    // The old platform DOES send this event's categories (and a resolved colour).
+    // They used to be dropped here, so every legacy event arrived category-less:
+    // no colour on the calendar, and never a match for the category filter — while
+    // the same club's new events were fully categorised. Same `legacy-` prefix as
+    // every other id crossing the seam, so they resolve against the merged list
+    // `listCategories` returns.
+    categoryId: e.categoryIDs?.length ? `${LEGACY_ID_PREFIX}${e.categoryIDs[0]}` : null,
+    categoryIds: e.categoryIDs?.length
+      ? e.categoryIDs.map((c: any) => `${LEGACY_ID_PREFIX}${c}`)
+      : null,
     bannerUrl: null,
     bannerPosition: null,
     // The old platform resolves the venue name into `location` for us, which is
@@ -231,6 +243,11 @@ export function legacyEventToFm(e: any, orgId: string, sharedFrom: string) {
     invitationEmail: null,
     sharedFromOrgName: sharedFrom,
     disciplineName: null,
+    // A competition fixture belongs to its draw, not to an event page. Absolute
+    // (the module can't know the platform's host from the browser — the iframe
+    // carries no host URL and its referrer is stripped), so the calendar can
+    // follow it without looking anything up.
+    externalUrl: e.gameLink ? `${legacyClub()?.baseUrl ?? ''}${e.gameLink}` : null,
   }
 }
 
@@ -319,6 +336,21 @@ export const legacy = {
   roster: (club: LegacyClub, groupID: number, termID?: number) =>
     call<any[]>(club, 'roster', { query: { groupID, ...(termID ? { termID } : {}) } }),
   customFields: (club: LegacyClub) => call<any[]>(club, 'customFields'),
+
+  // PEOPLE — the club's real roster. The old platform owns members, so these are
+  // the only people that matter to a club running embedded. Paged, because some
+  // clubs have five figures of them and `limit` is capped at 200 over there.
+  people: (club: LegacyClub, opts: { q?: string; limit?: number; offset?: number } = {}) =>
+    call<{ total: number; limit: number; offset: number; people: any[] }>(club, 'people', {
+      query: { ...(opts.q ? { q: opts.q } : {}), limit: opts.limit ?? 50, offset: opts.offset ?? 0 },
+    }),
+  person: (club: LegacyClub, personID: number) =>
+    call<any>(club, 'person', { query: { personID } }),
+  /** Returns EVERY match on purpose — families share an address and duplicates exist. */
+  personByEmail: (club: LegacyClub, email: string) =>
+    call<any>(club, 'personByEmail', { query: { email } }),
+  savePerson: (club: LegacyClub, body: Record<string, any>) =>
+    call<{ personID: number; created: boolean }>(club, 'person', { body }),
 
   events: (club: LegacyClub, start: string, end: string) =>
     call<any[]>(club, 'events', { query: { start, end } }),
